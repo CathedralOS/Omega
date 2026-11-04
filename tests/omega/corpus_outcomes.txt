@@ -2830,8 +2830,8 @@ fail/calls/projected_call_domain_unproved rejected 3056ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from update at statement 1: cell.storage in [u8; N]::Utf8
 fail/calls/qualified_literal_return_invalid rejected 2670ms expected @ccdb99ca2214
 	cannot prove default-domain field requirement for return from label, state entry, at statement 1: "\\xc3\\xa9" requires [u8]::Ascii
-fail/calls/qualified_nontail_self_call_rejected rejected 3781ms expected @3cf7fdf150d7
-	exact arithmetic in machine `step` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `walk(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/calls/qualified_nontail_self_call_rejected rejected 1156ms expected @33a2bc6ea583
+	`Walker::walk(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> walk(..)` on a measured machine, or iterate with an explicit stack.
 fail/calls/recursive_terminal_block_missing_acknowledgement rejected 1812ms expected @ccdb99ca2214
 	call to `scan` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/calls/recursive_terminal_block_redundant_acknowledgement rejected 1445ms expected @ccdb99ca2214
@@ -4401,8 +4401,8 @@ fail/dependent/qualified_nested_zero_storage_not_established rejected 3495ms exp
 	machine `main` state `entry` statement 18: reading `alias.guarded` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `Guarded[in Positive]`
 	machine `main` state `entry` statement 20: reading `routed.guarded` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `Guarded[in Issued]`
 	machine `main` state `entry` statement 22: reading `exclusive.value` crosses an open default-domain invariant window before data `ExclusiveFloatingEnvelope` is established: the zeroed representation is not yet a `ExclusiveFloatingEnvelope` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-fail/dependent/relational_loop_invariant_reassigned_index_rejected rejected 3045ms expected @3cf7fdf150d7
-	exact arithmetic in machine `loop_` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/dependent/relational_loop_invariant_reassigned_index_rejected rejected 3633ms expected @33a2bc6ea583
+	cannot prove index `main.i` is within length 1 in loop_::entry
 fail/dependent/requires_call_unproven_rejected rejected 11537ms expected @ccdb99ca2214
 	cannot prove requires contract for call helper from Main::main: main.a <= main.b (needs fact `main.a <= main.b` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/dependent/reserved_child_keeps_parent_invariant rejected 2159ms expected @f78c2623a68c
@@ -10272,8 +10272,8 @@ fail/facts/narrow_to_wide_sign_extension_through_match_join_rejected rejected 21
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_wide_sign_extension_through_other_machine_rejected rejected 1432ms expected @ccdb99ca2214
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_sign_extension_through_other_state_rejected rejected 940ms expected @3cf7fdf150d7
-	Exact integer cast in machine `compute` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/narrow_to_wide_sign_extension_through_other_state_rejected rejected 983ms expected @33a2bc6ea583
+	exact arithmetic in machine `compute` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_wide_sign_extension_through_parameter_rejected rejected 1197ms expected @ccdb99ca2214
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_wide_sign_extension_through_target_body_rejected rejected 1319ms expected @ccdb99ca2214
@@ -10371,8 +10371,8 @@ fail/facts/narrow_to_wide_zero_extension_through_match_join_rejected rejected 14
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_wide_zero_extension_through_other_machine_rejected rejected 1495ms expected @ccdb99ca2214
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_zero_extension_through_other_state_rejected rejected 906ms expected @3cf7fdf150d7
-	Exact integer cast in machine `compute` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/narrow_to_wide_zero_extension_through_other_state_rejected rejected 920ms expected @33a2bc6ea583
+	exact arithmetic in machine `compute` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_wide_zero_extension_through_parameter_rejected rejected 1430ms expected @ccdb99ca2214
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_wide_zero_extension_through_target_body_rejected rejected 1202ms expected @ccdb99ca2214
@@ -10555,7 +10555,7 @@ fail/facts/nested_record_layout_geometry_through_match_join_rejected rejected 46
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/nested_record_layout_geometry_through_other_machine_rejected rejected 4612ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/nested_record_layout_geometry_through_other_state_rejected rejected 5143ms expected @3cf7fdf150d7
+fail/facts/nested_record_layout_geometry_through_other_state_rejected rejected 4212ms expected @33a2bc6ea583
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/nested_record_layout_geometry_through_parameter_rejected rejected 5005ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
@@ -12968,7 +12968,7 @@ fail/facts/slice_view_layout_geometry_through_match_join_rejected rejected 4643m
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/slice_view_layout_geometry_through_other_machine_rejected rejected 4601ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/slice_view_layout_geometry_through_other_state_rejected rejected 5100ms expected @3cf7fdf150d7
+fail/facts/slice_view_layout_geometry_through_other_state_rejected rejected 4460ms expected @33a2bc6ea583
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/slice_view_layout_geometry_through_parameter_rejected rejected 4700ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
@@ -15018,8 +15018,8 @@ fail/generics/local_generic_result_parameter_mismatch rejected 741ms expected @c
 	machine `wrong` state `entry` local `received` expects `Output`, but the value is delivered as `Input`
 fail/generics/local_slice_result_element_mismatch rejected 710ms expected @ccdb99ca2214
 	machine `wrong` state `entry` local `viewed` expects `&[Output]`, but the value is delivered as `&[Input]`
-fail/generics/local_value_index_drops_written_order rejected 1026ms expected @3cf7fdf150d7
-	exact arithmetic in machine `invalid` state `entry` local `__value_index#2670#0` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/generics/local_value_index_drops_written_order rejected 881ms expected @33a2bc6ea583
+	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/generics/machine_bound_violated_at_call rejected 553ms expected @ccdb99ca2214
 	generic machine `Main::copy_it` has a concrete specialization tuple that does not satisfy its authored type bounds
 fail/generics/machine_equation_constructor_binder_carrier_constructed rejected 713ms expected @b23365ced206+wt
