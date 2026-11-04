@@ -223,9 +223,21 @@ pub(super) fn infer_expression_type(
         }
         ExpressionNode::Member(member) => {
             let receiver = infer_expression_type(program, member.receiver, environment, visited)?;
-            if let Some(symbol) = resolve_member_symbol(program, receiver, member) {
-                return crate::declaration_type_reference(program, symbol)
-                    .map(InferredType::TypeReference);
+            let field_type = match receiver {
+                InferredType::TypeReference(reference) => {
+                    // Chained field lookup needs the actual payload type.
+                    // Reopening its generic declaration loses that substitution.
+                    crate::value_custody::places::applied_data_member_field(
+                        program, reference, member,
+                    )
+                    .map(|field| field.type_reference)
+                }
+                InferredType::Nominal(_) => resolve_member_symbol(program, receiver, member)
+                    .and_then(|symbol| crate::declaration_type_reference(program, symbol)),
+                InferredType::CollectionView(_) | InferredType::CompilerString => None,
+            };
+            if let Some(reference) = field_type {
+                return Some(InferredType::TypeReference(reference));
             }
             // Measures have no authored field declaration. Their selected
             // receiver fixes a count carrier in declaration contracts too.

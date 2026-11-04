@@ -47,15 +47,18 @@ pub(super) fn form(
     }
     match (event.single_attempt_custody(), outcome) {
         (None, None) => {}
-        (Some(_), Some((result, layout)))
-            if result.is_unrestricted_plain()
-                && result.qualification_establishments.is_empty()
+        (Some(custody), Some((result, layout)))
+            if terminal_psi::types::atomic_once_result_is_plain(result, custody)
                 && signature
                     .structural_types
                     .iter()
                     .find(|row| row.id == result.structural_type)
                     .and_then(|row| {
-                        target_operations::conventional_atomic_once_layout(row, *scalar_type)
+                        target_operations::conventional_atomic_once_layout(
+                            row,
+                            *scalar_type,
+                            custody,
+                        )
                     })
                     .as_ref()
                     == Some(layout) => {}

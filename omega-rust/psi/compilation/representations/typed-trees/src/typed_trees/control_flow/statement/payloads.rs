@@ -93,20 +93,21 @@ impl TypedTreeTables {
                         .statement_table
                         .name_path_members
                         .insert_many(source.name_path_members(call.receiver).iter().cloned());
-                    let (arguments, captures) = self.expression_table.copy_call_operands_from(
+                    let (
+                        arguments,
+                        captures,
+                        authored_machine_application,
+                        static_requirement_dispatch,
+                    ) = self.expression_table.copy_call_operands_from(
                         &source_tables.expression_table,
                         source.expression_handles(call.arguments),
+                        call.authored_machine_application,
+                        call.static_requirement_dispatch.clone(),
                     );
                     let arguments = self.statement_table.insert_expression_handles(
                         self.expression_table.expression_handles(arguments).to_vec(),
                     );
                     operand_captures.push((copied.len(), source_handle, captures));
-                    let (authored_machine_application, static_requirement_dispatch) =
-                        self.expression_table.copy_call_static_applications_from(
-                            &source_tables.expression_table,
-                            call.authored_machine_application,
-                            call.static_requirement_dispatch.clone(),
-                        );
                     let reflected_field_origin =
                         call.reflected_field_origin.as_ref().map(|origin| {
                             let query = self

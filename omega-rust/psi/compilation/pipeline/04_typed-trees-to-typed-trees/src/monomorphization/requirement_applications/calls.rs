@@ -614,6 +614,82 @@ fn dispatch_instance(
     instance_in_scope(program, template, &scope, invocation)
 }
 
+/// Keep supplied functions in the same complete argument list before checking
+/// their contracts and after selecting the public requirement's executable.
+pub(in super::super) fn prepare_invocation_bindings(
+    program: &mut TypedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    let invocations = prepare_invocations(program)?;
+    retain_invocation_bindings(program, &invocations)
+}
+
+fn retain_invocation_bindings(
+    program: &mut TypedTrees,
+    invocations: &[PreparedInvocation],
+) -> Result<(), Vec<Diagnostic>> {
+    for invocation in invocations {
+        let (site, owner, target) = (invocation.site, invocation.owner, invocation.target);
+        let mut template = program
+            .closed_requirement_application(target)
+            .map_or(target, |closed| closed.template);
+        if program.trait_machine_signature(template).is_none()
+            && let Some((requirement, _)) = source_scope(
+                program,
+                owner,
+                target,
+                || None,
+                TypeReferenceHandle::invalid(),
+            )?
+        {
+            template = requirement;
+        }
+        let lexical_signature = program
+            .machine_by_symbol(owner)
+            .and_then(|machine| program.machine_parameter_signature_in(machine, target));
+        let signature = lexical_signature.or_else(|| {
+            program
+                .trait_machine_signature(template)
+                .map(|(_, signature)| signature)
+        });
+        let Some(signature) = signature else {
+            continue;
+        };
+        // A lexical callable parameter owns its invocation header, independently
+        // of whether any actual is itself a machine or an executable is chosen.
+        if lexical_signature.is_some() {
+            template = target;
+        }
+        let parameters = program.state_signature_type_parameters(signature).to_vec();
+        if parameters.is_empty() {
+            continue;
+        }
+        let application = super::super::applications::retain_authored_call(program, site, owner);
+        // Authored operands remain the source recipe. Publish the complete
+        // occurrence-derived tuple in the separate bindings lane, so omitted
+        // type arguments survive retargeting without rewriting that recipe.
+        let mut arguments = invocation.tuple.arguments.clone();
+        if arguments.len() != parameters.len() {
+            // Argument admission owns malformed source telescopes.
+            continue;
+        }
+        let lexical_owner = expressions_of(program)
+            .static_machine_application(application)
+            .lexical_owner;
+        super::super::body_rewriting::normalize_const_arguments(
+            program,
+            lexical_owner,
+            &mut arguments,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
+        let bindings = super::invocation_bindings(program, lexical_owner, &parameters, &arguments)?;
+        expressions_of_mut(program)
+            .static_machine_application_mut(application)
+            .binding_declaration = template;
+        expressions_of_mut(program).set_static_machine_application_bindings(application, &bindings);
+    }
+    Ok(())
+}
+
 pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let invocations = prepare_invocations(program)?;
     let invocation_map: std::collections::HashMap<
@@ -753,66 +829,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    for invocation in &invocations {
-        let (site, owner, target) = (invocation.site, invocation.owner, invocation.target);
-        let mut template = program
-            .closed_requirement_application(target)
-            .map_or(target, |closed| closed.template);
-        if program.trait_machine_signature(template).is_none()
-            && let Some((requirement, _)) = source_scope(
-                program,
-                owner,
-                target,
-                || None,
-                TypeReferenceHandle::invalid(),
-            )?
-        {
-            template = requirement;
-        }
-        let lexical_signature = program
-            .machine_by_symbol(owner)
-            .and_then(|machine| program.machine_parameter_signature_in(machine, target));
-        let signature = lexical_signature.or_else(|| {
-            program
-                .trait_machine_signature(template)
-                .map(|(_, signature)| signature)
-        });
-        let Some(signature) = signature else {
-            continue;
-        };
-        // A lexical callable parameter owns its invocation header, independently
-        // of whether any actual is itself a machine or an executable is chosen.
-        if lexical_signature.is_some() {
-            template = target;
-        }
-        let parameters = program.state_signature_type_parameters(signature).to_vec();
-        if parameters.is_empty() {
-            continue;
-        }
-        let application = super::super::applications::retain_authored_call(program, site, owner);
-        // Authored operands remain the source recipe. Publish the complete
-        // occurrence-derived tuple in the separate bindings lane, so omitted
-        // type arguments survive retargeting without rewriting that recipe.
-        let mut arguments = invocation.tuple.arguments.clone();
-        if arguments.len() != parameters.len() {
-            // Argument admission owns malformed source telescopes.
-            continue;
-        }
-        let lexical_owner = expressions_of(program)
-            .static_machine_application(application)
-            .lexical_owner;
-        super::super::body_rewriting::normalize_const_arguments(
-            program,
-            lexical_owner,
-            &mut arguments,
-        )
-        .map_err(|message| vec![Diagnostic::error(message)])?;
-        let bindings = super::invocation_bindings(program, lexical_owner, &parameters, &arguments)?;
-        expressions_of_mut(program)
-            .static_machine_application_mut(application)
-            .binding_declaration = template;
-        expressions_of_mut(program).set_static_machine_application_bindings(application, &bindings);
-    }
+    retain_invocation_bindings(program, &invocations)?;
     for (handle, selected) in expression_updates {
         if let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle) {
             call.target_symbol = selected;
@@ -840,11 +857,26 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
     for invocation in &invocations {
         super::runtime_operands::realize(program, invocation)?;
     }
-    for invocation in invocations {
-        let (site, owner) = (invocation.site, invocation.owner);
-        let super::super::CallSite::Expression(expression) = site else {
-            continue;
-        };
+    publish_expression_call_views(
+        program,
+        invocations.into_iter().filter_map(|invocation| {
+            let super::super::CallSite::Expression(expression) = invocation.site else {
+                return None;
+            };
+            Some((invocation.owner, expression))
+        }),
+    )?;
+    Ok(())
+}
+
+/// Publish the complete public method view for exact source occurrences.
+/// Body calls and detached declaration roots retain the same independent map
+/// and member applications; this operation does not select executable code.
+pub(super) fn publish_expression_call_views(
+    program: &mut TypedTrees,
+    calls: impl IntoIterator<Item = (SymbolHandle, typed_trees::expression::ExpressionHandle)>,
+) -> Result<(), Vec<Diagnostic>> {
+    for (owner, expression) in calls {
         let Some(call) = expressions_of(program).call_node(expression).cloned() else {
             continue;
         };

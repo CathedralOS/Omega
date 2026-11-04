@@ -7,6 +7,17 @@
 use checked_trees::{BorrowFacts, BorrowLoanLineage, FlowFacts};
 use diagnostics::Diagnostic;
 
+mod completions;
+mod debts;
+mod inputs;
+
+pub(super) use completions::install;
+pub(in crate::checks::borrows) use debts::{
+    HeldInput, has_resource as has_debt_resource, output_windows, windows as debt_windows,
+};
+
+pub(super) use crate::borrow::supplied_outputs::normal_call;
+
 pub(super) fn validate_normal_output_completions(
     borrow: &BorrowFacts,
     flow: &FlowFacts,

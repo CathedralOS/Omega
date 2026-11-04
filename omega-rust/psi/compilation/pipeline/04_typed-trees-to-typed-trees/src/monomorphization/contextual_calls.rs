@@ -12,17 +12,21 @@ mod closed_requirements;
 pub(super) use closed_requirements::retain as retain_closed_requirement_demands;
 mod conformance_demands;
 pub(super) use conformance_demands::prepare as prepare_conformance_machine_demands;
+pub(crate) use conformance_demands::prepare_occurrence as prepare_conformance_occurrence;
 mod demands;
 mod invocations;
 mod providers;
 mod static_operands;
 
-pub(super) use static_operands::{is_open as operand_is_open, names_any};
+pub(super) use static_operands::{argument_is_open, is_open as operand_is_open, names_any};
 
 use super::{CallSite, Diagnostic, ExpressionNode, StatementNode, SymbolHandle, TypedTrees};
 use crate::tables::{expressions_of, expressions_of_mut};
 
 pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
+    // Save the supplied functions together with type and constant arguments.
+    // Later requirement closure must see the same complete declaration order.
+    super::requirement_applications::prepare_invocation_bindings(program)?;
     let invocations = invocations::collect(program)?;
     let mut changed = Vec::new();
     for invocation in invocations {
@@ -145,6 +149,9 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
             expressions_of_mut(program)
                 .set_static_machine_application_selected_machines(application, &selected);
         }
+        program
+            .prepare_selected_machine_contracts(application)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
         if invocation.use_site == invocations::InvocationUse::RetainedEvaluation {
             // The overlay is ordinary checking custody. Its source recipe and
             // explicit tuple remain intact; only an active executable call

@@ -14,6 +14,7 @@ terminates by remaining in 0..=9
     transition { _ -> scan(scratch, remaining) }
     machine scan(scratch: &mut Scratch, mut remaining: u32) -> u32
     requires remaining <= 9
+    terminates by remaining in 0..=9
     {
         // A disjoint destination does not hide a nested write to the rank.
         scratch.observed = keep(reset(&mut remaining)) + 0;

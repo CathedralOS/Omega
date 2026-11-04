@@ -302,9 +302,16 @@ fn child_parent_weakening_handle(
     {
         return unsupported("restored reborrow call use child resource handle is invalid");
     }
-    Ok(borrow
+    let weakening = match borrow
         .reborrow_loan_resources
         .get(event.child_resource)
         .parent_end_status
-        .parent_weakening)
+        .parent_end
+    {
+        checked_trees::CheckedBorrowParentEnd::Lexical { weakening } => weakening,
+        checked_trees::CheckedBorrowParentEnd::CompletedOutput { holder_weakening } => {
+            holder_weakening
+        }
+    };
+    Ok(weakening)
 }

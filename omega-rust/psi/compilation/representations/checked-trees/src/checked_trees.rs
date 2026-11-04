@@ -36,16 +36,18 @@ pub use borrow::{
     BorrowFacts, BorrowIncomingCompatibilityRequirement, BorrowLoanFact, BorrowLoanFormation,
     BorrowLoanLineage, BorrowLoanOwnerSegment, BorrowRetainedOperand, BorrowReturnedLoanFact,
     BorrowRootKind, BorrowWritableRootFact, CapturedPlace, CapturedPlaceCompatibility,
-    CapturedPlaceContainment, CheckedBorrowResourceDispositionTarget,
+    CapturedPlaceContainment, CheckedBorrowParentEnd, CheckedBorrowResourceDispositionTarget,
     CheckedBorrowResourceLifecyclePhase, CheckedBorrowResourceRetention,
     CheckedCallBorrowLoanResource, CheckedCallBorrowLoanSource, CheckedDirectBorrowLoanResource,
     CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,
+    CheckedOutputBorrowInput, CheckedOutputBorrowInputPermission,
+    CheckedOutputLifetimeDependencyResource, CheckedOutputLifetimeDependencySource,
     CheckedParentBorrowResource, CheckedReborrowAccessEffect, CheckedReborrowLoanResource,
     CheckedReborrowParentEndStatus, CheckedReborrowParentSuspensionBoundary,
     CheckedReborrowResourceDisposition, CheckedReborrowResourceDispositionEvent,
     CheckedReborrowRestorationObligation, CheckedRetiredParentResourceDispositionStep,
-    IncomingReferenceIdentity, IncomingReferenceOrigin, ParentLexicalStatusAtChildEnd,
-    StateBorrowFact,
+    CheckedStoredCallBorrowInputs, CheckedSuppliedOutputBorrowResource, IncomingReferenceIdentity,
+    IncomingReferenceOrigin, ParentLexicalStatusAtChildEnd, StateBorrowFact,
 };
 pub use facts::CheckedValueQualification;
 pub use facts::{

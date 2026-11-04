@@ -510,7 +510,7 @@ fn plan_inner(
         // when no machine parameter happens to mention those domains; this
         // does not establish membership or add runtime representation.
         parameter_qualifications(program, shapes, local.type_reference, binders)?;
-        let result = CheckedUnitStructuralResultBindingPlan {
+        let mut result = CheckedUnitStructuralResultBindingPlan {
             statement_index,
             binding_ordinal: u32::try_from(*structural_count).ok()?,
             type_identity,
@@ -524,17 +524,28 @@ fn plan_inner(
             local: initialized_local(program, machine, state, local),
         };
         *structural_count = structural_count.checked_add(1)?;
-        structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
-        structural_local_symbols.push(local.symbol);
+        // A helper can replace a mutable local through a loan of its slot.
+        // Keep that slot separate from the initializer's immutable value:
+        // the initializer transfers once into the home, while later calls
+        // update the home without consuming or reviving that old value.
+        let stable_home = local.is_mutable;
+        let owner = if stable_home {
+            result.local = Default::default();
+            facts::PlaceRoot::Expression(local.initial_value)
+        } else {
+            structural_local_symbols.push(local.symbol);
+            facts::PlaceRoot::Symbol(local.symbol)
+        };
+        structural_results.push((result.clone(), owner));
         // Only affine values create disposal debt; copy locals
         // retain their result identity without a cleanup action.
-        let discard_result_on_return = result.multiplicity == Multiplicity::Affine;
+        let discard_result_on_return = !stable_home && result.multiplicity == Multiplicity::Affine;
         let establishment = structural_operands::establish_value(
             facts,
-            result,
+            result.clone(),
             root.root,
             calls,
-            None,
+            stable_home.then_some(checked_trees::CheckedArrayConstructionSource::Statement),
             discard_result_on_return,
             operations,
         )?;
@@ -556,6 +567,43 @@ fn plan_inner(
                 operations,
                 trace,
             )?;
+        }
+        if stable_home {
+            establish_declared_home(
+                program,
+                machine,
+                state,
+                shapes,
+                binders,
+                operations,
+                structural_count,
+                structural_local_symbols,
+                structural_results,
+                index,
+                statement_index,
+                local,
+            )?;
+            operations.push(CheckedUnitEffectOperationPlan::new_store(
+                statement_index,
+                checked_trees::CheckedStoreRoot::Local { symbol: local.symbol },
+                Vec::new(),
+                checked_trees::CheckedStoreLeaf::StructuralStore {
+                    type_identity,
+                    multiplicity: result.multiplicity,
+                    opening_binding: None,
+                },
+                checked_trees::CheckedStoreValue::Place(
+                    checked_trees::CheckedUnitStructuralArgumentPlan {
+                        projection_evaluations: Default::default(),
+                        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal: result.binding_ordinal,
+                        },
+                        path: Vec::new(),
+                        type_identity,
+                        access: CheckedStructuralAccess::Owned,
+                    },
+                ),
+            ));
         }
         return Some(LocalPlan::Planned);
     }

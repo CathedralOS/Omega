@@ -624,33 +624,7 @@ impl BuildTimeAdmissionPlan {
         }
         let computed = (|| {
             let checked = concrete_invocation::checked_demanded_closure(&domain, program)?;
-            let execution = checked.typed.as_ref();
-            let references = typed_trees::references::collect_program_references(execution);
-            let operators = self
-                .selected_operators
-                .iter()
-                .filter(|row| {
-                    row.origin
-                        .machine_symbol()
-                        .is_some_and(|owner| execution.machine(owner).is_some())
-                        && references.expressions.contains(&row.expression)
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-            let provider_bodies = self
-                .selected_provider_bodies
-                .iter()
-                .filter(|row| {
-                    row.origin
-                        .machine_symbol()
-                        .is_some_and(|owner| execution.machine(owner).is_some())
-                        && references.expressions.contains(&row.expression)
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-            let admission = Self::infer(execution, self.selection_authority.clone())
-                .with_selected_operators(execution, &operators)?
-                .with_selected_provider_bodies(execution, &provider_bodies)?;
+            let admission = self.checked_program_admission(&checked)?;
             Ok(std::rc::Rc::new((checked, admission)))
         })();
         self.checked_closures
@@ -659,6 +633,39 @@ impl BuildTimeAdmissionPlan {
         let pair = computed?;
         concrete_invocation::require_complete_invocation_conditions(&pair.0, machine_symbol)?;
         Ok(pair)
+    }
+
+    /// A checked probe keeps only selections that still belong to its program.
+    /// Both body checks and concrete call checks use these checked calls to
+    /// verify effects and authority, including the public method's limits.
+    fn checked_program_admission(&self, checked: &CheckedTrees) -> Result<Self, String> {
+        let execution = checked.typed.as_ref();
+        let references = typed_trees::references::collect_program_references(execution);
+        let operators = self
+            .selected_operators
+            .iter()
+            .filter(|row| {
+                row.origin
+                    .machine_symbol()
+                    .is_some_and(|owner| execution.machine(owner).is_some())
+                    && references.expressions.contains(&row.expression)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let provider_bodies = self
+            .selected_provider_bodies
+            .iter()
+            .filter(|row| {
+                row.origin
+                    .machine_symbol()
+                    .is_some_and(|owner| execution.machine(owner).is_some())
+                    && references.expressions.contains(&row.expression)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        Self::infer(execution, self.selection_authority.clone())
+            .with_selected_operators(execution, &operators)?
+            .with_selected_provider_bodies(execution, &provider_bodies)
     }
 
     /// Use ordinary checked storage and call facts throughout this invocation.

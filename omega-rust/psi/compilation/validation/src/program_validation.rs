@@ -933,6 +933,12 @@ fn validate<'program>(
                 // resolver's empty value-call frame would. An unresolved
                 // value call still clears mutable-storage facts; direct writes and calls
                 // remain the statement validator's responsibility below.
+                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    eprintln!(
+                        "STRUCT completed-value-writes caller={} state={} statement={} written={value_written:?}",
+                        machine.name, state.name, statement_index
+                    );
+                }
                 if let Some(written) = value_written {
                     value_environment.invalidate_call_paths(program, Some(state), &written);
                 } else if call_frames.is_some()

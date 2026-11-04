@@ -178,11 +178,12 @@ pub(crate) fn operation_scalar_types_match(
                         expected,
                         replacement,
                         outcome,
+                        custody,
                         ..
                     } => scalar(*expected).is_some() && scalar(*expected) == scalar(*replacement)
-                        && outcome.is_unrestricted_plain() && outcome.qualification_establishments.is_empty()
+                        && terminal_psi::types::atomic_once_result_is_plain(outcome, *custody)
                         && unit.structural_types.iter().find(|row| row.id == outcome.structural_type)
-                            .is_some_and(|declaration| terminal_psi::types::atomic_once_outcome_cases(declaration, scalar(*expected).unwrap()).is_some()),
+                            .is_some_and(|declaration| terminal_psi::types::atomic_once_outcome_cases(declaration, scalar(*expected).unwrap(), *custody).is_some()),
                     E::Fence { .. } => true,
                 }
         }

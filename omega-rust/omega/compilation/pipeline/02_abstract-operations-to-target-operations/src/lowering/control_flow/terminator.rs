@@ -60,6 +60,41 @@ fn disposable_view_carrier(
         .then_some(multiplicity)
 }
 
+/// Ending an incoming reference binding does not dispose its caller's slot.
+/// Keep this no-code retirement separate from owned-root cleanup: the exact
+/// arrival and current descriptor must agree, and no claim is discharged here.
+fn retirable_reference_arrival(
+    live: &LiveDefinitions,
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    place: PlaceId,
+) -> bool {
+    let Some(parameter) = function.arrival_parameter(place) else {
+        return false;
+    };
+    if parameter.access == StructuralAccess::Owned
+        || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+        || function
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == place)
+    {
+        return false;
+    }
+    let Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) =
+        types.get(parameter.structural_type).map(|ty| &ty.shape)
+    else {
+        return false;
+    };
+    live.references
+        .get(&(place, Vec::new()))
+        .is_some_and(|descriptor| {
+            descriptor.carrier_type == parameter.structural_type && descriptor.referent == *referent
+        })
+}
+
 /// Rejoin the selected cleanup action to existing owned storage. The checked
 /// action stream settles claims and orders nominal hooks before descendant
 /// disposal. A linear root may therefore contain a plain residual after its
@@ -132,7 +167,23 @@ pub(super) fn plain_home_cleanup(
                 if owned_root_type(live, function, *place).is_none()
                     && !live.retired_reference_roots.contains(place)
                     && disposable_view_carrier(live, function, structural_types, *place).is_none()
+                    && !retirable_reference_arrival(live, function, structural_types, *place)
                 {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!(
+                            "CHECKSITE descriptor-home-retirement machine={:?} place={place:?} references={:?} home={:?} arrival={:?} view={:?} block_view={} retired={}",
+                            function.machine,
+                            live.references
+                                .keys()
+                                .filter(|(root, _)| root == place)
+                                .collect::<Vec<_>>(),
+                            live.structural_homes.get(place),
+                            function.arrival_parameter(*place),
+                            live.views.get(place),
+                            live.block_views.contains(place),
+                            live.retired_reference_roots.contains(place)
+                        );
+                    }
                     return Err(LoweringError::InvalidStructuralValueInput {
                         machine: function.machine,
                         place: *place,

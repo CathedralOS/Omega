@@ -504,13 +504,14 @@ fn shared_call_storage_regions(
         borrow_call.call_ordinal,
     )?;
     let resolver = call_frames?;
-    let frame = match &site {
-        CallSite::Statement(call) => resolver.may_write_frame(machine, call),
-        CallSite::Expression { expression, .. } => {
-            resolver.expression_write_frame(machine, *expression)
-        }
-        CallSite::TransitionNamed { .. } => return None,
-    };
+    let frame = resolver.boundary_invocation_write_frame(machine, &site);
+    let trace = std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some();
+    if trace {
+        eprintln!(
+            "CALLWRITE boundary-frame state={caller_state_symbol:?} statement={} ordinal={} frame={frame:?}",
+            borrow_call.statement_index, borrow_call.call_ordinal,
+        );
+    }
     let (exclusive_referents, coarse_anchors, refinable) = boundary_frame_access_places(
         program,
         caller_machine_symbol,
@@ -523,14 +524,27 @@ fn shared_call_storage_regions(
     let mut places = Vec::new();
     for path in frame.complete_paths()? {
         let source =
-            local_origins::frame_write_place(program, state, borrow_call.statement_index, path)?;
-        for region in local_origins::rebase_local_write_regions(
+            local_origins::frame_write_place(program, state, borrow_call.statement_index, path);
+        if trace {
+            eprintln!(
+                "CALLWRITE frame-source state={caller_state_symbol:?} statement={} path={path:?} source={source:?}",
+                borrow_call.statement_index
+            );
+        }
+        let regions = local_origins::rebase_local_write_regions(
             program,
             caller_state_symbol,
             borrow_call.statement_index,
-            source,
+            source?,
             call_frames,
-        )? {
+        );
+        if trace {
+            eprintln!(
+                "CALLWRITE frame-regions state={caller_state_symbol:?} statement={} path={path:?} regions={regions:?}",
+                borrow_call.statement_index
+            );
+        }
+        for region in regions? {
             let StorageRegion::Declared(coarse) = region else {
                 crate::shared::collections::push_unique(&mut places, region);
                 continue;
@@ -573,14 +587,21 @@ fn shared_call_storage_regions(
     // Opaque boundary bodies may exercise carried capability authority even
     // when their ordinary descriptor frame is empty. A by-value resident
     // lends no descriptor bytes but still carries its external content.
-    for region in ceiling::signature_ceiling_regions(
+    let ceiling = ceiling::signature_ceiling_regions(
         program,
         caller_machine_symbol,
         caller_state_symbol,
         Some(borrow),
         borrow_call,
         call_frames,
-    )? {
+    );
+    if trace {
+        eprintln!(
+            "CALLWRITE boundary-ceiling state={caller_state_symbol:?} statement={} ceiling={ceiling:?}",
+            borrow_call.statement_index
+        );
+    }
+    for region in ceiling? {
         if !matches!(region, StorageRegion::Declared(_)) && !places.contains(&region) {
             places.push(region);
         }

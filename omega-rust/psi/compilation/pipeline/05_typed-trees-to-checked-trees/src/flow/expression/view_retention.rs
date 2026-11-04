@@ -146,14 +146,56 @@ impl Execution<'_, '_, '_> {
                     capture,
                     projection,
                     ..
-                } => {
-                    let capture = *self.context.control.operands.get(capture);
-                    self.captured_retention_at_path(capture, &projection)
-                }
+                } => self.stored_capture_retention(capture, &projection),
             };
             profiles.push(profile);
         }
         self.join_retention_profiles(&profiles)
+    }
+
+    /// Reading a saved reference keeps the completed value that supplied it.
+    /// Its lifetime roots alone cannot identify the permission after the old
+    /// variable changes. A fresh profile points to the existing capture;
+    /// neither the original profile nor the evaluation occurrence is changed.
+    fn stored_capture_retention(
+        &mut self,
+        capture: Handle<FlowOperandFact>,
+        projection: &[PlaceSegment],
+    ) -> Handle<FlowOperandRetention> {
+        let value = *self.context.control.operands.get(capture);
+        let retained = self.captured_retention_at_path(value, projection);
+        if !self.context.control.operand_retentions.is_valid(retained)
+            || !validation::project_type_reference_from_segments(
+                self.program,
+                value.type_reference,
+                projection,
+            )
+            .is_some_and(|reference| validation::reference_shell(self.program, reference).is_some())
+        {
+            return retained;
+        }
+        let projection = self
+            .context
+            .control
+            .operand_retained_paths
+            .insert_many(projection.iter().copied());
+        let suppliers = self
+            .context
+            .control
+            .operand_retained_suppliers
+            .insert_many([FlowOperandRetainedSupplier {
+                operand: capture,
+                projection,
+                contract: None,
+            }]);
+        let profile = *self.context.control.operand_retentions.get(retained);
+        self.context
+            .control
+            .operand_retentions
+            .insert(FlowOperandRetention {
+                suppliers,
+                ..profile
+            })
     }
 
     /// Keep every completed descriptor profile at a selection. The joined
@@ -410,10 +452,7 @@ impl Execution<'_, '_, '_> {
                 capture,
                 projection,
                 ..
-            } => {
-                let capture = *self.context.control.operands.get(capture);
-                self.captured_retention_at_path(capture, &projection)
-            }
+            } => self.stored_capture_retention(capture, &projection),
         })
     }
 
@@ -475,10 +514,7 @@ impl Execution<'_, '_, '_> {
                     capture,
                     projection,
                     ..
-                }) => {
-                    let capture = *self.context.control.operands.get(capture);
-                    self.captured_retention_at_path(capture, &projection)
-                }
+                }) => self.stored_capture_retention(capture, &projection),
                 Some(
                     stored @ (StoredOperand::Unavailable
                     | StoredOperand::Incoming(_)
@@ -898,51 +934,72 @@ impl Execution<'_, '_, '_> {
         (!receiver.referents.is_empty()).then(|| self.append_retention(&roots))
     }
 
-    /// A stored input selects descriptor contents, not the address of its
-    /// slot. Explicit children and reaching stores share one capture query;
-    /// an unresolved newer store cannot revive an earlier initializer.
-    fn returned_input_retention(
+    fn returned_referent_roots(
         &mut self,
         actual: &FlowOperandFact,
-        source: ViewReturnInputSource,
         path: &[PlaceSegment],
     ) -> Option<Vec<PlaceRoot>> {
-        let stored = source == ViewReturnInputSource::Stored;
-        if stored && self.is_view_type(actual.type_reference) {
-            if !self
-                .context
-                .control
-                .operand_retentions
-                .is_valid(actual.retention)
-            {
-                return None;
+        let capture = self.captured_retention_at_path(*actual, path);
+        self.context
+            .control
+            .retained_roots(capture)
+            .map(<[_]>::to_vec)
+    }
+
+    fn returned_stored_roots(
+        &mut self,
+        sources: HandleSpan<checked_trees::FlowOperandStoredSource>,
+    ) -> Option<Vec<PlaceRoot>> {
+        let sources = self
+            .context
+            .control
+            .operand_stored_sources
+            .span(sources)?
+            .to_vec();
+        let mut roots = Vec::new();
+        for source in sources {
+            let selected = match source {
+                checked_trees::FlowOperandStoredSource::Value {
+                    operand,
+                    projection,
+                    ..
+                } => {
+                    let path = self
+                        .context
+                        .control
+                        .operand_retained_paths
+                        .span(projection)?
+                        .to_vec();
+                    let actual = *self.context.control.operands.get(operand);
+                    self.returned_referent_roots(&actual, &path)?
+                }
+                checked_trees::FlowOperandStoredSource::Incoming { slot, .. } => {
+                    let place = validation::CanonicalPlace {
+                        root: slot.root,
+                        segments: self
+                            .context
+                            .control
+                            .operand_referent_segments
+                            .span(slot.segments)?
+                            .to_vec(),
+                    };
+                    if !self.is_incoming_descriptor_place(&place)
+                        || !place.root.as_symbol().is_some_and(|symbol| {
+                            self.program
+                                .state_parameter_by_symbol(self.state, symbol)
+                                .is_some()
+                        })
+                    {
+                        return None;
+                    }
+                    vec![place.root]
+                }
+            };
+            for root in selected {
+                crate::shared::collections::push_unique(&mut roots, root);
             }
-            let storage = self
-                .context
-                .control
-                .operand_retentions
-                .get(actual.retention)
-                .stored_value;
-            if !self.context.control.operands.is_valid(storage) {
-                return None;
-            }
-            let capture = *self.context.control.operands.get(storage);
-            let capture = self.captured_retention_at_path(capture, path);
-            return self
-                .context
-                .control
-                .retained_roots(capture)
-                .map(<[_]>::to_vec);
         }
-        if !stored || !self.is_view_type(actual.type_reference) || !path.is_empty() {
-            let capture = self.captured_retention_at_path(*(actual), path);
-            return self
-                .context
-                .control
-                .retained_roots(capture)
-                .map(<[_]>::to_vec);
-        }
-        None
+        Some(roots)
     }
 
     /// Loading an indexed descriptor retains its pointee, not its array slot.
@@ -1156,71 +1213,55 @@ impl Execution<'_, '_, '_> {
                 continue;
             };
             let source_path = crate::borrow::owner_place_segments(&source.source_path);
-            let Some(roots) = self.returned_input_retention(actual, source.source, &source_path)
-            else {
+            let input = self
+                .context
+                .control
+                .calls
+                .get(invocation)
+                .argument_operands()
+                .handles()
+                .nth(source.parameter_index);
+            let stored_sources = input.and_then(|input| {
+                if source.source == ViewReturnInputSource::Stored {
+                    self.capture_stored_lifetime_sources(input, &source_path, source_snapshot)
+                } else {
+                    Some(HandleSpan::empty())
+                }
+            });
+            let roots = if source.source == ViewReturnInputSource::Stored {
+                stored_sources.and_then(|sources| self.returned_stored_roots(sources))
+            } else {
+                self.returned_referent_roots(actual, &source_path)
+            };
+            let Some(roots) = roots else {
                 outputs[position].2 = false;
                 continue;
             };
             for root in roots {
                 crate::shared::collections::push_unique(&mut outputs[position].1, root);
             }
-            // Retain the contextual actual separately from an older stored
-            // capture. The latter proves supply, never the receiving contract.
-            let input = self.context.control.operands.insert(*actual);
-            let supplier = if source.source == ViewReturnInputSource::Stored
-                && self.is_view_type(actual.type_reference)
-            {
-                self.context
-                    .control
-                    .operand_retentions
-                    .is_valid(actual.retention)
-                    .then(|| {
-                        *self
-                            .context
-                            .control
-                            .operand_retentions
-                            .get(actual.retention)
-                    })
-                    .filter(|profile| self.context.control.operands.is_valid(profile.stored_value))
-                    .and_then(|profile| {
-                        Some((
-                            profile.stored_value,
-                            self.context
-                                .control
-                                .operand_retained_paths
-                                .span(profile.stored_projection)?
-                                .to_vec(),
-                        ))
-                    })
-            } else {
-                Some((input, Vec::new()))
-            };
-            if let (Some((operand, mut projection)), Some(suppliers), Some(call_ordinal)) =
-                (supplier, &mut outputs[position].3, call_ordinal)
-            {
+            // Keep the one evaluated actual. Stored inputs select their complete
+            // contents at invocation entry, after earlier sibling effects and
+            // before this call's writes; a cloned capture loses that identity.
+            if let (Some(input), Some(stored_sources), Some(suppliers), Some(call_ordinal)) = (
+                input,
+                stored_sources,
+                &mut outputs[position].3,
+                call_ordinal,
+            ) {
                 let source_path = self
                     .context
                     .control
                     .operand_retained_paths
                     .insert_many(source_path.iter().copied());
-                projection.extend_from_slice(
-                    self.context
-                        .control
-                        .operand_retained_paths
-                        .span_or_empty(source_path),
-                );
-                let projection = self
-                    .context
-                    .control
-                    .operand_retained_paths
-                    .insert_many(projection);
+                let projection = source_path;
                 let owner_path = self
                     .context
                     .control
                     .operand_retained_paths
                     .insert_many(crate::borrow::owner_place_segments(&source.owner_path));
                 suppliers.push(FlowOperandRetainedSupplier {
-                    operand,
+                    operand: input,
                     projection,
                     contract: Some(FlowOperandLifetimeContract {
                         state_symbol: self.state.symbol,
@@ -1234,6 +1275,7 @@ impl Execution<'_, '_, '_> {
                         source_type: source.source_type,
                         source_path,
                         owner_path,
+                        stored_sources,
                     }),
                 });
             } else {

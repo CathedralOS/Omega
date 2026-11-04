@@ -52,6 +52,7 @@ mod candidate;
 mod captured_rows;
 mod cleanup_applications;
 mod contextual_calls;
+pub(crate) use contextual_calls::prepare_conformance_occurrence;
 mod domain_applications;
 mod explicit_arguments;
 mod layout_storage_policies;
@@ -64,6 +65,7 @@ mod trait_implementation_arguments;
 pub(crate) use selection::{BindingContext, StaticProposals, infer_static_bindings};
 
 mod body_rewriting;
+pub use body_rewriting::restore_copied_call_sources;
 pub(crate) use body_rewriting::{collect_evidence_requirement_closure, insert_subject_name};
 mod body_cloning;
 pub(crate) use body_cloning::copy_type_reference;
@@ -74,6 +76,7 @@ mod dynamic_slots;
 pub(crate) use dynamic_slots::instantiate_dynamic_slots;
 pub(crate) mod requirement_applications;
 pub(crate) use requirement_applications::instantiate_requirement_applications;
+pub use requirement_applications::prepare_requirement_expression_views;
 pub(crate) use requirement_providers::generate_requirement_provider_specializations;
 pub(crate) use type_reference_walk::for_each_type_reference;
 mod const_values;
@@ -856,8 +859,9 @@ fn apply_call_specializations(
             // Each site keeps its own exact runtime subjects: the shared
             // carrier-keyed instance receives them as appended arguments.
             let arguments = runtime_value_subjects(&selection.runtime_value_bindings);
-            let subjects = crate::monomorphization::body_rewriting::runtime_value_operands(
+            let subjects = crate::monomorphization::body_rewriting::runtime_call_operands(
                 program,
+                selection.site,
                 selection.lexical_state,
                 &arguments,
             );

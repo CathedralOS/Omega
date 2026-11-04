@@ -1,0 +1,16 @@
+// A moved result field must retain the input actually stored in it.
+use omega::language::core::conversion;
+
+data Payload<'buffer> { output: &'buffer mut [u8]; }
+data ResultSlot<'buffer> { answer: Result<Payload<'buffer>, Payload<'buffer>>; }
+
+machine wrong_subject<'buffer>(
+    incoming: Result<Payload<'buffer>, Payload<'buffer>>,
+    other: Result<Payload<'buffer>, Payload<'buffer>>
+) -> ResultSlot<'buffer>
+ensures result.answer == incoming
+{
+    ResultSlot { answer: other }
+}
+
+machine main() {}

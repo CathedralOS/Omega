@@ -28,6 +28,43 @@ pub(super) struct CompletedDescriptorBackings {
     pub(super) forwarded_inputs: Vec<Handle<FlowOperandFact>>,
 }
 
+/// A selected incoming alternative keeps its original entry descriptor even
+/// when a conditional store retires that identity from the current roster.
+/// Callers have selected this exact Incoming member on the immutable storage
+/// timeline. Resolve its entry namespace without reactivating current access;
+/// the reference used to reach the slot cannot supply that permission.
+pub(in crate::checks::borrows) fn incoming_sources(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
+    source: validation::CanonicalPlace,
+) -> Result<Vec<ResolvedAlias>, &'static str> {
+    if let Some(places) = super::aliases::unchanged_incoming_leaf(
+        program,
+        facts,
+        state,
+        state.entry_constraints,
+        &source,
+    )? {
+        return Ok(places);
+    }
+    super::access_sources::resolve_descriptor_all(
+        program,
+        facts,
+        state,
+        statement_index,
+        constraints,
+        CapturedPlace {
+            root: source.root,
+            segments: source.segments,
+            ..Default::default()
+        },
+    )
+    .ok_or("the incoming descriptor has no retained loan occurrence")
+}
+
 pub(super) fn resolve(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
@@ -253,8 +290,37 @@ impl Resolver<'_> {
             }
             _ => {}
         }
-        if path.is_empty() && operand.descriptor_loan.is_valid() {
-            let handle = operand.descriptor_loan;
+        if path.is_empty()
+            && matches!(
+                operand.descriptor_permission,
+                checked_trees::FlowDescriptorPermission::SuppliedOutput { .. }
+            )
+        {
+            let handle = crate::borrow::supplied_outputs::captured_permission(
+                self.program,
+                &self.facts.borrow,
+                &self.facts.flow,
+                operand,
+            )?;
+            let loan = self.facts.borrow.loans.get(handle);
+            return Ok(BackingFrontier::borrowed(vec![ResolvedAlias {
+                place: CapturedPlace {
+                    incoming_reference: loan.incoming_reference,
+                    incoming_owner_path: self
+                        .facts
+                        .borrow
+                        .access_segments
+                        .span(loan.incoming_owner_path)
+                        .ok_or("the produced output lost its incoming path")?
+                        .to_vec(),
+                    root: loan.root,
+                    segments: self.facts.borrow.loan_segments(loan).to_vec(),
+                },
+                lineage: vec![handle],
+            }]));
+        }
+        if path.is_empty() && operand.descriptor_permission.loaded_loan().is_valid() {
+            let handle = operand.descriptor_permission.loaded_loan();
             let (_, owner) = self
                 .facts
                 .borrow
@@ -316,14 +382,19 @@ impl Resolver<'_> {
                 .ok_or("the loaded descriptor has no completed activation")?;
             if activations.next().is_some()
                 || !control.operands.is_valid(activation.formation_value)
-                || !control.value_observations.is_valid(operand.descriptor_read)
+                || !control
+                    .value_observations
+                    .is_valid(operand.descriptor_permission.loaded_read())
             {
                 return Err("the loaded descriptor has an ambiguous activation or source read");
             }
             let formed = control.operands.get(activation.formation_value);
-            let read = control.value_observations.get(operand.descriptor_read);
-            if formed.descriptor_loan != handle
-                || formed.descriptor_read != operand.descriptor_read
+            let read = control
+                .value_observations
+                .get(operand.descriptor_permission.loaded_read());
+            if formed.descriptor_permission.loaded_loan() != handle
+                || formed.descriptor_permission.loaded_read()
+                    != operand.descriptor_permission.loaded_read()
                 || formed.expression != operand.expression
                 || formed.state_symbol != operand.state_symbol
                 || formed.statement_index != operand.statement_index
@@ -551,18 +622,31 @@ impl Resolver<'_> {
                 forwarded_inputs,
             );
         }
-        let source =
-            coordinate.ok_or("the completed descriptor has no source storage coordinate")?;
-        let mut place = CapturedPlace {
-            root: source.root,
-            segments: source.segments,
-            ..Default::default()
-        };
-        place.segments.extend_from_slice(path);
         if matches!(
             self.program.expression_table.expression(operand.expression),
             ExpressionNode::Borrow(_)
         ) {
+            let formation =
+                super::formation_captures::reference_formation(self.program, self.facts, capture)?
+                    .ok_or("the completed borrow has no exact formation receiver")?;
+            if formation.storage && path.is_empty() {
+                return super::access_sources::stored_address(
+                    self.program,
+                    self.facts,
+                    self.state,
+                    formation.target,
+                    true,
+                )
+                .map(BackingFrontier::borrowed);
+            }
+            let source =
+                coordinate.ok_or("the completed descriptor has no source storage coordinate")?;
+            let mut place = CapturedPlace {
+                root: source.root,
+                segments: source.segments,
+                ..Default::default()
+            };
+            place.segments.extend_from_slice(path);
             super::access_sources::resolve_captured_all(
                 self.program,
                 self.facts,
@@ -800,31 +884,15 @@ impl Resolver<'_> {
         use validation::completed_storage::StoredOperand;
         match source {
             StoredOperand::Unavailable => Err("the stored descriptor has no current value source"),
-            StoredOperand::Incoming(source) => {
-                if let Some(places) = super::aliases::unchanged_incoming_leaf(
-                    self.program,
-                    self.facts,
-                    self.state,
-                    operand.constraints,
-                    &source,
-                )? {
-                    return Ok(BackingFrontier::borrowed(places));
-                }
-                super::access_sources::resolve_descriptor_all(
-                    self.program,
-                    self.facts,
-                    self.state,
-                    operand.statement_index,
-                    operand.constraints,
-                    CapturedPlace {
-                        root: source.root,
-                        segments: source.segments,
-                        ..Default::default()
-                    },
-                )
-                .map(BackingFrontier::borrowed)
-                .ok_or("the incoming descriptor has no retained loan occurrence")
-            }
+            StoredOperand::Incoming(source) => incoming_sources(
+                self.program,
+                self.facts,
+                self.state,
+                operand.statement_index,
+                operand.constraints,
+                source,
+            )
+            .map(BackingFrontier::borrowed),
             StoredOperand::Value {
                 capture,
                 projection,

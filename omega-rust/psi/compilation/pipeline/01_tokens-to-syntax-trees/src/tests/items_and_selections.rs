@@ -443,7 +443,7 @@ fn single_attempt_compare_exchange_keeps_its_outcome_instead_of_a_scalar_prior()
     ));
     assert!(matches!(
         atomic.result_custody,
-        AtomicExpressionResultCustody::ObservingCompareExchangeOnce(_)
+        AtomicExpressionResultCustody::CompareExchangeOnce(_)
     ));
     assert!(!atomic.result.is_valid());
     // The receiver and both value operands remain the evaluation roster; the

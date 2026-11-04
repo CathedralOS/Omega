@@ -177,9 +177,8 @@ impl Invocation<'_> {
             .iter()
             .zip(literals)
             .map(|(argument, literal)| SnapshotArgument {
-                receiver: false,
                 original: *argument,
-                literal: Some(literal.clone()),
+                literal: literal.clone(),
             })
             .collect();
         // The probe keeps the whole program: library satisfaction
@@ -195,6 +194,7 @@ impl Invocation<'_> {
             .map(|machine| machine.symbol)
             .collect();
         crate::machine_execution::admission::snapshot_arguments_discharge(
+            self.admission,
             self.execution,
             &retained,
             machine.symbol,

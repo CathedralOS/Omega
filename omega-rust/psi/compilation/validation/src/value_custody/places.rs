@@ -820,7 +820,9 @@ pub use canonical_projection::{
     storage_place_from_expression_in_state, window_coordinate,
 };
 mod contextual_projection;
-pub use contextual_projection::contextual_canonical_place_from_expression;
+pub use contextual_projection::{
+    contextual_canonical_place_from_expression, resolve_member_symbol_from_place,
+};
 mod member_resolution;
 pub use member_resolution::{
     effective_member_symbol, expression_place_type_reference, expression_type_symbol,

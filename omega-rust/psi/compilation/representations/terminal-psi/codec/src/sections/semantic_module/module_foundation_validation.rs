@@ -1121,13 +1121,15 @@ fn validate_operation_foundation(
                 }
                 OperationResult::Unit => !event.observes_resident(),
                 OperationResult::Structural(result) => {
-                    once && result.is_unrestricted_plain()
-                        && result.qualification_establishments.is_empty()
-                        && module.structural_type(result.structural_type).is_some_and(
-                            |declaration| {
-                                atomic_once_outcome_cases(declaration, resident).is_some()
-                            },
-                        )
+                    event.single_attempt_custody().is_some_and(|custody| {
+                        terminal_psi::types::atomic_once_result_is_plain(result, custody)
+                    }) && module.structural_type(result.structural_type).is_some_and(
+                        |declaration| {
+                            event.single_attempt_custody().is_some_and(|custody| {
+                                atomic_once_outcome_cases(declaration, resident, custody).is_some()
+                            })
+                        },
+                    )
                 }
             };
             if !shape_matches {
