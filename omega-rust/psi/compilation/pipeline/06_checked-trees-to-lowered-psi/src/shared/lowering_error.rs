@@ -47,6 +47,16 @@ pub enum LoweringError {
     AmbiguousMachineName(String),
     /// A closure names storage absent from its retained type catalog.
     MissingUnitStructuralType(String),
+    /// A selected value needs its established home before it can be consumed.
+    MissingValueStorageLocal {
+        machine: Option<semantic_vocabulary::MachineId>,
+        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+        current_local_count: usize,
+        current_locals: Vec<(facts::PlaceRoot, semantic_vocabulary::PlaceId)>,
+        completed_cleanup_home: Option<semantic_vocabulary::PlaceId>,
+        retired_binding_count: usize,
+        retired_bindings: Vec<(semantic_vocabulary::PlaceId, Option<u32>, &'static str)>,
+    },
     /// An observation must resolve one live home, never an inferred backing.
     ObservationHomeCountMismatch {
         root: checked_trees::CheckedStorageRoot,
