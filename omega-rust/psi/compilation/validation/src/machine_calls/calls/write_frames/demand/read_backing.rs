@@ -308,7 +308,13 @@ impl CallFrameResolver<'_> {
             return None;
         }
         let mut after_children: CollectedStatementPrefix = prefix.clone();
-        stored_calls::apply_transfer(self.program, &mut after_children.stored, &transfer);
+        stored_calls::apply_transfer(
+            self.program,
+            &mut after_children.stored,
+            &mut after_children.aliases,
+            &mut after_children.divergent,
+            &transfer,
+        );
         reference_subjects::read_backing::capture(
             self.program,
             machine,

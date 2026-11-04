@@ -313,6 +313,44 @@ pub fn project_captured_view_place(
     Some(place)
 }
 
+/// A helper must write the same field that its caller later reads. Their
+/// record types can have separately prepared member identities. Use the
+/// physical receiver's own selector when its complete applied declaration
+/// establishes that correspondence. Other checked presentations retain their
+/// existing coordinates. Member identity supplies no case, access or lifetime.
+pub fn project_captured_storage_place(
+    program: &dyn crate::CheckingInput,
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+    mut place: crate::CanonicalPlace,
+    path: &[PlaceSegment],
+) -> Option<crate::CanonicalPlace> {
+    for segment in path {
+        let selected = if matches!(
+            segment,
+            PlaceSegment::Field { .. } | PlaceSegment::Case { .. }
+        ) {
+            crate::canonical_place_type_reference(program, state, statement_index, &place)
+                .and_then(|reference| {
+                    crate::corresponding_place_projection(
+                        program,
+                        reference,
+                        std::slice::from_ref(segment),
+                    )
+                })
+                .and_then(|mapped| match mapped.as_slice() {
+                    [selected] => Some(*selected),
+                    _ => None,
+                })
+                .unwrap_or(*segment)
+        } else {
+            *segment
+        };
+        place = project_captured_view_place(place, std::slice::from_ref(&selected))?;
+    }
+    Some(place)
+}
+
 /// Follow one captured assembly edge, retaining the unconsumed projection.
 /// A child may itself be an opaque call result: its remaining fields belong
 /// to that completed value, not to the containing constructor's namespace.

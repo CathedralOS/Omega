@@ -168,6 +168,9 @@ pub(super) fn check(
                 .is_some_and(|projections| {
                     !projections.is_empty()
                         && projections.iter().all(|captured| {
+                            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                                eprintln!("CHECKSITE nominal-field-capture state={:?} statement={} target={:?} parameter={:?} required_path={segments:?} domain={domain_symbol:?} observation={:?} observation_type={:?} observation_projection={:?} observation_subjects={:?} producer={:?} producer_type={:?} producer_projection={:?} producer_subjects={:?}", state.state_symbol, call.statement_index, call.target_symbol, parameter.symbol, *captured.observation, captured.observation_type, captured.observation_projection.remaining, captured_observation_places(program, &facts.flow, captured).map(|places| places.into_iter().map(|place| (place.storage, place.projected)).collect::<Vec<_>>()), *captured.operand, captured.type_reference, captured.projection.remaining, captured_value_places(program, &facts.flow, captured).map(|places| places.into_iter().map(|place| (place.storage, place.projected)).collect::<Vec<_>>()));
+                            }
                             let invocation = facts
                                 .flow
                                 .control
@@ -225,6 +228,9 @@ pub(super) fn check(
                                         source_state,
                                         source_statement,
                                     ) else {
+                                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                                            eprintln!("CHECKSITE nominal-field-context-unavailable state={:?} statement={} target={:?} expression={:?} reference={reference:?} source_state={source_state:?} source_statement={source_statement} invocation={invocation:?}", state.state_symbol, call.statement_index, call.target_symbol, operand.expression);
+                                        }
                                         return false;
                                     };
                                     subjects.is_some_and(|subjects| {
@@ -246,7 +252,7 @@ pub(super) fn check(
                                                 // a case. A declared field row is
                                                 // conditional validity, not a read
                                                 // that requires its case active.
-                                                selection.cases_are_selected(&place.storage)
+                                                let satisfied = selection.cases_are_selected(&place.storage)
                                                     && (selection
                                                         .path_is_inactive(&place.projected)
                                                         || prove_declared_field_domain(
@@ -256,7 +262,11 @@ pub(super) fn check(
                                                             &place.projected,
                                                             *domain_symbol,
                                                             *semantic_domain,
-                                                        ))
+                                                        ));
+                                                if !satisfied && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                                                    eprintln!("CHECKSITE nominal-field-proof-refused state={:?} statement={} target={:?} expression={:?} reference={reference:?} subject={:?} storage={:?} source_state={source_state:?} source_statement={source_statement} contexts={:?} constraints={:?}", state.state_symbol, call.statement_index, call.target_symbol, operand.expression, place.projected, place.storage, selection.contexts, facts.flow.contexts.constraint_refs.span_or_empty(invocation));
+                                                }
+                                                satisfied
                                             })
                                     })
                                 },

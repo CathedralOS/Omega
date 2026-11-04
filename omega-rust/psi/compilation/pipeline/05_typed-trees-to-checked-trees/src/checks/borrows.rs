@@ -41,6 +41,7 @@ mod access_sources;
 mod aliases;
 pub(in crate::checks) use aliases::transport_suppliers;
 mod completed_backings;
+mod formation_captures;
 mod shared_observations;
 pub(crate) use shared_observations::shared_reference_observation;
 mod details;

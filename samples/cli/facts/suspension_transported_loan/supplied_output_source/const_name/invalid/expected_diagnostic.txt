@@ -1,0 +1,3 @@
+while `first` remains live
+while `second` remains live
+carry(suspension: forbidden

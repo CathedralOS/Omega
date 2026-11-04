@@ -1,9 +1,9 @@
 //! One live-loan judgment for every access to storage.
 //!
-//! Reads, writes, call operands and exclusive operations name a place and an
-//! access kind. A place rooted at a local reference that owns a live loan
-//! denotes the storage that loan captured, not the local's name, so the
-//! access is first rejoined to every backing it may denote. Storage identity
+//! A pointer variable and the data it points to require different checks.
+//! The captured receiving endpoint selects whether an operation lends the
+//! variable's storage or accesses data through its reference. Accesses through
+//! a reference rejoin every backing its live loan may denote. Storage identity
 //! and authority are separate judgments: each backing is compared with every
 //! live loan, and only the access's own retained lineage is exempt. A child
 //! formed through the accessing alias is not part of that lineage, so an
@@ -21,7 +21,7 @@ use super::access_sources;
 use super::aliases::ResolvedAlias;
 use super::overlap::{StatedOrderingPremise, captured_place_compatibility};
 
-/// Every backing an access of `place` may denote, with the retained lineage
+/// Every backing an access through `place` may denote, with the retained lineage
 /// that grants its authority. A root that owns none of the live loans (a
 /// parameter, an owner, a reference initialized from static text) names its
 /// own storage. A local reference that owns one is rejoined to the storage
@@ -176,6 +176,19 @@ pub(super) fn argument_backings(
                 .is_ok()
         }));
     if !forwarded {
+        if let Some(selected) = selected
+            && let Some(formation) =
+                super::formation_captures::argument_formation(program, facts, state, selected)?
+            && formation.storage
+        {
+            let resolved =
+                super::completed_backings::resolve(program, facts, state, formation.value)?;
+            return Ok(ArgumentBackings {
+                places: resolved.places,
+                capture: formation.value,
+                forwarded_inputs: resolved.forwarded_inputs,
+            });
+        }
         return place_backings(
             program,
             facts,
@@ -418,6 +431,11 @@ pub(super) fn access_interferes<'p>(
 ) -> bool {
     let loan = borrow.loans.get(loan_handle);
     !backings.iter().all(|backing| {
+        if let Some(non_interfering) = super::overlap::retained_debt_non_interfering(
+            program, borrow, loan_handle, &backing.place, kind, premises, bound_lookup,
+        ) {
+            return non_interfering;
+        }
         if backing.retains_loan(borrow, loan_handle) {
             return true;
         }

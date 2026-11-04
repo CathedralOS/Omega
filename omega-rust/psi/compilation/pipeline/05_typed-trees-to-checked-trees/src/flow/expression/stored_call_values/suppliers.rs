@@ -46,9 +46,15 @@ impl Execution<'_, '_, '_> {
                 continue;
             };
             let actual = *self.context.control.operands.get(actual);
+            // Stores select the data reached by the actual's outer reference,
+            // including an empty path that replaces an inner pointer slot.
+            // This is destination typing; a write-only address need not read
+            // the previous descriptor to install its replacement.
+            let carrier = validation::reference_shell(self.program, actual.type_reference)
+                .map_or(actual.type_reference, |reference| reference.referee);
             let Some(reference) = validation::project_type_reference_from_segments(
                 self.program,
-                actual.type_reference,
+                carrier,
                 &effect.destination.local_segments,
             ) else {
                 continue;
@@ -118,12 +124,22 @@ impl Execution<'_, '_, '_> {
                         };
                         let expected =
                             validation::reference_shell(self.program, reference).unwrap();
+                        // A helper may establish a predicate on the same data
+                        // before storing its reference. The checked body owns
+                        // that predicate; this join retains the original
+                        // pointer and its access, comparing only storage shape.
                         if !(supplied.access == expected.access
                             || supplied.access == language_semantics::ReferenceAccess::Mutable)
                             || !validation::storage_origin_types_match(
                                 self.program,
-                                supplied.referee,
-                                expected.referee,
+                                validation::peel_declared_constraints(
+                                    self.program,
+                                    supplied.referee,
+                                ),
+                                validation::peel_declared_constraints(
+                                    self.program,
+                                    expected.referee,
+                                ),
                             )
                         {
                             suppliers_known = false;
@@ -219,7 +235,7 @@ impl Execution<'_, '_, '_> {
                         lifetime_known = false;
                         break;
                     }
-                    let Some(retained) = crate::flow::call_phases::completed_output_retention(
+                    let retained = crate::borrow::lifetime_contract::completed_output_retention(
                         self.borrow,
                         self.machine.symbol,
                         self.state.symbol,
@@ -231,10 +247,20 @@ impl Execution<'_, '_, '_> {
                             self.program,
                             &effect.destination.local_segments,
                         ),
-                    ) else {
-                        known = false;
-                        lifetime_known = false;
-                        break;
+                    );
+                    let retained = match retained {
+                        Ok(retained) => retained,
+                        Err(reason) => {
+                            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                                eprintln!(
+                                    "STRUCT supplied-output-retention-refused identity={identity:?} destination={:?} reason={reason}",
+                                    effect.destination.local_segments
+                                );
+                            }
+                            known = false;
+                            lifetime_known = false;
+                            break;
+                        }
                     };
                     for root in retained {
                         crate::shared::collections::push_unique(&mut roots, root);
@@ -471,7 +497,49 @@ impl Execution<'_, '_, '_> {
                     }
                     // Only descriptor identity and lifetime cross. Earlier
                     // pointee facts and scalar predicates do not become output.
+                    let descriptor_loan = if known {
+                        self.supplied_descriptor_permission(call, &origins, reference)
+                    } else {
+                        Handle::invalid()
+                    };
+                    if supplies_output
+                        && !descriptor_loan.is_valid()
+                        && std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+                    {
+                        eprintln!(
+                            "STRUCT supplied-descriptor-binding-refused known={known} type={reference:?} origins={origins:?} completed={:?}",
+                            call.completed_reference_loans
+                                .handles()
+                                .filter_map(|handle| {
+                                    let loan = self.borrow.loans.get(handle);
+                                    (loan.lineage
+                                        == checked_trees::BorrowLoanLineage::SuppliedOutput)
+                                        .then(|| {
+                                            let incoming = self
+                                                .borrow
+                                                .incoming_references
+                                                .get(loan.incoming_reference);
+                                            (
+                                                handle,
+                                                &incoming.origin,
+                                                incoming.carrier_type,
+                                                self.borrow
+                                                    .owner_segments
+                                                    .span_or_empty(incoming.owner_path),
+                                            )
+                                        })
+                                })
+                                .collect::<Vec<_>>()
+                        );
+                    }
                     let value = self.context.control.operands.insert(FlowOperandFact {
+                        descriptor_permission: if descriptor_loan.is_valid() {
+                            checked_trees::FlowDescriptorPermission::SuppliedOutput {
+                                loan: descriptor_loan,
+                            }
+                        } else {
+                            Default::default()
+                        },
                         type_reference: reference,
                         state_symbol: self.state.symbol,
                         statement_index: self.statement_index,
@@ -480,6 +548,29 @@ impl Execution<'_, '_, '_> {
                         retention,
                         ..Default::default()
                     });
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!(
+                            "CHECKSITE stored-call-value-created state={:?} statement={} target={:?} value={value:?} retention={retention:?} reference={reference:?} suppliers_known={suppliers_known} suppliers={:?} sources={:?}",
+                            self.state.symbol,
+                            self.statement_index,
+                            call.target_symbol,
+                            self.context
+                                .control
+                                .operand_retained_suppliers
+                                .span_or_empty(suppliers),
+                            effect
+                                .sources
+                                .iter()
+                                .map(|source| (
+                                    source.backing.root,
+                                    &source.backing.segments,
+                                    &source.backing.recasts,
+                                    &source.backing.representation,
+                                    source.lifetime_access
+                                ))
+                                .collect::<Vec<_>>()
+                        );
+                    }
                     alternatives.push(CallStoredValue::Captured(value));
                 }
                 if effect.retains_incoming || effect.may_select || weak_destination {
@@ -506,5 +597,78 @@ impl Execution<'_, '_, '_> {
             }
         }
         values
+    }
+
+    /// The helper's produced pointer keeps the permission of that exact
+    /// output. A later copy can use it after the output variable changes.
+    /// The resource consumer still authenticates normal completion; a pending
+    /// output coordinate or equal address cannot authorize the pointer.
+    fn supplied_descriptor_permission(
+        &self,
+        call: &BorrowCallFact,
+        origins: &[crate::flow::CapturedReferencePlace],
+        reference: typed_trees::types::TypeReferenceHandle,
+    ) -> Handle<checked_trees::BorrowLoanFact> {
+        let [origin] = origins else {
+            return Handle::invalid();
+        };
+        let facts::PlaceRoot::InvocationOutput(identity) = origin.place.root else {
+            return Handle::invalid();
+        };
+        let Some(expected) = validation::reference_shell(self.program, reference) else {
+            return Handle::invalid();
+        };
+        let mut permissions = call.completed_reference_loans.handles().filter(|loan| {
+            let row = self.borrow.loans.get(*loan);
+            if row.lineage != checked_trees::BorrowLoanLineage::SuppliedOutput
+                || !row.established_by_call.is_valid()
+                || !self
+                    .borrow
+                    .incoming_references
+                    .is_valid(row.incoming_reference)
+            {
+                return false;
+            }
+            let incoming = self.borrow.incoming_references.get(row.incoming_reference);
+            let path = self
+                .borrow
+                .owner_segments
+                .span_or_empty(incoming.owner_path);
+            let place_path = crate::borrow::owner_place_segments(path);
+            incoming.origin == (checked_trees::IncomingReferenceOrigin::Output { identity })
+                && place_path.len() == origin.place.segments.len()
+                && place_path
+                    .iter()
+                    .zip(&origin.place.segments)
+                    .all(|(left, right)| {
+                        validation::storage_path_relations::canonical_place_segments_equal(
+                            self.program,
+                            *left,
+                            *right,
+                        )
+                    })
+                && validation::project_type_reference_from_segments(
+                    self.program,
+                    incoming.carrier_type,
+                    &place_path,
+                )
+                .and_then(|reference| validation::reference_shell(self.program, reference))
+                .is_some_and(|supplied| {
+                    supplied.access == expected.access
+                        && validation::storage_origin_types_match(
+                            self.program,
+                            supplied.referee,
+                            expected.referee,
+                        )
+                })
+        });
+        let Some(permission) = permissions.next() else {
+            return Handle::invalid();
+        };
+        if permissions.next().is_some() {
+            Handle::invalid()
+        } else {
+            permission
+        }
     }
 }
