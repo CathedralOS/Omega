@@ -183,6 +183,7 @@ fn pure_build_accounting() {
     let mut session = CompilationSession::default();
     let shared_sponsor = sponsor(limits(2 * fuel));
     let before = counters::build_execution_count();
+    build_sequence::print_execution_counts("before repeated Pure source requests");
     check(&mut session, &shared_sponsor, "windows_x86_64")
         .result
         .expect("first row");
@@ -195,6 +196,7 @@ fn pure_build_accounting() {
         shared_sponsor.consumed_fuel_units(),
         shared_sponsor.consumed_result_storage_cells()
     );
+    build_sequence::print_execution_counts("two Pure source requests completed");
     assert_eq!(executions, 1);
     assert_eq!(
         shared_sponsor.consumed_fuel_units(),
