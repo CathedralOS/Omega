@@ -52,7 +52,10 @@ impl<'program> StructuralJudge<'program> {
                     "STRUCT completed-reference-contents expression={expression:?} descriptor_type={declared:?} scalar_type={result_type:?} observed={observed:?}"
                 );
             }
-            Some(observed)
+            Some(
+                structural_terms::shared_inline_observation(program, declared, observed.clone())
+                    .unwrap_or(observed),
+            )
         } else if !receiver_changed
             && let Some(reference) = judge.scalar_reference_read_type(scope.0, scope.1, expression)
         {

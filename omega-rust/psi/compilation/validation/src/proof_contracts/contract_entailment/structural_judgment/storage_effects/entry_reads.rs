@@ -1,7 +1,7 @@
-//! Declaration-entry observations have an explicit cut before statement zero.
-//! Their selectors come from that entry's formal-value namespace, rather than
-//! an executable expression schedule. They never enter the completed-read
-//! roster. Current reads continue to require their actual executed selectors.
+//! Input predicates can constrain values before the body loads their pointers.
+//! Keep those initial values separate from reads performed by the body. They
+//! describe the invocation's inputs and cannot authorize an actual read. A body
+//! read must still establish its own pointer suppliers and evaluated selectors.
 
 use super::super::StructuralTerm;
 use super::{CapturedStorageCoordinate, StructuralJudge};
@@ -154,9 +154,9 @@ impl StructuralJudge<'_> {
             )
             .is_some()
             {
-                // Entry predicates can name a scalar before its nested pointers
-                // are loaded. Authenticate that load chain before retaining the
-                // projection as a read; otherwise keep a logical entry value.
+                // A record's input predicate can constrain a scalar before its
+                // stored pointers are loaded. Retain a read only when those
+                // loads are established; otherwise keep just the entry value.
                 let observed = projected.filter(|projected| {
                     super::super::super::structural_terms::scalar_operand_is_observed(
                         program,

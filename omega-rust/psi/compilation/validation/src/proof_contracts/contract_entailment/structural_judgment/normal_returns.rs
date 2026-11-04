@@ -2244,10 +2244,23 @@ impl<'program> StructuralJudge<'program> {
         scope: ValueScope<'_>,
     ) -> Option<StructuralTerm> {
         let program = self.program;
-        crate::reference_shell(program, subject.parameter_type)?
-            .access
-            .is_readable()
-            .then_some(())?;
+        let parameter = crate::reference_shell(program, subject.parameter_type)?;
+        parameter.access.is_readable().then_some(())?;
+        // Replacing a pointer's former home does not change the scalar behind
+        // its saved shared copy. Its completed read carries those frozen
+        // contents; the active shared loan forbids a write until its last use.
+        if parameter.access == language_semantics::ReferenceAccess::Shared
+            && !subject.sources.is_empty()
+            && program
+                .primitive_type_reference(subject.type_reference)
+                .is_some()
+            && super::super::structural_terms::shared_inline_observation_type(program, actual)
+                .is_some_and(|observed| {
+                    crate::declared_carriers_match(program, subject.parameter_type, observed)
+                })
+        {
+            return Some(actual.clone());
+        }
         if subject.has_aggregate_view(program) {
             let observation = self.capture_view_argument_fields(subject, actual, scope.0, scope.1);
             if let Err(reason) = &observation

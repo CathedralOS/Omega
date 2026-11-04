@@ -1,9 +1,10 @@
-//! Ordinary owned arguments capture their inline cells, not the contents
-//! behind contained references. Keep that typed observation through projections
-//! so descriptor metadata can compose without weakening mathematical isolation.
+//! Copies retain the inline values they actually observed. A live shared borrow
+//! also freezes those cells, so its saved copy keeps the same observed contents.
+//! Pointer fields do not capture the data they point to; each later crossing
+//! still needs its own read.
 
 use super::StructuralTerm;
-use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(in crate::proof_contracts::contract_entailment) fn owned_observation_type(
     program: &dyn crate::CheckingInput,
@@ -46,8 +47,8 @@ pub(in crate::proof_contracts::contract_entailment) fn owned_projection_observat
     }
 }
 
-/// A checked shared borrow freezes its referent's inline cells; references in
-/// those cells still need their own observation before another crossing.
+/// A saved shared reference keeps the same inline contents while its loan is
+/// live. Contained pointers still need a separate read before another crossing.
 pub(in crate::proof_contracts::contract_entailment) fn shared_inline_observation_type(
     program: &dyn crate::CheckingInput,
     value: &StructuralTerm,
@@ -63,15 +64,34 @@ pub(in crate::proof_contracts::contract_entailment) fn shared_inline_observation
     let shell = crate::reference_shell(program, *observed_type)?;
     if shell.access != language_semantics::ReferenceAccess::Shared
         || crate::slice_view_shell(program, *observed_type, &[]).is_some()
-        || !crate::declared_carriers_match(
-            program,
-            shell.referee,
-            owned_observation_type(program, value)?,
-        )
     {
         return None;
     }
-    Some(*observed_type)
+    let contents_type = owned_observation_type(program, value).or_else(|| {
+        let StructuralTerm::ObservedValue {
+            observed_type,
+            descriptor: None,
+            ..
+        } = value.as_ref()
+        else {
+            return None;
+        };
+        let carrier = program
+            .type_reference_table
+            .unconstrained_type_reference(*observed_type);
+        let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(carrier)
+        else {
+            return None;
+        };
+        program
+            .symbols
+            .builtin_type_atom(*symbol)
+            .filter(|atom| !atom.is_atomic())?;
+        program.primitive_type_reference(carrier)?;
+        Some(*observed_type)
+    })?;
+    crate::declared_carriers_match(program, shell.referee, contents_type).then_some(*observed_type)
 }
 
 pub(in crate::proof_contracts::contract_entailment) fn shared_inline_observation(
@@ -80,6 +100,13 @@ pub(in crate::proof_contracts::contract_entailment) fn shared_inline_observation
     value: StructuralTerm,
 ) -> Option<StructuralTerm> {
     let shell = crate::reference_shell(program, declared)?;
+    // A readable pointer type alone supplies no scalar contents. This wrapper
+    // carries an already completed read, never a raw descriptor or annotation.
+    if program.primitive_type_reference(shell.referee).is_some()
+        && !super::scalar_operand_is_observed(program, declared, &value)
+    {
+        return None;
+    }
     let value = StructuralTerm::ObservedValue {
         observed_type: declared,
         value: Box::new(owned_projection_observation(program, shell.referee, value)),
