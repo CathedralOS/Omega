@@ -1,3 +1,11 @@
+trait Identity<Element> {
+    machine identity(value: Element) -> Element;
+}
+machine identity<Element>(value: i32) -> i32
+satisfies Identity<Element>::identity {
+    value
+}
+
 // Expected: reject
 // The inline member's exact trait application remains an obligation alongside
 // the whole implementation map. Calls must retain both distinct arguments.

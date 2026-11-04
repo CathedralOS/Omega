@@ -1,1 +1,2 @@
-does not satisfy trait
+does not satisfy trait `Identity`
+does not satisfy trait `ExactValue` machine `forward` parameter `value`: expected `u8`, got `u64`
