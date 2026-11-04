@@ -316,14 +316,31 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     {
         return malformed("structural field store value must be a whole owned place");
     }
-    let Some(root_type) = window_root_type(
-        module,
-        machine,
-        *destination,
-        path,
-        *field,
-        disposition.required_access(),
-    ) else {
+    let declared_home = path
+        .is_empty()
+        .then(|| {
+            let (producer, declared_type) = machine.producing_operation(*destination)?;
+            let result = producer.result.structural()?;
+            (field.is_none()
+                && matches!(producer.kind, OperationKind::EstablishStructuralLocal {})
+                && result.place == *destination
+                && result.structural_type == declared_type
+                && result.claims.is_empty())
+            .then_some(declared_type)
+        })
+        .flatten();
+    // A declared local owns its whole slot. This authority installs the
+    // checked source value; arbitrary completed results remain immutable homes.
+    let Some(root_type) = declared_home.or_else(|| {
+        window_root_type(
+            module,
+            machine,
+            *destination,
+            path,
+            *field,
+            disposition.required_access(),
+        )
+    }) else {
         return malformed("structural field store requires a mutable-borrowed parameter");
     };
     let field_type = window_field_type(module, root_type, path, *field)?;

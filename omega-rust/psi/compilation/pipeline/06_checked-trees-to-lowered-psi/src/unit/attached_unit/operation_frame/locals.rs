@@ -754,10 +754,14 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "structural local established no result",
             ))?;
-        self.evaluation.establish_structural_result(
-            self.state,
+        // A declared home needs an empty receiving namespace before the
+        // checked store installs the initializer and its existing claims.
+        self.evaluation
+            .current_claims
+            .publish(produced.place, Vec::new())?;
+        self.evaluation.establish_structural_binding(
             result,
-            produced,
+            produced.into(),
             self.structural_types.declarations(),
             self.operations,
         )

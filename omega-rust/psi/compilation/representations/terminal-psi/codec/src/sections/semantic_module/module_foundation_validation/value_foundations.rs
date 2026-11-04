@@ -275,14 +275,14 @@ pub(super) fn validate_establish_structural_local(
     let Some(result) = operation.result.structural() else {
         return malformed("structural local establishment has no structural result");
     };
-    // Only a standalone byte-view home may carry qualifications; the verifier
-    // authenticates them as primitive byte predicates of that carrier.
+    // The home reserves storage for its carrier, including a linear one.
+    // Its empty claim roster establishes no value or ownership obligation.
+    // Only a standalone byte-view home may carry primitive byte predicates.
     let byte_view_home = module.structural_types.iter().any(|declaration| {
         declaration.id == result.structural_type
             && declaration.shape.is_borrowed_view_byte_sequence()
     });
-    if !matches!(result.multiplicity, nonlinear_multiplicity_pair_pattern!())
-        || (!result.qualifications.is_empty() && !byte_view_home)
+    if (!result.qualifications.is_empty() && !byte_view_home)
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
         || !result.qualification_establishments.is_empty()

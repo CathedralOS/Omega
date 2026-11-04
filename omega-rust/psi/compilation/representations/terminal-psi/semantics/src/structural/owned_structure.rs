@@ -216,6 +216,151 @@ pub fn selected_contains_owned_boundary(
     Some(false)
 }
 
+/// Match an owned value's exact live nominal frontier. A nominal owner
+/// encapsulates its children; a transparent aggregate instead carries each
+/// selected child's obligation. The supplied paths come from the consuming
+/// ledger. Execution admits its stored tag; static replay retains every case
+/// not independently excluded at this occurrence. This check introduces no tag
+/// evidence or storage authority.
+pub fn validate_owned_claim_frontier(
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    nominal: &BTreeSet<StructuralTypeId>,
+    selected_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    accounted: impl IntoIterator<Item = Vec<StructuralPathSegment>>,
+    selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
+) -> Result<(), &'static str> {
+    for (index, segment) in path.iter().enumerate() {
+        if let StructuralPathSegment::Case(case) = segment
+            && !selected(&path[..index], *case)
+        {
+            return Err("owned value path has no established active case");
+        }
+    }
+    let mut remaining = BTreeSet::new();
+    for claim in accounted {
+        if !claim.starts_with(path) || !remaining.insert(claim) {
+            return Err("owned value claims overlap an ancestor or repeat a path");
+        }
+    }
+    enum Pending {
+        Value(Vec<StructuralPathSegment>, StructuralTypeId),
+        Array {
+            path: Vec<StructuralPathSegment>,
+            element: StructuralTypeId,
+            next: u64,
+            length: u64,
+        },
+    }
+    let mut pending = vec![Pending::Value(path.to_vec(), selected_type)];
+    let mut cache = BTreeMap::new();
+    while let Some(occurrence) = pending.pop() {
+        let (path, current) = match occurrence {
+            Pending::Value(path, current) => (path, current),
+            Pending::Array {
+                path,
+                element,
+                next,
+                length,
+            } => {
+                if next < length {
+                    let mut child = path.clone();
+                    child.push(StructuralPathSegment::FixedIndex(next));
+                    pending.push(Pending::Array {
+                        path,
+                        element,
+                        next: next + 1,
+                        length,
+                    });
+                    pending.push(Pending::Value(child, element));
+                }
+                continue;
+            }
+        };
+        if nominal.contains(&current) {
+            if !remaining.remove(&path) {
+                return Err("owned value has no exact live nominal claim");
+            }
+            continue;
+        }
+        if !contains_owned_boundary(types, nominal, &mut cache, &mut BTreeSet::new(), current)
+            .ok_or("owned value claim graph is unresolved")?
+        {
+            continue;
+        }
+        // A selected empty case can owe no claim. Stream relevant arrays
+        // through their actual tags rather than bound them by claim count.
+        let declaration = types.get(&current).ok_or("owned value type is absent")?;
+        if let StructuralTypeShape::FixedArray { element, length } = &declaration.shape {
+            pending.push(Pending::Array {
+                path,
+                element: *element,
+                next: 0,
+                length: length
+                    .literal()
+                    .ok_or("owned value array extent is not closed")?,
+            });
+            continue;
+        }
+        let mut fields =
+            |prefix: &[StructuralPathSegment],
+             fields: &[terminal_psi::StructuralFieldDeclaration]| {
+                for field in fields
+                    .iter()
+                    .rev()
+                    .filter(|field| !field.relevance.is_erased())
+                {
+                    if let Some(child) = field.field_type.as_structural() {
+                        let mut child_path = prefix.to_vec();
+                        child_path.push(StructuralPathSegment::Field(field.identity));
+                        pending.push(Pending::Value(child_path, child));
+                    }
+                }
+            };
+        match &declaration.shape {
+            StructuralTypeShape::Record { fields: common, .. } => fields(&path, common),
+            StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
+                let mut payload_required = false;
+                for child in cases
+                    .iter()
+                    .flat_map(|case| &case.fields)
+                    .filter(|field| !field.relevance.is_erased())
+                    .filter_map(|field| field.field_type.as_structural())
+                {
+                    payload_required |= contains_owned_boundary(
+                        types,
+                        nominal,
+                        &mut cache,
+                        &mut BTreeSet::new(),
+                        child,
+                    )
+                    .ok_or("owned value payload claim graph is unresolved")?;
+                }
+                if payload_required {
+                    let mut admitted = false;
+                    for case in cases.iter().filter(|case| selected(&path, case.id)) {
+                        admitted = true;
+                        let mut payload_path = path.clone();
+                        payload_path.push(StructuralPathSegment::Case(case.id));
+                        fields(&payload_path, &case.fields);
+                    }
+                    if !admitted {
+                        return Err("owned value has no admitted payload case");
+                    }
+                }
+                if let StructuralTypeShape::Mixed { fields: common, .. } = &declaration.shape {
+                    fields(&path, common);
+                }
+            }
+            _ => return Err("owned value occurrence is unresolved"),
+        }
+    }
+    if !remaining.is_empty() {
+        return Err("owned value has claims outside its selected nominal frontier");
+    }
+    Ok(())
+}
+
 /// Expand the selected payload before common fields, in reverse field order.
 /// Selection is tied to this root-relative occurrence, never cached by type.
 pub fn selected_owned_children(

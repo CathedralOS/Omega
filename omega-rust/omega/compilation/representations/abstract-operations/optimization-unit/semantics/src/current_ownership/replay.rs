@@ -229,6 +229,11 @@ pub(super) fn validate_current_ownership_cfg(
     Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement>,
     OptimizationUnitValidationError,
 > {
+    let nominal = structural_types
+        .values()
+        .filter(|declaration| declaration.owns_linear_claim)
+        .map(|declaration| declaration.id)
+        .collect::<BTreeSet<_>>();
     let pins = super::address_joins::AddressJoinPins::new(
         function,
         functions,
@@ -568,6 +573,57 @@ pub(super) fn validate_current_ownership_cfg(
                     .collect(),
                 _ => Vec::new(),
             };
+            // A declared home is available destination storage, not a completed
+            // owned operand. Match the current claim frontier before any call
+            // transfer or constructor/store consumption removes its identities.
+            for argument in structural_arguments
+                .iter()
+                .filter(|argument| argument.access == StructuralAccess::Owned)
+            {
+                let operation = psi_operation.ok_or(
+                    OptimizationUnitValidationError::CurrentCleanupMismatch {
+                        machine: function.machine,
+                        block: block_id,
+                    },
+                )?;
+                let invalid = |reason| OptimizationUnitValidationError::InvalidOwnedValueTransfer {
+                    machine: function.machine,
+                    operation,
+                    reason,
+                };
+                let root = structural_source_contract(function, argument.place)
+                    .ok_or_else(|| invalid("owned operand has no exact source contract"))?;
+                let selected = terminal_semantics::runtime_structural_path_tip(
+                    structural_types.values().copied(),
+                    root.structural_type,
+                    &argument.path,
+                )
+                .ok_or_else(|| invalid("owned operand path has no selected carrier"))?;
+                let claims = frontier.claims.values().filter(|claim| {
+                    claim.input == Some(argument.place)
+                        && (claim.path.starts_with(&argument.path)
+                            || argument.path.starts_with(&claim.path))
+                });
+                if claims
+                    .clone()
+                    .any(|claim| claim.multiplicity != Some(StructuralMultiplicity::Linear))
+                {
+                    return Err(invalid(
+                        "owned operand claim has no exact linear multiplicity",
+                    ));
+                }
+                terminal_semantics::owned_structure::validate_owned_claim_frontier(
+                    structural_types,
+                    &nominal,
+                    selected.id,
+                    &argument.path,
+                    claims.map(|claim| claim.path.clone()),
+                    &|path, case| {
+                        !membership_at(node_index as usize, argument.place, path, case, false)
+                    },
+                )
+                .map_err(invalid)?;
+            }
             let mut consumed_places = structural_arguments
                 .iter()
                 .zip(&parameter_multiplicities)

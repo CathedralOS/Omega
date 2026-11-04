@@ -819,8 +819,7 @@ impl TerminalExecution<'_> {
             self.structural_types().get(&result.structural_type),
             Some(declaration) if declaration.shape.is_borrowed_byte_view()
         );
-        if !matches!(result.multiplicity, nonlinear_multiplicity_pair_pattern!())
-            || (!result.qualifications.is_empty() && !descriptor_home)
+        if (!result.qualifications.is_empty() && !descriptor_home)
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
             || self.result_place_in_use(result.place)
@@ -1306,14 +1305,7 @@ impl TerminalExecution<'_> {
         self.restore_store_frontier(&mut frontier, destination, path, &hole, field_type)
             .map_err(|error| failure("restoration frontier", error))?;
         let claims = self
-            .stage_window_store_claims(
-                destination,
-                &storage,
-                path,
-                &hole,
-                value.place,
-                &mut frontier,
-            )
+            .stage_window_store_claims(destination, &storage, path, &hole, value, &mut frontier)
             .map_err(|error| failure("restored claims", error))?;
         // Completed primitive arrays keep their payload outside the opaque
         // structural-place map. Resolve both representations, and stage their
