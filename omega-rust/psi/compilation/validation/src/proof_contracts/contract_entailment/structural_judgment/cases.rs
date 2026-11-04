@@ -17,6 +17,14 @@ use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::TypeReferenceHandle;
 
+#[derive(Clone)]
+pub(super) struct CaseFact {
+    subject: StructuralTerm,
+    data: SymbolHandle,
+    case: SymbolHandle,
+    holds: bool,
+}
+
 /// Translate an authenticated classifier into its subject's exact application.
 /// The premise supplies tag truth; carrier correspondence supplies only identity.
 pub(super) fn applied_case_classifier(
@@ -38,6 +46,65 @@ pub(super) fn applied_case_classifier(
 }
 
 impl StructuralJudge<'_> {
+    /// A failed case test excludes that case on this subject. Keep its exact
+    /// declaration and application just as for a successful test; neither
+    /// observation supplies unobserved payload fields.
+    pub(super) fn intake_case_condition(&mut self, fact: ExpressionHandle, holds: bool) {
+        let program = self.program;
+        let Some(binary) = program.expression_table.binary_node(fact) else {
+            return;
+        };
+        if !structural_terms::is_case_observation(program, fact)
+            || !self.is_case_membership(fact, binary)
+        {
+            return;
+        }
+        let reference = if self.runtime_body_values {
+            self.runtime_declaration_scope()
+                .and_then(|(machine, state)| {
+                    crate::proof_contracts::bound_expression_meaning::operand_type(
+                        program,
+                        machine,
+                        Some(state),
+                        binary.left,
+                    )
+                })
+        } else {
+            self.declaration_expression_type(binary.left)
+        };
+        let Some((definition, variant)) = applied_case_classifier(program, binary.right, reference)
+        else {
+            return;
+        };
+        let Some(subject) = self.declaration_term(binary.left) else {
+            return;
+        };
+        Arc::make_mut(&mut self.case_facts).push(CaseFact {
+            subject: subject.clone(),
+            data: definition.symbol,
+            case: variant.symbol,
+            holds,
+        });
+        // Only a successful tag test on a carrier without common or payload
+        // fields describes a whole value. Exclusion never constructs a value.
+        if !holds
+            || program
+                .data_members(definition)
+                .iter()
+                .any(|member| matches!(member, DataMember::Field(_)))
+            || !program.data_payload_fields(variant).is_empty()
+        {
+            return;
+        }
+        let value = StructuralTerm::Constructor {
+            data: definition.name.as_str().to_owned(),
+            case: variant.name.as_str().to_owned(),
+            fields: Vec::new(),
+        };
+        self.intake_case_equation(subject.clone(), value.clone(), 0);
+        self.intake_equation(subject, value, 0);
+    }
+
     pub(super) fn is_case_membership(
         &self,
         expression: ExpressionHandle,
@@ -245,11 +312,12 @@ impl StructuralJudge<'_> {
         &mut self,
         guarantee: &CaseGuarantee,
     ) {
-        Arc::make_mut(&mut self.case_facts).push((
-            guarantee.subject.clone(),
-            guarantee.data,
-            guarantee.case,
-        ));
+        Arc::make_mut(&mut self.case_facts).push(CaseFact {
+            subject: guarantee.subject.clone(),
+            data: guarantee.data,
+            case: guarantee.case,
+            holds: true,
+        });
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn judge_case(
@@ -322,15 +390,42 @@ impl StructuralJudge<'_> {
         ) {
             return StructuralJudgment::Unknown;
         }
-        for (known_subject, known_data, known_case) in self.case_facts.iter() {
-            if *known_data == data_symbol
-                && self.resolve_case_subject(known_subject.clone(), 0).as_ref() == Some(&subject)
+        let mut excluded = Vec::new();
+        for fact in self.case_facts.iter() {
+            if fact.data == data_symbol
+                && self.resolve_case_subject(fact.subject.clone(), 0).as_ref() == Some(&subject)
             {
-                return if *known_case == case_symbol {
-                    StructuralJudgment::Proven
-                } else {
-                    StructuralJudgment::Refuted
-                };
+                if fact.holds {
+                    return if fact.case == case_symbol {
+                        StructuralJudgment::Proven
+                    } else {
+                        StructuralJudgment::Refuted
+                    };
+                }
+                if !excluded.contains(&fact.case) {
+                    excluded.push(fact.case);
+                }
+            }
+        }
+        if excluded.contains(&case_symbol) {
+            return StructuralJudgment::Refuted;
+        }
+        // After excluding cases, payload access is valid only if exactly one
+        // declared case remains for this same value and type application.
+        if !excluded.is_empty()
+            && let Some(definition) = self.program.data_definition_by_symbol(data_symbol)
+        {
+            let mut remaining = self
+                .program
+                .data_members(definition)
+                .iter()
+                .filter_map(|member| member.as_variant())
+                .filter(|variant| !excluded.contains(&variant.symbol));
+            if let Some(only) = remaining.next()
+                && remaining.next().is_none()
+                && only.symbol == case_symbol
+            {
+                return StructuralJudgment::Proven;
             }
         }
         StructuralJudgment::Unknown

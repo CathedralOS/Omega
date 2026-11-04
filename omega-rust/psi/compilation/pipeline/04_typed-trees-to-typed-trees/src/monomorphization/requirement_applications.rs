@@ -20,6 +20,69 @@ use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindin
 use typed_trees::typed_trees::{ClosedConformanceApplication, StaticRequirementDispatch};
 use typed_trees::{TypedTrees, expression::StaticMachineArgument};
 
+/// Prepare logical contracts without specializing the source computation.
+/// Each root keeps the declaration that owns its source arguments. Ordinary
+/// checking still admits the complete tuple and all invocation conditions.
+pub fn prepare_requirement_expression_views(
+    program: &mut TypedTrees,
+    roots: &[(SymbolHandle, typed_trees::expression::ExpressionHandle)],
+) -> Result<(), Vec<Diagnostic>> {
+    program
+        .prepare_closed_conformance_scopes()
+        .map_err(|message| vec![Diagnostic::error(message)])?;
+    let signatures = program
+        .prepare_applied_callable_signatures()
+        .map_err(|message| vec![Diagnostic::error(message)])?;
+    super::finalize_callable_signature_identities(program, signatures)
+        .map_err(|diagnostic| vec![diagnostic])?;
+
+    #[derive(Default)]
+    struct SourceExpressions {
+        owner: SymbolHandle,
+        seen: std::collections::HashSet<(SymbolHandle, typed_trees::expression::ExpressionHandle)>,
+        calls: Vec<(SymbolHandle, typed_trees::expression::ExpressionHandle)>,
+    }
+    impl Extend<SymbolHandle> for SourceExpressions {
+        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
+    }
+    impl typed_trees::references::TypedReferences for SourceExpressions {
+        fn derived_declaration_references(&self) -> bool {
+            false
+        }
+        fn expression(&mut self, expression: typed_trees::expression::ExpressionHandle) -> bool {
+            if !self.seen.insert((self.owner, expression)) {
+                return false;
+            }
+            self.calls.push((self.owner, expression));
+            true
+        }
+    }
+    let mut source = SourceExpressions::default();
+    for &(owner, root) in roots {
+        source.owner = owner;
+        typed_trees::references::visit_expression(program, &mut source, root);
+    }
+    // A copied dependency retains its own declaration's scope. Its actual
+    // owning root supplies that view; another root cannot lend its namespace.
+    let calls = source
+        .calls
+        .into_iter()
+        .rev()
+        .filter(|(owner, expression)| {
+            crate::tables::expressions_of(program)
+                .call_node(*expression)
+                .is_some_and(|call| {
+                    !call.authored_machine_application.is_valid()
+                        || crate::tables::expressions_of(program)
+                            .static_machine_application(call.authored_machine_application)
+                            .lexical_owner
+                            == *owner
+                })
+        })
+        .collect::<Vec<_>>();
+    calls::publish_expression_call_views(program, calls)
+}
+
 pub(crate) fn instantiate_requirement_applications(
     program: &mut TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -76,7 +139,10 @@ pub(crate) fn instantiate_requirement_applications(
             .ok_or_else(|| failed("boundary family lost its source requirement"))?;
         let name = signature.name.clone();
         let parameters = program.state_signature_type_parameters(signature).to_vec();
-        let tuples = if parameters.is_empty() {
+        // A method can bind invocation lifetimes without any type parameters.
+        // Preserve those lifetime arguments on each call instead of treating
+        // the method as one fixed application.
+        let tuples = if parameters.is_empty() && signature.lifetime_parameters.is_empty() {
             if !has_outer_operands {
                 continue;
             }

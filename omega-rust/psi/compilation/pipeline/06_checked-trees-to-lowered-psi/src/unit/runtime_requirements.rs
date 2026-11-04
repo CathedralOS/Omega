@@ -53,6 +53,7 @@ fn validate_namespace(expression: &CheckedBooleanExpression) -> Result<(), Lower
         | CheckedBooleanExpression::Parameter { .. }
         | CheckedBooleanExpression::ErasedParameter { .. }
         | CheckedBooleanExpression::StructuralParameterField { .. }
+        | CheckedBooleanExpression::StructuralIdentity { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => Ok(()),
         CheckedBooleanExpression::Not(operand) => validate_namespace(operand),
         facts::checked_boolean_triple_pattern!(left, right, ..) => {
@@ -253,6 +254,21 @@ impl RuntimeRequirementTerms<'_> {
 }
 
 impl PredicateTerms for RuntimeRequirementTerms<'_> {
+    fn structural_identity(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        left: &checked_trees::CheckedStructuralParameterField,
+        right: &checked_trees::CheckedStructuralParameterField,
+    ) -> Result<Proposition, LoweringError> {
+        crate::proofs::crash_routes::lower_structural_identity(
+            identities,
+            left,
+            right,
+            self.parameters,
+            self.structural_types,
+        )
+    }
+
     fn case_membership(
         &self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -434,7 +450,11 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
             )?;
             Ok(())
         }
-        Proposition::StructuralCaseMembership { .. } => Ok(()),
+        // These subjects contain structural formal paths, not scalar values.
+        // Call argument binding substitutes their roots separately.
+        Proposition::StructuralCaseMembership { .. } | Proposition::StructuralIdentity { .. } => {
+            Ok(())
+        }
         Proposition::Implication {
             premise,
             conclusion,

@@ -148,8 +148,8 @@ impl StructuralJudge<'_> {
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> StructuralJudgment {
-        let left_judgment = self.judge(self.program, left);
-        let right_judgment = self.judge(self.program, right);
+        let left_judgment = self.judge_proposition(self.program, left);
+        let right_judgment = self.judge_proposition(self.program, right);
         let composed =
             StructuralJudgment::connective(BinaryOperator::Or, left_judgment, right_judgment);
         if !matches!(composed, StructuralJudgment::Unknown) {
@@ -161,7 +161,7 @@ impl StructuralJudge<'_> {
         let mut alternative = self.clone();
         alternative.intake_equation(left_term, boolean_term(false), 0);
         if matches!(
-            alternative.judge(self.program, right),
+            alternative.judge_proposition(self.program, right),
             StructuralJudgment::Proven
         ) {
             StructuralJudgment::Proven

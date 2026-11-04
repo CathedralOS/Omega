@@ -72,7 +72,8 @@ pub use machine_calls::calls::{
     SelectedCallArgument, SelectedCallArgumentError, call_target_has_checked_body_contract,
     call_type_arguments, closed_requirement_dispatch_is_valid, machine_has_unit_result,
     named_conformance_target_requirement, nested_boundary_applications_compose,
-    requirement_contract_signature, result_initializer_call_is_admitted, selected_call_arguments,
+    requirement_contract_signature, resolve_requirement_contract,
+    result_initializer_call_is_admitted, selected_call_arguments,
     selected_call_result_domain_matches, selected_requirement_signature, target_family_members,
     unit_result_initializer_call_is_admitted, unit_return_call_is_admitted,
     unit_statement_call_is_admitted,
@@ -640,10 +641,11 @@ pub use value_custody::places::{
     parameter_source_type_application, place_root_may_be_symbol,
     project_type_reference_from_segments, projected_statement_receiver_place,
     projected_statement_receiver_type_reference, push_field_place_segments,
-    qualification_storage_path, receiver_projections, resolve_member_symbol_from_type_symbol,
-    runtime_field_subject, source_type_application_from_segments, state_scoped_name_symbol,
-    storage_operand, storage_place_from_expression_in_state, structural_member_identity,
-    symbol_type_symbol, unique_data_definition_by_symbol, whole_collection_view_source,
+    qualification_storage_path, receiver_projections, resolve_member_symbol_from_place,
+    resolve_member_symbol_from_type_symbol, runtime_field_subject,
+    source_type_application_from_segments, state_scoped_name_symbol, storage_operand,
+    storage_place_from_expression_in_state, structural_member_identity, symbol_type_symbol,
+    unique_data_definition_by_symbol, whole_collection_view_source,
 };
 
 /// Walk a type-reference table once into a positional row vector: row 0 is

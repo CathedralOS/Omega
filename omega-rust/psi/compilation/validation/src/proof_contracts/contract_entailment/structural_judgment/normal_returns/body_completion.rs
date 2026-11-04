@@ -21,9 +21,14 @@ impl<'program> StructuralJudge<'program> {
         scope: ValueScope<'_>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
         match target {
-            typed_trees::statement::TransitionTargetNode::Value(expression) => {
-                self.normal_return_paths(*expression, environment, scope)
-            }
+            typed_trees::statement::TransitionTargetNode::Value(expression) => self
+                .normal_return_paths(*expression, environment, scope)
+                .map(|paths| {
+                    paths
+                        .into_iter()
+                        .map(|path| path.at_return(*expression, scope))
+                        .collect()
+                }),
             typed_trees::statement::TransitionTargetNode::Terminal
                 if matches!(
                     self.program.type_reference_table.type_reference(scope.2),
@@ -141,11 +146,14 @@ impl<'program> StructuralJudge<'program> {
                         .and_then(|_| arm.normal_judge.completed_integer_range_recipe(&arm.value)),
                     value: arm.value,
                 };
-                let mut judge = arm
-                    .normal_judge
-                    .complete_invocation(caller, scope.1, &subjects, writes)?;
-                let version = judge.call_storage_version(scope.1, expression);
-                judge.advance_storage_version(version);
+                let mut judge = arm.normal_judge.complete_invocation(
+                    caller,
+                    scope.1,
+                    &subjects,
+                    writes,
+                    &result.value,
+                    caller.call_storage_version(scope.1, expression),
+                )?;
                 let completed = public_capture.and_then(|(prepared, guarantees)| {
                     judge.capture_prepared_normal_call(prepared, guarantees, Some(&result), scope)
                 });

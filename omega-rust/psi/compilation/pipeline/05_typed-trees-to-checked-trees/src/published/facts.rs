@@ -422,8 +422,8 @@ fn finish_check_facts(
     mut validation_facts: validation::ProgramValidationFacts,
 ) -> Result<(CheckFacts, validation::PreparedEffectPlans), Vec<diagnostics::Diagnostic>> {
     let program: &dyn validation::CheckingInput = program_context;
-    // Pending arithmetic uses the actual operands before their result exists.
-    // Resolve it before publishing the scalar plans that consume formation.
+    // Pending arithmetic and record predicates use completed operands before
+    // their result exists. Discharge every obligation before publishing plans.
     validation_facts.discharge_storage_formations(program)?;
     prepared.operators.decided_formations = validation_facts.decided_formations.clone();
     phase_profile::checkpoint(

@@ -530,6 +530,23 @@ pass/facts/exclusive_observation_exposure_through_float_call_result_exit built 1
 pass/facts/exclusive_observation_exposure_through_float_local_exit built 12353ms exit:0 interpreter-exit:0 interpreter:agrees @967c651da77a
 pass/facts/exclusive_observation_exposure_through_float_other_machine_exit built 11080ms exit:0 interpreter-exit:0 interpreter:agrees @967c651da77a
 pass/facts/exclusive_observation_exposure_through_float_target_body_exit built 17561ms exit:0 interpreter-exit:0 interpreter:agrees @967c651da77a
+pass/facts/finite_family_returned_descriptor/call_result built 5078ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/caller_view built 4810ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/const_name built 4779ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/field built 4348ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/incoming_join built 5281ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/local built 4817ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/match_join built 5843ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/other_machine built 4749ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/other_state built 5441ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/parameter built 4412ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/pointer_field built 4079ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/replaced_source built 4453ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/saved_source built 4160ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/target_body built 4397ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/target_qualification built 3952ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply rejected 3981ms expected native-rejection:match @059fb0b41d83
+	no provider is selected for boundary requirement `SelectedTarget::target_only`, which the program entry reaches on target `macos_arm64`
 pass/facts/finite_family_static_inline_result/argument_effect built 3818ms exit:0 interpreter-exit:0 interpreter:agrees @ddc17fff6a3c
 pass/facts/finite_family_static_inline_result/authored_sum built 3778ms exit:0 interpreter-exit:0 interpreter:agrees @ddc17fff6a3c
 pass/facts/finite_family_static_inline_result/call_result built 4177ms exit:0 interpreter-exit:0 interpreter:agrees @ddc17fff6a3c
