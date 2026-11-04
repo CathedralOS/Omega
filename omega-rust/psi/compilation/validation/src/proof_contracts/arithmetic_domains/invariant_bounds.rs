@@ -392,6 +392,22 @@ fn bounds(
             value.type_reference,
         ));
     }
+    // A named constant is one closed integer at every read. Guard narrowing
+    // (`val >= TARGET && val <= TARGET`) and the subtraction it justifies
+    // both need that value; a literal-only fold leaves the const opaque and
+    // reports exact overflow before the real loan or layout diagnostic.
+    if let Some(value) =
+        crate::value_custody::constants::completed_integer_constant(program, expression)
+    {
+        if let Some(primitive) = value.primitive {
+            typed_trees::closed_numeric::land_integer(&value.value, primitive)?;
+        }
+        return Some(Bounds::constant(
+            value.value,
+            value.primitive,
+            value.type_reference,
+        ));
+    }
     match program.expression_table.expression(expression) {
         // Literal failure in the shared query is final, not a second landing path.
         ExpressionNode::Integer(_) => None,

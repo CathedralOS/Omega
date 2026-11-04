@@ -1,1 +1,1 @@
-exact arithmetic in machine `advance` state `commit` assignment may overflow `u64`
+exact arithmetic in machine `commit` state `entry` assignment may overflow `u64`
