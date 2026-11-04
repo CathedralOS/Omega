@@ -171,8 +171,23 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
                 .structural_result_binding()
                 .is_some_and(|binding| binding.binding_ordinal == *binding_ordinal)
         });
-        let (producer, _) = producers.next()?;
-        if producers.next().is_some() {
+        let (producer, first) = producers.next()?;
+        if let Some((second_index, second)) = producers.next() {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE normal-completion-duplicate-producer machine={} state={} call={:?} ordinal={} first_index={} first={:?} second_index={} second={:?} results={:?} invocation={:?}",
+                    machine.name,
+                    state.name,
+                    coordinate,
+                    binding_ordinal,
+                    producer,
+                    first,
+                    second_index,
+                    second,
+                    results,
+                    invocation,
+                );
+            }
             return None;
         }
         if let Some((_, discard)) = operations[producer].discardable_structural_result_mut() {
