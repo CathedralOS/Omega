@@ -88,8 +88,29 @@ uses the public `InputIndexRelay::relay` requirement.
 
 That requirement has empty service reach. The caller names its synchronous
 entry with `invokes InputIndexRelay`; selecting code adds no service identity.
-The `dyn Family` argument is ordinary data for this outer boundary call, then
-selects the inner family member. Neither selection captures implicit data.
+Build chooses the relay implementation. The explicit `dyn Family` selector
+parameter passes through that relay and selects the inner family member.
+Both calls keep their data arguments explicit.
+
+## Review the selected result type
+
+The selected relay returns `Indexed<16>`. Its `Limit: u32` declaration is a
+value parameter, so a literal 16 is a valid argument. Package review must retain
+that exact type just as the checker and both execution engines do. It must not
+mistake the declared value parameter for a type-only parameter.
+
+The retained Linux compiler at `60cb5e1f79dd` checks and executes the selected
+target program, but ordinary `omega update` rejects its package review with
+`package review rejects a const expression outside one exact declared const-parameter slot`.
+The source and oracle were frozen before changing the compiler. The shared
+review validator now recognizes the exact declaration's value or const
+parameter, as the existing conformance and calling-signature review already do.
+It retains declaration ownership, argument position, expression identity and
+binder checks. A literal in a type-only parameter is still ineligible.
+
+Independent source review accepted this correction. Linux and macOS now pass
+the full focused scope below. The existing static inline-result target and twin
+also confirm that ordinary const-parameter review is preserved.
 
 ## Requirements and validation
 
@@ -107,28 +128,59 @@ it. The reject twins challenge only their own index or membership obligation.
 Ordinary borrow and cleanup rules still apply to the observation argument;
 recording a value grants no extra access or lifetime.
 
-The complete checked call, family table, selected Build row and result must
-survive Terminal production, interpretation, calling plans and native execution.
-The new source is pending independent review and fresh qualification. The
-baseline below does not establish execution of the migrated programs, Product
-producer parity, all-host support or closure of either parent task.
+The complete checked call, family table, selected Build row and result survive
+Terminal production, interpretation, calling plans and native execution on the
+two measured hosts. The focused scope includes this row's 12 positive projects
+and 13 reject controls, plus the existing static inline-result target and twin.
 
-At fixed published source `60cb5e1f79dd05465f77775990e46bcc2e789470`, the
-[optimized Linux baseline](https://github.com/CathedralOS/Omega/actions/runs/41798897195)
-observed 12 checked corpus positives, 13 intended corpus refusals and 12 actual
-native/Terminal exit-zero agreements. Ordinary projects had 12 zero agreements,
-ten matching refusals and three failures caused by missing authored rejection
-text. Those three diagnostics were the intended family-membership refusals.
-Their existing corpus fragments are now copied into the samples and must be
-scored in fresh validation. The original job remains failed.
+At exact source `6877d16bd42c53f2c3dd9a9cf4f733a6ffdbd550`,
+[Linux qualification](https://github.com/CathedralOS/Omega/actions/runs/41813105626)
+and the [macOS replay](https://github.com/CathedralOS/Omega/actions/runs/41817261002)
+each observe 13 checked positives, 14 intended corpus refusals and 13 actual
+native/Terminal exit-zero agreements. All 27 ordinary projects meet their
+expectations: 13 zero agreements and 14 intended refusals. The selected-target
+program now completes ordinary package review and executes at zero.
 
-This is migration of already working target-prefixed programs, not a claim of
-an existing compiler defect. Both baseline executables use optimization level 1;
-actual input and compiler identities remain distinct when a verified compiler
-is reused. Windows execution and the wider parent requirements remain open.
+Both compiler profiles use optimization level 1. The macOS replay authenticates
+the exact binaries from its [two-case seed](https://github.com/CathedralOS/Omega/actions/runs/41813109293);
+it performs no second compiler build and changes no gate limits. The
+[source archive](https://github.com/CathedralOS/Omega/pull/1805) retains that
+measured compiler independently of later metadata and publication.
+
+The final follow-up also includes an already published floating-point proof
+repair. Independent review verified that this additional change affects only
+sealed floating-point catalog selection; this row's integer, Boolean, index and
+selector consumers are unchanged. These results remain observations at
+`6877d16bd42`, with that applicability argument. They are not a new-head replay.
+Published corpus records remain unchanged because their status, facts and
+diagnostics match the actual focused observations; new CLI evidence is retained
+separately.
+
+This completes the selected-relay migration and its ordinary package-review
+repair on Linux x86-64 and macOS ARM64. Windows, Linux ARM64, Product producer
+parity and the broader acceptance of both parent tasks remain open.
 
 <details>
 <summary>Earlier source and measurements</summary>
+
+The target-prefixed programs were working migration inputs, not a demonstrated
+compiler defect. At fixed published source
+`60cb5e1f79dd05465f77775990e46bcc2e789470`, the
+[optimized Linux baseline](https://github.com/CathedralOS/Omega/actions/runs/41798897195)
+observed 12 checked positives, 13 intended corpus refusals and 12 actual
+native/Terminal zero agreements. Ordinary projects had 12 zero agreements,
+ten matching refusals and three failures caused by missing authored rejection
+text. Those diagnostics were the intended family-membership refusals. Their
+existing corpus fragments were copied into the samples; the original job
+remains failed.
+
+With the strengthened inputs at `09e488e7eb34` and that same compiled producer,
+[the input-only run](https://github.com/CathedralOS/Omega/actions/runs/41811098484)
+checked all 25 cases and observed all 12 corpus zero agreements. Ordinary
+projects had 11 zero agreements, 13 intended refusals and one valid
+selected-target package-review failure. The frozen target was replayed to
+capture its exact diagnostic before the one-file compiler repair. The source,
+producer and failure remain historical rather than being relabeled as success.
 
 The [previous README](https://github.com/CathedralOS/Omega/blob/60cb5e1f79dd05465f77775990e46bcc2e789470/samples/cli/facts/finite_family_input_index/README.md)
 retains the original index-binding repair and membership investigation. Fixed
