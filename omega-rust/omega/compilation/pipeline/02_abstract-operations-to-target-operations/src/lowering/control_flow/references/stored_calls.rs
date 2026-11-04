@@ -23,7 +23,7 @@ enum Source {
 }
 
 pub(in crate::lowering) struct StoredEffects {
-    machines: BTreeMap<MachineId, Option<Vec<Effect>>>,
+    machines: BTreeMap<MachineId, Result<Vec<Effect>, &'static str>>,
     provider_outputs: BTreeMap<(BoundaryMachineId, u32), (StructuralTypeId, StructuralAccess)>,
     pub(super) observations:
         BTreeMap<MachineId, terminal_semantics::descriptor_results::DescriptorSourceObservations>,
@@ -90,6 +90,63 @@ fn writable_slots(function: &AbstractFunction, types: &StructuralTypeLookup<'_>)
     })
 }
 
+/// Show the reconstructed origin before conversion, without querying it again.
+fn trace_origin(machine: MachineId, origin: &DescriptorStoredOrigin) {
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_none() {
+        return;
+    }
+    match origin {
+        DescriptorStoredOrigin::IncomingSlot { position, path } => eprintln!(
+            "CHECKSITE stored-reference-origin machine={machine:?} kind=incoming-slot parameter={position} path={path:?}"
+        ),
+        DescriptorStoredOrigin::Parameter {
+            position,
+            projection,
+        } => eprintln!(
+            "CHECKSITE stored-reference-origin machine={machine:?} kind=parameter parameter={position} projection={projection:?}"
+        ),
+        DescriptorStoredOrigin::IncomingContents {
+            position,
+            steps,
+            projection,
+        } => eprintln!(
+            "CHECKSITE stored-reference-origin machine={machine:?} kind=incoming-contents parameter={position} steps={steps:?} projection={projection:?}"
+        ),
+        DescriptorStoredOrigin::Invocation {
+            carrier_type,
+            projection,
+        } => eprintln!(
+            "CHECKSITE stored-reference-origin machine={machine:?} kind=invocation carrier={carrier_type:?} projection={projection:?}"
+        ),
+        DescriptorStoredOrigin::AccessFormation {
+            machine: owner,
+            operation,
+            place,
+            carrier,
+            projection,
+        } => eprintln!(
+            "CHECKSITE stored-reference-origin machine={machine:?} kind=access-formation owner={owner:?} operation={operation:?} place={place:?} carrier={carrier:?} projection={projection:?}"
+        ),
+        DescriptorStoredOrigin::Provider(provider) => eprintln!(
+            "CHECKSITE stored-reference-origin machine={machine:?} kind=provider boundary={:?} output={} invocations={:?} projection={:?} lifetime_dependencies={}",
+            provider.boundary,
+            provider.output,
+            provider.invocations,
+            provider.projection,
+            provider.lifetime_dependencies.len()
+        ),
+        DescriptorStoredOrigin::Literal {
+            machine: owner,
+            place,
+        } => eprintln!(
+            "CHECKSITE stored-reference-origin machine={machine:?} kind=literal owner={owner:?} place={place:?}"
+        ),
+        DescriptorStoredOrigin::Empty => {
+            eprintln!("CHECKSITE stored-reference-origin machine={machine:?} kind=empty")
+        }
+    }
+}
+
 pub(in crate::lowering) fn catalog(
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     boundaries: &[terminal_psi::BoundaryMachineDeclaration],
@@ -109,7 +166,12 @@ pub(in crate::lowering) fn catalog(
         access_results: BTreeMap::new(),
         machines: candidates
             .iter()
-            .map(|function| (function.machine, None))
+            .map(|function| {
+                (
+                    function.machine,
+                    Err("stored-reference catalog graph could not be reconstructed"),
+                )
+            })
             .collect(),
     };
     for boundary in boundaries {
@@ -192,6 +254,9 @@ pub(in crate::lowering) fn catalog(
             },
         )
     else {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!("CHECKSITE stored-reference-catalog phase=graph result=unresolved");
+        }
         return std::sync::Arc::new(effects);
     };
     let mut analysis = DescriptorAnalysis::with_reference_slots(types.catalog(), &graph);
@@ -226,31 +291,43 @@ pub(in crate::lowering) fn catalog(
         effects.access_results.insert(machine.id, result);
     }
     for function in candidates {
-        let summary = analysis.stored_effects(function.machine).and_then(|rows| {
+        let summary = analysis
+            .stored_effects(function.machine)
+            .ok_or("callee stored-reference body replay is unresolved or invalidates contents")
+            .and_then(|rows| {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!("CHECKSITE stored-reference-catalog machine={:?} phase=replay rows={}", function.machine, rows.len());
+            }
             rows.into_iter()
                 .map(|row| {
-                    let parameter = function.structural_parameters.get(row.parameter)?;
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!("CHECKSITE stored-reference-effect machine={:?} parameter={} steps={:?} origins={}", function.machine, row.parameter, row.steps, row.origins.len());
+                    }
+                    let parameter = function.structural_parameters.get(row.parameter)
+                        .ok_or("stored-reference destination parameter is unavailable")?;
                     let destination = StructuralArgument {
                         place: parameter.place,
                         path: descriptor_path(
                             types.catalog(),
                             parameter.structural_type,
-                            &row.exact_path()?,
-                        )?,
+                            &row.exact_path().ok_or("stored-reference destination is not an exact path")?,
+                        ).ok_or("stored-reference destination path has no typed storage")?,
                         access: parameter.access,
                     };
                     let mut sources = Vec::new();
                     for origin in row.origins {
+                        trace_origin(function.machine, &origin);
                         match origin {
                             DescriptorStoredOrigin::IncomingSlot { position, path } => {
-                                let parameter = function.structural_parameters.get(position)?;
+                                let parameter = function.structural_parameters.get(position)
+                                    .ok_or("stored-reference incoming parameter is unavailable")?;
                                 sources.push(Source::Incoming(StructuralArgument {
                                     place: parameter.place,
                                     path: descriptor_path(
                                         types.catalog(),
                                         parameter.structural_type,
                                         &path,
-                                    )?,
+                                    ).ok_or("stored-reference incoming path has no typed storage")?,
                                     access: parameter.access,
                                 }));
                             }
@@ -263,18 +340,20 @@ pub(in crate::lowering) fn catalog(
                                     || projection.window.is_some()
                                     || projection.captured_at.is_some()
                                 {
-                                    return None;
+                                    return Err("stored-reference parameter projection is not direct current storage");
                                 }
-                                let source = function.structural_parameters.get(position)?;
+                                let source = function.structural_parameters.get(position)
+                                    .ok_or("stored-reference backing parameter is unavailable")?;
                                 let carrier =
-                                    leaf_type(types, parameter.structural_type, &destination.path)?;
+                                    leaf_type(types, parameter.structural_type, &destination.path)
+                                        .ok_or("stored-reference destination carrier type is unavailable")?;
                                 let StructuralTypeShape::Reference { access, .. } =
-                                    types.get(carrier)?.shape
+                                    types.get(carrier).ok_or("stored-reference destination carrier declaration is unavailable")?.shape
                                 else {
-                                    return None;
+                                    return Err("stored-reference destination carrier is not a reference");
                                 };
                                 if !access_covers(source.access, access) {
-                                    return None;
+                                    return Err("stored-reference backing parameter access is insufficient");
                                 }
                                 sources.push(Source::Backing(StructuralArgument {
                                     place: source.place,
@@ -284,23 +363,32 @@ pub(in crate::lowering) fn catalog(
                             }
                             DescriptorStoredOrigin::Empty => {}
                             DescriptorStoredOrigin::Provider(provider) => {
-                                sources.push(Source::Provider(effects.provider_origin(&provider)?));
+                                sources.push(Source::Provider(effects.provider_origin(&provider)
+                                    .ok_or("stored-reference provider origin is unresolved")?));
                             }
-                            DescriptorStoredOrigin::Invocation { .. }
-                            | DescriptorStoredOrigin::IncomingContents { .. }
-                            | DescriptorStoredOrigin::Literal { .. }
-                            | DescriptorStoredOrigin::AccessFormation { .. } => return None,
+                            DescriptorStoredOrigin::Invocation { .. } => return Err("stored-reference invocation origin has no physical metadata conversion"),
+                            DescriptorStoredOrigin::IncomingContents { .. } => return Err("stored-reference captured incoming contents have no physical metadata conversion"),
+                            DescriptorStoredOrigin::Literal { .. } => return Err("stored-reference literal origin has no physical metadata conversion"),
+                            DescriptorStoredOrigin::AccessFormation { .. } => return Err("stored-reference access formation has no physical metadata conversion"),
                         }
                     }
                     sources.sort();
                     sources.dedup();
-                    Some(Effect {
+                    Ok(Effect {
                         destination,
                         sources,
                     })
                 })
                 .collect()
         });
+        if let Err(reason) = &summary
+            && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+        {
+            eprintln!(
+                "CHECKSITE stored-reference-catalog machine={:?} result=unresolved reason={reason}",
+                function.machine
+            );
+        }
         effects.machines.insert(function.machine, summary);
     }
     std::sync::Arc::new(effects)
@@ -346,9 +434,7 @@ pub(in super::super) fn stage(
     let Some(effects) = live.stored_reference_effects.machines.get(&callee.machine) else {
         return Ok(staged);
     };
-    let effects = effects
-        .as_ref()
-        .ok_or_else(|| invalid("callee stored-reference effects are unresolved"))?;
+    let effects = effects.as_ref().map_err(|reason| invalid(*reason))?;
     let actual = |formal: &StructuralArgument| {
         let argument = call_source(&callee.structural_parameters, arguments, formal)
             .ok_or_else(|| invalid("effect formal has no corresponding actual argument"))?;
