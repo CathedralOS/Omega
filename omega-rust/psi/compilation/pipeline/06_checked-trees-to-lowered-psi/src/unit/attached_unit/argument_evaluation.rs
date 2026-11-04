@@ -782,7 +782,8 @@ impl Evaluation {
             let producer = producers.next().ok_or(LoweringError::Unsupported(
                 "linear local has no exact completed call result",
             ))?;
-            if producers.next().is_some()
+            let ambiguous_producer = producers.next().is_some();
+            if ambiguous_producer
                 || produced.claims.is_empty()
                 || !operations.source_calls.iter().any(|occurrence| {
                     occurrence.origin.statement().is_some_and(|site| {
@@ -791,7 +792,35 @@ impl Evaluation {
                     }) && occurrence.terminal_site.operation() == Some(producer.id)
                 })
             {
-                return unsupported("linear local lost its exact call result custody");
+                return unsupported("linear local lost its exact call result custody").map_err(
+                    |cause| LoweringError::LinearResultCustodyMismatch {
+                        cause: Box::new(cause),
+                        state,
+                        statement_index: result.statement_index,
+                        binding_ordinal: result.binding_ordinal,
+                        local: result.local.symbol,
+                        place: produced.place,
+                        structural_type: produced.structural_type,
+                        producer: producer.id,
+                        ambiguous_producer,
+                        claim_count: produced.claims.len(),
+                        source_call_count: operations.source_calls.len(),
+                        source_calls: operations
+                            .source_calls
+                            .iter()
+                            .take(4)
+                            .map(|occurrence| {
+                                crate::shared::lowering_error::LinearResultSourceCall {
+                                    state_statement: occurrence
+                                        .origin
+                                        .statement()
+                                        .map(|site| (site.state, site.statement_index)),
+                                    operation: occurrence.terminal_site.operation(),
+                                }
+                            })
+                            .collect(),
+                    },
+                );
             }
         }
         self.current_claims

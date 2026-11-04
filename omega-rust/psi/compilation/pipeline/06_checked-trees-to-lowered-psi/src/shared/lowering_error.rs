@@ -189,6 +189,23 @@ pub enum LoweringError {
         structural_type: semantic_vocabulary::StructuralTypeId,
         root_candidates: usize,
     },
+    /// Preserve the failed emitted-result join without inferring custody from
+    /// a local's type. Only the first four existing source-call coordinates
+    /// are retained, alongside their complete count.
+    LinearResultCustodyMismatch {
+        cause: Box<LoweringError>,
+        state: symbols::SymbolHandle,
+        statement_index: u32,
+        binding_ordinal: u32,
+        local: symbols::SymbolHandle,
+        place: PlaceId,
+        structural_type: semantic_vocabulary::StructuralTypeId,
+        producer: semantic_vocabulary::OperationId,
+        ambiguous_producer: bool,
+        claim_count: usize,
+        source_call_count: usize,
+        source_calls: Vec<LinearResultSourceCall>,
+    },
     /// A checked operation's failed join, retaining its exact source coordinate
     /// even when the machine has a complete plan and no earlier plan gap.
     InvalidUnitStatementPlan {
@@ -303,6 +320,12 @@ pub enum LoweringError {
     },
     InvalidContentProposition(PropositionError),
     InvalidCrashPredicate(PropositionError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LinearResultSourceCall {
+    pub state_statement: Option<(symbols::SymbolHandle, usize)>,
+    pub operation: Option<semantic_vocabulary::OperationId>,
 }
 
 impl LoweringError {
