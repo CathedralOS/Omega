@@ -108,7 +108,7 @@ jobs:
             ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
       - name: Check the exact integration candidate
         id: compiler-check
-        run: cargo check --locked -p omega
+        run: cargo check --locked -p compiler --tests --examples
       - name: Observe public Build consent and filesystem isolation
         if: github.event_name == 'workflow_dispatch' && inputs.build_consent
         run: python tools/ci/build_consent_controls.py
