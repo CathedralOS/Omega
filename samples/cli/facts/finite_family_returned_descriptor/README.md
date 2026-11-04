@@ -54,7 +54,9 @@ These are additional productions of the same borrowing requirement.
 The [caller-view example](caller_view/main.omg) forms a checked `Packet` view
 of a caller-owned `BackingPacket` before forwarding it. Their byte fields have
 different names. Both width choices must return the original byte 11, and the
-backing record must still read 11. Its [twin](caller_view/invalid/main.omg)
+backing record must still read 11. A third call uses a separate byte 23, so
+reusing the first pointer or inventing a constant result fails. Its
+[twin](caller_view/invalid/main.omg)
 changes only the selected method to return invocation-local storage.
 
 The first probe put references inside both records. Fixed-base run

@@ -25,7 +25,10 @@ machine main() crashes Trap {
     let packet: BackingPacket = BackingPacket { original: 11 };
     let first: &Packet = viewed_dispatch(&packet, 16);
     let second: &Packet = viewed_dispatch(&packet, 32);
-    transition first.bytes == 11 && second.bytes == 11 && packet.original == 11 {
+    let other: BackingPacket = BackingPacket { original: 23 };
+    let third: &Packet = viewed_dispatch(&other, 16);
+    transition first.bytes == 11 && second.bytes == 11 && packet.original == 11
+        && third.bytes == 23 && other.original == 23 {
         true -> done()
         false -> bad()
     }
