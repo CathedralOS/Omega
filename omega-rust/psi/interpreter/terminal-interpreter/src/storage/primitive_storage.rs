@@ -173,20 +173,12 @@ impl PrimitiveStorageFragment {
         &self,
         observed: ScalarType,
     ) -> Option<PrimitiveStorageEndpoint> {
-        self.contiguous_address_storage(observed)
-            .map(|storage| storage.endpoint.clone())
-    }
-
-    pub(super) fn contiguous_address_storage(
-        &self,
-        observed: ScalarType,
-    ) -> Option<&PrimitiveStorage> {
         let width = terminal_semantics::reference_storage_byte_width(observed)?;
         (self.addressable_cell
             && self.source_bit_offset == 0
             && self.destination_bit_offset == 0
             && u16::from(self.bit_length) == u16::from(width) * 8)
-            .then_some(&self.storage)
+            .then(|| self.storage.endpoint.clone())
     }
 }
 
