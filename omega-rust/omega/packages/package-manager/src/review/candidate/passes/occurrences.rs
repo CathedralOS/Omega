@@ -620,8 +620,8 @@ impl<'pass> PackageReviewRound<'pass> {
         // re-verifies its own canonical payloads before it counts.
         // Discovery mode remains part of the admitted inputs, so a record
         // a discovery pass stored only answers another discovery pass. The
-        // graph root is never persisted: its checked compilation is the
-        // invocation's product.
+        // application review uses the same source-free facts as a dependency
+        // review. Neither route reuses an executable product or grants.
         let reused = self
             .recovered
             .iter()
@@ -659,9 +659,7 @@ impl<'pass> PackageReviewRound<'pass> {
                 )
             })
             .or_else(|| {
-                if key == closure.graph().root()
-                    || self.fresh_components.contains(&(key.identity(), purpose))
-                {
+                if self.fresh_components.contains(&(key.identity(), purpose)) {
                     return None;
                 }
                 let directory = custody.compiled_review_cache_dir()?;
@@ -879,8 +877,7 @@ impl<'pass> PackageReviewRound<'pass> {
         // needed those descriptions never matches an unanswered-inputs lookup —
         // the same shape the in-session carry takes.
         let mut cache_write = None;
-        if key != closure.graph().root()
-            && let Some(directory) = custody.compiled_review_cache_dir()
+        if let Some(directory) = custody.compiled_review_cache_dir()
             && let Some(cache) = super::super::review_cache::CompiledReviewCache::open(directory)
             && let Some(consumed_units) = source.facts().consumed_units.as_ref()
             && let Ok(target_entry_candidate) = source.target_entry_candidate()
