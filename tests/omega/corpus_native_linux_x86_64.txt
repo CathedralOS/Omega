@@ -4819,6 +4819,7 @@ pass/facts/unsigned_shift_right_bound_through_other_machine_exit built 3123ms ex
 pass/facts/unsigned_shift_right_bound_through_other_state_exit built 2648ms exit:0 @a92f16431042
 pass/facts/unsigned_shift_right_bound_through_parameter_exit built 3027ms exit:0 @a92f16431042
 pass/facts/unsigned_shift_right_bound_through_target_body_exit built 3738ms exit:0 @a92f16431042
+pass/facts/value_location_alignment_contract_field_exit built 8282ms exit:0 @8d6537e9a051
 pass/facts/view_extent_after_write_through_call_result_exit built 3003ms exit:0 @a92f16431042
 pass/facts/view_extent_after_write_through_const_name_exit built 3776ms exit:0 @a92f16431042
 pass/facts/view_extent_after_write_through_field_exit incomplete 2653ms regressed-from:built+exit:0 @a92f16431042
