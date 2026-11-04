@@ -1209,6 +1209,10 @@ defines the complete product bar.
     [temporary qualified-view retirement](wiki/spec/language/domains.md#temporary-qualified-views)
     across loan cohorts, and scalar reads/results under
     [copy and publication rules](wiki/spec/language/domains.md#establishment-transport-and-helper-calls).
+  - Stop a borrow of an erasing cast from recovering its routed membership:
+    `observe(&(issued as Ticket))` with `observe(t: &Ticket in Ticket::Held)`
+    passes checking, because a borrow names its operand's storage, and then
+    fails in lowering ("completed projection has no exact consumer capture").
   - **DOMAIN-ISSUER-ROUTES:** extend same-project checked ordinary
     issuance/forwarding to cross-package private routes and selected structural
     payloads in
@@ -1248,6 +1252,16 @@ defines the complete product bar.
   `omega-rust/psi/compilation/validation/src/machine_calls/call_cycles/runtime_ranking/`,
   Psi 06 `src/unit/attached_unit/`, and
   `omega-rust/psi/interpreter/terminal-interpreter/src/engine/terminators/`.
+  - A termination promise that reaches a recursive component with no ranking
+    of its own is accepted unchecked; twelve `fail/termination` twins
+    (`rank_arrival_*`, `rank_range_declared_step_unbounded`,
+    `rank_range_record_stepped_copy_stale`, `rank_state_dependent_bound_prefix_write`,
+    `endpoint_folded_into_payload`, `stored_reference_endpoint_reseat`) compile.
+    The reach rule is implemented on `work/wave1-termination-reach` and lands
+    last, with its positive migrations, once component ranking accepts the
+    projected and arrival rank subjects those helpers need: captured copies,
+    formal/result-equation arrivals, opaque children, ranges and
+    stored-reference endpoints.
   - Re-run the external-result and `std`-loop execution controls
     (`external_result_ranked_arrival_compile` currently refuses with `provider
     candidate requires beyond its boundary's declared obligations`) once
@@ -2027,7 +2041,7 @@ defines the complete product bar.
   [review cache](omega-rust/omega/packages/package-manager/src/review/candidate/review_cache.rs)
   is a different artifact. Layouts used only inside unselected library code
   are a separate share of the cost, covered by the
-  [layout-demand question](OWNER_QUESTIONS.md#3-is-a-layout-used-only-inside-unselected-library-code-a-psi-obligation-under-every-target).
+  [layout formation scope](wiki/spec/layouts/plans.md#compile-time-journey-and-build).
   - Persist an admitted dependency's checked representation under its exact
     identity. Bind it to an applicability proof over the premises the
     specification lists: the target, the provider closure, root-sensitive
