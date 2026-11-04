@@ -10,6 +10,8 @@ use typed_trees::trait_definition::AppliedTraitScope;
 pub(super) struct AdmittedNominalSelection {
     pub(super) selected_machine: SymbolHandle,
     pub(super) selected_entry: SymbolHandle,
+    pub(super) receiving_trait: SymbolHandle,
+    pub(super) receiving_application: Result<String, String>,
     pub(super) satisfaction_trait: SymbolHandle,
     pub(super) satisfaction_requirement: SymbolHandle,
     pub(super) canonical_requirement_overload: String,
@@ -59,6 +61,8 @@ pub(super) fn validate_nominal_machine_selection(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<Option<AdmittedNominalSelection>, ()> {
     let MachineParameterContract::Nominal {
+        receiving_trait,
+        receiving_arguments,
         trait_definition: required_trait,
         requirement: required_requirement,
         trait_arguments: required_arguments,
@@ -630,9 +634,65 @@ pub(super) fn validate_nominal_machine_selection(
     Ok(Some(AdmittedNominalSelection {
         selected_machine: selected_machine.symbol,
         selected_entry: entry_state.symbol,
+        receiving_trait: *receiving_trait,
+        receiving_application: receiving_application_identity(
+            program,
+            *receiving_trait,
+            receiving_arguments,
+            parameter.symbol,
+            application,
+            bindings,
+        ),
         satisfaction_trait: *required_trait,
         satisfaction_requirement: *required_requirement,
         canonical_requirement_overload: program
             .trait_requirement_callable_identity_text(trait_definition, requirement),
     }))
+}
+
+/// The same admitted call operands that checked satisfaction also determine
+/// which child calling policy this registration selected.
+fn receiving_application_identity(
+    program: &dyn crate::CheckingInput,
+    receiving_trait: SymbolHandle,
+    receiving_arguments: &[typed_trees::types::TypeReferenceHandle],
+    parameter: SymbolHandle,
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    bindings: &[TypeBinding],
+) -> Result<String, String> {
+    let declaration = program.declaration_scope_parent(parameter);
+    let caller = if application.is_valid() {
+        expression_table(program)
+            .static_machine_application(application)
+            .lexical_owner
+    } else {
+        declaration
+    };
+    let lifetimes =
+        program.static_application_lifetimes_for_declaration(application, declaration)?;
+    let arguments = bindings
+        .iter()
+        .map(|binding| (binding.symbol, binding.actual))
+        .collect::<Vec<_>>();
+    program
+        .trait_definition_by_symbol(receiving_trait)
+        .and_then(|receiving| {
+            AppliedTraitScope::new(
+                program,
+                receiving,
+                typed_trees::trait_definition::TraitApplicationArguments {
+                    lexical_owner: declaration,
+                    enclosing_data_applications: &[],
+                    arguments: receiving_arguments,
+                    lifetimes: &[],
+                },
+            )
+        })
+        .and_then(|scope| {
+            scope.under_invocation(program, declaration, caller, &arguments, &lifetimes)
+        })
+        .and_then(|scope| scope.portable_application_identity(program))
+        .and_then(|identity| program.type_identity_text(identity))
+        .filter(|identity| !identity.is_empty())
+        .ok_or_else(|| "callback binder lost its complete receiving trait application".to_owned())
 }

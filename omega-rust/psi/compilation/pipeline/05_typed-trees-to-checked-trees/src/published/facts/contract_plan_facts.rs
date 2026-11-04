@@ -781,6 +781,17 @@ pub(crate) fn build_callable_scalar_value_contract_plan(
                             carrier,
                             membership.domain_symbol,
                         ) {
+                            // A scalar result has no structural catalog row to
+                            // qualify. Its checked guarantee stays a source
+                            // clause, as other non-structural ensures do.
+                            let whole_carrier =
+                                ::validation::unwrapped_type_reference(program, carrier)
+                                    .unwrap_or(carrier);
+                            if path.is_empty()
+                                && program.primitive_type_reference(whole_carrier).is_some()
+                            {
+                                continue;
+                            }
                             result_qualifications.push(
                                 checked_trees::CheckedStructuralPathQualification {
                                     path,

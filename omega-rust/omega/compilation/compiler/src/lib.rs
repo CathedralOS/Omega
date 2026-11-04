@@ -22,7 +22,8 @@ mod target_batch;
 pub use psi_compiler::ProducedTerminalProgram;
 pub use psi_compiler::{
     LibrarySliceTotals, declaration_page_fork_totals, dependency_body_read_totals,
-    dependency_entailment_totals, library_slice_totals, whole_program_reuse_hits,
+    dependency_entailment_totals, library_slice_totals, retained_layout_match_hits,
+    whole_program_reuse_hits,
 };
 mod observations;
 mod product_execution;
