@@ -1262,9 +1262,9 @@ defines the complete product bar.
     `endpoint_folded_into_payload`, `stored_reference_endpoint_reseat`) compile.
     The reach rule is implemented on `work/wave1-termination-reach` and lands
     last, with its positive migrations, once component ranking accepts the
-    projected and arrival rank subjects those helpers need: captured copies,
-    formal/result-equation arrivals, opaque children, ranges and
-    stored-reference endpoints.
+    projected and arrival rank subjects those helpers need: measures applied
+    to a field (`pending.held -> Countdown::Remaining`), formal/result-equation
+    arrivals, opaque children, ranges and stored-reference endpoints.
   - Re-run the external-result and `std`-loop execution controls
     (`external_result_ranked_arrival_compile` currently refuses with `provider
     candidate requires beyond its boundary's declared obligations`) once
