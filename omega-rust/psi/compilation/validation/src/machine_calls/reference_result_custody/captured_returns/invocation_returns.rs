@@ -23,14 +23,23 @@ impl Captures<'_> {
         loans: &[checked_trees::BorrowReturnedLoanFact],
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-        let target = crate::call_target_state(self.program, call.target_symbol)?;
         // A forwarding body consumes the same checked return relation as its
         // other callers. Lifetime-only frame summaries cannot replace that
         // relation or recover the origins of an abstract requirement's result.
         let relative = self.target_sources(call.target_symbol, active)?;
         let leaves = self.reference_leaves(state)?;
-        let target_leaves = self.reference_leaves(target)?;
-        let parameters = self.program.state_parameters(target);
+        let return_type = crate::call_target_return_type(self.program, call.target_symbol)?;
+        // This declaration roster supplies result paths and types only. Its
+        // placeholder source does not establish a parameter or permission;
+        // target_sources and the exact returned loans own those obligations.
+        let target_leaves = super::super::record_carrier_sources(
+            self.program,
+            return_type,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: 0,
+            },
+        )?;
+        let parameters = crate::call_target_parameters(self.program, call.target_symbol)?;
         let operands = self
             .facts
             .flow

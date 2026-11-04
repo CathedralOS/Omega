@@ -379,7 +379,7 @@ impl Captures<'_> {
         completed.then_some(output)
     }
 
-    /// Input-relative ordinary results use the callee's finite body relation.
+    /// Input-relative results consume the callee's checked or public relation.
     /// Already formed independent permissions use the common captured-loan
     /// projection, as do abstract invocations and constructors.
     fn ordinary_return_call(
@@ -393,12 +393,16 @@ impl Captures<'_> {
         let Some(call) = expression_table(self.program).call_node(expression) else {
             return Some(None);
         };
-        if call.static_requirement_dispatch.is_some()
-            || call.static_machine_parameter.is_valid()
-            || !crate::call_target_has_checked_body_contract(
-                self.program,
-                crate::call_target_symbol(self.program, call),
-            )
+        if call.static_requirement_dispatch.is_some() || call.static_machine_parameter.is_valid() {
+            return Some(None);
+        }
+        // Constructors and other non-invocation expressions retain their
+        // formation route. An abstract callable has a public signature even
+        // without an executable state; its region cannot become an exact
+        // pointer merely because the endpoint types happen to match.
+        let callable = crate::call_target_symbol(self.program, call);
+        if crate::call_target_parameters(self.program, callable).is_none()
+            || crate::call_target_return_type(self.program, callable).is_none()
         {
             return Some(None);
         }
