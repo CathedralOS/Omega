@@ -1,5 +1,6 @@
-//! Cleanup follows the completion the body owner already built. Scalar returns,
-//! named successors and selected return arms keep their own operand order.
+//! Keep referenced data alive through the last return or call argument using it.
+//! Read the body's prepared completion plan so cleanup follows its selected
+//! branch and argument order.
 
 use super::{Destination, Query, Results, Transfers, ValueReceiver, query_for_storage};
 use checked_trees::{

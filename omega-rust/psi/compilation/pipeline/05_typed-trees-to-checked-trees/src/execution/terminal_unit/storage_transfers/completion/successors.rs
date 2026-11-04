@@ -1,5 +1,5 @@
-//! Successor arguments execute in authored parameter order after selection.
-//! Capturing a descriptor does not release any local storage it still borrows.
+//! Evaluate arguments in source parameter order before entering another machine.
+//! A copied reference still keeps the data it points to alive.
 
 use super::{ComposedCompletion, Query, Transfers};
 use crate::execution::terminal_unit::storage_transfers::{Destination, Transfer};

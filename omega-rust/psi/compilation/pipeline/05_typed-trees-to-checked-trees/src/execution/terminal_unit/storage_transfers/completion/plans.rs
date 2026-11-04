@@ -1,4 +1,5 @@
-//! Borrow the exact selected branches; do not flatten sibling operand work.
+//! Follow each selected branch in source order. Cleanup for one branch must
+//! not include operands belonging to another.
 use super::{CompletionPlan, ComposedCompletion, PreparedCompletion};
 use checked_trees::{
     CheckFacts, CheckedCallScalarArgument, CheckedComposedUnitControlTerminatorPlan as Terminator,
