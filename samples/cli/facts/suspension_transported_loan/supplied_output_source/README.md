@@ -77,7 +77,7 @@ mutable-source admission; those refusals are not arithmetic or final carry-polic
 evidence.
 
 All nine places now check and run with native and Terminal exits 0 at
-6efc9c8b3f960523922f88c26c385c7778b5ee83. All nine policy twins reach their
+abc3be58c6d00bd092dc692f91d4020e9e48800b. All nine policy twins reach their
 intended refusal for forbidden backing. The caller can fill two output records
 and then choose between their distinct installed references; both choices execute.
 The original 54 frozen files and their 73/11 outcomes are unchanged. Byte-identical
@@ -86,21 +86,28 @@ inputs are pinned as `supplied_output_loan_through_<place>` under
 [fail facts](../../../../../tests/omega/fail/facts/). Corpus registration and
 final integrated validation remain pending.
 
-The same producer completes 27 programs in both engines across 78 recorded
-commands (51 source checks plus those 27 runs). A saved view survives replacing
+The same producer completes 28 programs in both engines across 80 recorded
+commands (52 source checks plus those 28 runs). A saved view survives replacing
 its output variable, a compatible view survives the possible pause, and an
 original mutable input becomes writable after every saved copy ends. The
 early-read and early-write controls still reject access before that closure.
 Numbers read before pointer replacement keep their old values; arithmetic on
 the replacement cannot use the old bound. A focused Rust regression also proves
-that a call uses its captured write origin and keeps an unknown capture unknown.
+that a call uses its captured write origin and keeps an unknown capture unknown
+(retained result at 6efc, with that signature-state write consumer unchanged).
+A shared containing record can now lend a shared view of its mutable-reference
+field: the program checks and both engines observe the installed 73. Its
+mutable-upgrade twin still reaches the intended access refusal.
 
 The full repair remains unfinished. Ordinary helper-installed generations still
-lack an input-permission association in two controls. A shared containing record
-reaches a cleanup correspondence refusal; the incoming descriptor relay and
-qualified alternative-handback controls also remain red. Those failures do not
-qualify their intended negative controls. These compositions, scoped fixture
-checks, exact final review and main publication remain required.
+lack an input-permission association in two controls. The incoming descriptor
+relay has inconsistent pointer-slot read checks, and the alternative-handback
+control loses three later qualification obligations. A new conditional/no-store
+composition with an incoming record stops earlier at its incoming entry
+permission; it does not yet qualify the lossless conditional-retirement branch.
+Those refusals do not establish their intended negative controls. These
+compositions, scoped fixture checks, exact final review and main publication
+remain required.
 
 Sources, hashes and raw observations are retained in build/supplied-output-loan/.
 The 54-file row was frozen before compiler edits. The two match-join mains were
