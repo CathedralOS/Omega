@@ -1258,18 +1258,51 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             let (result, _) = results
                 .iter()
                 .find(|(result, _)| result.binding_ordinal == *binding_ordinal)?;
-            if retirement.carrier_children_retired(result)
-                && storage_loans
-                    .iter()
-                    .all(|loan| retirement.holder_retired(*loan))
-                && facts
-                    .borrow
-                    .loan_group(*loans)?
-                    .all(|(loan, _)| retirement.children_retired(loan))
-            {
-                next = Some(index);
-                break;
+            if !retirement.carrier_children_retired(result) {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE exit-reference-pending state={state:?} result={} reason=carrier-children scheduled={} loans={loans:?}",
+                        result.binding_ordinal,
+                        scheduled.len()
+                    );
+                }
+                continue;
             }
+            if !storage_loans
+                .iter()
+                .all(|loan| retirement.holder_retired(*loan))
+            {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE exit-reference-pending state={state:?} result={} reason=storage-holder scheduled={} storage_loans={storage_loans:?}",
+                        result.binding_ordinal,
+                        scheduled.len()
+                    );
+                }
+                continue;
+            }
+            if !facts
+                .borrow
+                .loan_group(*loans)?
+                .all(|(loan, _)| retirement.children_retired(loan))
+            {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE exit-reference-pending state={state:?} result={} reason=loan-children scheduled={} rows={:?}",
+                        result.binding_ordinal,
+                        scheduled.len(),
+                        facts
+                            .borrow
+                            .loan_group(*loans)
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<_>>()
+                    );
+                }
+                continue;
+            }
+            next = Some(index);
+            break;
         }
         if let Some(index) = next {
             scheduled.push(pending.remove(index).1);
