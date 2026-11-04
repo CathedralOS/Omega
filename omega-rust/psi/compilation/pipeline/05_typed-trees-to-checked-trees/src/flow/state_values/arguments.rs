@@ -29,26 +29,34 @@ pub(in crate::flow) fn capture_argument(
     if !program.expression_table.expression_is_valid(argument) {
         return ScalarValue::Unknown;
     }
-    let TransitionTargetNode::Named {
-        path, arguments, ..
-    } = program.statement_table.transition_target(target)
-    else {
-        return ScalarValue::Unknown;
+    let (destination, arguments) = match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named {
+            path, arguments, ..
+        } => {
+            let Some(destination) = context
+                .state_index_in_machine(program, machine.symbol, path.symbol)
+                .and_then(|index| program.machine_states(machine).get(index))
+                .or_else(|| validation::call_target_state(program, path.symbol))
+            else {
+                return ScalarValue::Unknown;
+            };
+            (destination, program.statement_table.expression_handles(*arguments))
+        }
+        TransitionTargetNode::Value(expression) => {
+            if let typed_trees::expression::ExpressionNode::Call(call) =
+                program.expression_table.expression(*expression)
+                && let Some(destination) = validation::call_target_state(program, call.target_symbol)
+            {
+                (destination, program.expression_table.expression_handles(call.arguments))
+            } else {
+                return ScalarValue::Unknown;
+            }
+        }
+        _ => return ScalarValue::Unknown,
     };
-    if program
-        .statement_table
-        .expression_handles(*arguments)
-        .get(ordinal)
-        != Some(&argument)
-    {
+    if arguments.get(ordinal) != Some(&argument) {
         return ScalarValue::Unknown;
     }
-    let Some(destination) = context
-        .state_index_in_machine(program, machine.symbol, path.symbol)
-        .and_then(|index| program.machine_states(machine).get(index))
-    else {
-        return ScalarValue::Unknown;
-    };
     let Some((position, parameter)) = program
         .state_parameters(destination)
         .iter()

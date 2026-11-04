@@ -257,24 +257,51 @@ pub(super) fn record_transition(
     {
         return;
     }
-    let (destination, arguments) = match program.statement_table.transition_target(target) {
+    let (destination, destination_owner, arguments) = match program.statement_table.transition_target(target) {
         TransitionTargetNode::Named {
             path, arguments, ..
         } => {
             let Some(destination) = build
                 .state_index_in_machine(program, machine.symbol, path.symbol)
                 .and_then(|index| program.machine_states(machine).get(index))
+                .or_else(|| validation::call_target_state(program, path.symbol))
             else {
                 return;
             };
+            let destination_owner = build
+                .state_location(program, destination.symbol)
+                .map(|(owner_index, _)| &program.machines()[owner_index])
+                .unwrap_or(machine);
             (
                 destination,
+                destination_owner,
                 program.statement_table.expression_handles(*arguments),
             )
         }
+        TransitionTargetNode::Value(expression) => {
+            if let typed_trees::expression::ExpressionNode::Call(call) =
+                program.expression_table.expression(*expression)
+                && let Some(destination) = validation::call_target_state(program, call.target_symbol)
+            {
+                let destination_owner = build
+                    .state_location(program, destination.symbol)
+                    .map(|(owner_index, _)| &program.machines()[owner_index])
+                    .unwrap_or(machine);
+                (
+                    destination,
+                    destination_owner,
+                    program.expression_table.expression_handles(call.arguments),
+                )
+            } else {
+                return;
+            }
+        }
         _ => return,
     };
-    if entry_state(program, machine).is_some_and(|entry| entry.symbol == destination.symbol) {
+    if destination_owner.lexical_region_origin.is_none()
+        && !lexically_nested_machine(program, destination_owner.symbol)
+        && entry_state(program, destination_owner).is_some_and(|entry| entry.symbol == destination.symbol)
+    {
         return;
     }
     let mut values = Vec::new();
@@ -337,7 +364,7 @@ pub(super) fn record_transition(
         values.push((parameter.symbol, value));
         bounds.push(ParameterBounds::new(parameter.symbol, bound));
     }
-    let fields = fields::capture(
+    let mut fields = fields::capture(
         program,
         semantic,
         build,
@@ -369,10 +396,31 @@ pub(super) fn record_transition(
         statement_index,
         contexts,
     ));
+    for (ordinal, parameter) in program.state_parameters(destination).iter().enumerate() {
+        if let Some(operand) = captured_operands.get(ordinal) {
+            let completed = completed_argument_facts(program, build, operand, contexts);
+            if let Some(completed) = completed {
+                fields.extend(fields::capture_completed_argument(
+                    program,
+                    semantic,
+                    &completed,
+                    parameter.symbol,
+                ));
+                qualifications.extend(qualifications::capture_completed_argument(
+                    program,
+                    semantic,
+                    build,
+                    operand,
+                    &completed,
+                    parameter.symbol,
+                ));
+            }
+        }
+    }
     join(
         program,
         build,
-        machine,
+        destination_owner,
         destination,
         fields::BoundsSource::transition(state.symbol, target),
         StateValues {

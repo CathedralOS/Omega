@@ -1411,8 +1411,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         &mut self,
         expression: ExpressionHandle,
     ) -> HandleSpan<checked_trees::FlowOperandReferent> {
-        if let Some(referents) = self.stored_view_referents(expression) {
-            return referents;
+        if let Some(r) = self.stored_view_referents(expression)
+            && !r.is_empty()
+        {
+            return r;
         }
         let Some(referents) = crate::flow::reference_expression_storage_places_including_shared(
             self.program,

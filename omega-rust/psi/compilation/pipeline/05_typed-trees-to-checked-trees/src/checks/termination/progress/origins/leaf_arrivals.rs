@@ -76,12 +76,19 @@ where
     let typed_state = program.state_by_symbol(state.state_symbol)?;
     let statements = state_statements(program, typed_state.statement_nodes);
     let root = place.root.as_symbol()?;
-    // Only an owned local's declaration supplies the boundary's frame type; a
-    // parameter or member root keeps its access path unchanged.
-    let (_, local) = program
+    // Only an owned local or parameter supplies the boundary's frame type; a
+    // member root keeps its access path unchanged.
+    let type_reference = if let Some((_, local)) = program
         .state_local_declaration(typed_state, root)
-        .filter(|&(ordinal, _)| ordinal < bound)?;
-    let leaf_len = shared_reference_boundary(program, local.type_reference, &place.segments)?;
+        .filter(|&(ordinal, _)| ordinal < bound)
+    {
+        local.type_reference
+    } else if let Some(parameter) = program.state_parameter_by_symbol(typed_state, root) {
+        parameter.type_reference
+    } else {
+        return None;
+    };
+    let leaf_len = shared_reference_boundary(program, type_reference, &place.segments)?;
     let mut slot = CanonicalPlace {
         root: place.root,
         segments: place.segments[..leaf_len].to_vec(),
@@ -298,24 +305,28 @@ pub(super) fn leaf_candidate_arrival(
     let typed_state = program.state_by_symbol(state.state_symbol)?;
     for _ in 0..REFERENCE_BOUNDARY_HOPS {
         let root = candidate.root.as_symbol()?;
-        let Some((_, local)) = program
+        let root_type = if let Some((_, local)) = program
             .state_local_declaration(typed_state, root)
             .filter(|&(ordinal, _)| ordinal < index)
-        else {
+        {
+            if reference_type(program, local.type_reference).is_some() {
+                // The candidate names storage through this binding, not the
+                // binding itself: rebase to its referent at this prefix position,
+                // then classify that place.
+                candidate = flow::local_reference_storage_before_statement(
+                    program, frames, machine, state, index, candidate,
+                )?;
+                continue;
+            }
+            local.type_reference
+        } else if let Some(parameter) = program.state_parameter_by_symbol(typed_state, root) {
+            parameter.type_reference
+        } else {
             return Some(LeafArrival::Resolved(candidate));
         };
-        if reference_type(program, local.type_reference).is_some() {
-            // The candidate names storage through this binding, not the
-            // binding itself: rebase to its referent at this prefix position,
-            // then classify that place.
-            candidate = flow::local_reference_storage_before_statement(
-                program, frames, machine, state, index, candidate,
-            )?;
-            continue;
-        }
         let reached = project_type_reference_from_segments(
             program,
-            local.type_reference,
+            root_type,
             &candidate.segments,
         )?;
         return Some(match reference_type(program, reached) {

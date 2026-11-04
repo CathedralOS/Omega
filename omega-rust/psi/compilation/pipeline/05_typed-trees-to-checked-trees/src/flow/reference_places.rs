@@ -187,12 +187,13 @@ pub(crate) fn local_reference_candidate_storages_at_call(
     place: CanonicalPlace,
 ) -> Option<Vec<CanonicalPlace>> {
     let root = place.root.as_symbol()?;
-    let candidates = reference_result_candidates_before_statement(
+    let candidates = result_candidates::reference_result_candidates_before_statement_including_shared(
         program,
         state.state_symbol,
         call.statement_index,
         root,
         Some(frames),
+        true,
     )?;
     let mut storages: Vec<CanonicalPlace> = candidates
         .into_iter()

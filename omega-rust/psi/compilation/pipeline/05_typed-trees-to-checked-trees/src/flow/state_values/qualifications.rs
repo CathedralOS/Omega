@@ -431,15 +431,25 @@ pub(in crate::flow) fn capture_argument(
     contexts: HandleSpan<FlowSemanticContextRef>,
     copied_values: HandleSpan<checked_trees::FlowOperandFact>,
 ) -> Vec<CapturedQualification> {
-    let TransitionTargetNode::Named { path, .. } =
-        program.statement_table.transition_target(target)
-    else {
-        return Vec::new();
+    let destination = match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named { path, .. } => {
+            flow_context
+                .state_index_in_machine(program, machine.symbol, path.symbol)
+                .and_then(|index| program.machine_states(machine).get(index))
+                .or_else(|| validation::call_target_state(program, path.symbol))
+        }
+        TransitionTargetNode::Value(expression) => {
+            if let typed_trees::expression::ExpressionNode::Call(call) =
+                program.expression_table.expression(*expression)
+            {
+                validation::call_target_state(program, call.target_symbol)
+            } else {
+                None
+            }
+        }
+        _ => None,
     };
-    let Some(destination) = flow_context
-        .state_index_in_machine(program, machine.symbol, path.symbol)
-        .and_then(|index| program.machine_states(machine).get(index))
-    else {
+    let Some(destination) = destination else {
         return Vec::new();
     };
     let Some(parameter) = program.state_parameters(destination).get(ordinal) else {

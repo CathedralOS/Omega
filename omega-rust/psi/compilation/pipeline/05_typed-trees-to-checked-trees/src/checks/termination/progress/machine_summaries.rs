@@ -474,14 +474,28 @@ pub(crate) fn local_state_transition_target<'program>(
         call.statement_index,
         call.call_ordinal,
     )?;
-    if !matches!(call_site, validation::CallSite::TransitionNamed { .. }) {
-        return None;
-    }
-    let target_index = crate::checks::termination::graph::named_transition_target_state_index(
-        program,
-        machine,
-        call.target_symbol,
-    )?;
+    let target_index = match call_site {
+        validation::CallSite::TransitionNamed { .. } => {
+            crate::checks::termination::graph::named_transition_target_state_index(
+                program,
+                machine,
+                call.target_symbol,
+            )?
+        }
+        _ => {
+            let typed_state =
+                validation::find_state_in_machine(program, machine.symbol, state.state_symbol)?;
+            if program
+                .statement_table
+                .statement_at(typed_state, call.statement_index)?
+                .as_transition()
+                .is_none()
+            {
+                return None;
+            }
+            validation::internal_state_index(program, machine, call.target_symbol)?
+        }
+    };
     program.machine_states(machine).get(target_index)
 }
 

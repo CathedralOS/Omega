@@ -103,13 +103,85 @@ impl Execution<'_, '_, '_> {
                 // caller: custody, not a value, continues on that outgoing
                 // occurrence. External and unresolved targets still require
                 // the expression's own normal completion.
-                normal_outgoing = normal_outgoing
-                    || matches!(
-                        self.program.expression_table.expression(*expression),
-                        typed_trees::expression::ExpressionNode::Call(call)
-                            if validation::call_target_state(self.program, call.target_symbol)
-                                .is_some()
-                    );
+                let is_state_call = matches!(
+                    self.program.expression_table.expression(*expression),
+                    typed_trees::expression::ExpressionNode::Call(call)
+                        if validation::call_target_state(self.program, call.target_symbol)
+                            .is_some()
+                );
+                normal_outgoing = normal_outgoing || is_state_call;
+                if is_state_call
+                    && let typed_trees::expression::ExpressionNode::Call(call) =
+                        self.program.expression_table.expression(*expression)
+                {
+                    if let Some((_, call_fact)) = self
+                        .context
+                        .control
+                        .calls
+                        .iter()
+                        .filter(|(_, c)| c.authored_expression == *expression)
+                        .last()
+                    {
+                        let argument_operands = call_fact.argument_operands();
+                        let operands_slice = self
+                            .context
+                            .control
+                            .operands
+                            .span(argument_operands)
+                            .unwrap_or_default()
+                            .to_vec();
+                        captured_operands.extend(operands_slice);
+                        for (ordinal, argument) in self
+                            .program
+                            .expression_table
+                            .expression_handles(call.arguments)
+                            .iter()
+                            .enumerate()
+                        {
+                            let first_write = self.operand_writes.len();
+                            operands.push((*argument, first_write));
+                            let captured = captured_operands
+                                .get(ordinal)
+                                .copied()
+                                .unwrap_or_default();
+                            let copied_values = if self.is_view_type(captured.type_reference)
+                                && !matches!(
+                                    captured.completion,
+                                    checked_trees::FlowOperandCompletion::Copied { .. }
+                                ) {
+                                HandleSpan::empty()
+                            } else {
+                                self.context.active_completed_copies
+                            };
+                            captured_qualifications.extend(qualifications::capture_argument(
+                                self.program,
+                                self.semantic,
+                                self.context,
+                                self.machine,
+                                self.state,
+                                self.statement_index,
+                                target,
+                                ordinal,
+                                *argument,
+                                *contexts,
+                                copied_values,
+                            ));
+                            values.push(super::super::state_values::capture_argument(
+                                self.program,
+                                self.semantic,
+                                self.context,
+                                self.machine,
+                                self.state,
+                                self.statement_index,
+                                target,
+                                ordinal,
+                                *argument,
+                                *contexts,
+                                copied_values,
+                            ));
+                        }
+                    }
+                }
             }
             TransitionTargetNode::Terminal => {}
         }

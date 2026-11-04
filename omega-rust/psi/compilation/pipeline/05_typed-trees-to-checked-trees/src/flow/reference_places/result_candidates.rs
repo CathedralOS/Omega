@@ -27,13 +27,31 @@ pub(crate) fn reference_result_candidates_before_statement(
     local_symbol: SymbolHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
+    reference_result_candidates_before_statement_including_shared(
+        program,
+        state_symbol,
+        statement_index,
+        local_symbol,
+        call_frames,
+        false,
+    )
+}
+
+pub(crate) fn reference_result_candidates_before_statement_including_shared(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    local_symbol: SymbolHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    include_shared: bool,
+) -> Option<Vec<CanonicalPlace>> {
     let state = program.state_by_symbol(state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let prefix = statements.get(..statement_index)?;
     let (binding_index, local) = program
         .state_local_declaration(state, local_symbol)
         .filter(|&(ordinal, _)| ordinal < statement_index)?;
-    if !crate::checks::contracts::is_readable_mutable_reference(program, local.type_reference) {
+    if !parameter_grants_readable_loan(program, local.type_reference, include_shared) {
         return None;
     }
     // A later bare assignment may rebind the reference to another result.
@@ -44,15 +62,13 @@ pub(crate) fn reference_result_candidates_before_statement(
     }) {
         return None;
     }
-    let call = program.expression_table.call_node(local.initial_value)?;
-    call_result_candidates(
+    storage_places(
         program,
         state_symbol,
         binding_index,
         local.initial_value,
-        call,
         call_frames,
-        false,
+        include_shared,
     )
 }
 
@@ -154,30 +170,288 @@ fn storage_places(
                 include_shared,
             );
         }
+        ExpressionNode::Match(dispatch) => {
+            let mut candidates = Vec::new();
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                for storage in storage_places(
+                    program,
+                    state,
+                    statement_index,
+                    arm.value,
+                    frames,
+                    include_shared,
+                )? {
+                    crate::shared::collections::push_unique(&mut candidates, storage);
+                }
+            }
+            return (!candidates.is_empty()).then_some(candidates);
+        }
         _ => {}
     }
     let place = place_at(program, state, statement_index, expression)?;
-    if let Some(storage) = crate::flow::rebase_exact_local_place(
+    storage_places_for_canonical_place(
         program,
         state,
         statement_index,
-        place.clone(),
+        &place,
         frames,
-    ) {
-        return matches!(storage.root, PlaceRoot::Symbol(_)).then_some(vec![storage]);
+        include_shared,
+        16,
+    )
+}
+
+fn storage_places_for_canonical_place(
+    program: &dyn ::validation::CheckingInput,
+    state: SymbolHandle,
+    statement_index: usize,
+    place: &CanonicalPlace,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+    include_shared: bool,
+    depth: usize,
+) -> Option<Vec<CanonicalPlace>> {
+    if depth == 0 {
+        return None;
     }
+    if place
+        .segments
+        .iter()
+        .any(|segment| matches!(segment, PlaceSegment::Index { .. }))
+    {
+        let root = CanonicalPlace {
+            root: place.root,
+            segments: Vec::new(),
+        };
+        let ty_ref = validation::canonical_place_type_reference(
+            program,
+            state,
+            statement_index,
+            &root,
+        )?;
+        let paths = validation::completed_storage::finite_projection_paths(
+            program,
+            ty_ref,
+            &place.segments,
+        )?;
+        let mut candidates = Vec::new();
+        for segments in paths {
+            let fixed = CanonicalPlace {
+                root: place.root,
+                segments,
+            };
+            if let Some(storages) = storage_places_for_canonical_place(
+                program,
+                state,
+                statement_index,
+                &fixed,
+                frames,
+                include_shared,
+                depth - 1,
+            ) {
+                for storage in storages {
+                    crate::shared::collections::push_unique(&mut candidates, storage);
+                }
+            }
+        }
+        return (!candidates.is_empty()).then_some(candidates);
+    }
+
+    if let PlaceRoot::Expression(expr) = place.root {
+        match program.expression_table.expression(expr) {
+            ExpressionNode::Member(member) => {
+                let member_symbol = validation::effective_member_symbol(program, member.receiver, member);
+                let receiver_place = place_at(program, state, statement_index, member.receiver);
+                let mut segments = Vec::new();
+                validation::push_field_place_segments(program, &mut segments, member_symbol);
+                segments.extend_from_slice(&place.segments);
+                if let Some(mut receiver_place) = receiver_place {
+                    receiver_place.segments.extend_from_slice(&segments);
+                    return storage_places_for_canonical_place(
+                        program,
+                        state,
+                        statement_index,
+                        &receiver_place,
+                        frames,
+                        include_shared,
+                        depth - 1,
+                    );
+                }
+            }
+            ExpressionNode::Indexed(indexed) => {
+                let segment = validation::index_place_segment(program, indexed.index);
+                let mut segments = vec![segment];
+                segments.extend_from_slice(&place.segments);
+                if let Some(mut coll_place) = place_at(program, state, statement_index, indexed.collection) {
+                    coll_place.segments.extend_from_slice(&segments);
+                    return storage_places_for_canonical_place(
+                        program,
+                        state,
+                        statement_index,
+                        &coll_place,
+                        frames,
+                        include_shared,
+                        depth - 1,
+                    );
+                }
+            }
+            ExpressionNode::Borrow(borrow) => {
+                if let Some(mut target_place) = place_at(program, state, statement_index, borrow.target) {
+                    target_place.segments.extend_from_slice(&place.segments);
+                    return storage_places_for_canonical_place(
+                        program,
+                        state,
+                        statement_index,
+                        &target_place,
+                        frames,
+                        include_shared,
+                        depth - 1,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let root_symbol = place.root.as_symbol();
+    let state_decl = program.state_by_symbol(state);
+    let local_decl = root_symbol
+        .and_then(|root| {
+            state_decl.and_then(|decl| program.state_local_declaration(decl, root))
+        })
+        .filter(|&(ordinal, _)| ordinal < statement_index);
+
+    if let Some((binding_index, local)) = local_decl {
+        if parameter_grants_readable_loan(program, local.type_reference, include_shared) {
+            let statements = program
+                .statement_table
+                .statements(state_decl.unwrap().statement_nodes);
+            let prefix = statements.get(..statement_index)?;
+            let rebound = prefix[binding_index + 1..].iter().any(|statement| {
+                matches!(statement, StatementNode::Assignment(assignment)
+                    if place_at(program, state, statement_index, assignment.target)
+                    .is_some_and(|target| target.root == place.root && target.segments.is_empty()))
+            });
+            if !rebound {
+                let mut candidates = Vec::new();
+                if let Some(initial_storages) = storage_places(
+                    program,
+                    state,
+                    binding_index,
+                    local.initial_value,
+                    frames,
+                    include_shared,
+                ) {
+                    for mut cand in initial_storages {
+                        cand.segments.extend_from_slice(&place.segments);
+                        if cand.segments.is_empty() || cand == *place {
+                            crate::shared::collections::push_unique(&mut candidates, cand);
+                        } else if let Some(resolved) = storage_places_for_canonical_place(
+                            program,
+                            state,
+                            binding_index,
+                            &cand,
+                            frames,
+                            include_shared,
+                            depth - 1,
+                        ) {
+                            for r in resolved {
+                                crate::shared::collections::push_unique(&mut candidates, r);
+                            }
+                        } else {
+                            crate::shared::collections::push_unique(&mut candidates, cand);
+                        }
+                    }
+                    if !candidates.is_empty() {
+                        return Some(candidates);
+                    }
+                }
+            }
+        } else if !place.segments.is_empty() {
+            if let Some(projections) = crate::flow::literal_expression_projections(
+                program,
+                local.initial_value,
+                local.type_reference,
+                &place.segments,
+                false,
+            ) {
+                let mut candidates = Vec::new();
+                for proj in projections {
+                    if let Some(mut storages) = storage_places(
+                        program,
+                        state,
+                        binding_index,
+                        proj.expression,
+                        frames,
+                        include_shared,
+                    ) {
+                        for storage in &mut storages {
+                            storage.segments.extend_from_slice(&proj.remaining);
+                            crate::shared::collections::push_unique(
+                                &mut candidates,
+                                storage.clone(),
+                            );
+                        }
+                    }
+                }
+                if !candidates.is_empty() {
+                    return Some(candidates);
+                }
+            }
+            if let Some(mut source) = place_at(program, state, binding_index, local.initial_value) {
+                source.segments.extend_from_slice(&place.segments);
+                if let Some(candidates) = storage_places_for_canonical_place(
+                    program,
+                    state,
+                    binding_index,
+                    &source,
+                    frames,
+                    include_shared,
+                    depth - 1,
+                ) {
+                    return Some(candidates);
+                }
+            }
+        }
+    }
+
     let root = place.root.as_symbol()?;
-    let mut candidates = reference_result_candidates_before_statement(
-        program,
-        state,
-        statement_index,
-        root,
-        frames,
-    )?;
-    for candidate in &mut candidates {
-        candidate.segments.extend_from_slice(&place.segments);
+    let state_decl = program.state_by_symbol(state);
+    let root_type = if let Some((_, local)) = state_decl
+        .and_then(|decl| program.state_local_declaration(decl, root))
+        .filter(|&(ordinal, _)| ordinal < statement_index)
+    {
+        Some(local.type_reference)
+    } else if let Some(param) = state_decl.and_then(|decl| program.state_parameter_by_symbol(decl, root)) {
+        Some(param.type_reference)
+    } else {
+        None
+    };
+
+    if let Some(ty) = root_type {
+        if parameter_grants_readable_loan(program, ty, include_shared) {
+            if let Some(storage) = crate::flow::rebase_exact_local_place(
+                program,
+                state,
+                statement_index,
+                place.clone(),
+                frames,
+            ) {
+                if storage != *place && matches!(storage.root, PlaceRoot::Symbol(_)) {
+                    return storage_places_for_canonical_place(
+                        program,
+                        state,
+                        statement_index,
+                        &storage,
+                        frames,
+                        include_shared,
+                        depth - 1,
+                    );
+                }
+            }
+            return None;
+        }
     }
-    Some(candidates)
+
+    Some(vec![place.clone()])
 }
 
 /// A checked body's actual storage route, before rebasing through caller
