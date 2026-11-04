@@ -1353,7 +1353,8 @@ defines the complete product bar.
     decisive/single-attempt behavior, failure ordering, `Uncommitted` custody,
     and target retry-work attribution).
   - Produce source/Terminal events for bounded atomic fields, non-observing
-    single-attempt exchange, and the location-free fence event and its ordering
+    single-attempt exchange beyond dedicated u32/u64 builtin storage, and the
+    location-free fence event and its ordering
     through target refinement.
   - Check `sequenced_before`, `reads_from`, `modification_order`,
     `synchronizes_with`, `happens_before`, `global_sequential_order`, fence
