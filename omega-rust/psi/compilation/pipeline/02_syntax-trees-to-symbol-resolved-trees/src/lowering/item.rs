@@ -128,7 +128,12 @@ fn lower_item_with_exposure(
                         // row identity, not a second satisfaction edge.
                         let edge_trait = syntax_items(syntax_trees)
                             .satisfies_clauses(machine.satisfies)
-                            .first()
+                            .iter()
+                            .find(|clause| {
+                                clause.requirement.as_ref().is_some_and(|name| {
+                                    name.as_str(syntax_trees) == machine.name.as_str(syntax_trees)
+                                })
+                            })
                             .map(|clause| clause.trait_name.clone());
                         rows.push(lower_closed_machine_row(
                             lowerer,
@@ -423,9 +428,14 @@ fn lower_closed_machine_row(
     // A member belongs to the implementation's map, not to any data
     // declaration; its parameters name every data type explicitly.
     realization.attached_data = None;
-    // An authored exact edge only selected the row above. The enclosing
-    // conformance already binds this member, so it declares no second edge.
-    realization.satisfies = arena::HandleSpan::empty();
+    // Inline members may also satisfy independent exact requirements. Keep
+    // those authored relations. Once the inherited row is resolved, only its
+    // redundant disambiguating edge is removed by conformance normalization.
+    realization.satisfies = if source == ConformanceRowSource::Inline {
+        machine.satisfies
+    } else {
+        arena::HandleSpan::empty()
+    };
     lower_machine_into(lowerer, syntax_trees, &realization)?;
     Ok(symbol_resolved_trees::trait_definition::ConformanceRow {
         declaring_trait: symbols::SymbolHandle::invalid(),

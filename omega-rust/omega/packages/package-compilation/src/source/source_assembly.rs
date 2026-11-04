@@ -393,6 +393,33 @@ impl ImmutableSourceParseCheckpoint {
         }
     }
 
+    /// Extend pending Product roots from an admitted completed default
+    /// supplier. This is source seeding, not another parser or Build route.
+    pub fn with_toolchain_defaults(
+        mut self,
+        defaults: &crate::CompletedProviderDefaults,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let capture = defaults.toolchain_capture().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "toolchain source defaults have a different supplier kind",
+            )]
+        })?;
+        let seeds =
+            defaults.source_seeds(crate::ProviderDefaultsAdmission::CapturedToolchain(capture))?;
+        Arc::make_mut(&mut self.source_storage).admit_toolchain_capture(capture)?;
+        let roots = self.product_roots.as_ref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "default source seeds must precede Product typing",
+            )]
+        })?;
+        let mut roots = roots.to_vec();
+        roots.extend(seeds);
+        roots.sort();
+        roots.dedup();
+        self.product_roots = Some(roots.into());
+        Ok(self)
+    }
+
     pub fn root_path(&self) -> &Path {
         &self.root_path
     }

@@ -27,7 +27,7 @@ impl PreparedPackageBuild {
     pub fn native_product_input_identity(&self) -> Result<[u8; 32], String> {
         let mut identity = BuildOutputIdentity {
             program: self.prepared.built.source.typed(),
-            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v6\0"),
+            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v7\0"),
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
@@ -106,10 +106,15 @@ impl BuildOutputIdentity<'_> {
             // hit must never replace its observations or sponsor accounting.
             evaluation_usage: _,
             observation_summary: _,
+            toolchain_provider_defaults,
             selected_build_machine_symbol,
             generated_sources,
         } = value;
         self.config(config)?;
+        self.digest.bool(toolchain_provider_defaults.is_some());
+        if let Some(defaults) = toolchain_provider_defaults {
+            self.digest.raw(defaults.observation());
+        }
         self.digest.len(root_binding_requests.len());
         for request in root_binding_requests {
             let language_semantics::declaration_selection::ExecutedRootBinding {
@@ -224,7 +229,7 @@ impl BuildOutputIdentity<'_> {
             settings,
             grants,
             provider_selections,
-            package_provider_selections,
+            default_provider_selections,
             native_bindings,
             native_binding_evaluation,
             assumed_bindings,
@@ -247,7 +252,7 @@ impl BuildOutputIdentity<'_> {
             self.symbol(*selecting_machine)?;
             self.occurrence(*source_span)?;
         }
-        for selections in [provider_selections, package_provider_selections] {
+        for selections in [provider_selections, default_provider_selections] {
             self.digest.len(selections.len());
             for selection in selections {
                 let provider_planning::ProviderSelection {

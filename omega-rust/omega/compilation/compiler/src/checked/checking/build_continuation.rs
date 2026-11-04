@@ -222,6 +222,7 @@ impl BuildSourceInvocation {
             package_inputs: package_inputs.cloned(),
             original_assembly,
             build_execution_profile,
+            toolchain_provider_defaults: None,
             timings,
             build_elapsed_micros: started.elapsed().as_micros(),
         })
@@ -265,6 +266,7 @@ pub(super) fn prepare_settled_product(
     let completed = complete_build_source(
         frontier,
         settled.evaluated,
+        settled.toolchain_provider_defaults,
         inputs,
         settled.build_execution_profile,
         &mut timings,
@@ -286,6 +288,7 @@ pub(super) fn prepare_settled_product(
 fn complete_build_source(
     frontier: TypedCompilationFrontier,
     evaluated: build_settings::EvaluatedBuild,
+    toolchain_provider_defaults: Option<package_compilation::CompletedProviderDefaults>,
     package_inputs: Option<&PackageCompilationInputs>,
     build_execution_profile: Option<target::TargetProfile>,
     timings: &mut CompileTimings,
@@ -367,6 +370,8 @@ fn complete_build_source(
         source = source
             .materialize_authored_bodies(&mut crate::observations::PsiStageTimings::new(timings))?;
     }
+    Arc::make_mut(&mut computed_build_config).toolchain_provider_defaults =
+        toolchain_provider_defaults;
     super::product_selections::admit(
         &mut source,
         Arc::make_mut(&mut computed_build_config),

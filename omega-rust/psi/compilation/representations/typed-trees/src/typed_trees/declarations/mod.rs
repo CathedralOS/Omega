@@ -5,6 +5,7 @@ pub mod calling_vocabulary;
 pub mod constant;
 pub mod data;
 pub mod domain;
+pub mod float_providers;
 pub mod intrinsic_requirements;
 pub mod invocations;
 pub mod layout_storage;

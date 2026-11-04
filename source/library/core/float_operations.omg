@@ -1,8 +1,8 @@
 // Source-visible floating-point operation identities.
 //
 // Primitive spellings resolve to the root Float operators below. All f32/f64
-// arithmetic and comparison overloads now have explicit native-target
-// satisfiers and selected-ProviderPlan realizations. The migrated named cohort
+// arithmetic and comparison overloads have exact satisfaction on ordinary
+// named-map members selected by the core Build companion. The named cohort
 // includes min/max, square root, negate, bool and enum classification,
 // multiply-then-add, the cross-target directed
 // add/subtract/multiply/divide/square-root families, and the AArch64
@@ -17,16 +17,8 @@
 
 use omega::language::core::float_format;
 use omega::language::core::float_meaning;
-use omega::language::core::targets::macos_arm64::float_impl;
-use omega::language::core::targets::macos_x86_64::float_impl;
-use omega::language::core::targets::linux_arm64::float_impl;
-use omega::language::core::targets::linux_x86_64::float_impl;
-use omega::language::core::targets::windows_x86_64::float_impl;
 
-// Nominal owner of the selected native float-operation provider closure.
-// Target-scoped leaves below satisfy exact overloaded boundary-operator
-// requirements; the carrier has no runtime state.
-data FloatNativeProvider { }
+use omega::language::core::float_provider;
 
 public data FloatClass [copy] {
     case NaN;

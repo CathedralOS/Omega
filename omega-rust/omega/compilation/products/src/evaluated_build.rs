@@ -33,9 +33,9 @@ pub struct BuildConfig {
     /// authoritative build machine. Provider settlement validates them against
     /// derived candidates before selection grants anything.
     pub provider_selections: Vec<ProviderSelection>,
-    /// Dependency-owned executed choices retain default precedence. They do
+    /// Supplier-owned executed choices retain default precedence. They do
     /// not acquire the consuming application's override authority.
-    pub package_provider_selections: Vec<ProviderSelection>,
+    pub default_provider_selections: Vec<ProviderSelection>,
     pub native_bindings: Vec<provider_planning::native_bindings::NativeBuildSupply>,
     pub native_binding_evaluation:
         Option<std::sync::Arc<provider_planning::native_bindings::NativeBuildEvaluation>>,
@@ -83,7 +83,14 @@ impl BuildConfig {
     pub fn provider_deployment(&self) -> Result<ProviderDeployment, Vec<diagnostics::Diagnostic>> {
         let deployed = !self.root_bindings.is_empty()
             || !self.provider_selections.is_empty()
-            || !self.package_provider_selections.is_empty();
+            || self.default_provider_selections.iter().any(|selection| {
+                selection
+                    .origin
+                    .activation()
+                    .source()
+                    .package_identity
+                    .is_some()
+            });
         let roots = self
             .root_bindings
             .iter()
@@ -114,7 +121,7 @@ impl BuildConfig {
             settings,
             grants,
             provider_selections,
-            package_provider_selections,
+            default_provider_selections,
             native_bindings,
             native_binding_evaluation,
             assumed_bindings,
@@ -128,7 +135,7 @@ impl BuildConfig {
         settings == &other.settings
             && grants == &other.grants
             && provider_selections == &other.provider_selections
-            && package_provider_selections == &other.package_provider_selections
+            && default_provider_selections == &other.default_provider_selections
             && native_binding_evaluation
                 .as_ref()
                 .map(|evaluation| evaluation.terminal_code)
@@ -224,6 +231,8 @@ pub struct ComputedBuildConfig {
     pub optimization_report_request: optimization_core::OptimizationReportRequest,
     pub evaluation_usage: Option<package_compilation::BuildEvaluationUsage>,
     pub observation_summary: Option<package_compilation::BuildObservationSummary>,
+    /// Actual completed core supplier, distinct from this root's Build return.
+    pub toolchain_provider_defaults: Option<package_compilation::CompletedProviderDefaults>,
     pub selected_build_machine_symbol: Option<symbols::SymbolHandle>,
     pub generated_sources: Vec<build_output::PackageGeneratedSource>,
 }
@@ -358,6 +367,7 @@ impl ComputedBuildConfig {
         }
         application.evaluation_usage = execution.evaluation_usage;
         application.observation_summary = execution.observation_summary.clone();
+        application.toolchain_provider_defaults = execution.toolchain_provider_defaults.clone();
         application.optimization_report_request = execution.optimization_report_request;
         Ok(application)
     }

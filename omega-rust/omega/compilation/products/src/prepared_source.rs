@@ -169,6 +169,17 @@ impl PreparedCheckedSource {
         }
     }
 
+    /// A new default supplier changes the source inputs. Keep parsed pages,
+    /// but do not reuse a typed frontier prepared before these roots existed.
+    pub fn with_toolchain_defaults(
+        mut self,
+        defaults: &package_compilation::CompletedProviderDefaults,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        self.source_checkpoint = self.source_checkpoint.with_toolchain_defaults(defaults)?;
+        self.frontiers = Arc::new(Mutex::new(Vec::new()));
+        Ok(self)
+    }
+
     pub fn admit_root(&self, root_path: &Path) -> Result<(), Vec<Diagnostic>> {
         self.source_checkpoint.admit_root(root_path)
     }

@@ -306,6 +306,17 @@ fn validate<'program>(
         program,
         &mut diagnostics,
     );
+    for machine in program.machines() {
+        if typed_trees::float_providers::is_catalog_declaration(program.typed_program(), machine)
+            && typed_trees::float_providers::intrinsic_member(program.typed_program(), machine)
+                .is_none()
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "float provider member `{}` is not authenticated: its core map, exact public requirement, complete signature and intrinsic binding must agree",
+                machine.name,
+            )));
+        }
+    }
     crate::value_custody::atomic_fences::validate_atomic_fence_declarations(
         program,
         &mut diagnostics,

@@ -94,6 +94,7 @@ pub(crate) fn normalize_closed_conformance_blocks(
             .next()
             .expect("one normalized row map per conformance");
     });
+    remove_inline_row_disambiguation_edges(program);
     let selected_realizations = program
         .conformances
         .iter()
@@ -533,6 +534,35 @@ fn normalize_one(
                 .filter(|row| row.source == ConformanceRowSource::TraitDefault),
         )
     {
+        // Resolve every inline clause against the inherited declaration
+        // identities. Independent exact satisfactions stay on the member;
+        // clause order cannot choose or suppress an inherited row qualifier.
+        let inherited_qualifiers = (authored.source == ConformanceRowSource::Inline).then(|| {
+            let member = authored
+                .provisional_realization_ordinal
+                .filter(|ordinal| *ordinal < program.machines.len())
+                .map(|ordinal| &program.machines[ordinal])
+                .or_else(|| {
+                    program
+                        .machines
+                        .iter()
+                        .find(|machine| machine.symbol == authored.realization_machine)
+                });
+            member
+                .into_iter()
+                .flat_map(|machine| program.machine_trait_conformances(machine.satisfies))
+                .filter(|edge| edge.requirement.as_ref() == Some(&authored.requirement_name))
+                .filter_map(|edge| {
+                    requirements
+                        .iter()
+                        .any(|requirement| {
+                            requirement.declaring_trait == edge.symbol
+                                && requirement.requirement_name == authored.requirement_name
+                        })
+                        .then_some(edge.symbol)
+                })
+                .collect::<Vec<_>>()
+        });
         let candidates = requirements
             .iter()
             .filter(|instance| {
@@ -543,12 +573,20 @@ fn normalize_one(
                 // but the path match is what distinguishes same-spelled
                 // module owners.
                 requirement.requirement_name == authored.requirement_name
-                    && (authored.declaring_trait_name.as_str().is_empty()
-                        || requirement.declaring_trait_name == authored.declaring_trait_name
-                        || program
-                            .symbols
-                            .display_path(requirement.declaring_trait, "::")
-                            == authored.declaring_trait_name.as_str())
+                    && inherited_qualifiers.as_ref().map_or_else(
+                        || {
+                            authored.declaring_trait_name.as_str().is_empty()
+                                || requirement.declaring_trait_name == authored.declaring_trait_name
+                                || program
+                                    .symbols
+                                    .display_path(requirement.declaring_trait, "::")
+                                    == authored.declaring_trait_name.as_str()
+                        },
+                        |qualifiers| {
+                            qualifiers.is_empty()
+                                || qualifiers.contains(&requirement.declaring_trait)
+                        },
+                    )
                     && authored
                         .provisional_requirement_ordinal
                         .is_none_or(|ordinal| requirement.ordinal == ordinal)
@@ -896,4 +934,69 @@ fn resolve_realizations<'catalog>(
         candidates.retain(|(machine, _)| machine.name == row.realization_name);
     }
     candidates
+}
+
+/// A closed inline row already records its inherited requirement. Keep every
+/// independent exact satisfaction, removing only the same resolved relation
+/// used to disambiguate that row. This avoids deriving two provider candidates
+/// for one map without dropping an independently authored obligation.
+fn remove_inline_row_disambiguation_edges(program: &mut SymbolResolvedTrees) {
+    let mut rows =
+        std::collections::BTreeMap::<SymbolHandle, Vec<(SymbolHandle, DiagnosticName)>>::new();
+    for implementation in program.conformances.iter() {
+        for row in implementation
+            .rows
+            .iter()
+            .filter(|row| row.source == ConformanceRowSource::Inline)
+        {
+            rows.entry(row.realization_machine)
+                .or_default()
+                .push((row.declaring_trait, row.requirement_name.clone()));
+        }
+    }
+    let replacements = program
+        .machines
+        .iter()
+        .map(|machine| {
+            let original = program.machine_trait_conformances(machine.satisfies);
+            let retained = original
+                .iter()
+                .filter(|edge| {
+                    !rows.get(&machine.symbol).is_some_and(|rows| {
+                        rows.iter().any(|(owner, requirement)| {
+                            edge.symbol == *owner && edge.requirement.as_ref() == Some(requirement)
+                        })
+                    })
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            (
+                machine.satisfies,
+                (retained.len() != original.len()).then_some(retained),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut spans = replacements
+        .into_iter()
+        .map(|(original, retained)| {
+            let Some(retained) = retained else {
+                return original;
+            };
+            let mut span = arena::HandleSpan::empty();
+            for edge in retained {
+                program
+                    .tables
+                    .declarations
+                    .machine_trait_conformances
+                    .append_to_span(&mut span, edge);
+            }
+            span
+        })
+        .collect::<Vec<_>>()
+        .into_iter();
+    program.machines.for_each_mut(|machine| {
+        machine.satisfies = spans
+            .next()
+            .expect("one satisfaction span per retained machine");
+    });
 }

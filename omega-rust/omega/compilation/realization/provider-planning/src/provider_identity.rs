@@ -69,19 +69,23 @@ pub fn provider_trait_application<'a>(
             return None;
         }
         let rows = &implementation.rows;
-        let lifetime_arguments =
-            named_requirement_lifetime_arguments(typed, implementation, declaring_trait)?;
-        return (rows
+        if rows
             .iter()
             .filter(|entry| {
                 entry.declaring_trait == declaring_trait && entry.requirement == requirement
             })
             .count()
-            == 1)
-            .then_some(ProviderTraitApplication::Named {
+            == 1
+        {
+            let lifetime_arguments =
+                named_requirement_lifetime_arguments(typed, implementation, declaring_trait)?;
+            return Some(ProviderTraitApplication::Named {
                 declaration: implementation,
                 lifetime_arguments,
             });
+        }
+        // An independent exact satisfaction retains the member's own trait
+        // application. The map's primary telescope cannot replace that edge.
     }
     let mut matching = typed
         .machine_trait_conformances(machine)
@@ -139,15 +143,43 @@ pub(crate) fn named_provider_row<'a>(
     let typed = context.typed;
     let definition = named_provider(context, plan)?;
     let mut matching = definition.rows.iter().filter(|entry| {
-        let Some(owner) = typed.trait_definition_by_symbol(entry.declaring_trait) else {
+        let own_identity = typed
+            .trait_definition_by_symbol(entry.declaring_trait)
+            .and_then(|owner| {
+                typed
+                    .trait_machine_signature_by_symbol(owner, entry.requirement)
+                    .map(|requirement| {
+                        typed.trait_requirement_callable_identity_text(owner, requirement)
+                    })
+            });
+        if own_identity.as_deref() == Some(plan.identities.text(row.requirement_identity)) {
+            return true;
+        }
+        let Some(member) = typed.machine(entry.realization_machine) else {
             return false;
         };
-        let Some(requirement) = typed.trait_machine_signature_by_symbol(owner, entry.requirement)
-        else {
+        if checked_trees::typed_trees::provider_declarations::satisfaction_provider_declaration(
+            typed, member,
+        ) != Some(definition.symbol)
+        {
             return false;
-        };
-        typed.trait_requirement_callable_identity_text(owner, requirement)
-            == plan.identities.text(row.requirement_identity)
+        }
+        typed
+            .machine_trait_conformances(member)
+            .iter()
+            .filter_map(|edge| {
+                checked_trees::typed_trees::provider_declarations::boundary_satisfaction_identity(
+                    typed, member, edge,
+                )
+            })
+            .filter(|(requirement, identity)| {
+                context.contains(*requirement)
+                    && typed.symbols.symbol_package_identity(*requirement)
+                        == plan.schema.declaration.trait_package_identity
+                    && identity == plan.identities.text(row.requirement_identity)
+            })
+            .count()
+            == 1
     });
     let entry = matching.next()?;
     (matching.next().is_none() && context.contains(entry.realization_machine)).then_some(entry)

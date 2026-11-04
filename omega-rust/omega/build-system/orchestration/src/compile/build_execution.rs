@@ -113,8 +113,14 @@ pub(crate) fn execute_returned_build(
     request: CheckedCompileRequest,
 ) -> Result<ReturnedPackageBuild, CompileFailure> {
     let mut invocation = compiler.begin_package_build(request)?;
-    let mut queries = invocation.product_queries();
-    let returned = execute_build(invocation.execution(), Some(&mut queries))?;
+    let returned = loop {
+        let mut queries = invocation.product_queries();
+        let returned = execute_build(invocation.execution(), Some(&mut queries));
+        match invocation.advance(returned)? {
+            compiler::BuildAdvance::Continue => continue,
+            compiler::BuildAdvance::Complete(returned) => break returned?,
+        }
+    };
     Ok(ReturnedPackageBuild {
         invocation,
         returned,

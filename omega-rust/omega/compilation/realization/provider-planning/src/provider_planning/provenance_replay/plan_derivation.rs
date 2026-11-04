@@ -20,7 +20,7 @@ use crate::provider_planning::provenance_replay::{
     SelectedTargetMachineOrigin, satisfies_plan_name,
 };
 use crate::provider_planning::source_provider_selections::{
-    provider_type_package_identity, provider_type_symbol,
+    provider_type_package_identity, provider_type_path, provider_type_symbol,
 };
 use crate::provider_planning::trait_name_text;
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
@@ -132,7 +132,7 @@ pub(crate) fn derive_provider_plans(
                     }
                 };
             let target = selected_target.unwrap_or_default().to_owned();
-            let provider_type = typed.attached_data_path(machine).unwrap_or_default();
+            let provider_type = provider_type_path(typed, machine).unwrap_or_default();
             let semantic_requirement_identity = exact_satisfied_requirement_identity(
                 typed,
                 clause.symbol,
@@ -263,7 +263,7 @@ fn derive_top_level_requirement_plans(
         let Some(provider_type_symbol) = provider_type_symbol(typed, machine) else {
             continue;
         };
-        let Some(provider_type) = typed.attached_data_path(machine) else {
+        let Some(provider_type) = provider_type_path(typed, machine) else {
             continue;
         };
         let provider_type_package_identity = provider_type_package_identity(typed, machine);
@@ -430,7 +430,7 @@ fn derive_boundary_operator_plans(
             };
             let schema = ServiceSchema::from_declaration(prepared.declaration.clone());
             let target = selected_target.unwrap_or_default().to_owned();
-            let provider_type = typed.attached_data_path(machine).unwrap_or_default();
+            let provider_type = provider_type_path(typed, machine).unwrap_or_default();
             let plan_name = satisfies_plan_name(&target, trait_name_text(&schema), &provider_type);
             let position = derived_plan_position(
                 &mut plans,
