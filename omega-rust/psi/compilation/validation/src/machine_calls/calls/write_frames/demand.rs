@@ -386,6 +386,39 @@ impl<'program> CallFrameResolver<'program> {
         {
             return Some(Vec::new());
         }
+        // A complete empty writable-slot relation needs no caller origins.
+        // Use the same ordered evaluator as the prefix-dependent query: an
+        // unknown invocation remains incomplete even with no incoming slots.
+        // Earlier proof-only statements may have no physical write prefix;
+        // that does not make a later reference-free call opaque.
+        let (state, _, _) = super::caller_aliases::caller_statement_at_site(
+            self.program,
+            machine,
+            &self.tables.symbols,
+            CallerWriteSite::Statement(statement),
+        )?;
+        let empty = CollectedStatementPrefix {
+            isolated_locals: Vec::new(),
+            aliases: Vec::new(),
+            divergent: Vec::new(),
+            stored: Vec::new(),
+        };
+        let unbound = super::stored_calls::statement_effects(
+            self.program,
+            machine,
+            state,
+            statement,
+            &empty,
+            &self.tables.symbols,
+            &mut FrameInference::for_state(state.symbol),
+        )
+        .map(|transfers| transfers.fallthrough());
+        if unbound
+            .as_ref()
+            .is_some_and(|transfer| transfer.is_complete() && transfer.effects.is_empty())
+        {
+            return Some(Vec::new());
+        }
         let (_, _, _, transfers) = self.statement_reference_transfer(machine, statement)?;
         let transfer = transfers.fallthrough();
         if !transfer.is_complete() {
