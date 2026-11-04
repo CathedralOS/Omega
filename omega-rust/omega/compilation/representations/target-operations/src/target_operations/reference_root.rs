@@ -12,8 +12,8 @@ use terminal_psi::StructuralPathSegment;
 pub enum ReferenceRoot {
     /// A mutable borrowed parameter or activation-local primitive place.
     Place(PlaceId),
-    /// One leaf of an owned reference-bearing ingress parameter; the referent
-    /// storage belongs to the caller, so no local pointer exists for it.
+    /// A projected storage path. Captured descriptor values use the separate
+    /// IncomingContents namespace, not the storage occupied by this path.
     Ingress(PlaceId, Vec<StructuralPathSegment>),
     /// One permission's possible backing paths for a runtime-selected
     /// descriptor; its selected static path is carried by the pointer.
@@ -21,6 +21,16 @@ pub enum ReferenceRoot {
 }
 
 impl ReferenceRoot {
+    /// The pointer value carried by an input slot, not the slot's own storage.
+    /// Projections below it retain this captured value across later slot writes.
+    pub fn incoming_contents(root: PlaceId, slot: Vec<StructuralPathSegment>) -> Self {
+        Self::Alternatives(vec![crate::TargetReferenceOrigin {
+            base: crate::TargetReferenceOriginBase::IncomingContents { root, slot },
+            path: Vec::new(),
+            extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+        }])
+    }
+
     /// Compose presentation metadata without selecting a runtime address.
     pub fn projected(&self, suffix: &[StructuralPathSegment]) -> Self {
         self.projected_family(

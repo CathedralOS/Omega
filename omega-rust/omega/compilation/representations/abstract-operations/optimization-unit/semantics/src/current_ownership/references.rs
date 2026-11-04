@@ -2333,14 +2333,21 @@ pub(super) fn transfer_return(
                 },
                 returned: reference.carrier == source
                     && owned_resident(&reference.carrier_path, &[]),
-                disposed: function
+                in_caller_storage: function
                     .structural_parameter(reference.carrier)
-                    .is_none_or(|parameter| parameter.access == StructuralAccess::Owned)
-                    && terminal_semantics::cleanup_disposes_reference(
-                        cleanup_actions,
-                        reference.carrier,
-                        &reference.carrier_path,
-                    ),
+                    .and_then(|parameter| {
+                        terminal_semantics::borrowed_entry_reference_referent(
+                            structural_types.values().copied(),
+                            parameter,
+                            &reference.carrier_path,
+                        )
+                    })
+                    .is_some(),
+                disposed: terminal_semantics::cleanup_disposes_reference(
+                    cleanup_actions,
+                    reference.carrier,
+                    &reference.carrier_path,
+                ),
             },
         )
         .collect::<Vec<_>>();
