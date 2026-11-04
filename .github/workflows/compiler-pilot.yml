@@ -130,6 +130,8 @@ jobs:
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
+      - name: Run constructor identity unit tests
+        run: python tools/build_slot.py -- cargo test --locked -p validation constructor_identity --lib
       - name: Observe public Build consent and filesystem isolation
         if: github.event_name == 'workflow_dispatch' && inputs.build_consent
         run: python tools/ci/build_consent_controls.py
