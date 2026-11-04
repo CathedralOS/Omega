@@ -152,11 +152,10 @@ framing upstream is incomplete.
 Whenever Coordinator Review (or [retrospect](../retrospect/SKILL.md)) observes a
 recurring agent failure pattern along the path to compiler completion
 ([rust_compiler_completion.md](../../../wiki/drafts/reference/rust_compiler_completion.md)):
-1. **Update the decision framing in [advance](../advance/SKILL.md):** Reframe the
-   instruction at the exact point where the agent made the wrong tradeoff (for
-   example, explaining *why* a fail-open fallback or blind `--record` blocks the
-   six release gates in `tools/release/release_record.py`, and stating the exact
-   pre-PR check the worker must run).
+1. **Update common agent framing in [AGENTS.md](../../../AGENTS.md#decision-making-framing-for-compiler-completion):**
+   Put shared rules and decision-making framing in `AGENTS.md` so every agent in
+   the repository inherits them, and keep [advance](../advance/SKILL.md) focused
+   strictly on the step-by-step execution workflow.
 2. **Keep swarm skills thin:** Never copy workflow patches into the six platform
    swarm skills (`local-swarm`, `dot-swarm`, `claude-swarm`, `codex-swarm`,
    `cursor-swarm`, `devin-swarm`). Those skills only describe platform session
@@ -164,4 +163,4 @@ recurring agent failure pattern along the path to compiler completion
 3. **Prefer mechanical admission checks where possible:** When a recurring
    mistake can be detected deterministically (such as `+wt` stamps or `unexpected`
    rows in `corpus_outcomes.txt`), enforce it in `tools/check_rules.py` as well as
-   in `/advance`.
+   in `AGENTS.md`.
