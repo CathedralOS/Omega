@@ -175,6 +175,20 @@ impl SlotRelationTransfer {
         !self.template_dependent && self.incomplete_calls.is_empty()
     }
 
+    /// A type parameter can leave slot structure unresolved. A failed call still
+    /// refuses, including beside that unresolved structure.
+    pub fn into_complete_effects(
+        self,
+    ) -> Result<Vec<StoredReferenceEffect>, StoredReferenceRelationRefusal> {
+        if !self.incomplete_calls.is_empty() {
+            return Err(StoredReferenceRelationRefusal::Unavailable);
+        }
+        if self.template_dependent {
+            return Err(StoredReferenceRelationRefusal::TemplateDependent);
+        }
+        super::public_effects(self.effects).ok_or(StoredReferenceRelationRefusal::Unavailable)
+    }
+
     /// Unknown reach cannot preserve any possibly aliased incoming origin.
     /// Preserve typed opaque regions as opaque, never invent reference access.
     pub fn unknown(

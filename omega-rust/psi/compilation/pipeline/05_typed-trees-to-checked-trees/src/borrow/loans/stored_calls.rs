@@ -71,9 +71,17 @@ pub(super) fn loans(
     let Some(frames) = call_frames else {
         return Ok(Vec::new());
     };
-    let effects = frames
-        .stored_reference_fallthrough_effects(machine, statement)
-        .ok_or("stored call has no complete statement-successor effects")?;
+    let effects = match frames.stored_reference_fallthrough_effects(machine, statement) {
+        Ok(effects) => effects,
+        // Concrete types are needed to publish the whole set of slot loans.
+        // Each selected closed instance checks that set, as for operand loans.
+        Err(validation::StoredReferenceRelationRefusal::TemplateDependent) => {
+            return Ok(Vec::new());
+        }
+        Err(validation::StoredReferenceRelationRefusal::Unavailable) => {
+            return Err("stored call has no complete statement-successor effects");
+        }
+    };
     if effects.is_empty() {
         return Ok(Vec::new());
     }
