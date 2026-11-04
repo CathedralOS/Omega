@@ -246,6 +246,12 @@ pub(super) fn collect(
         &mut Vec::new(),
     );
     let frozen = frozen_reference_leaf(program, &facts.flow.control, source, projection);
+    let frozen_kind = match &frozen {
+        FrozenReferenceSelection::NotFrozen => "not-frozen",
+        FrozenReferenceSelection::Endpoint { .. } => "endpoint",
+        FrozenReferenceSelection::ThroughReference => "through-reference",
+        FrozenReferenceSelection::Unavailable => "unavailable",
+    };
     let resolved = if let Some(complete) = collect_completed_output(
         program,
         facts,
@@ -445,6 +451,12 @@ pub(super) fn collect(
     };
     active.pop();
     if !resolved {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT descriptor-permission-unavailable source={source:?} expression={:?} completion={:?} permission={:?} path={projection:?} frozen={frozen_kind}",
+                capture.expression, capture.completion, capture.descriptor_permission
+            );
+        }
         output.truncate(before);
     }
     resolved
@@ -540,6 +552,12 @@ fn collect_descriptor_captures(
         capture.storage_snapshot,
     )?;
     let Some(selected) = selected.captures() else {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT descriptor-capture-frontier-unavailable source={source:?} path={projection:?} permission={:?}",
+                capture.descriptor_permission
+            );
+        }
         return Some(false);
     };
     // The resolver also represents an unchanged opaque descriptor by itself.
@@ -641,6 +659,11 @@ fn collect_completed_formations(
             output,
             parents,
         ) {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT descriptor-predecessor-permission-unavailable source={source:?} predecessor={selected:?} path={projection:?}"
+                );
+            }
             output.truncate(before);
             return Some(false);
         }

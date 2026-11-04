@@ -146,14 +146,56 @@ impl Execution<'_, '_, '_> {
                     capture,
                     projection,
                     ..
-                } => {
-                    let capture = *self.context.control.operands.get(capture);
-                    self.captured_retention_at_path(capture, &projection)
-                }
+                } => self.stored_capture_retention(capture, &projection),
             };
             profiles.push(profile);
         }
         self.join_retention_profiles(&profiles)
+    }
+
+    /// Reading a saved reference keeps the completed value that supplied it.
+    /// Its lifetime roots alone cannot identify the permission after the old
+    /// variable changes. A fresh profile points to the existing capture;
+    /// neither the original profile nor the evaluation occurrence is changed.
+    fn stored_capture_retention(
+        &mut self,
+        capture: Handle<FlowOperandFact>,
+        projection: &[PlaceSegment],
+    ) -> Handle<FlowOperandRetention> {
+        let value = *self.context.control.operands.get(capture);
+        let retained = self.captured_retention_at_path(value, projection);
+        if !self.context.control.operand_retentions.is_valid(retained)
+            || !validation::project_type_reference_from_segments(
+                self.program,
+                value.type_reference,
+                projection,
+            )
+            .is_some_and(|reference| validation::reference_shell(self.program, reference).is_some())
+        {
+            return retained;
+        }
+        let projection = self
+            .context
+            .control
+            .operand_retained_paths
+            .insert_many(projection.iter().copied());
+        let suppliers = self
+            .context
+            .control
+            .operand_retained_suppliers
+            .insert_many([FlowOperandRetainedSupplier {
+                operand: capture,
+                projection,
+                contract: None,
+            }]);
+        let profile = *self.context.control.operand_retentions.get(retained);
+        self.context
+            .control
+            .operand_retentions
+            .insert(FlowOperandRetention {
+                suppliers,
+                ..profile
+            })
     }
 
     /// Keep every completed descriptor profile at a selection. The joined
@@ -410,10 +452,7 @@ impl Execution<'_, '_, '_> {
                 capture,
                 projection,
                 ..
-            } => {
-                let capture = *self.context.control.operands.get(capture);
-                self.captured_retention_at_path(capture, &projection)
-            }
+            } => self.stored_capture_retention(capture, &projection),
         })
     }
 
@@ -475,10 +514,7 @@ impl Execution<'_, '_, '_> {
                     capture,
                     projection,
                     ..
-                }) => {
-                    let capture = *self.context.control.operands.get(capture);
-                    self.captured_retention_at_path(capture, &projection)
-                }
+                }) => self.stored_capture_retention(capture, &projection),
                 Some(
                     stored @ (StoredOperand::Unavailable
                     | StoredOperand::Incoming(_)
