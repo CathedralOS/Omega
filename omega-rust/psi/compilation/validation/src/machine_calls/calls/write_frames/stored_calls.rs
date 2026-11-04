@@ -144,6 +144,30 @@ fn invocation_effects(
     Some(transfer)
 }
 
+fn declaration_intrinsic_has_no_signature(
+    program: &dyn crate::CheckingInput,
+    call_site: super::caller_aliases::CallerWriteSite<'_>,
+) -> bool {
+    match call_site {
+        super::caller_aliases::CallerWriteSite::Call(call) => {
+            crate::compiler_operations::classify_statement_call_intrinsic(program, call).is_some()
+        }
+        super::caller_aliases::CallerWriteSite::Expression(expression) => program
+            .expression_table
+            .call_node(expression)
+            .is_some_and(|call| {
+                crate::compiler_operations::classify_expression_call_intrinsic(program, call)
+                    .is_some()
+                    || crate::compiler_operations::authored_call_intrinsic(
+                        program,
+                        typed_trees::references::StaticArgumentCall::Expression(expression, call),
+                    )
+                    .is_some()
+            }),
+        _ => false,
+    }
+}
+
 fn invocation_reference_effects(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -218,6 +242,23 @@ fn invocation_reference_effects(
     {
         trace_refusal("argument-capture-correspondence");
         return None;
+    }
+    // Inline assembly is an unnameable builtin. It has no machine parameter
+    // list, and its operands are instruction registers rather than caller
+    // reference descriptors. A missing signature is a complete empty slot
+    // relation: the instruction does not replace a descriptor the caller owns.
+    if program
+        .symbols
+        .builtin_function_for_symbol(target)
+        .is_some_and(|function| function.is_asm_intrinsic())
+    {
+        return Some(SlotRelationTransfer::complete(Vec::new()));
+    }
+    // Provider selection and the other declaration intrinsics are authored
+    // calls with no executable parameter list. They name declarations; they
+    // do not replace a reference descriptor the caller owns.
+    if declaration_intrinsic_has_no_signature(program, call_site) {
+        return Some(SlotRelationTransfer::complete(Vec::new()));
     }
     // The occurrence's applied logical contract owns caller-visible access.
     // A private body's open telescope or availability cannot turn a known
