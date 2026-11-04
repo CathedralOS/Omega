@@ -5,8 +5,8 @@ use omega::language::core::float_operations;
 // `|m| <= 2^53`: inside the band, the guard bounds it; past the band, the
 // guard pins a value that is an exact multiple, or admits only multiples of
 // 2^10, every one of which binary64 holds exactly in the i64 range. Each
-// caller also takes the
-// unguarded branch, so a wrongly selected arm returns the other value.
+// caller also takes the unguarded branch, so a wrongly selected arm returns
+// the other value.
 machine band(value: i64) -> f64 {
     transition value >= -9007199254740992i64 && value <= 9007199254740992i64 {
         true -> convert(value)
