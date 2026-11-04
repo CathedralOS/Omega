@@ -982,16 +982,10 @@ fail/borrow/undeclared_lifetime_tag rejected 864ms expected @ccdb99ca2214
 	data `Bad` field `body` uses undeclared lifetime `'ghost'; declare it in the owner's generic parameter list
 fail/borrow/unknown_selector_replacement_retires_entry_bound rejected 1645ms expected @ccdb99ca2214
 	cannot prove index `other` is within length 4 in main::entry
-fail/borrow/vec_view_invalidated_by_push rejected 691ms unexpected @ccdb99ca2214
-	cannot form specification operator `>=` in trait `VecAccess` state `Capacity` ensures contract: no exact selected meaning
-	cannot form specification operator `<` in trait `VecAccess` state `index` requires contract: no exact selected meaning
-	cannot form specification operator `<` in trait `VecAccess` state `index_mut` requires contract: no exact selected meaning
-	cannot form specification operator `==` in trait `VecAccess` state `as_slice` ensures contract: no exact selected meaning
-	cannot form specification operator `==` in trait `VecAccess` state `as_mut_slice` ensures contract: no exact selected meaning
-	cannot form specification operator `<` in trait `VecAccess` state `push` requires contract: no exact selected meaning
-	cannot form specification operator `>` in trait `VecAccess` state `pop` requires contract: no exact selected meaning
-	machine `Vec::as_slice` state `as_slice` declares a return type but its body is empty -- return a value or drop the `-> T`
-	machine `Vec::as_slice$specialized$eaa08a41a88f01dd$0` state `as_slice` declares a return type but its body is empty -- return a value or drop the `-> T`
+fail/borrow/vec_view_invalidated_by_push rejected 3409ms expected @386d219ef1ee
+	state `push` receives `main.items` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+	statement 1 borrows `main.items` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit) in machine `Main::main`, state `main`, statement 1
+	statement 1 mutates `main.items` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrow/view_field_store_parameter_view_outlives_call rejected 1679ms expected @ccdb99ca2214
 	assignment stores a borrow-carrying value in persistent field `label` of machine `Main::keep`; persistent loans must be propagated through graph-state transitions before this write can be admitted
 fail/borrow/view_return_ambiguous_ref_inputs rejected 15571ms expected @ccdb99ca2214
