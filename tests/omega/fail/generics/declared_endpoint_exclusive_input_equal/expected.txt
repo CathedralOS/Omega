@@ -1,1 +1,2 @@
-violates required fact
+requires contract for call exclusive_upper_bound
+256 < 256

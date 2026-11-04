@@ -1,1 +1,2 @@
-violates required fact
+requires contract for call bounded_wide
+9223372036854775807 >= 9223372036854775808
