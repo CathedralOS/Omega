@@ -14,7 +14,6 @@ use super::{lookup_type_id, unsupported};
 use crate::expression_preparation::bindings::LoanAccess;
 use crate::expression_preparation::bindings::StructuralLocalBinding;
 use crate::expression_preparation::bindings::structural_paths::structural_access_can_supply;
-use crate::expression_preparation::bindings::structural_paths::terminal_access;
 use crate::shared::checked_facts::value_facts;
 use crate::shared::terminal_identities::stored_structural_identity;
 use crate::unit::attached_unit::structural_values::ValueOutcome;

@@ -464,6 +464,34 @@ pub(in crate::exit_contract) fn validate_non_return(
     let memory_matches = match (kind, effects.memory, encoding.address()) {
         (
             SelectedInstructionKind::RegisterAccess {
+                operation:
+                    selected_instructions::RegisterOperation::GlobalDescriptorTable(operation),
+            },
+            memory,
+            None,
+        ) => {
+            let expected = match operation {
+                selected_instructions::GlobalDescriptorTableOperation::Store => {
+                    MachineEncodedMemoryEffect::WriteFixedPointerV1 {
+                        pointer_operand: 0,
+                        byte_count: 10,
+                    }
+                }
+                selected_instructions::GlobalDescriptorTableOperation::Load => {
+                    MachineEncodedMemoryEffect::ReadPointerV1 {
+                        pointer_operand: 0,
+                        byte_count: 10,
+                    }
+                }
+            };
+            memory == expected
+                && effects.external_operand_reads == [0]
+                && effects.external_operand_writes.is_empty()
+                && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+        }
+
+        (
+            SelectedInstructionKind::RegisterAccess {
                 operation: selected_instructions::RegisterOperation::MemoryFence(_),
             },
             MachineEncodedMemoryEffect::CatalogFenceV1,

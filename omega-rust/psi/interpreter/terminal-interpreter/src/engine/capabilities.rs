@@ -224,6 +224,13 @@ pub(crate) fn check_with_private_entry_ram(
                     {
                         None
                     }
+                    OperationKind::GlobalDescriptorTable { operation, .. } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess {
+                                operation: terminal_psi::RegisterOperation::GlobalDescriptorTable(*operation),
+                            },
+                        ));
+                    }
                     OperationKind::RegisterAccess { event, .. } => {
                         return Err(TerminalInterpretError::UnsupportedCapability(
                             TerminalUnsupportedCapability::RegisterAccess {
