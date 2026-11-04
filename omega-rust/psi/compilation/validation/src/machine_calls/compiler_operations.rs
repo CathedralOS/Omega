@@ -273,17 +273,23 @@ pub fn storage_address_operand(
 /// These resolved observations neither write caller storage nor install
 /// reference slots. Their runtime operands still execute with their ordinary
 /// effects; an ordinary same-spelled declaration does not select this rule.
+///
+/// `size_of` and `align_of` are the same kind of observation: the call node
+/// retains a layout query, and the answer is a `u64` closed by the selected
+/// target. They are not invocations, so a missing callee body is not an
+/// incomplete reference relation.
 pub(crate) fn expression_call_only_observes_operands(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
-    matches!(
-        classify_expression_call_intrinsic(program, call),
-        Some(
-            AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_)
-                | AuthoredDeclarationSelectionIntrinsic::StorageAddress
+    call.layout_query.is_some()
+        || matches!(
+            classify_expression_call_intrinsic(program, call),
+            Some(
+                AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_)
+                    | AuthoredDeclarationSelectionIntrinsic::StorageAddress
+            )
         )
-    )
 }
 
 /// A descriptor instruction borrows exactly ten bytes. Hardware-written bytes
