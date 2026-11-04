@@ -7,6 +7,7 @@ terminates by remaining in 0..(cap / divisor + 6) {
     transition { _ -> iterate(divisor, cap, remaining) }
     machine iterate(width: u64, limit: u64, pending: u64) -> u64
         requires 1 <= width && width <= 5 && 0 <= limit && limit <= 20 && 0 <= pending && pending <= 5
+    terminates by pending in 0..=5
     {
         transition pending > 0 {
             true -> iterate(width, limit - 0, pending - 1)

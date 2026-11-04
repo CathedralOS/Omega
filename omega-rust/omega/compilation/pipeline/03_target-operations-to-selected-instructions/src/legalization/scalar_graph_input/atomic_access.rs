@@ -90,6 +90,7 @@ pub(super) fn event(
             Some(*observed),
         ),
         Source::CompareExchangeOnce {
+            custody,
             success,
             failure,
             expected,
@@ -97,6 +98,7 @@ pub(super) fn event(
             ..
         } => (
             AtomicAccessEvent::CompareExchangeOnce {
+                custody: *custody,
                 success: *success,
                 failure: *failure,
                 expected: *expected,
@@ -155,17 +157,19 @@ pub(in crate::legalization) fn access(
     if byte_size != u32::from(integer.bits() / 8) || offset % byte_size != 0 {
         return None;
     }
-    let outcome = if let AbstractAtomicEvent::CompareExchangeOnce { outcome, .. } = source {
+    let outcome = if let AbstractAtomicEvent::CompareExchangeOnce {
+        outcome, custody, ..
+    } = source
+    {
         if !source.custody_is_consistent()
-            || !outcome.is_unrestricted_plain()
-            || !outcome.qualification_establishments.is_empty()
+            || !terminal_psi::types::atomic_once_result_is_plain(outcome, *custody)
         {
             return None;
         }
         let declaration = types.iter().find(|row| row.id == outcome.structural_type)?;
         Some((
             outcome.clone(),
-            target_operations::conventional_atomic_once_layout(declaration, integer)?,
+            target_operations::conventional_atomic_once_layout(declaration, integer, *custody)?,
         ))
     } else {
         None

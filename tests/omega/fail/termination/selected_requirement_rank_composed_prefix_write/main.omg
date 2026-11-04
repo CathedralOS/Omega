@@ -26,6 +26,7 @@ terminates by remaining in 0..=9
     transition { _ -> scan(selected, keeper, remaining) }
     machine scan(selected: dyn RankWriter, keeper: dyn RankKeeper, mut remaining: u32) -> u32
     requires remaining <= 9
+    terminates by remaining in 0..=9
     {
         let observed: u32 = RankKeeper::keep(keeper, RankWriter::replace(selected, &mut remaining));
         transition remaining > 0 {
@@ -42,6 +43,7 @@ terminates by remaining in 0..=9
     transition { _ -> scan(selected, keeper, remaining) }
     machine scan(selected: dyn RankWriter, keeper: dyn RankKeeper, mut remaining: u32) -> u32
     requires remaining <= 9
+    terminates by remaining in 0..=9
     {
         let observed: u32 = RankWriter::replace(selected, &mut remaining) + 0;
         transition remaining > 0 {

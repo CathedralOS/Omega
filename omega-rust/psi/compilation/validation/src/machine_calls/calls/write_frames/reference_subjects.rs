@@ -31,6 +31,7 @@ pub(super) fn owned_borrow_origin(
     program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     expression: ExpressionHandle,
+    receiving: Option<TypeReferenceHandle>,
 ) -> Option<FramePlaceOrigin> {
     let ExpressionNode::Borrow(borrow) = expression_table(program).expression(expression) else {
         return None;
@@ -43,7 +44,17 @@ pub(super) fn owned_borrow_origin(
     projections::validate_selectors(program, current_machine, borrow.target)?;
     let origin = frame_place_path(program, borrow.target)?;
     let reference = source_root_type(program, state, index, origin.source.root)?;
-    if crate::reference_shell(program, reference).is_some() {
+    if crate::reference_shell(program, reference).is_some()
+        && !(origin.source.segments.is_empty()
+            && receiving.is_some_and(|required| {
+                crate::value_custody::expression_types::borrow_selects_reference_storage(
+                    program,
+                    borrow.target,
+                    required,
+                    &[],
+                )
+            }))
+    {
         return None;
     }
     validate_owned_projection(program, reference, &origin.source.segments)?;

@@ -12,6 +12,7 @@ terminates by countdown -> Countdown::Remaining in 0..=ceiling {
     transition { _ -> iterate(ceiling, countdown) }
     machine iterate(limit: u64, pending: Countdown) -> u64
         requires 5 <= limit && limit <= 10
+    terminates by pending -> Countdown::Remaining in 0..=limit
     {
         transition pending.remaining > 0 {
             true -> iterate(limit, Countdown { remaining: pending.remaining - 1 })

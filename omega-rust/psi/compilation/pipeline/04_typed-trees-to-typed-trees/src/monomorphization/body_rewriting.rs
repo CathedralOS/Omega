@@ -545,12 +545,12 @@ pub(super) fn rewrite_selected_call_with_name(
                 == match site {
                     CallSite::Expression(handle) => expressions_of(program)
                         .call_node(handle)
-                        .map_or(0, |call| call.arguments.len() as usize),
+                        .map_or(0, |call| call.arguments.len()),
                     CallSite::Statement(handle) => program
                         .statement_table
                         .statement(handle)
                         .as_call()
-                        .map_or(0, |call| call.arguments.len() as usize),
+                        .map_or(0, |call| call.arguments.len()),
                 }
         });
     match site {

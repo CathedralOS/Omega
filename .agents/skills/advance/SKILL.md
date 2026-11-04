@@ -15,6 +15,20 @@ or explicitly bounded request retains its narrower scope.
 Follow [AGENTS.md](../../../AGENTS.md) for repository ownership,
 validation, board rules, and publication.
 
+## Decision-making framing for compiler completion
+
+Every decision in `/advance` serves one global destination ([rust_compiler_completion.md](../../../wiki/drafts/reference/rust_compiler_completion.md)):
+**recording all six release gates (repository, source semantics, build and packages, native matrix, diagnostics, and representative programs) with `tools/release/release_record.py` at one commit across all four hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`).**
+
+When making engineering and validation decisions, optimize for **compiler completion**, never for "making the current turn look green":
+
+1. **Fail-closed semantics overpositive-only shortcuts:** When an analysis (`Psi 05` place rebasing, borrow origins, write frames, or call-result candidates) cannot resolve an exact backing place or proof obligation, return `None` / `Err` (fail closed). Never add a fallback branch that treats an unresolved local/reference as its own backing storage or returns `Ok(Vec::new())` to unblock a positive test, and always scope taint/rejection checks to the exact projected path (`path.is_empty()` or prefix/suffix overlap) so sibling fields are not poisoned.
+2. **Never `--record` a broken or dirty row:** Before opening a PR, read `git diff -- tests/omega/corpus_outcomes.txt`:
+   - Every `pass/` and `run/` row you touch must record as `checked` or `built` (never record a `pass/` place as `rejected` because one place like `target_body` had un-migrated syntax or a missing `reaches` clause — fix the place first).
+   - Every `fail/` row you touch must record as `rejected ... expected` (never leave `rejected ... unexpected` or `checked`; if a compiler repair legitimately sharpens a diagnostic on an existing `fail/` control, update its `expected.txt` to the true obligation first).
+   - Always commit all code and fixture edits **before** running `python3 tools/corpus_gate.py --record --filter ...` so recorded `@<sha>` stamps never carry a dirty `+wt` suffix.
+3. **When controlled by a coordinator, stop at a draft PR (`candidate_ready`):** If a coordinator session spawned or assigned this task, push your branch and open a **draft** PR (`gh pr create --draft`), then stop and message the coordinator (`candidate_ready`). Do not run `gh pr ready`, `gh pr merge`, or `tools/landing.py land` yourself; the coordinator runs [coordinator-review](../coordinator-review/SKILL.md) first. Standalone sessions without a coordinator run `tools/landing.py land` after self-reviewing against the same 5-point checklist.
+
 ## Choose the capability and its next witness
 
 Record the start time, starting checkout, and base. Fetch main (`git fetch origin main`)
@@ -274,8 +288,7 @@ words a person can read without the diff. Reread it after compaction
 and before changing direction. Reuse the session that already has the
 checkout. After a landed repair, compact when the next assignment is a
 different outcome, and leave the context in place when the next run branches
-from that repair. The rule for cloud pods is in
-[cursor-swarm](../cursor-swarm/SKILL.md#reuse-the-session). When resuming
+from that repair. When resuming
 saved work after a crash or compaction, inspect its existing checkpoint, PR and
 receipts before reapplying a patch or rerunning validation. Preserve its fixed
 base and warm producers; resumption does not require a rebase. To carry files

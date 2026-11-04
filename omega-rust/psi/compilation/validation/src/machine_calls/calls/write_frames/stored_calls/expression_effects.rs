@@ -855,7 +855,13 @@ fn install(
     context
         .incomplete_calls
         .extend(next.incomplete_calls.iter().cloned());
-    super::apply_transfer(program, &mut context.stored, &next);
+    super::apply_transfer(
+        program,
+        &mut context.stored,
+        &mut context.aliases,
+        &mut context.divergent,
+        &next,
+    );
     for record in &context.stored {
         inference.record_local(record);
     }

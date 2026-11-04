@@ -28,6 +28,7 @@ use diagnostics::Diagnostic;
 /// Resolve the entire parent graph before either retained arena is reset.
 /// Installation is therefore a purely indexed, infallible rewrite.
 pub(crate) fn plan_resource_installation(
+    borrow: &BorrowFacts,
     direct: &[LoanResource],
     reborrows: &[ResourceDraft],
 ) -> Result<Vec<ParentResourceIndex>, Vec<Diagnostic>> {
@@ -43,7 +44,15 @@ pub(crate) fn plan_resource_installation(
             .enumerate()
             .filter(|(_, resource)| resource.loan == child.parent_loan)
             .map(|(index, _)| ParentResourceIndex::Reborrow(index));
-        let mut matches = direct_matches.chain(reborrow_matches);
+        let supplied_matches = borrow
+            .supplied_output_resources
+            .iter()
+            .enumerate()
+            .filter(|(_, (_, resource))| resource.loan == child.parent_loan)
+            .map(|(index, _)| ParentResourceIndex::Supplied(index));
+        let mut matches = direct_matches
+            .chain(reborrow_matches)
+            .chain(supplied_matches);
         let Some(parent) = matches.next() else {
             return Err(reborrow_resource_drift());
         };
@@ -74,6 +83,11 @@ pub(crate) fn install_borrow_resources(
 
     let mut reborrow_handles: Vec<arena::Handle<CheckedReborrowLoanResource>> =
         Vec::with_capacity(reborrows.len());
+    let supplied_handles = borrow
+        .supplied_output_resources
+        .iter()
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
     for (draft, parent) in reborrows.iter().zip(installation) {
         let parent_resource = match *parent {
             ParentResourceIndex::Direct(index) => CheckedParentBorrowResource::DirectRoot {
@@ -81,6 +95,9 @@ pub(crate) fn install_borrow_resources(
             },
             ParentResourceIndex::Reborrow(index) => CheckedParentBorrowResource::Reborrow {
                 resource: reborrow_handles[index],
+            },
+            ParentResourceIndex::Supplied(index) => CheckedParentBorrowResource::SuppliedOutput {
+                resource: supplied_handles[index],
             },
         };
         let handle = borrow
@@ -92,6 +109,7 @@ pub(crate) fn install_borrow_resources(
     let handles = ResourceHandles {
         direct: direct_handles,
         reborrows: reborrow_handles,
+        supplied: supplied_handles,
     };
     for disposition in dispositions {
         borrow
@@ -282,18 +300,38 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                             "reborrow exceeds its source descriptor's access",
                         )]);
                     }
-                    let parent_weakenings = flow
-                        .borrow_lifetimes
-                        .weakenings
-                        .span_or_empty(flow_state.borrow_weakenings)
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, weakening)| weakening.loan == *parent_loan)
-                        .filter_map(|(offset, weakening)| {
-                            span_handle(flow_state.borrow_weakenings, offset)
-                                .map(|handle| (handle, weakening))
-                        })
-                        .collect::<Vec<_>>();
+                    let parent_weakenings = if parent.lineage == BorrowLoanLineage::SuppliedOutput {
+                        borrow
+                            .supplied_output_resources
+                            .iter()
+                            .filter(|(_, resource)| resource.loan == *parent_loan)
+                            .filter_map(|(_, resource)| {
+                                flow.borrow_lifetimes
+                                    .weakenings
+                                    .is_valid(resource.holder_weakening)
+                                    .then(|| {
+                                        (
+                                            resource.holder_weakening,
+                                            flow.borrow_lifetimes
+                                                .weakenings
+                                                .get(resource.holder_weakening),
+                                        )
+                                    })
+                            })
+                            .collect::<Vec<_>>()
+                    } else {
+                        flow.borrow_lifetimes
+                            .weakenings
+                            .span_or_empty(flow_state.borrow_weakenings)
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, weakening)| weakening.loan == *parent_loan)
+                            .filter_map(|(offset, weakening)| {
+                                span_handle(flow_state.borrow_weakenings, offset)
+                                    .map(|handle| (handle, weakening))
+                            })
+                            .collect::<Vec<_>>()
+                    };
                     let [(parent_weakening, parent_weakening_fact)] = parent_weakenings.as_slice()
                     else {
                         diagnostics.push(Diagnostic::error(
@@ -373,7 +411,15 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                         child_activation,
                         parent_entry_constraint: *parent_entry_constraint,
                         child_weakening,
-                        parent_weakening: *parent_weakening,
+                        parent_end: if parent.lineage == BorrowLoanLineage::SuppliedOutput {
+                            checked_trees::CheckedBorrowParentEnd::CompletedOutput {
+                                holder_weakening: *parent_weakening,
+                            }
+                        } else {
+                            checked_trees::CheckedBorrowParentEnd::Lexical {
+                                weakening: *parent_weakening,
+                            }
+                        },
                         parent_lexical_status,
                     });
                 }

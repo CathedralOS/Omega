@@ -1,0 +1,38 @@
+// Expected exit: 0
+public boundary trait Scheduler { machine park() reaches suspends; }
+public Immediate satisfies Scheduler { machine park() {} }
+public data Cell { value: i32; }
+public data Backing { cell: Cell; other: i32; }
+public data Output<T> { body: T; }
+public boundary trait Installer {
+    machine install<'storage>(source: &'storage mut Backing, output: &mut Output<&'storage Cell>) reaches;
+}
+public CheckedInstaller satisfies Installer {
+    machine install<'storage>(source: &'storage mut Backing, output: &mut Output<&'storage Cell>) {
+        output = Output { body: &source.cell };
+    }
+}
+machine observe(value: &Cell) -> i32 { value.value }
+machine exercise() -> i32 suspends reaches Scheduler + Installer {
+    let mut backing: Backing = Backing { cell: Cell { value: 73 }, other: 11 };
+    let original: &mut Backing = &mut backing;
+    let sentinel: Cell = Cell { value: 0 };
+    let mut output: Output<&Cell> = Output { body: &sentinel };
+    Installer::install(original, &mut output);
+    let saved: &Cell = output.body;
+    let sibling: &Cell = saved;
+    output = Output { body: &sentinel };
+    suspend Scheduler::park();
+    let first: i32 = observe(saved);
+    original.other = 19;
+    let second: i32 = observe(sibling);
+    let current: i32 = output.body.value;
+    
+    transition first == 73 && second == 73 && current == 0 && original.other == 19 { true -> first _ -> 0 }
+}
+machine main() reaches Scheduler + Installer crashes Trap {
+    let observed: i32 = suspend exercise();
+    transition observed == 73 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

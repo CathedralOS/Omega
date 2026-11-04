@@ -71,6 +71,8 @@ impl TypedTrees {
             elided_lifetimes: Vec::new(),
             types: substitutions,
             static_arguments: Vec::new(),
+            static_argument_owner: SymbolHandle::invalid(),
+            selected_providers: Vec::new(),
             symbols: Vec::new(),
             active_requirements: Vec::new(),
             source_binders: parameters

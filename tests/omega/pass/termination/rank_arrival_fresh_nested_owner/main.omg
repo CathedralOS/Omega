@@ -7,7 +7,9 @@ terminates by countdown -> Countdown::Remaining in 0..=5 {
         true -> iterate(Bundle { held: Countdown { remaining: 3 }, spare: Countdown { remaining: 4 } })
         false -> countdown.remaining
     }
-    machine iterate(pending: Bundle) -> u64 {
+    machine iterate(pending: Bundle) -> u64
+    terminates by pending.held -> Countdown::Remaining in 0..=5
+    {
         transition pending.held.remaining > 0 {
             true -> iterate(Bundle { held: Countdown { remaining: pending.held.remaining - 1 }, spare: pending.spare })
             false -> pending.held.remaining

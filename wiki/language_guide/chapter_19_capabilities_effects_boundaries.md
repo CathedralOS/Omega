@@ -162,6 +162,30 @@ Those values carry their real state, ownership, and lifecycle. A generic
 [component publication](../spec/build/component_publication.md) for internal
 provider eras and replacement.
 
+## Consumer Acceptance And Build Ceilings
+
+An independent component reports checked demands and any explicit environmental
+assumptions on which its claims depend. The consuming project reviews the
+canonical meaning and scope, and its lock retains acceptance for packaged
+dependencies. Existing root grants cover the root's own claims. A dependency's
+Build code or lock cannot approve assumptions on the consumer's behalf.
+
+Build may restrict the selected product further. For each target, the complete
+selected closure's demands must fit Build's ceiling, and that ceiling must fit
+consumer acceptance. Omission adds no restriction; an explicitly empty ceiling
+permits none in the restricted category; widening beyond acceptance rejects.
+Include helpers, callbacks, initialization, cleanup, and retained providers.
+Selecting only a library's numerical functionality may avoid its unused network
+or filesystem demands, but merely expecting not to take a runtime path cannot
+erase it from the verified inventory.
+
+This is one approval system plus optional attenuation, not two mandatory lists
+of accepted hashes. The source `Build::accept_component_assumption` approval
+call is retired; any retained Build policy only selects or restricts. Accepting
+an environmental assumption does not prove it true or grant execution or
+installation authority. See
+[consumer acceptance and Build attenuation](../spec/build/component_publication.md#consumer-acceptance-and-build-attenuation).
+
 ## Root-Assumed Binding Contracts
 
 Ordinary provider selection requires a checked conformance. A root can instead

@@ -843,11 +843,20 @@ fn argument_contract(
 fn names_whole_local(
     program: &dyn ::validation::CheckingInput,
     call: &FlowCallFact,
-    value_expression: ExpressionHandle,
+    mut value_expression: ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
     if !value_expression.is_valid() {
         return call.has_receiver && call.receiver_symbol == symbol;
+    }
+    while let ExpressionNode::Cast(cast) = program.expression_table.expression(value_expression) {
+        if cast.form.is_recast()
+            || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
+            || program.primitive_type_reference(cast.target_type).is_some()
+        {
+            break;
+        }
+        value_expression = cast.value;
     }
     matches!(program.expression_table.expression(value_expression),
         ExpressionNode::Name(name) if name.symbol == symbol

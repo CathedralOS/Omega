@@ -406,7 +406,7 @@ impl ArgumentOrigins for Inputs<'_, '_> {
                 }
             }
             let origin = leaf.origin?;
-            let observed = self.capture_source(captured, origin.clone());
+            let observed = self.capture_source(captured, origin.clone(), reference);
             if observed.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
                 eprintln!(
                     "STRUCT captured-input-refused machine={} expression={expression:?} origin={origin:?} phase=source",
@@ -498,7 +498,8 @@ impl ArgumentOrigins for Inputs<'_, '_> {
                 references.push(leaf);
                 continue;
             };
-            let (sources, dependencies) = partition_sources(self.capture_source(captured, origin)?);
+            let (sources, dependencies) =
+                partition_sources(self.capture_source(captured, origin, reference)?);
             for dependency in dependencies {
                 if !leaf.lifetime_dependencies.as_ref()?.contains(&dependency) {
                     leaf.lifetime_dependencies.as_mut()?.push(dependency);
@@ -739,7 +740,7 @@ impl Inputs<'_, '_> {
                         .extend(dependencies.iter().cloned());
                     if let Some(source) = leaf.origin.clone() {
                         let (sources, debts) =
-                            partition_sources(self.capture_source(captured, source)?);
+                            partition_sources(self.capture_source(captured, source, expected)?);
                         for debt in debts {
                             if !leaf.lifetime_dependencies.as_ref()?.contains(&debt) {
                                 leaf.lifetime_dependencies.as_mut()?.push(debt);
@@ -788,10 +789,50 @@ impl Inputs<'_, '_> {
         &self,
         captured: &SlotArgumentCapture,
         origin: ReferenceSource,
+        reference: TypeReferenceHandle,
     ) -> Option<Vec<ReferenceSource>> {
         let ReferenceSource::Symbolic(carrier) = origin else {
             return Some(vec![origin]);
         };
+        if crate::reference_formation_source(self.program, captured.expression).is_some_and(
+            |formation| {
+                formation.interpretation == crate::ReferenceFormationInterpretation::Declared
+                    && crate::value_custody::expression_types::borrow_selects_reference_storage(
+                        self.program,
+                        formation.source,
+                        reference,
+                        &[],
+                    )
+            },
+        ) {
+            let origins = stored_origins::canonical_storage_origins(
+                self.program,
+                &carrier,
+                &captured.context.aliases,
+                &captured.context.divergent,
+                &captured.context.stored,
+            )
+            .into_iter()
+            .collect::<Option<Vec<_>>>()?;
+            return (!origins.is_empty()).then(|| {
+                origins
+                    .into_iter()
+                    .map(|origin| {
+                        let source = SlotSource {
+                            carrier: carrier.source.clone(),
+                            carrier_backing: Some(origin.clone()),
+                            origin: origin.clone(),
+                            lifetime_access: None,
+                        };
+                        ReferenceSource::Captured(CapturedReferenceSource {
+                            base: origin.clone(),
+                            substitution: origin.source,
+                            source,
+                        })
+                    })
+                    .collect()
+            });
+        }
         let mut sources = Vec::new();
         // A divergent local is an explicit finite set of completed aliases.
         // Expand it before canonical storage lookup; never let a missing alias
