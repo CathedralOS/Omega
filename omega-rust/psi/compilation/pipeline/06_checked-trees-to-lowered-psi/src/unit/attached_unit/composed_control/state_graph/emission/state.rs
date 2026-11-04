@@ -181,7 +181,7 @@ impl StateGraphEmission<'_, '_> {
             structural_locals: Vec::new(),
             completed_cleanup_homes: Vec::new(),
             retired_structural_bindings: Vec::new(),
-            retired_structural_homes: Vec::new(),
+            retired_structural_homes: Default::default(),
             view_locals: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
             place_observations:
