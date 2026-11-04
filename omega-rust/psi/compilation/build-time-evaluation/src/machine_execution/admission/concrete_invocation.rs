@@ -302,18 +302,11 @@ pub(super) fn entry_state<'a>(program: &'a TypedTrees, machine: &Machine) -> Opt
         .or_else(|| states.first())
 }
 
-/// One call operand a snapshot probe substitutes: evaluated literal nodes
-/// replace authored arguments; an operand with no literal keeps its authored
-/// expression — a payloadless NaN has no literal spelling but stays
-/// dischargeable through the retained computation.
+/// One evaluated operand substituted into an independent copy of the call.
+/// Its node belongs to the supplied program, including any aggregate children.
 pub(crate) struct SnapshotArgument {
-    /// Whether this operand occupies the call's receiver position rather
-    /// than its argument span.
-    pub receiver: bool,
-    /// The authored operand in the source program.
     pub original: ExpressionHandle,
-    /// The evaluated literal node to substitute, when evaluation produced one.
-    pub literal: Option<ExpressionNode>,
+    pub literal: ExpressionNode,
 }
 
 /// Whether `expression`'s authored call survives ordinary checked lowering
@@ -333,6 +326,7 @@ pub(crate) struct SnapshotArgument {
 /// deferred range bound is rewritten to — the marks themselves are dropped
 /// with `pending_const_range_endpoints`.
 pub(crate) fn snapshot_arguments_discharge(
+    admission: &super::BuildTimeAdmissionPlan,
     program: &TypedTrees,
     retained: &[SymbolHandle],
     owner: SymbolHandle,
@@ -352,12 +346,14 @@ pub(crate) fn snapshot_arguments_discharge(
     // the caller supplies each still-spelled bound's closed stand-in so the
     // signature that carries it stays checkable here.
     let mut probe = program.clone();
-    // The endpoint call itself may be a marked bound: capture its spelling
-    // before a stand-in rewrite replaces it inside the signature.
-    let ExpressionNode::Call(mut call) = probe.expression_table.expression(expression).clone()
-    else {
-        return Err("constant invocation lost its selected call".into());
-    };
+    // Copy before deferred endpoint stand-ins replace their source roots.
+    // The graph copy shares RuntimeValue operands with their saved bindings.
+    if probe.expression_table.call_node(expression).is_none() {
+        return Err("constant invocation has no selected call".into());
+    }
+    let copied = probe.expression_table.copy_graph(None, expression);
+    typed_trees_to_typed_trees::restore_copied_call_sources(&mut probe, &[copied.root])
+        .map_err(|reason| format!("constant call source restoration failed: {reason}"))?;
     probe.pending_const_range_endpoints.clear();
     for (endpoint, stand_in) in endpoint_stand_ins {
         *probe.expression_table.expression_mut(*endpoint) = stand_in.clone();
@@ -372,23 +368,18 @@ pub(crate) fn snapshot_arguments_discharge(
     for candidate in machines {
         probe.push_machine(candidate);
     }
-    let mut arguments = Vec::new();
     for snapshot in snapshots {
-        let expression = match snapshot.literal {
-            Some(literal) => probe.expression_table.insert(literal),
-            None => snapshot.original,
-        };
-        if snapshot.receiver {
-            call.receiver = expression;
-        } else {
-            arguments.push(expression);
-        }
+        let copied_argument = copied
+            .correspondence
+            .iter()
+            .find(|(original, _)| *original == snapshot.original)
+            .map(|(_, copied)| *copied)
+            .ok_or("constant snapshot has no exact copied operand")?;
+        // Replacing the node preserves every copied edge to this evaluation,
+        // including the source application that will regenerate a Value tail.
+        *probe.expression_table.expression_mut(copied_argument) = snapshot.literal;
     }
-    call.arguments = probe.expression_table.insert_expression_handles(arguments);
-    let concrete = probe.expression_table.insert(ExpressionNode::Call(call));
-    probe
-        .expression_table
-        .set_source_span(concrete, program.expression_table.source_span(expression));
+    let concrete = copied.root;
     let owner = append_invocation_probe(&mut probe, owner, probe_name, concrete, return_type);
     let checked = prepare_typed_trees(probe, preparation_request)
         .and_then(|(probe, preparation)| lower_typed_trees(probe, preparation, checking))
@@ -399,7 +390,69 @@ pub(crate) fn snapshot_arguments_discharge(
             )
         })?;
     require_complete_invocation_conditions(&checked, owner)?;
-    require_empty_failure_summary(&checked, owner)
+    require_empty_failure_summary(&checked, owner)?;
+    require_public_call_floor(&checked, owner, concrete, callee)?;
+    // A selected body may accept more inputs or advertise fewer effects than
+    // its public requirement. Admit the checked call itself, after its concrete
+    // premises are proved, so that public ceiling remains part of the floor.
+    let plan = admission.checked_program_admission(&checked)?;
+    let machine = checked
+        .typed
+        .machine_by_symbol(owner)
+        .ok_or("constant snapshot invocation lost its checked machine")?;
+    plan.require_floor(
+        BuildTimeProgram::Checked(&checked),
+        machine,
+        Some(crate::BuildTimeInvocationCustody::Source(
+            program.expression_table.source_span(expression),
+        )),
+        true,
+    )
+    .map_err(String::from)
+}
+
+/// A selected implementation may reach fewer services than its public method.
+/// Check the applied public envelope as well as the executable closure below.
+fn require_public_call_floor(
+    checked: &checked_trees::CheckedTrees,
+    owner: SymbolHandle,
+    expression: ExpressionHandle,
+    callee: &str,
+) -> Result<(), String> {
+    let program = checked.typed.as_ref();
+    let call = program
+        .expression_table
+        .call_node(expression)
+        .ok_or("checked constant invocation has no call expression")?;
+    let site = validation::CallSite::Expression { expression, call };
+    if call.static_requirement_dispatch.is_none()
+        && validation::selected_requirement_signature(program, call.target_symbol).is_none()
+    {
+        return Ok(());
+    }
+    let (_, signature) = validation::resolve_requirement_contract(program, owner, &site)?;
+    let services = validation::trait_signature_service_reach(checked, signature.symbol)
+        .ok_or("constant call has no exact applied public service envelope")?;
+    let services = services
+        .iter()
+        .map(|service| {
+            program
+                .service_reaches
+                .definition(*service)
+                .map(|definition| definition.name.to_string())
+                .ok_or("constant call's public envelope names an unavailable service")
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    semantic_vocabulary::compiler_evaluation::require_compiler_evaluation_floor(
+        callee,
+        &semantic_vocabulary::compiler_evaluation::CompilerEvaluationEffects {
+            services,
+            may_suspend: signature.suspends,
+            may_block: signature.blocks,
+        },
+        None,
+        None,
+    )
 }
 
 /// Append the generated probe machine whose single state returns the

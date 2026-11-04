@@ -24,9 +24,9 @@ pub(crate) use scalar_terms::{
 };
 pub(crate) use structural_members::{
     lower_byte_predicate_term, lower_sequence_extent_projection_term, lower_sequence_extent_term,
-    lower_structural_case_membership, lower_structural_indexed_term, lower_structural_member_path,
-    lower_structural_member_term, lower_structural_result_indexed_term,
-    lower_structural_result_member_term,
+    lower_structural_case_membership, lower_structural_identity, lower_structural_indexed_term,
+    lower_structural_member_path, lower_structural_member_term,
+    lower_structural_result_indexed_term, lower_structural_result_member_term,
 };
 pub(crate) use structural_route_buckets::{
     lower_structural_crash_predicates, lower_structural_crash_route_buckets,

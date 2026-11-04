@@ -18,7 +18,10 @@ pub(super) fn operands_are_open(program: &TypedTrees, provider: &Candidate<'_>) 
             ) || argument.application.is_some()
         })
         || provider.evidence_bindings.iter().flatten().any(|argument| {
-            validation::conformance_applications::close_conformance_application(program, argument)
+            super::contextual_calls::argument_is_open(program, argument)
+                || validation::conformance_applications::close_conformance_application(
+                    program, argument,
+                )
                 .is_err()
         })
 }

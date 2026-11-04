@@ -455,7 +455,8 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                 inference,
                 include_shared,
                 inputs,
-            )?;
+            );
+            let moved = moved?;
             if !demand_is_declared(program, reference, suffix) {
                 return None;
             }

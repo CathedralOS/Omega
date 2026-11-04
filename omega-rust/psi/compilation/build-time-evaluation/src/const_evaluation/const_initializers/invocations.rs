@@ -21,7 +21,7 @@
 //! return-range obligations.
 
 use crate::build_time_evaluation::{expression_table, type_reference_table};
-use crate::unique::{extend_unique, push_unique};
+use crate::unique::extend_unique;
 use std::sync::Arc;
 
 use diagnostics::Diagnostic;
@@ -37,7 +37,9 @@ use typed_trees::{
 };
 
 use crate::const_evaluation::const_generic_expressions::value::{self, ConstantCalls};
-use crate::const_evaluation::const_generic_expressions::{call_expressions, leaf_call_custody};
+use crate::const_evaluation::const_generic_expressions::{
+    immediate_call_expressions, leaf_call_custody,
+};
 use crate::const_evaluation::const_generic_expressions::{
     scalar_probe_destination, value::ScalarValue,
 };
@@ -49,16 +51,13 @@ use numerics::literals::{FloatFormat, FloatLiteral};
 use source::SourceSpan;
 use symbols::SymbolHandle;
 use typed_trees::constant_recipes::create_evaluation_entry;
-use typed_trees::signature::{SignatureContractKind, StateParameter};
 use typed_trees::types::TypeReferenceHandle;
-use typed_trees_to_checked_trees::infer_checked_crash_causes;
 use validation::expression_result_type_reference;
 
 pub(crate) struct CheckedInitializers {
     typed: TypedTrees,
     admission: BuildTimeAdmissionPlan,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
-    crash_causes: Vec<(SymbolHandle, Vec<checked_trees::CrashCause>)>,
     probe_symbols: Vec<SymbolHandle>,
     operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
 }
@@ -137,7 +136,6 @@ impl CheckedInitializers {
             typed_trees_to_typed_trees::prepare_typed_trees(bodies, &preparation_request)?;
         let checked =
             typed_trees_to_checked_trees::lower_typed_trees(bodies, preparation, &checking)?;
-        let crash_causes = infer_checked_crash_causes(&checked.typed, &checked.facts);
         let typed = projection.rejoin_unjudged(checked.typed.into_inner());
         // Checking may normalize boundary tokens into requirement calls.
         // Admission and interpretation consume the same validated selected
@@ -153,7 +151,6 @@ impl CheckedInitializers {
             typed,
             admission,
             authority,
-            crash_causes,
             probe_symbols: probe_symbols.to_vec(),
             operators,
         })
@@ -172,6 +169,7 @@ impl CheckedInitializers {
             program: self,
             machine,
             state,
+            lexical_owner: machine.symbol,
         }
     }
 
@@ -203,12 +201,26 @@ impl CheckedInitializers {
         };
         Ok(self.calls(machine, state))
     }
+
+    /// Retained initializer jobs already pair a source declaration with its
+    /// exact probe. Keep that source owner for call joins while the probe's
+    /// machine and state still govern evaluation and admission.
+    pub(super) fn calls_for_retained_initializer(
+        &self,
+        probe: SymbolHandle,
+        declaration: SymbolHandle,
+    ) -> Result<Invocation<'_>, String> {
+        let mut calls = self.calls_for_symbol(probe)?;
+        calls.lexical_owner = declaration;
+        Ok(calls)
+    }
 }
 
 pub(crate) struct Invocation<'program> {
     program: &'program CheckedInitializers,
     machine: &'program Machine,
     state: &'program State,
+    lexical_owner: SymbolHandle,
 }
 
 type ArgumentSnapshot = crate::machine_execution::admission::SnapshotArgument;
@@ -222,6 +234,7 @@ impl Invocation<'_> {
     /// and the guarded routes at the snapshot arguments.
     fn require_concrete_failure_discharge(
         &self,
+        program: &TypedTrees,
         expression: ExpressionHandle,
         callee: String,
         return_type: TypeReferenceHandle,
@@ -236,7 +249,8 @@ impl Invocation<'_> {
             .map(|machine| machine.symbol)
             .collect();
         crate::machine_execution::admission::snapshot_arguments_discharge(
-            self.program.typed(),
+            &self.program.admission,
+            program,
             &retained,
             self.machine.symbol,
             "@const-invocation",
@@ -252,16 +266,14 @@ impl Invocation<'_> {
 
     pub(super) fn validate_custody(
         &self,
-        original: ExpressionHandle,
-        materialized: ExpressionHandle,
+        declaration: &typed_trees::constant::ConstDeclaration,
     ) -> Result<Vec<crate::const_evaluation::const_generic_expressions::DependencyValue>, String>
     {
         crate::const_evaluation::const_generic_expressions::validate_retained_initializer_call_custody(
             self.program.typed(),
             self.machine,
             self.state,
-            original,
-            materialized,
+            declaration,
         )
     }
 
@@ -310,36 +322,44 @@ impl Invocation<'_> {
             return Err("constant probe lost its exact scalar carrier".into());
         }
         let mut warnings = Vec::new();
-        for call in call_expressions(typed, &body.roots)? {
+        for call in immediate_call_expressions(typed, &body.roots)? {
             extend_unique(&mut warnings, self.check_call(call)?);
         }
         let value = scalar_result(self.interpret(body.reference)?, destination)?;
         Ok((value, warnings))
     }
 
-    /// Resolve the exact closed callee for a call and admit it against the
-    /// common floor: either an ordinary machine entry state or a named
-    /// boundary operator requirement kept as the call's own declaration. The
-    /// entry arm's flag records that the closure carries an authored
-    /// `requires` premise: such an invocation still owes the premise,
-    /// discharged by the concrete checked probe before interpretation, so the
-    /// caller must always run that probe rather than relying on the floor's
-    /// conservative closure fence. The operator arm owes only its own
-    /// authored `requires` clause, discharged the same concrete way.
-    fn selected(&self, expression: ExpressionHandle) -> Result<SelectedCall<'_>, String> {
+    /// A named implementation keeps its public contract after its body is
+    /// specialized. Keep that contract, its checked arguments and the exact
+    /// executable entry together; the selected application must still match
+    /// this caller and body.
+    fn selected(&self, expression: ExpressionHandle) -> Result<PreparedCall<'_>, String> {
         let typed = self.program.typed();
         require_call_expression_selection(typed, expression, self.program.authority.as_deref())?;
         let Some(call) = typed.expression_table.call_node(expression) else {
             return Err("initializer lost its selected call".into());
         };
-        if !call.carries_only_positional_arguments()
-            || call.static_machine_parameter.is_valid()
-            || !call.selects_only_nominal_route()
+        if call.quotient_operation.is_some()
+            || call.private_layout_operation.is_some()
+            || call.layout_query.is_some()
+            || call.native_code_layout.is_some()
         {
             return Err(
-                "constant invocation needs its complete specialized application context".into(),
+                "constant invocation has no ordinary machine or named requirement route".into(),
             );
         }
+        let site = validation::CallSite::Expression { expression, call };
+        let public_signature = call
+            .static_requirement_dispatch
+            .as_ref()
+            .map(|_| {
+                validation::resolve_requirement_contract(typed, self.lexical_owner, &site)
+                    .map(|(_, signature)| signature)
+                    .map_err(|reason| {
+                        format!("constant call has an invalid prepared public contract: {reason}")
+                    })
+            })
+            .transpose()?;
         let mut selected = typed.machines().iter().filter(|machine| {
             machine.type_parameters.is_empty()
                 && typed
@@ -347,7 +367,37 @@ impl Invocation<'_> {
                     .first()
                     .is_some_and(|entry| typed.call_has_no_runtime_receiver(call, machine, entry))
         });
-        let Some(machine) = selected.next() else {
+        let target = if let Some(machine) = selected.next() {
+            if selected.next().is_some() {
+                return Err("constant call has conflicting exact entries".into());
+            }
+            let entry = typed
+                .machine_states(machine)
+                .first()
+                .ok_or("constant call lost its entry")?;
+            let custody =
+                BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression));
+            let premise_discharge = self
+                .program
+                .admission
+                .closure_includes_authored_requires(typed, machine);
+            if premise_discharge {
+                self.program
+                    .admission
+                    .require_common_floor_for_concrete_premise_invocation(
+                        typed, machine, custody,
+                    )?;
+            } else {
+                self.program
+                    .admission
+                    .require_common_floor_for_invocation(typed, machine, custody)?;
+            }
+            SelectedCall::Entry {
+                premise_discharge,
+                machine,
+                entry,
+            }
+        } else {
             // No closed ordinary entry: the call may name an exact boundary
             // operator requirement (`F32::square_root`) kept on the call as
             // its own declaration identity. Resolution reuses the same
@@ -355,38 +405,12 @@ impl Invocation<'_> {
             // family rather than an exact overload still declines here.
             let operator = typed_trees::operator::resolve_named_expression_call(typed, call)
                 .ok_or("constant call has no exact closed ordinary entry or named requirement")?;
-            return Ok(SelectedCall::Operator(operator));
+            SelectedCall::Operator(operator)
         };
-        if selected.next().is_some() {
-            return Err("constant call has conflicting exact entries".into());
-        }
-        let state = typed
-            .machine_states(machine)
-            .first()
-            .ok_or("constant call lost its entry")?;
-        let custody =
-            BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression));
-        if self
-            .program
-            .admission
-            .closure_includes_authored_requires(typed, machine)
-        {
-            self.program
-                .admission
-                .require_common_floor_for_concrete_premise_invocation(typed, machine, custody)?;
-            return Ok(SelectedCall::Entry {
-                premise_discharge: true,
-                machine,
-                entry: state,
-            });
-        }
-        self.program
-            .admission
-            .require_common_floor_for_invocation(typed, machine, custody)?;
-        Ok(SelectedCall::Entry {
-            premise_discharge: false,
-            machine,
-            entry: state,
+        Ok(PreparedCall {
+            target,
+            public_signature,
+            operands: self.call_operands(expression, target)?,
         })
     }
 }
@@ -398,6 +422,7 @@ impl Invocation<'_> {
 /// supplies the value through `FloatSemantics`, the checked provider behind
 /// the boundary contract, rather than a selected provider body that does not
 /// yet exist at pre-resolution evaluation.
+#[derive(Clone, Copy)]
 enum SelectedCall<'program> {
     Entry {
         premise_discharge: bool,
@@ -416,6 +441,23 @@ impl SelectedCall<'_> {
     }
 }
 
+/// Keep the public method's result and argument types with the exact call.
+/// The private entry supplies executable code; it cannot change those types.
+struct PreparedCall<'program> {
+    target: SelectedCall<'program>,
+    public_signature: Option<&'program typed_trees::signature::StateSignature>,
+    operands: Vec<(ExpressionHandle, TypeReferenceHandle)>,
+}
+
+impl PreparedCall<'_> {
+    fn return_type(&self) -> TypeReferenceHandle {
+        self.public_signature.map_or_else(
+            || self.target.return_type(),
+            |signature| signature.return_type,
+        )
+    }
+}
+
 impl ConstantCalls for Invocation<'_> {
     fn validate_call(
         &self,
@@ -425,50 +467,7 @@ impl ConstantCalls for Invocation<'_> {
         let selected = self.selected(expression)?;
         let destination = scalar_probe_destination(typed, selected.return_type())
             .ok_or("constant call result needs an exact builtin scalar carrier")?;
-        let Some(call) = typed.expression_table.call_node(expression) else {
-            return Err("constant validation lost its selected call".into());
-        };
-        let arguments = typed.expression_table.expression_handles(call.arguments);
-        // Each explicit operand owes its exact carrier validation.
-        let operands: Vec<(ExpressionHandle, &StateParameter)> = match selected {
-            SelectedCall::Entry { entry, .. } => {
-                let parameters = typed.state_parameters(entry);
-                if arguments.len() != call.arguments.len() || arguments.len() != parameters.len() {
-                    return Err("constant call argument count differs from its exact entry".into());
-                }
-                arguments.iter().copied().zip(parameters.iter()).collect()
-            }
-            SelectedCall::Operator(operator) => {
-                let parameters = typed.operator_parameters(operator);
-                let mut operands: Vec<(ExpressionHandle, &StateParameter)> = Vec::new();
-                let mut argument = arguments.iter().copied();
-                for parameter in parameters {
-                    let argument = argument
-                        .next()
-                        .ok_or("constant call argument count differs from its exact requirement")?;
-                    operands.push((argument, parameter));
-                }
-                if argument.next().is_some() {
-                    return Err("constant call argument count differs from its exact entry".into());
-                }
-                operands
-            }
-        };
-        let mut warnings = Vec::new();
-        for (argument, parameter) in operands {
-            let carrier = scalar_probe_destination(typed, parameter.type_reference)
-                .ok_or("constant call argument needs an exact builtin scalar carrier")?;
-            for warning in value::validate(
-                typed,
-                self.machine,
-                self.state,
-                argument,
-                carrier,
-                Some(self),
-            )? {
-                push_unique(&mut warnings, warning);
-            }
-        }
+        let warnings = self.validate_call_arguments(&selected)?;
         Ok((destination, warnings))
     }
 
@@ -484,6 +483,79 @@ impl ConstantCalls for Invocation<'_> {
         &self,
         expression: ExpressionHandle,
     ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
+        let (result, reference, warnings) = self.evaluate_admitted_call(expression)?;
+        let destination = scalar_probe_destination(self.program.typed(), reference)
+            .ok_or("constant result needs an exact builtin scalar type")?;
+        Ok((scalar_result(result, destination)?, warnings))
+    }
+}
+
+/// Convert an admitted result without losing its exact scalar representation.
+fn scalar_result(
+    result: BuildTimeValue,
+    destination: PrimitiveType,
+) -> Result<ScalarValue, String> {
+    let value = match result {
+        BuildTimeValue::UndeterminedNaN(format)
+            if matches!(
+                (format, destination),
+                (FloatFormat::F32, PrimitiveType::F32) | (FloatFormat::F64, PrimitiveType::F64)
+            ) =>
+        {
+            ScalarValue::UndeterminedNaN(format)
+        }
+        BuildTimeValue::Bool(value) if destination == PrimitiveType::Bool => {
+            ScalarValue::Index(CanonicalConstValue::boolean(value))
+        }
+        BuildTimeValue::Int(value) if destination.accepts_integer_literal() => {
+            let value = if destination.is_signed_integer() {
+                i128::from(value)
+            } else {
+                i128::from(value as u64)
+            };
+            let identity = CanonicalConstIdentity::integer(destination.name(), value);
+            ScalarValue::Index(CanonicalConstValue::new(
+                identity.type_name,
+                identity.encoding,
+                value.to_string(),
+            ))
+        }
+        BuildTimeValue::Float(value)
+            if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
+        {
+            // Semantic arithmetic publishes UndeterminedNaN above. This
+            // branch carries presented bits, including exact raw NaNs.
+            let format = if destination == PrimitiveType::F32 {
+                FloatFormat::F32
+            } else {
+                FloatFormat::F64
+            };
+            let bits = format
+                .capture_wide_representation(value)
+                .ok_or("constant result does not retain its exact floating carrier")?;
+            ScalarValue::Float { format, bits }
+        }
+        _ => return Err("constant result does not match its declared scalar carrier".into()),
+    };
+    Ok(value)
+}
+
+/// One admitted authored call: exact selected target, evaluated snapshot
+/// arguments, and concrete discharge evidence for the shared call executor.
+struct AdmittedCall<'program> {
+    target: PreparedCall<'program>,
+    arguments: Vec<BuildTimeValue>,
+    warnings: Vec<Diagnostic>,
+}
+
+impl Invocation<'_> {
+    /// Reuse evaluated arguments when entering a machine. Named operator
+    /// requirements keep their existing checked expression probe. Result
+    /// conversion follows this shared execution step.
+    fn evaluate_admitted_call(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Result<(BuildTimeValue, TypeReferenceHandle, Vec<Diagnostic>), String> {
         let typed = self.program.typed();
         let AdmittedCall {
             target,
@@ -492,7 +564,7 @@ impl ConstantCalls for Invocation<'_> {
         } = self.admit_call(expression)?;
         let custody =
             BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression));
-        let result = match target {
+        let result = match target.target {
             SelectedCall::Entry {
                 premise_discharge,
                 machine,
@@ -549,73 +621,9 @@ impl ConstantCalls for Invocation<'_> {
                 )?
             }
         };
-        let destination = scalar_probe_destination(typed, target.return_type())
-            .ok_or("constant result lost its exact carrier")?;
-        let value = scalar_result(result, destination)?;
-        Ok((value, warnings))
+        Ok((result, target.return_type(), warnings))
     }
-}
 
-/// Convert an admitted result without losing its exact scalar representation.
-fn scalar_result(
-    result: BuildTimeValue,
-    destination: PrimitiveType,
-) -> Result<ScalarValue, String> {
-    let value = match result {
-        BuildTimeValue::UndeterminedNaN(format)
-            if matches!(
-                (format, destination),
-                (FloatFormat::F32, PrimitiveType::F32) | (FloatFormat::F64, PrimitiveType::F64)
-            ) =>
-        {
-            ScalarValue::UndeterminedNaN(format)
-        }
-        BuildTimeValue::Bool(value) if destination == PrimitiveType::Bool => {
-            ScalarValue::Index(CanonicalConstValue::boolean(value))
-        }
-        BuildTimeValue::Int(value) if destination.accepts_integer_literal() => {
-            let value = if destination.is_signed_integer() {
-                i128::from(value)
-            } else {
-                i128::from(value as u64)
-            };
-            let identity = CanonicalConstIdentity::integer(destination.name(), value);
-            ScalarValue::Index(CanonicalConstValue::new(
-                identity.type_name,
-                identity.encoding,
-                value.to_string(),
-            ))
-        }
-        BuildTimeValue::Float(value)
-            if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
-        {
-            // Semantic arithmetic publishes UndeterminedNaN above. This
-            // branch carries presented bits, including exact raw NaNs.
-            let format = if destination == PrimitiveType::F32 {
-                FloatFormat::F32
-            } else {
-                FloatFormat::F64
-            };
-            let bits = format
-                .capture_wide_representation(value)
-                .ok_or("constant result does not retain its exact floating carrier")?;
-            ScalarValue::Float { format, bits }
-        }
-        _ => return Err("constant result does not match its declared scalar carrier".into()),
-    };
-    Ok(value)
-}
-
-/// One admitted authored call: exact selected target, evaluated snapshot
-/// arguments, and the concrete discharge evidence the scalar evaluator turns
-/// into a result.
-struct AdmittedCall<'program> {
-    target: SelectedCall<'program>,
-    arguments: Vec<BuildTimeValue>,
-    warnings: Vec<Diagnostic>,
-}
-
-impl Invocation<'_> {
     /// Admit one authored call without interpreting it: select its exact
     /// closed entry or named requirement, evaluate every argument snapshot in
     /// this probe's context, and discharge its crash/requires contract at
@@ -623,73 +631,42 @@ impl Invocation<'_> {
     fn admit_call(&self, expression: ExpressionHandle) -> Result<AdmittedCall<'_>, String> {
         let typed = self.program.typed();
         let target = self.selected(expression)?;
-        // Reuse complete argument-independent evidence when it exists. A
-        // fallible or otherwise unsummarized call needs fresh checking
-        // snapshots, and an authored `requires` premise in the closure always
-        // does: only the concrete probe can decide it at these arguments. A
-        // named requirement has no body whose failure routes need the summary
-        // — its own authored `requires` clause is the whole premise — but the
-        // probe still discharges that clause concretely the same way.
-        let needs_concrete_discharge = match target {
-            SelectedCall::Entry {
-                premise_discharge,
-                machine,
-                ..
-            } => {
-                premise_discharge
-                    || !self
-                        .program
-                        .crash_causes
-                        .iter()
-                        .any(|(symbol, causes)| *symbol == machine.symbol && causes.is_empty())
-            }
-            SelectedCall::Operator(operator) => typed
-                .operator_contracts(operator)
-                .iter()
-                .any(|contract| contract.kind == SignatureContractKind::Requires),
-        };
-        let Some(call) = typed.expression_table.call_node(expression) else {
-            return Err("constant execution lost its selected call".into());
-        };
-        // Pair each evaluated operand expression with its declared carrier.
-        let operands: Vec<(ExpressionHandle, TypeReferenceHandle)> = match target {
-            SelectedCall::Entry { entry, .. } => expression_table(typed)
-                .expression_handles(call.arguments)
-                .iter()
-                .copied()
-                .zip(
-                    typed
-                        .state_parameters(entry)
-                        .iter()
-                        .map(|parameter| parameter.type_reference),
-                )
-                .collect(),
-            SelectedCall::Operator(operator) => {
-                let mut operands = Vec::new();
-                let mut arguments = expression_table(typed)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .copied();
-                for parameter in typed.operator_parameters(operator) {
-                    let argument = arguments
-                        .next()
-                        .ok_or("constant call argument count differs from its exact requirement")?;
-                    operands.push((argument, parameter.type_reference));
-                }
-                if arguments.next().is_some() {
-                    return Err(
-                        "constant call argument count differs from its exact requirement".into(),
-                    );
-                }
-                operands
-            }
-        };
-        let mut arguments = Vec::new();
-        let mut snapshots = Vec::new();
-        let mut warnings = Vec::new();
-        for (argument, type_reference) in operands {
-            let destination = scalar_probe_destination(typed, type_reference)
-                .ok_or("constant call argument lost its exact carrier")?;
+        // Every source call owes its complete application and public premises,
+        // even when its selected body has no private precondition or failure.
+        let operands = &target.operands;
+        let mut arguments = vec![None; operands.len()];
+        let mut snapshots = (0..operands.len()).map(|_| None).collect::<Vec<_>>();
+        let mut warnings = self.validate_call_arguments(&target)?;
+        let mut snapshot_program = None;
+        let call = typed
+            .expression_table
+            .call_node(expression)
+            .ok_or("constant execution lost its selected call")?;
+        let order = (validation::CallSite::Expression { expression, call })
+            .argument_evaluation_order(typed)
+            .map_err(str::to_owned)?;
+        for position in order {
+            let (argument, type_reference) = *operands
+                .get(position)
+                .ok_or("constant argument schedule names a missing operand")?;
+            let Some(destination) = scalar_probe_destination(typed, type_reference) else {
+                let (value, argument_warnings) =
+                    self.evaluate_owned_argument(argument, type_reference)?;
+                let canonical = super::materialize::canonical_value(typed, type_reference, &value)?;
+                let probe = snapshot_program.get_or_insert_with(|| typed.clone());
+                let literal = probe
+                    .materialize_canonical_const_value(type_reference, &canonical)
+                    .ok_or(
+                        "cannot represent the evaluated constant argument as its declared type",
+                    )?;
+                snapshots[position] = Some(ArgumentSnapshot {
+                    original: argument,
+                    literal,
+                });
+                arguments[position] = Some(value);
+                extend_unique(&mut warnings, argument_warnings);
+                continue;
+            };
             let (value, argument_warnings) = value::evaluate_scalar(
                 typed,
                 self.machine,
@@ -698,24 +675,18 @@ impl Invocation<'_> {
                 destination,
                 Some(self),
             )?;
-            if needs_concrete_discharge {
-                // A payloadless NaN is an evaluable meaning, not a literal
-                // representation. Keep its selected computation in this
-                // disposable checking probe instead of manufacturing bits.
-                // Retaining the handle also retains authored selection custody;
-                // cloning just the root node would discard that metadata.
-                // The ordinary checker must still discharge every premise
-                // and failure route; successful evaluation is not evidence.
-                snapshots.push(ArgumentSnapshot {
-                    receiver: false,
-                    original: argument,
-                    literal: match &value {
-                        ScalarValue::UndeterminedNaN(_) => None,
-                        _ => Some(scalar_snapshot(&value, destination)?),
-                    },
-                });
-            }
-            arguments.push(match value {
+            snapshots[position] = Some(ArgumentSnapshot {
+                original: argument,
+                // This semantic node preserves NaN classification without
+                // choosing payload bits or replaying its producing computation.
+                literal: match &value {
+                    ScalarValue::UndeterminedNaN(format) => {
+                        ExpressionNode::UndeterminedNaN(*format)
+                    }
+                    _ => scalar_snapshot(&value, destination)?,
+                },
+            });
+            arguments[position] = Some(match value {
                 ScalarValue::UndeterminedNaN(format) => BuildTimeValue::UndeterminedNaN(format),
                 ScalarValue::Float { format, bits } => BuildTimeValue::Float(
                     format
@@ -741,25 +712,178 @@ impl Invocation<'_> {
             });
             extend_unique(&mut warnings, argument_warnings);
         }
-        if needs_concrete_discharge {
-            let callee = match target {
-                SelectedCall::Entry { machine, .. } => machine.name.to_string(),
-                SelectedCall::Operator(operator) => {
-                    typed.symbols.display_path(operator.symbol, "::")
-                }
-            };
-            self.require_concrete_failure_discharge(
-                expression,
-                callee,
-                target.return_type(),
-                snapshots,
-            )?;
-        }
+        let callee = match target.target {
+            SelectedCall::Entry { machine, .. } => machine.name.to_string(),
+            SelectedCall::Operator(operator) => typed.symbols.display_path(operator.symbol, "::"),
+        };
+        self.require_concrete_failure_discharge(
+            snapshot_program.as_ref().unwrap_or(typed),
+            expression,
+            callee,
+            target.return_type(),
+            snapshots.into_iter().collect::<Option<Vec<_>>>().ok_or(
+                "constant call did not evaluate every argument before checking its preconditions",
+            )?,
+        )?;
         Ok(AdmittedCall {
             target,
-            arguments,
+            arguments: arguments
+                .into_iter()
+                .collect::<Option<Vec<_>>>()
+                .ok_or("constant call did not produce every argument value")?,
             warnings,
         })
+    }
+
+    /// Call selection fixes one complete argument roster, independent of the
+    /// result carrier. Validation and evaluation use these same formal types.
+    fn call_operands(
+        &self,
+        expression: ExpressionHandle,
+        target: SelectedCall<'_>,
+    ) -> Result<Vec<(ExpressionHandle, TypeReferenceHandle)>, String> {
+        let typed = self.program.typed();
+        let call = typed
+            .expression_table
+            .call_node(expression)
+            .ok_or("constant execution lost its selected call")?;
+        let operands = match target {
+            SelectedCall::Entry { .. } if call.static_requirement_dispatch.is_some() => {
+                let site = validation::CallSite::Expression { expression, call };
+                validation::selected_call_arguments(typed, self.lexical_owner, &site)
+                    .map_err(|reason| {
+                        format!("constant call has invalid prepared arguments: {reason}")
+                    })?
+                    .into_iter()
+                    .map(|argument| (argument.expression, argument.logical_type_reference))
+                    .collect()
+            }
+            SelectedCall::Entry { entry, .. } => {
+                let arguments = expression_table(typed).expression_handles(call.arguments);
+                let parameters = typed.state_parameters(entry);
+                if arguments.len() != call.arguments.len() || arguments.len() != parameters.len() {
+                    return Err("constant call argument count differs from its exact entry".into());
+                }
+                arguments
+                    .iter()
+                    .copied()
+                    .zip(parameters.iter().map(|parameter| parameter.type_reference))
+                    .collect()
+            }
+            SelectedCall::Operator(operator) => {
+                let mut operands = Vec::new();
+                let mut arguments = expression_table(typed)
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied();
+                for parameter in typed.operator_parameters(operator) {
+                    let argument = arguments
+                        .next()
+                        .ok_or("constant call argument count differs from its exact requirement")?;
+                    operands.push((argument, parameter.type_reference));
+                }
+                if arguments.next().is_some() {
+                    return Err(
+                        "constant call argument count differs from its exact requirement".into(),
+                    );
+                }
+                operands
+            }
+        };
+        Ok(operands)
+    }
+
+    fn validate_call_arguments(
+        &self,
+        target: &PreparedCall<'_>,
+    ) -> Result<Vec<Diagnostic>, String> {
+        let typed = self.program.typed();
+        let mut warnings = Vec::new();
+        for &(argument, carrier) in &target.operands {
+            if let Some(primitive) = scalar_probe_destination(typed, carrier) {
+                extend_unique(
+                    &mut warnings,
+                    value::validate(
+                        typed,
+                        self.machine,
+                        self.state,
+                        argument,
+                        primitive,
+                        Some(self),
+                    )?,
+                );
+            } else {
+                self.owned_argument_probe(argument, carrier)?;
+                for call in immediate_call_expressions(typed, &[argument])? {
+                    extend_unique(
+                        &mut warnings,
+                        self.validate_call_arguments(&self.selected(call)?)?,
+                    );
+                }
+            }
+        }
+        Ok(warnings)
+    }
+
+    /// A record or array argument keeps its declared carrier while it becomes
+    /// an owned snapshot. Temporary borrows may run inside its producer; the
+    /// ordinary ConstEvaluable result check forbids them from escaping here.
+    fn evaluate_owned_argument(
+        &self,
+        expression: ExpressionHandle,
+        destination: TypeReferenceHandle,
+    ) -> Result<(BuildTimeValue, Vec<Diagnostic>), String> {
+        if self
+            .program
+            .typed()
+            .expression_table
+            .call_node(expression)
+            .is_some()
+        {
+            let (value, actual, warnings) = self.evaluate_admitted_call(expression)?;
+            if !result_carriers_match(self.program.typed(), actual, destination) {
+                return Err("constant argument result does not match its declared type".into());
+            }
+            return Ok((value, warnings));
+        }
+        let (probe, owner) = self.owned_argument_probe(expression, destination)?;
+        let admission = BuildTimeAdmissionPlan::infer(&probe, self.program.authority.clone())
+            .with_accounting(self.program.admission.accounting.clone())
+            .with_selected_operators(&probe, &self.program.operators)?;
+        let custody =
+            BuildTimeInvocationCustody::Source(probe.expression_table.source_span(expression));
+        // This wrapper has no entry parameters. Ordinary checked closure
+        // admission must prove every nested call before the interpreter runs.
+        let value = admission.evaluate_const_evaluable_machine_symbol_for_invocation(
+            &probe,
+            owner,
+            Vec::new(),
+            custody,
+        )?;
+        Ok((value, Vec::new()))
+    }
+
+    fn owned_argument_probe(
+        &self,
+        expression: ExpressionHandle,
+        destination: TypeReferenceHandle,
+    ) -> Result<(TypedTrees, SymbolHandle), String> {
+        let mut probe = self.program.typed().clone();
+        let owner = append_probe(
+            &mut probe,
+            self.machine.symbol,
+            "@const-argument".into(),
+            expression,
+            destination,
+        );
+        let machine = probe
+            .machine(owner)
+            .ok_or("constant argument probe has no owning machine")?;
+        let [state] = probe.machine_states(machine) else {
+            return Err("constant argument probe must have exactly one state".into());
+        };
+        Self::require_expression_carrier(&probe, machine, state, expression, destination, 0)?;
+        Ok((probe, owner))
     }
 
     /// Admit one authored call inside a structured leaf without interpreting
@@ -817,7 +941,10 @@ impl Invocation<'_> {
                     continue;
                 };
                 returns_value = true;
-                self.require_structured_expression_result(
+                Self::require_expression_carrier(
+                    typed,
+                    self.machine,
+                    self.state,
                     *expression,
                     self.state.return_type,
                     statement_index,
@@ -836,13 +963,14 @@ impl Invocation<'_> {
     /// Primitive components retain the existing concrete scalar admission, including
     /// anonymous landing and proven stores. Integer range predicates owe the
     /// shared checker proof separately; this walk supplies no domain authority.
-    fn require_structured_expression_result(
-        &self,
+    fn require_expression_carrier(
+        typed: &TypedTrees,
+        machine: &Machine,
+        state: &State,
         expression: ExpressionHandle,
         destination: TypeReferenceHandle,
         statement_index: usize,
     ) -> Result<(), String> {
-        let typed = self.program.typed();
         // Each arm owes its result obligations even when selective interpretation
         // will skip it. The destination cannot certify an invalid sibling.
         if let ExpressionNode::Match(dispatch) = typed.expression_table.expression(expression) {
@@ -851,7 +979,14 @@ impl Invocation<'_> {
                 return Err("constant initializer lost its selected result carrier".into());
             }
             for arm in arms {
-                self.require_structured_expression_result(arm.value, destination, statement_index)?;
+                Self::require_expression_carrier(
+                    typed,
+                    machine,
+                    state,
+                    arm.value,
+                    destination,
+                    statement_index,
+                )?;
             }
             return Ok(());
         }
@@ -865,8 +1000,8 @@ impl Invocation<'_> {
                 for (minimum, maximum) in ranges {
                     if !validation::occurrence_integer_expression_fits_range(
                         typed,
-                        self.machine.symbol,
-                        self.state.symbol,
+                        machine.symbol,
+                        state.symbol,
                         statement_index,
                         expression,
                         &minimum,
@@ -887,7 +1022,7 @@ impl Invocation<'_> {
                 // Substitution can retain a declared array's carrier on literal
                 // syntax. Keep that receipt before checking constructed children.
                 if let Some(actual) =
-                    expression_result_type_reference(typed, self.machine, self.state, expression)
+                    expression_result_type_reference(typed, machine, state, expression)
                     && !result_carriers_match(typed, actual, destination)
                 {
                     return Err(
@@ -910,7 +1045,10 @@ impl Invocation<'_> {
                     );
                 }
                 for value in values {
-                    self.require_structured_expression_result(
+                    Self::require_expression_carrier(
+                        typed,
+                        machine,
+                        state,
                         *value,
                         *element_type,
                         statement_index,
@@ -944,7 +1082,10 @@ impl Invocation<'_> {
                             .map(|field| field.type_reference)
                     })
                     .ok_or("constant initializer lost its selected construction field")?;
-                    self.require_structured_expression_result(
+                    Self::require_expression_carrier(
+                        typed,
+                        machine,
+                        state,
                         field.value,
                         field_type,
                         statement_index,
@@ -954,7 +1095,7 @@ impl Invocation<'_> {
             }
             _ => {}
         }
-        let actual = expression_result_type_reference(typed, self.machine, self.state, expression)
+        let actual = expression_result_type_reference(typed, machine, state, expression)
             .ok_or("constant initializer lost its selected result carrier")?;
         if !result_carriers_match(typed, actual, destination) {
             return Err("constant initializer result does not match its declared carrier".into());
@@ -1017,7 +1158,7 @@ impl Invocation<'_> {
         let (origins, operators, calls) =
             leaf_call_custody(typed, self.machine, self.state, &roots, false, syntax)?;
         let mut warnings = Vec::new();
-        for call in call_expressions(typed, &roots)? {
+        for call in immediate_call_expressions(typed, &roots)? {
             extend_unique(&mut warnings, self.check_call(call)?);
         }
         let value = self.interpret(reference)?;
@@ -1111,7 +1252,7 @@ impl Invocation<'_> {
                 // Equal field bytes cannot supply nominal identity, predicates,
                 // copying rights, or eligibility as a canonical static index.
                 let mut warnings = Vec::new();
-                for call in call_expressions(typed, &roots)? {
+                for call in immediate_call_expressions(typed, &roots)? {
                     extend_unique(&mut warnings, self.check_call(call)?);
                 }
                 let result = self.interpret(reference)?;
@@ -1165,7 +1306,7 @@ impl Invocation<'_> {
             reference,
             self.program.authority.as_deref(),
         )?;
-        for call in call_expressions(typed, &roots)? {
+        for call in immediate_call_expressions(typed, &roots)? {
             self.check_call(call)?;
         }
         Ok((self.interpret(reference)?, self.state.return_type))

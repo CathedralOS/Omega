@@ -240,9 +240,9 @@ pub(super) fn check_statement_borrows<'p>(
                     || (active_loan.kind.is_exclusive()
                         && active_loan.kind.direct_reborrow_effect(&loan.kind).is_some()
                         && retained_lineage.as_ref().is_some_and(|lineage| {
-                            lineage.iter().any(|ancestor| super::aliases::same_descriptor(
-                                &facts.borrow, *ancestor, active_loan_handle,
-                            ))
+                            super::aliases::formation_preserves_loan(
+                                program, &facts.borrow, borrow_state, lineage, active_loan_handle,
+                            )
                         }))
                     || supplying_accesses.as_ref().is_some_and(|sources| {
                         // A source-derived selected result retains each exact

@@ -7,46 +7,6 @@
 use super::super::{StructuralJudge, StructuralTerm};
 use typed_trees::types::PrimitiveType;
 
-#[derive(Clone, Debug)]
-pub(in crate::proof_contracts::contract_entailment::structural_judgment) struct CapturedResultEquation
-{
-    pub(in crate::proof_contracts::contract_entailment::structural_judgment) left: StructuralTerm,
-    pub(in crate::proof_contracts::contract_entailment::structural_judgment) right: StructuralTerm,
-    pub(super) completed_call_identity: bool,
-}
-
-impl CapturedResultEquation {
-    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn retains_completed_identity(
-        &self,
-        captured: &StructuralTerm,
-        description: &StructuralTerm,
-    ) -> bool {
-        self.completed_call_identity
-            && self.left.same_resolution_payload(captured)
-            && self.right.same_resolution_payload(description)
-    }
-
-    pub(super) fn public((left, right): (StructuralTerm, StructuralTerm)) -> Self {
-        Self {
-            left,
-            right,
-            completed_call_identity: false,
-        }
-    }
-
-    /// Called only after the actual normal-return/repeatability admission.
-    /// A source-view arithmetic recipe is still a public equation, not an
-    /// opaque call leaf: every explicit child keeps its formation obligation.
-    pub(super) fn completed_call(left: StructuralTerm, right: StructuralTerm) -> Self {
-        let completed_call_identity = matches!(right, StructuralTerm::Application { .. });
-        Self {
-            left,
-            right,
-            completed_call_identity,
-        }
-    }
-}
-
 impl StructuralJudge<'_> {
     /// One completed observation may have both an executable description and
     /// its authenticated source application. Keep their common identity even
@@ -80,7 +40,7 @@ impl StructuralJudge<'_> {
         }
         let mut selected = None;
         for equation in self.captured_result_equations.iter() {
-            if !equation.completed_call_identity {
+            if !equation.is_completed_call_identity() {
                 continue;
             }
             let StructuralTerm::CapturedValue { result_type, .. } = &equation.left else {
@@ -155,7 +115,7 @@ impl StructuralJudge<'_> {
         // for the entire class; do not leave one capture opaque while a peer
         // resolves through a different executable/source identity.
         for equation in self.captured_result_equations.iter().filter(|equation| {
-            equation.completed_call_identity
+            equation.is_completed_call_identity()
                 && self.same_completed_denotation(&equation.right, denotation)
         }) {
             let (captured, candidate_policy) =
@@ -243,7 +203,7 @@ impl StructuralJudge<'_> {
     ) -> Option<&StructuralTerm> {
         let mut denotation: Option<&StructuralTerm> = None;
         for equation in self.captured_result_equations.iter().filter(|equation| {
-            equation.completed_call_identity && equation.left.same_resolution_payload(captured)
+            equation.is_completed_call_identity() && equation.left.same_resolution_payload(captured)
         }) {
             if let Some(previous) = denotation {
                 if !self.same_completed_denotation(previous, &equation.right) {
@@ -276,7 +236,7 @@ impl StructuralJudge<'_> {
             .captured_result_equations
             .iter()
             .filter(|equation| {
-                equation.completed_call_identity
+                equation.is_completed_call_identity()
                     && self.same_completed_denotation(&equation.right, subject)
             })
             .map(|equation| &equation.left);
@@ -324,9 +284,9 @@ impl StructuralJudge<'_> {
         self.completed_value_identity_at(
             captured.clone(),
             0,
-            self.captured_result_equations
-                .iter()
-                .filter(|equation| !equation.completed_call_identity),
+            self.captured_result_equations.iter().filter(|equation| {
+                !equation.is_completed_call_identity() && !equation.is_data_identity()
+            }),
         )
     }
 }

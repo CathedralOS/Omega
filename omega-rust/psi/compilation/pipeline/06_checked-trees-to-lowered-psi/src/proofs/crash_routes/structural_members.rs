@@ -41,6 +41,44 @@ pub(crate) fn lower_structural_member_path(
     )
 }
 
+/// Retain data identity as a proposition over exact invocation subjects.
+/// Resolving their fields grants neither a runtime comparison nor access to
+/// referenced contents.
+pub(crate) fn lower_structural_identity(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    left: &checked_trees::CheckedStructuralParameterField,
+    right: &checked_trees::CheckedStructuralParameterField,
+    parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<semantic_vocabulary::Proposition, LoweringError> {
+    let mut subject = |field: &checked_trees::CheckedStructuralParameterField| {
+        let (root, path, endpoint) = lower_structural_member_path(
+            identities,
+            field.parameter_position,
+            &field.path,
+            parameters,
+            structural_types,
+        )?;
+        let StructuralFieldType::Structural(structural_type) = endpoint else {
+            return unsupported("structural identity requires a complete data endpoint");
+        };
+        Ok(semantic_vocabulary::StructuralIdentitySubject::new(
+            root,
+            path,
+            structural_type,
+        ))
+    };
+    let mut left = subject(left)?;
+    let mut right = subject(right)?;
+    if left.structural_type() != right.structural_type() {
+        return unsupported("structural identity operands have different exact types");
+    }
+    if left > right {
+        std::mem::swap(&mut left, &mut right);
+    }
+    Ok(semantic_vocabulary::Proposition::StructuralIdentity { left, right })
+}
+
 /// Resolve a declaration-owned observation independently of whether its root
 /// is an invocation formal or a normal result. Result storage is not a formal:
 /// it keeps its own type and place without borrowed-parameter interpretation.
@@ -98,9 +136,8 @@ pub(crate) fn lower_sequence_extent_term(
         .ok_or(LoweringError::Unsupported(
             "closed sequence extent names a non-structural parameter",
         ))?;
-    if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
-        return unsupported("closed sequence extent requires readable access");
-    }
+    // The shared observation walk rejects write-only access before resolving
+    // the path. Keep that access decision with the operation that observes it.
     // Inline coordinates and executable crossings come from one declaration
     // walk. An extent behind a reference is an observation at that exact
     // descriptor, not an inline field or an inferred capacity.
@@ -296,9 +333,8 @@ fn lower_structural_indexed_place(
     else {
         return unsupported("indexed contract observation has no selected read");
     };
-    if access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
-        return unsupported("indexed contract observation requires readable access");
-    }
+    // Projection preparation reads no storage or selectors. The shared walk
+    // below rejects write-only access before evaluating either.
     let mut projections = path
         .iter()
         .cloned()
