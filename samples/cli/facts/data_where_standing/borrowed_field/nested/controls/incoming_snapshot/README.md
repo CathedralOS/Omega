@@ -27,16 +27,18 @@ The program shape, input hashes and authored oracles remain frozen. This
 control alone cannot complete the nine-place fact; the full row must run with
 native and Terminal agreement and keep its invalid counterparts rejecting.
 
-The [latest completed program run](https://github.com/CathedralOS/Omega/actions/runs/41860338909)
+The [latest completed program run](https://github.com/CathedralOS/Omega/actions/runs/41884089427)
 used an optimized compiler built from
-`98a751f6d6f0dc2f5a70fcdb96365b8e2baf49f9` on Linux x86-64.
-The positive failed with “the body has no planned scalar completion”, while
-both controls matched their intended refusals. Those results describe that
-failed baseline. [The source `218d2fe` attempt](https://github.com/CathedralOS/Omega/actions/runs/41882364283)
-stopped during Rust compilation and ran no programs. The corrected compiler at
-`ef422b8` passes the Rust checks. Its
-[program qualification](https://github.com/CathedralOS/Omega/actions/runs/41884089427)
-is still running; no result from it is claimed here.
+`ef422b8dbabf39245587d4752a32033f640d29e9` on Linux x86-64.
+The positive reached cleanup but failed with “completion carrier retirement
+order”; neither engine ran it. Both invalid controls matched their intended
+refusals. This is still a failing positive, not runtime qualification.
+
+[The earlier program run](https://github.com/CathedralOS/Omega/actions/runs/41860338909)
+at `98a751f` failed with “the body has no planned scalar completion”.
+[The source `218d2fe` attempt](https://github.com/CathedralOS/Omega/actions/runs/41882364283)
+stopped during Rust compilation and ran no programs. Their original source
+identities and failures remain retained.
 
 [Earlier investigation details](https://github.com/CathedralOS/Omega/blob/218d2feb15d115b3c8fa4d34c55f5346a3a61f7b/samples/cli/facts/data_where_standing/borrowed_field/nested/controls/incoming_snapshot/README.md)
 retain the arithmetic, loan, lifetime and cleanup failures under their original

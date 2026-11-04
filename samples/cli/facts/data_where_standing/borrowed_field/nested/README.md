@@ -76,14 +76,22 @@ binds all four hosted targets; bindings alone prove no foreign-host execution.
   emission must preserve both pointer crossings and surrounding fields, with
   native and Terminal agreement.
 
-The [latest completed program run](https://github.com/CathedralOS/Omega/actions/runs/41860338909)
+The [latest completed program run](https://github.com/CathedralOS/Omega/actions/runs/41884089427)
 used an optimized compiler built from
-`98a751f6d6f0dc2f5a70fcdb96365b8e2baf49f9` on Linux x86-64.
-All nine places and the discovery control failed cleanup with “the body has no
-planned scalar completion”. [The source `218d2fe` attempt](https://github.com/CathedralOS/Omega/actions/runs/41882364283)
-failed during Rust compilation before any program ran. The corrected compiler at `ef422b8` passes the Rust checks. Its
-[program qualification](https://github.com/CathedralOS/Omega/actions/runs/41884089427)
-is still running; no result from it is claimed here.
+`ef422b8dbabf39245587d4752a32033f640d29e9` on Linux x86-64.
+All nine positives reached cleanup, then refused because no checked cleanup
+covers a saved reference. The incoming-storage control still failed retirement
+ordering, and the saved-pointer control reached a missing local-storage error
+in Terminal lowering. None ran in either engine. The reject twins and the
+identity/access controls retained their intended refusals. The actual-write,
+known-supplier and recursive-reference neighbors ran with native and Terminal
+agreement at exit 0; those successes do not qualify this row.
+
+[The earlier program run](https://github.com/CathedralOS/Omega/actions/runs/41860338909)
+at `98a751f` failed with “the body has no planned scalar completion”.
+[The source `218d2fe` attempt](https://github.com/CathedralOS/Omega/actions/runs/41882364283)
+failed during Rust compilation before any program ran. Those attempts remain
+failed historical observations, with no results reassigned to the new source.
 
 [Earlier investigation details](https://github.com/CathedralOS/Omega/blob/218d2feb15d115b3c8fa4d34c55f5346a3a61f7b/samples/cli/facts/data_where_standing/borrowed_field/nested/README.md#requirements-and-evidence)
 retain the earlier producer identities and attempts. Input hashes and baseline
