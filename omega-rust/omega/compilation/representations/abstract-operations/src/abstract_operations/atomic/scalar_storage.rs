@@ -1,4 +1,4 @@
-//! Closed storage reach of a fresh owned value, without nominal-name rules.
+//! Closed ordinary scalar storage, without atomic cells or reference carriers.
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
