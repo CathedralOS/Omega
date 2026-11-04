@@ -10,11 +10,13 @@
 
 use crate::selection::body_calls::retarget_machine_calls;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::ResolvedAuthoredCallBinding;
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::expression::StaticMachineArgument;
 use symbol_resolved_trees::name::DiagnosticName;
 use symbol_resolved_trees::signature::StateSignature;
 use symbol_resolved_trees::state::State;
-use symbol_resolved_trees::trait_definition::{ConformanceRow, ConformanceRowSource};
+use symbol_resolved_trees::trait_definition::{Conformance, ConformanceRow, ConformanceRowSource};
 use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
 use symbols::{SymbolHandle, SymbolKind, SymbolLookup};
 
@@ -205,8 +207,8 @@ impl DefaultBodyScope {
 /// here would erase that source selection before its contract can be checked.
 /// A requirement name that matches no row, or several inherited rows, leaves
 /// the call unresolved so checking rejects it rather than choosing one.
-/// Constant initializers bind that owned entry during constant finalization:
-/// their authored selection is recorded before this route runs.
+/// Constant initializers bind that same public requirement during constant
+/// finalization, before their authored selection is recorded.
 pub(crate) fn route_named_implementation_calls(
     program: &mut SymbolResolvedTrees,
     inputs: &[super::body_calls::CallSelectionInput],
@@ -259,14 +261,28 @@ fn named_implementation_requirement(
     let (_, rows) = implementation_rows
         .iter()
         .find(|(conformance, _)| *conformance == site.receiver_symbol)?;
-    let mut matches = rows
-        .iter()
-        .filter(|(requirement, _)| requirement.as_str() == site.member.as_str());
-    let selected = matches.next().map(|(_, state)| *state);
+    Some(
+        named_requirement(
+            rows.iter().map(|(name, requirement)| (name, *requirement)),
+            site.member.as_str(),
+        )
+        .unwrap_or_else(|_| SymbolHandle::invalid()),
+    )
+}
+
+fn named_requirement<'name>(
+    rows: impl Iterator<Item = (&'name DiagnosticName, SymbolHandle)>,
+    member: &str,
+) -> Result<SymbolHandle, &'static str> {
+    let mut matches = rows.filter(|(name, _)| name.as_str() == member);
+    let selected = matches
+        .next()
+        .map(|(_, requirement)| requirement)
+        .ok_or("has no matching requirement row")?;
     if matches.next().is_some() {
-        return Some(SymbolHandle::invalid());
+        return Err("has more than one matching requirement row");
     }
-    Some(selected.unwrap_or_else(SymbolHandle::invalid))
+    Ok(selected)
 }
 
 /// Calls a conformance's own member bodies make to its requirements select
@@ -289,58 +305,13 @@ pub(crate) fn route_conformance_requirement_calls(
     work: &[SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     let trait_catalog = build_trait_catalog(program);
-    let default_body_trait = |machine: SymbolHandle| {
-        program
-            .machine(machine)
-            .map_or_else(SymbolHandle::invalid, |candidate| {
-                candidate.trait_default_origin.declaring_trait
-            })
-    };
-    let mut plans = Vec::new();
-    let mut closed_realizations = Vec::new();
-    for conformance in program.conformances.iter() {
-        let rows = &conformance.rows;
-        let parameter_count = |requirement: SymbolHandle| {
-            trait_catalog
-                .iter()
-                .flat_map(|entry| &entry.requirements)
-                .find(|entry| entry.requirement == requirement)
-                .map_or(0, |entry| entry.signature.parameters.len())
-        };
-        let routes = rows
-            .iter()
-            .filter(|row| row.realization_state.is_valid())
-            .map(|row| RequirementRoute {
-                requirement: row.requirement,
-                requirement_name: row.requirement_name.clone(),
-                realization_state: row.realization_state,
-                parameter_count: parameter_count(row.requirement),
-            })
-            .collect::<Vec<_>>();
-        for row in rows {
-            if !row.source.owns_realization() || !row.realization_machine.is_valid() {
-                continue;
-            }
-            closed_realizations.push(row.realization_machine);
-            let declaring_trait = default_body_trait(row.realization_machine);
-            plans.push(ConformanceRoutingPlan {
-                machine: row.realization_machine,
-                routes: routes.clone(),
-                routes_by_name: row.source == ConformanceRowSource::Inline,
-                default_body: declaring_trait.is_valid().then(|| {
-                    DefaultBodyScope::new(
-                        declaring_trait,
-                        conformance
-                            .alias
-                            .as_ref()
-                            .map_or_else(String::new, |name| name.as_str().to_owned()),
-                        &trait_catalog,
-                        rows.iter().map(|row| row.requirement_name.clone()),
-                    )
-                }),
-            });
-        }
-    }
+    let plans = program
+        .conformances
+        .iter()
+        .flat_map(|conformance| {
+            conformance_routing_plans(program, conformance, &conformance.rows, &trait_catalog)
+        })
+        .collect::<Vec<_>>();
 
     let mut hidden_calls = Vec::new();
     for plan in plans {
@@ -350,21 +321,9 @@ pub(crate) fn route_conformance_requirement_calls(
             inputs,
             work.contains(&plan.machine),
             &mut |site| {
-                // A qualified application names its complete public slot, not
-                // whichever application this lexical map supplies. Preserve
-                // that requirement for typed application formation; equality
-                // of declaration symbols alone cannot authorize rerouting.
-                if site.requirement_application.is_valid() {
-                    return None;
-                }
-                let routed = routed_target(
-                    site.target_symbol,
-                    site.member,
-                    site.argument_count,
-                    plan.routes_by_name && site.local_receiver,
-                    &plan.routes,
-                );
+                let routed = plan.binding(site).map(|binding| binding.selected);
                 if routed.is_none()
+                    && !site.requirement_application.is_valid()
                     && !site.target_symbol.is_valid()
                     && site.local_receiver
                     && let Some(scope) = &plan.default_body
@@ -418,13 +377,259 @@ pub(crate) fn route_conformance_requirement_calls(
     }
 }
 
-fn routed_target(
+impl ConformanceRoutingPlan {
+    fn binding(
+        &self,
+        site: &super::body_calls::CallSite<'_>,
+    ) -> Option<ResolvedAuthoredCallBinding> {
+        // A qualified application keeps its complete public slot. This lexical
+        // map cannot replace a separately selected application of that trait.
+        if site.requirement_application.is_valid() {
+            return None;
+        }
+        routed_binding(
+            site.target_symbol,
+            site.member,
+            site.argument_count,
+            self.routes_by_name && site.local_receiver,
+            &self.routes,
+        )
+    }
+}
+
+fn conformance_routing_plans(
+    program: &SymbolResolvedTrees,
+    conformance: &Conformance,
+    rows: &[ConformanceRow],
+    trait_catalog: &[TraitCatalogEntry],
+) -> Vec<ConformanceRoutingPlan> {
+    let parameter_count = |requirement: SymbolHandle| {
+        trait_catalog
+            .iter()
+            .flat_map(|entry| &entry.requirements)
+            .find(|entry| entry.requirement == requirement)
+            .map_or(0, |entry| entry.signature.parameters.len())
+    };
+    let routes = rows
+        .iter()
+        .filter(|row| row.realization_state.is_valid())
+        .map(|row| RequirementRoute {
+            requirement: row.requirement,
+            requirement_name: row.requirement_name.clone(),
+            realization_state: row.realization_state,
+            parameter_count: parameter_count(row.requirement),
+        })
+        .collect::<Vec<_>>();
+    rows.iter()
+        .filter(|row| row.source.owns_realization() && row.realization_machine.is_valid())
+        .map(|row| {
+            let declaring_trait = program
+                .machine(row.realization_machine)
+                .map_or_else(SymbolHandle::invalid, |machine| {
+                    machine.trait_default_origin.declaring_trait
+                });
+            ConformanceRoutingPlan {
+                machine: row.realization_machine,
+                routes: routes.clone(),
+                routes_by_name: row.source == ConformanceRowSource::Inline,
+                default_body: declaring_trait.is_valid().then(|| {
+                    DefaultBodyScope::new(
+                        declaring_trait,
+                        conformance
+                            .alias
+                            .as_ref()
+                            .map_or_else(String::new, |name| name.as_str().to_owned()),
+                        trait_catalog,
+                        rows.iter().map(|row| row.requirement_name.clone()),
+                    )
+                }),
+            }
+        })
+        .collect()
+}
+
+/// Source dependencies can need a member body before executable call routing.
+/// Prepare the same declaration-owned plans against one immutable program.
+/// Only reached conformances are normalized; unrelated unfinished rows do not
+/// become dependencies. The caller checks retained typed selections separately.
+pub(crate) struct ProvisionalBodyCallRouting<'program> {
+    program: &'program SymbolResolvedTrees,
+    catalogs: Option<(Vec<TraitCatalogEntry>, Vec<MachineCatalogEntry>)>,
+    owner_namespaces: Vec<(SymbolHandle, SymbolHandle)>,
+    conformances: Vec<PreparedConformanceRouting>,
+}
+
+struct PreparedConformanceRouting {
+    namespace: SymbolHandle,
+    rows: Vec<ConformanceRow>,
+    plans: Vec<ConformanceRoutingPlan>,
+}
+
+impl<'program> ProvisionalBodyCallRouting<'program> {
+    pub(crate) fn new(program: &'program SymbolResolvedTrees) -> Self {
+        Self {
+            program,
+            catalogs: None,
+            owner_namespaces: Vec::new(),
+            conformances: Vec::new(),
+        }
+    }
+
+    pub(crate) fn binding(
+        &mut self,
+        machine: SymbolHandle,
+        site: &super::body_calls::CallSite<'_>,
+    ) -> Result<Option<ResolvedAuthoredCallBinding>, String> {
+        let namespace = if let Some((_, namespace)) = self
+            .owner_namespaces
+            .iter()
+            .find(|(owner, _)| *owner == machine)
+        {
+            *namespace
+        } else {
+            let namespace = crate::symbols::owned_conformance_namespace(self.program, machine)?;
+            self.owner_namespaces.push((machine, namespace));
+            namespace
+        };
+        if !namespace.is_valid() {
+            return Ok(None);
+        }
+        let conformance = self.prepared_conformance(namespace)?;
+        let mut selected = conformance
+            .plans
+            .iter()
+            .filter(|plan| plan.machine == machine);
+        let plan = selected
+            .next()
+            .ok_or("source call has no owned implementation body")?;
+        if selected.next().is_some() {
+            return Err("source call has ambiguous owned implementation bodies".into());
+        }
+        Ok(plan.binding(site))
+    }
+
+    /// A named map selects a public requirement, while its exact row supplies
+    /// the separate body demand. Keep that source identity before and after
+    /// executable routing, including calls in constant initializers.
+    pub(crate) fn named_binding(
+        &mut self,
+        site: &super::body_calls::CallSite<'_>,
+        static_arguments: &[StaticMachineArgument],
+    ) -> Result<Option<ResolvedAuthoredCallBinding>, String> {
+        let program = self.program;
+        let target = program.symbols.get(site.target_symbol);
+        let parent_kind = program.symbols.get(target.parent).kind;
+        let (implementation, explicit_requirement) =
+            if program.symbols.get(site.receiver_symbol).kind == SymbolKind::Conformance {
+                (site.receiver_symbol, None)
+            } else if target.kind == SymbolKind::State && parent_kind == SymbolKind::Trait {
+                let Some(argument) = static_arguments.last() else {
+                    return Ok(None);
+                };
+                if program.symbols.get(argument.symbol).kind != SymbolKind::Conformance {
+                    return Ok(None);
+                }
+                (argument.symbol, Some(site.target_symbol))
+            } else {
+                // Ordinary machines, operators and evidence-binder children
+                // keep their own roles when no named map qualifies the call.
+                return Ok(None);
+            };
+        let rows = &self.prepared_conformance(implementation)?.rows;
+        let requirement = if let Some(requirement) = explicit_requirement {
+            requirement
+        } else {
+            named_requirement(
+                rows.iter()
+                    .map(|row| (&row.requirement_name, row.requirement)),
+                site.member.as_str(),
+            )
+            .map_err(|reason| {
+                format!(
+                    "named implementation `{}` {reason} for `{}`",
+                    program.symbols.display_path(implementation, "::"),
+                    site.member,
+                )
+            })?
+        };
+        let mut matches = rows.iter().filter(|row| row.requirement == requirement);
+        let selected = matches
+            .next()
+            .map(|row| row.realization_state)
+            .filter(|state| state.is_valid())
+            .unwrap_or(requirement);
+        if matches.next().is_some() {
+            return Err("named implementation call has ambiguous exact requirement rows".into());
+        }
+        Ok(Some(ResolvedAuthoredCallBinding {
+            selected,
+            original: requirement,
+        }))
+    }
+
+    fn prepared_conformance(
+        &mut self,
+        namespace: SymbolHandle,
+    ) -> Result<&PreparedConformanceRouting, String> {
+        if !self
+            .conformances
+            .iter()
+            .any(|entry| entry.namespace == namespace)
+        {
+            self.prepare_namespace(namespace)?;
+        }
+        self.conformances
+            .iter()
+            .find(|entry| entry.namespace == namespace)
+            .ok_or_else(|| "source call has no prepared implementation declaration".into())
+    }
+
+    fn prepare_namespace(&mut self, namespace: SymbolHandle) -> Result<(), String> {
+        let mut conformances = self
+            .program
+            .conformances
+            .iter()
+            .filter(|candidate| candidate.symbol == namespace);
+        let conformance = conformances
+            .next()
+            .ok_or("source call has no owning implementation declaration")?;
+        if conformances.next().is_some() {
+            return Err("source call has ambiguous owning implementation declarations".into());
+        }
+        let program = self.program;
+        let (trait_catalog, machine_catalog) = self
+            .catalogs
+            .get_or_insert_with(|| (build_trait_catalog(program), build_machine_catalog(program)));
+        let rows = normalize_one(
+            self.program,
+            conformance
+                .alias
+                .as_ref()
+                .map_or("<unnamed implementation>", DiagnosticName::as_str),
+            conformance.trait_name.as_str(),
+            conformance.trait_symbol,
+            &conformance.rows,
+            trait_catalog,
+            machine_catalog,
+        )
+        .map_err(|diagnostic| diagnostic.message)?;
+        let plans = conformance_routing_plans(self.program, conformance, &rows, trait_catalog);
+        self.conformances.push(PreparedConformanceRouting {
+            namespace,
+            rows,
+            plans,
+        });
+        Ok(())
+    }
+}
+
+fn routed_binding(
     current: SymbolHandle,
     target_name: &DiagnosticName,
     argument_count: usize,
     routes_by_name: bool,
     routes: &[RequirementRoute],
-) -> Option<SymbolHandle> {
+) -> Option<ResolvedAuthoredCallBinding> {
     // A selector call passes its selector before the requirement's operands;
     // it reaches whichever implementation the selector names, not this row.
     let static_routes = || {
@@ -435,7 +640,10 @@ fn routed_target(
     if current.is_valid()
         && let Some(route) = static_routes().find(|route| route.requirement == current)
     {
-        return Some(route.realization_state);
+        return Some(ResolvedAuthoredCallBinding {
+            selected: route.realization_state,
+            original: current,
+        });
     }
     if !routes_by_name {
         return None;
@@ -443,7 +651,13 @@ fn routed_target(
     let mut matching =
         static_routes().filter(|route| route.requirement_name.as_str() == target_name.as_str());
     let route = matching.next()?;
-    matching.next().is_none().then_some(route.realization_state)
+    matching
+        .next()
+        .is_none()
+        .then_some(ResolvedAuthoredCallBinding {
+            selected: route.realization_state,
+            original: route.realization_state,
+        })
 }
 
 fn build_trait_catalog(program: &SymbolResolvedTrees) -> Vec<TraitCatalogEntry> {

@@ -82,8 +82,12 @@ pub(super) fn realize(
             "runtime requirement projection lost its ordinary operand roster",
         )]);
     }
-    let operands =
-        super::super::body_rewriting::runtime_value_operands(program, invocation.state, &runtime);
+    let operands = super::super::body_rewriting::runtime_call_operands(
+        program,
+        invocation.site,
+        invocation.state,
+        &runtime,
+    );
     if operands.len() != runtime.len() {
         return Err(vec![Diagnostic::error(
             "runtime requirement projection lost an executable Value operand",

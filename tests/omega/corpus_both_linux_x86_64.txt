@@ -199,22 +199,22 @@ pass/facts/finite_family_input_index/other_machine built 12204ms exit:0 interpre
 pass/facts/finite_family_input_index/other_state built 11537ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
 pass/facts/finite_family_input_index/parameter built 13939ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
 pass/facts/finite_family_input_index/target_body built 16042ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
-pass/facts/finite_family_returned_descriptor/call_result built 7148ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/caller_view built 7105ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/const_name built 7175ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/field built 7159ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/incoming_join built 7261ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/local built 7072ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/match_join built 7291ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/other_machine built 7117ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/other_state built 7220ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/parameter built 7109ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/pointer_field built 6984ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/replaced_source built 7143ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/saved_source built 7127ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/target_body built 7305ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/target_qualification built 7239ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply rejected 7027ms expected native-rejection:match @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/call_result built 7113ms exit:0 interpreter-exit:0 interpreter:agrees @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/caller_view built 6920ms exit:0 interpreter-exit:0 interpreter:agrees @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/const_name built 6997ms exit:0 interpreter-exit:0 interpreter:agrees @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/field built 7050ms exit:0 interpreter-exit:0 interpreter:agrees @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/incoming_join built 7051ms exit:0 interpreter-exit:0 interpreter:agrees @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/local built 6974ms exit:0 interpreter-exit:0 interpreter:agrees @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/match_join built 6927ms exit:0 interpreter-exit:0 interpreter:agrees @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/other_machine built 7078ms exit:0 interpreter-exit:0 interpreter:agrees @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/other_state built 6930ms exit:0 interpreter-exit:0 interpreter:agrees @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/parameter built 6976ms exit:0 interpreter-exit:0 interpreter:agrees @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/pointer_field built 6921ms exit:0 interpreter-exit:0 interpreter:agrees @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/replaced_source built 7069ms exit:0 interpreter-exit:0 interpreter:agrees @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/saved_source built 6989ms exit:0 interpreter-exit:0 interpreter:agrees @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/target_body built 7158ms exit:0 interpreter-exit:0 interpreter:agrees @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/target_qualification built 7104ms exit:0 interpreter-exit:0 interpreter:agrees @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply rejected 6851ms expected native-rejection:match @9ad31e5e8715
 	no provider is selected for boundary requirement `SelectedTarget::target_only`, which the program entry reaches on target `linux_x86_64`
 pass/facts/finite_family_static_inline_result/argument_effect built 4880ms exit:0 interpreter-exit:0 interpreter:agrees @ddc17fff6a3c
 pass/facts/finite_family_static_inline_result/authored_sum built 4902ms exit:0 interpreter-exit:0 interpreter:agrees @ddc17fff6a3c
@@ -7506,7 +7506,7 @@ pass/slices/runtime_same_carrier_inline_cast_index_exit built 1838ms exit:0 inte
 pass/slices/runtime_saturating_array_element_guard_exit built 4969ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/slices/runtime_saved_collection_length_arrival_exit built 1806ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/slices/runtime_sequential_same_backing_views_exit built 2298ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/slices/runtime_shared_subslice_return_exit built 72171ms exit:70 interpreter-exit:70 interpreter:agrees @059fb0b41d83
+pass/slices/runtime_shared_subslice_return_exit built 117013ms exit:70 interpreter-exit:70 interpreter:agrees @9ad31e5e8715
 pass/slices/runtime_shared_whole_view_return_exit built 14206ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/slices/runtime_slice_element_runtime_index_read_exit built 14173ms exit:1 interpreter-exit:1 interpreter:agrees @a92f16431042
 pass/slices/runtime_slice_fixed_index_guard_exit built 14709ms exit:121 interpreter-exit:121 interpreter:agrees @a92f16431042

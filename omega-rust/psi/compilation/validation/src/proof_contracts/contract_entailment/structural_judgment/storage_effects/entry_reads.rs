@@ -11,18 +11,127 @@ use typed_trees::{expression::ExpressionHandle, machine::Machine, state::State};
 const ENTRY_SLOT_OBSERVATION_LIMIT: usize = 64;
 
 impl StructuralJudge<'_> {
+    /// Discover input scalar coordinates without admitting the surrounding
+    /// predicate. The entry owner separately checks each coordinate's cases,
+    /// bounds and readable storage before retaining any observation.
+    pub(super) fn entry_scalar_read_coordinates(
+        &self,
+        machine: &Machine,
+        state: &State,
+        fact: ExpressionHandle,
+    ) -> Vec<(crate::CanonicalPlace, ExpressionHandle)> {
+        let mut expressions = Vec::new();
+        crate::queries::expression_traversal::collect_expression_tree(
+            self.program,
+            fact,
+            &mut expressions,
+        );
+        let mut coordinates = Vec::new();
+        for expression in expressions {
+            if super::super::super::observed_projections::scalar_storage_read(
+                self.program,
+                machine,
+                state,
+                expression,
+            )
+            .is_none()
+                || !self.ordinary_storage_path(Some((machine, state)), expression)
+            {
+                continue;
+            }
+            let Some(place) = crate::canonical_place_from_expression(self.program, expression)
+            else {
+                continue;
+            };
+            if !place.root.as_symbol().is_some_and(|symbol| {
+                self.program
+                    .state_parameter_by_symbol(state, symbol)
+                    .is_some()
+            }) || self.capture_entry_storage_place(place.clone()).is_none()
+                || coordinates.iter().any(|(retained, _)| retained == &place)
+            {
+                continue;
+            }
+            coordinates.push((place, expression));
+        }
+        coordinates
+    }
+
+    /// Name initialized input scalars needed by the return contract, even when
+    /// Requires does not constrain their values. The contract selects only
+    /// coordinates: each new value stays unknown, and its read must already be
+    /// well formed under the admitted entry facts. No guarantee is assumed.
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn retain_declared_entry_scalar_reads(
+        &mut self,
+        machine: &Machine,
+        state: &State,
+    ) {
+        use typed_trees::domain::ProofFact;
+        use typed_trees::signature::SignatureContractKind;
+
+        let program = self.program;
+        let entry = program
+            .machine_states(machine)
+            .first()
+            .is_some_and(|entry| entry.symbol == state.symbol);
+        for contract in program
+            .state_contracts(state)
+            .iter()
+            .chain(program.machine_contracts(machine).iter().filter(|_| entry))
+            .filter(|contract| contract.kind == SignatureContractKind::Ensures)
+        {
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                let ProofFact::Expression(expression) = fact else {
+                    continue;
+                };
+                for (place, _) in self.entry_scalar_read_coordinates(machine, state, *expression) {
+                    // The shared formation check authenticates declared cases
+                    // and literal indices. An unproved contract cannot supply
+                    // a dynamic selector's missing bounds or range evidence.
+                    if !place.segments.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            facts::PlaceSegment::Field { .. }
+                                | facts::PlaceSegment::Case { .. }
+                                | facts::PlaceSegment::FixedIndex { .. }
+                        )
+                    }) {
+                        continue;
+                    }
+                    let Some(coordinate) = self.capture_entry_storage_place(place.clone()) else {
+                        continue;
+                    };
+                    if self
+                        .stored_values
+                        .value_at(&coordinate)
+                        .is_some_and(|stored| stored.entry.is_some())
+                    {
+                        continue;
+                    }
+                    let _ = self.retain_entry_predicate_scalar(machine, state, place);
+                }
+            }
+        }
+    }
+
     /// A readable scalar parameter supplies initialized entry contents even
     /// when Requires says nothing about their value. Keep that unknown value
     /// only after the frame owner authenticates every reference crossing.
     /// Otherwise an unrelated counter update can discard the whole prefix.
     /// This is an entry observation, not an executed read or a new loan;
     /// ordinary writes still retire its current contents.
+    /// Declaration checking supplies symbolic entry values; a completed call
+    /// supplies only its independently authenticated actual observations.
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn retain_entry_scalar_parameters(
         &mut self,
         machine: &Machine,
         state: &State,
+        values: impl IntoIterator<Item = (symbols::SymbolHandle, StructuralTerm)>,
     ) {
-        for parameter in self.program.state_parameters(state) {
+        for (symbol, value) in values {
+            let Some(parameter) = self.program.state_parameter_by_symbol(state, symbol) else {
+                continue;
+            };
             if parameter.is_const || parameter.relevance.is_erased() {
                 continue;
             }
@@ -30,7 +139,6 @@ impl StructuralJudge<'_> {
                 root: facts::PlaceRoot::Symbol(parameter.symbol),
                 segments: Vec::new(),
             };
-            let value = StructuralTerm::Variable(parameter.name.to_string());
             if crate::value_custody::expression_types::scalar_observation_meaning(
                 self.program,
                 parameter.type_reference,
@@ -54,7 +162,7 @@ impl StructuralJudge<'_> {
                     root: facts::PlaceRoot::Symbol(parameter.symbol),
                     segments: Vec::new(),
                 },
-                StructuralTerm::Variable(parameter.name.to_string()),
+                value,
             ) && super::super::super::struct_trace()
             {
                 eprintln!(
@@ -291,35 +399,105 @@ impl StructuralJudge<'_> {
             result_type,
             integer_range: None,
         };
+        self.retain_entry_scalar_snapshot(machine, state, place, value)
+    }
+
+    /// Keep an admitted entry scalar even when its pointer has not been
+    /// loaded yet. Such a snapshot is not current contents; a later read must
+    /// establish its complete backing and preservation from this entry.
+    pub(super) fn retain_entry_scalar_snapshot(
+        &mut self,
+        machine: &Machine,
+        state: &State,
+        place: crate::CanonicalPlace,
+        value: StructuralTerm,
+    ) -> Result<StructuralTerm, &'static str> {
+        if !self.requires_value_preservation()
+            || self.declaration_state != state.symbol
+            || self.storage_write_sequence != 0
+        {
+            return Err("the scalar snapshot is outside its declaration entry epoch");
+        }
         let root = place
             .root
             .as_symbol()
             .ok_or("entry predicate has no declaration root")?;
+        let program = self.program;
+        let parameter = program
+            .state_parameter_by_symbol(state, root)
+            .ok_or("entry predicate is not rooted in an admitted input")?;
+        let geometry = crate::structural_scalar_coordinate(
+            program,
+            program.state_parameters(state),
+            root,
+            &place.segments,
+        )
+        .ok_or("entry snapshot has no readable scalar geometry")?;
+        let observed_type =
+            crate::value_custody::expression_types::readable_observation_type_reference(
+                program,
+                geometry.result_type_reference,
+            )
+            .filter(|reference| {
+                program.primitive_type_reference(*reference) == Some(geometry.primitive_type)
+            })
+            .ok_or("entry snapshot has no matching scalar carrier")?;
+        let (cases, indices) =
+            super::super::super::scoped_arithmetic::scalar_projection_requirements(
+                program,
+                parameter.type_reference,
+                &place.segments,
+            )
+            .ok_or("entry snapshot lost its projection requirements")?;
+        if !self.scalar_coordinate_is_formed(
+            parameter.type_reference,
+            &StructuralTerm::Variable(parameter.name.to_string()),
+            &place.segments,
+            &cases,
+            &indices,
+        ) || !super::super::super::structural_terms::scalar_operand_is_observed(
+            program,
+            geometry.result_type_reference,
+            &value,
+        ) {
+            return Err("entry snapshot lacks a formed scalar observation");
+        }
         if self
             .entry_read_backing(machine, state, root, &place.segments)
             .is_some()
         {
             return self.retain_entry_scalar_observation(machine, state, place, value);
         }
-        self.program
-            .state_parameter_by_symbol(state, root)
-            .ok_or("entry predicate is not rooted in an admitted input")?;
         let coordinate = self
             .capture_entry_storage_place(place.clone())
             .ok_or("entry predicate has no fixed declaration coordinate")?;
-        self.retain_storage_value(coordinate.clone(), value.clone(), true);
-        let stored = std::sync::Arc::make_mut(&mut self.stored_values)
-            .value_at_mut(&coordinate)
-            .ok_or("entry predicate lost its logical snapshot")?;
-        stored.current = None;
-        stored.backing = None;
-        stored.completed_read = None;
+        let values = std::sync::Arc::make_mut(&mut self.stored_values);
+        let previous = if let Some(stored) = values.value_at_mut(&coordinate) {
+            stored.entry.get_or_insert_with(|| value.clone()).clone()
+        } else {
+            values.push(super::CapturedStorageValue {
+                coordinate,
+                entry: Some(value.clone()),
+                current: None,
+                selected_case: None,
+                completed_read: None,
+                backing: None,
+                current_anchors: vec![super::StorageAnchor::Incoming],
+                anchor_state: state.symbol,
+            });
+            value.clone()
+        };
+        // A second admitted observation of this exact entry coordinate keeps
+        // the first snapshot's identity and relates the two saved values.
+        if !previous.same_resolution_payload(&value) {
+            self.assume_completed_value_equation(observed_type, previous.clone(), value.clone());
+        }
         if super::super::super::struct_trace() {
             eprintln!(
                 "STRUCT entry-predicate-only place={place:?} value={value:?} awaiting=performed-load-and-preservation"
             );
         }
-        Ok(value)
+        Ok(previous)
     }
 
     /// Whole entry values use the entry selector namespace too. A header

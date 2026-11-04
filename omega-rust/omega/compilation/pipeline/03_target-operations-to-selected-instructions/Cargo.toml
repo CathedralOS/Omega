@@ -9,6 +9,7 @@ name = "target_operations_to_selected_instructions"
 path = "src/lib.rs"
 
 [dependencies]
+language-core = { path = "../../../../psi/foundation/language-core" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 runtime-abi = { path = "../../backend/runtime/runtime-abi" }
 optimization-core = { path = "../../../foundation/optimization-core" }

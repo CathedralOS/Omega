@@ -151,7 +151,8 @@ pub(super) fn complete_arguments(
         }
         return parameters
             .iter()
-            .map(|parameter| {
+            .enumerate()
+            .map(|(ordinal, parameter)| {
                 let mut selected = bindings
                     .iter()
                     .filter(|binding| binding.parameter == parameter.symbol);
@@ -166,7 +167,11 @@ pub(super) fn complete_arguments(
                     }
                     StaticMachineBindingValue::Machine(argument)
                     | StaticMachineBindingValue::Conformance(argument) => Some(argument.clone()),
-                    StaticMachineBindingValue::RuntimeValue { .. } => None,
+                    StaticMachineBindingValue::RuntimeValue {
+                        subject,
+                        expression,
+                        ..
+                    } => runtime_argument(program, call, ordinal, *subject, *expression),
                 }
             })
             .collect();
@@ -199,7 +204,7 @@ pub(super) fn complete_arguments(
         original = template;
     }
     let mut complete = Vec::with_capacity(parameters.len());
-    for private in private_parameters {
+    for (ordinal, private) in private_parameters.into_iter().enumerate() {
         let mut selected = bindings
             .iter()
             .filter(|binding| binding.parameter == private.symbol);
@@ -214,9 +219,41 @@ pub(super) fn complete_arguments(
                 .ok()?,
             StaticMachineBindingValue::Machine(argument)
             | StaticMachineBindingValue::Conformance(argument) => argument.clone(),
-            // A runtime value subject is not a static invocation operand.
-            StaticMachineBindingValue::RuntimeValue { .. } => return None,
+            StaticMachineBindingValue::RuntimeValue {
+                subject,
+                expression,
+                ..
+            } => runtime_argument(program, call, ordinal, *subject, *expression)?,
         });
     }
     Some(complete)
+}
+
+/// Restore a runtime subject from this occurrence's source binding. Executable
+/// machine selections cannot supply logical operands. An expression wrapper is
+/// usable only when it names the exact retained Value evaluation in this slot.
+fn runtime_argument(
+    program: &TypedTrees,
+    call: StaticArgumentCall<'_>,
+    ordinal: usize,
+    subject: SymbolHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<StaticMachineArgument> {
+    if subject.is_valid() && !expression.is_valid() {
+        return Some(StaticMachineArgument {
+            symbol: subject,
+            path: Box::from([program.symbols.name(subject).into()]),
+            ..Default::default()
+        });
+    }
+    if !expression.is_valid() {
+        return None;
+    }
+    let live = match call {
+        StaticArgumentCall::Expression(_, call) => call.machine_arguments.get(ordinal),
+        StaticArgumentCall::Statement(call) => call.machine_arguments.get(ordinal),
+    }?;
+    (super::super::super::const_arguments::runtime_subject_expression(program, live)
+        == Some(expression))
+    .then(|| live.clone())
 }

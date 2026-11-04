@@ -63,6 +63,8 @@ pub(crate) struct StructuralCaseArm<'program> {
     /// The arm's value term, converted under the case environment (payload
     /// member reads resolve against the fresh-variable constructor).
     pub(crate) value: StructuralTerm,
+    pub(super) value_source:
+        Option<super::structural_judgment::normal_returns::CompletedValueSource<'program>>,
 }
 
 /// Recognize the integer-measured structural-induction bridge: a total
@@ -147,13 +149,15 @@ pub(crate) fn recognize_guarded_structural_value_arms<'program>(
 
     let mut leaves = Vec::new();
     for target in [first_target, second_target] {
-        let TransitionTargetNode::Value(value) = program.statement_table.transition_target(target)
-        else {
+        let target = program.statement_table.transition_target(target);
+        let TransitionTargetNode::Value(_) = target else {
             return None;
         };
-        for outcome in
-            judge.normal_return_paths(*value, &environment, (machine, root, root.return_type))?
-        {
+        for outcome in judge.terminal_completion_paths(
+            target,
+            &environment,
+            (machine, root, root.return_type),
+        )? {
             leaves.push(StructuralCaseArm {
                 normal_judge: outcome.judge.clone(),
                 parameter_names: parameter_names.clone(),
@@ -162,6 +166,7 @@ pub(crate) fn recognize_guarded_structural_value_arms<'program>(
                 citations: Vec::new(),
                 normal_guarantees: outcome.judge.normal_guarantees.to_vec(),
                 value: outcome.value,
+                value_source: outcome.source,
             });
         }
     }
@@ -1144,13 +1149,18 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                 let truth = guard_preserves_values
                     .then(|| constructor.boolean_constructor())
                     .flatten();
-                let subject_judgment = truth.map(|_| {
-                    outcome.judge.judge_equation(
-                        outcome.judge.resolve(subject.clone()),
-                        constructor.clone(),
-                        0,
-                    )
-                });
+                let subject_judgment = guard_preserves_values
+                    .then(|| {
+                        completed_guard_judgment(
+                            program,
+                            &outcome.judge,
+                            (machine, state, subject_type),
+                            guard,
+                            &subject,
+                            &constructor,
+                        )
+                    })
+                    .flatten();
                 if !matches!(subject_judgment, Some(StructuralJudgment::Proven)) {
                     let (next_judge, next_contra_state) = if let Some(truth) = truth {
                         let skipped_eq = [(
@@ -1841,6 +1851,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             case_equations.clone(),
                             pending_citations.clone(),
                             outcome.value,
+                            outcome.source,
                         )
                     })
                     .collect(),
@@ -1957,16 +1968,21 @@ fn recognize_structural_state_leaves_from<'a>(
                     let truth = guard_preserves_values
                         .then(|| constructor.boolean_constructor())
                         .flatten();
-                    let subject_judgment = truth.map(|_| {
-                        outcome.judge.judge_equation(
-                            outcome.judge.resolve(subject.clone()),
-                            constructor.clone(),
-                            0,
-                        )
-                    });
-                    // A Boolean has exactly two values. Nominal classifiers
-                    // retain their selected tag but do not invent a single
-                    // constructor for the complement of a multi-case type.
+                    let subject_judgment = guard_preserves_values
+                        .then(|| {
+                            completed_guard_judgment(
+                                program,
+                                &outcome.judge,
+                                (invocation, state, subject_type),
+                                guard,
+                                &subject,
+                                &constructor,
+                            )
+                        })
+                        .flatten();
+                    // Completed facts can select or exclude this arm. A failed
+                    // Boolean has one complement; an unknown nominal test
+                    // leaves all remaining cases available to later arms.
                     if !matches!(subject_judgment, Some(StructuralJudgment::Proven)) {
                         let next_judge = if let Some(truth) = truth {
                             let skipped_eq = (
@@ -2259,11 +2275,23 @@ fn recognize_structural_state_leaves_from<'a>(
                             established_guarantees.clone(),
                         )?;
                         if let Some(writes) = &writes {
+                            let completion_version = if let Some(expression) = call_expression {
+                                caller.call_storage_version(state, expression)
+                            } else {
+                                transition.source_target.and_then(|target| {
+                                    caller
+                                        .transition_call_storage_version(invocation, state, target)
+                                })
+                            };
                             for arm in &mut completed {
-                                arm.normal_judge = arm
-                                    .normal_judge
-                                    .clone()
-                                    .complete_invocation(&caller, state, &subjects, writes)?;
+                                arm.normal_judge = arm.normal_judge.clone().complete_invocation(
+                                    &caller,
+                                    state,
+                                    &subjects,
+                                    writes,
+                                    &arm.value,
+                                    completion_version,
+                                )?;
                             }
                         }
                         leaves.extend(completed);
@@ -2298,6 +2326,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             branch_equations.clone(),
                             pending_citations.clone(),
                             outcome.value,
+                            outcome.source,
                         ));
                     }
                 }
@@ -2762,6 +2791,9 @@ fn finalize_structural_case_arm<'program>(
     case_equations: Vec<(StructuralTerm, StructuralTerm)>,
     pending_citations: Vec<PendingStructuralCitation>,
     value: StructuralTerm,
+    value_source: Option<
+        super::structural_judgment::normal_returns::CompletedValueSource<'program>,
+    >,
 ) -> StructuralCaseArm<'program> {
     let mut arm_judge = judge.clone();
     let vacuous = arm_judge.hypotheses_contradictory;
@@ -2822,6 +2854,7 @@ fn finalize_structural_case_arm<'program>(
         citations,
         normal_guarantees: judge.normal_guarantees.to_vec(),
         value,
+        value_source,
     }
 }
 
@@ -2852,11 +2885,14 @@ pub(super) fn structural_arm_judge<'program>(
     // enclosing machine's entry contract would donate stale facts to a named
     // recurrent state whose same-spelled formals are distinct declarations.
     let requires = judge.premise_facts().to_vec();
-    let vacuous = requires
-        .iter()
-        .any(|fact| matches!(arm_judge.judge(program, *fact), StructuralJudgment::Refuted));
+    let vacuous = requires.iter().any(|fact| {
+        matches!(
+            arm_judge.judge_proposition(program, *fact),
+            StructuralJudgment::Refuted
+        )
+    });
     for fact in &requires {
-        arm_judge.intake(program, *fact);
+        arm_judge.intake_proposition(program, *fact);
         arm_judge.intake_preserved_predicate(*fact);
     }
     arm_judge.hypotheses_contradictory |= vacuous;
@@ -2909,6 +2945,39 @@ fn guard_observation(
             case: "true".to_owned(),
             fields: Vec::new(),
         },
+    ))
+}
+
+/// Check the guard before adding its own arm assumptions. A checked call can
+/// already have selected a case; its other arms cannot execute. A known tag
+/// supplies no payload fields, and an unknown tag keeps both paths available.
+fn completed_guard_judgment(
+    program: &dyn crate::CheckingInput,
+    judge: &StructuralJudge<'_>,
+    scope: (
+        &Machine,
+        &typed_trees::state::State,
+        typed_trees::types::TypeReferenceHandle,
+    ),
+    guard: ExpressionHandle,
+    subject: &StructuralTerm,
+    constructor: &StructuralTerm,
+) -> Option<StructuralJudgment> {
+    if constructor.boolean_constructor().is_some() {
+        return Some(judge.judge_equation(judge.resolve(subject.clone()), constructor.clone(), 0));
+    }
+    let (machine, state, subject_type) = scope;
+    let (definition, variant) =
+        super::structural_terms::case_guard_classifier(program, machine, Some(state), guard)?;
+    let reference =
+        crate::value_custody::field_domains::readable_type_reference(program, subject_type)?;
+    let selected_definition = program.data_constructor_definition(reference, definition.symbol)?;
+    let selected_variant =
+        program.data_constructor_case(reference, definition.symbol, variant.symbol)?;
+    Some(judge.judge_case(
+        subject.clone(),
+        selected_definition.symbol,
+        selected_variant.symbol,
     ))
 }
 
