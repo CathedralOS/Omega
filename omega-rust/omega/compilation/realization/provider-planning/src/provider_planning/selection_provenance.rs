@@ -92,7 +92,7 @@ pub(crate) fn selected_provider_plan_facts_with_independent_components(
             provider_selection::SelectionProvenance::UniqueCoveringCandidate
             | provider_selection::SelectionProvenance::NativeBuild => {}
         }
-        let selecting_declaration = crate::native_provider_sources::close_selecting_declaration(
+        let selecting_declaration = crate::provider_declarations::close_selecting_declaration(
             context,
             exact_toolchain_sources,
             &selected.derived.provenance,

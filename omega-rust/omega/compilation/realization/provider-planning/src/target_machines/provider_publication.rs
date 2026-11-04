@@ -151,7 +151,7 @@ impl TargetProviderPreparationRequest<'_> {
             // Close nominal and numeric realization declarations while source
             // custody exists. Retain failure until selection and provenance
             // admission demand this candidate, preserving the prior boundary.
-            let closed_declarations = crate::native_provider_sources::close_provider_declarations(
+            let closed_declarations = crate::provider_declarations::close_provider_declarations(
                 self.context,
                 self.exact_toolchain_sources,
                 &candidate.plan,
