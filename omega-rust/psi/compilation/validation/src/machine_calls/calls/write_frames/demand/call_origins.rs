@@ -134,7 +134,7 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
-    fn invocation_write_origins(
+    pub(super) fn invocation_write_origins(
         &self,
         machine: &'program Machine,
         site: CallerWriteSite<'_>,

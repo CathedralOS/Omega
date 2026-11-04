@@ -1481,10 +1481,112 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
+    /// An external call can replace a stored pointer without changing a
+    /// separate local. Compute its writes after capturing the arguments;
+    /// the whole-statement query also fences those pointers' future replacement.
+    /// Unknown arguments or changed contained-reference inventories stay opaque.
+    pub fn boundary_invocation_write_frame(
+        &self,
+        current_machine: &'program Machine,
+        site: &crate::CallSite<'program>,
+    ) -> NormalizedWriteFrame {
+        let written = (|| -> Result<Vec<String>, &'static str> {
+            let machine_symbols = self
+                .machine_symbols(current_machine)
+                .ok_or("caller symbols unavailable")?;
+            let (site, receiver, target, arguments) = match site {
+                crate::CallSite::Statement(call) => (
+                    CallerWriteSite::Call(call),
+                    crate::machine_calls::calls::signature_queries::call_receiver_member_names(
+                        self.program,
+                        call,
+                    ),
+                    call.target.as_str(),
+                    self.program
+                        .statement_table
+                        .expression_handles(call.arguments),
+                ),
+                crate::CallSite::Expression { expression, .. } => {
+                    let call = expression_table(self.program)
+                        .call_node(*expression)
+                        .ok_or("invocation expression is not a call")?;
+                    let receiver = if call.receiver.is_valid() {
+                        receiver_member_chain(self.program, call.receiver)
+                            .ok_or("boundary receiver is not a selected declaration")?
+                    } else {
+                        Vec::new()
+                    };
+                    (
+                        CallerWriteSite::Expression(*expression),
+                        receiver,
+                        call.target.as_str(),
+                        expression_table(self.program).expression_handles(call.arguments),
+                    )
+                }
+                crate::CallSite::TransitionNamed { .. } => {
+                    return Err("named transition has no boundary invocation capture");
+                }
+            };
+            let captured = self
+                .invocation_write_origins(current_machine, site)
+                .ok_or("invocation inputs unavailable")?;
+            captured.receiver.ok_or("receiver origin unavailable")?;
+            // The storage adapter closes writable reference fields through
+            // this inventory. A known outer address does not freeze its contents.
+            captured
+                .references
+                .ok_or("contained references changed during argument evaluation")?;
+            let argument_origins = captured
+                .arguments
+                .into_iter()
+                .map(|origins| {
+                    origins
+                        .map(|sources| sources.iter().map(LocalWriteSource::frame_origin).collect())
+                })
+                .collect::<Vec<_>>();
+            super::caller_aliases::with_caller_origin_context(
+                self.program,
+                current_machine,
+                &self.tables.symbols,
+                site,
+                &self.caches.state_write_shared_collections,
+                |inference, prefix| {
+                    let prefix = prefix?;
+                    let written = known_boundary_call_written_paths_for_parts(
+                        self.program,
+                        current_machine,
+                        &machine_symbols,
+                        &self.tables.symbols,
+                        &receiver,
+                        target,
+                        site,
+                        arguments,
+                        inference,
+                        Some(&argument_origins),
+                    )?;
+                    prefix.close_observed_paths(self.program, written)
+                },
+            )
+            .ok_or("boundary input write closure unavailable")
+        })();
+        match written {
+            Ok(paths) => NormalizedWriteFrame::complete(paths),
+            Err(reason) => {
+                if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+                    eprintln!(
+                        "CALLWRITE boundary-invocation-unavailable caller={} reason={reason}",
+                        current_machine.name
+                    );
+                }
+                NormalizedWriteFrame::opaque()
+            }
+        }
+    }
+
     /// The effect at operation completion. Operands have already executed in
     /// the proof observer; callers that have not walked them need the complete
     /// expression frame instead. Unknown chronological origins remain opaque.
-    pub fn operation_write_frame(
+    pub(crate) fn operation_write_frame(
         &self,
         current_machine: &'program Machine,
         expression: ExpressionHandle,

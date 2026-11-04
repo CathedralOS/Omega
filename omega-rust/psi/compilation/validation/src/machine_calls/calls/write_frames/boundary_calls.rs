@@ -906,6 +906,7 @@ pub(super) fn signature_state_call_written_paths(
     callee_state: &typed_trees::state::State,
     arguments: &[ExpressionHandle],
     inference: &mut FrameInference,
+    argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
     if !program.machine_type_parameters(callee_machine).is_empty()
         || !callee_machine.lifetime_parameters.is_empty()
@@ -920,7 +921,7 @@ pub(super) fn signature_state_call_written_paths(
         program.state_parameters(callee_state),
         arguments,
         inference,
-        None,
+        argument_origins,
     )
 }
 

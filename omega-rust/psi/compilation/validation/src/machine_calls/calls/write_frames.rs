@@ -120,6 +120,9 @@ use stored_origins::StoredLocalOrigins;
 use transparent_effects::expression_is_effectful_for_transparent_result;
 use type_capabilities::{type_may_carry_write, type_reference_is_reference};
 
+#[cfg(test)]
+mod captured_write_tests;
+
 /// Instantiate the conservative may-write set of a resolved internal call in
 /// the caller's place namespace. `None` means the summary is not complete and
 /// the caller must invalidate every flow fact. Internal acyclic calls and
@@ -339,6 +342,7 @@ fn known_call_written_paths_for_parts(
             callee_state,
             arguments,
             inference,
+            argument_origins,
         );
     }
     if inference.active_states.contains(&callee_state.symbol) {
@@ -379,6 +383,7 @@ fn known_call_written_paths_for_parts(
             callee_state,
             arguments,
             inference,
+            argument_origins,
         )?;
         let plans = operand_call_plans(program, None);
         let reach = plans.1.for_machine(callee_machine.symbol)?;
