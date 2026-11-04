@@ -13,6 +13,23 @@ This migration belongs to `BUILD-OWNED-TARGET-SELECTION` in
 [complete mutation frames](../../../../../wiki/spec/language/dependent_values.md#mutation-frames),
 and [Build-owned target selection](../../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection).
 
+The example migration and float equality repair were published in
+[PR #1799](https://github.com/CathedralOS/Omega/pull/1799). The four-host results
+below executed source `967c651da77a`; they are retained observations, not runs
+of a later merged source. [Integration run 41809079515](https://github.com/CathedralOS/Omega/actions/runs/41809079515)
+then refused all ten positives because the bundled float operations had no
+selected default provider. Its ten overlapping-write controls still reached
+their intended refusals.
+
+[PR #1811](https://github.com/CathedralOS/Omega/pull/1811) owns that configuration
+repair. Its first [focused probe](https://github.com/CathedralOS/Omega/actions/runs/41830804519)
+refused all seven cases at the old inline-member grammar, before any intended
+control or program engine ran. The ordinary core Build route and grammar repair
+are under fresh qualification. The separate [Build-use controls](build_use/README.md)
+check that the root Build can use the completed defaults before configuring
+its application. The original nine places and their runtime oracles remain
+unchanged; the broader tasks stay open.
+
 `expose` reads its argument and makes no write. Its complete empty write summary
 preserves the observation. The existing call-result, forwarding-machine and
 selected-implementation examples borrow `other`; the other places borrow `kept`.
@@ -74,7 +91,7 @@ authenticated operation contracts agree. Float format, source ownership, operand
 meaning and storage versions retain their existing checks. Ordinary authored
 operator selection is unchanged.
 
-The current observations use optimized compiler source
+The earlier four-host observations use optimized compiler source
 `967c651da77a7584799c8c663b0a4c542c9d7eb6`:
 
 | Host | Focused run | Status |

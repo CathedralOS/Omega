@@ -8,7 +8,7 @@ Parent outcome: `STATE-LOCAL-VALUE-FRONTIER` (`TASKS.md`). [Invocation contracts
 
 ## Baseline and acceptance
 
-On current main `d545ec03095b`, each overlapping no-store program (formerly labeled invalid) wrongly refuses its `agree` contract. The same synthetic-store broadening also refuses the existing direct-choice and nested-machine disjoint-bound samples. Historical refusal labels were not language authority: a known complete empty body frame preserves these facts.
+At recorded baseline `d545ec03095b`, each overlapping no-store program (formerly labeled invalid) wrongly refuses its `agree` contract. The same synthetic-store broadening also refuses the existing direct-choice and nested-machine disjoint-bound samples. Historical refusal labels were not language authority: a known complete empty body frame preserves these facts.
 
 Acceptance is `omega run --both <place>/main.omg` exiting 0 in both engines for all nine places, and each `omega --check <place>/invalid/main.omg` rejecting the actual overlapping write with `cannot prove requires contract`. Producer-bound observations live in the owning qualification/claim record; no unexecuted target is claimed here.
 
@@ -45,18 +45,19 @@ original sources and diagnostics.
 Float call result, other machine, and target body carry a saved observation
 that the kept float is 7 across an exclusive loan of the other float. The
 callee reads that saved record. Each twin stores through the loan of the kept
-float. Fresh optimized `60453171ca5f23df9feff9c236a4667d47f4456f` executes
-all nine float positives with native and Terminal exit 0 and rejects all nine
-actual overlapping-write twins. The earlier equality refusals are historical,
-not the current frontier; no additional float repair was needed. The
+float. At optimized source `60453171ca5f23df9feff9c236a4667d47f4456f`,
+all nine float positives executed with native and Terminal exit 0, and all nine
+actual overlapping-write twins rejected. The saved-equality repair was already
+present at that checkpoint. The
 call-result, other-machine and target-body fixture pairs are now pinned under
 `tests/omega/{pass,fail}/facts/exclusive_observation_exposure_through_float_*`.
 Their source and Build companions match these sample pairs byte-for-byte.
 This pinning observation adds no new matching-host runtime qualification.
 The [float row](float/README.md) uses ordinary Build selection, retains the
-standard local path and exercises both match choices. All four hosted targets have completed
-its current row and ordinary CLI checks. Those observations retain their
-measured source; earlier observations stay historical.
+standard local path and exercises both match choices. Its four-host observations
+executed source `967c651da77a`. The linked row also records later default-selection
+refusals and the unfinished configuration repair in PR #1811; those earlier
+observations do not establish execution of the new configuration.
 
 - **Establishment.** The observation is the read `items[0]` of the literal `[7, 1]`. Where that read is in another machine or target body, the callee requires `items[0] == 7` and the caller proves it from the literal. The consuming `agree` requires the saved value still equal the live element and 7. The exclusive loan does not establish the fact; the read does.
 - **Identity and invalidation.** The complete non-writing call preserves the exact observed element. The twin's actual store overlaps that element and invalidates equality with its saved value. Disjoint actual writes remain covered by the choice rows.
