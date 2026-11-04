@@ -25,7 +25,6 @@ use flow_effects::{
     CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan, ServiceReachInferencePlan,
 };
 use language_core::is_self_receiver;
-use std::collections::HashMap;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
@@ -194,26 +193,28 @@ pub(crate) fn build_capability_facts(
 
 // Keep each state's facts in append order while constructing the published
 // arena. Nested calls need only their callee's facts; unrelated states cannot
-// contribute a matching fact or a duplicate.
+// contribute a matching fact or a duplicate. A dense slot bucket can contain
+// several generations; reads still compare the complete state handle.
 struct CapabilityFlowBuilder {
     rows: Arena<CapabilityFlowFact>,
-    states: HashMap<SymbolHandle, Vec<Handle<CapabilityFlowFact>>>,
+    states: Vec<Vec<Handle<CapabilityFlowFact>>>,
 }
 
 impl CapabilityFlowBuilder {
     fn new(capacity: usize) -> Self {
         Self {
             rows: Arena::with_capacity(capacity),
-            states: HashMap::new(),
+            states: Vec::new(),
         }
     }
 
     fn state_facts(&self, state: SymbolHandle) -> impl Iterator<Item = &CapabilityFlowFact> {
         self.states
-            .get(&state)
+            .get(state.arena_index() as usize)
             .into_iter()
             .flatten()
             .map(|handle| self.rows.get(*handle))
+            .filter(move |fact| fact.state_symbol == state)
     }
 
     fn push_unique(&mut self, fact: CapabilityFlowFact) -> bool {
@@ -223,10 +224,11 @@ impl CapabilityFlowBuilder {
         {
             return false;
         }
-        self.states
-            .entry(fact.state_symbol)
-            .or_default()
-            .push(self.rows.append(fact));
+        let position = fact.state_symbol.arena_index() as usize;
+        if self.states.len() <= position {
+            self.states.resize_with(position + 1, Vec::new);
+        }
+        self.states[position].push(self.rows.append(fact));
         true
     }
 }
