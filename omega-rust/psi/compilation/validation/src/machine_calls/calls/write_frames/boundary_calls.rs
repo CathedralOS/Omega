@@ -682,14 +682,21 @@ fn boundary_written_argument_paths(
         if !access.is_exclusive() {
             continue;
         }
-        for origin in boundary_argument_origins(
+        let origins = boundary_argument_origins(
             program,
             current_machine,
             machine_symbols,
             symbols,
             *argument,
             inference,
-        )? {
+        );
+        if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+            eprintln!(
+                "CALLWRITE boundary-argument caller={} parameter={:?} argument={argument:?} origins={origins:?}",
+                current_machine.name, parameter.symbol
+            );
+        }
+        for origin in origins? {
             let path = super::place_paths::project_write_path(program, &origin, "");
             if !written.contains(&path) {
                 written.push(path);
@@ -1009,7 +1016,15 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
     let selected =
-        boundary_write_signature_and_receiver(program, current_machine, receiver, target, site)?;
+        boundary_write_signature_and_receiver(program, current_machine, receiver, target, site);
+    if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+        eprintln!(
+            "CALLWRITE boundary-signature caller={} receiver={receiver:?} target={target} selected={}",
+            current_machine.name,
+            selected.is_some()
+        );
+    }
+    let selected = selected?;
     let BoundaryWriteSignature {
         signature,
         has_runtime_receiver,
@@ -1020,17 +1035,25 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     } else {
         Vec::new()
     };
-    let AppliedCallWriteSignature {
-        signature,
-        bindings,
-    } = super::type_instantiation::applied_call_write_signature(
+    let applied = super::type_instantiation::applied_call_write_signature(
         program,
         current_machine,
         signature,
         site,
         arguments,
         bindings,
-    )?;
+    );
+    if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+        eprintln!(
+            "CALLWRITE boundary-application caller={} target={target} selected={}",
+            current_machine.name,
+            applied.is_some()
+        );
+    }
+    let AppliedCallWriteSignature {
+        signature,
+        bindings,
+    } = applied?;
     let parameters =
         super::type_instantiation::signature_arity_parameters(program, signature, arguments)?;
 
