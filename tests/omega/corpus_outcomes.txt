@@ -20798,7 +20798,7 @@ fail/generics/closed_indexed_domain_mismatch rejected 1992ms expected @ccdb99ca2
 	index compatibility condition `index-equality:Quantity:mismatch::entry:statement-0:Quantity<Units::SECOND>==Quantity<Units::METER>` is not established: actual `Quantity<Units::SECOND>` and expected `Quantity<Units::METER>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/generics/closed_record_const_field_wrong_carrier rejected 23031ms expected @911f6617ba9e
 	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "closed const argument has an invalid construction: expected a canonical integer node for `u64`", exceeded_provision: None, source_span: None, resolved_location: None })
-fail/generics/closed_requirement_const_callback_extent rejected 1637ms expected @734fbbb78c51+wt
+fail/generics/closed_requirement_const_callback_extent rejected 1108ms expected @2f474dce29f2
 	argument `second` for state `run` expects `&[u8; 4096]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4096)))`, declared place carrier `array(named(name(u8)),literal(4095))`
 	argument `second` for state `run` expects `&[u8; 4096]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4096)))`, declared place carrier `array(named(name(u8)),literal(4095))`
 fail/generics/closed_requirement_in_generic_body_unproved_bound rejected 2491ms expected @2484aa7758a9+wt
@@ -34427,7 +34427,7 @@ pass/generics/borrowed_applied_field_static_selection_exit checked 4323ms check-
 pass/generics/borrowed_applied_payload_field_static_selection checked 3277ms @ccdb99ca2214
 pass/generics/closed_generic_local_field_observation_exit checked 3267ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/closed_indexed_quantity checked 17663ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/closed_requirement_const_callback_exit checked 4095ms check-target:macos_arm64 @734fbbb78c51+wt
+pass/generics/closed_requirement_const_callback_exit checked 3745ms check-target:macos_arm64 @2f474dce29f2
 pass/generics/closed_sum_case_membership checked 2798ms @ccdb99ca2214
 pass/generics/const_binder_difference_argument_exit checked 6944ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/const_data_param checked 2689ms @ccdb99ca2214

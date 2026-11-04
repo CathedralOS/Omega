@@ -24,6 +24,9 @@ use super::{CallSite, Diagnostic, ExpressionNode, StatementNode, SymbolHandle, T
 use crate::tables::{expressions_of, expressions_of_mut};
 
 pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
+    // Save the supplied functions together with type and constant arguments.
+    // Later requirement closure must see the same complete declaration order.
+    super::requirement_applications::prepare_invocation_bindings(program)?;
     let invocations = invocations::collect(program)?;
     let mut changed = Vec::new();
     for invocation in invocations {

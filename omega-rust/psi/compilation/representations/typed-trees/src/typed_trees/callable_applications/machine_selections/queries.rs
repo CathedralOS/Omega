@@ -199,7 +199,35 @@ impl TypedTrees {
         caller_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         caller_lifetime_bindings: &[crate::static_applications::StaticMachineLifetimeBinding],
     ) -> bool {
-        self.applied_callable_signatures
+        self.applied_machine_callable_mismatch(
+            invocation,
+            ordinal,
+            selected,
+            demand,
+            provider_bindings,
+            provider_lifetimes,
+            required,
+            caller_substitutions,
+            caller_lifetime_bindings,
+        )
+        .is_none()
+    }
+
+    pub fn applied_machine_callable_mismatch(
+        &self,
+        invocation: StaticMachineApplicationHandle,
+        ordinal: usize,
+        selected: SymbolHandle,
+        demand: SymbolHandle,
+        provider_bindings: &[StaticMachineBinding],
+        provider_lifetimes: &[crate::static_applications::StaticMachineLifetimeBinding],
+        required: &signature::StateSignature,
+        caller_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        caller_lifetime_bindings: &[crate::static_applications::StaticMachineLifetimeBinding],
+    ) -> Option<&'static str> {
+        let mut mismatch = "no checking view names this exact function and requirement";
+        let matches = self
+            .applied_callable_signatures
             .iter()
             .any(|(_, prepared)| {
                 let AppliedCallableOwner::MachineSelection {
@@ -224,65 +252,124 @@ impl TypedTrees {
                 let operands = self.callable_substitutions.span_or_empty(*caller_operands);
                 let owner = self.static_machine_application(invocation).lexical_owner;
                 let previous_bindings = self.static_machine_application_bindings(*provider);
-                self.machine_selection_lifetimes_are_current(&prepared.owner)
-                    && *source == invocation
-                    && *position == ordinal
-                    && *entry == selected
-                    && *prepared_demand == demand
-                    && source_required == required
-                    && *caller_lifetime_declaration
-                        == self
-                            .static_machine_application(invocation)
-                            .lifetime_binding_declaration
-                    && *caller_lifetime_owner == owner
-                    && *provider_lifetime_declaration
-                        == self
-                            .static_machine_application(*provider)
-                            .lifetime_binding_declaration
-                    && *provider_lifetime_owner
-                        == self.static_machine_application(*provider).lexical_owner
-                    && self
-                        .callable_lifetime_substitutions
-                        .span_or_empty(*prepared_provider_lifetimes)
-                        == provider_lifetimes
-                    && self
-                        .callable_lifetime_substitutions
-                        .span_or_empty(*caller_lifetimes)
-                        == caller_lifetime_bindings
-                    && self.static_machine_application(*provider).lexical_owner
-                        == self.static_machine_application(invocation).lexical_owner
-                    && self.static_machine_application_lifetimes(*provider) == provider_lifetimes
-                    && previous_bindings.len() == provider_bindings.len()
-                    && previous_bindings
-                        .iter()
-                        .zip(provider_bindings)
-                        .all(|(previous, current)| {
-                            previous.parameter == current.parameter
-                                && match (&previous.value, &current.value) {
-                                    (
-                                        StaticMachineBindingValue::Type(left),
-                                        StaticMachineBindingValue::Type(right),
-                                    ) => self.same_callable_operand(*left, *right, owner),
-                                    (
-                                        StaticMachineBindingValue::Const(left),
-                                        StaticMachineBindingValue::Const(right),
-                                    ) => self.same_callable_index(*left, *right, owner),
-                                    _ => previous.value == current.value,
-                                }
-                        })
-                    && operands.len() == caller_substitutions.len()
-                    && operands.iter().zip(caller_substitutions).all(
-                        |(operand, (parameter, actual))| {
-                            operand.parameter == *parameter
-                                && self.same_caller_operand(
-                                    *parameter,
-                                    operand.actual,
-                                    *actual,
-                                    owner,
-                                )
-                        },
-                    )
-            })
+                if *source != invocation
+                    || *position != ordinal
+                    || *entry != selected
+                    || *prepared_demand != demand
+                    || source_required != required
+                {
+                    return false;
+                }
+                let checks = [
+                    (
+                        self.machine_selection_lifetimes_are_current(&prepared.owner),
+                        "retained caller arguments or lifetime bindings changed",
+                    ),
+                    (*source == invocation, "source invocation changed"),
+                    (*position == ordinal, "machine argument position changed"),
+                    (*entry == selected, "selected function changed"),
+                    (
+                        *prepared_demand == demand,
+                        "required machine binder changed",
+                    ),
+                    (
+                        source_required == required,
+                        "source requirement signature changed",
+                    ),
+                    (
+                        *caller_lifetime_declaration
+                            == self
+                                .static_machine_application(invocation)
+                                .lifetime_binding_declaration,
+                        "caller lifetime declaration changed",
+                    ),
+                    (
+                        *caller_lifetime_owner == owner,
+                        "caller lexical owner changed",
+                    ),
+                    (
+                        *provider_lifetime_declaration
+                            == self
+                                .static_machine_application(*provider)
+                                .lifetime_binding_declaration,
+                        "provider lifetime declaration changed",
+                    ),
+                    (
+                        *provider_lifetime_owner
+                            == self.static_machine_application(*provider).lexical_owner,
+                        "provider lexical owner changed",
+                    ),
+                    (
+                        self.callable_lifetime_substitutions
+                            .span_or_empty(*prepared_provider_lifetimes)
+                            == provider_lifetimes,
+                        "provider lifetime arguments changed",
+                    ),
+                    (
+                        self.callable_lifetime_substitutions
+                            .span_or_empty(*caller_lifetimes)
+                            == caller_lifetime_bindings,
+                        "caller lifetime arguments changed",
+                    ),
+                    (
+                        self.static_machine_application(*provider).lexical_owner
+                            == self.static_machine_application(invocation).lexical_owner,
+                        "provider and caller have different lexical owners",
+                    ),
+                    (
+                        self.static_machine_application_lifetimes(*provider) == provider_lifetimes,
+                        "provider lifetime arguments changed",
+                    ),
+                    (
+                        previous_bindings.len() == provider_bindings.len(),
+                        "provider argument count changed",
+                    ),
+                    (
+                        previous_bindings.iter().zip(provider_bindings).all(
+                            |(previous, current)| {
+                                previous.parameter == current.parameter
+                                    && match (&previous.value, &current.value) {
+                                        (
+                                            StaticMachineBindingValue::Type(left),
+                                            StaticMachineBindingValue::Type(right),
+                                        ) => self.same_callable_operand(*left, *right, owner),
+                                        (
+                                            StaticMachineBindingValue::Const(left),
+                                            StaticMachineBindingValue::Const(right),
+                                        ) => self.same_callable_index(*left, *right, owner),
+                                        _ => previous.value == current.value,
+                                    }
+                            },
+                        ),
+                        "provider arguments changed",
+                    ),
+                    (
+                        operands.len() == caller_substitutions.len(),
+                        "caller argument count changed",
+                    ),
+                    (
+                        operands.iter().zip(caller_substitutions).all(
+                            |(operand, (parameter, actual))| {
+                                operand.parameter == *parameter
+                                    && self.same_caller_operand(
+                                        *parameter,
+                                        operand.actual,
+                                        *actual,
+                                        owner,
+                                    )
+                            },
+                        ),
+                        "caller arguments changed",
+                    ),
+                ];
+                if let Some((_, reason)) = checks.iter().find(|(matches, _)| !matches) {
+                    mismatch = reason;
+                    false
+                } else {
+                    true
+                }
+            });
+        (!matches).then_some(mismatch)
     }
 
     fn same_caller_operand(

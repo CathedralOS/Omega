@@ -3904,7 +3904,7 @@ pass/generics/applied_data_argument_store_receipt checked 4511ms @7c0518fd7afd+w
 pass/generics/borrowed_applied_field_static_selection_exit built 5548ms exit:0 @d1fa4738e67a+wt
 pass/generics/closed_generic_local_field_observation_exit built 1759ms exit:0 @c9b4ecc7551a
 pass/generics/closed_indexed_quantity built 12715ms @4ffed225fc45+wt
-pass/generics/closed_requirement_const_callback_exit built 3434ms exit:0 @734fbbb78c51+wt
+pass/generics/closed_requirement_const_callback_exit built 3634ms exit:0 @2f474dce29f2
 pass/generics/closed_sum_case_membership checked 191ms
 pass/generics/const_data_param checked 166ms
 pass/generics/core_slice_for_each built 1151ms exit:0 @114906953e11+wt
