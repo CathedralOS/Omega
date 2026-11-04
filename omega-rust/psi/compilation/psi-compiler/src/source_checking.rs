@@ -178,9 +178,15 @@ impl CheckRequest<'_> {
                 }) && prior.judgment.judges_preparation_admission(&admission)
             })
         });
+        // Evaluation leaves a program without fixed-layout storage unchanged, so
+        // the ordinary input match already finds its judgment. Copying the
+        // whole program to compare it earlier would buy nothing.
         let layout_evaluation = match evaluated {
             Some(_) => None,
-            None if self.retain && !self.admission.layout_scopes.is_empty() => {
+            None if self.retain
+                && !self.admission.layout_scopes.is_empty()
+                && build_time_evaluation::has_fixed_layout_applications(&program) =>
+            {
                 retained_check::LayoutEvaluationInput::capture(
                     &program,
                     self.admission.layout_scopes,
@@ -223,7 +229,12 @@ impl CheckRequest<'_> {
                 &outcome.checked.typed,
                 self.admission.declarations,
             )?;
-            (outcome, prior.layout_evaluation.clone())
+            // A judgment matched after evaluation keeps the input this request
+            // just captured, so the next equal request can match it early.
+            (
+                outcome,
+                prior.layout_evaluation.clone().or(layout_evaluation),
+            )
         } else {
             if let Some(key) = slice_key {
                 library_slice::record_computed(key);
@@ -317,9 +328,11 @@ impl CheckedSource {
 /// Root pruning is a transform, not a new judgment. Equal roots of the same
 /// immutable input retain its one output rather than cloning and pruning it
 /// once per realization. Authority admission happens before this operation.
+/// The portable Terminal code of those shared outputs is likewise produced once.
 #[derive(Default)]
 pub struct ProductSelections {
     entries: Vec<SelectedProduct>,
+    productions: Arc<crate::PortableProductions>,
 }
 
 struct SelectedProduct {
@@ -329,6 +342,11 @@ struct SelectedProduct {
 }
 
 impl ProductSelections {
+    /// The invocation's shared portable productions, for each Product publication.
+    pub fn portable_productions(&self) -> Arc<crate::PortableProductions> {
+        Arc::clone(&self.productions)
+    }
+
     pub fn select(
         &mut self,
         checked: CheckedSource,
