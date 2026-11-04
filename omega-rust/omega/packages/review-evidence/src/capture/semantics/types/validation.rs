@@ -45,9 +45,9 @@ pub(crate) fn validate_package_type_identity_input_inner(
             )
         };
     }
-    // A declared type argument carries a value only in a const or value slot
-    // of its own telescope. Domain applications use the declaration's index roster:
-    // only generic-carrier families omit a carrier parameter from that roster.
+    // A type argument carries a value only in a const or value parameter of
+    // its own declaration. Domain applications use that declaration's index
+    // parameters; generic-carrier families omit the carrier parameter.
     let validate_argument = |argument, parameters: Option<&[TypeParameter]>, index: usize| {
         let accepts_value = parameters
             .and_then(|parameters| parameters.get(index))
