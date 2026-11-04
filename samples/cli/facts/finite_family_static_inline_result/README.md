@@ -29,7 +29,7 @@ both original arms had the same endpoints.
 
 ## Places and controls
 
-| Place | Valid program | Wrong tuple |
+| Place | Valid program | Wrong selected width |
 | --- | --- | --- |
 | Local | [program](local/main.omg) | [reject](local/invalid/main.omg) |
 | Field | [program](field/main.omg) | [reject](field/invalid/main.omg) |
@@ -41,9 +41,9 @@ both original arms had the same endpoints.
 | Other machine | [program](other_machine/main.omg) | [reject](other_machine/invalid/main.omg) |
 | Selected target body | [program](target_body/main.omg) | [reject](target_body/invalid/main.omg) |
 
-Every twin changes only the first selected tuple from 16 to 32 while retaining
-its 16-byte input. The selected tuple exists, but the input cannot meet its exact
-type. Both versions retain the same member bodies and runtime checks. Each valid
+Every twin selects width 32 for the first call while retaining its 16-byte
+input. Width 32 is allowed, but the input cannot meet that call's exact type.
+Both versions retain the same member bodies and runtime checks. Each valid
 program binds the four required hosted targets and expects exit 0; the existing
 target place also retains its optional macOS x86-64 binding.
 
@@ -121,67 +121,59 @@ missing static type or bounds guarantee.
 
 ## Validation and remaining scope
 
-A later conflict required merging main `ca30092c51e2`. Its shared call cleanup,
-Terminal format, native-input schema and bundled library changed, so the same
-focused checks must run on the combined source. All 343 program and oracle
-inputs remain fixed. The table below retains the completed `ddc` observations;
-it does not claim execution of the newer integration.
+All 29 ordinary projects meet their expected outcomes on Linux x86-64 and
+macOS ARM64 with compiler `b31668d9a31f`. Each host has 14 native/Terminal exit-zero agreements,
+14 intended source refusals and one source-checked publication refusal. This
+covers all nine places, both selections and match choices, saved input values,
+once-only input evaluation, the bad index and every matching twin.
 
-These checks used compiler source
-`ddc17fff6a3cd0e0cb071f975538a087c14670bd`, after a merge with published main
-`d9a17196e2da` resolved a conflict in the recorded results. Main changed shared
-arithmetic, default-domain checks, domain arguments and console declarations,
-so the existing focused scope was checked again. All 343 program and oracle
-inputs and 58 matching Main/Build pairs stayed fixed.
+A conflict with main `ca30092c51e2` brought changed call cleanup, artifact formats,
+integer checking and bundled declarations. The combined source keeps all 343
+program/oracle inputs and 58 matching Main/Build pairs fixed. Fresh affected
+checks use the exact optimized seed CLI and runner without another Rust build:
 
-| Host | Corpus checking | Native/Terminal results | Ordinary fact projects |
+| Host | Fresh corpus checking | Fresh native/Terminal results | Ordinary projects |
 | --- | --- | --- | --- |
-| Linux x86-64 | 28 checked, 45 intended refusals | 28 agreements, 2 publication refusals | 14 exit-zero agreements, 14 source refusals, 1 publication refusal |
-| macOS ARM64 | 28 checked, 45 intended refusals | 28 agreements, 2 publication refusals | 14 exit-zero agreements, 14 source refusals, 1 publication refusal |
+| Linux x86-64 | 10 checked, 8 intended refusals | 7 zero agreements, 3 authored-70 agreements, 1 publication refusal | all 29 match |
+| macOS ARM64 | 10 checked, 8 intended refusals | 7 zero agreements, 3 authored-70 agreements, 1 publication refusal | all 29 match |
 
-The Linux [seed](https://github.com/CathedralOS/Omega/actions/runs/41780735581) and
-Mac [seed](https://github.com/CathedralOS/Omega/actions/runs/41780739235) each passed all 29 ordinary projects
-and the two verification fixtures. Their [Linux corpus replay](https://github.com/CathedralOS/Omega/actions/runs/41783441526)
-and [Mac corpus replay](https://github.com/CathedralOS/Omega/actions/runs/41784898410) then passed all 73 checking and
-30 native/Terminal fixtures using the same authenticated CLI and runner, without
-another Rust build. The existing adaptive time-limit policy, expected results and worker count
-stayed unchanged.
-Each host has 24 exit-zero agreements and four additional programs' authored
-exit-70 agreements. Every positive in this fact exits 0. Publication refusals
-have no engine result.
+The [Linux seed](https://github.com/CathedralOS/Omega/actions/runs/41789332694) and [Mac seed](https://github.com/CathedralOS/Omega/actions/runs/41789336254)
+each check the local place and missing-supply control. Their
+[Linux affected replay](https://github.com/CathedralOS/Omega/actions/runs/41791962436) and
+[Mac affected replay](https://github.com/CathedralOS/Omega/actions/runs/41793153159) cover the changed guard, division,
+calling-policy, byte/case cleanup, boundary-call and reference-authority paths,
+then run every ordinary project. The existing adaptive time limits, expected
+results and worker count stay unchanged. The Linux supplied-policy check took
+206 seconds; no whole-loop speed claim is made. All producer profiles use
+optimization level 1.
 
-The [supplied Linux ARM64 pair](https://github.com/CathedralOS/Omega/actions/runs/41780492745) has actual exit-zero agreements
-for both corpus programs and both ordinary projects at the same source. Its
-separate checking leg used macOS ARM64 and refused missing supply there. This
-qualifies only that pair. Windows native execution and the rest of the row on
-Linux ARM64 remain unmeasured here.
+The records also retain 55 checking and 19 native/Terminal observations per
+full host from compiler `ddc17fff6a3c`, where the complete 73/30 corpus scope
+passed on [Linux](https://github.com/CathedralOS/Omega/actions/runs/41783441526)
+and [Mac](https://github.com/CathedralOS/Omega/actions/runs/41784898410).
+Those unrerun cases keep their actual `ddc` source stamps. Their array/proof
+owners and inputs are unchanged; fresh ordinary execution covers the complete
+fact through the new artifact formats, while fresh neighboring controls cover
+the changed consumers. This is retained evidence, not a fresh full 73/30 run.
 
-The private-call cases include the unchanged bounds loop and guard-floor
-program, a private division helper and a guarded enum helper. A checked false
-caller guard may exclude its exact private call without inventing helper inputs.
-Every possible call still needs an actual entry or its own checked exclusion.
-The [live size-zero control](../../../../tests/omega/fail/generics/const_extent_guard_live_zero_helper/main.omg)
-changes only the caller guard and still rejects its reads. Mixed-arrival,
-unknown-input, unguarded-cycle and partial-operand controls retain their causes.
+The [supplied Linux ARM64 pair](https://github.com/CathedralOS/Omega/actions/runs/41789340411) has actual exit-zero agreements
+for both corpus programs and both ordinary projects at `b316`. Its separate
+checking leg uses macOS ARM64 and refuses missing supply there. This qualifies
+only that pair. Windows execution and the rest of the row on Linux ARM64 remain
+unmeasured here. Both parent tasks remain open.
 
 Ordinary publication controls first pass the portable source check, then refuse
 target compilation for the exact missing provider. The corpus checking route
-also evaluates target publication. All producer profiles use optimization
-level 1. Current records use the actual `ddc17fff6a3c` execution identity and
-preserve every unrelated recorded block from incoming main. The final README
-and record updates change no compiler, program or oracle bytes.
+also evaluates target publication. A publication refusal has no engine result.
+Every positive in this fact exits 0; the authored-70 results belong to additional
+storage controls. Independent source/raw reviews, archives and exact producer
+identities remain with [PR #1721](https://github.com/CathedralOS/Omega/pull/1721).
+The final README/record update changes no compiler, program or oracle bytes.
 
-Independent source and raw reviews and exact source archives are retained with
-[PR #1721](https://github.com/CathedralOS/Omega/pull/1721). Review decisions keep
-their own submitted source identities. The shared publication-checking tools
-retain their focused test evidence.
-
-The explicit provider choices required by this repair were published separately
-in [PR #1789](https://github.com/CathedralOS/Omega/pull/1789) and are included
-here unchanged. Its records retain the actual input `d68d95fa82f8` and compiler
-`2035ca5b0be6` identities, including the computed-const refusal observed in that
-separate qualification.
-That limitation is not counted as passing array coverage.
+The required explicit provider choices were published in
+[PR #1789](https://github.com/CathedralOS/Omega/pull/1789) and are included unchanged.
+Its records retain their actual input/compiler identities and the separate
+computed-const refusal; that limitation is not counted as passing array coverage.
 
 <details>
 <summary>Original baseline and earlier measured sources</summary>
@@ -190,7 +182,7 @@ At `16349300ab35`, Linux and macOS each passed all 73 checking cases, 30
 native/Terminal cases and 29 ordinary projects. The supplied ARM pair also
 passed. Those results and their accepted metadata candidate `9054099475ed`
 remain historical. The next conflict brought shared checking and library
-changes, which required the fresh ddc observations above.
+changes, which required the completed ddc observations retained above.
 
 At `7ea5b8217acc`, the complete Linux scope and affected Mac scope passed,
 with all 29 ordinary projects on both hosts. The [Linux seed](https://github.com/CathedralOS/Omega/actions/runs/41754803449)
