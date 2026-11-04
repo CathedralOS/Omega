@@ -398,6 +398,17 @@ impl TerminalExecution<'_> {
                 ByteSequenceBinding::Immutable(bytes) => {
                     *bytes = bytes.clone().with_descriptor_home(value.clone());
                 }
+                // A bounded owner already lent through its descriptor (an
+                // activation claim's committed bytes, for one) re-presents
+                // that same descriptor at the view's type; the owner and its
+                // backing home stay where they are.
+                ByteSequenceBinding::MutableOwner {
+                    descriptor_home: descriptor_home @ Some(_),
+                    ..
+                } => {
+                    *descriptor_home = Some(value.clone());
+                    binding.validate_mutable_referent(self, &value)?;
+                }
                 ByteSequenceBinding::Representation(_)
                 | ByteSequenceBinding::MutableField { .. }
                 | ByteSequenceBinding::MutableOwner { .. } => {

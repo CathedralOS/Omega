@@ -160,29 +160,22 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let qualified = self.expression_receiver_is_namespace(call.receiver);
         if let Some(request) = &call.private_layout_operation {
             let arguments = expression_table(self.program).expression_handles(call.arguments);
-            let [plan, offset] = arguments else {
+            let [plan, placement] = arguments else {
                 return trap(
-                    "compiler-known `Plan::place_private` requires one Plan and one u64 offset",
+                    "compiler-known `LayoutPlan::place_private` requires one plan and one placement",
                 );
             };
             let plan = self.eval_expression(*plan, frame)?;
-            let offset = match self.eval_expression(*offset, frame)? {
-                Value::Int(offset) => u64::try_from(offset).map_err(|_| {
-                    Halt::Trap(format!(
-                        "compiler-known `Plan::place_private` offset `{offset}` is outside the u64 range"
-                    ))
-                })?,
-                other => {
-                    return trap(format!(
-                        "compiler-known `Plan::place_private` offset is not an integer: {other:?}"
-                    ));
-                }
-            };
+            let placement = self.eval_expression(*placement, frame)?;
+            let placement =
+                crate::build_time::observe_build_time_value(&placement, &|reference| {
+                    self.read_reference(reference)
+                })?;
             self.private_layout_placements
                 .push(crate::PrivateLayoutPlacementReceipt {
                     operation_expression: handle,
                     selected_slot: request.selected_slot.clone(),
-                    offset,
+                    placement,
                 });
             return Ok(plan);
         }

@@ -1,9 +1,9 @@
 //! Pure lower-bound queries over one immutable arithmetic engine.
 //!
-//! Final comparison batches prepare canonical exact-bound and atom-interval
-//! lookups once. The immutable borrow prevents premise, substitution, matrix or
-//! opaque-interval changes until those queries finish. Admission-time callers
-//! use direct reads through the same proof bodies, without allocating indexes.
+//! Query batches prepare canonical exact-bound and atom-interval lookups over
+//! one immutable fact snapshot. The borrow prevents premise, substitution, matrix
+//! or opaque-interval changes until those queries finish. Other callers use
+//! direct reads through the same proof bodies, without allocating indexes.
 //! Preparation adds no facts. It reuses each strongest canonical bound for
 //! residual and scaled queries, whose judgments are pure and threshold-monotone.
 use super::{BigInt, Engine, Interval, Polynomial, ZERO_ATOM};

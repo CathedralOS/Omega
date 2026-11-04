@@ -388,10 +388,12 @@ pub fn prepare_typed_trees(
     // A carrier that was open before binding must be judged after its caller
     // telescope and inferred destinations have closed, before frozen checking.
     phase_profile::scope("psi.04.post_specialization.domain_test_carriers", || {
+        // Specialized contract facts name their copied binders; the authored
+        // contract environments supply those binders' closed types.
         let contracts = arena::Arena::default();
         let owners =
-            validation::expression_owners::OwnerEnvironmentIndex::new(&program, &contracts);
-        validation::validate_executable_domain_test_carriers(&program, &contracts, &owners)
+            validation::expression_owners::OwnerEnvironmentIndex::for_preparation(&program);
+        validation::validate_domain_membership_carriers(&program, &contracts, &owners)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     phase_profile::scope("psi.04.post_specialization.assembly_admit", || {

@@ -56,30 +56,43 @@ reports, explanatory documentation and comments. Start with the specific
 situation and what changes for the person using or maintaining the software.
 The first one or two sentences must make the problem and result clear in
 ordinary language. Apply this to the title too, within the commit-lane rules.
+Choose that opening from the behavior the change affects, not the names of
+the mechanisms edited. Say plainly when the intended result is still unfinished.
 
 An opening such as "Preserve post-call facts through returned scalar views"
 requires subsystem knowledge. "Keep value information after calls" removes
-some jargon but loses the situation. Prefer: "The compiler rejected safe
-subtraction after a helper updated a number. It now remembers the helper's
-promise about the new value, so the calculation compiles." Then explain that
-the caller used a reference supplied by another function, and why that hid the
-update. Avoid abstract aspirations such as "programs should be able to rely on
-guarantees" when the actual failure is known.
+some jargon but still leaves the reader to work out the benefit. Build the
+explanation in layers, as in this example:
 
-Build the explanation in the order the reader needs it. A small example can
-make the behavior clear; explain its meaning before showing unfamiliar syntax.
-Then explain the cause and repair, introducing each necessary technical term
-where it becomes useful. A plain opening followed by a list of internal terms
-still fails. Each paragraph should answer a question the preceding text raises.
-Test values demonstrate a useful property; "the example now returns 73" does
-not explain that property. For internal work, describe the actual maintenance
-or development benefit without inventing an end-user feature.
+"A program can now subtract 9 after calling a helper that guarantees the number
+is at least 9. The compiler used to forget that guarantee and reject the
+calculation."
+
+"The problem occurred when the program kept a reference to the number in an
+array. Updating an array entry and updating the number it points to are
+different operations, but the compiler was treating uncertainty about the
+entry as uncertainty about the number. It now tracks those locations separately."
+
+Only after that explanation does the reader have a reason to learn which
+stored-reference paths and call-completion checks changed. A result such as
+"the example now returns 73" needs the same treatment: explain what that value
+demonstrates. For internal work, name the maintenance or development benefit
+without inventing an end-user feature.
+
+Each paragraph should answer a question the preceding text raises. Explain the
+example before showing unfamiliar syntax, and the cause before naming the
+mechanism that fixes it. A plain opening followed by a list of internal terms
+still fails. Readers should be able to stop after a paragraph with a useful
+understanding, rather than needing a later paragraph to decode it.
 
 Simplify the explanation, not just the vocabulary. "Permission information" is
 still opaque unless the reader learns who may read or write which data and for
 how long. Once a term is explained, use its canonical name consistently. Source
 comments begin with the local reason for the code, then the constraint that
-must hold; use the surrounding code's context rather than adding a tutorial.
+must hold. For example: "A saved copy must keep pointing at the original data
+when the caller replaces the variable." Then give any necessary details about
+how that is maintained. Use the surrounding code's context; do not narrate
+obvious operations or add a tutorial.
 
 Put validation and detailed provenance after the explanation. Keep a limitation
 beside any result it materially qualifies, and preserve exact evidence
@@ -87,12 +100,13 @@ identities, failures and unverified cases. Link long records or use details
 sections. A small change may need only one paragraph; do not inflate it to fill
 a template.
 
-Before publishing, read the title and opening alone: can someone describe the
-specific improvement without reading the diff? Then read a paragraph at a time:
-does each stopping point leave a useful understanding, with no definition
-deferred until later? Check the claims against the final diff and observed
-behavior. Inspect unclear code or examples rather than filling gaps with a
-plausible story. Rewrite when scope changes; omit the session's chronology.
+Check accuracy and clarity separately. Verify claims against the final diff
+and observed behavior, inspecting unclear code instead of inventing a plausible
+story. Then set the diff and session history aside and read the title and
+opening alone. Can you explain what happens differently and why it matters
+without repeating unexplained labels from the text? Check each following
+paragraph the same way. Familiarity with the implementation can hide missing
+explanations. Rewrite when scope changes; omit the session's chronology.
 
 ## Law of completion
 
@@ -806,6 +820,13 @@ are byte-sensitive.
 - The session that starts work finishes it. A claim records what a session
   is doing so other sessions can see it; it grants nothing and blocks nothing.
   Parked work is available to any session once its prerequisite is met.
+- You still own your open PRs after a session ends or changes. At startup
+  and resumption, check the PRs you opened, including earlier sessions, against
+  retained worktree and claim records. Keep each PR's URL, submitted head,
+  remaining acceptance or failure, and next action in its existing claim note.
+  Resume the unfinished work and carry authorized publication through verified
+  merge. Close a PR only when its work is deliberately withdrawn or superseded,
+  with the disposition recorded; age alone does not end ownership.
 - A sample's work includes the complete application and the compiler repairs
   it needs to run; carry it through source, native/Terminal execution, invalid
   controls and publication. Several failing samples with one demonstrated root
@@ -951,6 +972,11 @@ not a completed launch preflight.
   carries authorized work through implementation, testing, review, normal
   main landing and remote verification, and keeps working until it is
   complete.
+- **Never schedule timers or polling check-ins during coordination.** After
+  launching background tasks or subagents, stop calling tools and let
+  reactive wakeups (subagent messages and background task completion events)
+  resume execution. Periodic timers (`schedule`, cron, `send_later`, or sleep
+  loops) burn coordinator context and tokens without advancing work.
 - Dot-created Omega cloud sessions and their native workers default to
   **GPT 6.1 Sol, medium reasoning** (`gpt-6.1-sol`, `medium`), unless the user
   specifies another model or effort. Select them through the runtime's exposed

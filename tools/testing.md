@@ -468,35 +468,6 @@ scans a crate's own sources as an architecture guard is the one exception. The `
 crate's only test target is `corpus_runner`; see
 `omega-rust/omega/compilation/compiler/tests/README.md`.
 
-## Cache independence
-
-`cache_gate.py` compares warm and empty-cache CLI invocations on disposable
-projects, using child-process cache directories rather than the user's cache.
-Supply two optimized producers with different compiler input identities:
-
-```bash
-python tools/build_slot.py --slots 2 -- python tools/cache_gate.py \
-  --cli /path/to/current/omega --other-cli /path/to/previous/omega \
-  --output build/cache-independence
-```
-
-The output directory must be new. The gate requires observed retained-check
-hits before mutation. It changes bodies, same-size/timestamp-preserving
-contracts, declared path dependencies, transitive modules, module existence,
-and the selected build entry. Stale locked compilations must refuse; explicit
-updates must agree with fresh compilation. It also corrupts or removes retained
-records, leaves incomplete temporary records, terminates its own writer during
-record staging, and switches compiler identities. If it misses the interruption
-window, the gate fails rather than counting interruption coverage.
-
-Accepted pairs must produce byte-identical native images and matching native
-exit/stdout/stderr; invalid pairs must reject with the intended diagnostic and
-publish no image. Logs, source snapshots, artifact digests, producer profiles,
-and comparison results remain under the output directory. Test fixtures alone
-receive automatic review decisions. These checks cover the native host and
-named mutations, not every dependency kind, power-loss behavior, or malicious
-cache forgery. They are correctness checks, not compilation benchmarks.
-
 ## Corpus outcome gate
 
 `tools/corpus_gate.py` is the compiler's end-to-end test. It runs the
@@ -984,6 +955,20 @@ the run tier or the `*_exit` convention. A matching refusal records
 executed program. Wrong diagnostics, another status or execution facts make
 `--record` refuse the row. Use this only for an authored publication refusal,
 not for missing implementation in a program intended to run.
+
+`expected_native_rejection.<target>.txt` overrides the portable refusal file.
+Source rows use their actual `check-target`, while native rows use the target
+being realized. A control may therefore require refusal on three hosted targets
+and an ordinary exit on the fourth. The pilot keeps that control on the same
+product path and validates the refusal without counting an engine execution.
+
+For an ordinary sample whose source is valid, declare its normal `program` role
+in `sample.json` when a control-folder name would infer `intended-invalid`.
+The native sample gate completes normal package review, checks the source, then
+compiles without launching and requires exit 1 plus every target refusal fragment.
+A source error, unrelated refusal, panic or successful build cannot satisfy it.
+The result records `native-rejection:match` separately from executions. Existing
+source-invalid controls keep their checking-only path.
 
 `expected_native_exit.txt` holds one decimal process exit code or `trap`.
 The latter requires SIGTRAP for ARM64, SIGILL for Unix x86-64, or

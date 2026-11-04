@@ -340,6 +340,8 @@ pub enum BuiltinFunction {
     /// Total, proof-only projection of a fixed-width integer or address into
     /// mathematical Int. This has no callable implementation or runtime ABI.
     IntegerEmbed,
+    AsmStoreGdtr,
+    AsmLoadGdtr,
 }
 
 macro_rules! roster {
@@ -349,13 +351,18 @@ macro_rules! roster {
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 103;
+    pub const COUNT: usize = 105;
 
     /// The closed inventory in slot order: every compiler-installed builtin
     /// function paired with its exact spelling. The array position is the
     /// slot ordinal ([`Self::ordinal`]) and the root-child slot the symbol
     /// table installs, so ordinals, spellings and symbol rows all read this
     /// one roster instead of parallel transcriptions of it.
+    ///
+    /// Package review evidence records a builtin function by this ordinal,
+    /// so the roster is append-only: a new builtin takes the next free slot
+    /// at the end, never a position beside its relatives, or recorded
+    /// evidence would silently decode as a different function.
     pub const ALL: [(Self, &'static str); Self::COUNT] = [
         (Self::FloatMaximum, "float#maximum"),
         (Self::FloatMinimum, "float#minimum"),
@@ -366,9 +373,6 @@ impl BuiltinFunction {
         (Self::AsmLoadFence, "asm#lfence"),
         (Self::AsmStoreFence, "asm#sfence"),
         (Self::AsmFullFence, "asm#mfence"),
-        (Self::AsmAarch64LoadFence, "asm#dmb_ld"),
-        (Self::AsmAarch64StoreFence, "asm#dmb_st"),
-        (Self::AsmAarch64FullFence, "asm#dmb_sy"),
         (Self::AsmDisableInterrupts, "asm#cli"),
         (Self::AsmEnableInterrupts, "asm#sti"),
         (Self::AsmSnapshotFlags, "asm#pushfq"),
@@ -472,6 +476,12 @@ impl BuiltinFunction {
         (Self::AsmWriteMairEl1, "asm#write_mair_el1"),
         (Self::AsmWriteVbarEl1, "asm#write_vbar_el1"),
         (Self::AsmWriteTpidrEl1, "asm#write_tpidr_el1"),
+        // Slots 100..=102: appended after the published 0..=99 roster.
+        (Self::AsmAarch64LoadFence, "asm#dmb_ld"),
+        (Self::AsmAarch64StoreFence, "asm#dmb_st"),
+        (Self::AsmAarch64FullFence, "asm#dmb_sy"),
+        (Self::AsmStoreGdtr, "asm#sgdt"),
+        (Self::AsmLoadGdtr, "asm#lgdt"),
     ];
 
     pub fn from_ordinal(ordinal: usize) -> Option<Self> {
@@ -539,6 +549,8 @@ impl BuiltinFunction {
             | Self::AsmWriteCr0
             | Self::AsmWriteCr3
             | Self::AsmWriteCr4
+            | Self::AsmStoreGdtr
+            | Self::AsmLoadGdtr
             | Self::AsmWriteBackInvalidate
             | Self::AsmInvalidate
             | Self::AsmWriteBackNoInvalidate
@@ -860,6 +872,8 @@ mod builtin_ordinal_tests {
             (BuiltinFunction::ContentOld, 33),
             (BuiltinFunction::IntegerEmbed, 71),
             (BuiltinFunction::AsmWriteTpidrEl1, 99),
+            (BuiltinFunction::AsmAarch64LoadFence, 100),
+            (BuiltinFunction::AsmAarch64FullFence, 102),
         ] {
             assert_eq!(
                 function.ordinal(),
@@ -949,7 +963,7 @@ mod builtin_ordinal_tests {
             .collect();
         assert_eq!(
             roster.len(),
-            47,
+            50,
             "the unnameable instruction roster is closed"
         );
         for function in roster {

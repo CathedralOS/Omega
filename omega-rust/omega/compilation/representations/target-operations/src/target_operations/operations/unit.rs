@@ -625,6 +625,12 @@ pub enum TargetUnitOperation {
         port: u16,
         value: u8,
     },
+    GlobalDescriptorTable {
+        psi_operation: OperationId,
+        service: ServiceId,
+        operation: terminal_psi::GlobalDescriptorTableOperation,
+        source: terminal_psi::StructuralArgument,
+    },
     RegisterAccess {
         psi_operation: OperationId,
         service: Option<ServiceId>,
@@ -798,6 +804,16 @@ impl TargetUnitOperation {
                 ..
             }
             | Self::EstablishActivationClaim {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::SplitActivationClaim {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::MergeActivationClaim {
                 psi_operation,
                 result_home,
                 ..

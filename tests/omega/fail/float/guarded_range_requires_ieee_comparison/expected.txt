@@ -1,2 +1,2 @@
-cannot prove requires contract for call bounded from select: value >= 0.0 && value <= 1.0
-cannot prove requires contract for call bounded from coordinate: values[0] >= 0.0 && values[0] <= 1.0
+`Unrelated::less` binds the fixed operator token `<` over operands that name no declared type or domain
+`Unrelated::add` binds the fixed operator token `+` over operands that name no declared type or domain

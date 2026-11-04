@@ -271,3 +271,6 @@ pub(super) const RESTRICTED_ATOMIC_ACCESS: u8 = 131;
 
 /// Read one scalar application from the exact admitted target closure.
 pub(super) const READ_SCALAR_APPLICATION: u8 = 132;
+
+/// A hardware descriptor load or snapshot over borrowed bytes.
+pub(super) const GLOBAL_DESCRIPTOR_TABLE: u8 = 133;

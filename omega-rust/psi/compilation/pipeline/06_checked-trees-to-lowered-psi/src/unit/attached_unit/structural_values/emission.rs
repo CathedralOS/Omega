@@ -1385,17 +1385,14 @@ impl Emission<'_, '_, '_> {
                     let count = source_count.ok_or(LoweringError::Unsupported(
                         "structural actual has no source prefix",
                     ))?;
-                    let call = planned[operation]
-                        .call()
-                        .ok_or(LoweringError::Unsupported("structural actual has no call"))?;
-                    let offset = call.structural_arguments[..argument]
+                    let arguments = planned[operation].structural_operands();
+                    let offset = arguments[..argument]
                         .iter()
                         .map(|source| source.call_selector_positions().count())
                         .sum::<usize>();
                     let selectors = staged_selectors[operation][offset..].to_vec();
                     if staged_structural_arguments[operation].is_empty() {
-                        staged_structural_arguments[operation] =
-                            vec![None; call.structural_arguments.len()];
+                        staged_structural_arguments[operation] = vec![None; arguments.len()];
                     }
                     let previous = staged_structural_arguments[operation][argument].take();
                     let captured = self.environment.capture_argument(
@@ -1869,7 +1866,7 @@ impl Emission<'_, '_, '_> {
                     crate::emission::operation_emission::buffer::structural_result_declaration(
                         place,
                         self.structural_type,
-                        StructuralMultiplicity::Unrestricted,
+                        self.multiplicity,
                     ),
                     OperationKind::EstablishNativeCodeLayout { machine },
                 ));

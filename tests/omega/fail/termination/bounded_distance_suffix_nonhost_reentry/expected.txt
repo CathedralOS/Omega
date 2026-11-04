@@ -1,1 +1,1 @@
-cannot prove the `terminates by` ranking
+machine call cycle: `LinuxSelection::selected`, `walk`, `done`

@@ -1049,10 +1049,13 @@ fn validate_statement<'p>(
                 diagnostics,
             );
             receiver::validate_statement_call(machine, state, call, roots, diagnostics);
-            let declared_parameters =
-                crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
-                    .map(|(_, callee_state)| declared_state_parameters(program, callee_state))
-                    .unwrap_or_default();
+            let declared_parameters = call_receiving_parameters(
+                program,
+                machine_definition,
+                state_definition,
+                call.target_symbol,
+                program.statement_table.expression_handles(call.arguments),
+            );
             for (index, argument) in program
                 .statement_table
                 .expression_handles(call.arguments)
@@ -1385,6 +1388,25 @@ fn validate_arguments_against_parameters(
     }
 }
 
+/// A checked instruction can receive a write-only reference without reading it,
+/// just as a callable's declared write-only parameter can.
+fn call_receiving_parameters(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    target: symbols::SymbolHandle,
+    arguments: &[ExpressionHandle],
+) -> Vec<TypeReferenceHandle> {
+    if let Some(parameters) = crate::compiler_operations::global_descriptor_table_operand_types(
+        program, machine, state, target, arguments,
+    ) {
+        return parameters.to_vec();
+    }
+    crate::machine_calls::calls::machine_state_by_symbol(program, target)
+        .map(|(_, callee_state)| declared_state_parameters(program, callee_state))
+        .unwrap_or_default()
+}
+
 fn declared_state_parameters(
     program: &dyn crate::CheckingInput,
     state: &State,
@@ -1685,10 +1707,13 @@ fn validate_call_expression(
     if call.receiver.is_valid() {
         validate_expression(program, machine, state, call.receiver, roots, diagnostics);
     }
-    let declared_parameters =
-        crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
-            .map(|(_, callee_state)| declared_state_parameters(program, callee_state))
-            .unwrap_or_default();
+    let declared_parameters = call_receiving_parameters(
+        program,
+        machine,
+        state,
+        call.target_symbol,
+        expression_table(program).expression_handles(call.arguments),
+    );
     validate_arguments_against_parameters(
         program,
         machine,

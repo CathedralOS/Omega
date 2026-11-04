@@ -422,6 +422,7 @@ impl<'program> ShapeCollector<'program> {
         };
         let identity = closed_data_identity(self.program, data, binders);
         let plan = CheckedUnitStructuralTypePlan {
+            descriptor_presentation: Default::default(),
             source_declaration: Default::default(),
             source_application: Default::default(),
             native_identity: None,
@@ -563,6 +564,7 @@ impl<'program> ShapeCollector<'program> {
             .closed_data_definition(referee)
             .is_some_and(|data| data.supply_mode == DataSupplyMode::BoundaryOpaque);
         let plan = CheckedUnitStructuralTypePlan {
+            descriptor_presentation: Default::default(),
             source_declaration: Default::default(),
             source_application: Default::default(),
             native_identity: None,
@@ -688,6 +690,9 @@ impl<'program> ShapeCollector<'program> {
         let reference = substituted_formal_type(self.program, reference, substitutions);
         if let Some(shell) = slice_view_shell(self.program, reference, substitutions) {
             let canonical = self.add_type(reference, binders, substitutions)?;
+            if !canonical.is_valid() {
+                return None;
+            }
             let identity =
                 stored_structural_type_identity(self.program, reference, binders, substitutions);
             let mut stored = self.types.get(&canonical)?.clone();
@@ -702,6 +707,7 @@ impl<'program> ShapeCollector<'program> {
             *access = Some(shell.access.into());
             stored.copyable = shell.access == language_semantics::ReferenceAccess::Shared;
             stored.identity = identity;
+            stored.descriptor_presentation = canonical;
             if self
                 .types
                 .get(&identity)
@@ -866,6 +872,7 @@ impl<'program> ShapeCollector<'program> {
                 }
             }
             let plan = CheckedUnitStructuralTypePlan {
+                descriptor_presentation: Default::default(),
                 source_declaration: Default::default(),
                 source_application: Default::default(),
                 native_identity: None,
@@ -900,6 +907,7 @@ impl<'program> ShapeCollector<'program> {
             let element_type_identity = self.add_type(element, binders, substitutions);
             self.in_progress.remove(&identity);
             let plan = CheckedUnitStructuralTypePlan {
+                descriptor_presentation: Default::default(),
                 source_declaration: Default::default(),
                 source_application: Default::default(),
                 native_identity: None,
@@ -947,6 +955,7 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity,
                 CheckedUnitStructuralTypePlan {
+                    descriptor_presentation: Default::default(),
                     source_declaration: Default::default(),
                     source_application: Default::default(),
                     native_identity: None,
@@ -1034,6 +1043,7 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity,
                 CheckedUnitStructuralTypePlan {
+                    descriptor_presentation: Default::default(),
                     source_declaration: Default::default(),
                     source_application: Default::default(),
                     native_identity: None,
@@ -1273,6 +1283,7 @@ impl<'program> ShapeCollector<'program> {
                 self.types.insert(
                     identity,
                     CheckedUnitStructuralTypePlan {
+                        descriptor_presentation: Default::default(),
                         source_declaration: Default::default(),
                         source_application: Default::default(),
                         native_identity: None,
@@ -1361,7 +1372,8 @@ impl<'program> ShapeCollector<'program> {
             return None;
         }
         let shape_kind = DataDefinition::shape_kind_from_members(&members);
-        // Interval-only `where` facts become the named fields' bounds.
+        // Atomic fields retain resident bounds from the declaration. Plain
+        // scalar fields keep these as whole-record predicate obligations.
         let stated_intervals = data_where_field_intervals(self.program, &data).unwrap_or_default();
         let stated = |field: &DataField| {
             stated_intervals
@@ -1394,10 +1406,8 @@ impl<'program> ShapeCollector<'program> {
                         if ::validation::impossible_variant(self.program, variant) {
                             continue;
                         }
-                        // Case-local intervals use the same bounded field
-                        // representation as record facts. Keeping the owning
-                        // case here lets Terminal check every constructor and
-                        // expose the bounds only on its selected payload edge.
+                        // Select resident bounds using the exact case. Plain
+                        // scalar payloads retain only their own storage type.
                         let intervals =
                             case_where_field_intervals(self.program, variant).unwrap_or_default();
                         let mut payload_fields = Vec::new();
@@ -1431,6 +1441,7 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity,
                 CheckedUnitStructuralTypePlan {
+                    descriptor_presentation: Default::default(),
                     source_declaration: Default::default(),
                     source_application: Default::default(),
                     native_identity: None,
@@ -1550,6 +1561,7 @@ impl<'program> ShapeCollector<'program> {
         self.types.insert(
             identity,
             CheckedUnitStructuralTypePlan {
+                descriptor_presentation: Default::default(),
                 source_declaration: data.symbol,
                 source_application: Default::default(),
                 native_policy_identity: native_policy_identity.clone(),
@@ -1680,11 +1692,9 @@ impl<'program> ShapeCollector<'program> {
                     | CheckedUnitStructuralFieldType::BoundedInteger(_)
                     | CheckedUnitStructuralFieldType::RefinedScalar { .. }
             ) {
-            // The inline field restriction includes this owner's stated bounds.
-            // Qualification lowering also needs the declared scalar restriction
-            // under its exact type identity after the mathematical view expires.
-            // Register that declaration separately and keep its dependency with
-            // the field; do not import field-only bounds into the scalar type.
+            // Qualification lowering needs the scalar's own declared
+            // restriction under its exact identity. Register it separately;
+            // an enclosing record predicate does not narrow this scalar type.
             self.add_type(field_type_reference, binders, substitutions)?
         } else {
             Default::default()
@@ -1751,6 +1761,9 @@ impl<'program> ShapeCollector<'program> {
                 let Some(plan) = self.types.get(&identity) else {
                     continue;
                 };
+                if plan.descriptor_presentation.is_valid() {
+                    retained.insert(plan.descriptor_presentation);
+                }
                 match &plan.shape {
                     CheckedUnitStructuralTypeShape::Reference {
                         referent_identity, ..

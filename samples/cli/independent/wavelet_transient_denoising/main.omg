@@ -18,7 +18,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
     transition length.valid && threshold.valid && levels.valid && threshold.value >= 0.0 &&
         (length.value == 8.0 || length.value == 16.0 || length.value == 32.0 || length.value == 64.0) &&
         (levels.value == 0.0 || levels.value == 1.0 || levels.value == 2.0 || levels.value == 3.0 || levels.value == 4.0 || levels.value == 5.0 || levels.value == 6.0) {
-        true -> options(application, length.value, threshold.value, levels.value)
+        true -> block options(application, length.value, threshold.value, levels.value)
         _ -> invalid(application)
     }
     machine invalid(application: &mut Application) {
@@ -26,7 +26,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
     }
     machine options(application: &mut Application, length: f64, threshold: f64, levels: f64) {
         let depth: i32 in Wrapping = match length == 8.0 { true -> 3 _ -> match length == 16.0 { true -> 4 _ -> match length == 32.0 { true -> 5 _ -> 6 } } };
-        transition levels <= F64::from_i32(depth as i32) { true -> configure(application, length, threshold, levels, depth) _ -> invalid(application) }
+        transition levels <= F64::from_i32(depth as i32) { true -> block configure(application, length, threshold, levels, depth) _ -> invalid(application) }
     }
     machine configure(application: &mut Application, length: f64, threshold: f64, levels: f64, depth: i32 in Wrapping) {
         let size: i32 in Saturating = I32::from_f64(length);
@@ -34,22 +34,22 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.length = size as i32 in Wrapping; application.levels = selected as i32 in Wrapping;
         application.depth = depth; application.threshold = threshold;
         application.index = 0; application.input_energy = 0.0;
-        transition { _ -> read(application) }
+        transition { _ -> block read(application) }
     }
     machine read(application: &mut Application) {
         transition application.index >= 0 && application.index < application.length && application.index < 64 {
-            true -> sample(application) _ -> finish(application)
+            true -> block sample(application) _ -> block finish(application)
         }
     }
     machine sample(application: &mut Application) {
         let value: Number = block number(&mut application.reader);
-        transition value.valid { true -> store(application, value.value) _ -> invalid(application) }
+        transition value.valid { true -> block store(application, value.value) _ -> invalid(application) }
     }
     machine store(application: &mut Application, value: f64) {
         application.original[application.index] = value;
         application.input_energy = application.input_energy + value * value;
         application.index = application.index + 1;
-        transition { _ -> read(application) }
+        transition { _ -> block read(application) }
     }
     machine finish(application: &mut Application) {
         let complete: bool = block ended(&mut application.reader);

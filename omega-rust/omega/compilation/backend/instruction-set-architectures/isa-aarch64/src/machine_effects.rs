@@ -220,6 +220,7 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             port_write: None,
             system_register_read: Some(crate::AARCH64_SYSTEM_REGISTER_READ),
             system_register_write: Some(crate::AARCH64_SYSTEM_REGISTER_WRITE),
+            global_descriptor_table: None,
             control_register_read: None,
             control_register_write: None,
             port_register_read: None,
@@ -230,20 +231,20 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             interrupt_control: None,
             memory_fence: Some(crate::AARCH64_MEMORY_FENCE),
             atomic_fence: Some(crate::AARCH64_ATOMIC_FENCE),
-            // Apple's arm64 macOS baseline is Apple Silicon (M1 or later),
-            // which includes FEAT_LSE. Generic AArch64/ELF does not promise it.
+            // Loads, stores and one exclusive attempt need only baseline A64.
+            // LSE updates below require Apple Silicon's declared baseline;
+            // generic AArch64/ELF does not promise that feature.
             access_read: Some(crate::AARCH64_ACCESSOR_READ),
             access_write: Some(crate::AARCH64_ACCESSOR_WRITE),
-            atomic_load: (target == NativeTarget::macos_arm64())
-                .then_some(crate::AARCH64_ATOMIC_LOAD),
-            atomic_store: (target == NativeTarget::macos_arm64())
-                .then_some(crate::AARCH64_ATOMIC_STORE),
+            atomic_load: Some(crate::AARCH64_ATOMIC_LOAD),
+            atomic_store: Some(crate::AARCH64_ATOMIC_STORE),
             atomic_update: (target == NativeTarget::macos_arm64())
                 .then_some(crate::AARCH64_ATOMIC_UPDATE),
             atomic_bitwise_update: (target == NativeTarget::macos_arm64())
                 .then_some(crate::AARCH64_ATOMIC_UPDATE),
             atomic_compare_exchange: (target == NativeTarget::macos_arm64())
                 .then_some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE),
+            atomic_compare_exchange_once: Some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE_ONCE),
             crash: crate::AARCH64_CRASH,
             copy_bytes: Some(crate::AARCH64_COPY_BYTES),
             zero_bytes: Some(crate::AARCH64_ZERO_BYTES),
@@ -521,6 +522,8 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::ProcessorHalt
         | MachineSemanticKind::InterruptControl
         | MachineSemanticKind::ControlRegisterRead
+        | MachineSemanticKind::GlobalDescriptorTableLoad
+        | MachineSemanticKind::GlobalDescriptorTableStore
         | MachineSemanticKind::ControlRegisterWrite
         | MachineSemanticKind::PortWrite => unreachable!("x86 port I/O has no AArch64 constraint"),
         MachineSemanticKind::SystemRegisterRead => {

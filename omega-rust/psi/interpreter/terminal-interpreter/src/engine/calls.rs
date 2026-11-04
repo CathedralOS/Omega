@@ -354,12 +354,22 @@ impl<'artifact> TerminalExecution<'artifact> {
                     // Dynamic rejection still owes the ordinary result carrying
                     // both original inputs. Neither outcome may publish ahead of
                     // the complete value/extent custody transaction.
-                    let prepared = self.provider_storage.prepare_initial_image(
+                    let mut prepared = self.provider_storage.prepare_initial_image(
                         binding,
                         supplied,
                         &plan.placement,
                         image,
                     )?;
+                    // A run's backing is exactly its occupied cells; unlike a
+                    // resident it cannot silently retain an unoccupied tail.
+                    if matches!(
+                        plan.storage.owner,
+                        terminal_psi::TerminalAccessOwner::Run { .. }
+                    ) && plan.placement.layout().size != Some(binding.length)
+                        && prepared.is_ok()
+                    {
+                        prepared = Err(crate::storage::provider_storage::initialization::InitializationRejection::IncompatibleSupply);
+                    }
                     match prepared {
                         Err(rejection) => self.reject_access_initialization(
                             operation,

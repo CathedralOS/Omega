@@ -13,22 +13,22 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("digital_root: collapse 12345 by repeated digit sums (15, then 6)");
 
     transition {
-        _ -> collapse(12345)
+        _ -> block collapse(12345)
     }
 
     // Outer loop: stop once the value is a single digit, else sum its digits.
     machine collapse(value: i32 in Wrapping) {
         transition value < 10 {
-            true -> done(value)
-            _ -> digits(value, 0)
+            true -> block done(value)
+            _ -> block digits(value, 0)
         }
     }
 
     // Inner loop: peel off decimal digits, adding each to the running sum.
     machine digits(value: i32 in Wrapping, sum: i32 in Wrapping) {
         transition value == 0 {
-            true -> collapse(sum)
-            _ -> add_digit(value, sum)
+            true -> block collapse(sum)
+            _ -> block add_digit(value, sum)
         }
     }
 
@@ -36,7 +36,7 @@ machine Main::main(main: &mut Main) reaches Console {
         let next_sum: i32 in Wrapping = sum + value % 10;
         let remaining: i32 in Wrapping = value / 10;
         transition {
-            _ -> digits(remaining, next_sum)
+            _ -> block digits(remaining, next_sum)
         }
     }
 

@@ -252,16 +252,21 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                 )?;
             }
         }
-        if matches!(statement, StatementNode::Expression(_))
-            && statement_index.checked_add(1)?
-                == state_statements(program, state.statement_nodes).len()
+        if statement_index.checked_add(1)? == state_statements(program, state.statement_nodes).len()
+            && let Some(expression) =
+                super::completion_expression(program, owner, state, statement_index)
             && let Some(root) = facts.values.scalar_computations.root_at(
                 state.symbol,
                 u32::try_from(statement_index).ok()?,
                 CheckedScalarExpressionRole::Return,
             )
         {
-            if root.machine != machine {
+            let primitive = program.primitive_type_reference(state.return_type)?;
+            if !facts
+                .values
+                .scalar_computations
+                .is_authored_root(root, machine, expression, primitive)
+            {
                 return None;
             }
             collect_root_calls(

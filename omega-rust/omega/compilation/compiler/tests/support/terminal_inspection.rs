@@ -653,7 +653,7 @@ fn closed_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result<(
     for (name, reason, invalid) in controls {
         reject_module_at_ingress(&invalid, name, reason)?;
     }
-    let domain = b"omega.requirement-schema.v2\0";
+    let domain = b"omega.requirement-schema.v3\0";
     let mut wire = artifact.to_bytes();
     let position = wire
         .windows(domain.len())

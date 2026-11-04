@@ -212,8 +212,14 @@ pub(super) fn retain(
         }
         components.push(component);
     }
+    // An acyclic unit has no component to annotate. The checked plan may
+    // still retain a caller-facing entry observation on a delegating body
+    // whose recursion lives in nested machines outside the fused graph;
+    // its rank value is already evaluated in the emitted entry block, so
+    // `ranked_scc` stays empty rather than demanding a cycle the emitted
+    // graph does not contain.
     if components.is_empty() {
-        return unsupported("Unit graph rank has no cyclic component");
+        return Ok(());
     }
     machine.ranked_scc = Some(TerminalRankedScc::Natural(components));
     Ok(())

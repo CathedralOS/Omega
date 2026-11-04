@@ -81,8 +81,10 @@ pub(super) fn lower(
         terminal_psi::TerminalAccessLifecycleOperation::Initialize => {
             [Some(plan.storage.carrier), Some(plan.schema), *profile_type]
         }
-        terminal_psi::TerminalAccessLifecycleOperation::MoveOut
-        | terminal_psi::TerminalAccessLifecycleOperation::View => {
+        terminal_psi::TerminalAccessLifecycleOperation::MoveOut => {
+            [Some(plan.storage.owner_carrier()), *profile_type, None]
+        }
+        terminal_psi::TerminalAccessLifecycleOperation::View => {
             [Some(plan.storage.carrier), *profile_type, None]
         }
     };

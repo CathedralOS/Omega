@@ -111,11 +111,11 @@ pub(crate) fn structural_sequence_receiver_length(
     })
 }
 
-/// The `let` symbol and declared type of an immutable borrowed view local
-/// that `expression` names whole, when that name is not a state parameter. The observation only
-/// names the local: the plan that sequences the body decides whether the
-/// local's view was established before this use, and lowering resolves the
-/// symbol to its published place or refuses.
+/// Read the current reference in a local slot, including a replaced slot.
+/// Replacing the slot does not change the reference type's read/write access.
+/// This records its declaration and current home, not an earlier pointer or
+/// frozen contents. Body sequencing establishes that home before each read;
+/// lowering resolves the symbol to its current place or refuses.
 pub(crate) fn view_local_root(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],

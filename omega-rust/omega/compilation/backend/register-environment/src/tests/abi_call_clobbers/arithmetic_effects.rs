@@ -222,10 +222,21 @@ impl ArithmeticContract {
 }
 
 struct AlternativeContract {
-    applicability: MachineAlternativeApplicability,
+    applicability: ExpectedApplicability,
     size: MachineSizeKnowledge,
     reads: &'static [u16],
     writes: &'static [u16],
+}
+
+/// When one alternative applies. Post-allocation legality chooses among the
+/// admitted windows; an optimization-selected form is chosen only by the
+/// named post-allocation rule, after that rule proves its own guard, so the
+/// form may clobber the condition codes the shared row leaves alone.
+enum ExpectedApplicability {
+    Window(MachineAlternativeApplicability),
+    /// Selected only by the post-allocation optimization with this exact
+    /// registry name, after proving the condition codes dead.
+    OptimizationClobberingFlags(&'static str),
 }
 
 /// The four alias windows a two-input, one-result form can realize: both
@@ -265,7 +276,7 @@ fn result_alternative(
     reads: &'static [u16],
 ) -> AlternativeContract {
     AlternativeContract {
-        applicability,
+        applicability: ExpectedApplicability::Window(applicability),
         size: MachineSizeKnowledge::ExactBytes(size),
         reads,
         writes: &[2],
@@ -403,14 +414,29 @@ fn arithmetic_contract(
     let x86 = architecture == Architecture::X86_64;
     let one = |reads: &'static [u16], writes: &'static [u16]| {
         vec![AlternativeContract {
-            applicability: MachineAlternativeApplicability::Always,
+            applicability: ExpectedApplicability::Window(MachineAlternativeApplicability::Always),
             size: expected_size(semantic, architecture),
             reads,
             writes,
         }]
     };
     match semantic {
-        MaterializeI64 => ArithmeticContract::plain(&[Def], one(&[], &[0])),
+        // x86-64 also declares the three-byte `xor r64, r64` zero idiom,
+        // which only the post-allocation zero-materialization rule selects.
+        MaterializeI64 => ArithmeticContract::plain(&[Def], {
+            let mut alternatives = one(&[], &[0]);
+            if x86 {
+                alternatives.push(AlternativeContract {
+                    applicability: ExpectedApplicability::OptimizationClobberingFlags(
+                        "X86SelectXorZeroI64MaterializationV1",
+                    ),
+                    size: MachineSizeKnowledge::ExactBytes(3),
+                    reads: &[],
+                    writes: &[0],
+                });
+            }
+            alternatives
+        }),
         MaterializeBooleanEqual
         | MaterializeBooleanU64LessThan
         | MaterializeBooleanI64LessThan
@@ -643,7 +669,7 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
 
         for (key, semantic) in &arithmetic_rules {
             let contract = arithmetic_contract(*semantic, case.target.architecture);
-            let (row, declaration) = row_and_declaration(&environment, &catalog, *key);
+            let (row, declaration) = row_and_declaration(&environment, &catalog, *key, *semantic);
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::None, "{key:?}");
             assert_eq!(declaration.call, MachineCallEffect::NoneV1, "{key:?}");
@@ -750,16 +776,34 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
             {
                 assert_eq!(alternative.key.family, (*semantic).into(), "{key:?}");
                 assert_eq!(alternative.key.variant, index as u32, "{key:?}");
-                assert_eq!(alternative.applicability, expected.applicability, "{key:?}");
+                // Encoded implicit state refines exactly to the constraint
+                // row's declared custody for every selected arithmetic rule;
+                // an optimization-selected form adds only the condition
+                // codes its rule proves dead.
+                let mut expected_clobbers = row.clobbers.clone();
+                match expected.applicability {
+                    ExpectedApplicability::Window(window) => {
+                        assert_eq!(alternative.applicability, window, "{key:?}");
+                    }
+                    ExpectedApplicability::OptimizationClobberingFlags(name) => {
+                        let MachineAlternativeApplicability::OptimizationSelected { optimization } =
+                            alternative.applicability
+                        else {
+                            panic!("{key:?} alternative {index} must be optimization-selected");
+                        };
+                        assert_eq!(optimization.build_case_name(), name, "{key:?}");
+                        expected_clobbers.extend(&flags.units);
+                        expected_clobbers.sort_unstable();
+                        expected_clobbers.dedup();
+                    }
+                }
                 assert_eq!(alternative.size, expected.size, "{key:?}");
                 let encoded = &alternative.encoded;
                 assert_eq!(encoded.external_operand_reads, expected.reads, "{key:?}");
                 assert_eq!(encoded.external_operand_writes, expected.writes, "{key:?}");
-                // Encoded implicit state refines exactly to the constraint
-                // row's declared custody for every selected arithmetic rule.
                 assert_eq!(encoded.implicit_unit_uses, row.implicit_uses, "{key:?}");
                 assert_eq!(encoded.implicit_unit_defs, row.implicit_defs, "{key:?}");
-                assert_eq!(encoded.implicit_unit_clobbers, row.clobbers, "{key:?}");
+                assert_eq!(encoded.implicit_unit_clobbers, expected_clobbers, "{key:?}");
                 assert_storage_free(encoded, *key);
                 assert_eq!(
                     encoded.trap,
