@@ -404,16 +404,16 @@ pass/facts/finite_family_static_inline_result/authored_sum built 6081ms exit:0 i
 pass/facts/finite_family_static_inline_result/call_result built 5901ms exit:0 interpreter-exit:0 interpreter:agrees @990cae4277cb
 pass/facts/finite_family_static_inline_result/const_name built 6262ms exit:0 interpreter-exit:0 interpreter:agrees @990cae4277cb
 pass/facts/finite_family_static_inline_result/field built 5634ms exit:0 interpreter-exit:0 interpreter:agrees @990cae4277cb
-pass/facts/finite_family_static_inline_result/local built 6396ms exit:0 interpreter-exit:0 interpreter:agrees @990cae4277cb
+pass/facts/finite_family_static_inline_result/local built 6286ms exit:0 interpreter-exit:0 interpreter:agrees @7ea5b8217acc
 pass/facts/finite_family_static_inline_result/match_join built 6025ms exit:0 interpreter-exit:0 interpreter:agrees @990cae4277cb
 pass/facts/finite_family_static_inline_result/nested_static built 5997ms exit:0 interpreter-exit:0 interpreter:agrees @990cae4277cb
 pass/facts/finite_family_static_inline_result/other_machine built 5105ms exit:0 interpreter-exit:0 interpreter:agrees @990cae4277cb
 pass/facts/finite_family_static_inline_result/other_state built 5235ms exit:0 interpreter-exit:0 interpreter:agrees @990cae4277cb
 pass/facts/finite_family_static_inline_result/parameter built 5005ms exit:0 interpreter-exit:0 interpreter:agrees @990cae4277cb
 pass/facts/finite_family_static_inline_result/stale_input built 4787ms exit:0 interpreter-exit:0 interpreter:agrees @990cae4277cb
-pass/facts/finite_family_static_inline_result/target_body built 5062ms exit:0 interpreter-exit:0 interpreter:agrees @990cae4277cb
+pass/facts/finite_family_static_inline_result/target_body built 7101ms exit:0 interpreter-exit:0 interpreter:agrees @7ea5b8217acc
 pass/facts/finite_family_static_inline_result/uncalled_target built 4765ms exit:0 interpreter-exit:0 interpreter:agrees @990cae4277cb
-pass/facts/finite_family_static_inline_result/uncalled_target_missing_supply rejected 4450ms expected native-rejection:match @990cae4277cb
+pass/facts/finite_family_static_inline_result/uncalled_target_missing_supply rejected 5971ms expected native-rejection:match @7ea5b8217acc
 	no provider is selected for boundary requirement `SelectedInlineTarget::target_only`, which the program entry reaches on target `macos_arm64`
 	no provider is selected for boundary requirement `SelectedInlineTarget::target_only`, which the program entry reaches on target `macos_arm64`
 pass/facts/five_variant_enum_payload_bound_through_call_result_exit built 2477ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -514,7 +514,7 @@ pass/facts/four_variant_enum_payload_bound_through_other_state_exit built 1834ms
 pass/facts/four_variant_enum_payload_bound_through_parameter_exit built 1792ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/four_variant_enum_payload_bound_through_target_body_exit built 1352ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/generic_calling_policy/helper_uses_own_policy built 18881ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
-pass/facts/generic_calling_policy/inherited_helper_exit built 76747ms exit:0 interpreter-exit:0 interpreter:agrees @990cae4277cb
+pass/facts/generic_calling_policy/inherited_helper_exit built 98610ms exit:0 interpreter-exit:0 interpreter:agrees @7ea5b8217acc
 pass/facts/generic_calling_policy/ordinary_parent_fused_exit built 28080ms exit:0 interpreter-exit:0 interpreter:agrees @27df46d55c29
 pass/facts/generic_calling_policy/ranked_helper_exit built 24993ms exit:0 interpreter-exit:0 interpreter:agrees @015a1e018c46
 pass/facts/generic_calling_policy/shared_parent_roots_exit built 28488ms exit:0 interpreter-exit:0 interpreter:agrees @015a1e018c46
@@ -1755,7 +1755,7 @@ pass/borrows/projected_reference_record_residual_exit built 10890ms exit:29 inte
 pass/borrows/qualified_byte_owner_exclusive_call_exit built 1835ms exit:70 interpreter-exit:70 interpreter:agrees @006fa124be2c
 pass/borrows/qualified_owner_state_loan_exit built 5562ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
 pass/borrows/qualified_reference_field_retarget_exit built 978ms exit:0 interpreter-exit:0 interpreter:agrees @85a91d4c22f6+wt
-pass/borrows/returned_owned_byte_field_snapshot_exit built 98706ms exit:70 interpreter-exit:70 interpreter:agrees @990cae4277cb
+pass/borrows/returned_owned_byte_field_snapshot_exit built 109358ms exit:70 interpreter-exit:70 interpreter:agrees @7ea5b8217acc
 pass/borrows/returned_primitive_reference_assignment_capture_exit built 3039ms exit:0 interpreter-exit:0 interpreter:agrees @c69e20ea61aa+wt
 pass/borrows/returned_record_byte_field_store_exit built 5929ms exit:70 interpreter-exit:70 interpreter:agrees @4eedaeefe771+wt
 pass/borrows/returned_record_call_binding_state_exit built 3696ms exit:0 interpreter-exit:0 interpreter:agrees @27f6b04f2658
@@ -4806,9 +4806,9 @@ pass/providers/resource_profile_roles built 3859ms exit:0 interpreter-exit:0 int
 pass/providers/runtime_boundary_address_model_exit built 3851ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/providers/runtime_boundary_array_construction_exit built 4358ms exit:70 interpreter-exit:70 interpreter:agrees @b6846d69ce88+wt
 pass/providers/runtime_boundary_array_result_exit built 1834ms exit:70 interpreter-exit:70 interpreter:agrees @006fa124be2c
-pass/providers/runtime_boundary_linear_borrowed_argument_exit built 73333ms exit:70 interpreter-exit:70 interpreter:agrees @990cae4277cb
+pass/providers/runtime_boundary_linear_borrowed_argument_exit built 99529ms exit:70 interpreter-exit:70 interpreter:agrees @7ea5b8217acc
 pass/providers/runtime_boundary_linear_result_exit built 4994ms exit:70 interpreter-exit:70 interpreter:agrees @20ad71d6e3a6+wt
-pass/providers/runtime_boundary_qualified_state_exit built 4422ms exit:0 interpreter-exit:0 interpreter:agrees @990cae4277cb
+pass/providers/runtime_boundary_qualified_state_exit built 5750ms exit:0 interpreter-exit:0 interpreter:agrees @7ea5b8217acc
 pass/providers/runtime_closed_provider_and_assumed_chain_exit built 5865ms exit:0 interpreter-exit:0 interpreter:agrees @8bcf9d86d52e
 pass/providers/runtime_foreign_allocation_across_component_exit built 1788ms exit:0 interpreter-exit:0 interpreter:agrees @890d28b6ebb2
 pass/providers/runtime_foreign_allocation_overflow_zero_exit built 1229ms exit:0 interpreter-exit:0 interpreter:agrees @890d28b6ebb2
