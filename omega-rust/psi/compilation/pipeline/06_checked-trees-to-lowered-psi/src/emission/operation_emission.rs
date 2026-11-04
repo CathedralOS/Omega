@@ -7,6 +7,7 @@ pub(crate) mod boolean;
 pub(crate) mod boundary_calls;
 pub(crate) mod buffer;
 pub(crate) mod calls;
+pub(crate) mod descriptor_tables;
 pub(crate) mod dynamic_calls;
 pub(crate) mod expressions;
 pub(crate) mod integer;
@@ -36,6 +37,7 @@ pub(crate) enum LoweredScalarBinding {
     },
     Expression(LoweredDirectExpression),
     DirectCall(LoweredDirectCallBinding),
+    DescriptorTable(descriptor_tables::LoweredDescriptorTableBinding),
     /// One nested boundary application whose operands are already complete.
     BoundaryCall(boundary_calls::LoweredBoundaryCallBinding),
     /// One selector call whose selector and data operands are complete.
@@ -52,6 +54,7 @@ impl LoweredScalarBinding {
             Self::SelectedComparison { .. } => Ok(ScalarType::Boolean.into()),
             Self::Expression(expression) => expression.value_type(parameters),
             Self::DirectCall(call) => Ok(call.result_type),
+            Self::DescriptorTable(call) => Ok(call.result_type),
             Self::BoundaryCall(call) => Ok(call.result_type),
             Self::DynamicCall(call) => Ok(call.result_type),
         }
@@ -62,6 +65,7 @@ impl LoweredScalarBinding {
             Self::SelectedComparison { .. } => ScalarType::Boolean,
             Self::Expression(expression) => expression.scalar_type(),
             Self::DirectCall(call) => call.result_type.scalar_type,
+            Self::DescriptorTable(call) => call.result_type.scalar_type,
             Self::BoundaryCall(call) => call.result_type.scalar_type,
             Self::DynamicCall(call) => call.result_type.scalar_type,
         }
@@ -210,6 +214,14 @@ pub(crate) fn emit_scalar_binding(
             call_emission,
             current_claims,
         ),
+        LoweredScalarBinding::DescriptorTable(call) => descriptor_tables::emit(
+            call,
+            parameters,
+            frontier,
+            next_value_identity,
+            operations,
+            call_emission,
+        ),
         LoweredScalarBinding::BoundaryCall(call) => boundary_calls::emit_boundary_call_binding(
             call,
             parameters,
@@ -232,6 +244,9 @@ pub(crate) fn emit_scalar_binding(
     let completion = match binding {
         LoweredScalarBinding::DirectCall(call) => {
             Some((call.source_coordinate, &call.loan_completions))
+        }
+        LoweredScalarBinding::DescriptorTable(call) => {
+            Some((call.source_coordinate.into(), &call.loan_completions))
         }
         LoweredScalarBinding::BoundaryCall(call) => {
             Some((call.source_coordinate.into(), &call.loan_completions))

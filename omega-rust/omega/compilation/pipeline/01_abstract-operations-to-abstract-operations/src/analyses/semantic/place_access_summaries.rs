@@ -598,6 +598,27 @@ fn scan_operation(
         O::ReleaseActivationClaim { source, .. } => {
             pending.attribute_argument(context, source, true, true)
         }
+        O::ActivateTaskRegister {
+            gdt,
+            task_state,
+            scratch,
+            ..
+        } => {
+            pending.attribute_argument(context, gdt, true, true);
+            pending.attribute_argument(context, task_state, true, false);
+            pending.attribute_argument(context, scratch, false, true);
+        }
+        O::ReloadSegmentDescriptors { gdt, scratch, .. } => {
+            pending.attribute_argument(context, gdt, true, true);
+            pending.attribute_argument(context, scratch, false, true);
+        }
+        O::ReadTaskRegister { .. } | O::ReadSegmentSelector { .. } => {}
+        O::GlobalDescriptorTable {
+            operation, source, ..
+        } => {
+            let writes = *operation == terminal_psi::GlobalDescriptorTableOperation::Store;
+            pending.attribute_argument(context, source, !writes, writes);
+        }
         O::RegisterAccess { .. } => {
             // Register writes may change memory interpretation. They are not
             // ordinary accesses to one place that an alias summary can narrow.

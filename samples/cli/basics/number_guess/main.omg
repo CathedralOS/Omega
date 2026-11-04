@@ -84,15 +84,15 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Verify found within 7 guesses.
     transition main.search.found == 1 {
-        true -> check_guesses(main)
-        _ -> not_found_error(main)
+        true -> block check_guesses(main)
+        _ -> block not_found_error(main)
     }
 
     machine check_guesses(main: &mut Main) {
         // Exactly 7 guesses needed: 7 * 10 = 70.
         transition main.search.guesses == 7 {
-            true -> good(main)
-            _ -> bad_guesses(main)
+            true -> block good(main)
+            _ -> block bad_guesses(main)
         }
     }
 

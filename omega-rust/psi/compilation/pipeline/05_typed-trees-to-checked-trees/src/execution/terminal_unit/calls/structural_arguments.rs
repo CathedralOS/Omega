@@ -56,8 +56,64 @@ pub(crate) fn structural_call_arguments(
     caller_operations: &[checked_trees::CheckedUnitEffectOperationPlan],
     trace: &LocalConstructionTrace,
 ) -> Option<Vec<ArgumentPlan>> {
+    let parameters = callee
+        .parameters
+        .iter()
+        .map(|parameter| {
+            Some(StructuralArgumentType {
+                type_reference: parameter.type_reference,
+                erased: strips_erased_parameter(parameter)?,
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    structural_arguments_for_types(
+        program,
+        shapes,
+        facts,
+        call,
+        caller_machine,
+        caller_state,
+        caller_parameters,
+        caller_trivial_affine_locals,
+        &parameters,
+        callee.supply_mode,
+        callee.has_bodyless_signature(),
+        Some(callee),
+        call_site,
+        statement_index,
+        caller_structural_results,
+        caller_operations,
+        trace,
+    )
+}
+
+/// Plan borrowed operands from their checked types, including instructions without a callable declaration.
+#[derive(Clone, Copy)]
+pub(crate) struct StructuralArgumentType {
+    pub(crate) type_reference: typed_trees::types::TypeReferenceHandle,
+    pub(crate) erased: bool,
+}
+
+pub(crate) fn structural_arguments_for_types(
+    program: &dyn ::validation::CheckingInput,
+    shapes: &mut ShapeCollector<'_>,
+    facts: &CheckFacts,
+    call: &checked_trees::FlowCallFact,
+    caller_machine: &typed_trees::machine::Machine,
+    caller_state: &typed_trees::state::State,
+    caller_parameters: &[CheckedUnitStructuralParameterPlan],
+    caller_trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
+    target_parameters: &[StructuralArgumentType],
+    supply_mode: MachineSupplyMode,
+    bodyless: bool,
+    declaration: Option<super::CallTarget<'_>>,
+    call_site: &validation::CallSite<'_>,
+    statement_index: usize,
+    caller_structural_results: &[(BindingPlan, facts::PlaceRoot)],
+    caller_operations: &[checked_trees::CheckedUnitEffectOperationPlan],
+    trace: &LocalConstructionTrace,
+) -> Option<Vec<ArgumentPlan>> {
     let source_parameters = program.state_parameters(caller_state);
-    let target_parameters = callee.parameters;
     // Erased borrow carriers name their captured referent's storage: the
     // checked alias roster substitutes that referent for the authored root
     // while the authored spelling still joins the borrow-access evidence.
@@ -104,7 +160,7 @@ pub(crate) fn structural_call_arguments(
         // The erased position's authored argument is proof material with no
         // structural or scalar transfer; consume it and plan nothing.
         arm("call operation: structural arguments: erased position");
-        if strips_erased_parameter(target)? {
+        if target.erased {
             explicit_arguments.get(explicit_index)?;
             explicit_index = explicit_index.checked_add(1)?;
             continue;
@@ -144,7 +200,7 @@ pub(crate) fn structural_call_arguments(
                     segments: Vec::new(),
                 }
             } else {
-                if callee.supply_mode == MachineSupplyMode::CheckedBody
+                if supply_mode == MachineSupplyMode::CheckedBody
                     && let Some(literal) =
                         byte_sequence_literal_argument(program, target.type_reference, expression)
                 {
@@ -170,12 +226,9 @@ pub(crate) fn structural_call_arguments(
                             argument_ordinal: u32::try_from(argument_ordinal).ok()?,
                         },
                     )?;
-                    if let Some(argument) = subslice.call_argument(
-                        program,
-                        caller_state,
-                        statement_index,
-                        callee.has_bodyless_signature(),
-                    ) {
+                    if let Some(argument) =
+                        subslice.call_argument(program, caller_state, statement_index, bodyless)
+                    {
                         output.push(argument);
                         continue;
                     }
@@ -221,16 +274,18 @@ pub(crate) fn structural_call_arguments(
                     &authored_place,
                 )
                 .or_else(|| {
-                    reborrow_restored_shared_cohort_observation_alias_target(
-                        program,
-                        facts,
-                        caller_machine.symbol,
-                        caller_state,
-                        callee,
-                        call,
-                        call_site,
-                        &authored_place,
-                    )
+                    declaration.and_then(|callee| {
+                        reborrow_restored_shared_cohort_observation_alias_target(
+                            program,
+                            facts,
+                            caller_machine.symbol,
+                            caller_state,
+                            callee,
+                            call,
+                            call_site,
+                            &authored_place,
+                        )
+                    })
                 })
             })
             .flatten();
@@ -260,7 +315,7 @@ pub(crate) fn structural_call_arguments(
                 expression,
                 &place,
                 result,
-                target,
+                target.type_reference,
                 target_identity,
                 caller_operations,
                 trace,
@@ -443,7 +498,7 @@ pub(crate) fn structural_call_arguments(
             caller_state,
             call,
             &place,
-            target,
+            target.type_reference,
             Some(&selector),
         ) {
             output.push(plan);
@@ -461,7 +516,7 @@ pub(crate) fn structural_call_arguments(
             caller_state,
             call,
             &place,
-            target,
+            target.type_reference,
             Some(&selector),
         ) {
             output.push(plan);
@@ -497,16 +552,16 @@ pub(crate) fn structural_call_arguments(
         // Bodyless nominal requirements use the same boundary presentation
         // as trait requirements. The declared supply owns this distinction;
         // placing a call in a selected arm does not change its argument ABI.
-        let path = if callee.has_bodyless_signature() {
+        let path = if bodyless {
             boundary_parameter_path(argument, custody, &[])
         } else {
-            ordinary_parameter_path(argument, custody, callee.supply_mode)
+            ordinary_parameter_path(argument, custody, supply_mode)
         }?;
         arm("call operation: structural arguments: parameter identity");
         if path.is_empty()
             && !argument.whole_parameter_is_admitted(
                 source,
-                callee.supply_mode == MachineSupplyMode::CheckedBody
+                supply_mode == MachineSupplyMode::CheckedBody
                     && custody.lends_unrestricted_borrow(),
                 &[],
             )
@@ -563,21 +618,14 @@ pub(crate) fn structural_call_arguments(
     let explicit = target_parameters
         .iter()
         .zip(explicit_arguments)
-        .filter_map(
-            |(parameter, expression)| match strips_erased_parameter(parameter) {
-                Some(true) => None,
-                Some(false)
-                    if program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_none() =>
-                {
-                    Some(Some((parameter, *expression)))
-                }
-                Some(false) => None,
-                None => Some(None),
-            },
-        )
-        .collect::<Option<Vec<_>>>()?;
+        .filter_map(|(parameter, expression)| {
+            (!parameter.erased
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none())
+            .then_some((parameter, *expression))
+        })
+        .collect::<Vec<_>>();
     arm("call operation: structural arguments: structural argument count");
     if explicit.len() != output.len() {
         return None;

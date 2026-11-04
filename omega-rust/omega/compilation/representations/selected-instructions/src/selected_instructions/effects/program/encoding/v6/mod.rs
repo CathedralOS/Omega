@@ -78,4 +78,5 @@ const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
 // Version 42 records private callback address writes in the memory effects.
 // Version 43 retains single-attempt atomic forms and their separate outcome output.
 // Earlier decoders must not interpret an attempt as a decisive exchange.
-const VERSION: u32 = 43;
+// Version 44 combines those atomic outcomes with fixed-width descriptor writes.
+const VERSION: u32 = 46;

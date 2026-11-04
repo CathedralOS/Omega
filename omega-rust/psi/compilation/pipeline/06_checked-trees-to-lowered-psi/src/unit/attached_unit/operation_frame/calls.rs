@@ -62,6 +62,16 @@ impl OperationFrame<'_, '_> {
         operation: &CheckedUnitEffectOperationPlan,
         inputs: CallInputs<'_>,
     ) -> Result<(), LoweringError> {
+        if let CheckedUnitEffectOperationPlan::GlobalDescriptorTable {
+            operation,
+            storage,
+            service,
+            ..
+        } = operation
+        {
+            return self
+                .global_descriptor_table(identities, *operation, storage, *service, &inputs);
+        }
         let Some(call) = operation.call() else {
             return unsupported("operation frame call entry received a non-call operation");
         };
@@ -85,6 +95,21 @@ impl OperationFrame<'_, '_> {
         // The route and result select the emitter; each receives the call
         // plan and the result binding this match already destructured.
         match (call.route(), call.result()) {
+            (
+                CheckedUnitCallRoute::DescriptorTable {
+                    operation,
+                    service,
+                    result_type,
+                },
+                _,
+            ) => self.descriptor_table(
+                identities,
+                call,
+                *operation,
+                *service,
+                *result_type,
+                &inputs,
+            ),
             (
                 CheckedUnitCallRoute::ActivationStorage {
                     operation: action,

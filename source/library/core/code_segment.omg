@@ -1,0 +1,38 @@
+// Select the code descriptor in the GDT that the kernel keeps alive.
+// The compiler supplies the continuation; callers cannot supply a return address.
+// The admitted bootstrap scope runs at CPL0 with interrupts masked, CET disabled,
+// stable GDTR/table contents, mapped activation storage and no asynchronous or
+// debug arrivals. The table remains live while its descriptors can be used.
+// The current GDTR must name this exact table. The non-null GDT selector must
+// have RPL0 and name present DPL0 executable code with L=1 and D=0. An enabled
+// CR4.CET is an unsupported environment and is refused before mutation.
+// False leaves the selector and table unchanged. Architectural faults remain
+// faults; success does not establish an installed interrupt root.
+use omega::language::core::assembly;
+
+public boundary trait CodeSegmentControl {
+    machine reload<const Entries: u64>(gdt: &mut [u64; Entries], selector: u16) -> bool
+    requires Entries >= 1 && Entries <= 8192
+    reaches MachineControl;
+
+    machine selector() -> u16 reaches MachineControl;
+}
+
+// Build selects the implementation. This implementation requires x86-64.
+public X86CodeSegmentControl satisfies CodeSegmentControl {
+    machine reload<const Entries: u64>(gdt: &mut [u64; Entries], selector: u16) -> bool
+    requires Entries >= 1 && Entries <= 8192
+    reaches MachineControl {
+        let mut observed: [u8; 10] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        reload_code_segment<Entries>(gdt, selector, &mut observed) == 1
+    }
+
+    machine selector() -> u16 reaches MachineControl { read_code_selector() }
+}
+
+// The compiler checks the current GDTR and descriptor, then transfers to its
+// own continuation without changing privilege or accepting a source address.
+boundary machine reload_code_segment<const Entries: u64>(
+    gdt: &mut [u64; Entries], selector: u16, scratch: &mut [u8; 10]
+) -> u8 reaches MachineControl;
+boundary machine read_code_selector() -> u16 reaches MachineControl;

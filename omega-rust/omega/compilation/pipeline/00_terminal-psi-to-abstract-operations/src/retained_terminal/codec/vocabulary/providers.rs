@@ -30,6 +30,10 @@ record_variants!(effects::CompilerIntrinsicExecutionIdentity {
     9 => PrimitiveIntegerComparison { operation, integer_type },
     10 => NamedFloatNegation(value0),
     11 => NamedFloatConversion { source, target, domain },
+    12 => TaskRegisterActivate,
+    13 => TaskRegisterRead,
+    14 => SegmentReload(value0),
+    15 => SegmentRead(value0),
 });
 
 record_variants!(effects::CompilerNumericType {
@@ -337,3 +341,6 @@ record_fields!(backend_plan::TerminalTargetProviderSelection {
     assumed_bindings,
     checked_candidates
 });
+
+record_variants!(terminal_psi::SegmentReload { 0 => Code, 1 => Data, });
+record_variants!(terminal_psi::SegmentRegister { 0 => Code, 1 => Data, 2 => Extra, 3 => Stack, 4 => Fs, 5 => Gs, });

@@ -19,6 +19,7 @@ pub mod atomic;
 pub mod cast_form;
 pub mod constant_value;
 pub mod data_layout_queries;
+pub mod descriptor_tables;
 pub mod inline_assembly;
 pub mod layout_storage;
 pub mod operator_spelling;

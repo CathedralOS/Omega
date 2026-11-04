@@ -117,12 +117,15 @@ pub(crate) fn rewrite_value_operands(operation: &mut O, mut replace: impl FnMut(
         // Caller-owned successor-binding accounting.
         O::Jump { .. } | O::Conditional { .. } | O::StructuralCase { .. } => {}
         O::Return { value, .. } => replace(value),
+        O::ActivateTaskRegister { selector, .. } | O::ReloadSegmentDescriptors { selector, .. } => replace(selector),
+        O::ReadTaskRegister { .. } | O::ReadSegmentSelector { .. } => {}
         O::AtomicEvent { event, .. } => {
             // Atomic operands are scalar uses; the observed prior and
             // results are definitions the event produces, not uses.
             event.for_each_input_mut(&mut replace);
         }
         abstract_operations::establish_byte_literal_triple_pattern!(..)
+        | O::GlobalDescriptorTable { .. }
         | O::PortWrite { .. }
         | O::SelectImplementation { .. }
         | abstract_operations::constant_value_triple_pattern!(..)

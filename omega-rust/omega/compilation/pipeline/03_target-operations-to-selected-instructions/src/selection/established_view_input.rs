@@ -42,7 +42,12 @@ pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: Place
                 | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, .. }
                 | LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead { source, .. } =>
                     source.place == place && !source.path.is_empty(),
+                LegalizedScalarInstructionKind::ActivateTaskRegister { gdt, task_state, scratch, .. } =>
+                    [gdt, task_state, scratch].into_iter().any(|argument| argument.place == place && !argument.path.is_empty()),
+LegalizedScalarInstructionKind::ReloadSegmentDescriptors { gdt, scratch, .. } =>
+                    [gdt, scratch].into_iter().any(|argument| argument.place == place && !argument.path.is_empty()),
                 LegalizedScalarInstructionKind::StorageAddress { source, path, .. }
+                | LegalizedScalarInstructionKind::GlobalDescriptorTable { source, path, .. }
                 | LegalizedScalarInstructionKind::PrimitiveScalarRead { source, path, .. } =>
                     *source == place && !path.is_empty(),
                 // Scalar observations can use the retained view coordinates.

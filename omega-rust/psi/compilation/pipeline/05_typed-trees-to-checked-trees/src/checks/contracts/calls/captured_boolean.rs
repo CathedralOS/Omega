@@ -113,11 +113,23 @@ fn captured_float_requirement(
     call: &FlowCallFact,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<bool> {
-    let (machine, target_state) =
-        validation::find_state(program, call.target_symbol).or_else(|| {
+    // A requirement call (`Observe::observe(7.0)` against `requires value ==
+    // 7.0`) has public formals but no body state. Its contract is resolved in
+    // the requirement's own frame: a Boolean comparison of substituted actuals
+    // needs no state, and an operation that would read a body state's operand
+    // types finds none and stays unproved rather than reading an implementation.
+    // Captured field facts need no private implementation: the public declaration
+    // supplies its parameters even when it has no executable body.
+    let (machine, target_state) = validation::find_state(program, call.target_symbol)
+        .map(|(machine, state)| (machine.symbol, state.symbol))
+        .or_else(|| {
             let machine = program.machine_by_symbol(call.target_symbol)?;
-            Some((machine, program.machine_states(machine).first()?))
-        })?;
+            Some((
+                machine.symbol,
+                program.machine_states(machine).first()?.symbol,
+            ))
+        })
+        .unwrap_or((call.target_symbol, symbols::SymbolHandle::invalid()));
     let parameters = validation::call_target_parameters(program, call.target_symbol)?;
     let arguments = call_values::captured_argument_expressions(program, facts, state, call)?;
     let contexts = InvocationContexts::from_call(facts, call, &arguments);
@@ -150,8 +162,8 @@ fn captured_float_requirement(
     selected_float_boolean_requirement(
         program,
         facts,
-        machine.symbol,
-        target_state.symbol,
+        machine,
+        target_state,
         expression,
         parameters,
         &arguments,

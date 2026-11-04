@@ -95,6 +95,7 @@ pub use integer_operations::{folded_integer_binary, integer_binary_range};
 mod invariant_bounds;
 pub use guard_requirements::evaluated_call_requires_proven;
 mod live_integer_constraints;
+pub(crate) use live_integer_constraints::contradicting_premises;
 mod monotonic_update;
 mod operand_reports;
 mod ordered_values;

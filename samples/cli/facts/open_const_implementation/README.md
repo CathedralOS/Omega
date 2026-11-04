@@ -52,6 +52,10 @@ private contract to the generic caller. The
 [outgoing return write](controls/return_write_output/main.omg) controls reject
 at the public postcondition after a write retires its current-storage truth.
 The saved scalar keeps its historical guarantee independently of that truth.
+The [specialization agreement control](controls/specialization_agreement/main.omg)
+selects `Selected<7>` for a bound that requires `Reading<Base + 4>`. The two
+agree only at Base = 3, the one specialization `main` uses, but the generic
+body must hold for every admitted Base, so it rejects in the body.
 
 Applicable requirements:
 

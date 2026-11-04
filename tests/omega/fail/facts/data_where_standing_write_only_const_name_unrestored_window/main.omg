@@ -11,7 +11,8 @@ machine produce(replacement: i32) -> Counter
 requires replacement <= 60
 {
     let mut counter: Counter = Counter { before: 31, cell: Cell { left: 17, value: 0, right: 53 }, peer: 13, after: 47 };
-    fill(&write counter, replacement);
+    let selected: &write Counter = &write counter;
+    fill(&write selected, replacement);
     counter
 }
 

@@ -50,6 +50,11 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::SelectImplementation { .. }
         | O::BoundaryCall { .. }
         | O::PortWrite { .. }
+        | O::ActivateTaskRegister { .. }
+        | O::ReadTaskRegister { .. }
+        | O::ReloadSegmentDescriptors { .. }
+        | O::ReadSegmentSelector { .. }
+        | O::GlobalDescriptorTable { .. }
         | O::RegisterAccess { .. }
         | O::Call { .. } => calls_and_effects::encode(bytes, operation),
 

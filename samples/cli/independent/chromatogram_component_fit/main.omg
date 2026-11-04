@@ -14,7 +14,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.reader.exhausted = false;
     let ready: bool = baseline_ready();
     transition ready {
-        true -> parse(main)
+        true -> block parse(main)
         _ -> window_failed(main)
     }
     machine parse(main: &mut Main) {

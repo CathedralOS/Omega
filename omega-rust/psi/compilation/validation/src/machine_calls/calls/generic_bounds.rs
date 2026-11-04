@@ -111,6 +111,14 @@ fn report_bodyless_boundary_symbol_call(
             return;
         }
     };
+    let descriptor_realization =
+        match crate::compiler_operations::descriptor_table_declaration(program, callee_machine) {
+            Ok(contract) => contract.is_some(),
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(reason));
+                return;
+            }
+        };
     let activation_realization =
         crate::exact_toolchain_activation_storage_contract(program, callee_machine).is_some_and(
             |contract| {
@@ -131,6 +139,7 @@ fn report_bodyless_boundary_symbol_call(
     ) && !compiler_accessor
         && !compiler_access_factory
         && !compiler_access_execution
+        && !descriptor_realization
         && !activation_realization
         && !compiler_layout_snapshot
         && !callee_machine.body_is_present

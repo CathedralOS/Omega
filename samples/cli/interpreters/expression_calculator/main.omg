@@ -174,27 +174,27 @@ machine Main::main(main: &mut Main) reaches Console {
     main.expect_value = true;
     main.values.count = 0;
     main.operators.count = 0;
-    transition { _ -> read(main) }
+    transition { _ -> block read(main) }
 
     // --- tokenize standard input ---
     machine read(main: &mut Main) {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> classify(main, value)
+            ByteRead::Byte { value } -> block classify(main, value)
             _ -> end_of_input(main)
         }
     }
 
     machine classify(main: &mut Main, value: i32) {
         transition value >= 48 && value <= 57 {
-            true -> digit_or_reject(main, value)
-            _ -> not_digit(main, value)
+            true -> block digit_or_reject(main, value)
+            _ -> block not_digit(main, value)
         }
     }
 
     machine digit_or_reject(main: &mut Main, value: i32) {
         transition main.in_number || main.expect_value {
-            true -> digit(main, value)
+            true -> block digit(main, value)
             _ -> malformed()
         }
     }
@@ -203,33 +203,33 @@ machine Main::main(main: &mut Main) reaches Console {
         let digit: i32 in Wrapping = value as i32 in Wrapping;
         main.number = main.number * 10 + digit - 48;
         main.in_number = true;
-        transition { _ -> read(main) }
+        transition { _ -> block read(main) }
     }
 
     machine not_digit(main: &mut Main, value: i32) {
         transition value == 10 {
             true -> end_of_input(main)
-            _ -> blank_or_token(main, value)
+            _ -> block blank_or_token(main, value)
         }
     }
 
     machine blank_or_token(main: &mut Main, value: i32) {
         transition value == 32 || value == 9 {
-            true -> space(main)
-            _ -> flush_then_symbol(main, value)
+            true -> block space(main)
+            _ -> block flush_then_symbol(main, value)
         }
     }
 
     machine space(main: &mut Main) {
         transition main.in_number {
-            true -> flush_space(main)
-            _ -> read(main)
+            true -> block flush_space(main)
+            _ -> block read(main)
         }
     }
 
     machine flush_space(main: &mut Main) {
         transition main.token_count < 16 {
-            true -> store_space_number(main)
+            true -> block store_space_number(main)
             _ -> malformed()
         }
     }
@@ -240,19 +240,19 @@ machine Main::main(main: &mut Main) reaches Console {
         main.number = 0;
         main.in_number = false;
         main.expect_value = false;
-        transition { _ -> read(main) }
+        transition { _ -> block read(main) }
     }
 
     machine flush_then_symbol(main: &mut Main, value: i32) {
         transition main.in_number {
-            true -> flush_number(main, value)
-            _ -> symbol(main, value)
+            true -> block flush_number(main, value)
+            _ -> block symbol(main, value)
         }
     }
 
     machine flush_number(main: &mut Main, value: i32) {
         transition main.token_count < 16 {
-            true -> store_number(main, value)
+            true -> block store_number(main, value)
             _ -> malformed()
         }
     }
@@ -263,7 +263,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.number = 0;
         main.in_number = false;
         main.expect_value = false;
-        transition { _ -> symbol(main, value) }
+        transition { _ -> block symbol(main, value) }
     }
 
     machine symbol(main: &mut Main, value: i32) {
@@ -284,7 +284,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.tokens[main.token_count] = Token::Operator { symbol: 126 };
         main.token_count = main.token_count + 1;
         main.expect_value = true;
-        transition { _ -> read(main) }
+        transition { _ -> block read(main) }
     }
 
     machine store_binary(main: &mut Main, value: i32) {
@@ -322,12 +322,12 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine after_operand(main: &mut Main) {
         main.expect_value = false;
-        transition { _ -> read(main) }
+        transition { _ -> block read(main) }
     }
 
     machine after_operator(main: &mut Main) {
         main.expect_value = true;
-        transition { _ -> read(main) }
+        transition { _ -> block read(main) }
     }
 
     machine end_of_input(main: &mut Main) {
