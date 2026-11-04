@@ -463,7 +463,19 @@ fn handle_field_store<'program>(
     }
     let whole_field = store.destination == store.field_place;
     let field_name = store.field.name.to_string();
-    let written = (store.preserves_scalar_value && whole_field)
+    // A bool view of a byte stores 0 or 1. The primitives differ, so the
+    // scalar-value flag stays false, but the literal still restores a
+    // numeric bound on that byte.
+    let bool_byte = whole_field
+        && matches!(
+            program.primitive_type_reference(store.field.type_reference),
+            Some(typed_trees::types::PrimitiveType::U8 | typed_trees::types::PrimitiveType::I8)
+        )
+        && matches!(
+            program.expression_table.expression(value),
+            ExpressionNode::Boolean(_)
+        );
+    let written = ((store.preserves_scalar_value && whole_field) || bool_byte)
         .then(|| literal_value(program, value))
         .flatten();
 

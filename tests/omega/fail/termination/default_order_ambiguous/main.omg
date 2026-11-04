@@ -10,7 +10,7 @@ machine Main::countdown(main: &mut Main, remaining: i32) -> i32
 terminates by remaining
 {
     transition remaining > 0 {
-        true -> countdown(main, remaining - 1)
+        true -> Main::countdown(main, remaining - 1)
         false -> remaining
     }
 }
