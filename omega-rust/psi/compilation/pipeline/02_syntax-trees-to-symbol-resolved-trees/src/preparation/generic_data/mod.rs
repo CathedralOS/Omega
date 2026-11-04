@@ -521,7 +521,17 @@ fn collect_closed_const_arguments(
                 &name,
                 &[symbols::SymbolKind::Trait],
             ) {
-                retain_arguments(syntax, &parameters, &arguments);
+                let selected = parameters
+                    .into_iter()
+                    .zip(&arguments)
+                    .map(|(carrier, argument)| {
+                        selected_positions
+                            .contains(argument)
+                            .then_some(carrier)
+                            .flatten()
+                    })
+                    .collect::<Vec<_>>();
+                retain_arguments(syntax, &selected, &arguments);
             }
         }
         let mut concrete = None;
