@@ -151,6 +151,19 @@ fn invocation_reference_effects(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<SlotRelationTransfer> {
+    // Asm intrinsics write registers and scalar destinations. `embed`
+    // yields a proof integer. Neither replaces caller reference slots, and
+    // neither has a machine signature for the ordinary parameter inventory.
+    if program
+        .typed_program()
+        .symbols
+        .builtin_function_for_symbol(target)
+        .is_some_and(|builtin| {
+            builtin.is_asm_intrinsic() || builtin == symbols::BuiltinFunction::IntegerEmbed
+        })
+    {
+        return Some(SlotRelationTransfer::complete(Vec::new()));
+    }
     let trace_refusal = |phase: &str| {
         if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
             eprintln!(
