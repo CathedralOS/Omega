@@ -144,6 +144,46 @@ fn invocation_effects(
     Some(transfer)
 }
 
+fn declaration_intrinsic_has_no_signature(
+    program: &dyn crate::CheckingInput,
+    call_site: super::caller_aliases::CallerWriteSite<'_>,
+) -> bool {
+    match call_site {
+        super::caller_aliases::CallerWriteSite::Call(call) => {
+            crate::compiler_operations::classify_statement_call_intrinsic(program, call).is_some()
+        }
+        super::caller_aliases::CallerWriteSite::Expression(expression) => program
+            .expression_table
+            .call_node(expression)
+            .is_some_and(|call| {
+                crate::compiler_operations::classify_expression_call_intrinsic(program, call)
+                    .is_some()
+                    || crate::compiler_operations::authored_call_intrinsic(
+                        program,
+                        typed_trees::references::StaticArgumentCall::Expression(expression, call),
+                    )
+                    .is_some()
+            }),
+        _ => false,
+    }
+}
+
+/// A declaration intrinsic with no parameter list does not replace a caller
+/// reference descriptor. A signature, including a public-contract fallback,
+/// still classifies slots. An unknown call with no signature stays incomplete.
+fn declaration_intrinsic_without_parameters(
+    program: &dyn crate::CheckingInput,
+    call_site: super::caller_aliases::CallerWriteSite<'_>,
+    trace_refusal: &impl Fn(&str),
+    phase: &str,
+) -> Option<SlotRelationTransfer> {
+    if declaration_intrinsic_has_no_signature(program, call_site) {
+        return Some(SlotRelationTransfer::complete(Vec::new()));
+    }
+    trace_refusal(phase);
+    None
+}
+
 fn invocation_reference_effects(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -226,12 +266,17 @@ fn invocation_reference_effects(
         super::caller_aliases::CallerWriteSite::Call(call)
             if !call_expression.is_valid() && call.target_symbol == target =>
         {
-            crate::CallSite::Statement(call)
-                .parameters(program, machine.symbol)
-                .or_else(|| {
-                    trace_refusal("statement-parameters");
-                    None
-                })?
+            match crate::CallSite::Statement(call).parameters(program, machine.symbol) {
+                Some(parameters) => parameters,
+                None => {
+                    return declaration_intrinsic_without_parameters(
+                        program,
+                        call_site,
+                        &trace_refusal,
+                        "statement-parameters",
+                    );
+                }
+            }
         }
         super::caller_aliases::CallerWriteSite::Expression(expression)
             if expression == call_expression =>
@@ -240,7 +285,7 @@ fn invocation_reference_effects(
             if call.target_symbol != target {
                 return None;
             }
-            crate::CallSite::Expression { expression, call }
+            match (crate::CallSite::Expression { expression, call })
                 .parameters(program, machine.symbol)
                 .or_else(|| {
                     // The applied logical signature can be absent while the
@@ -251,11 +296,17 @@ fn invocation_reference_effects(
                     let (_, signature) =
                         program.trait_machine_signature(dispatch.contract_symbol())?;
                     Some(program.state_signature_parameters(signature))
-                })
-                .or_else(|| {
-                    trace_refusal("expression-parameters");
-                    None
-                })?
+                }) {
+                Some(parameters) => parameters,
+                None => {
+                    return declaration_intrinsic_without_parameters(
+                        program,
+                        call_site,
+                        &trace_refusal,
+                        "expression-parameters",
+                    );
+                }
+            }
         }
         _ => return None,
     };

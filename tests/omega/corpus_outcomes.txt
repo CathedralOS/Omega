@@ -651,8 +651,8 @@ fail/asm/instruction_disposition_conditional_call rejected 3293ms expected @0af7
 	linear value `token` reaches scope exit without being consumed or transferred in machine `finish_realization` state `entry`
 fail/asm/instruction_disposition_foreign_owner rejected 3309ms expected @0af7c594a1c0
 	linear value `token` reaches scope exit without being consumed or transferred in machine `finish_realization` state `entry`
-fail/asm/instruction_disposition_helper_bypass rejected 2283ms unexpected @ccdb99ca2214
-	machine `written` uses asm instruction `wrmsr` but does not declare its service contract: add `reaches MachineControl` (every asm instruction's service reach must be declared where it is emitted)
+fail/asm/instruction_disposition_helper_bypass rejected 19204ms expected @bcfb0351ebd9
+	linear value `token` reaches scope exit without being consumed or transferred in machine `finish_realization` state `entry`
 fail/asm/instruction_disposition_no_effect rejected 2463ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from finish at statement 5: proposition:fact:model_specific_written(2059,0)
 	linear value `token` reaches scope exit without being consumed or transferred in machine `finish` state `entry`
@@ -2516,15 +2516,14 @@ fail/build/uefi_program_entry_missing_storage_roots rejected 3862ms expected @cc
 	target schema `ProgramStorageApplication` exposes exactly image and initial-storage roots, but `launch` declares 0 visible parameters
 fail/build/uefi_program_entry_wrong_calling_policy rejected 18493ms expected @ccdb99ca2214
 	calling policy accepted an invalid plan: value 0 uses a register from the wrong architecture
-fail/build/uefi_storage_entry_counterfeit rejected 18023ms unexpected @ccdb99ca2214
-	machine `report` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
-	machine `wrong` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
+fail/build/uefi_storage_entry_counterfeit rejected 103601ms expected @bcfb0351ebd9
+	cannot prove requires contract for call forward_roots from FirmwareBootstrap::enter: image in Extent::Granted in state `enter`
+	cannot prove requires contract for call forward_roots from FirmwareBootstrap::enter: storage in Extent::Granted in state `enter`
 fail/build/uefi_storage_entry_reused_root rejected 15480ms expected @ccdb99ca2214
 	cannot use `image` in machine `FirmwareBootstrap::enter` state `enter` (statement 3) after `image` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `image` first
 	cannot use `storage` in machine `FirmwareBootstrap::enter` state `enter` (statement 3) after `storage` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `storage` first
-fail/build/uefi_storage_entry_unadmitted_provider rejected 17420ms unexpected @ccdb99ca2214
-	machine `report` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
-	machine `wrong` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
+fail/build/uefi_storage_entry_unadmitted_provider rejected 203324ms expected @bcfb0351ebd9
+	selected compiler intrinsic `<selected target>::UnadmittedEntryProvider::satisfies::ProgramStorageEntry` for Terminal boundary `named-callable(path(nominal\\(toolchain-owner\\,path\\(ProgramStorageEntry::enter\\)\\)),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(Extent\\\\\\)\\\\\\)\\)\\)\\,declared-domain\\(name\\(toolchain:product::Extent::Granted\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(Extent\\\\\\)\\\\\\)\\)\\)\\,declared-domain\\(name\\(toolchain:product::Extent::Granted\\)\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 fail/build/uefi_storage_entry_undeclared_port rejected 20870ms expected @03522ca11fdf
 	machine `selected_continuation` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
 fail/build/unit_statement_cannot_create_prefix rejected 158ms expected @ccdb99ca2214
@@ -19500,8 +19499,7 @@ pass/asm/instruction_disposition_native rejected 6847ms check-target:linux_x86_6
 	linear value `token` reaches scope exit without being consumed or transferred in machine `work` state `entry`
 	linear value `token` reaches scope exit without being consumed or transferred in machine `finish_by_choice` state `entry`
 pass/asm/observation_preserves_address_model checked 3801ms @ccdb99ca2214
-pass/asm/port_write_effect_contract rejected 4716ms regressed-from:checked @0af7c594a1c0
-	machine `work` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
+pass/asm/port_write_effect_contract checked 4816ms @bcfb0351ebd9
 pass/asm/proposition_label_contracts_exit checked 5470ms check-target:linux_x86_64 @ceec2d4e7d8b
 pass/asm/scratch_destination_ordinary_stores_exit checked 3301ms check-target:linux_x86_64 @ccdb99ca2214
 pass/asm/scratch_exact_register_flag_clobbers_exit checked 8181ms check-target:linux_x86_64 @0af7c594a1c0
@@ -20208,17 +20206,11 @@ pass/build/uefi_os_handoff_invocation rejected 23582ms check-target:uefi_x86_64 
 pass/build/uefi_private_entry_stack checked 18488ms check-target:uefi_x86_64 @ccdb99ca2214
 pass/build/uefi_provisioned_context_roots rejected 16704ms check-target:uefi_x86_64 @ccdb99ca2214
 	native artifact physical program entry failed: semantic entry requires an explicitly selected checked physical adapter
-pass/build/uefi_selected_context_entry rejected 14940ms check-target:uefi_x86_64 regressed-from:checked+check-target:uefi_x86_64 @ccdb99ca2214
-	machine `report` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
-	machine `wrong` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
-pass/build/uefi_selected_context_target_entry rejected 16048ms check-target:uefi_x86_64 regressed-from:checked+check-target:uefi_x86_64 @ccdb99ca2214
-	machine `report` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
-	machine `wrong` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
+pass/build/uefi_selected_context_entry checked 251914ms check-target:uefi_x86_64 @deb5c8faf81d
+pass/build/uefi_selected_context_target_entry checked 252043ms check-target:uefi_x86_64 @deb5c8faf81d
 pass/build/uefi_selected_physical_entry checked 16382ms check-target:uefi_x86_64 @ccdb99ca2214
 pass/build/uefi_selected_storage_entry checked 43993ms check-target:uefi_x86_64 @c3d1e3a3094d
-pass/build/uefi_selected_storage_target_entry rejected 15768ms check-target:uefi_x86_64 regressed-from:checked+check-target:uefi_x86_64 @ccdb99ca2214
-	machine `report` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
-	machine `wrong` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
+pass/build/uefi_selected_storage_target_entry checked 221744ms check-target:uefi_x86_64 @bcfb0351ebd9
 pass/build/uefi_suspended_context_service_exclusion checked 110770ms check-target:uefi_x86_64 @ee4dbb4b2d56
 pass/build/unit_statement_preserves_prefix checked 3413ms check-target:macos_arm64 @ccdb99ca2214
 pass/calling/calling_count_boundaries_exit checked 21112ms check-target:macos_arm64 @ccdb99ca2214
@@ -22442,8 +22434,7 @@ pass/facts/checked_asm_flag_restore_through_field_exit checked 9543ms check-targ
 pass/facts/checked_asm_flag_restore_through_local_exit checked 11511ms check-target:linux_x86_64 @0af7c594a1c0
 pass/facts/checked_asm_flag_restore_through_match_join_exit checked 9835ms check-target:linux_x86_64 @0af7c594a1c0
 pass/facts/checked_asm_flag_restore_through_other_machine_exit checked 9598ms check-target:linux_x86_64 @0af7c594a1c0
-pass/facts/checked_asm_flag_restore_through_other_state_exit rejected 4349ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @0af7c594a1c0
-	machine `carried` uses asm instruction `popfq` but does not declare its service contract: add `reaches MachineControl` (every asm instruction's service reach must be declared where it is emitted)
+pass/facts/checked_asm_flag_restore_through_other_state_exit checked 5121ms check-target:linux_x86_64 @bcfb0351ebd9
 pass/facts/checked_asm_flag_restore_through_parameter_exit checked 8239ms check-target:linux_x86_64 @0af7c594a1c0
 pass/facts/checked_asm_flag_restore_through_target_body_exit checked 65576ms check-target:linux_x86_64 @afaaf723073d
 pass/facts/checked_asm_flag_snapshot_through_call_result_exit checked 4947ms check-target:linux_x86_64 @ceec2d4e7d8b
@@ -26387,9 +26378,7 @@ pass/host/wincheck_probe checked 168755ms check-target:windows_x86_64 @761dca3ff
 pass/inline_asm/asm_aarch64_system_registers_compile checked 4578ms check-target:macos_arm64 @0af7c594a1c0
 pass/inline_asm/asm_block_jmp_state checked 3230ms check-target:macos_arm64 @ccdb99ca2214
 pass/inline_asm/asm_exact_clobbers checked 4527ms @0af7c594a1c0
-pass/inline_asm/asm_interrupt_control_compositions_compile rejected 2252ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	machine `idle` uses asm instruction `cli` but does not declare its service contract: add `reaches MachineControl` (every asm instruction's service reach must be declared where it is emitted)
-	machine `idle` uses asm instruction `hlt` but does not declare its service contract: add `reaches MachineControl` (every asm instruction's service reach must be declared where it is emitted)
+pass/inline_asm/asm_interrupt_control_compositions_compile checked 5303ms check-target:linux_x86_64 @bcfb0351ebd9
 pass/inline_asm/asm_machine_control_wrapper_reach checked 3375ms @ccdb99ca2214
 pass/inline_asm/asm_memory_transfer checked 4217ms @ccdb99ca2214
 pass/inline_asm/asm_memory_transfer_compile checked 3528ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
@@ -26401,19 +26390,12 @@ pass/inline_asm/asm_processor_halt_compositions_compile checked 4168ms check-tar
 pass/inline_asm/asm_reach_inherit checked 3497ms @ccdb99ca2214
 pass/inline_asm/asm_reach_wrapper checked 3666ms @ccdb99ca2214
 pass/inline_asm/asm_runtime_port_msr_final_validation checked 5947ms check-target:linux_x86_64 @0af7c594a1c0
-pass/inline_asm/asm_runtime_register_scalar_variants_compile rejected 2228ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @0af7c594a1c0
-	machine `next` uses asm instruction `in` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
-	machine `next` uses asm instruction `rdmsr` but does not declare its service contract: add `reaches MachineControl` (every asm instruction's service reach must be declared where it is emitted)
-	machine `next` uses asm instruction `wrmsr` but does not declare its service contract: add `reaches MachineControl` (every asm instruction's service reach must be declared where it is emitted)
-	machine `next` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
+pass/inline_asm/asm_runtime_register_scalar_variants_compile checked 4704ms check-target:linux_x86_64 @bcfb0351ebd9
 pass/inline_asm/asm_selected_port_write_compositions_compile checked 4591ms check-target:linux_x86_64 @03522ca11fdf
 pass/inline_asm/asm_state_jmp checked 4093ms @ccdb99ca2214
 pass/inline_asm/asm_sysreg_rw checked 4591ms @0af7c594a1c0
 pass/inline_asm/asm_sysregs checked 4583ms @0af7c594a1c0
-pass/inline_asm/asm_system_register_scalar_variants_compile rejected 2534ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @0af7c594a1c0
-	machine `next` uses asm instruction `write_tpidr_el1` but does not declare its service contract: add `reaches MachineControl` (every asm instruction's service reach must be declared where it is emitted)
-	machine `next` uses asm instruction `read_tpidr_el1` but does not declare its service contract: add `reaches MachineControl` (every asm instruction's service reach must be declared where it is emitted)
-	machine `next` uses asm instruction `read_far_el1` but does not declare its service contract: add `reaches MachineControl` (every asm instruction's service reach must be declared where it is emitted)
+pass/inline_asm/asm_system_register_scalar_variants_compile checked 4652ms check-target:macos_arm64 @bcfb0351ebd9
 pass/inline_asm/asm_typed_places checked 3553ms @ccdb99ca2214
 pass/inline_asm/asm_where_contract checked 6826ms @0af7c594a1c0
 pass/inline_asm/asm_where_exact_clobbers_compile checked 7171ms @0af7c594a1c0
