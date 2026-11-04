@@ -635,25 +635,48 @@ fn validate_literal_facts(
     );
     let mut judgments = judgments.into_iter();
     let mut predicate_diagnostics = Vec::new();
+    let mut pending_predicates = Vec::new();
     for fact in program.proof_facts.span_or_empty(facts) {
         match fact {
             typed_trees::domain::ProofFact::Expression(predicate) => {
                 use crate::proof_contracts::contract_entailment::structural_judgment::StructuralJudgment;
                 match judgments.next().unwrap_or(StructuralJudgment::Unknown) {
                     StructuralJudgment::Proven => {}
-                    StructuralJudgment::Refuted => predicate_diagnostics.push(Diagnostic::error(format!(
-                        "{subject} literal violates {fact_label}: a `requires` \
+                    StructuralJudgment::Refuted => {
+                        predicate_diagnostics.push(Diagnostic::error(format!(
+                            "{subject} literal violates {fact_label}: a `requires` \
                          fact evaluates FALSE at this construction (ch12: construction is \
                          the gate)"
-                    ))),
-                    StructuralJudgment::Unknown if super::deferred_predicates::construction_conditions(
-                        program, machine, state, statement_index, expression, literal, owner, &parameters, *predicate,
-                    ).is_some_and(|conditions| observations.retain_range_obligations(conditions)) => {},
-                    StructuralJudgment::Unknown => predicate_diagnostics.push(Diagnostic::error(format!(
-                        "{subject} literal cannot prove {fact_label}: a \
+                        )))
+                    }
+                    StructuralJudgment::Unknown
+                        if super::deferred_predicates::construction_conditions(
+                            program,
+                            machine,
+                            state,
+                            statement_index,
+                            expression,
+                            literal,
+                            owner,
+                            &parameters,
+                            *predicate,
+                        )
+                        .is_some_and(|conditions| {
+                            observations.retain_range_obligations(conditions)
+                        }) => {}
+                    StructuralJudgment::Unknown => {
+                        let diagnostic = format!(
+                            "{subject} literal cannot prove {fact_label}: a \
                          `requires` fact is not established by the values observed at this \
                          construction -- establish the required bounds before constructing the value"
-                    ))),
+                        );
+                        pending_predicates.push(
+                            super::pending_predicates::PendingConstructionPredicate {
+                                predicate: *predicate,
+                                diagnostic,
+                            },
+                        );
+                    }
                 }
             }
             typed_trees::domain::ProofFact::Membership(membership) => {
@@ -730,6 +753,25 @@ fn validate_literal_facts(
                     application.name.as_str(),
                 )));
             }
+        }
+    }
+    if !pending_predicates.is_empty() {
+        if let Err(unretained) =
+            observations.retain_pending_predicates(super::PendingConstructionPredicates {
+                machine: machine.symbol,
+                state: state.symbol,
+                statement_index,
+                expression,
+                parameters,
+                predicates: pending_predicates,
+            })
+        {
+            predicate_diagnostics.extend(
+                unretained
+                    .predicates
+                    .into_iter()
+                    .map(|obligation| Diagnostic::error(obligation.diagnostic)),
+            );
         }
     }
     let source_span = expression_table(program).source_span(expression);

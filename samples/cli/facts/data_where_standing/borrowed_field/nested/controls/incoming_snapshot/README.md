@@ -8,8 +8,8 @@ also verify the new pointer and unchanged nonzero neighboring fields.
 Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
 
 This is the incoming-storage gap in the existing nested borrowed-field fact,
-under **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. The positive runs both 60-to--17
-and -17-to-60 replacements and expects exit 0. One twin removes only Counter's
+under **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. The positive replaces 60 with -17
+and also tests the reverse replacement, expecting exit 0. One twin removes only Counter's
 predicate; the identity twin instead asks the replacement to equal the old read.
 Both must reject. All four hosted entry bindings are authored.
 
@@ -19,6 +19,12 @@ Both controls currently stop at that same arithmetic failure; the identity
 control has not yet reached its intended missing equality. The initial sources,
 profile and raw diagnostics are retained before the compiler edit.
 
-The first proposed repair separates logical entry-predicate values from actual
-scalar reads. Native/Terminal execution and all nine transport places remain
-required; this control alone does not complete the fact.
+The first repair keeps the input's bound separate from actual reads. Optimized
+producer `fb5ceaf6e73a957601839466f303e7369767d1ff` still rejects the addition,
+so neither engine ran. A diagnostic copy with only the pointer assignment
+removed checks successfully; the frozen program and its oracles are unchanged.
+
+The second repair retains an already observed scalar with its saved shared
+reference. The shared loan prevents mutation until that reference's last use.
+Fresh native/Terminal execution and the extended nine-place row remain required;
+this control alone does not complete the fact.

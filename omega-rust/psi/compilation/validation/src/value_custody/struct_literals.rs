@@ -15,6 +15,8 @@
 //! operands before constructor admission, including completed child guarantees.
 //! An unrelated mutable operand does not erase an earlier guard; an overlapping
 //! write does. The syntax scan locates obligations, not a second fact-flow model.
+//! An unknown predicate can wait for the storage graph only when the caller
+//! retains that exact obligation. Direct construction probes remain strict.
 //!
 //! Bare case values obey construction obligations too. A case on the right of
 //! membership instead denotes a tag predicate: only exact subject/owner/case
@@ -33,9 +35,16 @@ mod construction_bounds;
 mod deferred_predicates;
 mod field_obligations;
 mod observations;
+mod pending_predicates;
 mod window_elements;
 
 use observations::ConstructionObservations;
+pub(crate) use pending_predicates::{PendingConstructionPredicates, discharge_pending_predicates};
+
+pub(crate) struct StructLiteralValidation {
+    pub stored_integer_writes: Vec<checked_trees::CheckedStoredIntegerWrite>,
+    pub pending_predicates: Vec<PendingConstructionPredicates>,
+}
 
 pub(crate) use window_elements::validate_array_window_elements;
 pub use window_elements::{ArrayWindowShape, array_window_shape};
@@ -84,12 +93,13 @@ pub(crate) fn validate_struct_literal_fields(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
-) -> Vec<checked_trees::CheckedStoredIntegerWrite> {
+) -> StructLiteralValidation {
     use rayon::prelude::*;
     let per_machine: Vec<(
         Vec<Diagnostic>,
         Vec<checked_trees::IntegerRangeObligation>,
         Vec<checked_trees::CheckedStoredIntegerWrite>,
+        Vec<PendingConstructionPredicates>,
     )> = crate::program_validation::checking_thread_pool().install(|| {
         program
             .machines()
@@ -98,6 +108,7 @@ pub(crate) fn validate_struct_literal_fields(
                 let mut machine_diagnostics = Vec::new();
                 let mut machine_obligations = Vec::new();
                 let mut machine_writes = Vec::new();
+                let mut machine_predicates = Vec::new();
                 for state in program.machine_states(machine) {
                     let observations = &ConstructionObservations::new(
                         program,
@@ -105,7 +116,8 @@ pub(crate) fn validate_struct_literal_fields(
                         state,
                         ExpressionHandle::invalid(),
                     )
-                    .retaining_range_obligations();
+                    .retaining_range_obligations()
+                    .retaining_pending_predicates();
                     for (statement_index, statement) in program
                         .statement_table
                         .indexed_statements(state.statement_nodes)
@@ -180,18 +192,31 @@ pub(crate) fn validate_struct_literal_fields(
                         }
                     }
                     machine_obligations.extend(observations.take_range_obligations());
+                    machine_predicates.extend(observations.take_pending_predicates());
                 }
-                (machine_diagnostics, machine_obligations, machine_writes)
+                (
+                    machine_diagnostics,
+                    machine_obligations,
+                    machine_writes,
+                    machine_predicates,
+                )
             })
             .collect()
     });
     let mut stored_integer_writes = Vec::new();
-    for (machine_diagnostics, machine_obligations, machine_writes) in per_machine {
+    let mut pending_predicates = Vec::new();
+    for (machine_diagnostics, machine_obligations, machine_writes, machine_predicates) in
+        per_machine
+    {
         diagnostics.extend(machine_diagnostics);
         formation_obligations.extend(machine_obligations);
         stored_integer_writes.extend(machine_writes);
+        pending_predicates.extend(machine_predicates);
     }
-    stored_integer_writes
+    StructLiteralValidation {
+        stored_integer_writes,
+        pending_predicates,
+    }
 }
 
 fn scan_transition_target(
