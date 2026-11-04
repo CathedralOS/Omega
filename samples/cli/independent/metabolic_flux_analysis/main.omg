@@ -14,7 +14,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         metabolites.value >= 2000000000 && metabolites.value <= 4000000000 && metabolites.value % 1000000000 == 0 &&
         reactions.value >= 3000000000 && reactions.value <= 6000000000 && reactions.value % 1000000000 == 0 &&
         biomass.value >= 0 && biomass.value < reactions.value && biomass.value % 1000000000 == 0 {
-        true -> configure(application, metabolites.value, reactions.value, biomass.value)
+        true -> block configure(application, metabolites.value, reactions.value, biomass.value)
         _ -> invalid(application)
     }
     machine invalid(application: &mut Application) {
@@ -24,38 +24,38 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.solver.metabolites = narrow_i64_to_i32_wrapping((metabolites / 1000000000) as i64) as i32 in Wrapping;
         application.solver.reactions = narrow_i64_to_i32_wrapping((reactions / 1000000000) as i64) as i32 in Wrapping;
         application.solver.biomass = narrow_i64_to_i32_wrapping((biomass / 1000000000) as i64) as i32 in Wrapping;
-        transition { _ -> matrix_row(application, 0, 0) }
+        transition { _ -> block matrix_row(application, 0, 0) }
     }
     machine matrix_row(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping) {
-        transition row < application.solver.metabolites { true -> matrix_column(application, row, column) _ -> bound(application, 0) }
+        transition row < application.solver.metabolites { true -> block matrix_column(application, row, column) _ -> block bound(application, 0) }
     }
     machine matrix_column(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping) {
-        transition column < application.solver.reactions { true -> coefficient(application, row, column) _ -> matrix_row(application, row + 1, 0) }
+        transition column < application.solver.reactions { true -> block coefficient(application, row, column) _ -> block matrix_row(application, row + 1, 0) }
     }
     machine coefficient(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping) {
         let value: Number = block number(&mut application.reader);
         transition value.valid && value.value >= -3000000000 && value.value <= 3000000000 && value.value % 1000000000 == 0 {
-            true -> coefficient_store(application, row, column, value.value) _ -> invalid(application)
+            true -> block coefficient_store(application, row, column, value.value) _ -> invalid(application)
         }
     }
     machine coefficient_store(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping, value: i64 in Wrapping) {
         write_matrix(&mut application.solver.matrix, row * 6 + column, value / 1000000000);
-        transition { _ -> matrix_row(application, row, column + 1) }
+        transition { _ -> block matrix_row(application, row, column + 1) }
     }
     machine bound(application: &mut Application, index: i32 in Wrapping) {
-        transition index < application.solver.reactions { true -> bounds(application, index) _ -> finish(application) }
+        transition index < application.solver.reactions { true -> block bounds(application, index) _ -> block finish(application) }
     }
     machine bounds(application: &mut Application, index: i32 in Wrapping) {
         let lower: Number = block number(&mut application.reader);
         let upper: Number = block number(&mut application.reader);
         transition lower.valid && upper.valid && lower.value >= 0 && lower.value <= upper.value && upper.value <= 10000000000 {
-            true -> bound_store(application, index, lower.value, upper.value) _ -> invalid(application)
+            true -> block bound_store(application, index, lower.value, upper.value) _ -> invalid(application)
         }
     }
     machine bound_store(application: &mut Application, index: i32 in Wrapping, lower: i64 in Wrapping, upper: i64 in Wrapping) {
         write_six(&mut application.solver.lower, index, lower);
         write_six(&mut application.solver.upper, index, upper);
-        transition { _ -> bound(application, index + 1) }
+        transition { _ -> block bound(application, index + 1) }
     }
     machine finish(application: &mut Application) {
         let complete: bool = block ended(&mut application.reader);

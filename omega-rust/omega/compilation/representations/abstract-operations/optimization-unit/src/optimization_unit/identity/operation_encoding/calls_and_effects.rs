@@ -117,6 +117,68 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u16(*port);
             bytes.u8(*value);
         }
+        O::ActivateTaskRegister {
+            psi_operation,
+            service,
+            result,
+            entries,
+            gdt,
+            task_state,
+            selector,
+            scratch,
+        } => {
+            bytes.u8(244);
+            bytes.id(*psi_operation);
+            bytes.id(*service);
+            encode_abstract_result(bytes, *result);
+            bytes.u16(*entries);
+            encode_structural_argument(bytes, gdt);
+            encode_structural_argument(bytes, task_state);
+            bytes.id(*selector);
+            encode_structural_argument(bytes, scratch);
+        }
+        O::ReadTaskRegister {
+            psi_operation,
+            service,
+            result,
+        } => {
+            bytes.u8(245);
+            bytes.id(*psi_operation);
+            bytes.id(*service);
+            encode_abstract_result(bytes, *result);
+        }
+        O::ReloadSegmentDescriptors {
+            psi_operation,
+            service,
+            result,
+            entries,
+            gdt,
+            kind,
+            selector,
+            scratch,
+        } => {
+            bytes.u8(246);
+            bytes.id(*psi_operation);
+            bytes.id(*service);
+            encode_abstract_result(bytes, *result);
+            bytes.u16(*entries);
+            encode_structural_argument(bytes, gdt);
+            bytes.u8(kind.code());
+            bytes.id(*selector);
+            encode_structural_argument(bytes, scratch);
+        }
+        O::ReadSegmentSelector {
+            register,
+            psi_operation,
+            service,
+            result,
+        } => {
+            bytes.u8(247);
+            bytes.u8(register.code());
+            bytes.id(*psi_operation);
+            bytes.id(*service);
+            encode_abstract_result(bytes, *result);
+        }
         O::GlobalDescriptorTable {
             psi_operation,
             service,

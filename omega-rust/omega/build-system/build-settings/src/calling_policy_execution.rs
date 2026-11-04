@@ -73,6 +73,24 @@ pub fn evaluate_terminal_calling_policy(
     let requirements = program
         .execution_requirements(Some(&installation))
         .map_err(|error| format!("calling policy demands: {error:?}"))?;
+    if let Some(boundary) = requirements.missing_providers.first() {
+        // A requirement with provider candidates is not a host import. Its
+        // name still comes from the same retained module the executor uses.
+        let declaration = artifact
+            .semantic_module()
+            .boundary_machine(*boundary)
+            .ok_or("calling policy's missing provider has no boundary declaration")?;
+        let identity = artifact
+            .semantic_module()
+            .identities
+            .text(declaration.identity)
+            .ok_or("calling policy's missing provider has no callable identity")?;
+        return Err(format!(
+            "calling policy calls `{}` without a selected provider for target `{}`",
+            language_semantics::type_identity::callable_display_path(identity),
+            target.target_name(),
+        ));
+    }
     let mut demanded = requirements.scalar_applications;
     for application in requirements.scalar_entry_conditions {
         if !demanded.contains(&application) {

@@ -311,7 +311,10 @@ pub(crate) fn build_checked_unit_effect_plans(
                                         plan.machine,
                                         plan.state,
                                         &mut plan.operations,
-                                        attempt_calls.state_schedules(plan.machine, plan.state),
+                                        attempt_calls.state_schedules(
+                                            cleanup::owning_cleanup_machine(program, plan.state),
+                                            plan.state,
+                                        ),
                                     )?;
                                     if has_projected_parameter_moves {
                                         partial_affine_machines.push(
@@ -401,7 +404,8 @@ pub(crate) fn build_checked_unit_effect_plans(
             plan.state,
             &plan.structural_parameters,
             &plan.operations,
-        )?;
+        )
+        .ok()?;
         // Owned qualified arguments are not a pre-construction scalar-control
         // veto. Admission requires these complete current-exit rows, including
         // moved locals and selected residual owners; no candidate is published
@@ -456,7 +460,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                         &state.structural_parameters,
                         &state.operations,
                     )
-                    .ok_or((state.state, "temporary cleanup actions"))?;
+                    .map_err(|reason| (state.state, reason))?;
                     let normal = cleanup::normal_edges::state_cleanups(
                         program,
                         facts,
@@ -478,7 +482,19 @@ pub(crate) fn build_checked_unit_effect_plans(
     composed_machines.retain_mut(|plan| match composed_selections.next() {
         Some(Ok(selected)) => {
             for (state, (selected, normal)) in plan.states.iter_mut().zip(selected) {
-                if cleanup::temporary_actions::install(&mut state.operations, selected).is_none() {
+                if let Err(reason) =
+                    cleanup::temporary_actions::install(&mut state.operations, selected)
+                {
+                    cleanup_gaps
+                        .entry(symbol_key(plan.machine))
+                        .or_insert_with(|| {
+                            plan_gap(
+                                program,
+                                plan.machine,
+                                GapSite::State(state.state),
+                                GapReason::Unsupported(std::borrow::Cow::Borrowed(reason)),
+                            )
+                        });
                     return false;
                 }
                 state.normal_exit_cleanups = normal;
@@ -501,7 +517,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         None => false,
     });
     let install_sequence_cleanup = |plan: &mut CheckedUnitEffectMachinePlan, (selected, normal)| {
-        if cleanup::temporary_actions::install(&mut plan.operations, selected).is_none() {
+        if cleanup::temporary_actions::install(&mut plan.operations, selected).is_err() {
             return false;
         }
         plan.normal_exit_cleanups = normal;

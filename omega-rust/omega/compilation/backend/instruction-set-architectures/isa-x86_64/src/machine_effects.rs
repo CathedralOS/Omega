@@ -214,6 +214,11 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             system_register_read: Some(crate::X86_64_FLAGS_SNAPSHOT),
             system_register_write: Some(crate::X86_64_FLAGS_RESTORE),
             global_descriptor_table: Some(crate::X86_64_GLOBAL_DESCRIPTOR_TABLE),
+            task_register_activate: Some(crate::X86_64_TASK_REGISTER_ACTIVATE),
+            task_register_read: Some(crate::X86_64_TASK_REGISTER_READ),
+            code_segment_reload: Some(crate::X86_64_CODE_SEGMENT_RELOAD),
+            data_segment_reload: Some(crate::X86_64_DATA_SEGMENT_RELOAD),
+            segment_selector_read: Some(crate::X86_64_SEGMENT_SELECTOR_READ),
             control_register_read: Some(crate::X86_64_CONTROL_REGISTER_READ),
             control_register_write: Some(crate::X86_64_CONTROL_REGISTER_WRITE),
             port_register_read: Some(crate::X86_64_PORT_REGISTER_READ),
@@ -561,6 +566,11 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
         | Semantic::ProcessorHalt
         | Semantic::InterruptControl
         | Semantic::ControlRegisterRead
+        | Semantic::TaskRegisterActivate
+        | Semantic::TaskRegisterRead
+        | Semantic::CodeSegmentReload
+        | Semantic::DataSegmentReload
+        | Semantic::SegmentSelectorRead
         | Semantic::GlobalDescriptorTableLoad
         | Semantic::GlobalDescriptorTableStore
         | Semantic::ControlRegisterWrite
@@ -852,6 +862,12 @@ fn size(semantic: Semantic) -> Size {
         | Semantic::GlobalDescriptorTableLoad
         | Semantic::GlobalDescriptorTableStore
         | Semantic::ControlRegisterWrite => crate::encoder_resolved(1, Some(40)),
+        Semantic::TaskRegisterActivate => crate::encoder_resolved(1, Some(512)),
+        Semantic::TaskRegisterRead => crate::encoder_resolved(1, Some(8)),
+        Semantic::CodeSegmentReload | Semantic::DataSegmentReload => {
+            crate::encoder_resolved(1, Some(512))
+        }
+        Semantic::SegmentSelectorRead => crate::encoder_resolved(1, Some(7)),
         Semantic::AccessorScalarAccess(_) => crate::encoder_resolved(7, Some(9)),
         Semantic::PortWrite => Size::ExactBytes(x86_encoding::IMMEDIATE_PORT_WRITE_WIDTH as u16),
         Semantic::AtomicFence | Semantic::MemoryFence => Size::ExactBytes(3),

@@ -273,12 +273,31 @@ pub(super) fn check_domain_field_writes(
                 }
                 // `&(x as T)` keeps `x`'s storage, whose facts still carry the
                 // meaning `T` erased; the erased initializer cannot supply it.
+                // A stored reference initialized from an erasing cast (`v.t`) carries
+                // that erasure when initializing another reference.
                 let erased = ::validation::field_domains::expression_erases_membership(
                     program,
                     local.initial_value,
                     domain_symbol,
                     semantic_domain,
-                );
+                ) || facts
+                    .flow
+                    .state_statement(state_flow, statement_index)
+                    .filter(|statement| {
+                        facts.flow.control.operands.is_valid(statement.stored_value)
+                    })
+                    .map(|statement| statement.stored_value)
+                    .is_some_and(|stored_value| {
+                        super::call_values::operand_erases_membership(
+                            program,
+                            &facts.flow.control,
+                            stored_value,
+                            &[],
+                            domain_symbol,
+                            semantic_domain,
+                            &mut Vec::new(),
+                        )
+                    });
                 if erased
                     || !value_proves_qualification(
                         program,

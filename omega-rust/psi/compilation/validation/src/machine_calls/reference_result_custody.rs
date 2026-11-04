@@ -1604,6 +1604,48 @@ pub fn origin_place_segments(
     root: TypeReferenceHandle,
     path: impl IntoIterator<Item = checked_trees::CheckedReferenceOriginProjection>,
 ) -> Option<Vec<PlaceSegment>> {
+    // A stored owner's frontier ends at its descriptor. A returned origin can
+    // cross that pointer, but the pointee is not another owned child here.
+    let mut crosses_reference = false;
+    let projected = origin_place_projection(
+        program,
+        root,
+        path.into_iter().inspect(|projection| {
+            crosses_reference |= matches!(
+                projection,
+                checked_trees::CheckedReferenceOriginProjection::Exact(
+                    checked_trees::CheckedUnitStructuralPathSegment::Referent
+                )
+            );
+        }),
+    )?;
+    (!crosses_reference).then_some(projected.segments)
+}
+
+pub(super) struct OriginPlaceProjection {
+    pub segments: Vec<PlaceSegment>,
+    endpoint: TypeReferenceHandle,
+    scope: usize,
+    scopes: DeclarationScopes,
+}
+
+impl OriginPlaceProjection {
+    pub(super) fn type_identity(
+        &mut self,
+        program: &dyn CheckingInput,
+    ) -> typed_trees::type_identity::TypeIdentityId {
+        self.scopes
+            .type_identity(program, self.endpoint, self.scope)
+    }
+}
+
+/// Keep the endpoint type with the path so a forwarded result cannot substitute
+/// a same-shaped field or erase a reference crossing from its checked contract.
+pub(super) fn origin_place_projection(
+    program: &dyn CheckingInput,
+    root: TypeReferenceHandle,
+    path: impl IntoIterator<Item = checked_trees::CheckedReferenceOriginProjection>,
+) -> Option<OriginPlaceProjection> {
     let mut selected = root;
     let mut payload = None;
     let mut segments = Vec::new();
@@ -1611,6 +1653,18 @@ pub fn origin_place_segments(
     let mut scope = 0;
     for projection in path {
         (selected, scope) = scopes.head(program, selected, scope);
+        if matches!(
+            projection,
+            checked_trees::CheckedReferenceOriginProjection::Exact(
+                checked_trees::CheckedUnitStructuralPathSegment::Referent
+            )
+        ) {
+            if payload.is_some() {
+                return None;
+            }
+            selected = crate::reference_shell(program, selected)?.referee;
+            continue;
+        }
         while let TypeReferenceNode::Constrained { base_type, .. }
         | TypeReferenceNode::Reference {
             referee: base_type, ..
@@ -1713,7 +1767,12 @@ pub fn origin_place_segments(
             _ => return None,
         }
     }
-    Some(segments)
+    Some(OriginPlaceProjection {
+        segments,
+        endpoint: selected,
+        scope,
+        scopes,
+    })
 }
 
 pub fn loan_owner_path(

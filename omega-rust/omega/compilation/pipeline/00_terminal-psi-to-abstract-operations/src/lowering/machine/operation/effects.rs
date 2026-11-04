@@ -23,6 +23,71 @@ pub(super) fn lower(
             port,
             value,
         },
+        OperationKind::ActivateTaskRegister {
+            service,
+            entries,
+            gdt,
+            task_state,
+            selector,
+            scratch,
+        } => {
+            let Some(result) = operation.result.scalar() else {
+                return Err(LoweringError::InvalidDescriptorTableOperation(operation.id));
+            };
+            AbstractOperation::ActivateTaskRegister {
+                psi_operation: operation.id,
+                service,
+                result: result.into(),
+                entries,
+                gdt,
+                task_state,
+                selector,
+                scratch,
+            }
+        }
+        OperationKind::ReadTaskRegister { service } => {
+            let Some(result) = operation.result.scalar() else {
+                return Err(LoweringError::InvalidDescriptorTableOperation(operation.id));
+            };
+            AbstractOperation::ReadTaskRegister {
+                psi_operation: operation.id,
+                service,
+                result: result.into(),
+            }
+        }
+        OperationKind::ReloadSegmentDescriptors {
+            service,
+            entries,
+            gdt,
+            kind,
+            selector,
+            scratch,
+        } => {
+            let Some(result) = operation.result.scalar() else {
+                return Err(LoweringError::InvalidDescriptorTableOperation(operation.id));
+            };
+            AbstractOperation::ReloadSegmentDescriptors {
+                psi_operation: operation.id,
+                service,
+                result: result.into(),
+                entries,
+                gdt,
+                kind,
+                selector,
+                scratch,
+            }
+        }
+        OperationKind::ReadSegmentSelector { service, register } => {
+            let Some(result) = operation.result.scalar() else {
+                return Err(LoweringError::InvalidDescriptorTableOperation(operation.id));
+            };
+            AbstractOperation::ReadSegmentSelector {
+                psi_operation: operation.id,
+                service,
+                register,
+                result: result.into(),
+            }
+        }
         OperationKind::GlobalDescriptorTable {
             service,
             operation: direction,

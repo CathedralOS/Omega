@@ -33,7 +33,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     main.total = main.players[0].score + main.players[1].score + main.players[2].score;
 
-    transition { _ -> done(main) }
+    transition { _ -> block done(main) }
 
     machine done(main: &mut Main) {
         Console::write_line("PASS: scores 30+25+15 total 70 (the exit code)");

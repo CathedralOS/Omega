@@ -46,30 +46,30 @@ invokes Console
 blocks
 crashes Trap
 {
-    transition { _ -> skip(reader) }
+    transition { _ -> block skip(reader) }
     machine skip(reader: &mut InputReader) -> Token {
         let byte: ByteRead = block next_byte(reader);
         transition byte {
             ByteRead::Eof -> Token::End
-            ByteRead::Byte { value } -> first(reader, value)
+            ByteRead::Byte { value } -> block first(reader, value)
         }
     }
     machine first(reader: &mut InputReader, byte: i32) -> Token {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
-            true -> skip(reader)
-            _ -> sign(reader, byte)
+            true -> block skip(reader)
+            _ -> block sign(reader, byte)
         }
     }
     machine sign(reader: &mut InputReader, byte: i32) -> Token {
         transition byte == 45 {
-            true -> next(reader, 0, 0, true)
-            _ -> digit(reader, byte, 0, 0, false)
+            true -> block next(reader, 0, 0, true)
+            _ -> block digit(reader, byte, 0, 0, false)
         }
     }
     machine digit(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                 digits: i32 in Wrapping, negative: bool) -> Token {
         transition byte >= 48 && byte <= 57 && digits < 7 {
-            true -> accumulate(reader, byte, magnitude, digits, negative)
+            true -> block accumulate(reader, byte, magnitude, digits, negative)
             _ -> Token::Invalid
         }
     }
@@ -77,7 +77,7 @@ crashes Trap
                      digits: i32 in Wrapping, negative: bool) -> Token {
         let updated: i32 in Wrapping = magnitude * 10 + (byte as i32 in Wrapping) - 48;
         transition updated <= 1000000 {
-            true -> next(reader, updated, digits + 1, negative)
+            true -> block next(reader, updated, digits + 1, negative)
             _ -> Token::Invalid
         }
     }
@@ -86,14 +86,14 @@ crashes Trap
         let byte: ByteRead = block next_byte(reader);
         transition byte {
             ByteRead::Eof -> finish(magnitude, digits, negative)
-            ByteRead::Byte { value } -> delimiter(reader, value, magnitude, digits, negative)
+            ByteRead::Byte { value } -> block delimiter(reader, value, magnitude, digits, negative)
         }
     }
     machine delimiter(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                     digits: i32 in Wrapping, negative: bool) -> Token {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
             true -> finish(magnitude, digits, negative)
-            _ -> digit(reader, byte, magnitude, digits, negative)
+            _ -> block digit(reader, byte, magnitude, digits, negative)
         }
     }
     machine finish(magnitude: i32 in Wrapping, digits: i32 in Wrapping, negative: bool) -> Token {

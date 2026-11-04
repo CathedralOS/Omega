@@ -74,8 +74,8 @@ pub use domain_preservation::{
     store_preserves_domain_content, store_preserves_qualifications,
 };
 pub use references::reference_completion::{
-    ReferenceCompletionError, ReferenceCompletionOccurrence, cleanup_disposes_reference,
-    validate_reference_result_completion,
+    ReferenceCompletionError, ReferenceCompletionOccurrence, borrowed_entry_reference_referent,
+    cleanup_disposes_reference, validate_reference_result_completion,
 };
 pub use references::reference_origins::{
     BorrowedResultLeaf, BorrowedResultLeafKind, ReferenceCallContract, ReferenceCallOrigin,

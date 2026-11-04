@@ -80,14 +80,16 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         self.locked_source = Some(source);
     }
 
-    /// Retain the operation's original root, including staged source custody.
-    /// Relative requests use its original lineage, never its materialized path.
-    pub fn retain_root(&mut self, acquired: &AcquiredBuildSource) -> Result<(), String> {
+    /// Keep resolver-selected cache locations with the root that executes Build.
+    /// Relative requests retain its original lineage and staged source custody.
+    pub fn retain_root(
+        &mut self,
+        acquired: AcquiredBuildSource,
+    ) -> Result<AcquiredBuildSource, String> {
         if acquired.root_request != self.root_request {
             return Err("source acquisition policy belongs to another project request".into());
         }
-        self.retain_source(acquired.clone())?;
-        Ok(())
+        self.retain_source(acquired)
     }
 
     /// Acquire a post-return graph occurrence through the same transport used

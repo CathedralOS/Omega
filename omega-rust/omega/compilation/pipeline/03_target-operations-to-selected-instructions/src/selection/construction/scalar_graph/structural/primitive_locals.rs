@@ -259,7 +259,50 @@ fn projected_address(
         | LegalizedScalarInstructionKind::GlobalDescriptorTable { indices, .. } => indices,
         _ => return Err(invalid()),
     };
-    let (pointer, slots) = projection_origin(source, builder, row, place, byte_offset, &slots)?;
+    resolve_projected_address(source, builder, row, place, byte_offset, indices, &slots)
+}
+
+pub(super) fn borrowed_storage_address(
+    source: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    argument: &terminal_psi::StructuralArgument,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+) -> Result<(VirtualRegisterId, u32), SelectedInstructionError> {
+    let signature = source.structural.as_ref().ok_or_else(invalid)?;
+    let root =
+        crate::selection::reference_input::root_type(source, argument.place).ok_or_else(invalid)?;
+    let geometry = crate::structural_inputs::structural_reference_input::storage_address_geometry(
+        root,
+        &argument.path,
+        &signature.structural_types,
+    )
+    .ok_or_else(invalid)?;
+    if !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements) {
+        return Err(invalid());
+    }
+    let address = resolve_projected_address(
+        source,
+        builder,
+        row,
+        argument.place,
+        geometry.byte_offset,
+        indices,
+        &geometry.pointer_slots,
+    )?;
+    Ok((address, geometry.byte_offset))
+}
+
+fn resolve_projected_address(
+    source: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: semantic_vocabulary::PlaceId,
+    byte_offset: u32,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    slots: &[crate::structural_inputs::structural_reference_input::PointerSlot],
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let (pointer, slots) = projection_origin(source, builder, row, place, byte_offset, slots)?;
     let pointer = match pointer {
         Some(pointer) => pointer,
         // The common resolver authenticates a completed local home. It cannot

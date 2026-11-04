@@ -20,6 +20,25 @@ pub(super) fn validate_builtin_index(
     let proven = (|| {
         let indexed = program.expression_table.indexed_node(expression)?;
         let reference = caller.expression_type(program, indexed.collection)?;
+        let array_extent = if crate::fixed_array_type_extent(program, reference).is_some() {
+            let parameters = caller
+                .parameters(program)
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>();
+            let source = crate::parameter_source_type_application(
+                program,
+                caller.symbol(),
+                &parameters,
+                indexed.collection,
+            );
+            match crate::resolved_projected_array_extent(program, reference, source) {
+                Ok(extent) => Some(extent),
+                Err(_) => return None,
+            }
+        } else {
+            None
+        };
         let collection = caller.term(program, indexed.collection)?;
         let judge = prior_facts.structural_judge(program, caller, arguments)?;
         Some(super::super::collection_bounds::proves_observed_bounds(
@@ -27,6 +46,7 @@ pub(super) fn validate_builtin_index(
             &judge,
             indexed,
             reference,
+            array_extent.as_ref(),
             collection,
             |source| {
                 Some((

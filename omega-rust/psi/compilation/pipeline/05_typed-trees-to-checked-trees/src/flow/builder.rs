@@ -176,7 +176,10 @@ fn build_group<'plans>(
     semantic.clone_from(inputs.baseline);
     // Unknown is absorbing: immediate joins during fallback cannot establish
     // a new provisional constant in a state built later in this pass.
-    build.state_value_inputs = super::state_values::unknown_inputs(inputs.program, machines);
+    build.replace_state_value_inputs(super::state_values::unknown_inputs(
+        inputs.program,
+        machines,
+    ));
     build.dirty_state_value_inputs.clear();
     sweep(inputs, semantic, build, machines, true);
 }

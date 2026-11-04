@@ -1246,7 +1246,29 @@ impl<'artifact> TerminalExecution<'artifact> {
                                         }
                                         OperationFlow::Advance
                                     }
-                                    OperationKind::GlobalDescriptorTable { operation, .. } => {
+                                    OperationKind::ActivateTaskRegister { .. } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess {
+                                operation: terminal_psi::RegisterOperation::TaskRegisterActivate,
+                            },
+                        ));
+                    }
+                    OperationKind::ReadTaskRegister { .. } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess {
+                                operation: terminal_psi::RegisterOperation::TaskRegisterRead,
+                            },
+                        ));
+                    }
+                    OperationKind::ReloadSegmentDescriptors { kind, .. } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess { operation: terminal_psi::RegisterOperation::SegmentReload(kind) }));
+                    }
+                    OperationKind::ReadSegmentSelector { register, .. } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess { operation: terminal_psi::RegisterOperation::SegmentRead(register) }));
+                    }
+                    OperationKind::GlobalDescriptorTable { operation, .. } => {
                         return Err(TerminalInterpretError::UnsupportedCapability(
                             crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess {
                                 operation: terminal_psi::RegisterOperation::GlobalDescriptorTable(operation),

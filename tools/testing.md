@@ -100,6 +100,21 @@ honestly without describing the whole compiler or release as qualified.
 The [PR #730 retrospective](../wiki/drafts/measurements/merge_validation_2026_10_31/README.md)
 records the cost and failure pattern behind this rule.
 
+### Source-produced Build consent on a hosted pilot
+
+The same manual `Compiler queue pilot` accepts `-f build_consent=true` with
+`native_host=windows_x86_64`, `macos_arm64`, `linux_arm64`, or `linux_x86_64`.
+It checks Omega, then runs the public source-produced SDK consent control and
+the captured/live filesystem isolation controls on that actual host. A missing
+consent stops before guest execution; an exact grant reads bytes changed after
+admission. Unix also checks root-name substitution and descendant symlinks.
+
+SDK-only selection builds its optimized example and filesystem test executable
+without an unused CLI or corpus runner. The existing pilot artifacts retain
+actual test events, both SDK observations, executable profiles and hashes, and
+source identity in `build-consent-controls.json`. Empty or incomplete test runs
+cannot pass. Each attempt keeps a separate directory, including failures.
+
 ### Exact fixtures on a hosted pilot
 
 The existing `Compiler queue pilot` manual dispatch accepts a comma-separated

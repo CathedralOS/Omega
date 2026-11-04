@@ -7,30 +7,30 @@ invokes Console
 blocks
 crashes Trap
 {
-    transition { _ -> scan(0, false, 0) }
+    transition { _ -> block scan(0, false, 0) }
     machine scan(accumulated: i32 in Saturating, seen: bool, digits: u64) -> i32 in Saturating {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> finish(accumulated, seen)
-            ByteRead::Byte { value } -> classify(accumulated, seen, digits, value)
+            ByteRead::Byte { value } -> block classify(accumulated, seen, digits, value)
             _ -> (-1)
         }
     }
     machine classify(accumulated: i32 in Saturating, seen: bool, digits: u64, byte: i32) -> i32 in Saturating {
         transition byte == 32 || byte == 10 {
-            true -> separator(accumulated, seen, digits)
-            false -> digit(accumulated, digits, byte)
+            true -> block separator(accumulated, seen, digits)
+            false -> block digit(accumulated, digits, byte)
         }
     }
     machine separator(accumulated: i32 in Saturating, seen: bool, digits: u64) -> i32 in Saturating {
         transition seen {
             true -> (accumulated)
-            false -> scan(accumulated, seen, digits)
+            false -> block scan(accumulated, seen, digits)
         }
     }
     machine digit(accumulated: i32 in Saturating, digits: u64, byte: i32) -> i32 in Saturating {
         transition byte >= 48 && byte <= 57 && digits < 4 {
-            true -> accumulate(accumulated, digits, byte)
+            true -> block accumulate(accumulated, digits, byte)
             false -> (-1)
         }
     }
@@ -38,7 +38,7 @@ crashes Trap
     requires digits < 4 {
         let next: i32 in Saturating = accumulated * 10 + (byte as i32 in Saturating) - 48;
         transition next <= 1000 {
-            true -> scan(next, true, digits + 1)
+            true -> block scan(next, true, digits + 1)
             false -> (-1)
         }
     }
@@ -55,12 +55,12 @@ crashes Trap
     let observed: ByteRead = block Console::read_byte();
     transition observed {
         ByteRead::Eof -> (true)
-        ByteRead::Byte { value } -> separator(value)
+        ByteRead::Byte { value } -> block separator(value)
         _ -> (false)
     }
     machine separator(value: i32) -> bool {
         transition value == 32 || value == 10 {
-            true -> again()
+            true -> block again()
             false -> (false)
         }
     }
@@ -68,7 +68,7 @@ crashes Trap
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> (true)
-            ByteRead::Byte { value } -> separator(value)
+            ByteRead::Byte { value } -> block separator(value)
             _ -> (false)
         }
     }

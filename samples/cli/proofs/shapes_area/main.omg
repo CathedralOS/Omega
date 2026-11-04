@@ -37,8 +37,8 @@ machine Main::main(main: &mut Main) reaches Console {
     main.total = a1 + a2 + a3;
 
     transition main.total == 70 {
-        true -> good(main)
-        _ -> bad(main)
+        true -> block good(main)
+        _ -> block bad(main)
     }
 
     machine good(main: &mut Main) {

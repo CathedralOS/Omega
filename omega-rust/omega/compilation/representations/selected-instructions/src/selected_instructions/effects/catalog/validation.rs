@@ -52,6 +52,11 @@ fn touches_external_state(semantic: MachineSemanticKind) -> bool {
             | MachineSemanticKind::SystemRegisterWrite
             | MachineSemanticKind::GlobalDescriptorTableLoad
             | MachineSemanticKind::GlobalDescriptorTableStore
+            | MachineSemanticKind::TaskRegisterActivate
+            | MachineSemanticKind::TaskRegisterRead
+            | MachineSemanticKind::CodeSegmentReload
+            | MachineSemanticKind::DataSegmentReload
+            | MachineSemanticKind::SegmentSelectorRead
             | MachineSemanticKind::ControlRegisterRead
             | MachineSemanticKind::ControlRegisterWrite
             | MachineSemanticKind::PortRegisterRead
@@ -260,6 +265,12 @@ pub(super) fn validate_declaration(
         _ if temporary_stack => crate::MachineMemoryEffect::TemporaryStackStorageV1,
         MachineSemanticKind::GlobalDescriptorTableLoad => crate::MachineMemoryEffect::ReadPointerV1,
         MachineSemanticKind::GlobalDescriptorTableStore => WritePointerV1,
+        MachineSemanticKind::TaskRegisterActivate => {
+            crate::MachineMemoryEffect::TaskRegisterActivationV1
+        }
+        MachineSemanticKind::CodeSegmentReload | MachineSemanticKind::DataSegmentReload => {
+            crate::MachineMemoryEffect::SegmentDescriptorReloadV1
+        }
         MachineSemanticKind::MemoryFence => crate::MachineMemoryEffect::CatalogFenceV1,
         MachineSemanticKind::AtomicFence => crate::MachineMemoryEffect::AtomicFenceV1,
         MachineSemanticKind::AtomicAccess(_) => crate::MachineMemoryEffect::AtomicPointerV1,
@@ -308,6 +319,11 @@ pub(super) fn validate_declaration(
         | MachineSemanticKind::SystemRegisterWrite
         | MachineSemanticKind::GlobalDescriptorTableLoad
         | MachineSemanticKind::GlobalDescriptorTableStore
+        | MachineSemanticKind::TaskRegisterActivate
+        | MachineSemanticKind::TaskRegisterRead
+        | MachineSemanticKind::CodeSegmentReload
+        | MachineSemanticKind::DataSegmentReload
+        | MachineSemanticKind::SegmentSelectorRead
         | MachineSemanticKind::ControlRegisterRead
         | MachineSemanticKind::ControlRegisterWrite
         | MachineSemanticKind::PortRegisterRead
@@ -858,9 +874,8 @@ fn validate_encoded_effects(
     }
     let expected_barrier = match encoded.control {
         MachineEncodedControlEffect::AtomicRetryUntilCommitV1
-            if architecture == target::Architecture::X86_64
-                && matches!(declaration.semantic, MachineSemanticKind::AtomicAccess(form)
-                    if matches!(form.operation, crate::AtomicOperation::FetchAnd | crate::AtomicOperation::FetchOr | crate::AtomicOperation::FetchXor)) =>
+            if matches!(declaration.semantic, MachineSemanticKind::AtomicAccess(form)
+                    if form.operation.is_bitwise_fetch()) =>
         {
             MachineBarrier::ExternalEffect
         }
@@ -1211,6 +1226,48 @@ fn validate_encoded_effects(
             && encoded.external_operand_writes.is_empty()
             && encoded.control == MachineEncodedControlEffect::FallThroughV1 => {}
         (
+            MachineEncodedMemoryEffect::SegmentDescriptorReloadV1 {
+                table_pointer_operand: 0,
+                selector_operand: 1,
+                scratch_pointer_operand: 2,
+                table_byte_count_operand: 3,
+                stack_pointer: memory_stack,
+            },
+            MachineEncodedStackEffect::TemporaryBytesV1 {
+                stack_pointer,
+                byte_count,
+            },
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if matches!(
+            (declaration.semantic, byte_count),
+            (MachineSemanticKind::CodeSegmentReload, 16)
+                | (MachineSemanticKind::DataSegmentReload, 8)
+        ) && declaration.memory == crate::MachineMemoryEffect::SegmentDescriptorReloadV1
+            && memory_stack == stack_pointer
+            && encoded.external_operand_reads == [0, 1, 2, 3]
+            && encoded.external_operand_writes == [4]
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1 => {}
+        (
+            MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
+                table_pointer_operand: 0,
+                task_pointer_operand: 1,
+                selector_operand: 2,
+                scratch_pointer_operand: 3,
+                table_byte_count_operand: 4,
+                stack_pointer: memory_stack,
+            },
+            MachineEncodedStackEffect::TemporaryBytesV1 {
+                stack_pointer,
+                byte_count: 8,
+            },
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::TaskRegisterActivate
+            && declaration.memory == crate::MachineMemoryEffect::TaskRegisterActivationV1
+            && memory_stack == stack_pointer
+            && encoded.external_operand_reads == [0, 1, 2, 3, 4]
+            && encoded.external_operand_writes == [5]
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1 => {}
+        (
             MachineEncodedMemoryEffect::WriteFixedPointerV1 {
                 pointer_operand: 0,
                 byte_count: 10,
@@ -1317,14 +1374,7 @@ fn validate_encoded_effects(
         ) if declaration.semantic == MachineSemanticKind::AtomicAccess(form)
             && declaration.memory == crate::MachineMemoryEffect::AtomicPointerV1
             && encoded.control
-                == if architecture == target::Architecture::X86_64
-                    && matches!(
-                        form.operation,
-                        crate::AtomicOperation::FetchAnd
-                            | crate::AtomicOperation::FetchOr
-                            | crate::AtomicOperation::FetchXor
-                    )
-                {
+                == if form.operation.is_bitwise_fetch() {
                     MachineEncodedControlEffect::AtomicRetryUntilCommitV1
                 } else {
                     MachineEncodedControlEffect::FallThroughV1

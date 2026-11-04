@@ -79,4 +79,4 @@ const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
 // Version 43 retains single-attempt atomic forms and their separate outcome output.
 // Earlier decoders must not interpret an attempt as a decisive exchange.
 // Version 44 combines those atomic outcomes with fixed-width descriptor writes.
-const VERSION: u32 = 44;
+const VERSION: u32 = 46;

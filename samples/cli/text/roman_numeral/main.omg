@@ -93,24 +93,24 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("roman_numeral: parses MCMXCIV with the subtractive-pair look-back rule");
     let text: [u8; 7] in Utf8 = "MCMXCIV";
     transition parse_roman(&text) {
-        RomanParse::Parsed { total } -> check(total)
-        RomanParse::Invalid -> bad()
+        RomanParse::Parsed { total } -> block check(total)
+        RomanParse::Invalid -> block bad()
     }
 
     machine check(total: i32 in Wrapping) {
-        transition total == 1994 { true -> ok() false -> mismatch() }
+        transition total == 1994 { true -> block ok() false -> block mismatch() }
     }
     machine ok() {
         Console::write_line("PASS: MCMXCIV parsed to 1994 (exit 70)");
-        transition { _ -> finish(70) }
+        transition { _ -> block finish(70) }
     }
     machine mismatch() {
         Console::write_line("FAIL: parse total did not equal 1994 (exit 71)");
-        transition { _ -> finish(71) }
+        transition { _ -> block finish(71) }
     }
     machine bad() {
         Console::write_line("FAIL: unknown symbol or index guard tripped (exit 99)");
-        transition { _ -> finish(99) }
+        transition { _ -> block finish(99) }
     }
     machine finish(code: i32) {
         Console::write_line("[press Enter to close]");

@@ -198,7 +198,9 @@ fn admit_call_target(
         // implementation's rows are the dispatch catalog's dependencies,
         // which lowering resolves when it assembles the tables.
         (
-            CheckedUnitCallRoute::Dynamic { .. } | CheckedUnitCallRoute::ActivationStorage { .. },
+            CheckedUnitCallRoute::Dynamic { .. }
+            | CheckedUnitCallRoute::ActivationStorage { .. }
+            | CheckedUnitCallRoute::DescriptorTable { .. },
             _,
         ) => {}
     }

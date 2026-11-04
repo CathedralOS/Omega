@@ -101,16 +101,17 @@ pub(crate) fn admit_build_program(
     let operational_plan = validation::infer_operational_may(typed);
     let service_reach_plan = validation::infer_service_reaches(typed, &operational_plan);
 
+    let mut filesystem_scope = filesystem_scope.clone();
     let machine = admit_build_machine(
         &prepared,
         machine_symbol,
         &service_reach_plan,
-        filesystem_scope,
+        &mut filesystem_scope,
     )?;
     Ok(AdmittedBuildProgram {
         prepared,
         machine,
-        filesystem_scope: filesystem_scope.clone(),
+        filesystem_scope,
         evaluation_sponsor: evaluation_sponsor.cloned(),
         execution_profile,
         artifact_only,

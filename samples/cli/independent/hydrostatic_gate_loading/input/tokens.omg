@@ -18,10 +18,10 @@ crashes Trap
     reader.value = 0;
     reader.status = 0;
     reader.digits = 0;
-    transition { _ -> scan(reader) }
+    transition { _ -> block scan(reader) }
     machine scan(reader: &mut Reader) {
         transition reader.consumed < 4096 {
-            true -> read(reader)
+            true -> block read(reader)
             false -> invalid(reader)
         }
     }
@@ -30,31 +30,31 @@ crashes Trap
         reader.consumed = reader.consumed + 1;
         transition observed {
             ByteRead::Eof -> finish(reader)
-            ByteRead::Byte { value } -> classify(reader, value)
+            ByteRead::Byte { value } -> block classify(reader, value)
         }
     }
     machine classify(reader: &mut Reader, value: i32) {
         transition value == 32 || value == 9 || value == 10 || value == 13 {
-            true -> delimiter(reader)
-            false -> numeral(reader, value)
+            true -> block delimiter(reader)
+            false -> block numeral(reader, value)
         }
     }
     machine delimiter(reader: &mut Reader) {
         transition reader.digits > 0 {
             true -> finish(reader)
-            false -> scan(reader)
+            false -> block scan(reader)
         }
     }
     machine numeral(reader: &mut Reader, value: i32) {
         transition value >= 48 && value <= 57 && reader.digits < 6 {
-            true -> append(reader, value)
+            true -> block append(reader, value)
             false -> invalid(reader)
         }
     }
     machine append(reader: &mut Reader, value: i32) {
         reader.value = reader.value * 10 + ((value as i64 in Wrapping) - 48);
         reader.digits = reader.digits + 1;
-        transition { _ -> scan(reader) }
+        transition { _ -> block scan(reader) }
     }
     machine finish(reader: &mut Reader) {
         transition reader.digits > 0 {

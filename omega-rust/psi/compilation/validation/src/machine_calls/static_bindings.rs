@@ -647,9 +647,16 @@ pub fn validate_static_machine_bindings(
         })) && bindings.iter().all(|binding| match &binding.value {
             StaticMachineBindingValue::Machine(argument) => !argument.symbol.is_valid()
                 || program.symbols.get(argument.symbol).kind != symbols::SymbolKind::MachineParameter,
-            StaticMachineBindingValue::Const(actual) =>
-                typed_trees::domain::index_argument_is_closed(program, *actual),
             _ => true,
+        });
+        // An unspecialized body checks every admitted value of its open const
+        // binders, so a selection like `Selected<7>` for `Reading<Base + 4>`
+        // cannot wait for the one specialization where the two happen to
+        // agree. Open recipes compare by their normalized symbolic identity
+        // (generics.md, canonical domain-index matching): no theorem search.
+        let open = bindings.iter().any(|binding| {
+            matches!(&binding.value, StaticMachineBindingValue::Const(actual)
+                if !typed_trees::domain::index_argument_is_closed(program, *actual))
         });
         forwarded_evidence::validate(
             program,
@@ -666,6 +673,7 @@ pub fn validate_static_machine_bindings(
                 application,
                 bindings,
                 &lifetimes,
+                open,
                 &mut diagnostics,
             );
         }
@@ -802,6 +810,7 @@ fn validate_conformance_bindings(
     call: &StaticMachineApplication,
     bindings: &[StaticMachineBinding],
     lifetimes: &[typed_trees::static_applications::StaticMachineLifetimeBinding],
+    open: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for bound in machine.conformance_bounds {
@@ -825,13 +834,16 @@ fn validate_conformance_bindings(
             match crate::conformance_applications::close_conformance_application(program, argument)
             {
                 Ok(application) => application,
+                // An open recipe without a closed application keeps its
+                // existing per-specialization check.
+                Err(_) if open => continue,
                 Err(diagnostic) => {
                     diagnostics.push(diagnostic);
                     continue;
                 }
             };
         let carrier = crate::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
-        if !conformance_arguments_match(
+        let matched = conformance_arguments_match(
             program,
             machine,
             call.lexical_owner,
@@ -839,7 +851,13 @@ fn validate_conformance_bindings(
             lifetimes,
             bound,
             &application,
-        ) {
+        );
+        // Open recipes whose symbolic identity cannot be normalized keep
+        // their per-specialization check; a computed mismatch rejects here.
+        if open && matched.is_none() {
+            continue;
+        }
+        if matched != Some(true) {
             diagnostics.push(Diagnostic::error(format!(
                 "generic machine `{}` cannot bind `{}` to conformance `{}`: expected a complete `{}` implementation with the instantiated trait arguments",
                 machine.name, bound.binder_name,
@@ -917,7 +935,7 @@ fn conformance_arguments_match(
     lifetimes: &[typed_trees::static_applications::StaticMachineLifetimeBinding],
     bound: &GenericConformanceBound,
     application: &typed_trees::typed_trees::ClosedConformanceApplication,
-) -> bool {
+) -> Option<bool> {
     use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
 
     let substitutions = index_identity_arguments(bindings);
@@ -929,11 +947,11 @@ fn conformance_arguments_match(
     };
 
     let Some(conformance) = program.conformance_by_symbol(application.declaration) else {
-        return false;
+        return Some(false);
     };
     let parameters = program.conformance_type_parameters(conformance);
     if parameters.len() != application.arguments.len() {
-        return false;
+        return Some(false);
     }
     let actual_arguments = parameters
         .iter()
@@ -982,5 +1000,5 @@ fn conformance_arguments_match(
     })();
     required
         .zip(actual)
-        .is_some_and(|(required, actual)| required == actual)
+        .map(|(required, actual)| required == actual)
 }

@@ -1,0 +1,49 @@
+// Select the kernel's ordinary data and stack descriptor from its retained GDT.
+// DS, ES and SS receive the same checked selector. FS and GS selectors become
+// null while their active 64-bit bases are preserved; KernelGSBase is unchanged.
+// The admitted bootstrap scope runs at CPL0 with interrupts masked, stable
+// GDTR/table contents, mapped activation storage and no asynchronous or debug
+// arrivals. It retains the table for all later uses. False precedes selector
+// mutation. Architectural faults may expose partial changes and remain faults.
+// The current GDTR must name this exact table. The non-null GDT selector must
+// have RPL0 and name present DPL0 writable data with reserved L=0.
+// A separate successful code-selector reload is not rolled back by this call.
+use omega::language::core::assembly;
+
+public data DataSelectors { ds: u16; es: u16; ss: u16; fs: u16; gs: u16; }
+
+public boundary trait DataSegmentControl {
+    machine reload<const Entries: u64>(gdt: &mut [u64; Entries], selector: u16) -> bool
+    requires Entries >= 1 && Entries <= 8192
+    reaches MachineControl;
+
+    machine selectors() -> DataSelectors reaches MachineControl;
+}
+
+// Build selects the implementation. This implementation requires x86-64.
+public X86DataSegmentControl satisfies DataSegmentControl {
+    machine reload<const Entries: u64>(gdt: &mut [u64; Entries], selector: u16) -> bool
+    requires Entries >= 1 && Entries <= 8192
+    reaches MachineControl {
+        let mut observed: [u8; 10] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        reload_data_segments<Entries>(gdt, selector, &mut observed) == 1
+    }
+
+    machine selectors() -> DataSelectors reaches MachineControl {
+        DataSelectors {
+            ds: read_data_selector(), es: read_extra_selector(),
+            ss: read_stack_selector(), fs: read_fs_selector(), gs: read_gs_selector()
+        }
+    }
+}
+
+// All descriptor checks precede the first selector change. The compiler keeps
+// FS/GS bases across the group and consumes the MOV SS shadow before returning.
+boundary machine reload_data_segments<const Entries: u64>(
+    gdt: &mut [u64; Entries], selector: u16, scratch: &mut [u8; 10]
+) -> u8 reaches MachineControl;
+boundary machine read_data_selector() -> u16 reaches MachineControl;
+boundary machine read_extra_selector() -> u16 reaches MachineControl;
+boundary machine read_stack_selector() -> u16 reaches MachineControl;
+boundary machine read_fs_selector() -> u16 reaches MachineControl;
+boundary machine read_gs_selector() -> u16 reaches MachineControl;

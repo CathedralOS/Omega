@@ -42,6 +42,10 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | abstract_operations::establish_byte_literal_triple_pattern!(..)
         | abstract_operations::structural_establish_triple_pattern!(..)
         | abstract_operations::boundary_or_structural_call_pair_pattern!(..)
+        | O::ActivateTaskRegister { .. }
+        | O::ReadTaskRegister { .. }
+        | O::ReloadSegmentDescriptors { .. }
+        | O::ReadSegmentSelector { .. }
         | O::GlobalDescriptorTable { .. }
         | O::PortWrite { .. }
         | O::RegisterAccess { .. }

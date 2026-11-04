@@ -14,6 +14,7 @@ pub use monomorphization::prepare_requirement_expression_views;
 pub use monomorphization::restore_copied_call_sources;
 mod operators;
 mod preparation;
+mod rebound_parameter_homes;
 mod tables;
 
 pub use preparation::{

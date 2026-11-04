@@ -227,6 +227,41 @@ pub(super) fn replay_memory_origins(
     Ok(())
 }
 
+/// Keep the original projected operands when native reads use borrowed backing.
+fn borrowed_argument_sources(
+    function: &LegalizedScalarFunction,
+    place: PlaceId,
+    arguments: &[&terminal_psi::StructuralArgument],
+) -> Result<Vec<terminal_psi::StructuralArgument>, SelectedInstructionError> {
+    let signature = function.structural.as_ref().ok_or_else(|| {
+        SelectedInstructionError::custody_because(
+            "borrowed descriptor operation lost its structural signature",
+        )
+    })?;
+    let mut coordinates = Vec::new();
+    for argument in arguments
+        .iter()
+        .copied()
+        .filter(|argument| argument.place == place)
+    {
+        let root = root_type(function, argument.place).ok_or_else(|| {
+            SelectedInstructionError::custody_because(
+                "borrowed descriptor operand lost its root type",
+            )
+        })?;
+        let selected = storage_address_geometry(root, &argument.path, &signature.structural_types)
+            .ok_or_else(|| {
+                SelectedInstructionError::custody_because(
+                    "borrowed descriptor operand lost its selected storage geometry",
+                )
+            })?;
+        if selected.uses_borrowed_backing {
+            coordinates.push(argument.clone());
+        }
+    }
+    Ok(coordinates)
+}
+
 /// Native footprints sometimes name a backing root rather than the descriptor
 /// home. Start from the operation's selected operand where it is retained;
 /// other footprint families conservatively retain the named root's reach.
@@ -246,6 +281,15 @@ fn access_coordinates(
         .ok_or(SelectedInstructionError::custody())?;
     let coordinates = match &row.kind {
         I::ByteSequenceRead { source, .. } => vec![whole(*source)],
+        I::ActivateTaskRegister {
+            gdt,
+            task_state,
+            scratch,
+            ..
+        } => borrowed_argument_sources(function, access.place, &[gdt, task_state, scratch])?,
+        I::ReloadSegmentDescriptors { gdt, scratch, .. } => {
+            borrowed_argument_sources(function, access.place, &[gdt, scratch])?
+        }
         I::StorageAddress { source, path, .. } | I::GlobalDescriptorTable { source, path, .. } => {
             let signature = function
                 .structural

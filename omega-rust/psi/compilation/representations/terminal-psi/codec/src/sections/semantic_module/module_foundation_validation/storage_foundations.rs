@@ -722,6 +722,19 @@ pub(super) fn validate_global_descriptor_table(
             "descriptor-table operation requires Unit, service authority, and the declared byte borrow",
         );
     }
+    validate_hardware_array_loan(module, machine, source, writes, 8, 10)
+}
+
+// Hardware may inspect or replace every bit in this loan. Retain the ordinary
+// access and content checks before admitting its exact scalar array geometry.
+fn validate_hardware_array_loan(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: &terminal_psi::StructuralArgument,
+    writes: bool,
+    bits: u16,
+    extent: u64,
+) -> Result<(), CodecError> {
     let root = structural_place_type(machine, source.place).ok_or(
         CodecError::MalformedStructuralFoundation(
             "descriptor-table operand has no declared storage",
@@ -801,26 +814,106 @@ pub(super) fn validate_global_descriptor_table(
     let exact_bytes = plain(declaration)
         && match &declaration.shape {
             StructuralTypeShape::ByteSequence(
-                ByteSequenceCarrier::BoundedOwned { capacity: 10 }
-                | ByteSequenceCarrier::BoundedView { capacity: 10, .. },
-            ) => true,
+                ByteSequenceCarrier::BoundedOwned { capacity }
+                | ByteSequenceCarrier::BoundedView { capacity, .. },
+            ) => bits == 8 && *capacity == extent,
             StructuralTypeShape::FixedArray {
                 element,
-                length: terminal_psi::ArrayExtent::Literal(10),
-            } => module.structural_type(*element).is_some_and(|element| {
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } if *length == extent => module.structural_type(*element).is_some_and(|element| {
                 plain(element)
                     && matches!(
                         element.shape,
                         StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                             if !integer.is_address()
-                                && integer.bits() == 8
+                                && integer.bits() == bits
                                 && integer.sign() == IntegerSign::Unsigned
                     )
             }),
             _ => false,
         };
     if !exact_bytes {
-        return malformed("descriptor-table operand must be an exact unqualified ten-byte array");
+        return malformed(if bits == 8 && extent == 10 {
+            "descriptor-table operand must be an exact unqualified ten-byte array"
+        } else {
+            "hardware operand must be an exact unqualified array of the declared element width and extent"
+        });
+    }
+    Ok(())
+}
+
+/// Descriptor operations keep all hardware-addressed storage as checked loans.
+pub(super) fn validate_descriptor_operation(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let unsigned = |bits| {
+        ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, bits).expect("fixed scalar width"),
+        )
+    };
+    let (service, result_bits) = match &operation.kind {
+        OperationKind::ReadTaskRegister { service }
+        | OperationKind::ReadSegmentSelector { service, .. } => (*service, 16),
+        OperationKind::ReloadSegmentDescriptors {
+            service,
+            entries,
+            gdt,
+            selector,
+            scratch,
+            ..
+        } => {
+            if !(1..=8192).contains(entries)
+                || gdt.access != StructuralAccess::MutableBorrow
+                || scratch.access != StructuralAccess::MutableBorrow
+                || declared_scalar_type(machine, *selector) != Some(unsigned(16))
+            {
+                return malformed(
+                    "selector reload requires a mutable GDT, mutable ten-byte scratch and u16 selector",
+                );
+            }
+            validate_hardware_array_loan(module, machine, gdt, true, 64, u64::from(*entries))?;
+            validate_hardware_array_loan(module, machine, scratch, true, 8, 10)?;
+            (*service, 8)
+        }
+        OperationKind::ActivateTaskRegister {
+            service,
+            entries,
+            gdt,
+            task_state,
+            selector,
+            scratch,
+        } => {
+            if !(2..=8192).contains(entries)
+                || gdt.access != StructuralAccess::MutableBorrow
+                || scratch.access != StructuralAccess::MutableBorrow
+                || !matches!(
+                    task_state.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
+                || declared_scalar_type(machine, *selector) != Some(unsigned(16))
+            {
+                return malformed(
+                    "task activation requires a mutable GDT, readable 104-byte task state, mutable ten-byte scratch and u16 selector",
+                );
+            }
+            validate_hardware_array_loan(module, machine, gdt, true, 64, u64::from(*entries))?;
+            validate_hardware_array_loan(module, machine, task_state, false, 8, 104)?;
+            validate_hardware_array_loan(module, machine, scratch, true, 8, 10)?;
+            (*service, 8)
+        }
+        _ => return malformed("descriptor validator received another operation"),
+    };
+    if !super::has_service(module, service)
+        || operation
+            .result
+            .scalar()
+            .is_none_or(|result| result.value_type() != unsigned(result_bits).into())
+    {
+        return malformed(
+            "descriptor operation requires service authority and its exact unsigned result",
+        );
     }
     Ok(())
 }

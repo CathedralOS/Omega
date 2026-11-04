@@ -172,23 +172,38 @@ pub(super) struct Formation {
 }
 
 impl Leaf {
-    /// An external anchor retains its original borrowed entry slot. Extraction,
-    /// receiving parameters and replacements cannot inherit that scope.
-    pub(super) fn is_external_entry_anchor(
+    /// Residence follows the current normalized storage slot. A transfer keeps
+    /// its formation identity and contract; those do not locate its new home.
+    /// A local copy with caller backing still has local payload storage.
+    pub(super) fn in_caller_storage(
         &self,
         function: &PsiOptimizationFunction,
+        types: &[StructuralTypeDeclaration],
         carrier: PlaceId,
         path: &[StructuralPathSegment],
-    ) -> bool {
-        let CarrierContract::Parameter(parameter) = &self.contract else {
-            return false;
+    ) -> Result<bool, LegalizationError> {
+        let Some(parameter) = function.structural_parameter(carrier) else {
+            return Ok(false);
         };
-        parameter.access != StructuralAccess::Owned
-            && self.identity.place == parameter.place
-            && self.identity.place == carrier
-            && self.identity.path.as_slice() == path
-            && matches!(self.identity.formation, OccurrenceFormation::Parameter)
-            && function.structural_parameter(parameter.place) == Some(parameter)
+        let Some(referent) =
+            terminal_semantics::borrowed_entry_reference_referent(types.iter(), parameter, path)
+        else {
+            return Ok(false);
+        };
+        if referent != self.referent
+            || !self
+                .contract
+                .matches_declaration(function, self.identity.place)
+            || self.formations.is_empty()
+            || self.formations.iter().any(|formation| {
+                !formation
+                    .contract
+                    .matches_declaration(function, formation.identity.place)
+            })
+        {
+            return Err(invalid());
+        }
+        Ok(true)
     }
 
     pub(super) fn formed(

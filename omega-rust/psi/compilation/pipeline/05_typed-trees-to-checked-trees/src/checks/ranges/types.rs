@@ -406,120 +406,38 @@ fn enforced_range_of_type_reference(
     }
 }
 
-/// A generic field's extent belongs to its data declaration; its actual belongs
-/// to the receiver application. Join them by declaration and argument position,
-/// never by the two binders' possibly identical spellings.
+/// Use the same receiver-substituted extent as ordered collection checking.
+/// A closed lower bound is only a fast proof; alternative entry contracts are
+/// left intact for the shared integer judge when this floor is insufficient.
 pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
     program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
     state: &State,
     collection: ExpressionHandle,
-    extent: &(SymbolHandle, Identifier),
     facts: &super::facts::RangeFacts<'_>,
 ) -> Option<i64> {
-    let actual = (|| {
-        let member = program.expression_table.member_node(collection)?;
-        let receiver =
-            program
-                .type_reference_table
-                .peeled_type_reference(expression_type_reference(
-                    program,
-                    machine,
-                    state,
-                    member.receiver,
-                )?);
-        let TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } = program.type_reference_table.type_reference(receiver)
-        else {
-            return None;
-        };
-        let data = program.data_definition_by_symbol(*base_symbol)?;
-        // Open generic members may not yet carry a member symbol. Resolve
-        // only inside this exact receiver declaration, then rejoin the field's
-        // declared extent symbol before substituting the actual argument.
-        let mut fields = program.data_members(data).iter().filter_map(|definition| {
-            let field = definition.as_field()?;
-            (if member.member_symbol.is_valid() {
-                field.symbol == member.member_symbol
-            } else {
-                field.name == member.member
-            })
-            .then_some(field)
-        });
-        let field = fields.next()?;
-        if fields.next().is_some()
-            || super::arrays::fixed_array_type_symbolic_extent(program, field.type_reference)?.0
-                != extent.0
-        {
-            return None;
-        }
-        let position = program
-            .data_type_parameters(data)
-            .iter()
-            .position(|parameter| {
-                parameter.symbol == extent.0
-                    && extent.0.is_valid()
-                    && matches!(parameter.kind, TypeParameterKind::Const { .. })
-            })?;
-        program
-            .type_reference_table
-            .type_reference_handles(*arguments)
-            .get(position)
-            .copied()
-    })();
-    let Some(actual) = actual else {
-        return symbolic_extent_floor(program, machine, state, extent.0, facts);
+    let Ok(extent) =
+        validation::resolved_array_extent_at(program, state, facts.statement_index, collection)
+    else {
+        return None;
     };
-    match program.type_reference_table.type_reference(actual) {
-        TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
-            symbolic_extent_floor(program, machine, state, *symbol, facts)
-        }
-        // `validate_closed_const_argument` admits closed values as symbol-less
-        // Named atoms; ShapeCollector's const-length reader uses this encoding.
-        // This decodes retained const data, never an identified declaration.
-        TypeReferenceNode::Named { name, .. } => name.as_str().parse::<i64>().ok(),
-        TypeReferenceNode::ConstExpression(expression) => {
-            match program.expression_table.expression(*expression) {
-                ExpressionNode::Name(path) if path.symbol.is_valid() => {
-                    symbolic_extent_floor(program, machine, state, path.symbol, facts)
-                }
-                ExpressionNode::Integer(literal) => literal.value_bignum()?.to_i64(),
-                _ => None,
+    match extent {
+        validation::ResolvedArrayExtent::Closed(value) => value.to_i64(),
+        validation::ResolvedArrayExtent::Bound {
+            symbol,
+            type_reference,
+        } => {
+            let declared =
+                constrained_minimum_of_type_reference(program, type_reference).or_else(|| {
+                    primitive_of_type_reference(program, type_reference).and_then(|primitive| {
+                        matches!(primitive, unsigned_integer_primitive_pattern!()).then_some(0)
+                    })
+                });
+            let required = facts.const_binder_floor(symbol);
+            match (declared, required) {
+                (Some(declared), Some(required)) => Some(declared.max(required)),
+                (declared, required) => declared.or(required),
             }
         }
-        _ => None,
-    }
-}
-
-/// The floor established for this const-parameter extent: its closed
-/// declared range minimum of the binder (`const N: u64[1..=18446744073709551615]` contributes 1),
-/// else its unsigned carrier's zero. `None` means the binder contributes no
-/// usable floor: an unranged signed carrier could in principle specialize a
-/// negative "length", so the declaration alone proves nothing. Selected branch
-/// and arrival-contract facts refine the same exact immutable binder. Checking admits a
-/// symbolic extent only when its symbol is an in-scope binder's, so the
-/// binder is found by identity alone.
-fn symbolic_extent_floor(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    extent_symbol: SymbolHandle,
-    facts: &super::facts::RangeFacts<'_>,
-) -> Option<i64> {
-    let reference = type_reference_for_symbol(program, machine, state, extent_symbol)
-        .or_else(|| attached_data_const_parameter_reference(program, machine, extent_symbol))?;
-    let declared = constrained_minimum_of_type_reference(program, reference).or_else(|| {
-        primitive_of_type_reference(program, reference).and_then(|primitive| {
-            matches!(primitive, unsigned_integer_primitive_pattern!()).then_some(0)
-        })
-    });
-    let required = facts.const_binder_floor(extent_symbol);
-    match (declared, required) {
-        (Some(declared), Some(required)) => Some(declared.max(required)),
-        (declared, required) => declared.or(required),
     }
 }
 
@@ -540,37 +458,6 @@ pub(in crate::checks::ranges) fn is_const_binder(
         || program
             .data_definition_by_symbol(machine.attached_data_symbol)
             .is_some_and(|data| program.data_type_parameters(data).iter().any(matches))
-}
-
-/// The declared carrier of a const binder that lives on the machine's ATTACHED
-/// data (`data Buffer<const N: u64>` in `Buffer::push`), where the machine's own
-/// parameter list is empty. The binder is matched by symbol; the data
-/// declaration's name is only a fallback when its symbol never resolved.
-fn attached_data_const_parameter_reference(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    extent_symbol: SymbolHandle,
-) -> Option<TypeReferenceHandle> {
-    let data = program
-        .data_definition_by_symbol(machine.attached_data_symbol)
-        .or_else(|| {
-            machine
-                .attached_data
-                .as_ref()
-                .and_then(|name| program.data_definition_by_name(name))
-        })?;
-    program
-        .data_type_parameters(data)
-        .iter()
-        .find_map(|parameter| match &parameter.kind {
-            TypeParameterKind::Const { type_reference }
-            | TypeParameterKind::Value { type_reference }
-                if extent_symbol.is_valid() && parameter.symbol == extent_symbol =>
-            {
-                Some(*type_reference)
-            }
-            _ => None,
-        })
 }
 
 /// The declared minimum across a type's closed Range constraints, under the

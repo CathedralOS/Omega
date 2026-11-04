@@ -42,6 +42,29 @@ pub(in crate::legalization) fn instruction(
 pub(in crate::legalization) fn admit(
     node: &OptimizationNode,
 ) -> Result<(OperationId, Option<ValueId>), NodeRejection> {
+    if let AbstractOperation::ActivateTaskRegister {
+        psi_operation,
+        result,
+        ..
+    }
+    | AbstractOperation::ReadTaskRegister {
+        psi_operation,
+        result,
+        ..
+    }
+    | AbstractOperation::ReloadSegmentDescriptors {
+        psi_operation,
+        result,
+        ..
+    }
+    | AbstractOperation::ReadSegmentSelector {
+        psi_operation,
+        result,
+        ..
+    } = &node.operation
+    {
+        return Ok((*psi_operation, Some(result.value)));
+    }
     if let AbstractOperation::RegisterAccess {
         psi_operation,
         service,

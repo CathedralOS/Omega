@@ -133,7 +133,9 @@ enum ContentType {
     /// Scalar-sized storage with synchronized mutation through shared access.
     /// Its layout does not make the resident an immutable entry observation.
     Atomic(PrimitiveType),
-    Array(Box<ContentType>, usize),
+    /// Only BorrowFree may omit the count: element contents can rule out
+    /// references without supplying any array geometry to an operation.
+    Array(Box<ContentType>, Option<usize>),
     Slice(Box<ContentType>),
     Shared(Box<ContentType>),
     Data {
@@ -148,8 +150,8 @@ enum ContentType {
     /// the referee remains borrowed and its contents never descend into the
     /// carrier's classification. The operation retains loan access and closure.
     View,
-    /// A closed const argument. It fills a const parameter's slot so data
-    /// arguments stay positional, and is never itself a member's contents.
+    /// A const argument fills its positional slot but is never stored contents.
+    /// BorrowFree can retain an open argument without inventing its extent.
     ConstValue(Option<usize>),
     /// An admitted value index is an application operand, never a stored type.
     RuntimeIndex,
@@ -509,9 +511,16 @@ fn resolve_parameter_argument(
         TypeParameterKind::Value { .. } => Some(ContentType::RuntimeIndex),
         TypeParameterKind::Implementation => Some(ContentType::ImplementationSelection),
         TypeParameterKind::Type => resolve(program, reference, arguments, requirement),
+        // Const arguments are metadata, not stored fields. BorrowFree can keep
+        // an open value; other questions still require the closed value form.
+        // This marker cannot itself satisfy a field's contents requirement.
         TypeParameterKind::Const { .. }
-            if matches!(program.type_reference_table.type_reference(reference),
-                TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid()) =>
+            if program
+                .type_reference_table
+                .contains_type_reference(reference)
+                && (requirement == ContentsRequirement::BorrowFree
+                    || matches!(program.type_reference_table.type_reference(reference),
+                        TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid())) =>
         {
             Some(ContentType::ConstValue(
                 program
@@ -593,9 +602,9 @@ fn resolve(
             // owns no loans, cleanup, or contents. It is closed in the same
             // normalized form `validate_closed_const_argument` requires, a
             // symbol-free value leaf; an open binder or unevaluated expression
-            // stays unclassified. A member that sizes storage by it needs an
-            // independently retained closed instance below; this classifier
-            // never evaluates const arguments or guesses array lengths.
+            // stays unclassified for storage judgments needing closed geometry.
+            // BorrowFree only asks whether elements can retain references, so
+            // it keeps an open argument as metadata without guessing a length.
             // Runtime indices likewise carry no storage here; their ordinary
             // represented fields must independently satisfy this judgment.
             let resolved = parameters
@@ -650,21 +659,22 @@ fn resolve(
             length,
         } => {
             let length = match length {
-                typed_trees::types::FixedArrayLength::Literal(length) => *length,
+                typed_trees::types::FixedArrayLength::Literal(length) => Some(*length),
                 typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. } => {
-                    let ContentType::ConstValue(Some(length)) =
-                        crate::queries::substitutions::actual_for(arguments, *symbol)?
-                    else {
-                        return None;
-                    };
-                    length
+                    match crate::queries::substitutions::actual_for(arguments, *symbol) {
+                        Some(ContentType::ConstValue(length)) => length,
+                        _ => None,
+                    }
                 }
-                typed_trees::types::FixedArrayLength::Expression(reference) => {
-                    usize::try_from(program.declared_constant_extent(*reference)?.literal()?)
-                        .ok()?
-                }
-                typed_trees::types::FixedArrayLength::ConstCall { .. } => return None,
+                typed_trees::types::FixedArrayLength::Expression(reference) => program
+                    .declared_constant_extent(*reference)
+                    .and_then(|extent| extent.literal())
+                    .and_then(|value| usize::try_from(value).ok()),
+                typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
             };
+            if length.is_none() && requirement != ContentsRequirement::BorrowFree {
+                return None;
+            }
             Some(ContentType::Array(
                 Box::new(resolve(program, *element_type, arguments, requirement)?),
                 length,
@@ -954,9 +964,11 @@ fn check_contents(
                     | ContentsRequirement::SeamMarshal
                     | ContentsRequirement::DescriptorCleanup
             ),
-            ContentType::Array(element, _)
-            | ContentType::Slice(element)
-            | ContentType::Shared(element) => {
+            ContentType::Array(element, length) => {
+                (length.is_some() || requirement == ContentsRequirement::BorrowFree)
+                    && check_contents(program, element, active, complete, requirement)
+            }
+            ContentType::Slice(element) | ContentType::Shared(element) => {
                 check_contents(program, element, active, complete, requirement)
             }
             // A view descriptor is a terminal leaf — the member's custody is
@@ -990,6 +1002,13 @@ fn check_contents(
             .collect::<Vec<_>>();
         (data, substitutions)
     };
+    // An opaque declaration's empty field roster says nothing about hidden
+    // references. This applies equally to raw and prepared nominal carriers.
+    if requirement == ContentsRequirement::BorrowFree
+        && data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+    {
+        return false;
+    }
     // A repeated declaration must consume finite type-argument structure, as
     // in Wrapper<Wrapper<Value>>. Expanding recursive by-value data is not a
     // finite owned carrier and must not make this classifier recurse forever.

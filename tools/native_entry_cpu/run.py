@@ -8,10 +8,10 @@ g = parser.add_mutually_exclusive_group(required=True)
 g.add_argument('--control', choices=['iret', 'clobber-gpr', 'wrong-return', 'marker-iret'])
 g.add_argument('--payload', type=Path)
 g.add_argument('--placement', type=Path)
-parser.add_argument('--oracle', choices=['memory', 'debug-marker', 'gdtr-call'])
+parser.add_argument('--oracle', choices=['memory', 'debug-marker', 'gdtr-call', 'task-register-call', 'segment-selector-call'])
 parser.add_argument('--load-address', type=lambda x: int(x, 0), default=2097152)
 parser.add_argument('--entry-offset', type=lambda x: int(x, 0), default=0)
-parser.add_argument('--corrupt-neighbor', action='store_true', help='negative oracle control for gdtr-call only')
+parser.add_argument('--corrupt-neighbor', action='store_true', help='damage a neighboring byte in an ordinary-call oracle')
 parser.add_argument('--label', required=True)
 parser.add_argument('--output-root', type=Path, default=ROOT.parents[1] / 'build/native-entry-cpu')
 parser.add_argument('--timeout', type=float, default=12)
@@ -25,15 +25,15 @@ if args.placement:
 oracle = args.oracle or ('debug-marker' if args.control == 'marker-iret' else 'memory')
 if not args.label.replace('-', '').replace('_', '').isalnum():
     parser.error('label needs simple filename characters')
-if args.corrupt_neighbor and oracle != 'gdtr-call':
-    parser.error('--corrupt-neighbor requires --oracle gdtr-call')
-if args.control and oracle == 'gdtr-call':
-    parser.error('gdtr-call requires a compiled source payload')
-if placement is not None and oracle == 'gdtr-call' and placement.get('entry_control') != 'CallReturn':
-    parser.error('gdtr-call requires the recorded ordinary-call entry')
-if placement is not None and oracle != 'gdtr-call' and placement.get('entry_control', 'InterruptReturn') != 'InterruptReturn':
+if args.corrupt_neighbor and oracle not in ['gdtr-call', 'task-register-call', 'segment-selector-call']:
+    parser.error('--corrupt-neighbor requires an ordinary-call oracle')
+if args.control and oracle in ['gdtr-call', 'task-register-call', 'segment-selector-call']:
+    parser.error('ordinary-call oracles require a compiled source payload')
+if placement is not None and oracle in ['gdtr-call', 'task-register-call', 'segment-selector-call'] and placement.get('entry_control') != 'CallReturn':
+    parser.error('ordinary-call oracle requires the recorded CallReturn entry')
+if placement is not None and oracle not in ['gdtr-call', 'task-register-call', 'segment-selector-call'] and placement.get('entry_control', 'InterruptReturn') != 'InterruptReturn':
     parser.error('interrupt oracle requires the recorded interrupt entry')
-harness = 'gdtr_call.S' if oracle == 'gdtr-call' else 'harness.S'
+harness = {'gdtr-call': 'gdtr_call.S', 'task-register-call': 'task_register_call.S', 'segment-selector-call': 'segment_selector_call.S'}.get(oracle, 'harness.S')
 run_directory = args.output_root.resolve() / args.label
 run_directory.mkdir(parents=True, exist_ok=False)
 llds = sorted((Path.home() / '.rustup/toolchains').glob('*/lib/rustlib/*/bin/rust-lld'))
@@ -45,7 +45,9 @@ clang = shutil.which('clang')
 qemu = shutil.which('qemu-system-x86_64')
 if not clang or not qemu:
     raise SystemExit('clang and qemu-system-x86_64 are required')
-receipt = {'kind': 'bringup-control' if args.control else 'supplied-entry', 'control': args.control, 'corrupt_neighbor': args.corrupt_neighbor, 'load_address': hex(args.load_address), 'entry_offset': args.entry_offset, 'oracle': oracle, 'witness_address': '0x300000' if oracle == 'memory' else None, 'expected_deliveries': 8, 'commands': [], 'source_hashes': {}, 'tools': {name: {'path': str(path), 'sha256': hashlib.sha256(Path(path).read_bytes()).hexdigest()} for (name, path) in [('clang', clang), ('rust-lld', lld), ('qemu', qemu)]}}
+receipt = {'kind': 'bringup-control' if args.control else 'supplied-entry', 'control': args.control, 'corrupt_neighbor': args.corrupt_neighbor, 'load_address': hex(args.load_address), 'entry_offset': args.entry_offset, 'oracle': oracle, 'witness_address': '0x300000' if oracle == 'memory' else None, 'commands': [], 'source_hashes': {}, 'tools': {name: {'path': str(path), 'sha256': hashlib.sha256(Path(path).read_bytes()).hexdigest()} for (name, path) in [('clang', clang), ('rust-lld', lld), ('qemu', qemu)]}}
+
+receipt['expected_calls' if oracle in ['gdtr-call', 'task-register-call', 'segment-selector-call'] else 'expected_deliveries'] = 8
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()

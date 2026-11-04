@@ -326,6 +326,9 @@ fn select_function(
                 )?;
                 continue;
             }
+            if structural::descriptor_tables(source, &mut builder, operation)? {
+                continue;
+            }
             if structural::global_descriptor_table(source, &mut builder, operation)? {
                 continue;
             }
@@ -393,6 +396,10 @@ fn select_function(
                         output
                     }
                     LegalizedScalarInstructionKind::PortWrite { .. }
+                    | LegalizedScalarInstructionKind::ActivateTaskRegister { .. }
+                    | LegalizedScalarInstructionKind::ReadTaskRegister { .. }
+                    | LegalizedScalarInstructionKind::ReloadSegmentDescriptors { .. }
+                    | LegalizedScalarInstructionKind::ReadSegmentSelector { .. }
                     | LegalizedScalarInstructionKind::GlobalDescriptorTable { .. }
                     | LegalizedScalarInstructionKind::RegisterAccess { .. }
                     | LegalizedScalarInstructionKind::AtomicFence { .. }

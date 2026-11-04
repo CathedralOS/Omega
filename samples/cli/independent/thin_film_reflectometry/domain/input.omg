@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 public data Reader { consumed: i32; }
 public data Number [copy] { valid: bool; value: f64; }
 machine character(reader: &mut Reader) -> i32 reaches Console {
-    transition reader.consumed >= 0 && reader.consumed < 4096 { true -> read(reader) _ -> -2 }
+    transition reader.consumed >= 0 && reader.consumed < 4096 { true -> block read(reader) _ -> -2 }
     machine read(reader: &mut Reader) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
         let byte: ByteRead = block Console::read_byte();
         transition byte { ByteRead::Eof -> -1 ByteRead::Byte { value } -> counted(reader, value) }
@@ -18,10 +18,10 @@ machine character(reader: &mut Reader) -> i32 reaches Console {
 }
 machine whitespace(value: i32) -> bool { transition { _ -> (value == 32 || value == 10 || value == 13 || value == 9) } }
 public machine number(reader: &mut Reader) -> Number reaches Console invokes Console blocks crashes Trap {
-    transition { _ -> start(reader) }
+    transition { _ -> block start(reader) }
     machine start(reader: &mut Reader) -> Number {
         let value: i32 = block character(reader);
-        transition whitespace(value) { true -> start(reader) _ -> sign(reader, value) }
+        transition whitespace(value) { true -> block start(reader) _ -> block sign(reader, value) }
     }
     machine sign(reader: &mut Reader, value: i32) -> Number {
         transition value == 45 { true -> negative(reader) _ -> scan(reader, value, 1.0, 0.0, 1.0, 0, false, false) }
