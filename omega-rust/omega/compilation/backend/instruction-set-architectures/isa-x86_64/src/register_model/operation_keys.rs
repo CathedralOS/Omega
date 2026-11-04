@@ -288,7 +288,7 @@ pub const X86_64_JUMP: Key = Key::instruction(9);
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 95] = [
+pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 98] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_RETURN,
@@ -381,6 +381,9 @@ pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 95] = [
     X86_64_GLOBAL_DESCRIPTOR_TABLE,
     X86_64_TASK_REGISTER_ACTIVATE,
     X86_64_TASK_REGISTER_READ,
+    X86_64_CODE_SEGMENT_RELOAD,
+    X86_64_DATA_SEGMENT_RELOAD,
+    X86_64_SEGMENT_SELECTOR_READ,
     X86_64_CONTROL_REGISTER_READ,
     X86_64_CONTROL_REGISTER_WRITE,
     X86_64_FLAGS_RESTORE,
@@ -434,3 +437,7 @@ pub const X86_64_GLOBAL_DESCRIPTOR_TABLE: Key = Key::instruction(906);
 
 pub const X86_64_TASK_REGISTER_ACTIVATE: Key = Key::instruction(907);
 pub const X86_64_TASK_REGISTER_READ: Key = Key::instruction(908);
+
+pub const X86_64_CODE_SEGMENT_RELOAD: Key = Key::instruction(909);
+pub const X86_64_DATA_SEGMENT_RELOAD: Key = Key::instruction(910);
+pub const X86_64_SEGMENT_SELECTOR_READ: Key = Key::instruction(911);

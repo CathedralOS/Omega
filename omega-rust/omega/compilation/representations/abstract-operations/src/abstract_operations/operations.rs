@@ -116,6 +116,22 @@ pub enum AbstractOperation {
         selector: ValueId,
         scratch: StructuralArgument,
     },
+    ReloadSegmentDescriptors {
+        psi_operation: OperationId,
+        service: ServiceId,
+        result: AbstractResult,
+        entries: u16,
+        kind: terminal_psi::SegmentReload,
+        gdt: StructuralArgument,
+        selector: ValueId,
+        scratch: StructuralArgument,
+    },
+    ReadSegmentSelector {
+        psi_operation: OperationId,
+        service: ServiceId,
+        register: terminal_psi::SegmentRegister,
+        result: AbstractResult,
+    },
     ReadTaskRegister {
         psi_operation: OperationId,
         service: ServiceId,
@@ -1204,7 +1220,10 @@ impl AbstractOperation {
                 task_state.path.as_slice(),
                 scratch.path.as_slice(),
             ],
-            Self::ReadTaskRegister { .. } => vec![],
+            Self::ReloadSegmentDescriptors { gdt, scratch, .. } => {
+                vec![gdt.path.as_slice(), scratch.path.as_slice()]
+            }
+            Self::ReadTaskRegister { .. } | Self::ReadSegmentSelector { .. } => vec![],
             Self::GlobalDescriptorTable { source, .. } => vec![source.path.as_slice()],
             Self::StorageAddress { path, .. }
             | Self::PrimitiveScalarRead { path, .. }
@@ -1336,6 +1355,8 @@ impl AbstractOperation {
             | Self::GlobalDescriptorTable { psi_operation, .. }
             | Self::ActivateTaskRegister { psi_operation, .. }
             | Self::ReadTaskRegister { psi_operation, .. }
+            | Self::ReloadSegmentDescriptors { psi_operation, .. }
+            | Self::ReadSegmentSelector { psi_operation, .. }
             | Self::PrimitiveScalarRead { psi_operation, .. }
             | Self::StructuralCaseMembership { psi_operation, .. }
             | Self::StructuralByteSequenceFieldLength { psi_operation, .. }

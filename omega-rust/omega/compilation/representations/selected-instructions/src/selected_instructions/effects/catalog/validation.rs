@@ -54,6 +54,9 @@ fn touches_external_state(semantic: MachineSemanticKind) -> bool {
             | MachineSemanticKind::GlobalDescriptorTableStore
             | MachineSemanticKind::TaskRegisterActivate
             | MachineSemanticKind::TaskRegisterRead
+            | MachineSemanticKind::CodeSegmentReload
+            | MachineSemanticKind::DataSegmentReload
+            | MachineSemanticKind::SegmentSelectorRead
             | MachineSemanticKind::ControlRegisterRead
             | MachineSemanticKind::ControlRegisterWrite
             | MachineSemanticKind::PortRegisterRead
@@ -265,6 +268,9 @@ pub(super) fn validate_declaration(
         MachineSemanticKind::TaskRegisterActivate => {
             crate::MachineMemoryEffect::TaskRegisterActivationV1
         }
+        MachineSemanticKind::CodeSegmentReload | MachineSemanticKind::DataSegmentReload => {
+            crate::MachineMemoryEffect::SegmentDescriptorReloadV1
+        }
         MachineSemanticKind::MemoryFence => crate::MachineMemoryEffect::CatalogFenceV1,
         MachineSemanticKind::AtomicFence => crate::MachineMemoryEffect::AtomicFenceV1,
         MachineSemanticKind::AtomicAccess(_) => crate::MachineMemoryEffect::AtomicPointerV1,
@@ -315,6 +321,9 @@ pub(super) fn validate_declaration(
         | MachineSemanticKind::GlobalDescriptorTableStore
         | MachineSemanticKind::TaskRegisterActivate
         | MachineSemanticKind::TaskRegisterRead
+        | MachineSemanticKind::CodeSegmentReload
+        | MachineSemanticKind::DataSegmentReload
+        | MachineSemanticKind::SegmentSelectorRead
         | MachineSemanticKind::ControlRegisterRead
         | MachineSemanticKind::ControlRegisterWrite
         | MachineSemanticKind::PortRegisterRead
@@ -1216,6 +1225,28 @@ fn validate_encoded_effects(
             && declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
             && encoded.external_operand_reads == [0]
             && encoded.external_operand_writes.is_empty()
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1 => {}
+        (
+            MachineEncodedMemoryEffect::SegmentDescriptorReloadV1 {
+                table_pointer_operand: 0,
+                selector_operand: 1,
+                scratch_pointer_operand: 2,
+                table_byte_count_operand: 3,
+                stack_pointer: memory_stack,
+            },
+            MachineEncodedStackEffect::TemporaryBytesV1 {
+                stack_pointer,
+                byte_count,
+            },
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if matches!(
+            (declaration.semantic, byte_count),
+            (MachineSemanticKind::CodeSegmentReload, 16)
+                | (MachineSemanticKind::DataSegmentReload, 8)
+        ) && declaration.memory == crate::MachineMemoryEffect::SegmentDescriptorReloadV1
+            && memory_stack == stack_pointer
+            && encoded.external_operand_reads == [0, 1, 2, 3]
+            && encoded.external_operand_writes == [4]
             && encoded.control == MachineEncodedControlEffect::FallThroughV1 => {}
         (
             MachineEncodedMemoryEffect::TaskRegisterActivationV1 {

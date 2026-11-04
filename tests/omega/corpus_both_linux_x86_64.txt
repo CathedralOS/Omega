@@ -894,8 +894,8 @@ pass/build/runtime_firmware_map_cycle_exit built 48018ms exit:0 interpreter-exit
 pass/build/runtime_main_source_builder_is_ordinary_exit built 13578ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/build/runtime_opaque_by_value_selected_exit built 13492ms exit:72 interpreter-exit:72 interpreter:agrees @a92f16431042
 pass/build/runtime_static_service_exclusion_exit built 6156ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/build/same_leaf_runner_entry_left_exit built 13794ms exit:11 interpreter-exit:11 interpreter:agrees @a92f16431042
-pass/build/same_leaf_runner_entry_right_exit built 13124ms exit:37 interpreter-exit:37 interpreter:agrees @a92f16431042
+pass/build/same_leaf_runner_entry_left_exit built 110920ms exit:11 interpreter-exit:11 interpreter:agrees @05cd26b99f66
+pass/build/same_leaf_runner_entry_right_exit built 104983ms exit:37 interpreter-exit:37 interpreter:agrees @05cd26b99f66
 pass/build/selected_const_array_length_exit rejected 11830ms interpreter:unchecked @a92f16431042
 	machine `zero_is_none` cannot establish zero-value representation obligation `zero_value<type>() == Optional::None` for `Optional`: all-zero storage is gated, has no payload-free authored home case, or is not a cased data representation
 	machine `zero_is_none` cannot establish zero-value representation obligation `zero_value<type>() == Optional::None` for `Optional`: all-zero storage is gated, has no payload-free authored home case, or is not a cased data representation

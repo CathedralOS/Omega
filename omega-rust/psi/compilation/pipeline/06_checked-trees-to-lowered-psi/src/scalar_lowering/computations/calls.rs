@@ -685,12 +685,14 @@ impl Expansion<'_> {
                     self.structural_types,
                 )?,
             })
-        } else if let checked_trees::CheckedScalarCallee::TaskRegister {
-            operation, service, ..
+        } else if let checked_trees::CheckedScalarCallee::DescriptorTable {
+            operation,
+            service,
+            ..
         } = callee
         {
-            LoweredScalarBinding::TaskRegister(
-                crate::emission::operation_emission::task_register::LoweredTaskRegisterBinding {
+            LoweredScalarBinding::DescriptorTable(
+                crate::emission::operation_emission::descriptor_tables::LoweredDescriptorTableBinding {
                     source_coordinate: coordinate.statement().ok_or_else(|| {
                         LoweringError::InvalidDeclarationIdentity(
                             "checked task-register instruction lost its statement coordinate"

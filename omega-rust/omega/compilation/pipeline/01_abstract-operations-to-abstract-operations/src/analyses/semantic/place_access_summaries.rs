@@ -608,7 +608,11 @@ fn scan_operation(
             pending.attribute_argument(context, task_state, true, false);
             pending.attribute_argument(context, scratch, false, true);
         }
-        O::ReadTaskRegister { .. } => {}
+        O::ReloadSegmentDescriptors { gdt, scratch, .. } => {
+            pending.attribute_argument(context, gdt, true, true);
+            pending.attribute_argument(context, scratch, false, true);
+        }
+        O::ReadTaskRegister { .. } | O::ReadSegmentSelector { .. } => {}
         O::GlobalDescriptorTable {
             operation, source, ..
         } => {

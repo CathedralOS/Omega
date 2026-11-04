@@ -111,8 +111,8 @@ fn report_bodyless_boundary_symbol_call(
             return;
         }
     };
-    let task_register_realization =
-        match crate::compiler_operations::task_register_declaration(program, callee_machine) {
+    let descriptor_realization =
+        match crate::compiler_operations::descriptor_table_declaration(program, callee_machine) {
             Ok(contract) => contract.is_some(),
             Err(reason) => {
                 diagnostics.push(Diagnostic::error(reason));
@@ -139,7 +139,7 @@ fn report_bodyless_boundary_symbol_call(
     ) && !compiler_accessor
         && !compiler_access_factory
         && !compiler_access_execution
-        && !task_register_realization
+        && !descriptor_realization
         && !activation_realization
         && !compiler_layout_snapshot
         && !callee_machine.body_is_present

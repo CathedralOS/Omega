@@ -938,3 +938,19 @@ wire_enum! {
         1 => Load,
     }
 }
+
+use terminal_psi::{SegmentRegister, SegmentReload};
+wire_enum! {
+    SegmentReloadKind: SegmentReload, "SegmentReload" {
+        0 => Code,
+        1 => Data,
+    }
+    SegmentSelectorRegister: SegmentRegister, "SegmentRegister" {
+        0 => Code,
+        1 => Data,
+        2 => Extra,
+        3 => Stack,
+        4 => Fs,
+        5 => Gs,
+    }
+}

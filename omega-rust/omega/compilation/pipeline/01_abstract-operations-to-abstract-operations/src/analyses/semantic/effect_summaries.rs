@@ -197,6 +197,8 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                 }
                 O::ActivateTaskRegister { service, .. }
                 | O::ReadTaskRegister { service, .. }
+                | O::ReloadSegmentDescriptors { service, .. }
+                | O::ReadSegmentSelector { service, .. }
                 | O::GlobalDescriptorTable { service, .. }
                 | O::PortWrite { service, .. }
                 | O::RegisterAccess {
@@ -351,7 +353,7 @@ fn operation_effect(
         O::PortWrite { .. } => (EffectClass::Service, Yes, No, No, No),
         // A control-register write can change how later memory is interpreted.
         // Keep register events ordered against storage as well as their service.
-        O::ActivateTaskRegister { .. } | O::ReadTaskRegister { .. } | O::RegisterAccess { .. } | O::GlobalDescriptorTable { .. } => (EffectClass::Service, Yes, May, No, No),
+        O::ActivateTaskRegister { .. } | O::ReadTaskRegister { .. } | O::ReloadSegmentDescriptors { .. } | O::ReadSegmentSelector { .. } | O::RegisterAccess { .. } | O::GlobalDescriptorTable { .. } => (EffectClass::Service, Yes, May, No, No),
         O::Crash { .. } => (EffectClass::Control, Yes, No, Yes, No),
         // A Trapping primitive defines a scalar but may leave through its own
         // `Trap` crash: that exit is observable, so it is not pure scalar

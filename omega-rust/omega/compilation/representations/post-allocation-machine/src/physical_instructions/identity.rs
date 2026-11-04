@@ -20,7 +20,7 @@ pub fn post_allocation_machine_identity(
 ) -> PostAllocationMachineIdentity {
     post_allocation_machine_identity_with_domain(
         plan,
-        b"omega.terminal-postallocation-machine.v23\0",
+        b"omega.terminal-postallocation-machine.v24\0",
     )
 }
 

@@ -13,6 +13,8 @@ pub enum PackageReviewCompilerIntrinsicExecution {
     ProgramStorageEntry,
     TaskRegisterActivate,
     TaskRegisterRead,
+    SegmentReload(terminal_psi::SegmentReload),
+    SegmentRead(terminal_psi::SegmentRegister),
     AccessorScalarAccess {
         contract: [u8; 32],
         placement_commitment: [u8; 32],
