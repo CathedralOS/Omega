@@ -818,7 +818,7 @@ fn collect_invocation_accesses(
         InvocationAccessCoverage::Unavailable
     };
     let call = if retained_by_store {
-        match super::super::formation_captures::actual_invocation(facts, state, source) {
+        match super::super::formation_captures::actual_invocation(program, facts, state, source) {
             Ok(Some(original)) => original,
             Ok(None) => call,
             Err(reason) => return unavailable(reason),
@@ -828,6 +828,14 @@ fn collect_invocation_accesses(
     };
     if !facts.flow.control.calls.is_valid(call) {
         return InvocationAccessCoverage::Absent;
+    }
+    if !capture.expression.is_valid() {
+        return InvocationAccessCoverage::Absent;
+    }
+    match super::super::formation_captures::actual_invocation(program, facts, state, source) {
+        Ok(Some(owner)) if owner == call => {}
+        Ok(_) => return InvocationAccessCoverage::Absent,
+        Err(reason) => return unavailable(reason),
     }
     let Some(presentation) = validation::reference_shell(program, capture.type_reference) else {
         return InvocationAccessCoverage::Absent;
@@ -845,6 +853,13 @@ fn collect_invocation_accesses(
             Ok(formation) => formation,
             Err(reason) => return unavailable(reason),
         };
+    match super::super::formation_captures::argument_formation(program, facts, state, source) {
+        Ok(Some(owner)) if owner.storage && owner.value != source => {
+            return InvocationAccessCoverage::Absent;
+        }
+        Ok(_) => {}
+        Err(reason) => return unavailable(reason),
+    }
     let target_expression = formation
         .as_ref()
         .map(|formation| facts.flow.control.operands.get(formation.target).expression);

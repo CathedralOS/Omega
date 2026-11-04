@@ -256,7 +256,9 @@ fn append_borrowed(
     // A selected value may be an actual of an earlier helper. Its own call
     // supplies the access; the later installer cannot lend it a second time.
     let original = if stored.is_valid() {
-        crate::checks::borrows::formation_captures::actual_invocation(facts, state, operand)?
+        crate::checks::borrows::formation_captures::actual_invocation(
+            program, facts, state, operand,
+        )?
     } else {
         None
     };

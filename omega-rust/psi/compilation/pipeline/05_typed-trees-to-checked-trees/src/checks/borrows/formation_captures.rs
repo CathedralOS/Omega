@@ -94,30 +94,22 @@ pub(super) fn address_receiver(
 }
 
 struct CapturedArgument {
+    call: Handle<checked_trees::FlowCallFact>,
     operand: Handle<FlowOperandFact>,
 }
 
 pub(super) fn actual_invocation(
+    program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state: &checked_trees::FlowStateFact,
     source: Handle<FlowOperandFact>,
 ) -> Result<Option<Handle<checked_trees::FlowCallFact>>, &'static str> {
     let mut selected = None;
-    for call in state.calls.handles() {
-        if facts
-            .flow
-            .control
-            .calls
-            .get(call)
-            .argument_operands()
-            .handles()
-            .any(|actual| actual == source)
-        {
-            if selected.is_some() {
-                return Err("the saved actual belongs to multiple invocation tuples");
-            }
-            selected = Some(call);
+    for argument in argument_occurrences(program, facts, state, source)? {
+        if selected.is_some_and(|call| call != argument.call) {
+            return Err("the saved actual belongs to multiple invocation tuples");
         }
+        selected = Some(argument.call);
     }
     Ok(selected)
 }
@@ -145,7 +137,7 @@ fn argument_occurrences(
         for operand in row.argument_operands().handles() {
             let values = evaluated_captures(program, facts, operand)?;
             if values.contains(&source) {
-                arguments.push(CapturedArgument { operand });
+                arguments.push(CapturedArgument { call, operand });
             }
         }
     }
