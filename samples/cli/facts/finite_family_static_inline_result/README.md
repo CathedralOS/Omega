@@ -159,9 +159,13 @@ unknown-input, unguarded-cycle and partial-operand controls retain their causes.
 Ordinary publication controls first pass the portable source check, then refuse
 target compilation for the exact missing provider. The corpus checking route
 also evaluates target publication. All producer profiles use optimization
-level 1. Current records use the actual `16349300ab35` execution identity and
-preserve every unrelated recorded block from incoming main. The final README
-and record updates change no compiler, program or oracle bytes.
+level 1. The array validation records use their actual `16349300ab35`
+execution identity. The separate provider configuration migration in
+[PR #1789](https://github.com/CathedralOS/Omega/pull/1789) is also included:
+its records retain input revision `d68d95fa82f8` and compiler revision
+`2035ca5b0be6`. Its Build changes leave all 343 array validation inputs and
+their compiler unchanged. The two sets of recorded cases do not overlap;
+every other recorded block is preserved.
 
 Independent source and raw reviews and exact source archives are retained with
 [PR #1721](https://github.com/CathedralOS/Omega/pull/1721). Review decisions keep
