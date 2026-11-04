@@ -35,9 +35,17 @@ ensures result >= 100
 {
     FieldReader::read<width>(selected, prefix, input)
 }
-data Seed [copy] { value: u64 in StoredValue; }
-const FIRST: Seed = Seed { value: 103 };
-const SECOND: Seed = Seed { value: 107 };
+machine read_constant(value: u64 in StoredValue, width: u32) -> u64
+requires width == 16 || width == 32
+ensures result >= 100
+{
+    let packet: Packet = Packet { before: 17, owned: Token { value: value }, after: 23 };
+    dispatch(ReadField as dyn FieldReader, 29, packet, width)
+}
+const FIRST_16: u64 = read_constant(103, 16);
+const SECOND_16: u64 = read_constant(107, 16);
+const FIRST_32: u64 = read_constant(103, 32);
+const SECOND_32: u64 = read_constant(107, 32);
 machine exercise(value: u64 in StoredValue, width: u32, expected: u64) crashes Trap
 requires width == 16 || width == 32
 {
@@ -53,8 +61,18 @@ requires width == 16 || width == 32
     machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
-    exercise(FIRST.value, 16, 3);
-    exercise(SECOND.value, 16, 7);
-    exercise(FIRST.value, 32, 3);
-    exercise(SECOND.value, 32, 7);
+    let first16: u64 = FIRST_16 - 100;
+    let second16: u64 = SECOND_16 - 100;
+    let first32: u64 = FIRST_32 - 100;
+    let second32: u64 = SECOND_32 - 100;
+    exercise(103, 16, 3);
+    exercise(107, 16, 7);
+    exercise(103, 32, 3);
+    exercise(107, 32, 7);
+    transition first16 == 3 && second16 == 7 && first32 == 3 && second32 == 7 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -40,11 +40,13 @@ requires width == 16 || width == 32
 {
     let packet: Packet = match width == 16 {
         true -> Packet { before: 17, owned: Token { value: value }, after: 23 },
-        false -> Packet { before: 17, owned: Token { value: value }, after: 23 }
+        false -> Packet { before: 23, owned: Token { value: value }, after: 17 }
     };
+    let branch_correct: bool = (width == 16 && packet.before == 17 && packet.after == 23)
+        || (width == 32 && packet.before == 23 && packet.after == 17);
     let result: u64 = dispatch(ReadField as dyn FieldReader, 29, packet, width);
     let difference: u64 = result - 100;
-    transition difference == expected { true -> done() _ -> bad() }
+    transition branch_correct && difference == expected { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
