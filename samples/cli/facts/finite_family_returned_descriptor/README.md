@@ -71,11 +71,19 @@ No passing result is claimed for the new probe yet.
 The [incoming-pointer join](incoming_join/main.omg) chooses between an unchanged
 input pointer and a new borrow of a field before the same selected call. Both
 choices run at widths 16 and 32. The input reads 11 and the field reads 23, so
-losing either predecessor or choosing the wrong pointer fails. Its
+losing either predecessor or choosing the wrong pointer fails. A second helper
+joins two unchanged input pointers and also exercises both choices. Its
 [twin](incoming_join/invalid/main.omg) changes only the selected method to return
 local storage. This checks that preserving a view also preserves ordinary
 incoming pointers in the complete set of possible sources. Fresh results are
 pending.
+
+The [saved-pointer replacement](saved_source/main.omg) saves a mutable pointer,
+then changes the reference stored in its record before the selected call. The
+returned and stored references must both read the new byte 11, rather than the
+old byte 29. This distinguishes the saved pointer's identity from the record's
+later contents. Its [twin](saved_source/invalid/main.omg) installs local storage
+instead. Fresh results are pending.
 
 The [target-qualification example](target_qualification/main.omg) calls an
 ordinary `SelectedTarget::target_only` requirement from a selected family member.

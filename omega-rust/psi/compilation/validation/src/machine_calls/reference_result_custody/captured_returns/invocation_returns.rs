@@ -80,6 +80,7 @@ impl Captures<'_> {
                 state,
                 parameter.type_reference,
                 call.argument_operands().handles().nth(position)?,
+                operand.storage_snapshot,
                 &relative,
                 &presentation,
                 active,
@@ -321,11 +322,16 @@ impl Captures<'_> {
         state: &typed_trees::state::State,
         reference: TypeReferenceHandle,
         operand_handle: arena::Handle<checked_trees::FlowOperandFact>,
+        current: arena::Handle<checked_trees::FlowStorageSnapshot>,
         relative: &crate::LocalWriteSource,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<crate::LocalWriteSource>> {
         let actual = self.facts.flow.control.operands.get(operand_handle);
-        let operand = self.completed_operand_source(actual)?;
+        // Pointer identity may come from an earlier capture; its pointee's
+        // descriptor slots are still read at this invocation's consumer cut.
+        let mut completed = *self.completed_operand_source(actual)?;
+        completed.storage_snapshot = current;
+        let operand = &completed;
         let mut relative = relative.clone();
         let selected = operand;
         let outer_reference = crate::reference_shell(self.program, reference).is_some();
@@ -382,6 +388,7 @@ impl Captures<'_> {
                 &actual_path,
                 expected,
                 &relative,
+                current,
                 &mut Vec::new(),
             );
         }
@@ -405,6 +412,7 @@ impl Captures<'_> {
                 &[],
                 reference,
                 &relative,
+                current,
                 &mut Vec::new(),
             );
         }

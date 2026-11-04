@@ -27,6 +27,7 @@ impl Captures<'_> {
         state: &typed_trees::state::State,
         reference: TypeReferenceHandle,
         operand: Handle<FlowOperandFact>,
+        current: Handle<checked_trees::FlowStorageSnapshot>,
         relative: &crate::LocalWriteSource,
         presentation: &CapturedReturnPresentation,
         active: &mut Vec<SymbolHandle>,
@@ -46,28 +47,20 @@ impl Captures<'_> {
                 state,
                 reference,
                 operand,
+                current,
                 relative,
                 presentation,
                 active,
             );
         }
         let actual = control.operands.get(operand);
-        let Some(stored) = crate::completed_storage::reference_captures_at_path(
+        let stored = crate::completed_storage::reference_sources_at_path(
             self.program,
             control,
             operand,
             &[],
-            actual.storage_snapshot,
-        ) else {
-            return self.ordinary_argument_sources(
-                state,
-                reference,
-                operand,
-                relative,
-                presentation,
-                active,
-            );
-        };
+            current,
+        );
         let mut selections = Vec::new();
         descriptor_alternatives(stored, &mut selections)?;
         visiting.push(operand);
@@ -214,6 +207,7 @@ impl Captures<'_> {
                         state,
                         physical.type_reference,
                         enclosure,
+                        current,
                         &physical_relative,
                         &presented,
                         active,
@@ -237,6 +231,7 @@ impl Captures<'_> {
                             state,
                             reference,
                             selection.capture,
+                            current,
                             relative,
                             active,
                         )?
@@ -247,6 +242,7 @@ impl Captures<'_> {
                             &selection.projection,
                             reference,
                             relative,
+                            current,
                             &mut Vec::new(),
                         )?
                     };
@@ -322,17 +318,19 @@ impl Captures<'_> {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn ordinary_argument_sources(
         &self,
         state: &typed_trees::state::State,
         reference: TypeReferenceHandle,
         operand: Handle<FlowOperandFact>,
+        current: Handle<checked_trees::FlowStorageSnapshot>,
         relative: &crate::LocalWriteSource,
         presentation: &CapturedReturnPresentation,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CapturedArgumentOrigin>> {
         Some(
-            self.captured_input_sources(state, reference, operand, relative, active)?
+            self.captured_input_sources(state, reference, operand, current, relative, active)?
                 .into_iter()
                 .map(|source| CapturedArgumentOrigin {
                     source,

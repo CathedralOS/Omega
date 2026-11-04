@@ -24,6 +24,14 @@ requires width == 16 || width == 32 {
     };
     dispatch(Header as dyn Windowing, selected, width)
 }
+machine incoming<'bytes>(first: &'bytes Packet, second: &'bytes Packet, choice: bool, width: u32) -> &'bytes Packet
+requires width == 16 || width == 32 {
+    let selected: &Packet = match choice {
+        true -> first,
+        false -> second,
+    };
+    dispatch(Header as dyn Windowing, selected, width)
+}
 machine main() crashes Trap {
     let packet: Packet = Packet { bytes: 11 };
     let holder: Holder = Holder { packet: Packet { bytes: 23 } };
@@ -31,8 +39,11 @@ machine main() crashes Trap {
     let second: &Packet = joined(&packet, &holder, true, 32);
     let third: &Packet = joined(&packet, &holder, false, 16);
     let fourth: &Packet = joined(&packet, &holder, false, 32);
+    let input_a: &Packet = incoming(&packet, &holder.packet, true, 16);
+    let input_b: &Packet = incoming(&packet, &holder.packet, false, 32);
     transition first.bytes == 11 && second.bytes == 11 && packet.bytes == 11
-        && third.bytes == 23 && fourth.bytes == 23 && holder.packet.bytes == 23 {
+        && third.bytes == 23 && fourth.bytes == 23 && holder.packet.bytes == 23
+        && input_a.bytes == 11 && input_b.bytes == 23 {
         true -> done()
         false -> bad()
     }
