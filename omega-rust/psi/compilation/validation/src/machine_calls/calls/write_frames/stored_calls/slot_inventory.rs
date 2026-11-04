@@ -138,6 +138,12 @@ pub(super) fn parameter_destination_inventory(
         while let Some((reference, prefix, borrowed, readable, mut visited, ancestors)) =
             pending.pop()
         {
+            // A reference-free value has no pointer slots to replace, even
+            // when recursive proof data has no finite runtime field layout.
+            // Establish that property before requesting physical slot paths.
+            if frames::isolation::type_is_caller_isolated_proof_value(program, reference) {
+                continue;
+            }
             // A recursive pointee needs demand-bounded captured destinations;
             // do not turn an incomplete reachable inventory into an empty one.
             if visited.contains(&reference) {

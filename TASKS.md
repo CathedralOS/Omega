@@ -1162,9 +1162,8 @@ defines the complete product bar.
   Owners:
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization/dynamic_families.rs`
   and `omega-rust/psi/compilation/validation/src/machine_calls/calls/dynamic_requirement.rs`.
-  - Complete public slot-relative returned-loan origin contracts for borrowed
-    descriptor results, structural field reads rooted in entry content claims,
-    and target-ineligible/const-only bridge qualification.
+  - Complete structural field reads rooted in entry content claims and
+    target-ineligible/const-only bridge qualification.
   Acceptance: pass/fail/run finite-family fixtures execute via `omega run --both`
   preserving effects, index identity, and once-only moves/cleanup across
   selection, forwarding, and storage, while unproved membership, missing/wrong
@@ -1250,11 +1249,6 @@ defines the complete product bar.
     `samples/cli/facts/additional_input_domain_mutation` retain entry-only fact
     expiration over storage that owes no such domain. Preserve restored-call
     positives and declared-field rejection controls; no encoding-specific check.
-  - Lower a borrow of a same-carrier cast: `observe(&(issued as Ticket in
-    Ticket::Held))` checks but has no executable body ("earlier whole local
-    correspondence"), and `look(&(issued as Ticket))` fails with "completed
-    projection has no exact consumer capture", so no erasure positive can
-    lend a cast at run time.
   - **DOMAIN-ISSUER-ROUTES:** extend same-project checked ordinary
     issuance/forwarding to cross-package private routes and selected structural
     payloads in
@@ -1294,19 +1288,9 @@ defines the complete product bar.
   `omega-rust/psi/compilation/validation/src/machine_calls/call_cycles/runtime_ranking/`,
   Psi 06 `src/unit/attached_unit/`, and
   `omega-rust/psi/interpreter/terminal-interpreter/src/engine/terminators/`.
-  - A termination promise that reaches a recursive component with no ranking
-    of its own is accepted unchecked; twelve `fail/termination` twins
-    (`rank_arrival_*`, `rank_range_declared_step_unbounded`,
-    `rank_range_record_stepped_copy_stale`, `rank_state_dependent_bound_prefix_write`,
-    `endpoint_folded_into_payload`, `stored_reference_endpoint_reseat`) compile.
-    The reach rule is implemented on `work/wave1-termination-reach` and lands
-    last, with its positive migrations, once component ranking accepts the
-    projected and arrival rank subjects those helpers need. Ranked probes of
-    opaque children, ranges and stored-reference endpoints already check; the
-    migration confirms them. The call-component judgment
-    (`ranking_range/calls.rs`) still evaluates a declared measure over a record
-    subject as a scalar and still builds the field-only
-    `RankingRangeMeasure::Field`; retire both there.
+  - The call-component judgment (`ranking_range/calls.rs`) still evaluates a
+    declared measure over a record subject as a scalar and still builds the
+    field-only `RankingRangeMeasure::Field`; retire both there.
   - Re-run the external-result and `std`-loop execution controls
     (`external_result_ranked_arrival_compile` currently refuses with `provider
     candidate requires beyond its boundary's declared obligations`) once
@@ -2021,6 +2005,29 @@ defines the complete product bar.
   00–09`) under
   [component publication](wiki/spec/build/component_publication.md) and
   [executable installation](wiki/spec/build/executable_installation.md).
+  - Wire [consumer acceptance and Build attenuation](wiki/spec/build/component_publication.md#consumer-acceptance-and-build-attenuation)
+    through canonical package acceptance/lock rows and exact compiler admission
+    inputs to component verification. Preserve readable assumption meaning and
+    component/subject, profile, occurrence, purpose, and target scope; existing
+    root grants remain distinct. The current checked Build evaluator discards
+    the digest and leaves `EvaluatedBuild.accepted_component_assumptions`
+    without a producer; do not restore a source harvester or make Build approval
+    a second authority path.
+  - Retire `Build::accept_component_assumption` across the prelude, evaluator,
+    reports, and consumers, and migrate or retire its digest/arity/reborrow
+    controls in `tests/omega/{pass,fail}/build/component_assumption_*` and the
+    two component-assumption samples. Move missing/changed/correct approval
+    distinctions into ordinary consumer-policy controls; a same-named user
+    declaration must supply no authority. Re-record changed corpus rows and
+    replace obsolete observer claims rather than presenting them as current
+    evidence. No new digest-spelling policy language is needed.
+  - Carry optional checked Build attenuation to the selected per-target product:
+    omitted restriction inherits the accepted ceiling, explicit empty permits
+    none in the category, widening rejects, and every possible selected demand
+    must fit. Cover callbacks, initialization, cleanup, retained dependencies,
+    and private helpers without treating unused library code or an expected
+    runtime workload as a narrowed verified inventory. Missing/stale/wrong-scope
+    acceptance rejects, and approval grants no installation or host authority.
   - Rejoin physical stack demand, provider plans, root imports, and runtime
     products before publication across Linux ELF, macOS Mach-O dylib, and
     Windows PE, extending `samples/cli/facts/opaque_closed_carrier_exchange`
@@ -2041,8 +2048,12 @@ defines the complete product bar.
     `tests/omega/pass/providers/phantom_local_calling_applications`.
   Acceptance: a two-package `Independent` build and an installed-image customer
   execute crossing calls, placement-independent invocation, new-era routing, and
-  old-era drain on matching hosts, while omitted/duplicate assumptions,
-  substituted bytes, and premature retirement reject.
+  old-era drain on matching hosts. Component-assumption customers pass through
+  normal accepted policy with `omega run --both`; missing, changed, stale, and
+  wrong-scope rows, exceeded Build restrictions, dependency self-approval,
+  omitted/duplicate assumptions, substituted bytes, and premature retirement
+  reject. Omitted versus explicit-empty attenuation and a genuinely smaller
+  selected closure retain distinct outcomes.
 
 - **TR3-TR8.** (Also covers **`BLOCKEXEC`**.) Execute ordinary named machines
   through a selected task runtime and deliver the `source/library/blocking-executor/`

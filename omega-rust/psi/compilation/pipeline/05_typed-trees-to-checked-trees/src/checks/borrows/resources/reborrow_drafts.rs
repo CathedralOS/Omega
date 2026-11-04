@@ -31,7 +31,7 @@ pub(crate) struct CheckedReborrowLoanResourceDraft {
     pub(crate) child_activation: arena::Handle<checked_trees::FlowBorrowActivationFact>,
     pub(crate) parent_entry_constraint: arena::Handle<checked_trees::FlowConstraintRef>,
     pub(crate) child_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
-    pub(crate) parent_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
+    pub(crate) parent_end: checked_trees::CheckedBorrowParentEnd,
     pub(crate) parent_lexical_status: ParentLexicalStatusAtChildEnd,
 }
 
@@ -67,7 +67,7 @@ impl CheckedReborrowLoanResourceDraft {
                 parent_loan: self.parent_loan,
                 parent_resource: parent_resource.clone(),
                 child_weakening: self.child_weakening,
-                parent_weakening: self.parent_weakening,
+                parent_end: self.parent_end.clone(),
                 status: self.parent_lexical_status,
             },
             restoration: CheckedReborrowRestorationObligation {
@@ -85,12 +85,14 @@ impl CheckedReborrowLoanResourceDraft {
 pub(crate) enum ParentResourceIndex {
     Direct(usize),
     Reborrow(usize),
+    Supplied(usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum DispositionTargetIndex {
     ParentResource(ParentResourceIndex),
     DirectRootLifetime(usize),
+    CompletedOutput(usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -164,6 +166,9 @@ impl CheckedReborrowDispositionEventDraft {
                             .clone(),
                     )
                 }
+                DispositionTargetIndex::CompletedOutput(index) => {
+                    CheckedBorrowResourceDispositionTarget::CompletedOutput(handles.supplied[index])
+                }
             },
             disposition: self.disposition,
             restored_call: self.restored_call,
@@ -177,6 +182,7 @@ impl CheckedReborrowDispositionEventDraft {
 pub(crate) struct ResourceHandles {
     pub(crate) direct: Vec<arena::Handle<CheckedDirectBorrowLoanResource>>,
     pub(crate) reborrows: Vec<arena::Handle<LoanResource>>,
+    pub(crate) supplied: Vec<arena::Handle<checked_trees::CheckedSuppliedOutputBorrowResource>>,
 }
 
 impl ResourceHandles {
@@ -187,6 +193,9 @@ impl ResourceHandles {
             },
             ParentResourceIndex::Reborrow(index) => BorrowResource::Reborrow {
                 resource: self.reborrows[index],
+            },
+            ParentResourceIndex::Supplied(index) => BorrowResource::SuppliedOutput {
+                resource: self.supplied[index],
             },
         }
     }

@@ -20,6 +20,8 @@ mod persistent;
 // consumed by lowering.
 mod aggregates;
 mod captured_descriptors;
+mod incoming_backing;
+pub(crate) use incoming_backing::check_external_roots as check_external_root_borrows;
 mod completed_custody;
 pub(crate) use completed_custody::require_unborrowed_completion;
 pub(crate) mod calls;
@@ -39,6 +41,7 @@ mod access_sources;
 mod aliases;
 pub(in crate::checks) use aliases::transport_suppliers;
 mod completed_backings;
+mod formation_captures;
 mod shared_observations;
 pub(crate) use shared_observations::shared_reference_observation;
 mod details;
@@ -61,7 +64,7 @@ use self::statements::check_statement_borrows;
 
 pub(crate) fn check_flow_call_borrows(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: &mut CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     incoming_guards: &IncomingGuardIndex,
@@ -105,7 +108,8 @@ pub(crate) fn check_flow_call_borrows(
     // Receiver read footprints serve only this pass's whole-receiver call
     // judgments; they build on the first call that needs them.
     let receiver_reads = crate::flow::StateReceiverReadCache::default();
-    let per_state_diagnostics: Vec<Vec<Diagnostic>> =
+    let incoming_backing = incoming_backing::IncomingBackingCalls::new(program, facts, &[]);
+    let per_state_results: Vec<(Vec<Diagnostic>, Vec<incoming_backing::PendingRequirement>)> =
         validation::checking_thread_pool().install(|| {
             use rayon::prelude::*;
             state_flows
@@ -113,6 +117,7 @@ pub(crate) fn check_flow_call_borrows(
                 .filter_map(|&(state_flow, borrow_state)| {
                     let borrow_state = borrow_state?;
                     let mut local_diagnostics = Vec::new();
+                    let mut incoming_requirements = Vec::new();
                     let mut local_bound_lookup = None;
 
                     // Entry premises are stable inside the state. Statement-local call
@@ -144,6 +149,8 @@ pub(crate) fn check_flow_call_borrows(
                         facts,
                         state_flow,
                         borrow_state,
+                        &incoming_backing,
+                        &mut incoming_requirements,
                         &stated_premises,
                         &mut local_diagnostics,
                         mutation_summaries,
@@ -161,15 +168,18 @@ pub(crate) fn check_flow_call_borrows(
                         &mut local_diagnostics,
                         &mut local_bound_lookup,
                     );
-                    (!local_diagnostics.is_empty()).then_some(local_diagnostics)
+                    Some((local_diagnostics, incoming_requirements))
                 })
                 .collect()
         });
-    for local_diagnostics in per_state_diagnostics {
+    let mut incoming_requirements = Vec::new();
+    for (local_diagnostics, requirements) in per_state_results {
         diagnostics.extend(local_diagnostics);
+        incoming_requirements.extend(requirements);
     }
-
-    crate::checks::finish(diagnostics)
+    crate::checks::finish(diagnostics)?;
+    incoming_backing::publish(&mut facts.borrow, incoming_requirements)?;
+    Ok(())
 }
 
 pub(super) fn initialize_checked_direct_borrow_resources(

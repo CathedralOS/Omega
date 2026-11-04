@@ -148,8 +148,8 @@ impl StructuralJudge<'_> {
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> StructuralJudgment {
-        let left_judgment = self.judge(self.program, left);
-        let right_judgment = self.judge(self.program, right);
+        let left_judgment = self.judge_proposition(self.program, left);
+        let right_judgment = self.judge_proposition(self.program, right);
         let composed =
             StructuralJudgment::connective(BinaryOperator::Or, left_judgment, right_judgment);
         if !matches!(composed, StructuralJudgment::Unknown) {
@@ -161,7 +161,7 @@ impl StructuralJudge<'_> {
         let mut alternative = self.clone();
         alternative.intake_equation(left_term, boolean_term(false), 0);
         if matches!(
-            alternative.judge(self.program, right),
+            alternative.judge_proposition(self.program, right),
             StructuralJudgment::Proven
         ) {
             StructuralJudgment::Proven
@@ -277,22 +277,15 @@ impl StructuralJudge<'_> {
                     None => None,
                 }
             }
-            _ if matches!(
-                predicate.semantic_value(),
-                StructuralTerm::MathematicalBinary { .. } | StructuralTerm::ScalarBinary { .. }
-            ) =>
-            {
-                // Completed call guarantees may relate mathematical embeddings
-                // of fields with distinct source type handles. The observed
-                // predicate owner composes those equations in one value frame.
-                // Keep the original operations for its formation checks; a
-                // selected callable stays an application, never a builtin law.
+            _ => {
+                // An admitted call and an inline Boolean operation share this
+                // judgment. Keep the original term so operand formation and
+                // storage observations remain attached during normalization.
                 match self.judge_observed_predicate(predicate, 0) {
                     StructuralJudgment::Unknown => None,
                     judgment => Some(judgment),
                 }
             }
-            _ => None,
         }
     }
 

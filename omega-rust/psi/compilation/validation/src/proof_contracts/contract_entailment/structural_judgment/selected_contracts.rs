@@ -166,6 +166,7 @@ fn recorded_boolean_exit(
 
 pub(super) struct SelectedGuarantees {
     pub(super) equations: Vec<(StructuralTerm, StructuralTerm)>,
+    pub(super) data_identities: Vec<(StructuralTerm, StructuralTerm)>,
     pub(super) content: Vec<super::super::content_conservation::ObservedContentEquation>,
 }
 
@@ -833,6 +834,32 @@ pub(super) fn selected_requirement_judgment(
     type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
     depth: usize,
 ) -> StructuralJudgment {
+    selected_contract_predicate_judgment(
+        judge,
+        expression,
+        callable,
+        parameters,
+        bindings,
+        type_bindings,
+        None,
+        depth,
+    )
+}
+
+/// Completed public clauses can mention this call's exact result. Entry
+/// requirements use the same predicate owner without any result binding;
+/// neither route imports the clause being tested as one of its own premises.
+#[allow(clippy::too_many_arguments)]
+fn selected_contract_predicate_judgment(
+    judge: &StructuralJudge<'_>,
+    expression: ExpressionHandle,
+    callable: SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    bindings: &[(SymbolHandle, StructuralTerm)],
+    type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
+    result: Option<&StructuralTerm>,
+    depth: usize,
+) -> StructuralJudgment {
     if depth >= 32 {
         return StructuralJudgment::Unknown;
     }
@@ -841,7 +868,7 @@ pub(super) fn selected_requirement_judgment(
         && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
     {
         // Knowing P or Q does not select either disjunct. First discharge the
-        // complete substituted requirement from retained predicate evidence.
+        // complete substituted predicate from retained evidence.
         if let Some(required) = judge.bound_contract_term(
             expression,
             callable,
@@ -849,7 +876,7 @@ pub(super) fn selected_requirement_judgment(
             callable,
             bindings,
             type_bindings,
-            None,
+            result,
             depth + 1,
         ) {
             let judgment = judge.judge_observed_predicate(required, depth);
@@ -862,28 +889,30 @@ pub(super) fn selected_requirement_judgment(
         // prevent a neighboring scalar leaf from reaching its judge.
         return StructuralJudgment::connective(
             binary.operator,
-            selected_requirement_judgment(
+            selected_contract_predicate_judgment(
                 judge,
                 binary.left,
                 callable,
                 parameters,
                 bindings,
                 type_bindings,
+                result,
                 depth + 1,
             ),
-            selected_requirement_judgment(
+            selected_contract_predicate_judgment(
                 judge,
                 binary.right,
                 callable,
                 parameters,
                 bindings,
                 type_bindings,
+                result,
                 depth + 1,
             ),
         );
     }
     if super::super::structural_terms::is_case_observation(program, expression) {
-        let Some(map) = parameters
+        let Some(mut map) = parameters
             .iter()
             .map(|parameter| {
                 let (_, value) = bindings
@@ -895,11 +924,12 @@ pub(super) fn selected_requirement_judgment(
         else {
             return StructuralJudgment::Unknown;
         };
+        if let Some(result) = result {
+            map.push((super::super::RESULT_BINDER.to_owned(), result.clone()));
+        }
         return judge.instantiated_case_judgment(callable, parameters, expression, &map);
     }
     if let Some(references) = super::super::structural_terms::data_identity_operand_references(
-        program, callable, parameters, expression,
-    ) && super::super::structural_terms::has_identity_equality_meaning(
         program, callable, parameters, expression,
     ) {
         let Some(binary) = program.expression_table.binary_node(expression) else {
@@ -913,7 +943,7 @@ pub(super) fn selected_requirement_judgment(
                 callable,
                 bindings,
                 type_bindings,
-                None,
+                result,
                 depth + 1,
             )
         });
@@ -928,6 +958,23 @@ pub(super) fn selected_requirement_judgment(
             program,
             references[1],
             &right,
+        ) {
+            return StructuralJudgment::Unknown;
+        }
+        if matches!(
+            judge.judge_data_identity(left.clone(), right.clone(), depth + 1),
+            StructuralJudgment::Proven
+        ) {
+            return if binary.operator == BinaryOperator::Equal {
+                StructuralJudgment::Proven
+            } else {
+                StructuralJudgment::Refuted
+            };
+        }
+        // Whole-value Id needs no equality algorithm for its fields. Scalar
+        // expansion remains available only under its original comparison laws.
+        if !super::super::structural_terms::has_identity_equality_meaning(
+            program, callable, parameters, expression,
         ) {
             return StructuralJudgment::Unknown;
         }
@@ -967,7 +1014,7 @@ pub(super) fn selected_requirement_judgment(
         callable,
         bindings,
         type_bindings,
-        None,
+        result,
         depth + 1,
     ) else {
         return StructuralJudgment::Unknown;
@@ -1003,6 +1050,7 @@ pub(super) fn capture_guarantees(
     type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
     result: Option<&StructuralTerm>,
     equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
+    data_identities: &mut Vec<(StructuralTerm, StructuralTerm)>,
     depth: usize,
 ) {
     let program = judge.program;
@@ -1026,6 +1074,7 @@ pub(super) fn capture_guarantees(
             type_bindings,
             result,
             equations,
+            data_identities,
             depth + 1,
         );
         capture_guarantees(
@@ -1038,15 +1087,66 @@ pub(super) fn capture_guarantees(
             type_bindings,
             result,
             equations,
+            data_identities,
             depth + 1,
         );
         return;
     }
     if let Some(binary) = binary
+        && binary.operator == BinaryOperator::Or
+        && parameters.iter().all(|parameter| {
+            bindings
+                .iter()
+                .any(|(symbol, _)| *symbol == parameter.symbol)
+        })
+    {
+        let mut selected = false;
+        for (alternative, sibling) in [(binary.left, binary.right), (binary.right, binary.left)] {
+            if matches!(
+                selected_contract_predicate_judgment(
+                    judge,
+                    sibling,
+                    scope,
+                    parameters,
+                    bindings,
+                    type_bindings,
+                    result,
+                    depth + 1,
+                ),
+                StructuralJudgment::Refuted
+            ) {
+                // A completed return established the disjunction. Only an
+                // independently false sibling selects this consequence; its
+                // own operands still pass their ordinary observation checks.
+                capture_guarantees(
+                    judge,
+                    alternative,
+                    scope,
+                    parameters,
+                    callable,
+                    bindings,
+                    type_bindings,
+                    result,
+                    equations,
+                    data_identities,
+                    depth + 1,
+                );
+                selected = true;
+            }
+        }
+        if selected {
+            return;
+        }
+    }
+    if let Some(binary) = binary
         && binary.operator == BinaryOperator::Equal
-        && super::super::structural_terms::has_identity_equality_meaning(
+        && (super::super::structural_terms::data_identity_operand_references(
             program, scope, parameters, expression,
         )
+        .is_some()
+            || super::super::structural_terms::has_identity_equality_meaning(
+                program, scope, parameters, expression,
+            ))
         && let (Some(left), Some(right)) = (
             judge.bound_contract_term(
                 binary.left,
@@ -1073,22 +1173,29 @@ pub(super) fn capture_guarantees(
         let references = [binary.left, binary.right].map(|operand| {
             crate::parameter_expression_result_type_reference(program, scope, parameters, operand)
         });
-        if let Some(references) =
+        if let Some(references) = super::super::structural_terms::data_identity_operand_references(
+            program, scope, parameters, expression,
+        )
+        .or_else(|| {
             crate::value_custody::expression_types::builtin_scalar_operand_references(
                 program, binary, references, None,
             )
-            && super::super::structural_terms::scalar_operand_is_observed(
-                program,
-                references[0],
-                &left,
-            )
-            && super::super::structural_terms::scalar_operand_is_observed(
-                program,
-                references[1],
-                &right,
-            )
-        {
-            equations.push((left, right));
+        }) && super::super::structural_terms::scalar_operand_is_observed(
+            program,
+            references[0],
+            &left,
+        ) && super::super::structural_terms::scalar_operand_is_observed(
+            program,
+            references[1],
+            &right,
+        ) {
+            if super::super::structural_terms::has_identity_equality_meaning(
+                program, scope, parameters, expression,
+            ) {
+                equations.push((left, right));
+            } else {
+                data_identities.push((left, right));
+            }
             return;
         }
     }

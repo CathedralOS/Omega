@@ -1,7 +1,7 @@
 //! Target-neutral structural shapes and qualifications.
 
 mod atomic_outcomes;
-pub use atomic_outcomes::atomic_once_outcome_cases;
+pub use atomic_outcomes::{atomic_once_outcome_cases, atomic_once_result_is_plain};
 
 mod domain_requirements;
 mod qualifications;

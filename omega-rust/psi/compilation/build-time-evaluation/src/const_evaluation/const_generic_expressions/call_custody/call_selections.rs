@@ -10,6 +10,68 @@ use typed_trees::expression::TableCallExpression;
 use typed_trees::{TypedTrees, static_applications::StaticMachineBindingValue};
 use validation::CallSite;
 
+/// A constant must retain each call's declared method after evaluation. The
+/// local evidence child has no declaration source, so record its public method's
+/// source while keeping the exact child as the call target. Invocation checking
+/// still verifies that child's binder and complete selected application.
+pub(super) fn call_custody_source(
+    program: &TypedTrees,
+    target: SymbolHandle,
+) -> Result<source::SourceSpan, String> {
+    if let Some(requirement) = program.evidence_requirement_declaration(target)? {
+        return program
+            .symbols
+            .symbol_source_span(requirement.symbol)
+            .ok_or_else(|| {
+                "constant evidence requirement lost its public declaration source".into()
+            });
+    }
+    if let Some(source) = program.symbols.symbol_source_span(target) {
+        return Ok(source);
+    }
+    let symbol = program.symbols.get(target);
+    // Other logical calls can be generated from an authored binder. Its
+    // recorded origin identifies source custody; the exact call target remains
+    // separate and still owes ordinary invocation checks.
+    if matches!(
+        symbol.kind,
+        SymbolKind::Operator | SymbolKind::MachineParameter
+    ) || (symbol.kind == SymbolKind::State
+        && symbol.parent.is_valid()
+        && program.symbols.get(symbol.parent).kind == SymbolKind::Trait)
+    {
+        return program
+            .symbols
+            .symbol_provenance_source_span(target)
+            .ok_or_else(|| "constant logical call lost its exact authored provenance".into());
+    }
+    if symbol.kind != SymbolKind::State
+        || program.symbols.get(symbol.parent).kind != SymbolKind::Machine
+    {
+        return Err("constant call lost its exact selected declaration source".into());
+    }
+    let mut owners = program
+        .machines()
+        .iter()
+        .filter(|owner| owner.symbol == symbol.parent);
+    let owner = owners
+        .next()
+        .ok_or("constant callable entry lost its owning machine")?;
+    if owners.next().is_some() {
+        return Err("constant callable entry has ambiguous owning machine identity".into());
+    }
+    let states = program.machine_states(owner);
+    if states.len() != owner.states.len()
+        || states.first().map(|state| state.symbol) != Some(target)
+    {
+        return Err("constant source-less call is not its exact owning entry".into());
+    }
+    program
+        .symbols
+        .symbol_source_span(symbol.parent)
+        .ok_or_else(|| "constant callable entry lost its authored machine declaration".into())
+}
+
 macro_rules! selected_requirement {
     ($program:ident, $call:ident, $authored:ident, $requirement_trait:ident, $conformance:ident) => {
         let authored_symbol = $program.symbols.get($authored);
@@ -224,6 +286,29 @@ pub(super) fn logical_requirement_matches(
         return Ok(false);
     }
     let binder = program.symbols.get(source.parent);
+    if binder.kind == SymbolKind::Trait {
+        let Some(dispatch) = site.static_requirement_dispatch() else {
+            return Ok(false);
+        };
+        if dispatch.requirement != authored || dispatch.declaring_trait != source.parent {
+            return Ok(false);
+        }
+        // Preparation can replace a public method with a captured private body.
+        // Keep the authored method as the dependency, and authenticate its body
+        // through this call's complete selected application rather than trying
+        // to recover the supplying implementation from its rewritten receiver.
+        let (_, signature) = validation::resolve_requirement_contract(program, lexical_owner, site)
+            .map_err(|reason| {
+                format!(
+                    "constant selected requirement is not admitted: {}",
+                    logical_requirement_refusal(program, owner, lexical_owner, site, reason)
+                )
+            })?;
+        let template = program
+            .closed_requirement_application(signature.symbol)
+            .map_or(signature.symbol, |application| application.template);
+        return Ok(template == authored);
+    }
     if binder.kind != SymbolKind::ConformanceParameter {
         return Ok(false);
     }
@@ -235,11 +320,15 @@ pub(super) fn logical_requirement_matches(
     else {
         return Ok(false);
     };
-    let Some((selected_trait, selected_signature)) =
-        validation::requirement_contract_signature(program, lexical_owner, site)
-    else {
-        return Ok(false);
-    };
+    let (selected_trait, selected_signature) =
+        validation::resolve_requirement_contract(program, lexical_owner, site).map_err(
+            |reason| {
+                format!(
+                    "constant evidence requirement is not admitted: {}",
+                    logical_requirement_refusal(program, owner, lexical_owner, site, reason)
+                )
+            },
+        )?;
     let template = program
         .closed_requirement_application(selected_signature.symbol)
         .map_or(selected_signature.symbol, |application| {
@@ -322,4 +411,21 @@ pub(super) fn logical_requirement_matches(
                 .then_some(requirement.signature)
         });
     Ok(expected == Some(selected_signature))
+}
+
+fn logical_requirement_refusal(
+    program: &TypedTrees,
+    owner: SymbolHandle,
+    lexical_owner: SymbolHandle,
+    site: &CallSite<'_>,
+    reason: &'static str,
+) -> String {
+    let context = format!("execution owner {owner:?}, source owner {lexical_owner:?}");
+    if reason == "selected call has no exact applied public signature"
+        && let CallSite::Expression { expression, call } = site
+        && let Err(unavailable) = program.resolve_requirement_call_signature(lexical_owner, call)
+    {
+        return format!("{reason}; {context}, expression {expression:?}: {unavailable}");
+    }
+    format!("{reason}; {context}")
 }

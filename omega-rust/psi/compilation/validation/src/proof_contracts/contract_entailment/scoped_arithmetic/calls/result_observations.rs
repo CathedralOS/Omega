@@ -4,46 +4,101 @@
 use super::super::ScopedCallResultObservation;
 use super::*;
 
+struct ResultObservationPlan<'program> {
+    owner: SelectedCallContract<'program>,
+    guarantees: Vec<ExpressionHandle>,
+    coordinates: Vec<super::super::PendingScopedCallResultObservation>,
+}
+
 pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result_observations(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Vec<ScopedCallResultObservation> {
-    let Some(call) = program.expression_table.call_node(expression) else {
+    let Some(ResultObservationPlan {
+        owner,
+        guarantees,
+        coordinates,
+    }) = discover_result_observations(program, machine, state, expression)
+    else {
         return Vec::new();
     };
-    let Some(owner) = selected_call_site_contract(
+    let result_owner = result_declaration_owner(&owner);
+    let frames = std::cell::OnceCell::new();
+    coordinates
+        .into_iter()
+        .filter_map(|pending| {
+            // This public view remains unconditional. A normal-call completion
+            // can separately establish these same pending requirements at its cut.
+            if !super::super::super::declaration_projection_cases_hold(
+                program,
+                result_owner,
+                owner_parameters(program, &owner),
+                &guarantees,
+                &crate::CanonicalPlace {
+                    root: facts::PlaceRoot::Expression(pending.declaration_root),
+                    segments: pending.observation.path.clone(),
+                },
+            ) {
+                return None;
+            }
+            let frames = if pending.requires_backing {
+                frames
+                    .get_or_init(|| crate::CallFrameResolver::new(program))
+                    .as_ref()
+            } else {
+                None
+            };
+            resolve_backing(program, machine, state, expression, pending, frames)
+        })
+        .collect()
+}
+
+pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn pending_result_observations(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Vec<super::super::PendingScopedCallResultObservation> {
+    discover_result_observations(program, machine, state, expression)
+        .map(|plan| plan.coordinates)
+        .unwrap_or_default()
+}
+
+fn result_declaration_owner(owner: &SelectedCallContract<'_>) -> SymbolHandle {
+    match owner {
+        SelectedCallContract::Concrete(machine, _) => machine.symbol,
+        _ => owner_symbol(owner),
+    }
+}
+
+fn discover_result_observations<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Option<ResultObservationPlan<'program>> {
+    let call = program.expression_table.call_node(expression)?;
+    let owner = selected_call_site_contract(
         program,
         machine.symbol,
         crate::CallSite::Expression { expression, call },
-    ) else {
-        return Vec::new();
-    };
+    )?;
     if matches!(owner, SelectedCallContract::DynamicSlot { .. }) {
-        return Vec::new();
+        return None;
     }
-    // A concrete completion's arithmetic telescope is its entry state, while
-    // reserved result projections belong to the machine declaration. Keep
-    // those identities separate rather than comparing their handle positions.
-    let result_owner = match owner {
-        SelectedCallContract::Concrete(machine, _) => machine.symbol,
-        _ => owner_symbol(&owner),
-    };
+    let result_owner = result_declaration_owner(&owner);
     let reference =
         crate::proof_contracts::contract_entailment::specification_calls::owner_return_type(&owner);
-    // Only inline owned result bits are independent snapshots. A returned
-    // reference needs its own exact binding/load dependencies before its live
-    // referent can enter this roster; return type alone supplies none.
     if crate::reference_shell(program, reference).is_some()
         || program.primitive_type_reference(reference).is_some()
     {
-        return Vec::new();
+        return None;
     }
-    // These are checked public guarantees of the completed value, not a
-    // pending source formation goal or facts inferred from its private body.
-    // A case-dependent coordinate is available only when that exact result's
-    // selected case follows from this roster on every normal completion.
+    // Discover only coordinates authored in the checked public promises.
+    // Their case and extent requirements remain pending until a consumer
+    // establishes them; discovery supplies no value or storage observation.
     let guarantees = owner_contracts(program, &owner)
         .filter(|contract| {
             contract.kind == SignatureContractKind::Ensures && contract.binding.is_none()
@@ -51,22 +106,16 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
         .filter_map(|fact| fact.as_expression().copied())
         .collect::<Vec<_>>();
-    let mut pending = owner_contracts(program, &owner)
-        .filter(|contract| {
-            contract.kind == SignatureContractKind::Ensures && contract.binding.is_none()
-        })
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-        .filter_map(|fact| fact.as_expression().copied())
-        .collect::<Vec<_>>();
-    let mut observations: Vec<ScopedCallResultObservation> = Vec::new();
-    let frames = std::cell::OnceCell::new();
+    let mut pending = guarantees.clone();
+    let mut coordinates: Vec<super::super::PendingScopedCallResultObservation> = Vec::new();
     let mut visited = Vec::new();
     while let Some(selected) = pending.pop() {
         if visited.contains(&selected) {
             continue;
         }
         visited.push(selected);
-        if let Some(place) = crate::reserved_result_place(program, selected)
+        let place = crate::reserved_result_place(program, selected);
+        if let Some(place) = place
             && place.machine_symbol == result_owner
             && !place.segments.is_empty()
             && let Some(geometry) = crate::structural_scalar_coordinate_in_type(
@@ -79,64 +128,31 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
             && geometry.projections.iter().all(|step| {
                 matches!(
                     step,
-                    crate::ScalarCoordinateProjection::Storage(
-                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
-                            | checked_trees::CheckedUnitStructuralPathSegment::Case(_)
-                            | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
-                            | checked_trees::CheckedUnitStructuralPathSegment::Referent
-                    )
+                    crate::ScalarCoordinateProjection::Element { .. }
+                        | crate::ScalarCoordinateProjection::Storage(
+                            checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                                | checked_trees::CheckedUnitStructuralPathSegment::Case(_)
+                                | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
+                                | checked_trees::CheckedUnitStructuralPathSegment::Referent
+                        )
                 )
             })
-            && super::super::super::declaration_projection_cases_hold(
-                program,
-                result_owner,
-                owner_parameters(program, &owner),
-                &guarantees,
-                &crate::CanonicalPlace {
-                    root: facts::PlaceRoot::Expression(place.root),
-                    segments: place.segments.clone(),
-                },
-            )
+            && let Some((cases, indices)) =
+                super::super::scalar_projection_requirements(program, reference, &place.segments)
         {
-            let loads_pointer = geometry.projections.iter().any(|step| {
+            let requires_backing = geometry.projections.iter().any(|step| {
                 matches!(
                     step,
-                    crate::ScalarCoordinateProjection::Storage(
-                        checked_trees::CheckedUnitStructuralPathSegment::Referent
-                    )
+                    crate::ScalarCoordinateProjection::Element { extent: None, .. }
+                        | crate::ScalarCoordinateProjection::Storage(
+                            checked_trees::CheckedUnitStructuralPathSegment::Referent
+                        )
                 )
             });
-            let backing = if loads_pointer {
-                let Some(frames) = frames
-                    .get_or_init(|| crate::CallFrameResolver::new(program))
-                    .as_ref()
-                else {
-                    continue;
-                };
-                let Some(backing) = frames.completed_value_read_backing(
-                    machine,
-                    state,
-                    expression,
-                    &place.segments,
-                ) else {
-                    continue;
-                };
-                Some(backing)
-            } else {
-                None
-            };
-            let mut read_dependencies = Vec::new();
-            if let Some(backing) = &backing {
-                for path in backing.values.iter().chain(&backing.bindings) {
-                    if !read_dependencies.contains(path) {
-                        read_dependencies.push(path.clone());
-                    }
-                }
-            }
-            let value = observations
+            let value = coordinates
                 .iter()
-                .find(|existing| existing.path == place.segments)
-                .map(|existing| existing.value.clone())
+                .find(|existing| existing.observation.path == place.segments)
+                .map(|existing| existing.observation.value.clone())
                 .unwrap_or_else(|| ScopedArithmeticValue::Atom {
                     identity: format!(
                         "state:{:?}:call-result:{expression:?}:field:{:?}",
@@ -147,13 +163,19 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
                         typed_trees::unsigned_integer_primitive_pattern!()
                     ),
                 });
-            observations.push(ScopedCallResultObservation {
-                expression: selected,
-                path: place.segments,
-                primitive_type: geometry.primitive_type,
-                value,
-                read_dependencies,
-                backing,
+            coordinates.push(super::super::PendingScopedCallResultObservation {
+                observation: ScopedCallResultObservation {
+                    expression: selected,
+                    path: place.segments,
+                    primitive_type: geometry.primitive_type,
+                    value,
+                    read_dependencies: Vec::new(),
+                    backing: None,
+                },
+                declaration_root: place.root,
+                cases,
+                indices,
+                requires_backing,
             });
         }
         children(
@@ -162,7 +184,44 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
             |child| pending.push(child),
         );
     }
-    observations
+    Some(ResultObservationPlan {
+        owner,
+        guarantees,
+        coordinates,
+    })
+}
+
+pub(in crate::proof_contracts::contract_entailment) fn resolve_backing(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    pending: super::super::PendingScopedCallResultObservation,
+    frames: Option<&crate::CallFrameResolver<'_>>,
+) -> Option<ScopedCallResultObservation> {
+    let mut observation = pending.observation;
+    if pending.requires_backing {
+        let reference =
+            crate::expression_result_type_reference(program, machine, state, expression)?;
+        let backing = frames?.completed_value_read_backing(
+            machine,
+            state,
+            expression,
+            reference,
+            &observation.path,
+        )?;
+        for path in backing
+            .values
+            .iter()
+            .chain(backing.bindings.iter().map(|binding| &binding.path))
+        {
+            if !observation.read_dependencies.contains(path) {
+                observation.read_dependencies.push(path.clone());
+            }
+        }
+        observation.backing = Some(backing);
+    }
+    Some(observation)
 }
 
 pub(super) fn result_uses_are_bound(

@@ -1,13 +1,133 @@
-//! A captured reference argument retains its address, while its pointee is
-//! observed at the post-operand cut. Exact invocation subjects supply the full
-//! source join. Only current cells may answer; entry snapshots and initializer
-//! replay cannot replace a cell retired by later argument effects.
+//! Arguments retain their saved values separately from live borrowed contents.
+//! Reference subjects and completed owned values name exact existing cells at
+//! the post-operand cut. Entry snapshots and initializer replay cannot replace
+//! a cell retired by later argument effects.
 
 use super::super::StructuralTerm;
-use super::{CapturedStorageCoordinate, StructuralJudge};
+use super::{CapturedStorageCoordinate, CapturedStorageValue, StorageAnchor, StructuralJudge};
+use symbols::SymbolHandle;
 use typed_trees::{expression::ExpressionHandle, state::State};
 
 impl StructuralJudge<'_> {
+    /// Moving an owned carrier also moves its reference descriptors. Preserve
+    /// already observed current scalars under those descriptors, using the
+    /// exact completed value rather than treating its pointer words as bytes.
+    pub(super) fn owned_argument_storage_values(
+        &self,
+        entry: &State,
+        caller: &State,
+        bindings: &[(SymbolHandle, Option<StructuralTerm>)],
+    ) -> Vec<CapturedStorageValue> {
+        if !self.requires_value_preservation()
+            || (self.storage_graph().is_some()
+                && !self
+                    .storage_version
+                    .is_some_and(|version| version.state == caller.symbol))
+        {
+            return Vec::new();
+        }
+        let mut values = Vec::new();
+        for (symbol, actual) in bindings {
+            let Some(parameter) = self.program.state_parameter_by_symbol(entry, *symbol) else {
+                continue;
+            };
+            if crate::reference_shell(self.program, parameter.type_reference).is_some() {
+                continue;
+            }
+            let Some(actual) = actual else {
+                continue;
+            };
+            let Ok((captured, prefix)) = self.completed_result_read_source(actual, 0) else {
+                continue;
+            };
+            let StructuralTerm::CapturedValue {
+                expression,
+                result_type,
+                ..
+            } = captured
+            else {
+                continue;
+            };
+            if !self
+                .program
+                .expression_table
+                .expression_is_valid(expression)
+            {
+                continue;
+            }
+            let Some(source_type) =
+                crate::project_type_reference_from_segments(self.program, result_type, &prefix)
+            else {
+                continue;
+            };
+            if !crate::declared_carriers_match(self.program, source_type, parameter.type_reference)
+            {
+                continue;
+            }
+            let Some(source) = self.capture_storage_place(crate::CanonicalPlace {
+                root: facts::PlaceRoot::Expression(expression),
+                segments: prefix,
+            }) else {
+                continue;
+            };
+            for stored in self.stored_values.iter() {
+                if stored.backing.is_none()
+                    || stored.current.is_none()
+                    || stored.coordinate.root != source.root
+                    || !self.storage_value_transfer_is_current(stored, self.storage_version)
+                {
+                    continue;
+                }
+                let Some(suffix) = stored
+                    .coordinate
+                    .segments
+                    .strip_prefix(source.segments.as_slice())
+                else {
+                    continue;
+                };
+                let coordinate = CapturedStorageCoordinate {
+                    root: facts::PlaceRoot::Symbol(parameter.symbol),
+                    segments: suffix.to_vec(),
+                };
+                let Some(path) = Self::coordinate_place(&coordinate) else {
+                    continue;
+                };
+                let Some(geometry) = crate::structural_scalar_coordinate_in_type(
+                    self.program,
+                    path.root,
+                    parameter.type_reference,
+                    &path.segments,
+                ) else {
+                    continue;
+                };
+                // This common read owner verifies the original capture,
+                // backing and current cut, including its public scalar law.
+                let Some(current) = self.captured_scalar_read(actual, &path.segments) else {
+                    continue;
+                };
+                let current = self.resolve(current);
+                if !super::super::super::structural_terms::scalar_operand_is_observed(
+                    self.program,
+                    geometry.result_type_reference,
+                    &current,
+                ) {
+                    continue;
+                }
+                values.push(CapturedStorageValue {
+                    coordinate,
+                    entry: Some(current.clone()),
+                    current: Some(current),
+                    selected_case: None,
+                    completed_read: None,
+                    backing: None,
+                    current_anchors: vec![StorageAnchor::Incoming],
+                    anchor_state: entry.symbol,
+                });
+            }
+        }
+        values
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn argument_scalar_value(
         &self,
         state: &State,

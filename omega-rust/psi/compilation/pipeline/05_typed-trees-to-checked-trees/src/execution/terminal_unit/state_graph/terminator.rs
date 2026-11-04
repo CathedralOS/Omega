@@ -174,13 +174,23 @@ pub(super) fn build(
         if validation::reference_shell(program, state.return_type).is_some()
             || validation::reference_result_custody::is_reference_record(program, state.return_type)
         {
-            result.reference_sources =
-                validation::reference_result_custody::captured_return_sources(
-                    program, facts, state,
-                )?;
+            trace.phase("state graph: terminator: returned reference sources");
+            trace.statement(Some(ordinal));
+            let sources = validation::reference_result_custody::captured_return_sources(
+                program, facts, state,
+            );
+            if sources.is_none() && std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+                eprintln!(
+                    "CHECKSITE completion-return-sources-missing machine={} state={} type={:?}",
+                    machine.name, state.name, state.return_type
+                );
+            }
+            result.reference_sources = sources?;
         }
         operations.extend(operand_calls);
         operations.push(operation);
+        trace.phase("state graph: terminator: return expression finished");
+        trace.statement(Some(ordinal));
         Some(TerminatorPlan::ReturnStructural { result })
     };
     // Static dispatch is selected before building any destination's operands.

@@ -27,6 +27,7 @@ mod measures;
 mod private_nested_calls;
 mod propositions;
 pub(crate) mod recursive_tail_calls;
+pub(crate) mod requirement_namespaces;
 mod scope;
 pub(crate) use scope::{owned_conformance_namespace, owned_conformance_realization};
 mod scoped_paths;

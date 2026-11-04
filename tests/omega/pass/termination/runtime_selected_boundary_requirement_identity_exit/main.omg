@@ -31,6 +31,8 @@ reaches BoundaryRankReader
     transition { _ -> scan(remaining) }
     machine scan(remaining: u32) -> u32
     requires remaining <= 9
+    terminates by remaining in 0..=9
+    reaches BoundaryRankReader
     {
         let observed: u32 = BoundaryRankReader::read(&remaining);
         let direct_checked: u32 = require_identity(observed, remaining);

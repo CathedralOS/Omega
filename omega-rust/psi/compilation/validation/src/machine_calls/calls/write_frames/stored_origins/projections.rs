@@ -209,6 +209,20 @@ fn reference_leaves_with_projection(
     if !super::super::isolation::aggregate_storage_types_match(program, actual, expected) {
         return None;
     }
+    // A complete empty selected inventory transports no aliases or retained
+    // debts. An enclosing saved value may intentionally omit ordinary cases
+    // because its storage is reference-free. Source checking separately
+    // establishes case, bounds and access; this query publishes none of them.
+    if super::type_origins::declared_origins_for_query(program, root, source_name, actual, true)
+        .is_some_and(|projected| {
+            !projected.symbolic
+                && projected.references.is_empty()
+                && projected.cases.is_empty()
+                && projected.moves.is_empty()
+        })
+    {
+        return Some(AggregateOrigins::default());
+    }
     // A transferred record supersedes the declared frontier: an assigned or
     // initialized binding already named its source selectors. Seeds and
     // frontier-only rows stay symbolic so a selected element can still
@@ -260,14 +274,7 @@ fn reference_leaves_with_projection(
     } else {
         None
     };
-    let established = tracked.or(declared_origins.as_ref());
-    let Some(established) = established else {
-        return (super::super::type_is_caller_isolated_local(program, source_reference)
-            && !segments
-                .iter()
-                .any(|segment| matches!(segment, PlaceSegment::Case { .. })))
-        .then(AggregateOrigins::default);
-    };
+    let established = tracked.or(declared_origins.as_ref())?;
     let source = super::super::FrameSourcePlace::from_expression(program, expression);
     let mut projected = match projection {
         ReferenceProjection::Origins => {

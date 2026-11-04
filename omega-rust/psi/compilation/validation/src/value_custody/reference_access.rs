@@ -59,6 +59,7 @@ pub(crate) fn receiving_reference_access_refusal(
     prior_statements: &[typed_trees::statement::StatementNode],
     value: ExpressionHandle,
     required: TypeReferenceHandle,
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> Option<ReferenceAccessRefusal> {
     use language_semantics::ReferenceAccess;
     // Selection completes one of the retained arm values. Every possible
@@ -79,10 +80,16 @@ pub(crate) fn receiving_reference_access_refusal(
                     prior_statements,
                     arm.value,
                     required,
+                    required_substitutions,
                 )
             });
     }
-    let expected_access = declared_reference_access(program, required);
+    let (applied_required, _) = super::expression_types::substituted_required_reference(
+        program,
+        required,
+        required_substitutions,
+    );
+    let expected_access = declared_reference_access(program, applied_required);
     let completed_borrow = completed_reference_borrow_source(program, machine, state, value);
     let supplied_access = completed_borrow
         .as_ref()
@@ -110,6 +117,14 @@ pub(crate) fn receiving_reference_access_refusal(
             prior_statements,
             borrow.source,
             borrow.access,
+            borrow.interpretation
+                == Some(super::recasts::ReferenceFormationInterpretation::Declared)
+                && super::expression_types::borrow_selects_reference_storage(
+                    program,
+                    borrow.source,
+                    required,
+                    required_substitutions,
+                ),
         )
     {
         return Some(refusal);
@@ -132,7 +147,7 @@ pub(crate) fn receiving_reference_access_refusal(
     if expected_access == Some(ReferenceAccess::Mutable)
         && completed_borrow
             .as_ref()
-            .is_some_and(|borrow| borrow.bare_window)
+            .is_some_and(|borrow| borrow.interpretation.is_none())
     {
         return Some(ReferenceAccessRefusal::BareRangeFormsSharedView);
     }
@@ -176,6 +191,7 @@ pub(crate) fn report_reference_access_conflict(
         prior_statements,
         value,
         required,
+        &[],
     ) else {
         return false;
     };
@@ -210,9 +226,9 @@ pub(crate) fn report_reference_access_conflict(
 struct CompletedBorrow {
     source: ExpressionHandle,
     access: language_semantics::ReferenceAccess,
-    /// A bare window `coll[a..b]` with no borrow spelling of its own, which
-    /// `bare-range-reference-access` makes a shared view wherever received.
-    bare_window: bool,
+    /// None is the implicit shared borrow of a bare range; a declared borrow
+    /// may instead select exact descriptor storage through its receiving type.
+    interpretation: Option<super::recasts::ReferenceFormationInterpretation>,
 }
 
 /// A completed borrowing operation retains its exact storage source and the
@@ -239,7 +255,7 @@ fn completed_reference_borrow_source(
         return Some(CompletedBorrow {
             source: formation.source,
             access: formation.access,
-            bare_window: false,
+            interpretation: Some(formation.interpretation),
         });
     }
     match expression_table(program).expression(value) {
@@ -268,7 +284,7 @@ fn completed_reference_borrow_source(
             Some(CompletedBorrow {
                 source: indexed.collection,
                 access: ReferenceAccess::Shared,
-                bare_window: true,
+                interpretation: None,
             })
         }
         _ => None,
@@ -322,6 +338,7 @@ fn borrow_source_access_refusal(
     prior_statements: &[typed_trees::statement::StatementNode],
     source: ExpressionHandle,
     access: language_semantics::ReferenceAccess,
+    lends_storage: bool,
 ) -> Option<ReferenceAccessRefusal> {
     let Some((root, binding_type, owned_root_is_writable)) =
         source_place_root(program, machine, state, prior_statements, source)
@@ -333,19 +350,77 @@ fn borrow_source_access_refusal(
             .is_exclusive()
             .then_some(ReferenceAccessRefusal::NamedPlaceRequired { access });
     };
-    (!crate::value_custody::expression_types::place_permits_reference_borrow(
-        program,
-        source,
-        root,
-        binding_type,
-        owned_root_is_writable,
-        access,
-    ))
-    .then_some(if access == language_semantics::ReferenceAccess::Shared {
+    let permitted = if lends_storage {
+        // Replacing a saved pointer needs its slot's permission, independently
+        // of whether the old pointer could write its pointee. A denied slot
+        // cannot fall back to the stronger access of that old pointer.
+        super::expression_types::place_storage_borrow_access(
+            program,
+            source,
+            root,
+            binding_type,
+            access,
+        )
+        .is_some_and(|storage| {
+            !access.is_exclusive()
+                || storage == super::expression_types::StorageWriteAccess::BorrowedStorage
+                || reference_slot_is_writable(
+                    program,
+                    machine,
+                    state,
+                    prior_statements,
+                    source,
+                    root,
+                )
+        })
+    } else {
+        super::expression_types::place_permits_reference_borrow(
+            program,
+            source,
+            root,
+            binding_type,
+            owned_root_is_writable,
+            access,
+        )
+    };
+    (!permitted).then_some(if access == language_semantics::ReferenceAccess::Shared {
         ReferenceAccessRefusal::WriteOnlyMayNotRead
     } else {
         ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { root, access }
     })
+}
+
+fn reference_slot_is_writable(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    prior_statements: &[typed_trees::statement::StatementNode],
+    source: ExpressionHandle,
+    root: PlaceRoot,
+) -> bool {
+    let Some(place) = crate::canonical_place_from_expression(program, source) else {
+        return false;
+    };
+    // Owned record contents keep their ordinary initialization/storage rule.
+    // A bare descriptor binding additionally needs replacement permission.
+    if !place.segments.is_empty() {
+        return true;
+    }
+    let Some(symbol) = root.as_symbol() else {
+        return false;
+    };
+    prior_statements.iter().any(|statement| {
+        statement
+            .as_local_data()
+            .is_some_and(|local| local.symbol == symbol && local.is_mutable)
+    }) || state.is_some_and(|state| {
+        program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.symbol == symbol && parameter.is_mutable)
+    }) || program
+        .machine_owned_data_by_symbol(machine, symbol)
+        .is_some()
 }
 
 /// Assignment permission follows the typed access route. A range or incoming

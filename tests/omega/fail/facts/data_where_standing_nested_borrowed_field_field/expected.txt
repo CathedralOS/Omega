@@ -1,1 +1,1 @@
-may overflow `i32`
+data `Counter` literal cannot prove the default domain

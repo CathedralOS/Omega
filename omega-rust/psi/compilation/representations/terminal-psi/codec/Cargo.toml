@@ -10,6 +10,7 @@ name = "terminal_codec"
 path = "src/lib.rs"
 
 [dependencies]
+language-core = { path = "../../../../foundation/language-core" }
 arena = { path = "../../../../foundation/arena" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }
 language-semantics = { path = "../../../../foundation/language-semantics" }

@@ -12,20 +12,25 @@ pub(super) struct CarriedLifetime {
     pub(super) lifetime_only: bool,
     pub(super) retained_contract: bool,
     pub(super) reference: TypeReferenceHandle,
+    pub(super) reference_hops: usize,
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
     pub(super) lifetime: Option<RegionIdentity>,
     pub(super) access: language_semantics::ReferenceAccess,
     pub(super) source: super::ViewReturnInputSource,
 }
 
-/// Value frontiers stop at the physical descriptor. An input additionally
-/// exposes the stored descriptors in its borrowed referent; their regions do
-/// not become the lifetime of the container borrow.
+/// Value and destination inventories stop at each stored descriptor. Input
+/// lifetime inventory also follows readable descriptors, keeping each leaf’s
+/// own region separate from the borrow used to reach its containing record.
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub(super) enum LifetimeFrontier {
     #[default]
     Value,
     Input,
+    ReachableInput,
+    /// Lifetime candidates below an input descriptor. Each pointer boundary
+    /// remains a stored source; this inventory grants no permission to load it.
+    InputStorage,
     BorrowedStorage,
     /// Authority reach for opaque non-observation, not a returned-loan map.
     /// Shared references cut access; mutable references expose their contents.
@@ -48,7 +53,7 @@ pub enum DeclarationLifetimeFrontier {
     Incomplete,
 }
 
-#[derive(Default)]
+#[derive(Clone, Copy, Default)]
 struct TemplateFrontier<'a> {
     parameters: &'a [SymbolHandle],
     authority_parameters: &'a [typed_trees::data::TypeParameter],
@@ -57,6 +62,7 @@ struct TemplateFrontier<'a> {
     declaration_inventory: bool,
     scoped_regions: bool,
     frontier: LifetimeFrontier,
+    input_reference_hops: usize,
 }
 
 /// Each generic telescope binds simultaneously. Its actual operands belong
@@ -131,6 +137,7 @@ pub fn declaration_lifetime_frontier(
         frontier: LifetimeFrontier::Value,
         authority_parameters: &[],
         declaration_inventory: false,
+        input_reference_hops: 0,
     };
     let mut leaves = Vec::new();
     let complete = collect_type(
@@ -402,24 +409,13 @@ pub(super) fn declaration_lifetime_inventory(
     reference: TypeReferenceHandle,
     frontier: LifetimeFrontier,
 ) -> Option<CarriedLifetimeInventory> {
-    let mut leaves = Vec::new();
     let mut template = TemplateFrontier {
         frontier,
         declaration_inventory: true,
         ..TemplateFrontier::default()
     };
-    collect_type(
-        program,
-        reference,
-        &[],
-        TypeScope::default(),
-        &[],
-        &mut Vec::new(),
-        &mut leaves,
-        false,
-        &mut template,
-    )
-    .then_some(CarriedLifetimeInventory {
+    let leaves = collect_frontier(program, reference, &[], TypeScope::default(), &mut template)?;
+    Some(CarriedLifetimeInventory {
         leaves,
         template_dependent: template.dependent,
     })
@@ -442,8 +438,7 @@ pub(super) fn scoped_carried_lifetimes(
     scoped_regions: bool,
     frontier: LifetimeFrontier,
 ) -> Option<Vec<CarriedLifetime>> {
-    let mut output = Vec::new();
-    collect_type(
+    collect_frontier(
         program,
         reference,
         lifetimes,
@@ -459,10 +454,6 @@ pub(super) fn scoped_carried_lifetimes(
             argument_owner,
             ..TypeScope::default()
         },
-        &[],
-        &mut Vec::new(),
-        &mut output,
-        false,
         &mut TemplateFrontier {
             parameters: symbolic_parameters,
             dependent: false,
@@ -470,9 +461,58 @@ pub(super) fn scoped_carried_lifetimes(
             frontier,
             authority_parameters: &[],
             declaration_inventory: false,
+            input_reference_hops: 0,
         },
     )
-    .then_some(output)
+}
+
+/// A recursive input can still return a reference described by its finite
+/// input list. Add deeper pointer sources only when all can be resolved;
+/// otherwise keep the original complete list unchanged. Body checking still
+/// rejects a returned reference with no source in that retained list.
+fn collect_frontier(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    lifetimes: &[(String, RegionIdentity)],
+    types: TypeScope<'_>,
+    template: &mut TemplateFrontier<'_>,
+) -> Option<Vec<CarriedLifetime>> {
+    let mut output = Vec::new();
+    collect_type(
+        program,
+        reference,
+        lifetimes,
+        types,
+        &[],
+        &mut Vec::new(),
+        &mut output,
+        false,
+        template,
+    )
+    .then_some(())?;
+    if template.frontier == LifetimeFrontier::Input {
+        let mut expanded = Vec::new();
+        let mut expansion = TemplateFrontier {
+            frontier: LifetimeFrontier::ReachableInput,
+            ..*template
+        };
+        if collect_type(
+            program,
+            reference,
+            lifetimes,
+            types,
+            &[],
+            &mut Vec::new(),
+            &mut expanded,
+            false,
+            &mut expansion,
+        ) && !expansion.dependent
+        {
+            *template = expansion;
+            return Some(expanded);
+        }
+    }
+    Some(output)
 }
 
 /// A nongeneric recursive result can retain one whole input loan under ordinary
@@ -730,22 +770,49 @@ fn collect_type(
                 lifetime_only: false,
                 retained_contract: false,
                 reference,
+                reference_hops: template.input_reference_hops,
                 owner_path: owner_path.to_vec(),
                 lifetime,
                 access: *access,
-                source: if template.frontier == LifetimeFrontier::Input {
+                source: if matches!(
+                    template.frontier,
+                    LifetimeFrontier::Input | LifetimeFrontier::ReachableInput
+                ) {
                     super::ViewReturnInputSource::Referent
                 } else {
                     super::ViewReturnInputSource::Stored
                 },
             });
-            if template.frontier != LifetimeFrontier::Input || !access.is_readable() {
+            if !matches!(
+                template.frontier,
+                LifetimeFrontier::Input
+                    | LifetimeFrontier::ReachableInput
+                    | LifetimeFrontier::InputStorage
+            ) || !access.is_readable()
+            {
                 return true;
             }
             let first_stored = output.len();
-            template.frontier = LifetimeFrontier::BorrowedStorage;
+            let frontier = template.frontier;
+            let reference_hops = template.input_reference_hops;
+            if frontier == LifetimeFrontier::InputStorage
+                && crate::slice_view_shell(program, reference, &[]).is_none()
+                && !crate::byte_sequence_carrier(program, reference, &[])
+                    .is_some_and(|carrier| carrier.is_borrowed())
+            {
+                let Some(next) = reference_hops.checked_add(1) else {
+                    return false;
+                };
+                template.input_reference_hops = next;
+            }
+            template.frontier = if frontier == LifetimeFrontier::Input {
+                LifetimeFrontier::BorrowedStorage
+            } else {
+                LifetimeFrontier::InputStorage
+            };
             let complete = carry_child!(*referee);
-            template.frontier = LifetimeFrontier::Input;
+            template.frontier = frontier;
+            template.input_reference_hops = reference_hops;
             if *access == language_semantics::ReferenceAccess::Shared {
                 // Shared access cannot load a write-only descriptor or lend
                 // its exclusive permission; neither read nor write is gained.
@@ -803,6 +870,8 @@ fn collect_type(
             let frontier = template.frontier;
             if frontier == LifetimeFrontier::Input {
                 template.frontier = LifetimeFrontier::Value;
+            } else if frontier == LifetimeFrontier::ReachableInput {
+                template.frontier = LifetimeFrontier::InputStorage;
             }
             let complete = collect_type(
                 program,
@@ -841,6 +910,7 @@ fn collect_type(
                         lifetime_only: leaf.lifetime_only,
                         retained_contract: leaf.retained_contract,
                         reference: leaf.reference,
+                        reference_hops: leaf.reference_hops,
                         owner_path: path,
                         lifetime: leaf.lifetime.clone(),
                         access: leaf.access,
@@ -858,7 +928,10 @@ fn collect_type(
             carry_child!(*element_type)
         }
         TypeReferenceNode::Slice { element_type }
-            if template.frontier == LifetimeFrontier::BorrowedStorage =>
+            if matches!(
+                template.frontier,
+                LifetimeFrontier::BorrowedStorage | LifetimeFrontier::InputStorage
+            ) =>
         {
             let mut path = owner_path.to_vec();
             path.push(BorrowOwnerSegment::DynamicIndex);
@@ -901,6 +974,7 @@ fn collect_type(
                     lifetime_only: true,
                     retained_contract: false,
                     reference,
+                    reference_hops: template.input_reference_hops,
                     owner_path: owner_path.to_vec(),
                     lifetime: {
                         let Some(region) = carried_region(
@@ -1034,7 +1108,10 @@ fn collect_type(
                     else {
                         return false;
                     };
-                    let outer = if *start == 0 {
+                    // Earlier applications can bind lifetimes without binding
+                    // any Types. Their position, rather than the Type offset,
+                    // decides which supplying scopes this operand keeps.
+                    let outer = if scope_ordinal == 0 {
                         frame.outer.copied().unwrap_or_default()
                     } else {
                         TypeScope {
@@ -1067,8 +1144,10 @@ fn collect_type(
             }
             let Some(definition) = data_definition(program, *symbol) else {
                 if template.parameters.contains(symbol)
-                    || ((template.frontier == LifetimeFrontier::BorrowedStorage
-                        || template.declaration_inventory)
+                    || ((matches!(
+                        template.frontier,
+                        LifetimeFrontier::BorrowedStorage | LifetimeFrontier::InputStorage
+                    ) || template.declaration_inventory)
                         && program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter)
                 {
                     // The input reference still lends its declared region
@@ -1093,6 +1172,7 @@ fn collect_type(
                     lifetime_only: true,
                     retained_contract: false,
                     reference,
+                    reference_hops: template.input_reference_hops,
                     owner_path: owner_path.to_vec(),
                     lifetime: None,
                     access: language_semantics::ReferenceAccess::Shared,
@@ -1164,6 +1244,7 @@ fn collect_family(
         scoped_regions: template.scoped_regions,
         frontier: template.frontier,
         authority_parameters: template.authority_parameters,
+        input_reference_hops: template.input_reference_hops,
     };
     let complete = collect_data(
         program,
@@ -1213,6 +1294,8 @@ fn collect_data(
     let frontier = template.frontier;
     if frontier == LifetimeFrontier::Input {
         template.frontier = LifetimeFrontier::Value;
+    } else if frontier == LifetimeFrontier::ReachableInput {
+        template.frontier = LifetimeFrontier::InputStorage;
     }
     visiting.push(DataVisit {
         reference,

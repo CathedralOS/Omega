@@ -17,63 +17,33 @@ machine dispatch(selected: dyn Windowing, source: &Packet, width: u32) -> Packet
 requires width == 16 || width == 32 {
     Windowing::window<width>(selected, source)
 }
-machine check(packet: &Packet, width: u32) crashes Trap
+machine check(packet: &Packet, width: u32, last: u8) crashes Trap
 requires width == 16 || width == 32
 {
     let selected: dyn Windowing = Header as dyn Windowing;
     let result: Packet = dispatch(selected, packet, width);
-    transition result.bytes.len == 3 { true -> read(result) false -> bad() }
-    machine read(result: Packet) requires result.bytes.len == 3 {
-        transition result.bytes[0] == 11 { true -> done() false -> bad() }
+    transition result.bytes.len == 3 { true -> read(result, last) false -> bad() }
+    machine read(result: Packet, last: u8) requires result.bytes.len == 3 {
+        transition result.bytes[0] == 11 && result.bytes[2] == last { true -> done() false -> bad() }
     }
     machine done() {}
     machine bad() { crash Trap; }
 }
 
-boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
-}
-X86BodyCheck satisfies SelectedBodyCheck {
-    machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
-        machine done() {}
-        machine wrong() { crash Trap; }
-    }
-}
-ArmBodyCheck satisfies SelectedBodyCheck {
-    machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
-        machine done() {}
-        machine wrong() { crash Trap; }
-    }
-}
 boundary trait SelectedForward {
-    machine forward(packet: Packet) reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+    machine forward(packet: Packet, last: u8) reaches crashes Trap;
 }
-X86Forward satisfies SelectedForward {
-    machine forward(packet: Packet) reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
-    {
-        SelectedBodyCheck::require_tag(17u64);
-        check(&packet, 16); check(&packet, 32);
+HostedForward satisfies SelectedForward {
+    machine forward(packet: Packet, last: u8) crashes Trap {
+        check(&packet, 16, last);
+        check(&packet, 32, last);
     }
 }
-ArmForward satisfies SelectedForward {
-    machine forward(packet: Packet) reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
-    {
-        SelectedBodyCheck::require_tag(29u64);
-        check(&packet, 16); check(&packet, 32);
-    }
-}
-machine main() crashes Trap {
+machine main() crashes Trap invokes SelectedForward {
     let backing: [u8; 3] = [11, 22, 33];
+    let alternate: [u8; 3] = [11, 44, 55];
     let packet: Packet = Packet { bytes: &backing[..] };
-    SelectedForward::forward(packet);
-}
-machine x86_entry() crashes Trap {
-    SelectedBodyCheck::require_tag(17u64);
-    main();
-}
-machine arm_entry() crashes Trap {
-    SelectedBodyCheck::require_tag(29u64);
-    main();
+    let second: Packet = Packet { bytes: &alternate[..] };
+    SelectedForward::forward(packet, 33);
+    SelectedForward::forward(second, 55);
 }

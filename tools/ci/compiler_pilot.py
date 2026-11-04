@@ -286,15 +286,20 @@ def prepare_producer(output, *, need_runner=True):
     tool = "mbx" if shutil.which("mbx") else "cargo"
     arguments = [tool, "build", "--locked", "-p", "omega", "--message-format=json"]
     import build_slot
-    with build_slot.hold(ROOT):
+    # Retain diagnostics while the compiler runs. A failed build can exhaust
+    # storage or be interrupted before a later buffered-output write succeeds.
+    stdout_path = retained / "cli-build.jsonl"
+    stderr_path = retained / "cli-build.stderr"
+    with stdout_path.open("w", encoding="utf-8") as stdout, \
+            stderr_path.open("w", encoding="utf-8") as stderr, build_slot.hold(ROOT):
         result = subprocess.run(arguments, cwd=ROOT, stdin=subprocess.DEVNULL,
-                                capture_output=True, text=True, env=corpus_gate.optimized_environment())
-    (retained / "cli-build.jsonl").write_text(result.stdout, encoding="utf-8")
-    (retained / "cli-build.stderr").write_text(result.stderr, encoding="utf-8")
+                                stdout=stdout, stderr=stderr, text=True,
+                                env=corpus_gate.optimized_environment())
     if result.returncode:
-        sys.stderr.write(result.stderr[-8000:])
+        sys.stderr.write(stderr_path.read_text(encoding="utf-8")[-8000:])
         raise ValueError(f"CLI build failed ({result.returncode}); raw build receipt retained")
-    artifacts = [json.loads(line) for line in result.stdout.splitlines() if line.strip().startswith("{")]
+    artifacts = [json.loads(line) for line in stdout_path.read_text(encoding="utf-8").splitlines()
+                 if line.strip().startswith("{")]
     binaries = [row["executable"] for row in artifacts if row.get("reason") == "compiler-artifact"
                 and row.get("target", {}).get("name") == "omega" and row.get("executable")]
     if not binaries or not artifacts[-1].get("success"):
@@ -354,6 +359,10 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
             value = operation()
             result["passed"] = True
             return value
+        except (OSError, ValueError, subprocess.CalledProcessError,
+                corpus_gate.InfrastructureFailure) as error:
+            result["error"] = str(error)
+            raise
         finally:
             result["seconds"] = round(time.monotonic() - started, 3)
 
@@ -389,17 +398,20 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         validate_report(json.loads(report_path.read_text(encoding="utf-8")), fixtures,
                         both=both, revision=revision, target=summary["target"])
 
-    refused = []
+    refusals = []
 
     def observe(name, operation):
         try:
             stage(name, operation)
-        except ValueError as error:
-            # An oracle failure belongs to this consumer. Source or executable
-            # changes still stop the capture before another consumer starts.
-            producer.verify()
-            refused.append(str(error))
-            summary["consumer_errors"] = list(refused)
+        except (OSError, ValueError, subprocess.CalledProcessError,
+                corpus_gate.InfrastructureFailure) as error:
+            # Independent consumers can still produce useful evidence from
+            # this compiler. Keep every failure and leave the run red.
+            refusals.append(f"{name}: {error}")
+            summary["consumer_errors"] = list(refusals)
+        # A failed fixture does not invalidate the compiler. Changed compiler
+        # bytes do: stop before another consumer uses an unauthenticated file.
+        producer.verify()
 
     if positives or checking_only or negatives:
         checking = tuple(dict.fromkeys(positives + checking_only + negatives))
@@ -442,8 +454,8 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
     producer.verify()
     if command(["git", "rev-parse", "HEAD"]) != revision or command(["git", "status", "--porcelain"]):
         raise ValueError("candidate changed during validation")
-    if refused:
-        raise ValueError("; ".join(refused))
+    if refusals:
+        raise ValueError("; ".join(refusals))
 
 
 def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fixtures=None, samples=None, cli_fixtures=None, check_only=False):

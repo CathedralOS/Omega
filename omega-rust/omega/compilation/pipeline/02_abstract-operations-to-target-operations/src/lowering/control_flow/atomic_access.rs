@@ -91,6 +91,7 @@ pub(super) fn lower(
             Some(*observed),
         ),
         AbstractAtomicEvent::CompareExchangeOnce {
+            custody,
             success,
             failure,
             expected,
@@ -98,6 +99,7 @@ pub(super) fn lower(
             ..
         } => (
             AtomicAccessEvent::CompareExchangeOnce {
+                custody: *custody,
                 success: *success,
                 failure: *failure,
                 expected: *expected,
@@ -171,16 +173,20 @@ pub(super) fn lower(
             super::primitive_storage::retain_result(operation, result, live)
         })
         .transpose()?;
-    let outcome_home = if let AbstractAtomicEvent::CompareExchangeOnce { outcome, .. } = event {
+    let outcome_home = if let AbstractAtomicEvent::CompareExchangeOnce {
+        outcome, custody, ..
+    } = event
+    {
         if !event.custody_is_consistent()
-            || !outcome.is_unrestricted_plain()
-            || !outcome.qualification_establishments.is_empty()
+            || !terminal_psi::types::atomic_once_result_is_plain(outcome, *custody)
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let layout = types
             .get(outcome.structural_type)
-            .and_then(|row| target_operations::conventional_atomic_once_layout(row, integer))
+            .and_then(|row| {
+                target_operations::conventional_atomic_once_layout(row, integer, *custody)
+            })
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         let home = target_operations::TargetStructuralHomeRequirement {
             origin: target_operations::TargetStructuralHomeOrigin::OperationResult {

@@ -195,11 +195,22 @@ pub(super) fn validate(
         )
         .filter(|_| crate::place_is_atomic_storage(program, machine, current_state, carrier.place))
         .and_then(|cell| program.primitive_type_reference(cell));
-        if !resident.is_some_and(|primitive| {
-            crate::atomic_once_result_type(program, local_data.type_reference, primitive)
+        let Some(custody) = carrier.operation.single_attempt_custody() else {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} has no admitted single-attempt result contract"
+            )));
+            return;
+        };
+        if resident.is_none() {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} requires dedicated atomic storage for its single attempt"
+            )));
+        } else if !resident.is_some_and(|primitive| {
+            crate::atomic_once_result_type(program, local_data.type_reference, primitive, custody)
         }) {
             diagnostics.push(Diagnostic::error(format!(
-                "{owner} requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type"
+                "{owner} requires the sealed {} with the exact resident type",
+                custody.outcome_identity.name(),
             )));
         } else {
             super::atomic_establishment::validate_once_resident(

@@ -107,16 +107,14 @@ pub(crate) fn require_unborrowed_completion(
     let mut bounds = None;
     for parent in parents {
         for handle in &active {
-            if !super::overlap::canonical_place_loan_compatibility(
+            if !super::overlap::canonical_place_non_interfering(
                 program,
                 parent,
-                facts.borrow.loans.get(*handle),
+                *handle,
                 &facts.borrow,
                 &[],
                 &mut bounds,
-            )
-            .non_interfering
-            {
+            ) {
                 return Err("input still has a live loan at completion");
             }
         }
