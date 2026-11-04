@@ -2,13 +2,13 @@
 
 A caller encodes a pair into its buffer, then decodes it once. The returned pair
 must equal the original for every admitted pair, and the caller must keep the
-same writable storage. Local, field, match-join and nested-machine programs now
-return zero in native and Terminal execution. Five other places still fail source
-checking, so the nine-place row remains unfinished.
+same writable storage. Seven places now return zero in native and Terminal
+execution. Constant name and selected implementation still fail source checking,
+so the nine-place row remains unfinished.
 
 **A completed buffered round trip preserves every semantic field and returns the caller's output storage.**
 
-Parent: **LIBRARY-REPRESENTATION-FAMILIES**. This row proves value preservation
+Parent: **LIBRARY-REPRESENTATION-FAMILIES**. This row tests value preservation
 for an actual buffered conversion, including its storage, failure paths and
 three-byte capacity requirement. The earlier
 [capacity row](../resource_representation/README.md) covers success and storage
@@ -45,8 +45,8 @@ and original length, then writes through the returned buffer and checks that
 write and the untouched neighbors. Main traps on any wrong observation. Inputs
 include unequal 17/42 and endpoint 0/255 pairs, short capacity and malformed tags;
 the join and selected-body places also check both branches and body markers.
-The four running buffered places satisfy these authored runtime oracles; the
-other five have no execution observations because source checking rejects them.
+Seven buffered places satisfy these authored runtime oracles. Constant name and
+selected implementation have no execution observations because checking rejects them.
 
 The constant place owns its temporary buffer and runs the same conversion and
 borrowed consumers during semantic evaluation. Only owned Pair observations,
@@ -54,42 +54,36 @@ byte snapshots, extent checks and write markers leave that evaluation. The live
 mutable reference stays inside it. Main checks those observations and runs the
 same observer at runtime.
 
-[Focused run 41740995881](https://github.com/CathedralOS/Omega/actions/runs/41740995881),
-at exact source `3676a32990a7560230cc040907a4e1c704175908`, checks LOCAL without
-diagnostics and two identity positives. Its three negatives reject their intended
-obligations. The local twin reports only four Reader decoder-law diagnostics;
-the stale-byte control rejects its claim that a saved byte equals overwritten
-current storage. This is checking evidence, not execution or all-place acceptance.
+[Run 41747418767](https://github.com/CathedralOS/Omega/actions/runs/41747418767),
+at exact producer source `6fd663e9e8c6b834b3578664238b33db6ffc8f44`,
+checks and executes seven places: local, field, parameter, call result, match
+join, nested machine and other machine. Each returns native 0 and Terminal 0
+with engine agreement. The returned-data identity control and three constant-call
+identity controls also return zero in both engines.
 
-[Full qualification 41743667622](https://github.com/CathedralOS/Omega/actions/runs/41743667622)
-completed failed at that exact producer, without an infrastructure error. Of 69
-source rows, 27 check and 42 reject, including five unintended buffered positive
-rejections. Of 30 runtime positives, 25 return native 0 and Terminal 0 with engine
-agreement: local, field, match join and nested machine, plus 21 other controls.
-All four explicit header-zero postchecks pass.
-
-Five buffered places still fail source checking:
+The length guarantee now survives forwarding because the checker joins the
+saved descriptor identities before normalization can replace their subjects.
+The constant program retains its exact selected public method, then reaches a
+separate argument-admission failure. Two places still fail checking:
 
 | Place | Remaining source obligation |
 | --- | --- |
-| Call result | Preserve the returned buffer's length >= 3 after forwarding. |
-| Parameter | Preserve the returned buffer's length >= 3 after forwarding. |
-| Other machine | Preserve the returned buffer's length >= 3 after forwarding. |
 | Selected implementation | Preserve the returned Pair's identity with the input after forwarding. |
-| Constant name | Retain the exact authored encode_sufficient selection during constant evaluation. |
+| Constant name | Admit the exact owned Pair argument during constant evaluation. |
 
-The constant-call repair at `c5ad035483a77adc0b3dffaf3c70ede0d438438e`
-joins the authored public method to the existing strict dispatch validator.
-Source review and formatting pass; fresh constant execution remains pending.
-The forwarded-result failures are still under investigation.
+The run checks 30 source rows: 11 positives check and 19 programs reject, including
+those two unintended positive failures. All 17 selected negative expectations
+match. The selected-implementation decoder twin also reports its positive's
+consumer proof error, so it is not yet clean evidence of only the decoder law.
+No infrastructure failure occurred.
 
-All 37 negative expectations match. Four decoder twins—call result, parameter,
-other machine and selected implementation—also have the corresponding positive's
-consume proof error. Those four are not yet clean evidence of the decoder law.
-The canonical API stopped after the earlier failures, so nine ordinary CLI
-projects and eighteen positive/invalid samples were not reached. The run measures
-Linux x86-64; four hosted Build entries are authored, but other-host execution
-remains open. No full acceptance or row closure is claimed.
+The broader 72-source qualification, nine ordinary CLI projects and eighteen
+positive/invalid samples remain required. This run measures Linux x86-64;
+four hosted Build entries are authored, while other-host execution remains open.
+The [earlier broader run](https://github.com/CathedralOS/Omega/actions/runs/41743667622)
+at original source `3676a32990a7560230cc040907a4e1c704175908` retains its own
+25 runtime observations and four explicit header-zero postchecks. Those results
+belong to that earlier producer. No full acceptance or row closure is claimed.
 
 The [original valid-source baseline](https://github.com/CathedralOS/Omega/actions/runs/41546898552)
 and [compiler changes](https://github.com/CathedralOS/Omega/pull/1562) retain the
