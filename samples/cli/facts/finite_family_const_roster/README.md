@@ -1,23 +1,20 @@
-# Literal calls to a declared generic family
+# Runtime selection before a const-only method
 
-`Family::row<16>` selects one declared generic row through a runtime
-implementation selector. The method permits only 16 or 32. The compiler must
-keep that complete list when it closes the call's argument to 16; 64 must still
-reject. A runtime value cannot silently become a const argument.
+Owning task: **FINITE-GENERIC-DISPATCH** in [TASKS.md](../../../../TASKS.md).
 
-Owning tasks: **BUILD-OWNED-TARGET-SELECTION**, replacing target prefixes with
-ordinary code selected in Build; and **FINITE-GENERIC-DISPATCH**, qualifying
-const-only forwarding, in [TASKS.md](../../../../TASKS.md).
+Fact: A runtime-selected family calls its const-only method through the declared width list and returns the selected row's value.
 
-Fact: A literal selection of a const-only finite-family method keeps its declaring roster and returns the selected row's value.
+`RuntimeFamily` accepts a runtime width of 16 or 32. Its `BridgeToConst`
+implementation calls the const-only `Family` method. The compiler must generate
+and check the closed bodies before that call; proving that an ordinary runtime
+argument belongs to the list does not itself make it constant.
 
-`Selected` returns the chosen Width. `Other` returns 17 for Width 16 and 33 for
-Width 32. Both satisfy the same interface, which promises a u32 result and
-publishes no result-equals-Width condition. Every positive carries both
-implementations through its own place and checks 16 and 17 after the same
-literal `<16>` call. The match runs both choices; selecting the wrong arm,
-implementation or row makes the result check fail. The field place also checks
-its surrounding 17/23 values.
+Every positive transports both `Selected` and `Other` through its named place.
+It calls each at both widths. Their results are 16/17 at width 16 and 32/33 at
+width 32. Choosing the wrong implementation or width fails the runtime check.
+The field case also checks its surrounding values, and the match case exercises
+both arms. Result comparisons observe execution; they do not establish the
+static obligations needed to form the calls.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -31,62 +28,55 @@ its surrounding 17/23 values.
 | Other machine | [other_machine/main.omg](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | Selected target code | [target_body/main.omg](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
-Each paired invalid program differs only in the literal tuple: `<16>` becomes
-`<64>`. The implementation bodies, transport, result checks and declared 16/32
-list stay identical. The separate [runtime-const control](runtime_const/invalid/main.omg)
-keeps its original source: proving a runtime input belongs to 16/32 does not
-make it a compile-time argument.
+Each reject twin changes only the call in `selected_width`: it sends the
+ordinary runtime argument directly to the const-only method. The width's
+membership premise, implementations, transport and result checks remain the
+same. The separate [runtime-const control](runtime_const/invalid/main.omg) also
+retains this restriction.
 
-The target place passes its selector as ordinary data to `FamilyForward`.
-One checked `HostedFamily` implementation forwards the same call for every
-platform; four explicit Build rows select it. The requirement declares empty
-service reach, and the caller records its direct entry with `invokes`.
-Every positive expects exit 0 and binds all four hosted targets.
+The target case passes the selector and width to `FamilyForward`. Four explicit
+Build rows choose the checked `HostedFamily` implementation. Its requirement
+has empty service reach; main records the direct boundary call with `invokes`.
+Every positive binds the four hosted targets and expects exit 0.
 
 ## Requirements
 
-- The original declaring method owns the complete 16/32 list. Closing one call
-  must retain that method identity even after its parameter and equalities fold.
-- Each selector keeps its exact named implementation and row. Distinct values
-  from the two legal implementations make that identity observable.
-- Locals, fields, parameters, calls, joins, constants, nested machines and Build
-  selections carry the same literal call. A caller comparison observes its
-  result; the declared list justifies forming the call before that comparison.
-- Const arguments remain static. Membership proofs, ordinary u32 storage and
-  implementation choice grant no extra access or type-packing mechanism.
-- Portable lowering retains the selected implementation, complete family and
-  tuple. The interpreter must agree with the native result.
-- Provider selection, calling conventions, register/stack storage and final
-  encoding preserve the code selector and u32 result. Actual execution is
-  required; successful checking alone does not establish these obligations.
+- The declaring interfaces own the complete width list. The compiler must keep
+  their identities when a closed call's parameters and predicates disappear.
+- The provider's own complete finite declaration permits its generic inputs in
+  const positions. Current callers or an unrelated finite predicate cannot
+  supply that permission. Original declared carriers remain exact.
+- Each required closed body must check, including width 32 when main only calls
+  width 16. Correlated parameters keep their authored pairs; the compiler must
+  not invent additional combinations.
+- Ordinary parameters, unrestricted generic values and runtime expressions
+  remain runtime inputs. A direct call to a const-only method still rejects.
+- Each transport preserves the implementation selector and width. Terminal
+  interpretation and native execution must both produce the authored results.
+- Provider selection, argument placement, register/stack storage and final
+  encoding must preserve these inputs. Successful source checking alone does
+  not establish execution.
 
 The governing rules are [finite specialization](../../../../wiki/spec/language/generics.md#finite-specialization-boundary),
 [dynamic method families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
-and [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection).
+and [Build-owned selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection).
 
-## Observations and remaining work
+## Evidence and remaining work
 
-The unchanged executable sources at `e9cec2710f5f0f025947307c06ed9f0a13926c03`
-pass all nine positive fixture checks and native/Terminal executions on Linux
-x86-64. All ten invalid fixtures and projects reject as intended, including the
-strict-const control. All nineteen public projects meet their expected results:
-[baseline run 41559023368](https://github.com/CathedralOS/Omega/actions/runs/41559023368).
-The checkpoint changes only this README's title/link from the fixed published
-base. These results establish existing behavior, not a new compiler repair.
-The strengthened examples and target migration pass
-[run 41560780946](https://github.com/CathedralOS/Omega/actions/runs/41560780946),
-source `74bbe3c7f0f173fe5063b15d085e810758a215be`. All nine positive fixtures
-check and run with native/Terminal exit 0. All ten invalid fixtures reject for
-their intended causes. All nineteen public projects meet their expected results
-(nine executions and ten intended rejections). The optimized producer has
-verified level 1; recorded inputs and outcomes retain that measured source.
+The earlier literal-only row passed all nine places and intended controls on
+Linux x86-64 at `74bbe3c7f0f173fe5063b15d085e810758a215be`:
+[run 41560780946](https://github.com/CathedralOS/Omega/actions/runs/41560780946).
+That result establishes existing literal-call behavior.
 
-Other-host execution and the broader parent tasks remain open. Remaining finite
-family requirements include borrowed descriptor results, entry content claims
-and other target bridges; this scalar row does not close those obligations.
+The [local bridge](bridge/local/main.omg) exposed a current compiler defect:
+optimized compiler `17be13e1a9ff` refused its valid generic provider's const call.
+At `d023d9db7fb8`, that frozen program, a computed const expression, correlated
+parameter pairs, and an explicit nested const call execute with native and
+Terminal exits 0 on macOS ARM64. Runtime-to-const, unrestricted-value,
+wrong-carrier, unsupported-row and crossed-pair controls still reject for their
+intended causes. The claim retains the exact producer, sources and raw outputs.
 
-The `target_body` place already selects `HostedFamily` through Build rows; it
-now also binds `macos_x86_64` with its own row, so this host executes it. On
-macOS x86-64 the positive exits 0 under `omega run --both` and the twin still
-rejects with `requires exactly one closed roster tuple`. With a single
-implementation there is no wrong row to detect, so no tag check is added.
+The nine updated transport places and their corpus mirrors still need fresh
+execution and intended rejections. Other-host execution and target-ineligible
+bridge qualification remain open. These local results do not close the parent
+task.

@@ -17,5 +17,7 @@ The frozen baseline with actual optimized compiler `17be13e1a9ff` refuses the
 positive because the provider's original Value binder reaches const admission.
 The twin refuses the direct runtime argument as intended. Neither reaches an
 execution engine. The source and input hashes are retained with the claim.
-This local production remains unfinished; completion requires the same operation
-through the existing transport places and intended controls.
+The unchanged local program executes with native and Terminal exits 0 on macOS
+ARM64 at optimized producer `d023d9db7fb8`. Its strictness twin still rejects the
+direct runtime argument. The parent fact is carrying this repair through its
+existing transport places; their qualification and the parent task remain open.
