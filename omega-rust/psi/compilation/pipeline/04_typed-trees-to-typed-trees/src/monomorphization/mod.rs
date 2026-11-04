@@ -52,6 +52,7 @@ mod candidate;
 mod captured_rows;
 mod cleanup_applications;
 mod contextual_calls;
+pub(crate) use contextual_calls::prepare_conformance_occurrence;
 mod domain_applications;
 mod explicit_arguments;
 mod layout_storage_policies;

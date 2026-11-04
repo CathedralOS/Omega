@@ -236,6 +236,16 @@ pub(crate) fn route_explicit_requirement_calls(
             &arguments,
         ) {
             Ok(mut rewrite) => {
+                if let Some(dispatch) = &rewrite.dispatch
+                    && dispatch.selection_application.is_valid()
+                    && let Err(mut errors) = crate::monomorphization::prepare_conformance_occurrence(
+                        program,
+                        dispatch.selection_application,
+                    )
+                {
+                    diagnostics.append(&mut errors);
+                    continue;
+                }
                 rewrite.application_arguments = execution_arguments;
                 if implementation_receiver.is_some() {
                     rewrite.implementation_receiver = implementation_receiver;
@@ -649,7 +659,6 @@ impl ExplicitApplication<'_> {
             operand_ordinal: ordinal,
             application: Some(Box::new(application.clone())),
         }));
-        program.prepare_closed_conformance_occurrence_scope(source_application)?;
         Ok(ExplicitRequirementRewrite {
             call: self.call,
             target,

@@ -12,6 +12,7 @@ mod closed_requirements;
 pub(super) use closed_requirements::retain as retain_closed_requirement_demands;
 mod conformance_demands;
 pub(super) use conformance_demands::prepare as prepare_conformance_machine_demands;
+pub(crate) use conformance_demands::prepare_occurrence as prepare_conformance_occurrence;
 mod demands;
 mod invocations;
 mod providers;
