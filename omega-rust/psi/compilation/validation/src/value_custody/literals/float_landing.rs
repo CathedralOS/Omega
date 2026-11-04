@@ -143,11 +143,7 @@ pub fn land_float_literal_destinations(typed: &mut TypedTrees) {
     }
 
     for machine in program.machines() {
-        if let Some(entry) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.name.as_str() == "entry")
-        {
+        if let Some(entry) = program.machine_states(machine).first() {
             collect_result_contract_float_pairs(
                 program,
                 program.machine_contracts(machine),
