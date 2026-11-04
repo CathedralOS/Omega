@@ -33,6 +33,13 @@ pub(crate) fn prepare_checked_build(
     priors: &[&RetainedCheck],
     retain: bool,
 ) -> Result<(PreparedBuildMachineProgram, Option<RetainedCheck>), Vec<Diagnostic>> {
+    // Retained applications belong to the canonical typed owner. Rejoin before
+    // projecting so pending evaluation and every later projection retain the
+    // same exact closed declarations and type arguments.
+    let completed_defaults = toolchain_defaults
+        .map(|defaults| defaults.rejoin_build(typed))
+        .transpose()?
+        .unwrap_or_default();
     // Pure compiler evaluation settles type-dependent storage before ordinary
     // ownership and contract checking. Its existing admission floor forbids
     // service effects and retains exact declaration-selection authority; it
@@ -56,15 +63,11 @@ pub(crate) fn prepare_checked_build(
             pending.push(continuation);
         }
     }
-    let mut provisional = if pre_checks.is_empty() {
+    let provisional = if pre_checks.is_empty() {
         projection
     } else {
         validation::execution_projection::project_build_program(typed, entry)?
     };
-    let completed_defaults = toolchain_defaults
-        .map(|defaults| defaults.rejoin_build(&mut provisional))
-        .transpose()?
-        .unwrap_or_default();
     let context = ProviderPlanningContext::new(&provisional, DependencyScope::Build);
     let mut defaults =
         build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
