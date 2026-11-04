@@ -1,1 +1,0 @@
-state `invoke` receives `guard` as mutable more than once

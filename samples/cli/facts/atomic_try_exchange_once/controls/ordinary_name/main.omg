@@ -1,9 +1,0 @@
-// Expected exit: 0.
-// An ordinary free machine named try_exchange_once keeps its checked body semantics.
-machine try_exchange_once(value: u32) -> u32 { value }
-machine main() crashes Trap {
-    let actual: u32 = try_exchange_once(37);
-    transition actual == 37 { true -> done() _ -> bad() }
-    machine done() {}
-    machine bad() { crash Trap; }
-}

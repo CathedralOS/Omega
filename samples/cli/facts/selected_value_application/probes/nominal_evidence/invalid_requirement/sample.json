@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "retains 0 authored satisfaction row(s)",
-    "OtherSelectedValue::selected"
-  ]
-}

@@ -167,11 +167,9 @@ retired-syntax deletions to completion.
     owned copies from borrowed outer input homes, runtime-selected stored-reference
     call operands (captured-loan access), other remaining declared body forms,
     nonscalar orders beyond fixed-integer
-    lexicographic products, or an unranked helper whose computed rank endpoint,
-    such as `items.len - 1`, reads a formal the helper supplies through a field
-    projection or computed argument rather than a whole parameter; the
-    whole-parameter case [runs in the parameter place](samples/cli/facts/nested_machine_invocation/joint_rank/parameter/bounded_distance/computed_length/README.md)
-    and its other eight places are unwritten).
+    lexicographic products,     or an unranked helper whose computed rank endpoint,
+    such as `items.len - 1`, reads a formal the helper supplies through a
+    computed argument rather than a whole parameter or a field projection).
   - Bring the composed state-graph planner
     (`omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph`)
     to parity with the ordinary call plan, starting with temporary cleanup
@@ -1162,8 +1160,7 @@ defines the complete product bar.
   Owners:
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization/dynamic_families.rs`
   and `omega-rust/psi/compilation/validation/src/machine_calls/calls/dynamic_requirement.rs`.
-  - Complete structural field reads rooted in entry content claims and
-    target-ineligible/const-only bridge qualification.
+  - Complete target-ineligible/const-only bridge qualification.
   Acceptance: pass/fail/run finite-family fixtures execute via `omega run --both`
   preserving effects, index identity, and once-only moves/cleanup across
   selection, forwarding, and storage, while unproved membership, missing/wrong
@@ -1355,7 +1352,8 @@ defines the complete product bar.
     decisive/single-attempt behavior, failure ordering, `Uncommitted` custody,
     and target retry-work attribution).
   - Produce source/Terminal events for bounded atomic fields, non-observing
-    single-attempt exchange, and the location-free fence event and its ordering
+    single-attempt exchange beyond dedicated u32/u64 builtin storage, and the
+    location-free fence event and its ordering
     through target refinement.
   - Check `sequenced_before`, `reads_from`, `modification_order`,
     `synchronizes_with`, `happens_before`, `global_sequential_order`, fence
