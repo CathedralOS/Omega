@@ -22,13 +22,16 @@ selected default provider. Its ten overlapping-write controls still reached
 their intended refusals.
 
 [PR #1811](https://github.com/CathedralOS/Omega/pull/1811) owns that configuration
-repair. Its first [focused probe](https://github.com/CathedralOS/Omega/actions/runs/41830804519)
-refused all seven cases at the old inline-member grammar, before any intended
-control or program engine ran. The ordinary core Build route and grammar repair
-are under fresh qualification. The separate [Build-use controls](build_use/README.md)
-check that the root Build can use the completed defaults before configuring
-its application. The original nine places and their runtime oracles remain
-unchanged; the broader tasks stay open.
+repair. Its [current focused checks](https://github.com/CathedralOS/Omega/actions/runs/41888053132)
+accept the local float proof, explicit override review and opaque-wrapper program,
+plus five intended rejection controls. Application Build code still loses the
+recorded use of `F64::negate`, and the ordinary inline provider still refuses two
+inherited equality contracts. The [two-case check](https://github.com/CathedralOS/Omega/actions/runs/41892646794)
+confirms that missing operator record and reaches the intended unproved-member
+refusal. These failures remain open; SDK behavior and new native results have
+not been qualified. The separate [Build-use controls](build_use/README.md) require
+the application's Build to use the completed defaults before configuring the
+program. The original nine places and runtime oracles remain unchanged.
 
 `expose` reads its argument and makes no write. Its complete empty write summary
 preserves the observation. The existing call-result, forwarding-machine and
