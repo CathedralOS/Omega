@@ -99,6 +99,7 @@ fn retained_inputs(
             for (resource_handle, resource) in facts.borrow.call_loan_resources.iter() {
                 if resource.call != original
                     || resource.parent_lifetime.root != supplier.backing.root
+                    || resource.access.direct_reborrow_effect(&row.kind).is_none()
                 {
                     continue;
                 }

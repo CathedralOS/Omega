@@ -368,9 +368,14 @@ class OwnedForeignCohortTests(unittest.TestCase):
             return dict(binary=str(Path(path).absolute()), sha256=rows.digest(path),
                         profile=dict(schema="omega-compiler-build-profile-v1", opt_level="1"))
 
+        def run(arguments, **options):
+            options["stdout"].write(cargo)
+            options["stderr"].write("optimized build\n")
+            return result
+
         with patch.object(pilot, "ROOT", root), patch.dict(os.environ), \
              patch.object(pilot, "command", side_effect=command), \
-             patch.object(pilot.subprocess, "run", return_value=result), \
+             patch.object(pilot.subprocess, "run", side_effect=run), \
              patch("build_slot.hold", return_value=nullcontext()), \
              patch.object(pilot.corpus_gate, "build_runner", return_value=runner) as build_runner, \
              patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
@@ -390,6 +395,62 @@ class OwnedForeignCohortTests(unittest.TestCase):
                     build_runner.assert_not_called()
             historical_fingerprint.assert_not_called()
         return producer
+
+    def test_interrupted_cli_build_keeps_diagnostics_written_before_return(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            def command(arguments):
+                return "a" * 40 if arguments == ["git", "rev-parse", "HEAD"] else ""
+
+            def interrupted(arguments, **options):
+                options["stdout"].write('{"reason":"compiler-message"}\n')
+                options["stderr"].write("diagnostic before interruption\n")
+                options["stdout"].flush()
+                options["stderr"].flush()
+                # These bytes must exist while the process is still running,
+                # including when it never supplies a CompletedProcess result.
+                self.assertEqual(Path(options["stderr"].name).read_text(), "diagnostic before interruption\n")
+                raise OSError("build interrupted")
+
+            with patch.object(pilot, "ROOT", root), patch.dict(os.environ), \
+                 patch.object(pilot, "command", side_effect=command), \
+                 patch.object(pilot.subprocess, "run", side_effect=interrupted), \
+                 patch("build_slot.hold", return_value=nullcontext()):
+                os.environ.pop("GITHUB_SHA", None)
+                with self.assertRaisesRegex(OSError, "build interrupted"):
+                    pilot.prepare_producer(root / "evidence", need_runner=False)
+            retained, = (root / "evidence").iterdir()
+            self.assertEqual((retained / "cli-build.jsonl").read_text(), '{"reason":"compiler-message"}\n')
+            self.assertEqual((retained / "cli-build.stderr").read_text(), "diagnostic before interruption\n")
+            self.assertFalse((retained / "producer.json").exists())
+
+    def test_failed_cli_build_retains_status_and_raw_diagnostic_tail(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            def command(arguments):
+                return "a" * 40 if arguments == ["git", "rev-parse", "HEAD"] else ""
+
+            def failed(arguments, **options):
+                options["stdout"].write('{"reason":"build-finished","success":false}\n')
+                options["stderr"].write("compiler refused this candidate\n")
+                return subprocess.CompletedProcess(arguments, 101)
+
+            errors = io.StringIO()
+            with patch.object(pilot, "ROOT", root), patch.dict(os.environ), \
+                 patch.object(pilot, "command", side_effect=command), \
+                 patch.object(pilot.subprocess, "run", side_effect=failed), \
+                 patch.object(pilot.sys, "stderr", errors), \
+                 patch.object(pilot.corpus_gate, "require_optimized") as profile, \
+                 patch("build_slot.hold", return_value=nullcontext()):
+                os.environ.pop("GITHUB_SHA", None)
+                with self.assertRaisesRegex(ValueError, r"CLI build failed \(101\)"):
+                    pilot.prepare_producer(root / "evidence", need_runner=False)
+                profile.assert_not_called()
+            retained, = (root / "evidence").iterdir()
+            self.assertEqual(errors.getvalue(), "compiler refused this candidate\n")
+            self.assertEqual((retained / "cli-build.stderr").read_text(), errors.getvalue())
+            self.assertEqual(json.loads((retained / "cli-build.jsonl").read_text())["success"], False)
+            self.assertFalse((retained / "producer.json").exists())
 
     def test_current_cli_profile_needs_no_historical_cargo_unit_sidecar(self):
         with tempfile.TemporaryDirectory() as temporary:

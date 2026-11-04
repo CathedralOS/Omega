@@ -361,7 +361,18 @@ fn validate_loan_coordinates(
             TerminalSuspensionLoanBacking::InputDependencies
         ) && loan.resource != TerminalSuspensionLoanResource::LifetimeDependency
             || matches!(loan.backing, TerminalSuspensionLoanBacking::CapturedInput)
-                && loan.resource != TerminalSuspensionLoanResource::OutputInput
+                && (loan.active_at_call
+                    || !matches!(
+                        loan.capture,
+                        TerminalSuspensionLoanCapture::CallInput { .. }
+                    )
+                    || !matches!(
+                        loan.resource,
+                        TerminalSuspensionLoanResource::OutputInput
+                            | TerminalSuspensionLoanResource::DirectRoot
+                            | TerminalSuspensionLoanResource::Reborrow
+                            | TerminalSuspensionLoanResource::DescriptorTransfer
+                    ))
         {
             return Err(CodecError::NonCanonicalEncoding);
         }
@@ -710,6 +721,35 @@ mod tests {
                 .expect("decode retained ordinary call input"),
             ordinary_plan
         );
+        for kind in [
+            TerminalSuspensionLoanResource::DirectRoot,
+            TerminalSuspensionLoanResource::Reborrow,
+            TerminalSuspensionLoanResource::DescriptorTransfer,
+        ] {
+            let mut plan = ordinary_plan.clone();
+            let input = plan.loans.occurrences.get_mut(ordinary_input);
+            input.resource = kind;
+            if kind == TerminalSuspensionLoanResource::Reborrow {
+                input.parent = parent;
+            }
+            assert_eq!(
+                decode_suspension_call_plan(&mut Reader::new(&encode(&plan)))
+                    .expect("decode original incoming call input"),
+                plan
+            );
+            plan.loans
+                .occurrences
+                .get_mut(ordinary_input)
+                .active_at_call = true;
+            assert!(decode_suspension_call_plan(&mut Reader::new(&encode(&plan))).is_err());
+        }
+        let mut wrong_capture = ordinary_plan.clone();
+        wrong_capture
+            .loans
+            .occurrences
+            .get_mut(ordinary_input)
+            .capture = TerminalSuspensionLoanCapture::DescriptorTransfer;
+        assert!(decode_suspension_call_plan(&mut Reader::new(&encode(&wrong_capture))).is_err());
         ordinary_plan
             .loans
             .occurrences
