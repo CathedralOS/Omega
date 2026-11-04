@@ -51,7 +51,7 @@ jobs:
           assert runner_profile['sha256']==original['runner_profile']['sha256'] and runner_profile['profile']==original['runner_profile']['profile'] and runner_profile['profile']['opt_level']=='1'
           assert runner_profile['sha256']==origin['runner_sha256']
           producer=compiler_pilot.CompilerProducer(source,settings['tree'],host,original['toolchain'],cli.resolve(),runner.resolve(),profile,runner_profile)
-          out=Path('build/float-result-equality-37bb-public-diagnostics');out.mkdir(parents=True,exist_ok=True)
+          out=Path('build/float-result-equality-37bb-public-diagnostics').resolve();out.mkdir(parents=True,exist_ok=True)
           (out/'retained-origin.json').write_text(json.dumps({'settings':settings,'host':host,'origin_run':origin['run'],'origin_conclusion':run['conclusion'],'artifact':matches[0],'original_producer':original,'actual_profile':profile,'actual_runner_profile':runner_profile,'driver_sha':os.environ.get('GITHUB_SHA'),'actual_checkout':source},indent=2)+'\n')
           # The driver checks out this exact measured source. The workflow-only driver
           # revision remains separately recorded above; it is not a new producer.
