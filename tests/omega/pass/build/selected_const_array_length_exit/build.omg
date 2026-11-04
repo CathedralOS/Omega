@@ -15,15 +15,14 @@ boundary trait CheckedMath {
     machine offset_zero(value: i32) -> i32 terminates reaches;
 }
 
-data CheckedMathProvider {}
-machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
-satisfies CheckedMath::offset_zero
-{
-    transition { _ -> input }
+CheckedMathProvider satisfies CheckedMath {
+    machine offset_zero(input: i32) -> i32 {
+        transition { _ -> input }
+    }
 }
 
 machine named_slot_count() -> i32 {
-    CheckedMath::offset_zero(9)
+    CheckedMathProvider::offset_zero(9)
 }
 
 macos_arm64 machine checked_target_capacity() -> u64 {

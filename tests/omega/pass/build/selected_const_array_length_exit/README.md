@@ -1,7 +1,7 @@
 # Selected constants in Build
 
 Build uses computed array lengths whose helpers invoke selected floating-point
-operators and an ordinary checked named requirement. Its own provider context
+operators and an explicitly named checked implementation. Its own provider context
 must settle those constants, then the evaluated Build program must be checked
 before execution. A computed generic argument also creates a concrete data
 instance whose identity must survive deferred Product-body completion.
@@ -20,9 +20,10 @@ An `Optional<BuildToken>` is instantiated from the toolchain's generic template
 and inspected inside Build. Its exact use must retain the concrete instance in
 Build context, while Product-only instances of that same template stay out.
 Build also calls a four-target helper family. Every sibling has a local array
-whose length needs the Build-only checked provider; all bodies must settle and
-check in Build context, although only the admitted execution-profile member
-runs. The Product's selected target must not supply that provider authority.
+whose length calls the same explicitly named implementation; all bodies must
+settle and check in Build context, although only the admitted execution-profile
+member runs. Naming the implementation supplies the exact checked body, rather
+than discovering a visible satisfier or borrowing Product provider authority.
 The emitted program exits 0.
 
 Run the full package and Build route with `omega update --project
