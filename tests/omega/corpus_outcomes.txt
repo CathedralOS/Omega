@@ -8329,24 +8329,24 @@ fail/facts/field_where_index_through_target_body_rejected rejected 3644ms expect
 	cannot prove index `main.k + 1` is within length 5 in read_target::entry
 	cannot prove index `main.k + 1` is within length 5 in read_target::entry
 	cannot prove index `main.k + 1` is within length 5 in read_target::entry
-fail/facts/finite_family_const_roster/call_result rejected 1746ms expected @74bbe3c7f0f1
-	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/const_name rejected 1999ms expected @74bbe3c7f0f1
-	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/field rejected 1757ms expected @74bbe3c7f0f1
-	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/local rejected 1784ms expected @74bbe3c7f0f1
-	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/match_join rejected 1735ms expected @74bbe3c7f0f1
-	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/other_machine rejected 2637ms expected @74bbe3c7f0f1
-	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/other_state rejected 1942ms expected @74bbe3c7f0f1
-	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/parameter rejected 1839ms expected @74bbe3c7f0f1
-	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/target_body rejected 2000ms expected @74bbe3c7f0f1
-	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
+fail/facts/finite_family_const_roster/call_result rejected 317ms expected @a50253a693d8
+	callable expression argument does not name a const or value declaration
+fail/facts/finite_family_const_roster/const_name rejected 332ms expected @a50253a693d8
+	callable expression argument does not name a const or value declaration
+fail/facts/finite_family_const_roster/field rejected 326ms expected @a50253a693d8
+	callable expression argument does not name a const or value declaration
+fail/facts/finite_family_const_roster/local rejected 361ms expected @a50253a693d8
+	callable expression argument does not name a const or value declaration
+fail/facts/finite_family_const_roster/match_join rejected 335ms expected @a50253a693d8
+	callable expression argument does not name a const or value declaration
+fail/facts/finite_family_const_roster/other_machine rejected 320ms expected @a50253a693d8
+	callable expression argument does not name a const or value declaration
+fail/facts/finite_family_const_roster/other_state rejected 321ms expected @a50253a693d8
+	callable expression argument does not name a const or value declaration
+fail/facts/finite_family_const_roster/parameter rejected 328ms expected @a50253a693d8
+	callable expression argument does not name a const or value declaration
+fail/facts/finite_family_const_roster/target_body rejected 332ms expected @a50253a693d8
+	callable expression argument does not name a const or value declaration
 fail/facts/finite_family_exclusive_result/call_result rejected 8489ms expected @05a6f6af37ec+wt
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
@@ -19047,6 +19047,10 @@ fail/traits/external_row_does_not_capture_map_region rejected 799ms expected @cc
 	machine `read` state `entry` parameter `context` uses undeclared lifetime `'storage'; declare it in the owner's generic parameter list
 fail/traits/family_carrier_pack_dependent_storage_rejected rejected 6022ms expected @48bf716629cb+wt
 	machine `hold_any` state `entry` does not satisfy trait `Holding` machine `hold`: conformance borrow contract: unimplemented: callable input region frontier is incomplete
+fail/traits/finite_family_const_forwarding rejected 2014ms expected @a50253a693d8
+	cannot prove requires contract for call dyn Family::row from static_forward: Width == 16 && Lanes == 1 || Width == 32 && Lanes == 2 (needs fact `Width == 16 && Lanes == 1 || Width == 32 && Lanes == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/finite_family_const_missing_row rejected 515ms expected @a50253a693d8
+	dynamic family call `Family::row` requires exactly one closed roster tuple ((16)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
 fail/traits/finite_family_machine_facts_do_not_bind_state rejected 2700ms expected @05a6f6af37ec+wt
 	cannot prove requires contract for call dyn Factory::make from unproved: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/finite_family_mutable_state_subject rejected 16125ms expected @05a6f6af37ec+wt
@@ -23071,15 +23075,15 @@ pass/facts/field_where_index_through_other_machine_exit checked 4130ms check-tar
 pass/facts/field_where_index_through_other_state_exit checked 4757ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/field_where_index_through_parameter_exit checked 4901ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/field_where_index_through_target_body_exit checked 5170ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/finite_family_const_roster/call_result checked 11068ms check-target:macos_arm64 @74bbe3c7f0f1
-pass/facts/finite_family_const_roster/const_name checked 14092ms check-target:macos_arm64 @74bbe3c7f0f1
-pass/facts/finite_family_const_roster/field checked 10851ms check-target:macos_arm64 @74bbe3c7f0f1
-pass/facts/finite_family_const_roster/local checked 10297ms check-target:macos_arm64 @74bbe3c7f0f1
-pass/facts/finite_family_const_roster/match_join checked 10143ms check-target:macos_arm64 @74bbe3c7f0f1
-pass/facts/finite_family_const_roster/other_machine checked 10227ms check-target:macos_arm64 @74bbe3c7f0f1
-pass/facts/finite_family_const_roster/other_state checked 10239ms check-target:macos_arm64 @74bbe3c7f0f1
-pass/facts/finite_family_const_roster/parameter checked 10224ms check-target:macos_arm64 @74bbe3c7f0f1
-pass/facts/finite_family_const_roster/target_body checked 10805ms check-target:macos_arm64 @74bbe3c7f0f1
+pass/facts/finite_family_const_roster/call_result checked 2871ms check-target:macos_arm64 @a50253a693d8
+pass/facts/finite_family_const_roster/const_name checked 2693ms check-target:macos_arm64 @a50253a693d8
+pass/facts/finite_family_const_roster/field checked 2784ms check-target:macos_arm64 @a50253a693d8
+pass/facts/finite_family_const_roster/local checked 2781ms check-target:macos_arm64 @a50253a693d8
+pass/facts/finite_family_const_roster/match_join checked 2829ms check-target:macos_arm64 @a50253a693d8
+pass/facts/finite_family_const_roster/other_machine checked 2676ms check-target:macos_arm64 @a50253a693d8
+pass/facts/finite_family_const_roster/other_state checked 2672ms check-target:macos_arm64 @a50253a693d8
+pass/facts/finite_family_const_roster/parameter checked 2693ms check-target:macos_arm64 @a50253a693d8
+pass/facts/finite_family_const_roster/target_body checked 2886ms check-target:macos_arm64 @a50253a693d8
 pass/facts/finite_family_exclusive_result/call_result checked 7369ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_exclusive_result/const_name checked 7497ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_exclusive_result/field checked 6585ms check-target:macos_arm64 @05a6f6af37ec+wt
@@ -28350,6 +28354,7 @@ pass/traits/equatable_string_field_equality_exit checked 12265ms check-target:ma
 pass/traits/equatable_synthesis checked 4469ms @ccdb99ca2214
 pass/traits/evidence_member_empty_output_frontier checked 2533ms @ccdb99ca2214
 pass/traits/exact_edge_application_and_invocation_parameters checked 11835ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/finite_family_const_forwarding checked 2762ms check-target:macos_arm64 @a50253a693d8
 pass/traits/float_contract_refinement_boundaries_exit checked 5171ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/generic_dyn_contract_inventory_exit checked 3230ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/generic_map_applied_contract_exit checked 4202ms check-target:macos_arm64 @ccdb99ca2214
