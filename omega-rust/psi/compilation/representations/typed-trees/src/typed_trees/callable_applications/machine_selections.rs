@@ -1,12 +1,13 @@
-//! Occurrence-owned checking views for completely determined symbolic providers.
-//! The declaration keeps its universal telescope. A view consumes only its exact
-//! supplied tuple, with the invocation and provider lexical scopes kept separate.
-//! Bounds and effects still owe ordinary admission; no executable cache is made.
-//! One selected tuple can face several member-local demands. The demanding
-//! binder, exact source contract cohort and selected entry own its view;
-//! invocation and ordinal alone cannot identify a contract.
+//! Check functions supplied to a generic call against its declared requirements.
+//! Prepare all supplied functions before copying guarantees that mention them.
+//!
+//! Each checking view keeps the exact invocation, selected function, arguments
+//! and supplying scopes. The source declaration remains universal. These views
+//! do not grant admission or create executable instances.
 
 mod queries;
+#[cfg(test)]
+mod record_tests;
 
 use super::{
     AppliedCallableOwner, AppliedCallableSignature, CallableApplication, CallableLifetimeBinding,
@@ -169,6 +170,7 @@ impl TypedTrees {
                 .collect::<Result<Vec<_>, &'static str>>()?,
             types: substitutions,
             static_arguments,
+            static_argument_owner: application.lexical_owner,
             ..CallableApplication::default()
         }
         .signature(self, &declared)?;
@@ -176,33 +178,15 @@ impl TypedTrees {
         let provider_lifetimes = self
             .callable_lifetime_substitutions
             .insert_many(provider_region_rows);
-        let invocation_source = self.static_machine_application(invocation);
+        let invocation_source = self.static_machine_application(invocation).clone();
         let caller_lifetime_declaration = invocation_source.lifetime_binding_declaration;
         let caller_lifetime_owner = invocation_source.lexical_owner;
         let source_required = required.clone();
-        let caller_lifetimes = caller_lifetime_bindings
-            .iter()
-            .map(|binding| {
-                let region = crate::type_identity::lifetime_parameter_identity(
-                    self,
-                    caller_lifetime_owner,
-                    binding.argument.as_str(),
-                )
-                .ok_or("applied requirement region lost its supplying declaration")?;
-                Ok(CallableLifetimeBinding {
-                    parameter: binding.parameter.clone(),
-                    argument: binding.argument.clone(),
-                    region,
-                    origin: CallableLifetimeOrigin::Lexical,
-                })
-            })
-            .collect::<Result<Vec<_>, &'static str>>()?;
-        let required = CallableApplication {
-            lifetimes: caller_lifetimes,
-            types: caller_substitutions.to_vec(),
-            ..CallableApplication::default()
-        }
-        .signature(self, required)?;
+        // Save the exact inputs now. Required contracts are copied after all
+        // providers for this invocation are available, including later binders.
+        let caller_snapshot = self
+            .expression_table
+            .snapshot_static_machine_bindings(invocation);
         let caller_operands =
             self.callable_substitutions
                 .insert_many(caller_substitutions.iter().map(|(parameter, actual)| {
@@ -239,9 +223,10 @@ impl TypedTrees {
                 demand,
                 selected: selected_entry,
                 provider,
-                required,
+                required: None,
                 source_required,
                 caller_operands,
+                caller_bindings: caller_snapshot,
                 caller_lifetimes,
                 caller_lifetime_declaration,
                 caller_lifetime_owner,
@@ -257,5 +242,170 @@ impl TypedTrees {
             self.applied_callable_signatures.insert(prepared);
         }
         Ok(())
+    }
+}
+
+impl TypedTrees {
+    /// Copy the invocation's guarantees after its whole provider roster exists.
+    /// A guarantee may call a helper supplied before or after its checker.
+    pub fn prepare_selected_machine_contracts(
+        &mut self,
+        invocation: StaticMachineApplicationHandle,
+    ) -> Result<(), &'static str> {
+        let selected = self
+            .expression_table
+            .static_machine_application_selected_machines(invocation);
+        let mut providers = Vec::new();
+        for (_, prepared) in self.applied_callable_signatures.iter() {
+            let AppliedCallableOwner::MachineSelection {
+                invocation: source,
+                ordinal,
+                selected: entry,
+                demand,
+                provider,
+                ..
+            } = &prepared.owner
+            else {
+                continue;
+            };
+            if *source != invocation
+                || selected
+                    .get(*ordinal)
+                    .is_none_or(|argument| argument.symbol != *entry)
+                || !self.machine_selection_lifetimes_are_current(&prepared.owner)
+            {
+                continue;
+            }
+            if let Some((_, previous)) = providers.iter().find(|(parameter, _)| parameter == demand)
+            {
+                if !self.same_selected_provider(*previous, *provider) {
+                    return Err(
+                        "current contract helper has conflicting retained provider applications",
+                    );
+                }
+            } else {
+                providers.push((*demand, *provider));
+            }
+        }
+        let pending = self
+            .applied_callable_signatures
+            .iter()
+            .filter_map(|(handle, prepared)| match &prepared.owner {
+                AppliedCallableOwner::MachineSelection {
+                    invocation: source,
+                    required: None,
+                    ordinal,
+                    selected: entry,
+                    ..
+                } if *source == invocation
+                    && selected
+                        .get(*ordinal)
+                        .is_some_and(|argument| argument.symbol == *entry)
+                    && self.machine_selection_lifetimes_are_current(&prepared.owner) =>
+                {
+                    Some(handle)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for handle in pending {
+            let AppliedCallableOwner::MachineSelection {
+                source_required,
+                caller_operands,
+                caller_bindings,
+                caller_lifetimes,
+                caller_lifetime_owner,
+                ..
+            } = self.applied_callable_signatures.get(handle).owner.clone()
+            else {
+                unreachable!()
+            };
+            let arguments = self
+                .expression_table
+                .static_machine_binding_snapshot(caller_bindings)
+                .iter()
+                .filter_map(|binding| match &binding.value {
+                    StaticMachineBindingValue::Machine(argument)
+                    | StaticMachineBindingValue::Conformance(argument) => {
+                        Some((binding.parameter, argument.clone()))
+                    }
+                    _ => None,
+                })
+                .collect();
+            let lifetimes = self
+                .callable_lifetime_substitutions
+                .span_or_empty(caller_lifetimes)
+                .iter()
+                .map(|binding| {
+                    let region = crate::type_identity::lifetime_parameter_identity(
+                        self,
+                        caller_lifetime_owner,
+                        binding.argument.as_str(),
+                    )
+                    .ok_or("applied requirement region lost its supplying declaration")?;
+                    Ok(CallableLifetimeBinding {
+                        parameter: binding.parameter.clone(),
+                        argument: binding.argument.clone(),
+                        region,
+                        origin: CallableLifetimeOrigin::Lexical,
+                    })
+                })
+                .collect::<Result<Vec<_>, &'static str>>()?;
+            let types = self
+                .callable_substitutions
+                .span_or_empty(caller_operands)
+                .iter()
+                .map(|operand| (operand.parameter, operand.actual))
+                .collect();
+            let required = CallableApplication {
+                lifetimes,
+                types,
+                static_arguments: arguments,
+                static_argument_owner: caller_lifetime_owner,
+                selected_providers: providers.clone(),
+                ..CallableApplication::default()
+            }
+            .signature(self, &source_required)?;
+            let AppliedCallableOwner::MachineSelection {
+                required: destination,
+                ..
+            } = &mut self.applied_callable_signatures.get_mut(handle).owner
+            else {
+                unreachable!()
+            };
+            *destination = Some(required);
+        }
+        Ok(())
+    }
+
+    pub fn applied_machine_provider(
+        &self,
+        invocation: StaticMachineApplicationHandle,
+        ordinal: usize,
+        selected: SymbolHandle,
+        demand: SymbolHandle,
+        expected: &signature::StateSignature,
+    ) -> Option<StaticMachineApplicationHandle> {
+        self.applied_callable_signatures
+            .iter()
+            .find_map(|(_, prepared)| match &prepared.owner {
+                AppliedCallableOwner::MachineSelection {
+                    invocation: source,
+                    ordinal: position,
+                    selected: entry,
+                    demand: parameter,
+                    source_required,
+                    provider,
+                    ..
+                } if *source == invocation
+                    && *position == ordinal
+                    && *entry == selected
+                    && *parameter == demand
+                    && source_required == expected =>
+                {
+                    Some(*provider)
+                }
+                _ => None,
+            })
     }
 }

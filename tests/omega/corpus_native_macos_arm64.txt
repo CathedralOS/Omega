@@ -3904,11 +3904,15 @@ pass/generics/applied_data_argument_store_receipt checked 4511ms @7c0518fd7afd+w
 pass/generics/borrowed_applied_field_static_selection_exit built 5548ms exit:0 @d1fa4738e67a+wt
 pass/generics/closed_generic_local_field_observation_exit built 1759ms exit:0 @c9b4ecc7551a
 pass/generics/closed_indexed_quantity built 12715ms @4ffed225fc45+wt
-pass/generics/closed_requirement_const_callback_exit built 3434ms exit:0 @734fbbb78c51+wt
+pass/generics/closed_requirement_const_callback_exit built 3634ms exit:0 @2f474dce29f2
 pass/generics/closed_sum_case_membership checked 191ms
 pass/generics/const_data_param checked 166ms
 pass/generics/core_slice_for_each built 1151ms exit:0 @114906953e11+wt
 pass/generics/declared_range_endpoint_inference built 10509ms exit:70 @1727c70d2f7e+wt
+pass/generics/dependent_checker_borrowed_exit built 2703ms exit:0 @775af766ad1a+wt
+pass/generics/dependent_checker_checker_first_exit built 2703ms exit:0 @775af766ad1a+wt
+pass/generics/dependent_checker_configured_exit built 2933ms exit:0 @775af766ad1a+wt
+pass/generics/dependent_checker_named_exit built 2991ms exit:0 @775af766ad1a+wt
 pass/generics/erased_static_arguments_keep_lexical_scope_exit built 1382ms exit:0 @e31dda2664298bc891b76cde9f607ecf2a1f5973
 pass/generics/folded_range_endpoint_selection_custody built 9528ms exit:70 @1727c70d2f7e+wt
 pass/generics/foreign_case_membership_dispatch_exit built 1066ms exit:70 @c49da64f85d3
