@@ -41,10 +41,10 @@ descends. The diagnostic is the missing private-coordinate assignment.
 
 ## What remains
 
-The field, call-result, match-join, const-name, nested-machine, other-machine,
-and target-body places of this computed-endpoint witness are unwritten. A
-helper that supplies an endpoint formal through a field projection or a
-computed argument still has no transported bound.
+A helper that supplies an endpoint formal through a field projection or a
+computed argument still has no transported bound. The nine places that carry
+this whole-parameter endpoint are parameter, local, field, call result,
+match join, const name, nested machine, other machine, and target body.
 
 ## Pinned fixtures
 
