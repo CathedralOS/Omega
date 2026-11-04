@@ -15302,9 +15302,10 @@ fail/arithmetic/collection_result_endpoint_effect rejected 4995ms expected @ccdb
 	cannot prove subslice range ordering `__hoist_1..__hoist_2` is within slice length 3
 fail/arithmetic/collection_result_false_loop_bound rejected 2181ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from count at statement 0: result < values.len
-fail/arithmetic/collection_result_rebound_descriptor rejected 5985ms expected @a55978ecf3a8
-	cannot prove ensures contract for exit from count at statement 2: result <= values.len
-fail/arithmetic/collection_result_rebound_descriptor_in_later_state rejected 4918ms expected regressed-from:checked @a55978ecf3a8
+fail/arithmetic/collection_result_rebound_descriptor rejected 6825ms expected @cf089bb04032
+	cannot prove ensures contract for exit from count at statement 2: result <= values.len; no exact incoming reference origin for values
+	cannot prove index `count` is within length 2 in rejected::entry
+fail/arithmetic/collection_result_rebound_descriptor_in_later_state rejected 7986ms expected regressed-from:checked @cf089bb04032
 	cannot prove ensures contract for exit from count at statement 0: result <= values.len
 fail/arithmetic/collection_result_window_metadata rejected 2381ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from rejected at statement 3: result <= 1
@@ -15661,9 +15662,8 @@ fail/asm/atomic_release_disposition_impostor rejected 767ms expected @ccdb99ca22
 fail/asm/atomic_release_disposition_missing_store rejected 2132ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from finish at statement 2: proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce)
 	linear value `ack` reaches scope exit without being consumed or transferred in machine `finish` state `entry`
-fail/asm/atomic_release_disposition_rebound_descriptor rejected 1823ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from finish at statement 2: proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce); no exact incoming reference origin for word
-	linear value `ack` reaches scope exit without being consumed or transferred in machine `finish` state `entry`
+fail/asm/atomic_release_disposition_rebound_descriptor rejected 5165ms expected @cf089bb04032
+	cannot prove ensures contract for exit from finish at statement 3: proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce); no exact incoming reference origin for word
 fail/asm/atomic_release_disposition_relaxed rejected 2033ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from finish at statement 1: proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce)
 	linear value `ack` reaches scope exit without being consumed or transferred in machine `finish` state `entry`
