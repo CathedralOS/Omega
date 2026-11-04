@@ -2506,7 +2506,8 @@ pub fn result_loans(
 
 /// Earliest statement entry permitted by this local's own uses and loans.
 /// A dead reference leaf does not authorize destroying a live scalar sibling.
-/// Missing leaf weakening evidence keeps disposal on the existing exit path.
+/// A leaf used through the final statement retires at the selected exit, even
+/// when no earlier weakening event was needed to restore its backing.
 /// The execution scheduler must also retire holders borrowing this local's
 /// storage before using this boundary to dispose of its whole value.
 pub fn whole_local_release_boundary(
@@ -2528,7 +2529,7 @@ pub fn whole_local_release_boundary(
     let mut boundary = order.successor(statement_index as usize)?;
     for (_, group) in loans {
         for (loan, _) in facts.borrow.loan_group(group)? {
-            let incoming = release_statement(program, facts, machine, state.symbol, loan)? as usize;
+            let incoming = release_boundary(program, facts, machine, state.symbol, loan)? as usize;
             if order.position(incoming)? > order.position(boundary)? {
                 boundary = incoming;
             }
