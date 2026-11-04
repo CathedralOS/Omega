@@ -48,7 +48,7 @@ pub(super) fn literal_value(
         // `bool` storage is the set {0, 1}. A literal store through that
         // representation restores a byte field's numeric domain.
         ExpressionNode::Boolean(value) => {
-            Some(LiteralValue::Integer(if value { 1 } else { 0 }))
+            Some(LiteralValue::Integer(if *value { 1 } else { 0 }))
         }
         ExpressionNode::Float(value) => {
             use numerics::float_semantics::{FloatFormat, FloatSemantics};
