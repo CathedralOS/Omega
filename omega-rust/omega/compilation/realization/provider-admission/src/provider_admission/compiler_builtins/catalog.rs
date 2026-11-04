@@ -187,7 +187,9 @@ fn compiler_builtin_execution(
     };
     let (operation, format) = match identity {
         CompilerIntrinsicExecutionIdentity::TaskRegisterActivate
-        | CompilerIntrinsicExecutionIdentity::TaskRegisterRead => return None,
+        | CompilerIntrinsicExecutionIdentity::TaskRegisterRead
+        | CompilerIntrinsicExecutionIdentity::SegmentReload(_)
+        | CompilerIntrinsicExecutionIdentity::SegmentRead(_) => return None,
         CompilerIntrinsicExecutionIdentity::AccessLifecycle(operation) => {
             return Some(CompilerBuiltinExecution::AccessLifecycle {
                 boundary,

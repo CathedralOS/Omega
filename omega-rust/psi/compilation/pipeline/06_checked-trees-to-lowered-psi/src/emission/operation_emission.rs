@@ -7,11 +7,11 @@ pub(crate) mod boolean;
 pub(crate) mod boundary_calls;
 pub(crate) mod buffer;
 pub(crate) mod calls;
+pub(crate) mod descriptor_tables;
 pub(crate) mod dynamic_calls;
 pub(crate) mod expressions;
 pub(crate) mod integer;
 pub(crate) mod place_declarations;
-pub(crate) mod task_register;
 pub(crate) mod view_subslice;
 
 use crate::emission::operation_emission::buffer::scalar_result_declaration;
@@ -37,7 +37,7 @@ pub(crate) enum LoweredScalarBinding {
     },
     Expression(LoweredDirectExpression),
     DirectCall(LoweredDirectCallBinding),
-    TaskRegister(task_register::LoweredTaskRegisterBinding),
+    DescriptorTable(descriptor_tables::LoweredDescriptorTableBinding),
     /// One nested boundary application whose operands are already complete.
     BoundaryCall(boundary_calls::LoweredBoundaryCallBinding),
     /// One selector call whose selector and data operands are complete.
@@ -54,7 +54,7 @@ impl LoweredScalarBinding {
             Self::SelectedComparison { .. } => Ok(ScalarType::Boolean.into()),
             Self::Expression(expression) => expression.value_type(parameters),
             Self::DirectCall(call) => Ok(call.result_type),
-            Self::TaskRegister(call) => Ok(call.result_type),
+            Self::DescriptorTable(call) => Ok(call.result_type),
             Self::BoundaryCall(call) => Ok(call.result_type),
             Self::DynamicCall(call) => Ok(call.result_type),
         }
@@ -65,7 +65,7 @@ impl LoweredScalarBinding {
             Self::SelectedComparison { .. } => ScalarType::Boolean,
             Self::Expression(expression) => expression.scalar_type(),
             Self::DirectCall(call) => call.result_type.scalar_type,
-            Self::TaskRegister(call) => call.result_type.scalar_type,
+            Self::DescriptorTable(call) => call.result_type.scalar_type,
             Self::BoundaryCall(call) => call.result_type.scalar_type,
             Self::DynamicCall(call) => call.result_type.scalar_type,
         }
@@ -214,7 +214,7 @@ pub(crate) fn emit_scalar_binding(
             call_emission,
             current_claims,
         ),
-        LoweredScalarBinding::TaskRegister(call) => task_register::emit(
+        LoweredScalarBinding::DescriptorTable(call) => descriptor_tables::emit(
             call,
             parameters,
             frontier,
@@ -245,7 +245,7 @@ pub(crate) fn emit_scalar_binding(
         LoweredScalarBinding::DirectCall(call) => {
             Some((call.source_coordinate, &call.loan_completions))
         }
-        LoweredScalarBinding::TaskRegister(call) => {
+        LoweredScalarBinding::DescriptorTable(call) => {
             Some((call.source_coordinate.into(), &call.loan_completions))
         }
         LoweredScalarBinding::BoundaryCall(call) => {

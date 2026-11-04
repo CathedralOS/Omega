@@ -842,8 +842,8 @@ fn validate_hardware_array_loan(
     Ok(())
 }
 
-/// Task activation keeps all hardware-addressed storage as checked loans.
-pub(super) fn validate_task_register(
+/// Descriptor operations keep all hardware-addressed storage as checked loans.
+pub(super) fn validate_descriptor_operation(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
@@ -854,7 +854,29 @@ pub(super) fn validate_task_register(
         )
     };
     let (service, result_bits) = match &operation.kind {
-        OperationKind::ReadTaskRegister { service } => (*service, 16),
+        OperationKind::ReadTaskRegister { service }
+        | OperationKind::ReadSegmentSelector { service, .. } => (*service, 16),
+        OperationKind::ReloadSegmentDescriptors {
+            service,
+            entries,
+            gdt,
+            selector,
+            scratch,
+            ..
+        } => {
+            if !(1..=8192).contains(entries)
+                || gdt.access != StructuralAccess::MutableBorrow
+                || scratch.access != StructuralAccess::MutableBorrow
+                || declared_scalar_type(machine, *selector) != Some(unsigned(16))
+            {
+                return malformed(
+                    "selector reload requires a mutable GDT, mutable ten-byte scratch and u16 selector",
+                );
+            }
+            validate_hardware_array_loan(module, machine, gdt, true, 64, u64::from(*entries))?;
+            validate_hardware_array_loan(module, machine, scratch, true, 8, 10)?;
+            (*service, 8)
+        }
         OperationKind::ActivateTaskRegister {
             service,
             entries,
@@ -881,7 +903,7 @@ pub(super) fn validate_task_register(
             validate_hardware_array_loan(module, machine, scratch, true, 8, 10)?;
             (*service, 8)
         }
-        _ => return malformed("task-register validator received another operation"),
+        _ => return malformed("descriptor validator received another operation"),
     };
     if !super::has_service(module, service)
         || operation
@@ -890,7 +912,7 @@ pub(super) fn validate_task_register(
             .is_none_or(|result| result.value_type() != unsigned(result_bits).into())
     {
         return malformed(
-            "task-register operation requires service authority and its exact unsigned result",
+            "descriptor operation requires service authority and its exact unsigned result",
         );
     }
     Ok(())

@@ -200,7 +200,7 @@ fn admit_call_target(
         (
             CheckedUnitCallRoute::Dynamic { .. }
             | CheckedUnitCallRoute::ActivationStorage { .. }
-            | CheckedUnitCallRoute::TaskRegister { .. },
+            | CheckedUnitCallRoute::DescriptorTable { .. },
             _,
         ) => {}
     }

@@ -610,24 +610,28 @@ pub(in crate::execution) fn build_call_operation(
     };
 
     if let Some((operation, expected_service)) =
-        validation::compiler_operations::task_register_operation(program, target_machine)
+        validation::compiler_operations::descriptor_table_operation(program, target_machine)
             .inspect_err(|reason| phase(reason))
             .ok()?
     {
         let expected = match operation {
-            language_core::task_register::TaskRegisterOperation::Activate { .. } => {
-                PrimitiveType::U8
+            language_core::descriptor_tables::DescriptorTableOperation::ActivateTask { .. }
+            | language_core::descriptor_tables::DescriptorTableOperation::ReloadSegments {
+                ..
+            } => PrimitiveType::U8,
+            language_core::descriptor_tables::DescriptorTableOperation::ReadTask
+            | language_core::descriptor_tables::DescriptorTableOperation::ReadSegment { .. } => {
+                PrimitiveType::U16
             }
-            language_core::task_register::TaskRegisterOperation::Selector => PrimitiveType::U16,
         };
         if !matches!(expected_call_result, Some(ExpectedCallValueResult::Scalar(actual)) if actual == expected)
         {
-            phase("task-register operation lost its scalar result");
+            phase("descriptor operation lost its scalar result");
             return None;
         }
         let rows = &facts.service_reaches.rows;
         let [service] = rows.services(call_target.service_reach.direct) else {
-            phase("task-register operation requires exactly its MachineControl service");
+            phase("descriptor operation requires exactly its MachineControl service");
             return None;
         };
         if *service != expected_service
@@ -635,14 +639,14 @@ pub(in crate::execution) fn build_call_operation(
                 .services(call_target.service_reach.transitive)
                 .contains(service)
         {
-            phase("task-register call changed its checked MachineControl authority");
+            phase("descriptor call changed its checked MachineControl authority");
             return None;
         }
         return CheckedUnitCallPlan::new(CheckedUnitCallParts {
             coordinate,
             source_site,
             target: call_target,
-            route: CheckedUnitCallRoute::TaskRegister {
+            route: CheckedUnitCallRoute::DescriptorTable {
                 operation,
                 service: *service,
                 result_type: expected,

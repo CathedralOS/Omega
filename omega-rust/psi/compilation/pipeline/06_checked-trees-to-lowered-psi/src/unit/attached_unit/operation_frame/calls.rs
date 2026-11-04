@@ -96,13 +96,13 @@ impl OperationFrame<'_, '_> {
         // plan and the result binding this match already destructured.
         match (call.route(), call.result()) {
             (
-                CheckedUnitCallRoute::TaskRegister {
+                CheckedUnitCallRoute::DescriptorTable {
                     operation,
                     service,
                     result_type,
                 },
                 _,
-            ) => self.task_register(
+            ) => self.descriptor_table(
                 identities,
                 call,
                 *operation,

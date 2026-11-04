@@ -33,6 +33,7 @@ pub(super) fn encode_ordinary_instruction(
         MachineMemoryEffect::AtomicPointerV1 => 8,
         MachineMemoryEffect::TemporaryStackStorageV1 => 9,
         MachineMemoryEffect::TaskRegisterActivationV1 => 18,
+        MachineMemoryEffect::SegmentDescriptorReloadV1 => 19,
         MachineMemoryEffect::NoneV1 => 0,
         MachineMemoryEffect::ReadPointerV1 => 1,
         MachineMemoryEffect::HostedReadByteV1 => 5,

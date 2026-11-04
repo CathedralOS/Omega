@@ -18,6 +18,8 @@ pub enum CompilerIntrinsicExecutionIdentity {
     TaskRegisterActivate,
     /// Read the CPU task-register selector.
     TaskRegisterRead,
+    SegmentReload(terminal_psi::SegmentReload),
+    SegmentRead(terminal_psi::SegmentRegister),
     /// Exact toolchain-owned `Console::write_byte(i32) -> Unit` execution
     /// selected for one canonical supported host target. The complete provider
     /// plan and target catalog retain its OS-specific realization identity.
@@ -130,6 +132,8 @@ impl CompilerIntrinsicExecutionIdentity {
         let function = match operation {
             O::TaskRegisterActivate => return Some(Self::TaskRegisterActivate),
             O::TaskRegisterRead => return Some(Self::TaskRegisterRead),
+            O::SegmentReload(kind) => return Some(Self::SegmentReload(kind)),
+            O::SegmentRead(register) => return Some(Self::SegmentRead(register)),
             O::ProcessorHalt => B::AsmHlt,
             O::MemoryFence(kind) => match kind {
                 terminal_psi::MemoryFenceKind::Load => B::AsmLoadFence,
@@ -224,6 +228,14 @@ pub fn compiler_intrinsic_execution_identity_bytes(
     match identity {
         CompilerIntrinsicExecutionIdentity::TaskRegisterActivate => bytes[0] = 12,
         CompilerIntrinsicExecutionIdentity::TaskRegisterRead => bytes[0] = 13,
+        CompilerIntrinsicExecutionIdentity::SegmentReload(kind) => {
+            bytes[0] = 14;
+            bytes[1] = kind.code();
+        }
+        CompilerIntrinsicExecutionIdentity::SegmentRead(register) => {
+            bytes[0] = 15;
+            bytes[1] = register.code();
+        }
         CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => bytes[0] = 0,
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => bytes[0] = 5,
         CompilerIntrinsicExecutionIdentity::HostedReadByte => bytes[0] = 6,

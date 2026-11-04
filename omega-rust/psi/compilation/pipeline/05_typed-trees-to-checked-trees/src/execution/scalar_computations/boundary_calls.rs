@@ -201,7 +201,7 @@ impl Builder<'_, '_> {
             .program
             .machine(target_machine)
             .map(|machine| {
-                validation::compiler_operations::task_register_operation(self.program, machine)
+                validation::compiler_operations::descriptor_table_operation(self.program, machine)
             })
             .transpose()
             .ok()?
@@ -212,12 +212,18 @@ impl Builder<'_, '_> {
                     return None;
                 }
                 let shape_matches = match operation {
-                    language_core::task_register::TaskRegisterOperation::Activate { .. } => {
+                    language_core::descriptor_tables::DescriptorTableOperation::ActivateTask { .. } => {
                         expected_type == PrimitiveType::U8
                             && arguments.len() == 1
                             && structural_arguments.len() == 3
                     }
-                    language_core::task_register::TaskRegisterOperation::Selector => {
+                    language_core::descriptor_tables::DescriptorTableOperation::ReloadSegments { .. } => {
+                        expected_type == PrimitiveType::U8
+                            && arguments.len() == 1
+                            && structural_arguments.len() == 2
+                    }
+                    language_core::descriptor_tables::DescriptorTableOperation::ReadTask
+                    | language_core::descriptor_tables::DescriptorTableOperation::ReadSegment { .. } => {
                         expected_type == PrimitiveType::U16
                             && arguments.is_empty()
                             && structural_arguments.is_empty()
@@ -226,7 +232,7 @@ impl Builder<'_, '_> {
                 if !shape_matches {
                     return None;
                 }
-                checked_trees::CheckedScalarCallee::TaskRegister {
+                checked_trees::CheckedScalarCallee::DescriptorTable {
                     machine: target_machine,
                     state: target_state,
                     operation,

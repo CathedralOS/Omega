@@ -191,7 +191,16 @@ impl LegalizedScalarInstruction {
                     visit(index.operand.value);
                 }
             }
-            LegalizedScalarInstructionKind::ReadTaskRegister { .. } => {}
+            LegalizedScalarInstructionKind::ReloadSegmentDescriptors {
+                selector, indices, ..
+            } => {
+                visit(*selector);
+                for index in indices.iter().flatten() {
+                    visit(index.operand.value);
+                }
+            }
+            LegalizedScalarInstructionKind::ReadTaskRegister { .. }
+            | LegalizedScalarInstructionKind::ReadSegmentSelector { .. } => {}
             LegalizedScalarInstructionKind::ByteSequenceLength { indices, .. }
             | LegalizedScalarInstructionKind::ElementViewLength { indices, .. }
             | LegalizedScalarInstructionKind::GlobalDescriptorTable { indices, .. }
@@ -478,6 +487,19 @@ pub enum LegalizedScalarInstructionKind {
         selector: ValueId,
         scratch: terminal_psi::StructuralArgument,
         indices: [Vec<LegalizedRuntimeIndexOperand>; 3],
+    },
+    ReloadSegmentDescriptors {
+        service: semantic_vocabulary::ServiceId,
+        entries: u16,
+        kind: terminal_psi::SegmentReload,
+        gdt: terminal_psi::StructuralArgument,
+        selector: ValueId,
+        scratch: terminal_psi::StructuralArgument,
+        indices: [Vec<LegalizedRuntimeIndexOperand>; 2],
+    },
+    ReadSegmentSelector {
+        service: semantic_vocabulary::ServiceId,
+        register: terminal_psi::SegmentRegister,
     },
     ReadTaskRegister {
         service: semantic_vocabulary::ServiceId,
@@ -1127,6 +1149,8 @@ impl LegalizedScalarInstructionKind {
             | Self::PortWrite { .. }
             | Self::ActivateTaskRegister { .. }
             | Self::ReadTaskRegister { .. }
+            | Self::ReloadSegmentDescriptors { .. }
+            | Self::ReadSegmentSelector { .. }
             | Self::GlobalDescriptorTable { .. }
             | Self::RegisterAccess { .. }
             | Self::AtomicFence { .. }
