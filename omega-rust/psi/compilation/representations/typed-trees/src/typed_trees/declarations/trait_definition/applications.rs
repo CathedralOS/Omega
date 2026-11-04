@@ -661,15 +661,12 @@ impl<'program> AppliedTraitScope<'program> {
         parameter: SymbolHandle,
         qualification: TypeIdentityQualification,
     ) -> Option<(TypeIdentityRequest<'_>, &[usize])> {
-        let Some((ordinal, (_, reference))) = self
+        let (ordinal, (_, reference)) = self
             .substitutions
             .iter()
             .enumerate()
             .rev()
-            .find(|(_, (binder, _))| *binder == parameter)
-        else {
-            return None;
-        };
+            .find(|(_, (binder, _))| *binder == parameter)?;
         let outer = self
             .substitution_scope_starts
             .iter()

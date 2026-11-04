@@ -59,8 +59,15 @@ Other-host execution remains unverified.
 - [Forwarding marker](controls/forwarding_marker/main.omg) changes a disjoint
   marker while forwarding the formed view. Its
   [twin](controls/forwarding_marker/invalid/main.omg) breaks restoration.
-  [Dirty forwarding](controls/dirty_forward/main.omg) rejects an already false
-  parent before the nonmutating call.
+  [Dirty forwarding](controls/dirty_forward/main.omg) calls the forwarding helper
+  while the parent is already invalid. On integrated compiler
+  `2713116252386e98ce5e87961aca764f8760b217`, dirty forwarding rejects the
+  unproved `Pair` requirement at the call. The forwarding-marker twin rejects
+  that requirement on return. These are the intended restoration refusals.
+  The [hosted observations](https://github.com/CathedralOS/Omega/actions/runs/41756991925)
+  retain the old oracle failure; the corrected expectations match their actual
+  diagnostic messages. Earlier loan-only refusals keep their original source
+  identity and do not stand in for these restoration observations.
 - [Case backing](controls/case_backing/main.omg) and its
   [nonmutating form](controls/case_backing/nonmutating/main.omg) retain the
   selected `Envelope::Some` storage path. The

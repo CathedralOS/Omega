@@ -208,6 +208,27 @@ fn static_callable_argument_identity(
     let Some(state) = state.filter(|state| state.symbol.is_valid()) else {
         return Some(rejected(context));
     };
+    if let Some(projection) = context.portable_machine_applications
+        && let Some(identity) = projection.nominal_name(program, argument.symbol, context)
+    {
+        let mut operands = vec![atom(IndexForm::ConstName, &identity)];
+        if let Some(application) = &argument.application {
+            operands.extend(
+                application
+                    .lifetime_arguments
+                    .iter()
+                    .map(|lifetime| context.lifetime(program, lifetime.as_str())),
+            );
+            operands.extend(application.arguments.iter().map(|argument| {
+                index_argument(
+                    program,
+                    IndexIdentityArgument::StaticArgument(argument),
+                    context,
+                )
+            }));
+        }
+        return Some(compound(IndexForm::StaticApplication, operands));
+    }
     let Some(overload) = program.machine_callable_identity_text(machine) else {
         return Some(rejected(context));
     };

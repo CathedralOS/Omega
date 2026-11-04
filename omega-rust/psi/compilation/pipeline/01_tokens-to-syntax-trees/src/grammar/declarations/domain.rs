@@ -1,8 +1,9 @@
-use crate::grammar::contracts::facts::parse_logical_proof_facts_until;
+use crate::grammar::contracts::facts::parse_required_logical_proof_facts_until;
 use crate::grammar::expressions::parse_postfix::try_parse_static_symbol_application;
 use crate::grammar::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::grammar::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::grammar::type_syntax::parse_type::parse_domain_argument_handles;
+use crate::grammar::type_syntax::parse_type::parse_named_type_reference;
 use crate::storage::tables::{exprs, items, type_refs_of};
 use crate::tokens::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use arena::HandleSpan;
@@ -26,11 +27,9 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
             "domain families take a carrier type and proof-static const parameters, not lifetime parameters",
         ));
     }
-    // The domain TARGET is normally a named type (`domain String::Utf8`), but it
-    // may be a slice/array carrier (`domain [u8]::Utf8`; encoding domains over the
-    // `[u8]` slice). A bracket-prefixed target is parsed as a full type reference;
-    // every other target stays the bare-identifier path, so existing named-target
-    // declarations are completely unchanged (zero fallout).
+    // A domain attaches to a carrier, including an applied generic or an array.
+    // Consume only the named carrier's first identifier here: the following
+    // `::` starts the domain/refinement chain, not a qualified type name.
     let (target_type, target_label, target_identifier, input) = if input
         .at_punctuation(PunctuationKind::LeftBracket)
     {
@@ -42,9 +41,8 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         (handle, label, None, input)
     } else {
         let (target_name, input) = input.take_identifier()?;
-        let handle = syntax_trees
-            .type_references
-            .insert(TypeReferenceNode::Named(target_name.clone()));
+        let (handle, input) =
+            parse_named_type_reference(syntax_trees, target_name.clone(), input, false)?;
         (
             handle,
             target_name.as_str(syntax_trees).to_owned(),
@@ -257,12 +255,12 @@ fn parse_domain_requires<'tokens, 'source>(
         ));
     }
 
+    // The first proposition is parsed before any terminator test: a leading
+    // operand such as `true` followed by `satisfies` would otherwise read as a
+    // named implementation header and leave `requires` without a proposition.
     let input = input.take_contextual("requires")?;
     let ((facts, token_count), input) =
-        parse_logical_proof_facts_until(syntax_trees, input, domain_requires_terminator)?;
-    if facts.is_empty() {
-        return Err(input.error_here("domain `requires` must contain at least one proposition"));
-    }
+        parse_required_logical_proof_facts_until(syntax_trees, input, domain_requires_terminator)?;
     Ok((
         (DomainPredicatePresence::Present, facts, token_count),
         input,

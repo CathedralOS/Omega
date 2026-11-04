@@ -262,7 +262,7 @@ pub fn project_boundary_machine_schema<'program>(
                 requirement_owner: requirement_owner.to_owned(),
                 requirement_owner_package_identity: package_identity,
                 requirement_identity: requirement_identity_id,
-                parameter_count: parameters.iter().count(),
+                parameter_count: parameters.len(),
                 parameter_type_identities: parameters
                     .iter()
                     .map(|parameter| {

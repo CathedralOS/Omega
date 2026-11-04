@@ -30,9 +30,7 @@ pub(super) fn guard_interval_for_label(
     guard: ExpressionHandle,
     subject_label: &str,
 ) -> Option<BigIntInterval> {
-    let Some(binary) = program.expression_table.binary_node(guard) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(guard)?;
     match binary.operator {
         BinaryOperator::And => {
             let left = guard_interval_for_label(program, binary.left, subject_label);

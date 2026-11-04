@@ -304,9 +304,7 @@ pub(super) fn call_route_place(
         result_relative,
         depth,
     )?;
-    let Some(mut root) = returned.root.as_symbol() else {
-        return None;
-    };
+    let mut root = returned.root.as_symbol()?;
     let parameters = program.state_parameters(callee_state);
     let mut parameter = parameters
         .iter()
@@ -327,7 +325,7 @@ pub(super) fn call_route_place(
     }
     let actual = {
         let arguments = program.expression_table.expression_handles(call.arguments);
-        if arguments.len() != parameters.iter().count() {
+        if arguments.len() != parameters.len() {
             return None;
         }
         *arguments.get(

@@ -150,7 +150,7 @@ impl Emission<'_, '_, '_> {
             return Ok(ValueOutcome::Normal(ProjectionSource {
                 root: saved.argument.place,
                 root_path: Vec::new(),
-                root_type_identity: stored_structural_identity(&self.checked, node.type_reference),
+                root_type_identity: stored_structural_identity(self.checked, node.type_reference),
                 path,
                 logical_root_type_identity,
             }));
@@ -182,7 +182,7 @@ impl Emission<'_, '_, '_> {
             }
             _ => {
                 let root_type_identity =
-                    stored_structural_identity(&self.checked, node.type_reference);
+                    stored_structural_identity(self.checked, node.type_reference);
                 let root_type =
                     lookup_type_id(self.type_ids, &root_type_identity).map_err(|_| {
                         LoweringError::MissingUnitStructuralType(format!(

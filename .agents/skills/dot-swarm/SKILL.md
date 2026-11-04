@@ -1,6 +1,6 @@
 ---
 name: dot-swarm
-description: Coordinate an Omega cloud swarm with dot's native collaboration agents, using devin-swarm's small-pool chain workflow, isolated worktrees, immediate result drains, and verified outcomes. Use for a dot swarm, a native-agent cloud wave, or continuing such a wave. Use devin-swarm for Devin sessions, local-swarm for other local launchers, and cursor-swarm for Cursor cloud subagents on separate VMs.
+description: Coordinate an Omega cloud swarm with dot's native collaboration agents, using devin-swarm's small-pool chain workflow, isolated worktrees, immediate result drains, and verified outcomes. Use for a dot swarm, a native-agent cloud wave, or continuing such a wave. Use devin-swarm for Devin sessions, local-swarm for other local launchers, cursor-swarm for Cursor cloud subagents on separate VMs, and claude-swarm for Claude Code cloud sessions.
 ---
 
 # dot swarm
@@ -289,7 +289,10 @@ inspect the result and diff, append an outcome, reconcile claims and in-flight
 ownership, then give the next dependency-ready leg to available capacity.
 Do not await a long build while finished reports remain undrained. Yield long
 commands through the execution tool and retain their session IDs; handle other
-work between checks. When nothing useful remains runnable, wait for a report.
+work between checks. When nothing useful remains runnable, end the turn and
+wait for a reactive report or completion message from a worker or background
+task — never schedule timers or periodic check-ins, which waste coordinator
+tokens.
 
 Prefer the next requirement of the same parent capability, not merely nearby
 work in the same domain; a landed witness does not close broader acceptance.

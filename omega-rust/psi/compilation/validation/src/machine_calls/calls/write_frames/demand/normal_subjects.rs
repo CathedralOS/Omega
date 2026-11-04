@@ -21,6 +21,43 @@ pub(crate) struct InvocationEntrySubject {
 }
 
 impl InvocationEntrySubject {
+    pub(crate) fn has_aggregate_view(&self, program: &dyn crate::CheckingInput) -> bool {
+        program
+            .primitive_type_reference(self.type_reference)
+            .is_none()
+            && self
+                .sources
+                .iter()
+                .any(|source| source.representation.is_some())
+    }
+
+    /// Resolve every possible supplier of one schema-derived scalar field.
+    /// Missing geometry or an unsupported interpretation withholds the field;
+    /// selecting only one supplier would hide an unsafe alternative.
+    pub(crate) fn scalar_projection_coordinates(
+        &self,
+        program: &dyn crate::CheckingInput,
+        state: &typed_trees::state::State,
+        path: &[facts::PlaceSegment],
+    ) -> Option<Vec<super::super::ScalarStorageCoordinate>> {
+        if self.sources.is_empty() {
+            return None;
+        }
+        self.sources
+            .iter()
+            .map(|source| {
+                if source.invocation_output.is_some() || source.is_image_storage {
+                    return None;
+                }
+                let mut origin = source.frame_origin();
+                origin.source = origin.source.append_segments(path);
+                let projected = LocalWriteSource::from(origin);
+                let scalar = projected.scalar_storage_coordinate(program, state)?;
+                (scalar.preserves_scalar_value || scalar.preserves_primitive_bits).then_some(scalar)
+            })
+            .collect()
+    }
+
     /// The borrowed declaration and its scalar presentation share storage,
     /// not necessarily numerical values. The existing recast owner authenticates
     /// the complete chain before either direction can transfer observations.
@@ -204,80 +241,131 @@ impl<'program> CallFrameResolver<'program> {
             return None;
         }
         let (state, _, index) = caller_statement_owner(program, machine, site)?;
-        Some(
-            parameters
-                .iter()
-                .zip(arguments.get(leading_operands..)?)
-                .zip(origins.arguments.get(leading_operands..)?)
-                .filter_map(|((parameter, argument), origins)| {
-                    let shell = crate::reference_shell(program, parameter.type_reference)?;
-                    let origins = origins.as_ref()?;
-                    if origins.is_empty() {
-                        return None;
+        let mut entries = Vec::new();
+        for ((parameter, argument), origins) in parameters
+            .iter()
+            .zip(arguments.get(leading_operands..)?)
+            .zip(origins.arguments.get(leading_operands..)?)
+        {
+            match self.prepare_entry_reference_subject(
+                machine, state, index, parameter, *argument, origins,
+            ) {
+                Ok(Some(subject)) => entries.push(subject),
+                Ok(None) => {}
+                Err(reason) => {
+                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        eprintln!(
+                            "STRUCT reference-entry-refused caller={} parameter={} argument={argument:?} reason={reason}",
+                            machine.name, parameter.name,
+                        );
                     }
-                    for source in origins {
-                        if !source.root.is_valid()
-                            || (source.collection_coarse
-                                && !source.segments.iter().any(|segment| {
-                                    matches!(segment, facts::PlaceSegment::FixedIndex { .. })
-                                }))
-                        {
-                            return None;
-                        }
-                        let root_type = reference_subjects::source_root_type(
-                            program,
-                            state,
-                            index,
-                            source.root,
-                        )?;
-                        let root_type =
-                            reference_subjects::carrier_storage_type(program, root_type)?;
-                        let reference = if let Some(expected) =
-                            program.primitive_type_reference(shell.referee)
-                        {
-                            if source.invocation_output.is_some() || source.is_image_storage {
-                                return None;
-                            }
-                            let scalar = source.scalar_storage_coordinate(program, state)?;
-                            if scalar.view_primitive != expected
-                                || !(scalar.preserves_scalar_value
-                                    || scalar.preserves_primitive_bits)
-                            {
-                                return None;
-                            }
-                            // Captured origins supply the performed reads; the
-                            // scalar owner retains their logical presentation
-                            // before translating to physical storage. A second
-                            // owned-span walk would lose intermediate stored
-                            // references. This supplies a type, never contents
-                            // or access authority.
-                            scalar.view_reference
-                        } else {
-                            reference_subjects::validate_owned_projection(
-                                program,
-                                root_type,
-                                &source.segments,
-                            )?;
-                            declaration_preserving_views(program, root_type, source)?;
-                            stored_origins::projected_type(program, root_type, &source.segments)?
-                        };
-                        if !crate::declared_carriers_match(program, reference, shell.referee)
-                            || program.arithmetic_domain_for_type_reference(reference)
-                                != program.arithmetic_domain_for_type_reference(shell.referee)
-                        {
-                            return None;
-                        }
-                    }
-                    Some(InvocationEntrySubject {
-                        parameter: parameter.symbol,
-                        argument: *argument,
-                        parameter_type: parameter.type_reference,
-                        sources: origins.clone(),
-                        type_reference: shell.referee,
-                    })
-                })
-                .collect(),
-        )
+                }
+            }
+        }
+        Some(entries)
+    }
+
+    /// Check that every source of this borrowed argument supports its logical type.
+    /// Keep the complete source list so later writes invalidate all affected
+    /// observations. Ordinary value parameters need no borrowed source record.
+    fn prepare_entry_reference_subject(
+        &self,
+        machine: &'program Machine,
+        state: &typed_trees::state::State,
+        index: usize,
+        parameter: &StateParameter,
+        argument: ExpressionHandle,
+        origins: &Option<Vec<LocalWriteSource>>,
+    ) -> Result<Option<InvocationEntrySubject>, &'static str> {
+        let program = self.program;
+        let Some(shell) = crate::reference_shell(program, parameter.type_reference) else {
+            return Ok(None);
+        };
+        let origins = origins
+            .as_ref()
+            .ok_or("the argument has no captured source list")?;
+        if origins.is_empty() {
+            return Err("the argument source list is empty");
+        }
+        if program.primitive_type_reference(shell.referee).is_none()
+            && origins.iter().any(|source| source.representation.is_some())
+        {
+            let suppliers = self
+                .completed_reference_read_sources(machine, state, argument)
+                .ok_or("the completed descriptor has no readable supplier list")?;
+            // Entry observations and later write checks must retain
+            // the same complete supplier list. Compare full records
+            // in both directions; neither query may omit a source.
+            if suppliers.len() != origins.len()
+                || !origins.iter().all(|source| suppliers.contains(source))
+                || !suppliers.iter().all(|source| origins.contains(source))
+            {
+                return Err("the call origins and completed descriptor suppliers differ");
+            }
+        }
+        for source in origins {
+            if !source.root.is_valid()
+                || (source.collection_coarse
+                    && source.representation.is_none()
+                    && !source
+                        .segments
+                        .iter()
+                        .any(|segment| matches!(segment, facts::PlaceSegment::FixedIndex { .. })))
+            {
+                return Err("a source has no declaration root or usable collection coordinate");
+            }
+            let root_type =
+                reference_subjects::source_root_type(program, state, index, source.root)
+                    .ok_or("a source has no declaration type at this call")?;
+            let root_type = reference_subjects::carrier_storage_type(program, root_type)
+                .ok_or("a source carrier does not expose readable storage")?;
+            let reference = if let Some(expected) = program.primitive_type_reference(shell.referee)
+            {
+                if source.invocation_output.is_some() || source.is_image_storage {
+                    return Err("a scalar source has no declaration-relative storage");
+                }
+                let scalar = source
+                    .scalar_storage_coordinate(program, state)
+                    .ok_or("the scalar view has no exact storage interpretation")?;
+                if scalar.view_primitive != expected
+                    || !(scalar.preserves_scalar_value || scalar.preserves_primitive_bits)
+                {
+                    return Err("the scalar storage interpretation differs from the formal");
+                }
+                // Use the scalar read's checked logical type. Walking its
+                // backing again would lose intermediate stored references.
+                // This check identifies the type; it does not observe contents.
+                scalar.view_reference
+            } else if let Some((reference, selectors)) = &source.representation {
+                // The completed descriptor retains its view and every
+                // readable supplier. Its fields belong to that view,
+                // not to the byte array that supplies its backing.
+                reference_subjects::validate_owned_projection(program, *reference, selectors)
+                    .ok_or("the logical view path has no valid owned projection")?;
+                stored_origins::projected_type(program, *reference, selectors)
+                    .ok_or("the logical view path has no projected carrier")?
+            } else {
+                reference_subjects::validate_owned_projection(program, root_type, &source.segments)
+                    .ok_or("the declaration path has no valid owned projection")?;
+                declaration_preserving_views(program, root_type, source)
+                    .ok_or("the source view does not preserve its declaration namespace")?;
+                stored_origins::projected_type(program, root_type, &source.segments)
+                    .ok_or("the declaration path has no projected carrier")?
+            };
+            if !crate::declared_carriers_match(program, reference, shell.referee)
+                || program.arithmetic_domain_for_type_reference(reference)
+                    != program.arithmetic_domain_for_type_reference(shell.referee)
+            {
+                return Err("the logical carrier or arithmetic policy differs from the formal");
+            }
+        }
+        Ok(Some(InvocationEntrySubject {
+            parameter: parameter.symbol,
+            argument,
+            parameter_type: parameter.type_reference,
+            sources: origins.clone(),
+            type_reference: shell.referee,
+        }))
     }
 }
 

@@ -975,7 +975,7 @@ fn prepare_owners(
             return unsupported("selection survivor disagrees with its declared owned carrier");
         }
         owners.push(argument_evaluation::StructuralValueOwner {
-            symbol: symbol,
+            symbol,
             statement: local.statement_index,
             value: value.clone(),
         });
@@ -1385,17 +1385,14 @@ impl Emission<'_, '_, '_> {
                     let count = source_count.ok_or(LoweringError::Unsupported(
                         "structural actual has no source prefix",
                     ))?;
-                    let call = planned[operation]
-                        .call()
-                        .ok_or(LoweringError::Unsupported("structural actual has no call"))?;
-                    let offset = call.structural_arguments[..argument]
+                    let arguments = planned[operation].structural_operands();
+                    let offset = arguments[..argument]
                         .iter()
                         .map(|source| source.call_selector_positions().count())
                         .sum::<usize>();
                     let selectors = staged_selectors[operation][offset..].to_vec();
                     if staged_structural_arguments[operation].is_empty() {
-                        staged_structural_arguments[operation] =
-                            vec![None; call.structural_arguments.len()];
+                        staged_structural_arguments[operation] = vec![None; arguments.len()];
                     }
                     let previous = staged_structural_arguments[operation][argument].take();
                     let captured = self.environment.capture_argument(
@@ -1808,7 +1805,7 @@ impl Emission<'_, '_, '_> {
             }));
         }
         let requires_completion = self.content_transformation(&node)?.is_some()
-            || flow_facts(&self.checked)
+            || flow_facts(self.checked)
                 .terminal_unit_effects
                 .cleanup_control
                 .value_completion(self.machine, self.state, self.statement, node.expression)
@@ -1869,7 +1866,7 @@ impl Emission<'_, '_, '_> {
                     crate::emission::operation_emission::buffer::structural_result_declaration(
                         place,
                         self.structural_type,
-                        StructuralMultiplicity::Unrestricted,
+                        self.multiplicity,
                     ),
                     OperationKind::EstablishNativeCodeLayout { machine },
                 ));
@@ -1893,7 +1890,7 @@ impl Emission<'_, '_, '_> {
                 let child = self.structural_value_node(source);
                 let source_type = lookup_type_id(
                     self.type_ids,
-                    &stored_structural_identity(&self.checked, child.type_reference),
+                    &stored_structural_identity(self.checked, child.type_reference),
                 )?;
                 let ValueOutcome::Normal(completed) = self.child_constructor_operand(
                     identities,
@@ -2221,7 +2218,7 @@ impl Emission<'_, '_, '_> {
             } => {
                 // The planner's synthesized zero has no authored operand to
                 // replay — emit the verified literal leaf directly.
-                let computation = value_facts(&self.checked)
+                let computation = value_facts(self.checked)
                     .scalar_computations
                     .nodes
                     .get(element);

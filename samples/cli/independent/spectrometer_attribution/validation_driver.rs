@@ -322,8 +322,11 @@ fn main() {
             }
         });
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
+            native_image: None,
             entry: None,
             native_provider: None,
+            native_services: Default::default(),
+            filesystem: Default::default(),
             x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64")
                 .expect("host flags capture"),
             memory_ordering:
@@ -337,7 +340,7 @@ fn main() {
             fuel_allowance: 1_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(std::io::Cursor::new(input))),
-            clock: Some(TerminalClockSnapshot::capture_host_epoch().unwrap()),
+            clock: Some(TerminalClockSnapshot::capture_host_epoch().unwrap().into()),
         })
         .unwrap_or_else(|error| panic!("{name}: Terminal admission: {error:?}"));
         let exit = match result.status {

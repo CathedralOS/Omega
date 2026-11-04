@@ -176,7 +176,7 @@ pub(crate) fn validate_scalar_initializer(
     // Unused private declarations never reach substitution or public identity
     // checks. Their numeric and Boolean landing obligations still apply.
     // Floating values need no const-index encoding to check their carrier.
-    let Some(carrier) = syntax_type_references(&syntax)
+    let Some(carrier) = syntax_type_references(syntax)
         .type_reference(constant.type_reference)
         .as_named()
     else {
@@ -234,7 +234,7 @@ pub(crate) fn validate_const_definition(
         // The late scalar evaluator owns the same carrier landing once the
         // target closes. Aggregate and qualified destinations need their own
         // complete late value/qualification route; do not silently admit them.
-        let supported = syntax_type_references(&syntax)
+        let supported = syntax_type_references(syntax)
             .type_reference(definition.type_reference)
             .as_named()
             .and_then(|name| selection.and_then(|selected| selected.builtin_type(syntax, name)))
@@ -265,8 +265,8 @@ pub(crate) fn validate_const_definition(
     // Its constrained destination is still mandatory; failure to encode a
     // public/index value must not swallow a false declaration-site predicate.
     if let TypeReferenceNode::Constrained { constraints, .. } =
-        syntax_type_references(&syntax).type_reference(definition.type_reference)
-        && syntax_type_references(&syntax)
+        syntax_type_references(syntax).type_reference(definition.type_reference)
+        && syntax_type_references(syntax)
             .constraints(*constraints)
             .iter()
             .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)))
@@ -419,7 +419,7 @@ fn validate_literal_initializer(
                     return false;
                 };
                 data.name.as_str(syntax_trees) == type_name.as_str(syntax_trees)
-                    && syntax_items(&syntax_trees).data_members(data.members)
+                    && syntax_items(syntax_trees).data_members(data.members)
                         .iter()
                         .any(|member| {
                             matches!(
@@ -451,7 +451,7 @@ fn invalid_literal_initializer(
          -- richer const expressions arrive with build-time evaluation",
         definition.scope.as_str(syntax_trees),
         definition.name.as_str(syntax_trees),
-        syntax_expressions(&syntax_trees)
+        syntax_expressions(syntax_trees)
             .expression(value)
             .display_name(syntax_trees),
     )))

@@ -246,7 +246,7 @@ pub(super) fn terminal_jump<'a>(
     function: &PsiOptimizationFunction,
     block: &'a OptimizationBlock,
 ) -> Option<TerminalJump<'a>> {
-    let (index, node) = block.nodes.iter().enumerate().last()?;
+    let (index, node) = block.nodes.iter().enumerate().next_back()?;
     let O::Jump {
         psi_edge,
         target,

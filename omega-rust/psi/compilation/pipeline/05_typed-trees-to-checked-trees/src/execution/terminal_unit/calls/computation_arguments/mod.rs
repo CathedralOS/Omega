@@ -13,8 +13,8 @@ use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
 use crate::execution::terminal_unit::ExpressionNode;
-use crate::execution::terminal_unit::Multiplicity;
 use crate::execution::terminal_unit::PrimitiveType;
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::types::{
     base_type_identity, borrowed_slice_view_element, dense_scalar_parameter_index,
     dense_structural_parameter_index, parameter_qualifications,
@@ -112,12 +112,27 @@ pub(crate) fn structural_computation_argument(
             | CheckedStructuralAccess::MutableBorrow
             | CheckedStructuralAccess::WriteOnlyBorrow
     ) && let Some(argument) = borrowed_storage_argument(
-        program, shapes, borrow, machine, state, call, &place, target, selectors,
+        program,
+        shapes,
+        borrow,
+        machine,
+        state,
+        call,
+        &place,
+        target.type_reference,
+        selectors,
     ) {
         return Some(argument);
     }
     if let Some(argument) = borrowed_view_argument(
-        program, borrow, machine, state, call, &place, target, selectors,
+        program,
+        borrow,
+        machine,
+        state,
+        call,
+        &place,
+        target.type_reference,
+        selectors,
     ) {
         return Some(argument);
     }
@@ -313,13 +328,13 @@ pub(crate) fn borrowed_storage_argument(
     state: &State,
     call: &FlowCallFact,
     place: &CanonicalPlace,
-    target: &StateParameter,
+    target: TypeReferenceHandle,
     selectors: Option<&dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>>,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     // A borrowed formal retains the selected record at its existing root/path.
     // Receiver syntax does not confer additional projection authority; both
     // lanes rejoin exact source type and the captured access occurrence below.
-    let target_shell = reference_shell(program, target.type_reference)?;
+    let target_shell = reference_shell(program, target)?;
     let target_access = CheckedStructuralAccess::from(target_shell.access);
     // Referent shape, contents, identity and the exact loan below decide
     // admission. Primitive leaves and aggregates borrow the same original
@@ -430,14 +445,9 @@ pub(crate) fn borrowed_storage_argument(
     } else {
         Default::default()
     };
-    if whole_storage
-        && !matches!(
-            program.type_multiplicity(reference),
-            Multiplicity::Affine | Multiplicity::Unrestricted
-        )
-    {
-        return None;
-    }
+    // Borrowing keeps the resource's owner responsible for using or releasing it.
+    // The checks below authorize access to the existing storage; requiring an
+    // owned argument's multiplicity here would reject valid loans.
     // The logical root is checked here, while its physical carrier is only
     // known after the dominating operation publishes storage. Keep the root
     // with every local loan; initializer spelling cannot decide whether that
@@ -455,8 +465,16 @@ pub(crate) fn borrowed_storage_argument(
             root_reference_hops: 0,
         };
     }
-    let (reference, path) = if place.segments.is_empty() {
-        (reference, Vec::new())
+    let ProjectedArgumentPath {
+        storage_type: reference,
+        path,
+        ..
+    } = if place.segments.is_empty() {
+        ProjectedArgumentPath {
+            declared_type: reference,
+            storage_type: reference,
+            path: Vec::new(),
+        }
     } else {
         projected_evaluated_path(
             program,
@@ -467,8 +485,7 @@ pub(crate) fn borrowed_storage_argument(
             selectors,
         )?
     };
-    let (reference, path) =
-        borrowed_argument_endpoint(program, reference, path, target.type_reference)?;
+    let (reference, path) = borrowed_argument_endpoint(program, reference, path, target)?;
     let identity = if reference == whole_storage_type && whole_storage_identity.is_valid() {
         whole_storage_identity
     } else {
@@ -524,17 +541,11 @@ pub(crate) fn borrowed_storage_argument(
     // Only represented value constraints enter this route; the formal retains
     // its qualifications and Terminal independently proves them from the exact
     // source field or parameter. No predicate is minted by this carrier join.
-    let presentation_identity = shapes.add_type(target.type_reference, &[], &[])?;
+    let presentation_identity = shapes.add_type(target, &[], &[])?;
     // Calls share representation admission for every selected endpoint,
     // including a case payload. This preserves the exact root and path; it
     // grants no access or predicate evidence.
-    classify(
-        program,
-        reference,
-        target.type_reference,
-        presentation_identity,
-        &[],
-    )?;
+    classify(program, reference, target, presentation_identity, &[])?;
     // BorrowedStorage classifies the complete qualified endpoint. Lending
     // a routed linear payload does not require owned-value eligibility and
     // neither copies nor transfers its obligation. Register its receiving
@@ -590,18 +601,18 @@ pub(in crate::execution) fn borrowed_view_argument(
     state: &State,
     call: &FlowCallFact,
     place: &CanonicalPlace,
-    target: &StateParameter,
+    target: TypeReferenceHandle,
     selectors: Option<&dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>>,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let symbol = place.root.as_symbol()?;
-    let kind = if byte_sequence_carrier(program, target.type_reference, &[])
+    let kind = if byte_sequence_carrier(program, target, &[])
         .is_some_and(|carrier| carrier.is_borrowed_view())
     {
         ViewKind::Bytes
     } else {
         ViewKind::Elements
     };
-    let target_access = structural_access_for_type_reference(program, target.type_reference)?;
+    let target_access = structural_access_for_type_reference(program, target)?;
     if !matches!(target_access, checked_borrowed_access_pair_pattern!()) {
         return None;
     }
@@ -610,10 +621,10 @@ pub(in crate::execution) fn borrowed_view_argument(
         ViewKind::Bytes => byte_sequence_carrier(program, type_reference, &[])
             .is_some_and(|carrier| carrier.is_borrowed_view()),
     };
-    if !is_view(target.type_reference) {
+    if !is_view(target) {
         return None;
     }
-    let identity = view_identity(program, kind, target.type_reference)?;
+    let identity = view_identity(program, kind, target)?;
     let parameters = program.state_parameters(state);
     let (source, source_type) = if let Some(position) = parameters
         .iter()
@@ -647,8 +658,16 @@ pub(in crate::execution) fn borrowed_view_argument(
     // the descriptor being lent. Whole and field views use one operation, and
     // the endpoint's own reference shell supplies access (never the containing
     // record's mutability). Source replay independently rejoins this exact path.
-    let (source_type, path) = if place.segments.is_empty() {
-        (source_type, Vec::new())
+    let ProjectedArgumentPath {
+        storage_type: source_type,
+        path,
+        ..
+    } = if place.segments.is_empty() {
+        ProjectedArgumentPath {
+            declared_type: source_type,
+            storage_type: source_type,
+            path: Vec::new(),
+        }
     } else {
         projected_evaluated_path(
             program,
@@ -769,7 +788,11 @@ pub(crate) fn storage_argument(
             reference = shell.referee;
         }
     }
-    let (mut selected_type, mut path) = projected_evaluated_path(
+    let ProjectedArgumentPath {
+        storage_type: mut selected_type,
+        mut path,
+        ..
+    } = projected_evaluated_path(
         program,
         machine,
         state.symbol,

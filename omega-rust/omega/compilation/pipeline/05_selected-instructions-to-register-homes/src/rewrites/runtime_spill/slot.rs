@@ -405,12 +405,12 @@ pub(super) fn assign(
     // can arise only where dominance was already refused upstream; it merges
     // nothing and its window — store-free — fails every candidate, so it
     // resolves to the private slot.
-    fn union(parent: &mut Vec<usize>, left: usize, right: usize) {
+    fn union(parent: &mut [usize], left: usize, right: usize) {
         let left = find(parent, left);
         let right = find(parent, right);
         parent[left] = right;
     }
-    fn merge(parent: &mut Vec<usize>, state: &[u64]) -> Option<usize> {
+    fn merge(parent: &mut [usize], state: &[u64]) -> Option<usize> {
         let mut members = reaching::members(state);
         let first = members.next()?;
         for other in members {
@@ -586,14 +586,15 @@ pub(super) fn assign(
         };
         window_slot[window] = chosen;
     }
-    for definition in 0..definitions.len() {
+    // `stores` runs parallel to `definitions`.
+    for (definition, store) in assignment.stores.iter_mut().enumerate() {
         let root = find(&mut parent, definition);
         let window = window_index
             .get(root)
             .copied()
             .filter(|&w| w != usize::MAX)
             .unwrap_or(windowless);
-        assignment.stores[definition] = window_slot[window];
+        *store = window_slot[window];
     }
     for &(block_index, index, mapped) in &window_of_position {
         let window = mapped
@@ -616,7 +617,7 @@ pub(super) fn assign(
     assignment
 }
 
-fn find(parent: &mut Vec<usize>, member: usize) -> usize {
+fn find(parent: &mut [usize], member: usize) -> usize {
     let mut root = member;
     while parent[root] != root {
         root = parent[root];

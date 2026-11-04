@@ -1,18 +1,18 @@
 //! Symbolic materialization of native callback addresses.
 
 /// Physical destination retained without inventing a semantic callback value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CallbackAddressDestination {
     Register(target_operations::MachineRegister),
     OutgoingStack {
         byte_offset: u32,
     },
     /// A private slot inside the record the register-resident root parameter
-    /// names: the materialization writes the callback address at
-    /// `[root_register + byte_offset]` through an architecture-fixed scratch.
+    /// names. Each placement writes its part of the callback address relative
+    /// to that root, preserving the other bits in every accessed container.
     RecordField {
         root_register: target_operations::MachineRegister,
-        byte_offset: u32,
+        placements: calling_conventions::PrivateCallbackPlacements,
     },
 }
 
@@ -45,7 +45,7 @@ pub struct CallbackAddressMaterialization {
 /// every identity builder that hashes a fixup's callback roster.
 pub(crate) fn encode_callback_destination_identity(
     hasher: &mut crate::digest_encoder::DomainDigestEncoder,
-    destination: CallbackAddressDestination,
+    destination: &CallbackAddressDestination,
 ) {
     match destination {
         CallbackAddressDestination::Register(register) => {
@@ -58,11 +58,13 @@ pub(crate) fn encode_callback_destination_identity(
         }
         CallbackAddressDestination::RecordField {
             root_register,
-            byte_offset,
+            placements,
         } => {
             hasher.byte(2);
             hasher.byte(root_register.codec_index());
-            hasher.raw(&byte_offset.to_le_bytes());
+            let mut encoded = Vec::new();
+            calling_conventions::encode_private_callback_placements(&mut encoded, placements);
+            hasher.raw(&encoded);
         }
     }
 }

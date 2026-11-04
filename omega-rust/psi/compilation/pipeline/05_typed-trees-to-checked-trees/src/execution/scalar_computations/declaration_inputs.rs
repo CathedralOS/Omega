@@ -14,6 +14,9 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Result<Option<(CheckedScalarComputationHandle, TypeReferenceHandle)>, &'static str> {
+        if let Some(length) = self.declaration_input_length(expression)? {
+            return Ok(Some(length));
+        }
         let Some(place) = validation::canonical_place_from_expression(self.program, expression)
         else {
             return Ok(None);
@@ -79,6 +82,100 @@ impl Builder<'_, '_> {
         let value = self
             .scalar_coordinate(expression, &coordinate, primitive, &[])
             .ok_or("a declaration coordinate lacks a supported entry observation")?;
+        Ok(Some((value, reference)))
+    }
+
+    /// A rebound sequence formal's length reads the destination's descriptor.
+    /// The formal's own geometry has no scalar coordinate for `len`, so the
+    /// ordinary binding route above cannot reach it.
+    fn declaration_input_length(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> Result<Option<(CheckedScalarComputationHandle, TypeReferenceHandle)>, &'static str> {
+        // Only a declaring application (a peer's endpoint or a declared
+        // measure) rebinds a sequence formal. Without one, for example a
+        // state's own `terminates by (i, path.len)`, the caller's ordinary
+        // expression lowering reads the length, as it did before this route.
+        let Some(scope) = self.declaration_scope.as_ref() else {
+            return Ok(None);
+        };
+        if self.declaration_bindings.is_empty() {
+            return Ok(None);
+        }
+        let Some(member) = self.program.expression_table.member_node(expression) else {
+            return Ok(None);
+        };
+        let Some(receiver) =
+            validation::canonical_place_from_expression(self.program, member.receiver)
+        else {
+            return Ok(None);
+        };
+        let mut bindings = self
+            .declaration_bindings
+            .iter()
+            .filter(|(formal, _)| *formal == receiver);
+        let Some((_, destination)) = bindings.next() else {
+            return Ok(None);
+        };
+        if bindings.next().is_some() {
+            return Err("a declaration input has multiple destination coordinates");
+        }
+        let Some(symbol) = receiver.root.as_symbol() else {
+            return Ok(None);
+        };
+        let formal = self
+            .declaration_parameters
+            .iter()
+            .find(|formal| formal.symbol == symbol)
+            .ok_or("a declaration coordinate has no source formal")?;
+        let formal_type = validation::project_type_reference_from_segments(
+            self.program,
+            formal.type_reference,
+            &receiver.segments,
+        )
+        .ok_or("a rebound sequence formal has no exact geometry")?;
+        if validation::collection_operations::collection_measure_member(
+            self.program,
+            member,
+            validation::collection_operations::MeasureReceiver::Declared(formal_type),
+        ) != Some(language_semantics::declaration_selection::CollectionMeasure::Length)
+        {
+            return Ok(None);
+        }
+        let Some(parameter) = destination.root.as_symbol() else {
+            return Err("a rebound sequence length has no parameter destination");
+        };
+        let (_, state) = validation::find_state(self.program, self.state)
+            .ok_or("a rebound sequence length has no evaluating state")?;
+        let (_, _, value) = validation::ranking_slice_length_observation(
+            self.program,
+            state,
+            &validation::RankSubjectCoordinate {
+                parameter,
+                path: destination.segments.clone(),
+            },
+        )
+        .ok_or("a rebound sequence length has no descriptor observation")?;
+        // The expression belongs to the declaring state, not the evaluator.
+        let owner = scope
+            .plan
+            .application_formations
+            .get(scope.application)
+            .application
+            .owner;
+        let (owner_machine, owner_state) = validation::find_state(self.program, owner)
+            .ok_or("a rebound sequence length has no declaring state")?;
+        let reference = validation::expression_result_type_reference(
+            self.program,
+            owner_machine,
+            owner_state,
+            expression,
+        )
+        .ok_or("a rebound sequence length has no result type")?;
+        let value = self.insert(
+            typed_trees::types::PrimitiveType::U64,
+            super::CheckedScalarComputationKind::Value(value),
+        );
         Ok(Some((value, reference)))
     }
 

@@ -96,9 +96,9 @@ it does not mean pure, nonblocking, interference-free, trusted, custody-safe,
 or object-confined. Exact service reach and demanded operation remain visible.
 
 The closed classes are filesystem content read/write, metadata query/mutation,
-directory enumeration, namespace mutation, process output, process termination,
-machine control, port I/O, interrupt control, interrupt entry, and root-memory
-access. Historical broad `Filesystem`/`Process` risk summaries grant no terminal
+directory enumeration, namespace mutation, process input, process output,
+process termination, machine control, port I/O, interrupt control, interrupt
+entry, and root-memory access. Historical broad `Filesystem`/`Process` risk summaries grant no terminal
 permission. Separate cross-platform realizations satisfy one portable
 requirement; `Linux + Windows` would mean reach union, not provider choice.
 

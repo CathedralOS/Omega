@@ -24,7 +24,7 @@ impl TypedTrees {
         self.portable_conformance_application_identity_in_owner(application, source.lexical_owner)
     }
 
-    fn portable_conformance_application_identity_in_owner(
+    pub(super) fn portable_conformance_application_identity_in_owner(
         &self,
         application: &crate::typed_trees::ClosedConformanceApplication,
         lexical_owner: symbols::SymbolHandle,
@@ -146,6 +146,8 @@ impl TypedTrees {
             self.closed_conformance_application_at_mut(site)
                 .ok_or("closed implementation application lost its occurrence")?
                 .trait_scope = scope;
+            self.prepare_realization_contracts(&application, owner, scope)
+                .map_err(str::to_owned)?;
         }
         Ok(())
     }

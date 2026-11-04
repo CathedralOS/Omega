@@ -375,7 +375,7 @@ fn zeroed_structural_leaves_impl<'types>(
                     let mut field_path = path
                         .iter()
                         .map(|segment| match segment {
-                            StructuralPathSegment::Field(identity) => Some(identity.clone()),
+                            StructuralPathSegment::Field(identity) => Some(*identity),
                             _ => None,
                         })
                         .collect::<Option<Vec<_>>>()?;

@@ -2,6 +2,7 @@
 
 pub(crate) mod bindings;
 mod families;
+pub(super) mod realizations;
 mod rows;
 
 use crate::capture::PackageReviewInput;

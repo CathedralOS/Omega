@@ -234,48 +234,48 @@ pub enum ElementViewRegion {
     },
 }
 
-/// Closed operation vocabulary for the current pre-release compiler.
-///
-/// `IntegerConstant` writes the declared integer value to its result and
-/// establishes the semantic axiom `result == literal`. It cannot trap and
-/// generates no additional obligation because construction verifies that the
-/// literal belongs to the declared terminal integer type.
-///
-/// `BooleanConstant` writes the declared Boolean value to its result and
-/// establishes `result == literal`.
-///
-/// `WrappingIntegerAdd` reads two values of
-/// the result's exact integer type and reduces their sum modulo the declared
-/// width. Signed values interpret the reduced bits as two's complement. It is
-/// total and therefore generates no overflow obligation; the verifier
-/// reconstructs its exact result-term axiom.
-///
-/// `SaturatingIntegerMultiply` reads two
-/// values of the result's exact integer type and clamps their product at that
-/// type's representable bounds. It is total and generates no overflow
-/// obligation; the verifier reconstructs its exact result-term axiom.
-///
-/// `WrappingIntegerMultiply` reads two
-/// values of the result's exact integer type and reduces their product modulo
-/// the declared width. Signed values interpret the reduced bits as two's
-/// complement. It is total and generates no overflow obligation; the verifier
-/// reconstructs its exact result-term axiom.
-///
-/// `SaturatingIntegerSubtract` reads two
-/// values of the result's exact integer type and clamps `left - right` at that
-/// type's representable bounds. It is total and generates no overflow
-/// obligation; the verifier reconstructs its exact result-term axiom.
-///
-/// `SaturatingIntegerAdd` reads two values
-/// of the result's exact integer type and clamps their sum at that type's
-/// representable bounds. It is total and therefore generates no overflow
-/// obligation; the verifier reconstructs its exact result-term axiom.
-///
-/// `WrappingIntegerSubtract` reads two
-/// values of the result's exact integer type and reduces `left - right` modulo
-/// the declared width. Signed values interpret the reduced bits as two's
-/// complement. It is total and generates no overflow obligation; the verifier
-/// reconstructs its exact result-term axiom.
+// Closed operation vocabulary for the current pre-release compiler.
+//
+// `IntegerConstant` writes the declared integer value to its result and
+// establishes the semantic axiom `result == literal`. It cannot trap and
+// generates no additional obligation because construction verifies that the
+// literal belongs to the declared terminal integer type.
+//
+// `BooleanConstant` writes the declared Boolean value to its result and
+// establishes `result == literal`.
+//
+// `WrappingIntegerAdd` reads two values of
+// the result's exact integer type and reduces their sum modulo the declared
+// width. Signed values interpret the reduced bits as two's complement. It is
+// total and therefore generates no overflow obligation; the verifier
+// reconstructs its exact result-term axiom.
+//
+// `SaturatingIntegerMultiply` reads two
+// values of the result's exact integer type and clamps their product at that
+// type's representable bounds. It is total and generates no overflow
+// obligation; the verifier reconstructs its exact result-term axiom.
+//
+// `WrappingIntegerMultiply` reads two
+// values of the result's exact integer type and reduces their product modulo
+// the declared width. Signed values interpret the reduced bits as two's
+// complement. It is total and generates no overflow obligation; the verifier
+// reconstructs its exact result-term axiom.
+//
+// `SaturatingIntegerSubtract` reads two
+// values of the result's exact integer type and clamps `left - right` at that
+// type's representable bounds. It is total and generates no overflow
+// obligation; the verifier reconstructs its exact result-term axiom.
+//
+// `SaturatingIntegerAdd` reads two values
+// of the result's exact integer type and clamps their sum at that type's
+// representable bounds. It is total and therefore generates no overflow
+// obligation; the verifier reconstructs its exact result-term axiom.
+//
+// `WrappingIntegerSubtract` reads two
+// values of the result's exact integer type and reduces `left - right` modulo
+// the declared width. Signed values interpret the reduced bits as two's
+// complement. It is total and generates no overflow obligation; the verifier
+// reconstructs its exact result-term axiom.
 
 /// Source-selected scalar interpretation over the original captured bytes.
 /// The offset is evaluated at formation, not reloaded at each later use. This
@@ -291,6 +291,21 @@ pub struct ReferenceStorageView {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
+    /// Check actual GDTR and the selected TSS descriptor against these loans.
+    /// Returns one after LTR, or zero without LTR on a failed check. Scratch
+    /// receives the CPU observation; source bytes cannot substitute for it.
+    ActivateTaskRegister {
+        service: ServiceId,
+        entries: u16,
+        gdt: StructuralArgument,
+        task_state: StructuralArgument,
+        selector: ValueId,
+        scratch: StructuralArgument,
+    },
+    /// Observe TR without granting access to the task-state bytes it names.
+    ReadTaskRegister {
+        service: ServiceId,
+    },
     /// Read an exact application result from this artifact's admitted target
     /// closure. This is neither a runtime call nor permission to evaluate an
     /// unavailable application. The result carrier must match its catalog row.
@@ -306,6 +321,13 @@ pub enum OperationKind {
     /// Numeric exposure of an addressable referent under ordinary borrowed
     /// access. The result grants no loan, ownership, or memory access.
     StorageAddress {
+        source: StructuralArgument,
+    },
+    /// Read or write exactly ten descriptor bytes through an existing loan.
+    /// The numeric base within those bytes grants no storage authority.
+    GlobalDescriptorTable {
+        service: ServiceId,
+        operation: language_core::inline_assembly::AsmGlobalDescriptorTableOperation,
         source: StructuralArgument,
     },
     /// Interpret initialized storage through one exact retained placement.
@@ -1256,7 +1278,9 @@ impl OperationKind {
             }
             // Runtime selectors were mapped through the shared source path
             // inventory above; placement contributes no scalar operands.
-            Self::EstablishAccessReference { .. } | Self::StorageAddress { .. } => {}
+            Self::EstablishAccessReference { .. }
+            | Self::StorageAddress { .. }
+            | Self::GlobalDescriptorTable { .. } => {}
             Self::EstablishByteSequenceConcatenation { left, right, .. } => {
                 left.remap_length(map);
                 right.remap_length(map);
@@ -1396,6 +1420,8 @@ impl OperationKind {
             Self::TrappingInteger { operation } => operation.map_operands(map),
             Self::FloatResultPolicy { policy } => policy.map_operands(map),
             Self::AtomicAccess { event, .. } => event.map_operands(map),
+            Self::ActivateTaskRegister { selector, .. } => *selector = map(*selector),
+            Self::ReadTaskRegister { .. } => {}
             Self::RegisterAccess { event, .. } => event.map_operands(map),
             Self::NearestIeeeFloatFusedMultiplyAdd {
                 left,

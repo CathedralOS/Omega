@@ -639,14 +639,12 @@ impl<'program> Evaluator<'program> {
         match step {
             ReferenceProjectionStep::Field(_) => {
                 let mut record_type = type_reference;
-                loop {
-                    match type_reference_table(self.program).type_reference(record_type) {
-                        TypeReferenceNode::Constrained { base_type, .. }
-                        | TypeReferenceNode::Reference {
-                            referee: base_type, ..
-                        } => record_type = *base_type,
-                        _ => break,
-                    }
+                while let TypeReferenceNode::Constrained { base_type, .. }
+                | TypeReferenceNode::Reference {
+                    referee: base_type, ..
+                } = type_reference_table(self.program).type_reference(record_type)
+                {
+                    record_type = *base_type;
                 }
                 if self.program.closed_data_definition(record_type).is_none() {
                     return Ok(None);

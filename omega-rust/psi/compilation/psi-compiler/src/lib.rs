@@ -23,14 +23,17 @@
 //! this facade; this is not yet a complete one-call source-to-Terminal API.
 //! Observers record existing stage operations without choosing or replaying them.
 
+mod portable_productions;
 mod source_checking;
 mod source_compilation;
 mod source_parsing;
 
+pub use portable_productions::{PortableProductionInputs, PortableProductions};
 pub use source_checking::{
     CheckRequest, CheckedSource, CheckedTreeProductSelection, LibrarySliceKey, LibrarySliceRequest,
     LibrarySliceTotals, ProductRepresentationInput, ProductSelections, RetainedCheck,
-    SelectedCheckedSource, SourceAdmission, library_slice_totals, whole_program_reuse_hits,
+    SelectedCheckedSource, SourceAdmission, library_slice_totals, retained_layout_match_hits,
+    whole_program_reuse_hits,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,

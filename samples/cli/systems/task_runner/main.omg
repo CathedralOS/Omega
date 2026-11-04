@@ -89,8 +89,8 @@ machine Main::main(main: &mut Main) reaches Console {
     Main::run_task(main, Task::Compute { value: 25 });
 
     transition main.runner.score == 70 {
-        true -> good(main)
-        _ -> bad(main)
+        true -> block good(main)
+        _ -> block bad(main)
     }
 
     machine good(main: &mut Main) {

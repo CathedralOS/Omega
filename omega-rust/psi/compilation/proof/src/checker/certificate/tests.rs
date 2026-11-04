@@ -429,7 +429,7 @@ use crate::obligations::{ProofPlan, proof_obligation_key};
 #[test]
 fn kernel_rejected_candidates_are_passed_over_not_accepted() {
     let mut program = program();
-    let (base, obligation) = program.count_value();
+    let (_base, obligation) = program.count_value();
     let plan = ProofPlan::new(&program.typed_trees);
     let mut cache = ProofDerivationCache::new();
 
@@ -459,7 +459,7 @@ fn kernel_rejected_candidates_are_passed_over_not_accepted() {
 #[test]
 fn capacity_refusal_is_explicit_and_keeps_the_verdict_path() {
     let mut program = program();
-    let (base, obligation) = program.count_value();
+    let (_base, obligation) = program.count_value();
     let plan = ProofPlan::new(&program.typed_trees);
     let mut cache = ProofDerivationCache::with_capacity(0);
 

@@ -101,9 +101,7 @@ pub(crate) fn recognize_guarded_structural_value_arms<'program>(
         let TransitionGuardNode::When(guard) = transition.guard else {
             return None;
         };
-        let Some(equality) = program.expression_table.binary_node(guard) else {
-            return None;
-        };
+        let equality = program.expression_table.binary_node(guard)?;
         if equality.operator != BinaryOperator::Equal {
             return None;
         }
@@ -415,15 +413,13 @@ fn local_symbol_is_dead_in_remaining_prefix(
         |root: ExpressionHandle| expression_mentions_symbol(program, root, local_symbol);
     for &stmt_idx in execution.iter().skip(next_execution_position) {
         let stmt = &statements[stmt_idx];
-        if in_state_prefix_only {
-            if let StatementNode::Transition(transition) = stmt {
-                if let TransitionGuardNode::When(guard) = transition.guard
-                    && mentions_local(guard)
-                {
-                    return false;
-                }
-                continue;
+        if in_state_prefix_only && let StatementNode::Transition(transition) = stmt {
+            if let TransitionGuardNode::When(guard) = transition.guard
+                && mentions_local(guard)
+            {
+                return false;
             }
+            continue;
         }
         for (_, root) in program.tables.expression_roots(stmt) {
             if mentions_local(root) {
@@ -1588,7 +1584,7 @@ fn recognize_structural_state_leaves_from<'a>(
 
                     if outcomes.len() > 1
                         && outcomes.iter().all(|(_, outcome_judge)| {
-                            outcome_judge.has_no_new_effects_or_guarantees_since(&judge)
+                            outcome_judge.has_no_new_effects_or_guarantees_since(judge)
                         })
                     {
                         let dead_local = local_symbol_is_dead_in_remaining_prefix(
@@ -1998,6 +1994,14 @@ fn recognize_structural_state_leaves_from<'a>(
                         next_remaining.push((next_judge, skipped_equations));
                     }
                     if matches!(subject_judgment, Some(StructuralJudgment::Refuted)) {
+                        call_entries::exclude_target_calls(
+                            program,
+                            invocation,
+                            state,
+                            statement_index,
+                            transition.source_target.unwrap_or_default(),
+                            visitors,
+                        );
                         continue;
                     }
                     if let Some((definition, variant)) =
@@ -2229,6 +2233,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                 state.symbol,
                                 statement_index,
                                 call_expression,
+                                transition.source_target.unwrap_or_default(),
                                 target_state.symbol,
                             );
                         }

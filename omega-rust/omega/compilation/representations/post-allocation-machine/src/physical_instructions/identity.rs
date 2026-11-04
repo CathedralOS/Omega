@@ -20,7 +20,7 @@ pub fn post_allocation_machine_identity(
 ) -> PostAllocationMachineIdentity {
     post_allocation_machine_identity_with_domain(
         plan,
-        b"omega.terminal-postallocation-machine.v22\0",
+        b"omega.terminal-postallocation-machine.v23\0",
     )
 }
 
@@ -30,7 +30,7 @@ fn post_allocation_machine_identity_with_domain(
 ) -> PostAllocationMachineIdentity {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
     write_terminal_post_allocation_machine_content(plan, |chunk| digest.raw(chunk));
-    PostAllocationMachineIdentity::from_bytes(digest.finish().into())
+    PostAllocationMachineIdentity::from_bytes(digest.finish())
 }
 
 /// Emit the one canonical byte sequence to either hashing or wire publication.

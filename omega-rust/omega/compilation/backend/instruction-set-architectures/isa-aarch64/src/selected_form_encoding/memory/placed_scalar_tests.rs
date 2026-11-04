@@ -114,7 +114,7 @@ fn accessor_scalar_forms_decode_one_exact_width_transfer() {
         };
         assert!(verify(kind, undeclared, &[base, data], 8, encoded.bytes()).is_err());
         reject_every_bit_flip(encoded.bytes(), &format!("{form:?}"), |changed| {
-            verify(kind, alternative, &[base, data], 8, &changed).is_err()
+            verify(kind, alternative, &[base, data], 8, changed).is_err()
         });
     }
 }

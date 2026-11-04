@@ -3,8 +3,7 @@
 
 use crate::checked_trees::CheckedMemberIdentity;
 use crate::checked_trees::flow::terminal::{
-    CheckedCallScalarArgument, CheckedProviderAttachmentRequirementPlan,
-    CheckedScalarBranchDestination, CheckedScalarGuardedExit,
+    CheckedCallScalarArgument, CheckedScalarBranchDestination, CheckedScalarGuardedExit,
     CheckedStructuralControlSuccessorPlan, CheckedStructuralResultPlan,
     CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
@@ -39,7 +38,6 @@ pub struct CheckedComposedUnitControlMachinePlan {
     pub preserving_rank_edges: Vec<CheckedRankEdgeCoordinate>,
     /// Free helpers have no attachment; attached bodies retain their authored owner.
     pub attachment_type_identity: Option<TypeIdentityId>,
-    pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
     pub body_qualifications: Vec<SemanticDomainId>,
     pub contract_report_fingerprint: u64,
     pub contract_commitment: crate::MachineContractCommitment,

@@ -294,6 +294,9 @@ operation_semantic_rows! {
     // function of its operands, so it states no scalar denotation.
     AtomicAccess => ("schema:operation:atomic-access", LeafDenotation, None),
     AtomicFence => ("schema:operation:atomic-fence", LeafDenotation, None),
+    ActivateTaskRegister => ("schema:operation:activate-task-register", LeafDenotation, None),
+    ReadTaskRegister => ("schema:operation:read-task-register", LeafDenotation, None),
+    GlobalDescriptorTable => ("schema:operation:global-descriptor-table", LeafDenotation, None),
 }
 
 pub fn exact_operation_semantic_row_in(
@@ -332,13 +335,13 @@ pub fn is_unconditionally_total_scalar(operation: &OperationKind) -> bool {
 }
 
 /// Unique-match row lookup: exactly one row must carry `tag`.
-pub(crate) fn exactly_one_row_for_tag<'row, R>(
-    rows: &'row [R],
+pub(crate) fn exactly_one_row_for_tag<R>(
+    rows: &[R],
     tag: OperationSemanticTag,
     row_tag: impl Fn(&R) -> OperationSemanticTag,
     missing: impl FnOnce(OperationSemanticTag) -> OperationSemanticError,
     duplicate: impl FnOnce(OperationSemanticTag) -> OperationSemanticError,
-) -> Result<&'row R, OperationSemanticError> {
+) -> Result<&R, OperationSemanticError> {
     let mut matches = rows.iter().filter(|row| row_tag(row) == tag);
     let row = matches.next().ok_or_else(|| missing(tag))?;
     if matches.next().is_some() {

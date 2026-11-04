@@ -36,7 +36,7 @@ use typed_trees::statement::{StatementNode, TableTransition, TransitionTargetNod
 use super::BuildTimeProgram;
 use super::closure_validation::has_authored_requires;
 use crate::syntax_probes::PreparedEvaluationInputs;
-use typed_trees_to_checked_trees::{infer_checked_machine_crash_causes, lower_typed_trees};
+use typed_trees_to_checked_trees::lower_typed_trees;
 use typed_trees_to_typed_trees::prepare_typed_trees;
 
 /// Whether a private checked probe discharges `machine`'s authored
@@ -50,19 +50,99 @@ pub(super) fn zero_argument_invocation_discharges(
     machine: &Machine,
     source_span: Option<source::SourceSpan>,
 ) -> bool {
+    value_invocation_discharges(program, machine, &[], source_span).is_ok()
+}
+
+/// Check the exact supplied values through an ordinary caller. A guarded
+/// public ceiling is specialized at this call, never replaced by body purity.
+pub(super) fn value_invocation_discharges(
+    program: &TypedTrees,
+    machine: &Machine,
+    arguments: &[crate::BuildTimeValue],
+    source_span: Option<source::SourceSpan>,
+) -> Result<(), String> {
+    let entry =
+        entry_state(program, machine).ok_or("constant invocation has no exact entry state")?;
+    let parameters = program.state_parameters(entry);
+    if parameters.len() != arguments.len() {
+        return Err("constant invocation arguments differ from its checked entry arity".into());
+    }
     let mut probe = program.clone();
-    // The probe runs inside the preliminary package checkpoint: deferred
-    // range-endpoint marks name the outer const-eval continuation, not this
-    // private program, so they must not survive as a tolerated lost fold.
     probe.pending_const_range_endpoints.clear();
-
-    let Some((entry_symbol, entry_name, entry_return)) = entry_state(program, machine)
-        .filter(|entry| program.state_parameters(entry).is_empty())
-        .map(|entry| (entry.symbol, entry.name.clone(), entry.return_type))
-    else {
-        return false;
-    };
-
+    let (probe_machine, mut state) = invocation_probe_declarations(
+        &mut probe,
+        machine.symbol,
+        "@const-invocation",
+        entry.return_type,
+    );
+    let mut actuals = Vec::with_capacity(arguments.len());
+    for (position, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
+        if matches!(argument, crate::BuildTimeValue::LayoutTarget(_)) {
+            // Validated compiler contexts have no source constructor. Preserve
+            // the exact carrier as a caller formal and prove the call for every
+            // value of that opaque input; do not invent concrete target facts.
+            let name = format!("@context-{position}");
+            let symbol = probe
+                .symbols
+                .insert_generated_children(state.symbol, [(SymbolKind::Parameter, name.as_str())])
+                .start();
+            let mut retained = parameter.clone();
+            retained.symbol = symbol;
+            retained.name = typed_trees::name::Identifier::generated(&name);
+            probe.push_state_parameter(&mut state, retained.clone());
+            let path = probe_name_path(&mut probe, symbol, retained.name);
+            actuals.push(probe.expression_table.insert(ExpressionNode::Name(path)));
+            continue;
+        }
+        let mut carrier = parameter.type_reference;
+        while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(carrier)
+        {
+            carrier = *base_type;
+        }
+        let reference = match program.type_reference_table.type_reference(carrier) {
+            typed_trees::types::TypeReferenceNode::Reference {
+                referee, access, ..
+            } => Some((*referee, *access)),
+            _ => None,
+        };
+        let mut snapshot = argument.clone();
+        let value = super::supplied_values::literal(
+            &mut probe,
+            reference.map_or(parameter.type_reference, |(referee, _)| referee),
+            &mut snapshot,
+        )
+        .map_err(|reason| format!("constant argument `{}`: {reason}", parameter.name))?;
+        let actual = if let Some((referee, access)) = reference {
+            // The evaluator supplies fresh owned storage for borrowed snapshots.
+            // Give ordinary checking the same local home and access permission.
+            let name = format!("@argument-{position}");
+            let symbol = probe
+                .symbols
+                .insert_generated_children(state.symbol, [(SymbolKind::Local, name.as_str())])
+                .start();
+            let name = typed_trees::name::Identifier::generated(&name);
+            probe.statement_table.push_statement(
+                &mut state.statement_nodes,
+                StatementNode::LocalData(typed_trees::statement::TableLocalData {
+                    symbol,
+                    name: name.clone(),
+                    type_reference: referee,
+                    initial_value: value,
+                    is_mutable: access.is_exclusive(),
+                    ..Default::default()
+                }),
+            );
+            let path = probe_name_path(&mut probe, symbol, name);
+            let target = probe.expression_table.insert(ExpressionNode::Name(path));
+            probe.expression_table.insert(ExpressionNode::Borrow(
+                typed_trees::expression::TableBorrowExpression { target, access },
+            ))
+        } else {
+            value
+        };
+        actuals.push(actual);
+    }
     let call = TableCallExpression {
         authored_call_selection: None,
         authored_call_binding: None,
@@ -70,9 +150,9 @@ pub(super) fn zero_argument_invocation_discharges(
         requirement_application: Default::default(),
         exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
         receiver: ExpressionHandle::invalid(),
-        target_symbol: entry_symbol,
+        target_symbol: entry.symbol,
         static_machine_parameter: SymbolHandle::invalid(),
-        target: entry_name,
+        target: entry.name.clone(),
         static_requirement_dispatch: None,
         machine_arguments: Box::default(),
         quotient_operation: None,
@@ -80,7 +160,7 @@ pub(super) fn zero_argument_invocation_discharges(
         layout_query: None,
         native_code_layout: None,
         build_selection: Default::default(),
-        arguments: probe.expression_table.insert_expression_handles([]),
+        arguments: probe.expression_table.insert_expression_handles(actuals),
         evidence_arguments: Box::default(),
         operational_acknowledgement: language_semantics::CallOperationalAcknowledgement::default(),
     };
@@ -89,36 +169,58 @@ pub(super) fn zero_argument_invocation_discharges(
         .or_else(|| probe.symbols.symbol_source_span(machine.symbol))
         .unwrap_or_default();
     probe.expression_table.set_source_span(concrete, call_span);
-    let owner = append_invocation_probe(
-        &mut probe,
-        machine.symbol,
-        "@const-length",
-        concrete,
-        entry_return,
-    );
-    // The const-eval window sits inside preliminary package checking: the
-    // owning program has not reached settlement, so the probe lowers in the
-    // same mode. Contract checking is not gated on the mode, so authored
-    // `requires` premises are still decided at the synthesized call.
+    let owner = finish_invocation_probe(&mut probe, probe_machine, state, concrete);
     let preparation_request = typed_trees_to_typed_trees::PreparationRequest::preliminary();
     let checking = typed_trees_to_checked_trees::CheckingRequest::new();
-    let Ok((probe, preparation)) = prepare_typed_trees(probe, &preparation_request) else {
-        return false;
-    };
-    let Ok(checked) = lower_typed_trees(probe, preparation, &checking) else {
-        return false;
-    };
-    if require_complete_invocation_conditions(&checked, owner).is_err() {
-        return false;
+    let checked = prepare_typed_trees(probe, &preparation_request)
+        .and_then(|(probe, preparation)| lower_typed_trees(probe, preparation, &checking))
+        .map_err(|diagnostics| {
+            format!(
+                "constant invocation failed ordinary checking: {}",
+                diagnostics::join_messages(&diagnostics),
+            )
+        })?;
+    require_complete_invocation_conditions(&checked, owner)?;
+    require_empty_failure_summary(&checked, owner)
+}
+
+fn probe_name_path(
+    probe: &mut TypedTrees,
+    symbol: SymbolHandle,
+    name: typed_trees::name::Identifier,
+) -> typed_trees::expression::TableNamePath {
+    let mut members = arena::HandleSpan::empty();
+    probe
+        .expression_table
+        .push_name_path_member(&mut members, name);
+    let mut member_symbols = arena::HandleSpan::empty();
+    probe
+        .expression_table
+        .push_name_path_member_symbol(&mut member_symbols, symbol);
+    typed_trees::expression::TableNamePath::new(members, member_symbols, symbol, symbol)
+}
+
+pub(super) fn require_empty_failure_summary(
+    checked: &checked_trees::CheckedTrees,
+    owner: SymbolHandle,
+) -> Result<(), String> {
+    let summary = checked
+        .body_crash_summary(owner)
+        .ok_or("constant invocation has no complete checked failure summary")?;
+    if summary.buckets().is_empty() {
+        Ok(())
+    } else {
+        let mut causes = summary
+            .buckets()
+            .iter()
+            .map(|bucket| bucket.cause())
+            .collect::<Vec<_>>();
+        causes.sort();
+        causes.dedup();
+        Err(format!(
+            "constant invocation retains unhandled {causes:?} routes at its concrete arguments"
+        ))
     }
-    matches!(
-        infer_checked_machine_crash_causes(
-            &checked.typed,
-            &checked.facts,
-            owner,
-        ),
-        Some(causes) if causes.is_empty()
-    )
 }
 
 /// Whether ordinary checking alone discharges every authored `requires`
@@ -186,7 +288,7 @@ pub(super) fn checked_demanded_closure(
 
 /// The state an invocation of `machine` enters: the one named by the
 /// machine's leaf, else its first state.
-fn entry_state<'a>(program: &'a TypedTrees, machine: &Machine) -> Option<&'a State> {
+pub(super) fn entry_state<'a>(program: &'a TypedTrees, machine: &Machine) -> Option<&'a State> {
     let leaf = machine
         .name
         .as_str()
@@ -297,14 +399,7 @@ pub(crate) fn snapshot_arguments_discharge(
             )
         })?;
     require_complete_invocation_conditions(&checked, owner)?;
-    let causes = infer_checked_machine_crash_causes(&checked.typed, &checked.facts, owner)
-        .ok_or("constant invocation has no complete checked failure summary")?;
-    if !causes.is_empty() {
-        return Err(format!(
-            "constant invocation of `{callee}` retains unhandled {causes:?} routes at its concrete arguments"
-        ));
-    }
-    Ok(())
+    require_empty_failure_summary(&checked, owner)
 }
 
 /// Append the generated probe machine whose single state returns the
@@ -316,21 +411,46 @@ pub(super) fn append_invocation_probe(
     expression: ExpressionHandle,
     destination: typed_trees::types::TypeReferenceHandle,
 ) -> SymbolHandle {
+    let (machine, state) = invocation_probe_declarations(probe, owner, name, destination);
+    finish_invocation_probe(probe, machine, state, expression)
+}
+
+fn invocation_probe_declarations(
+    probe: &mut TypedTrees,
+    owner: SymbolHandle,
+    name: &str,
+    destination: typed_trees::types::TypeReferenceHandle,
+) -> (Machine, State) {
     let symbol = probe
         .symbols
         .insert_generated_root_from(owner, SymbolKind::Machine, name);
     let children = probe
         .symbols
         .insert_generated_children(symbol, [(SymbolKind::State, name)]);
+    (
+        Machine {
+            symbol,
+            name: typed_trees::name::Identifier::generated(name),
+            ..Default::default()
+        },
+        State {
+            symbol: children.start(),
+            name: typed_trees::name::Identifier::generated(name),
+            return_type: destination,
+            ..Default::default()
+        },
+    )
+}
+
+fn finish_invocation_probe(
+    probe: &mut TypedTrees,
+    mut machine: Machine,
+    mut state: State,
+    expression: ExpressionHandle,
+) -> SymbolHandle {
     let target = probe
         .statement_table
         .insert_transition_target(TransitionTargetNode::Value(expression));
-    let mut state = State {
-        symbol: children.start(),
-        name: typed_trees::name::Identifier::generated(name),
-        return_type: destination,
-        ..Default::default()
-    };
     let source_span = probe.expression_table.source_span(expression);
     probe.statement_table.push_statement(
         &mut state.statement_nodes,
@@ -340,14 +460,10 @@ pub(super) fn append_invocation_probe(
             ..Default::default()
         }),
     );
-    let mut probe_machine = Machine {
-        symbol,
-        name: typed_trees::name::Identifier::generated(name),
-        ..Default::default()
-    };
-    probe.push_machine_state(&mut probe_machine, state);
-    probe.push_machine(probe_machine);
-    symbol
+    let owner = machine.symbol;
+    probe.push_machine_state(&mut machine, state);
+    probe.push_machine(machine);
+    owner
 }
 
 /// A checked source judgment can retain target conditions for later closure;

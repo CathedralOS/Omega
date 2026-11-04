@@ -124,12 +124,12 @@ impl BoundaryOpaqueMovementGeometry<'_> {
     ) -> Result<BoundaryOpaqueRepresentationMovement, String> {
         let mut carrying_parameters = Vec::new();
         for (formal_ordinal, root) in self.parameters.iter().copied().enumerate() {
-            if let Some(path) = boundary_shape_path(&self.shapes, &self.fields, root, shape_root)? {
+            if let Some(path) = boundary_shape_path(self.shapes, self.fields, root, shape_root)? {
                 carrying_parameters.push((formal_ordinal, root, path));
             }
         }
         let result_path = match self.result {
-            Some(root) => boundary_shape_path(&self.shapes, &self.fields, root, shape_root)?,
+            Some(root) => boundary_shape_path(self.shapes, self.fields, root, shape_root)?,
             None => None,
         };
         if carrying_parameters.len() + usize::from(result_path.is_some()) != 1 {

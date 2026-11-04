@@ -29,49 +29,49 @@ machine Main::rational(main: &mut Main, numerator: i64 in Wrapping, denominator:
 }
 machine Main::main(main: &mut Main) reaches Console {
     main.bytes = 0; main.used = 0;
-    transition { _ -> mode(main) }
+    transition { _ -> block mode(main) }
     machine mode(main: &mut Main) {
         let byte: ByteRead = block Console::read_byte();
         main.bytes = main.bytes+1;
-        transition byte { ByteRead::Byte { value } -> mode_byte(main, value) _ -> invalid(main) }
+        transition byte { ByteRead::Byte { value } -> block mode_byte(main, value) _ -> invalid(main) }
     }
     machine mode_byte(main: &mut Main, value: i32) {
-        transition main.bytes <= 512 { true -> mode_start(main, value) _ -> invalid(main) }
+        transition main.bytes <= 512 { true -> block mode_start(main, value) _ -> invalid(main) }
     }
     machine mode_start(main: &mut Main, value: i32) {
-        transition value { 32 -> mode(main) 9 -> mode(main) 10 -> mode(main) 13 -> mode(main)
-            108 -> mode_tail(main, 1, 1) 113 -> mode_tail(main, 2, 1) _ -> invalid(main) }
+        transition value { 32 -> block mode(main) 9 -> block mode(main) 10 -> block mode(main) 13 -> block mode(main)
+            108 -> block mode_tail(main, 1, 1) 113 -> block mode_tail(main, 2, 1) _ -> invalid(main) }
     }
     machine mode_tail(main: &mut Main, degree: i64 in Wrapping, position: i64 in Wrapping) {
         let byte: ByteRead = block Console::read_byte();
         main.bytes = main.bytes+1;
-        transition byte { ByteRead::Byte { value } -> mode_match(main, degree, position, value) _ -> invalid(main) }
+        transition byte { ByteRead::Byte { value } -> block mode_match(main, degree, position, value) _ -> invalid(main) }
     }
     machine mode_match(main: &mut Main, degree: i64 in Wrapping, position: i64 in Wrapping, value: i32) {
         let expected: i32 = Main::mode_character(degree, position);
         transition main.bytes <= 512 && value == expected {
-            true -> mode_advance(main, degree, position)
-            _ -> mode_separator(main, degree, position, value)
+            true -> block mode_advance(main, degree, position)
+            _ -> block mode_separator(main, degree, position, value)
         }
     }
     machine mode_advance(main: &mut Main, degree: i64 in Wrapping, position: i64 in Wrapping) {
-        transition { _ -> mode_tail(main, degree, position+1) }
+        transition { _ -> block mode_tail(main, degree, position+1) }
     }
     machine mode_separator(main: &mut Main, degree: i64 in Wrapping, position: i64 in Wrapping, value: i32) {
         transition main.bytes <= 512 && ((degree == 1 && position == 6) || (degree == 2 && position == 9)) &&
                    (value == 32 || value == 9 || value == 10 || value == 13) {
-            true -> begin_numbers(main, degree) _ -> invalid(main)
+            true -> block begin_numbers(main, degree) _ -> invalid(main)
         }
     }
     machine begin_numbers(main: &mut Main, degree: i64 in Wrapping) {
         main.design.degree = degree;
-        transition { _ -> read(main, 0, 1, 0, 0) }
+        transition { _ -> block read(main, 0, 1, 0, 0) }
     }
     machine read(main: &mut Main, accumulator: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping, digits: i64 in Wrapping) {
         let byte: ByteRead = block Console::read_byte();
         main.bytes = main.bytes+1;
         transition byte {
-            ByteRead::Byte { value } -> bounded(main, accumulator, sign, active, digits, value)
+            ByteRead::Byte { value } -> block bounded(main, accumulator, sign, active, digits, value)
             _ -> eof(main, accumulator, sign, active, digits)
         }
     }
@@ -90,7 +90,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition digits < 2 { true -> append(main, value, sign, digits, character) _ -> invalid(main) }
     }
     machine append(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, digits: i64 in Wrapping, character: i32) {
-        transition { _ -> read(main, value*10+(character as i64 in Wrapping)-48, sign, 1, digits+1) }
+        transition { _ -> block read(main, value*10+(character as i64 in Wrapping)-48, sign, 1, digits+1) }
     }
     machine separator(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping,
                     digits: i64 in Wrapping, character: i32) {
@@ -100,10 +100,10 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     machine minus(main: &mut Main, active: i64 in Wrapping, character: i32) {
-        transition active == 0 && character == 45 { true -> read(main, 0, -1, 1, 0) _ -> invalid(main) }
+        transition active == 0 && character == 45 { true -> block read(main, 0, -1, 1, 0) _ -> invalid(main) }
     }
     machine separated(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping, digits: i64 in Wrapping) {
-        transition active == 0 { true -> read(main, 0, 1, 0, 0) _ -> store(main, value, sign, digits, 0) }
+        transition active == 0 { true -> block read(main, 0, 1, 0, 0) _ -> store(main, value, sign, digits, 0) }
     }
     machine eof(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping, digits: i64 in Wrapping) {
         transition active == 0 { true -> header(main) _ -> store(main, value, sign, digits, 1) }
@@ -113,7 +113,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine save(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, eof: i64 in Wrapping) {
         main.tokens[main.used] = value*sign; main.used = main.used+1;
-        transition eof == 1 { true -> header(main) _ -> read(main, 0, 1, 0, 0) }
+        transition eof == 1 { true -> header(main) _ -> block read(main, 0, 1, 0, 0) }
     }
     machine header(main: &mut Main) {
         let count: i64 in Wrapping = main.tokens[0];

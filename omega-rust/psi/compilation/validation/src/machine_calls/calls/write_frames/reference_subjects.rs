@@ -104,6 +104,23 @@ pub(super) fn unknown_readonly_origin(
         })
 }
 
+/// The parameter this assignment rebinds, when it replaces a whole
+/// parameter's binding instead of writing through it. Preparation gives such a
+/// parameter a local descriptor home, so later stages see only the formal's
+/// ingress referent; this is the same classification write frames use.
+pub fn assignment_rebinds_parameter(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    statement: &StatementNode,
+) -> Option<symbols::SymbolHandle> {
+    let assignment = statement.as_assignment()?;
+    let target = FrameSourcePlace::from_expression(program, assignment.target);
+    (target.root.is_valid()
+        && program.symbols.get(target.root).kind == SymbolKind::Parameter
+        && replaces_binding(program, machine, statement)?)
+    .then_some(target.root)
+}
+
 pub(super) fn replaces_binding(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -117,8 +134,18 @@ pub(super) fn replaces_binding(
         machine,
         caller_aliases::CallerWriteSite::Statement(statement),
     )?;
+    // A whole local or parameter binding is this invocation's own slot.
+    // Whether assigning it replaces the descriptor or writes through it is
+    // the shared rule below: a `mut` shared-reference parameter is rebound,
+    // an exclusive one writes its referent.
     let target = FrameSourcePlace::from_expression(program, assignment.target);
-    if !target.segments.is_empty() || program.symbols.get(target.root).kind != SymbolKind::Local {
+    if !target.root.is_valid()
+        || !target.segments.is_empty()
+        || !matches!(
+            program.symbols.get(target.root).kind,
+            SymbolKind::Local | SymbolKind::Parameter
+        )
+    {
         return Some(false);
     }
     let reference = source_root_type(program, state, index, target.root)?;
@@ -834,7 +861,7 @@ fn declared_initializer_origins(
         expression = formation.source;
     }
     expression = expression_table(program).peeled_expression_handle(expression);
-    if let Some(_) = expression_table(program).call_node(expression) {
+    if expression_table(program).call_node(expression).is_some() {
         let (state, _, index) = caller_aliases::caller_statement_owner(
             program,
             machine,

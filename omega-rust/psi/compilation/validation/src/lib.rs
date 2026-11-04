@@ -11,6 +11,7 @@
 //! `execution_projection.rs` selects executable declaration contexts without
 //! granting a checked judgment; compile-time evaluation and checking share it.
 
+pub use declarations::data_queries::data_field_is_where_independent;
 pub use declarations::traits::conformance_applications;
 pub mod compiler_evaluation;
 pub use queries::execution_projection;
@@ -161,7 +162,7 @@ pub use proof_contracts::domains::{
     scalar_field_restriction, scalar_membership_carrier, scalar_membership_is_tag,
     scalar_membership_predicates, scalar_membership_value_carrier,
     scalar_membership_value_predicates, scalar_predicate_domains, scalar_type_routed_domains,
-    scalar_type_tags, validate_executable_domain_test_carriers,
+    scalar_type_tags, validate_domain_membership_carriers,
 };
 pub use proof_contracts::parameter_domains::parameter_domain_constraints;
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
@@ -226,10 +227,10 @@ pub use value_custody::atomic_operations::{
     AtomicCarrierAccess, atomic_assignment_carrier, atomic_execution_children, atomic_load_carrier,
     atomic_once_carrier, atomic_once_operands, atomic_once_result_type, atomic_once_write_place,
     atomic_resident_type_reference, atomic_result_placeholder, atomic_value_operands,
-    place_is_atomic_storage,
+    is_atomic_type, place_is_atomic_storage,
 };
 pub use value_custody::places::{
-    AttachedStorageRoot, ScalarCoordinateProjection, StructuralCoordinate,
+    AttachedStorageRoot, ResolvedArrayExtent, ScalarCoordinateProjection, StructuralCoordinate,
     StructuralScalarCoordinate, StructuralScalarField, StructuralSource, assignment_target_indexes,
     assignment_target_selectors, attached_storage_root, canonical_storage_label,
     collection_length_receiver, declaration_storage_label, declared_collection_extent,
@@ -237,8 +238,9 @@ pub use value_custody::places::{
     exact_data_member_field, exact_self_field, expression_names_attached_storage,
     fixed_array_type_extent, fixed_array_type_length, has_builtin_subslice_meaning,
     indexed_operation_has_builtin_meaning, mutable_byte_slice_parameter_element,
-    place_has_builtin_coordinates, range_operator_establishes_endpoint_extent, saved_dispatch_call,
-    saved_dispatch_subject, structural_atomic_field, structural_coordinate,
+    place_has_builtin_coordinates, range_operator_establishes_endpoint_extent,
+    resolved_array_extent, resolved_array_extent_at, resolved_projected_array_extent,
+    saved_dispatch_call, saved_dispatch_subject, structural_atomic_field, structural_coordinate,
     structural_coordinate_in_type, structural_scalar_coordinate,
     structural_scalar_coordinate_in_type, structural_scalar_field,
     structural_scalar_field_at_coordinate, structural_scalar_field_at_element_coordinate,
@@ -293,8 +295,8 @@ pub use crate::machine_calls::calls::{
     ReferenceResultLeafOrigin, ReferenceResultTransport, ReferenceSlotContract,
     ReferenceViewFormation, ScalarStorageCoordinate, StoredReferenceCallContext,
     StoredReferenceDestinationKind, StoredReferenceEffect, StoredReferenceRelationRefusal,
-    ValidatedSelfCallDescent, assignment_stored_value_type, frame_coordinate_path,
-    frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
+    ValidatedSelfCallDescent, assignment_rebinds_parameter, assignment_stored_value_type,
+    frame_coordinate_path, frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
     state_reference_parameter_binding_is_stable, storage_origin_types_match,
 };
 pub use crate::machine_calls::denotational_calls::{
@@ -478,9 +480,8 @@ pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
 pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use proof_contracts::arithmetic_domains::{OccurrenceIntegerBounds, occurrence_integer_bounds};
 pub use proof_contracts::arithmetic_domains::{
-    StoredIntegerReach, standing_integer_bounds, stored_integer_bounds,
-    stored_integer_source_projection, stored_integer_source_projections,
-    stored_integer_source_reach,
+    StoredIntegerReach, UnestablishedStoredEncoding, standing_integer_bounds,
+    stored_integer_bounds, stored_integer_source_projections, stored_integer_source_reach,
 };
 pub use proof_contracts::arithmetic_domains::{
     occurrence_integer_expression_bounds, occurrence_integer_expression_recipe,
@@ -572,9 +573,8 @@ pub(crate) use optimization::digest_encoder;
 pub use queries::expression_traversal;
 mod frozen_program;
 mod queries;
-pub use queries::layout_checking::{
-    LayoutCheckingContext, layout_checking_targets, pending_layout_geometry,
-};
+pub(crate) use queries::layout_checking::layout_checking_targets;
+pub use queries::layout_checking::{LayoutCheckingContext, pending_layout_geometry};
 mod machine_calls;
 mod program_validation;
 mod proof_contracts;
@@ -594,8 +594,9 @@ pub use program_validation::{
     FrozenDependencyBody, OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,
     ProvenContractExpressions, admit_prepared_program_effects, checking_thread_pool,
     dependency_body_read_totals, dependency_entailment_totals, judge_contract_entailment,
-    prepare_specialized_program, validate_checked_operator_realization_contract,
-    validate_generic_machine_contract_entailment, validate_program,
+    prepare_specialized_program, statement_source_span,
+    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
+    validate_program,
 };
 pub(crate) use program_validation::{DependencyBodyRead, note_dependency_body_read};
 
@@ -641,8 +642,8 @@ pub use value_custody::places::{
     projected_statement_receiver_type_reference, push_field_place_segments,
     qualification_storage_path, receiver_projections, resolve_member_symbol_from_type_symbol,
     runtime_field_subject, source_type_application_from_segments, state_scoped_name_symbol,
-    structural_member_identity, symbol_type_symbol, unique_data_definition_by_symbol,
-    whole_collection_view_source,
+    storage_operand, storage_place_from_expression_in_state, structural_member_identity,
+    symbol_type_symbol, unique_data_definition_by_symbol, whole_collection_view_source,
 };
 
 /// Walk a type-reference table once into a positional row vector: row 0 is
@@ -670,6 +671,7 @@ pub use value_custody::activation_storage::{
     ActivationStorageContract, ActivationStorageOperation,
     activation_accessor_has_empty_write_frame, activation_claim_byte_carrier,
     activation_storage_bound, exact_toolchain_activation_storage_contract,
+    type_carries_activation_claim,
 };
 pub use value_custody::atomic_fences::{
     AtomicFenceContract, exact_toolchain_atomic_fence_contract,

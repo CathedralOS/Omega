@@ -259,6 +259,48 @@ impl PartialEq for ServiceSurface {
 impl Eq for ServiceSurface {}
 
 impl ServiceSurface {
+    /// Select only the implementation for the complete receiver type. Matching
+    /// the method alone would mix different type or lifetime arguments.
+    pub fn matches_receiving_application(
+        &self,
+        requirement: &str,
+        receiving: Option<&str>,
+    ) -> bool {
+        let Some(method) = self
+            .methods
+            .iter()
+            .find(|method| self.identity_text(method.requirement_identity) == requirement)
+        else {
+            return false;
+        };
+        let views = || {
+            self.receiver_applications.iter().filter(|application| {
+                self.identity_text(application.trait_name) == method.requirement_owner
+                    && application.trait_package_identity
+                        == method.requirement_owner_package_identity
+                    && application
+                        .requirement_identities
+                        .iter()
+                        .any(|identity| self.identity_text(*identity) == requirement)
+            })
+        };
+        if !self.receiver_applications.is_empty() && views().next().is_none() {
+            return false;
+        }
+        let Some(receiving) = receiving else {
+            // Non-applied declarations have no closed receiver coordinate. They
+            // cannot supply a parameterized or region-applied receiver selection.
+            return views().all(|application| {
+                application.argument_identities.is_empty()
+                    && application.lifetime_argument_identities.is_empty()
+            });
+        };
+        if receiving.is_empty() {
+            return false;
+        }
+        views().any(|application| self.identity_text(application.application) == receiving)
+    }
+
     /// One selected static slot includes the complete root application. A
     /// trait declaration alone conflates distinct phantom arguments/regions.
     /// Non-trait schemas retain their declaration coordinate without inventing

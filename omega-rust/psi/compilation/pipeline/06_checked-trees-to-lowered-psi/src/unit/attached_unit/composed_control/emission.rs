@@ -150,18 +150,18 @@ impl ComposedOperationCatalogs<'_, '_> {
                 Cow::Owned(types) => StructuralTypeRoster::Owned(types),
                 Cow::Borrowed(types) => StructuralTypeRoster::Published(types),
             },
-            type_ids: &self.type_ids,
-            service_ids: &self.service_ids,
+            type_ids: self.type_ids,
+            service_ids: self.service_ids,
             primitive_locals: &sequence.primitive_locals,
             results: StructuralResults::StateGraph {
                 state,
-                places: &mut self.result_places,
+                places: self.result_places,
             },
-            private_places: &mut self.temporary_places,
+            private_places: self.temporary_places,
             windows: &mut sequence.windows,
             evaluation: emission.evaluation,
             values: emission.values,
-            next_place: &mut self.next_place,
+            next_place: self.next_place,
             next_value: emission.next_value,
             next_block: emission.next_block,
             next_edge: emission.next_edge,
@@ -169,9 +169,9 @@ impl ComposedOperationCatalogs<'_, '_> {
             operations: emission.operations,
             callees: Callees {
                 plans: UnitPlans::published(&checked.facts.flow),
-                signatures: &self.signatures,
-                boundaries: &self.boundary_parameters,
-                domain_ids: &self.domain_ids,
+                signatures: self.signatures,
+                boundaries: self.boundary_parameters,
+                domain_ids: self.domain_ids,
                 domain_declarations: self.domain_declarations,
                 closure: self.closure,
             },
@@ -455,20 +455,14 @@ pub(super) fn emit_call_operations(
                 let source_value_count = retained_source_count.ok_or(
                     LoweringError::Unsupported("composed structural actual has no source prefix"),
                 )?;
-                let call =
-                    planned_operations[operation]
-                        .call()
-                        .ok_or(LoweringError::Unsupported(
-                            "composed structural actual has no call",
-                        ))?;
-                let offset = call.structural_arguments[..argument]
+                let arguments = planned_operations[operation].structural_operands();
+                let offset = arguments[..argument]
                     .iter()
                     .map(|source| source.call_selector_positions().count())
                     .sum::<usize>();
                 let selectors = staged_selector_slots[operation][offset..].to_vec();
                 if staged_structural_arguments[operation].is_empty() {
-                    staged_structural_arguments[operation] =
-                        vec![None; call.structural_arguments.len()];
+                    staged_structural_arguments[operation] = vec![None; arguments.len()];
                 }
                 let previous = staged_structural_arguments[operation][argument].take();
                 let captured = evaluate_frame!(source_value_count, |frame| {
@@ -564,7 +558,7 @@ pub(super) fn emit_call_operations(
         // Keep private argument values across constructor evaluation and any
         // split blocks. Read their rebound identities only at the consuming
         // call, never from the values they held before a later operand ran.
-        let staged_scalars = staged_scalar_slots[operation_index].values(&values);
+        let staged_scalars = staged_scalar_slots[operation_index].values(values);
         let staged_selectors = staged_selector_slots[operation_index]
             .iter()
             .map(|slot| {
@@ -581,7 +575,7 @@ pub(super) fn emit_call_operations(
         );
         let call_operands = if establishes_local || OperationFrame::lowers(operation) {
             None
-        } else {
+        } else if OperationFrame::consumes_prepared_operands(operation) {
             Some(literal_arguments::evaluate(
                 identities,
                 checked,
@@ -603,6 +597,8 @@ pub(super) fn emit_call_operations(
                 erased_parameters,
                 sequence,
             )?)
+        } else {
+            return unsupported("composed operation has no frame emission route");
         };
         // The final call publishes into the state's ordinary scalar binding
         // namespace. Retire argument temporaries first, after copying its

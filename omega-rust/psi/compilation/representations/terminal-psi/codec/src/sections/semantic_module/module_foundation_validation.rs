@@ -64,13 +64,12 @@ use terminal_semantics::{
     borrowed_referent_matches, boundary_buffer_capacity, bounded_byte_owner_capacity,
     byte_owned_result_predicates, byte_parameter_predicates, byte_sequence_source_predicates,
     contains_access_carrier, fixed_byte_array_loan, fixed_element_array_extent,
-    fused_service_field_carrier, primitive_projection_declaration, projected_field_declaration,
-    pure_byte_qualifications, qualification_path_carrier, reference_origin_type,
-    representation_view_declaration, runtime_structural_path_tip, scalar_array_leaf_shape,
-    shared_boundary_buffer_capacity, stored_view_field_presentation,
-    structural_memberships_disjoint_from_write, validate_access_lifecycle_plans,
-    validate_access_view_plans, validate_dynamic_reference_regions,
-    validate_runtime_evidence_inputs,
+    primitive_projection_declaration, projected_field_declaration, pure_byte_qualifications,
+    qualification_path_carrier, reference_origin_type, representation_view_declaration,
+    runtime_structural_path_tip, scalar_array_leaf_shape, shared_boundary_buffer_capacity,
+    stored_view_field_presentation, structural_memberships_disjoint_from_write,
+    validate_access_lifecycle_plans, validate_access_view_plans,
+    validate_dynamic_reference_regions, validate_runtime_evidence_inputs,
 };
 
 /// The declared scalar type of a value anywhere it may be declared on the
@@ -159,7 +158,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     terminal_semantics::closed_reach::validate_closed_reach_applications(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     terminal_semantics::closed_conformances::validate_closed_conformances(module)
-        .map_err(|reason| CodecError::MalformedStructuralFoundation(reason))?;
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     let mut placed_coordinates = BTreeSet::new();
     for row in &module.access_view_inputs {
         if !placed_coordinates.insert((
@@ -504,80 +503,18 @@ fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
     Ok(())
 }
 
+/// No producer emits provider-attachment roots: providers hold no state, so a
+/// machine has no attachment field to specialize. A root in a stream is
+/// therefore malformed rather than a witness to check.
 fn validate_provider_attachment_foundation(
-    module: &TerminalModule,
+    _module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Result<(), CodecError> {
-    let provider_roots = machine
+    if machine
         .structural_places
         .iter()
-        .filter_map(|place| match place.kind {
-            StructuralPlaceKind::ProviderAttachment {
-                attachment,
-                field,
-                boundary,
-            } => Some((attachment, field, boundary)),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let provider_fields = machine
-        .attachment
-        .and_then(|attachment| module.structural_type(attachment))
-        .and_then(|attachment| match &attachment.shape {
-            StructuralTypeShape::Record { fields, .. } => Some(
-                fields
-                    .iter()
-                    .filter(|field| fused_service_field_carrier(field).is_some())
-                    .collect::<Vec<_>>(),
-            ),
-            _ => None,
-        })
-        .unwrap_or_default();
-    if provider_roots.is_empty() && provider_fields.is_empty() {
-        return Ok(());
-    }
-    // One attachment may hold several provider fields; every root names one.
-    if provider_fields.is_empty() {
-        return malformed("provider-backed attachment specialization is incomplete");
-    }
-    let Some(attachment) = machine.attachment else {
-        return malformed("provider-backed attachment specialization is incomplete");
-    };
-    let mut boundaries = BTreeSet::new();
-    if provider_roots
-        .iter()
-        .any(|(root_attachment, field, boundary)| {
-            *root_attachment != attachment
-                || !provider_fields
-                    .iter()
-                    .any(|provider_field| provider_field.id == *field)
-                || !boundaries.insert(*boundary)
-                || module
-                    .boundary_machine(*boundary)
-                    .is_none_or(|declaration| {
-                        declaration.kind != terminal_psi::BoundaryRequirementKind::Trait
-                    })
-        })
+        .any(|place| matches!(place.kind, StructuralPlaceKind::ProviderAttachment { .. }))
     {
-        return malformed("provider-backed attachment specialization is incomplete");
-    }
-    // The retained declaration kind, not an absent nominal attachment,
-    // determines whether the call consumes a provider field.
-    let called = machine
-        .operations()
-        .filter_map(|operation| match operation.kind {
-            OperationKind::BoundaryCall { boundary, .. } => Some(boundary),
-            _ => None,
-        })
-        .filter(|boundary| {
-            module
-                .boundary_machine(*boundary)
-                .is_some_and(|declaration| {
-                    declaration.kind == terminal_psi::BoundaryRequirementKind::Trait
-                })
-        })
-        .collect::<BTreeSet<_>>();
-    if called != boundaries {
         return malformed("provider-backed attachment specialization is incomplete");
     }
     Ok(())
@@ -1091,6 +1028,12 @@ fn validate_operation_foundation(
         call_structural_pair_pattern!(..) => validate_call_structural(module, machine, operation)?,
         OperationKind::BoundaryCall { .. } => validate_boundary_call(module, machine, operation)?,
         OperationKind::PortWrite { .. } => validate_port_write(module, operation)?,
+        OperationKind::ActivateTaskRegister { .. } | OperationKind::ReadTaskRegister { .. } => {
+            storage_foundations::validate_task_register(module, machine, operation)?
+        }
+        OperationKind::GlobalDescriptorTable { .. } => {
+            storage_foundations::validate_global_descriptor_table(module, machine, operation)?
+        }
         OperationKind::RegisterAccess { .. } => {
             validate_register_access(module, machine, operation)?
         }
@@ -1139,22 +1082,18 @@ fn validate_operation_foundation(
             if !event.ordering_is_legal() {
                 return malformed("atomic access has an illegal ordering");
             }
-            let root = structural_place_type(machine, *place).ok_or_else(|| {
-                CodecError::MalformedStructuralFoundation(
-                    "atomic location has no declared root".into(),
-                )
+            let root = structural_place_type(machine, *place).ok_or({
+                CodecError::MalformedStructuralFoundation("atomic location has no declared root")
             })?;
             let declaration =
                 projected_field_declaration(module.structural_types.iter(), root, path, *field)
-                    .ok_or_else(|| {
+                    .ok_or({
                         CodecError::MalformedStructuralFoundation(
-                            "atomic location is not an atomic cell".into(),
+                            "atomic location is not an atomic cell",
                         )
                     })?;
-            let resident = declaration.field_type.atomic_scalar_type().ok_or_else(|| {
-                CodecError::MalformedStructuralFoundation(
-                    "atomic location is not an atomic cell".into(),
-                )
+            let resident = declaration.field_type.atomic_scalar_type().ok_or({
+                CodecError::MalformedStructuralFoundation("atomic location is not an atomic cell")
             })?;
             let bounded = matches!(
                 declaration.field_type,

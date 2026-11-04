@@ -372,7 +372,7 @@ impl TerminalEffectHandler for ClockImport {
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         let invalid = super::refusal("clock operands differ from the installed contract");
-        let call = super::call_operands(effect, &invalid)?;
+        let call = super::call_operands(effect, invalid)?;
         if !call.structural_arguments.is_empty()
             || call.arguments.len() != self.signature.scalar_parameters.len()
             || !call.arguments.iter().zip(&self.signature.scalar_parameters).all(|(value, expected)| {

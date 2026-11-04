@@ -38,8 +38,9 @@ pub(crate) fn encode_work_counters(fields: [u64; 5]) -> [u8; 40] {
 pub(crate) fn decode_work_counters(encoded: &[u8]) -> Option<[u64; 5]> {
     let row: [u8; 40] = encoded.try_into().ok()?;
     let mut fields = [0; 5];
-    for (field, chunk) in fields.iter_mut().zip(row.chunks_exact(8)) {
-        *field = u64::from_le_bytes(chunk.try_into().expect("fixed counter width"));
+    let (chunks, _) = row.as_chunks::<8>();
+    for (field, chunk) in fields.iter_mut().zip(chunks) {
+        *field = u64::from_le_bytes(*chunk);
     }
     Some(fields)
 }
@@ -713,7 +714,7 @@ impl OptimizationSelections {
         let encoded = self.encode();
         let mut digest = crate::digest_encoder::DomainDigestEncoder::new(SELECTION_IDENTITY_DOMAIN);
         digest.bytes(&encoded);
-        OptimizationSelectionIdentity(digest.finish().into())
+        OptimizationSelectionIdentity(digest.finish())
     }
 }
 

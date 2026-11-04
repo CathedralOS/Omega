@@ -10,6 +10,9 @@ use semantic_vocabulary::compiler_evaluation::{
 };
 use terminal_psi::{ProofApplicationScope, ProofDeclarationId, TargetMachineCallable};
 
+mod failures;
+pub(crate) use failures::require_root_failure_admission;
+
 pub struct AdmittedCompilerEvaluation {
     providers: crate::AdmittedProviderSelections,
     artifact: terminal_psi::TerminalPsiIdentity,
@@ -68,6 +71,7 @@ pub fn admit_compiler_evaluation(
             root_facts.name
         ));
     }
+    require_root_failure_admission(artifact.module(), root)?;
     let invocation = compiler_invocation_scope(scope, target, &providers, root)?;
     let CompilerInvocationScope {
         selected,
@@ -251,10 +255,10 @@ pub(crate) fn compiler_invocation_scope(
     })
 }
 
-fn declaration(
+fn header(
     scope: &ProofApplicationScope,
     declaration: ProofDeclarationId,
-) -> Result<&CompilerEvaluationDeclaration, String> {
+) -> Result<&terminal_psi::ProofCallableHeader, String> {
     let mut headers = scope
         .callable_headers
         .iter()
@@ -265,7 +269,17 @@ fn declaration(
     if headers.next().is_some() {
         return Err("compiler-evaluation declaration has competing checked facts".into());
     }
-    header.compiler_evaluation.as_ref().map_err(Clone::clone)
+    Ok(header)
+}
+
+fn declaration(
+    scope: &ProofApplicationScope,
+    declaration: ProofDeclarationId,
+) -> Result<&CompilerEvaluationDeclaration, String> {
+    header(scope, declaration)?
+        .compiler_evaluation
+        .as_ref()
+        .map_err(Clone::clone)
 }
 
 fn require_selection(

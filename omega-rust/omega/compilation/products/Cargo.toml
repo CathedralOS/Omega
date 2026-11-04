@@ -42,3 +42,8 @@ program-entry-plan = { path = "../backend/plans/program-entry-plan" }
 target-operations = { path = "../representations/target-operations" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 trust-model = { path = "../realization/trust-model" }
+
+[dev-dependencies]
+image = { path = "../backend/images/image" }
+image-macho = { path = "../backend/images/image-macho" }
+object-file = { path = "../backend/object/object-file" }

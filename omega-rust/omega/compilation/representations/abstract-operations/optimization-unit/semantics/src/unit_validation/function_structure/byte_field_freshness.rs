@@ -134,7 +134,7 @@ pub(super) fn field_path(
     };
     let selected = live_field_by_id(fields, field)?;
     let mut exact = path.to_vec();
-    exact.push(StructuralPathSegment::Field(selected.identity.clone()));
+    exact.push(StructuralPathSegment::Field(selected.identity));
     Some(exact)
 }
 

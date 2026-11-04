@@ -60,7 +60,7 @@ fn trust_admission_digest(
     digest.bytes(subject.domain());
     digest.string(commitment);
     digest.raw(underlying);
-    TrustAdmissionDigest(digest.finish().into())
+    TrustAdmissionDigest(digest.finish())
 }
 
 /// One exact owner-policy admission consumed by compilation.

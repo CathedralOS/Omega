@@ -177,6 +177,20 @@ fn string_key(text: &str) -> u64 {
     hasher.finish()
 }
 
+fn hash_key(value: &impl Hash) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Equal integers have equal magnitudes, so the magnitude alone is a sound key.
+fn integer_key(value: &numerics::bignum::BigInt) -> u64 {
+    value
+        .magnitude_words()
+        .iter()
+        .fold(0, |key, word| key.rotate_left(13) ^ word)
+}
+
 fn handle_key<T>(handle: arena::Handle<T>) -> u64 {
     handle.arena_index() as u64 | (handle.generation() as u64) << 32
 }
@@ -191,6 +205,31 @@ fn discriminant_key<T>(value: &T) -> u64 {
 /// compares, so equal terms always share a bucket. Different terms may share
 /// one freely; `find` still confirms every candidate with full equality.
 fn rewrite_key(term: &StructuralTerm) -> (u8, u64) {
+    nested_rewrite_key(term, NESTED_KEY_DEPTH)
+}
+
+/// One integer that structurally equal terms share, for indexes outside this
+/// table that compare terms with the same equality.
+pub(super) fn structural_term_key(term: &StructuralTerm) -> u64 {
+    let (kind, key) = rewrite_key(term);
+    key.rotate_left(8) ^ u64::from(kind)
+}
+
+/// How many nested subjects, collections and indices a key reads. A judge
+/// retains one projection per field and slot of its admitted inputs, so all
+/// of them share a variant; without their subjects and paths a 4,300-slot
+/// layout input put every pattern in one bucket and each probe scanned it.
+/// Deeper subterms add nothing to the key; equal terms still share it.
+const NESTED_KEY_DEPTH: usize = 4;
+
+fn nested_rewrite_key(term: &StructuralTerm, depth: usize) -> (u8, u64) {
+    let nested = |child: &StructuralTerm| {
+        if depth == 0 {
+            return 0;
+        }
+        let (kind, key) = nested_rewrite_key(child, depth - 1);
+        key.rotate_left(8) ^ u64::from(kind)
+    };
     match term.semantic_value() {
         StructuralTerm::Variable(name) => (1, string_key(name)),
         StructuralTerm::BoundValue(symbol) => (2, handle_key(*symbol)),
@@ -203,7 +242,7 @@ fn rewrite_key(term: &StructuralTerm) -> (u8, u64) {
             handle_key(*expression) ^ handle_key(*statement).rotate_left(1),
         ),
         StructuralTerm::BoundProjection { subject, .. } => (4, handle_key(*subject)),
-        StructuralTerm::Integer(_) => (5, 0),
+        StructuralTerm::Integer(value) => (5, integer_key(value)),
         StructuralTerm::RepeatedArray { length, .. } => (20, *length),
         StructuralTerm::Float(_) => (6, 0),
         StructuralTerm::Constructor { data, case, .. } => {
@@ -213,8 +252,20 @@ fn rewrite_key(term: &StructuralTerm) -> (u8, u64) {
         StructuralTerm::CallProjection { target, field, .. } => {
             (9, handle_key(*target) ^ handle_key(*field).rotate_left(32))
         }
-        StructuralTerm::IndexedValue { .. } => (10, 0),
-        StructuralTerm::Projection { .. } => (11, 0),
+        StructuralTerm::IndexedValue {
+            element_identity,
+            collection,
+            index,
+            ..
+        } => (
+            10,
+            hash_key(element_identity)
+                ^ nested(collection).rotate_left(21)
+                ^ nested(index).rotate_left(42),
+        ),
+        StructuralTerm::Projection { subject, path } => {
+            (11, string_key(path) ^ nested(subject).rotate_left(32))
+        }
         StructuralTerm::ScalarBinary { operator, .. } => (12, discriminant_key(operator)),
         StructuralTerm::Opaque(text) => (13, string_key(text)),
         // `semantic_value` already unwrapped every observed layer; a stray

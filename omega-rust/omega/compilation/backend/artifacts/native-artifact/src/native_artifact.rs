@@ -6,8 +6,6 @@
 //! Both replay provider requirements through `provider_execution`, supplying
 //! the exact image or object rows admitted by their respective product.
 
-use installation_evidence::ObjectEvidence;
-
 use ::boundary_applications::TerminalBoundaryApplicationCoverage;
 use abstract_operations::AbstractOperationPlan;
 use effects::{
@@ -473,6 +471,16 @@ impl NativeArtifact {
         &self.parts.image
     }
 
+    /// Inspect finalized native metadata under this artifact's exact semantic,
+    /// target and image custody. Linked coordinates remain distinct from any
+    /// separately launched process's eventual load slide.
+    pub fn inspect_native_code_layouts(
+        &self,
+    ) -> Result<Vec<image_emission::LinkedNativeCodeLayout>, diagnostics::Diagnostic> {
+        self.validate().map_err(diagnostics::Diagnostic::error)?;
+        image_emission::inspect_native_code_layouts(&self.parts.object, &self.parts.image)
+    }
+
     /// Non-authoritative compatibility/report identity of the selected
     /// provider closure.
     pub const fn selected_provider_closure_report_identity(&self) -> u64 {
@@ -610,6 +618,10 @@ impl NativePhysicalEvidenceScope {
     /// Admit the shared fragment/object route after replaying its exact current
     /// program and object evidence. Empty and nonempty selections use the same
     /// join; no selected-lowering completion is invented for another phase.
+    #[expect(
+        dead_code,
+        reason = "unwired, not superseded: native-artifact physical/mod.rs and TASKS_OPTIMIZER.md PIPELINE-OWNER-CONSOLIDATION"
+    )]
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_validated_fragment_publication(
         final_plan: &AbstractOperationPlan,
@@ -729,17 +741,16 @@ impl NativeSelectedProviderPlan {
                     projected.assumed_closure = Some(*selection.identity_digest().as_bytes());
                 }
                 for row in selection.assumed_bindings() {
-                    if let Ok(supplied) = selection.assumed_supplier_identity(&row.required) {
-                        if projected
+                    if let Ok(supplied) = selection.assumed_supplier_identity(&row.required)
+                        && projected
                             .requirement_identities
                             .iter()
                             .any(|identity| identity == supplied)
-                        {
-                            projected
-                                .assumed_requirement_rows
-                                .push((row.required.clone(), supplied.to_owned()));
-                            projected.requirement_identities.push(row.required.clone());
-                        }
+                    {
+                        projected
+                            .assumed_requirement_rows
+                            .push((row.required.clone(), supplied.to_owned()));
+                        projected.requirement_identities.push(row.required.clone());
                     }
                 }
                 projected.requirement_identities.sort();

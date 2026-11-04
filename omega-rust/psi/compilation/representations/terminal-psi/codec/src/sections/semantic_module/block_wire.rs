@@ -19,6 +19,8 @@ mod terminator_wire;
 
 #[cfg(test)]
 mod owned_value_tests;
+#[cfg(test)]
+mod unknown_tag_tests;
 
 use terminal_psi::{Block, Operation, OperationKind, OperationResult};
 
@@ -199,6 +201,9 @@ operation_wire! {
         READ_SCALAR_APPLICATION => ReadScalarApplication { application: Id },
         ESTABLISH_NATIVE_CODE_LAYOUT => EstablishNativeCodeLayout { machine: Id },
         STORAGE_ADDRESS => StorageAddress { source: Argument },
+        ACTIVATE_TASK_REGISTER => ActivateTaskRegister { service: Id, entries: U16, gdt: Argument, task_state: Argument, selector: Id, scratch: Argument },
+        READ_TASK_REGISTER => ReadTaskRegister { service: Id },
+        GLOBAL_DESCRIPTOR_TABLE => GlobalDescriptorTable { service: Id, operation: GlobalDescriptorTable, source: Argument },
         ESTABLISH_ACCESS_REFERENCE => EstablishAccessReference {
             source: Argument,
             resident: Resident,

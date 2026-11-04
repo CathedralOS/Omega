@@ -33,7 +33,6 @@ use super::operation_frame::{
 };
 use super::parameters::lower_declared_service_reach;
 use super::parameters::lower_installation_machine_service_ceiling;
-use super::provider_attachments::lower_provider_attachment_places;
 use super::signatures::MachineSignature;
 use super::{
     CheckedUnitProviderCandidate, argument_evaluation, argument_schedule, byte_subslices,
@@ -222,30 +221,10 @@ pub(super) fn emit(
         &plan.entry_claims,
         claim_bindings,
     )?;
-    let provider_boundaries = lowered_boundary_parameters
-        .iter()
-        .map(|boundary| (boundary.source, boundary.id))
-        .collect::<Vec<_>>();
     let attachment = plan
         .attachment_type_identity
         .map(|identity| lookup_type_id(type_ids, &identity))
         .transpose()?;
-    let provider_places = if let Some(attachment) = attachment {
-        let attachment_declaration =
-            terminal_psi::find_structural_type(structural_types, attachment)
-                .expect("lowered attachment declaration exists");
-        lower_provider_attachment_places(
-            identities,
-            checked,
-            attachment,
-            attachment_declaration,
-            &plan.provider_attachment_requirements,
-            &provider_boundaries,
-            &mut next_place,
-        )?
-    } else {
-        Vec::new()
-    };
     let local_places = plan
         .trivial_affine_locals
         .iter()
@@ -452,6 +431,7 @@ pub(super) fn emit(
         retained_scalar_prefix,
         scalar_calls: CallEmissionContext {
             terminal_machine,
+            service_ids,
             domain_ids,
             domain_declarations,
             scalar_qualifications: prepared_scalar_qualifications.catalog(),
@@ -848,7 +828,7 @@ pub(super) fn emit(
                 let TerminalMachineResult::Scalar(declaration) = &declared_result else {
                     return unsupported("scalar binding differs from the declared result");
                 };
-                Ok::<_, LoweringError>((source.id, declaration.clone()))
+                Ok::<_, LoweringError>((source.id, *declaration))
             })
             .transpose()?;
         // The declared result identity is already reserved independently of
@@ -1090,7 +1070,6 @@ pub(super) fn emit(
                 position: parameter.position,
             },
         })
-        .chain(provider_places.iter().copied())
         .chain(local_places.iter().copied())
         .chain(primitive_local_places.iter().map(|local| local.declaration))
         .chain(private_places.iter().copied())
@@ -1588,19 +1567,14 @@ impl MachineEmission<'_> {
                     .ok_or(LoweringError::Unsupported(
                         "structural operand staging has no source prefix",
                     ))?;
-                let call = plan.operations[operation]
-                    .call()
-                    .ok_or(LoweringError::Unsupported(
-                        "structural operand staging has no call",
-                    ))?;
-                let offset = call.structural_arguments[..argument]
+                let arguments = plan.operations[operation].structural_operands();
+                let offset = arguments[..argument]
                     .iter()
                     .map(|source| source.call_selector_positions().count())
                     .sum::<usize>();
                 let selectors = self.staged_selectors[operation][offset..].to_vec();
                 if self.staged_structural_arguments[operation].is_empty() {
-                    self.staged_structural_arguments[operation] =
-                        vec![None; call.structural_arguments.len()];
+                    self.staged_structural_arguments[operation] = vec![None; arguments.len()];
                 }
                 let previous = self.staged_structural_arguments[operation][argument].take();
                 let captured = self.frame(count).capture_argument(
@@ -1799,7 +1773,8 @@ impl MachineEmission<'_> {
             | checked_trees::reference_hold_pattern!() => {
                 return self.emit_through_frame(identities, operation, step.source_value_count);
             }
-            CheckedUnitEffectOperationPlan::Call(_) => {
+            CheckedUnitEffectOperationPlan::Call(_)
+            | CheckedUnitEffectOperationPlan::GlobalDescriptorTable { .. } => {
                 return self.emit_call_through_frame(identities, operation, step);
             }
             CheckedUnitEffectOperationPlan::EstablishLocal(binding) => match binding {

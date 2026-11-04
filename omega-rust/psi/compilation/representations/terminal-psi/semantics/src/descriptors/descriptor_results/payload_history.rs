@@ -4,6 +4,9 @@
 //! backing separately. Neither replay grants access, custody or an origin route.
 
 mod entry_snapshots;
+mod premise_table;
+
+use premise_table::{PremiseTable, SharedPremise};
 
 use super::PayloadScalarObservation;
 use super::contents::select_payload_memberships;
@@ -17,77 +20,6 @@ use crate::qualification_path_carrier;
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::sync::Arc;
-
-/// A shared premise is immutable. Prepare its exact value dependencies once,
-/// rather than walking the same proposition at every replay position. Closedness
-/// is separate: payload retirement also drops structural or opaque premises,
-/// while ambient retirement only withdraws facts mentioning retired values.
-#[derive(Clone)]
-struct SharedPremise(Arc<PremiseDependencies>);
-
-struct PremiseDependencies {
-    proposition: semantic_vocabulary::Proposition,
-    values: Vec<semantic_vocabulary::ValueId>,
-    closed: bool,
-}
-
-impl SharedPremise {
-    fn new(proposition: semantic_vocabulary::Proposition) -> Self {
-        let mut values = Vec::new();
-        let closed = proposition.visit_value_ids(|value| values.push(value));
-        values.sort_unstable();
-        values.dedup();
-        Self(Arc::new(PremiseDependencies {
-            proposition,
-            values,
-            closed,
-        }))
-    }
-
-    fn mentions_any(&self, definitions: &[semantic_vocabulary::ValueId]) -> bool {
-        definitions
-            .iter()
-            .any(|value| self.0.values.binary_search(value).is_ok())
-    }
-
-    fn survives_payload_retirement(&self, definitions: &[semantic_vocabulary::ValueId]) -> bool {
-        self.0.closed && !self.mentions_any(definitions)
-    }
-}
-
-impl Borrow<semantic_vocabulary::Proposition> for SharedPremise {
-    fn borrow(&self) -> &semantic_vocabulary::Proposition {
-        &self.0.proposition
-    }
-}
-
-impl AsRef<semantic_vocabulary::Proposition> for SharedPremise {
-    fn as_ref(&self) -> &semantic_vocabulary::Proposition {
-        &self.0.proposition
-    }
-}
-
-// Derived dependencies are scratch, not another semantic identity or order.
-impl PartialEq for SharedPremise {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0) || self.0.proposition == other.0.proposition
-    }
-}
-impl Eq for SharedPremise {}
-impl PartialOrd for SharedPremise {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl Ord for SharedPremise {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        if Arc::ptr_eq(&self.0, &other.0) {
-            std::cmp::Ordering::Equal
-        } else {
-            self.0.proposition.cmp(&other.0.proposition)
-        }
-    }
-}
 
 /// Query-owned snapshots share immutable rows. Only a write detaches a row;
 /// map order and value equality remain identical to the owned representation.
@@ -276,6 +208,15 @@ struct CachedHistory {
     snapshots: BTreeMap<DescriptorPosition, State>,
 }
 
+/// One history's interned premises and its latest replay. A later query
+/// extends that replay when its predecessor graph is compatible; otherwise it
+/// starts again from entry. Both replays intern into the same table.
+#[derive(Default)]
+struct HistoryReplay {
+    premises: PremiseTable,
+    cached: Option<CachedHistory>,
+}
+
 /// Exact declaration data in one current executable representation. Prepared
 /// rows are data, not predicates or callbacks; the history still derives every
 /// value observation from the supplied current graph and actual operations.
@@ -326,7 +267,7 @@ pub struct PayloadMembershipHistory<'input> {
     // Normal-completion queries use their separate borrowed-slot replay below.
     incoming: Option<Option<payload_reachability::IncomingFlow>>,
     analysis: Option<DescriptorAnalysis<'input>>,
-    cached: Option<CachedHistory>,
+    replay: HistoryReplay,
     /// Materialized only for an exact scalar-snapshot query. Ordinary numeric
     /// membership sweeps keep their existing input and allocation profile.
     entry_snapshots: Option<Vec<(PlaceId, Vec<PayloadScalarObservation>)>>,
@@ -346,7 +287,7 @@ impl<'input> PayloadMembershipHistory<'input> {
             sources: PayloadSources::Terminal(machine),
             incoming: None,
             analysis: None,
-            cached: None,
+            replay: HistoryReplay::default(),
             entry_snapshots: None,
         }
     }
@@ -384,7 +325,7 @@ impl<'input> PayloadMembershipHistory<'input> {
                 parameters,
                 contracts,
             },
-            cached: None,
+            replay: HistoryReplay::default(),
             entry_snapshots: None,
         })
     }
@@ -426,7 +367,7 @@ impl<'input> PayloadMembershipHistory<'input> {
             .as_ref();
         let mut failure = None;
         let entry_snapshots = self.entry_snapshots.as_deref().unwrap_or(&[]);
-        let cached = &mut self.cached;
+        let replay = &mut self.replay;
         let contract = payload_memberships(self.types, self.domains, targets, |place| {
             current_payload_contract_reusing(
                 self.types,
@@ -438,7 +379,7 @@ impl<'input> PayloadMembershipHistory<'input> {
                 place,
                 &source,
                 entry_snapshots,
-                cached,
+                replay,
             )
             .map_err(|reason| failure = Some(reason))
             .ok()
@@ -485,7 +426,7 @@ impl<'input> PayloadMembershipHistory<'input> {
             root,
             &|place| sources.contract(place),
             self.entry_snapshots.as_deref().unwrap_or(&[]),
-            &mut self.cached,
+            &mut self.replay,
         )
     }
     /// Observe a primitive value snapshot, without asserting a predicate about
@@ -503,7 +444,7 @@ impl<'input> PayloadMembershipHistory<'input> {
                 self.types,
                 self.sources.parameters(),
             ));
-            self.cached = None;
+            self.replay.cached = None;
         }
         let contract = self.current_payload_contract(position, root)?;
         let expected = observation_type(self.types, contract.carrier, path)
@@ -554,7 +495,7 @@ pub fn current_selected_payload_contract(
         .ok_or("selected payload backing is unresolved")?;
     let descriptor = descriptor_machine(graph, identity);
     let incoming = descriptor.and_then(|machine| incoming_flow(&machine.flow));
-    let mut cached = None;
+    let mut replay = HistoryReplay::default();
     let mut history_failure = None;
     let contract = payload_memberships(types, domains, targets, |place| {
         current_payload_contract_reusing(
@@ -567,7 +508,7 @@ pub fn current_selected_payload_contract(
             place,
             source,
             &[],
-            &mut cached,
+            &mut replay,
         )
         .map_err(|reason| history_failure = Some(reason))
         .ok()
@@ -601,7 +542,7 @@ pub fn current_payload_contract(
         root,
         source,
         &[],
-        &mut None,
+        &mut HistoryReplay::default(),
     )
 }
 
@@ -638,7 +579,7 @@ pub(crate) fn completed_payload_contract(
         root,
         source,
         &[],
-        &mut None,
+        &mut HistoryReplay::default(),
         PayloadMembershipCut::NormalCompletion,
     )
 }
@@ -653,7 +594,7 @@ fn current_payload_contract_reusing(
     root: PlaceId,
     source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
     entry_snapshots: &[(PlaceId, Vec<PayloadScalarObservation>)],
-    cached: &mut Option<CachedHistory>,
+    replay: &mut HistoryReplay,
 ) -> Result<PayloadMembershipContract, &'static str> {
     payload_contract_at_cut(
         types,
@@ -665,7 +606,7 @@ fn current_payload_contract_reusing(
         root,
         source,
         entry_snapshots,
-        cached,
+        replay,
         PayloadMembershipCut::BeforeOperation,
     )
 }
@@ -681,7 +622,7 @@ fn payload_contract_at_cut(
     root: PlaceId,
     source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
     entry_snapshots: &[(PlaceId, Vec<PayloadScalarObservation>)],
-    cached: &mut Option<CachedHistory>,
+    replay: &mut HistoryReplay,
     cut: PayloadMembershipCut,
 ) -> Result<PayloadMembershipContract, &'static str> {
     let mut failure = "descriptor machine is absent";
@@ -695,7 +636,8 @@ fn payload_contract_at_cut(
             }
             None => payload_reachability::predecessors(machine, position)?,
         };
-        let previous = cached.take();
+        let premises = &mut replay.premises;
+        let previous = replay.cached.take();
         let frontier = previous
             .as_ref()
             .and_then(|previous| relevant.compatible_frontier(&previous.relevant, &machine.flow));
@@ -710,7 +652,7 @@ fn payload_contract_at_cut(
                 initial.scalar_requirements = Arc::new(
                     super::scalar_contracts::scalar_conjuncts(requirements)
                         .into_iter()
-                        .map(SharedPremise::new)
+                        .map(|premise| premises.intern(premise))
                         .collect(),
                 );
             }
@@ -992,19 +934,22 @@ fn payload_contract_at_cut(
             }
             if let Some(reads) = machine.scalar_payload_reads.get(&current) {
                 for (location, value) in reads {
-                    if let Some(contract) = after.values.get_mut(&location.root) {
-                        if let Some(equality) = observe_scalar(contract, &location.path, value) {
-                            Arc::make_mut(&mut after.scalar_requirements)
-                                .push(SharedPremise::new(equality));
-                        }
+                    if let Some(contract) = after.values.get_mut(&location.root)
+                        && let Some(equality) = observe_scalar(contract, &location.path, value)
+                    {
+                        Arc::make_mut(&mut after.scalar_requirements)
+                            .push(premises.intern(equality));
                     }
                 }
             }
             if let Some(requirements) = machine.payload_scalar_postconditions.get(&current)
                 && !requirements.is_empty()
             {
-                Arc::make_mut(&mut after.scalar_requirements)
-                    .extend(requirements.iter().cloned().map(SharedPremise::new));
+                Arc::make_mut(&mut after.scalar_requirements).extend(
+                    requirements
+                        .iter()
+                        .map(|premise| premises.intern_ref(premise)),
+                );
             }
             // Reads can add equations even when this step has no postcondition.
             // Normalize at publication, after all local append operations.
@@ -1057,7 +1002,7 @@ fn payload_contract_at_cut(
                     Arc::make_mut(&mut arrival.scalar_requirements).extend(
                         super::scalar_contracts::scalar_conjuncts(std::slice::from_ref(predicate))
                             .into_iter()
-                            .map(SharedPremise::new),
+                            .map(|premise| premises.intern(premise)),
                     );
                     canonicalize_snapshot(&mut arrival.scalar_requirements);
                     for contract in arrival.values.values_mut() {
@@ -1170,19 +1115,16 @@ fn payload_contract_at_cut(
                         .get(&current)
                         .and_then(|edges| edges.get(ordinal))
                     {
-                        let rebound = super::scalar_contracts::arrival_requirements(
+                        let rebound = premises.arrival_requirements(
                             &incoming_requirements,
                             bindings,
                             parameters,
                         );
                         // Rebinding can return the complete incoming theory
-                        // unchanged. Appending it would detach and deep-clone
-                        // a snapshot only to deduplicate it immediately below.
-                        // Still compute every substitution: even an empty map
-                        // can normalize a proposition into a genuinely new row.
+                        // unchanged. Appending it would detach the snapshot
+                        // only to deduplicate it immediately below.
                         if !contains_rebound_premises(&arrival.scalar_requirements, &rebound) {
-                            Arc::make_mut(&mut arrival.scalar_requirements)
-                                .extend(rebound.into_iter().map(SharedPremise::new));
+                            Arc::make_mut(&mut arrival.scalar_requirements).extend(rebound);
                         }
                         canonicalize_snapshot(&mut arrival.scalar_requirements);
                     }
@@ -1232,13 +1174,14 @@ fn payload_contract_at_cut(
         if let Some(previous) = previous_relevant {
             relevant.merge(previous);
         }
-        *cached = Some(CachedHistory {
+        replay.cached = Some(CachedHistory {
             relevant,
             snapshots,
         });
         failure = "requested payload root has no reached incoming membership history";
         let mut current = match cut {
-            PayloadMembershipCut::BeforeOperation => cached
+            PayloadMembershipCut::BeforeOperation => replay
+                .cached
                 .as_ref()?
                 .snapshots
                 .get(&position)?
@@ -1291,18 +1234,13 @@ fn payload_contract_at_cut(
 /// before testing its complete theory by a single ordered scan. Normalization
 /// can reorder IEEE/math propositions, so unordered results retain the exact
 /// binary-search path. Equal duplicates reuse one retained row; no input moves.
-fn contains_rebound_premises(
-    retained: &[SharedPremise],
-    rebound: &[semantic_vocabulary::Proposition],
-) -> bool {
+fn contains_rebound_premises(retained: &[SharedPremise], rebound: &[SharedPremise]) -> bool {
     if rebound.windows(2).any(|pair| pair[0] > pair[1]) {
-        return rebound.iter().all(|premise| {
-            retained
-                .binary_search_by(|stored| stored.as_ref().cmp(premise))
-                .is_ok()
-        });
+        return rebound
+            .iter()
+            .all(|premise| retained.binary_search(premise).is_ok());
     }
-    let mut remaining = retained.iter().map(AsRef::as_ref).peekable();
+    let mut remaining = retained.iter().peekable();
     rebound
         .iter()
         .all(|premise| next_premise_is(&mut remaining, premise))
@@ -1372,7 +1310,9 @@ fn retain_common_snapshot(
     if unchanged {
         return false;
     }
-    retain_common_premises(Arc::make_mut(retained), incoming)
+    let mut remaining = incoming.iter().peekable();
+    Arc::make_mut(retained).retain(|premise| next_premise_is(&mut remaining, premise));
+    true
 }
 
 /// Preserve a published allocation when normalization would change no row.

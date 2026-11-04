@@ -49,48 +49,64 @@ the time goes and remove the cause rather than waiting on it or working around i
 
 ## Explain the change
 
-Write for a programmer who has not read the diff or worked on this subsystem.
+Write for a reader who knows what the project does but has not read the diff
+or worked on this subsystem.
 Use an inverted pyramid in PR descriptions, commit bodies, progress/final
-reports, explanatory documentation and comments. The first one or two sentences
-explain the concrete problem and what changes, in ordinary language. A reader
-who stops there should understand why the change matters.
+reports, explanatory documentation and comments. Start with the specific
+situation and what changes for the person using or maintaining the software.
+The first one or two sentences must make the problem and result clear in
+ordinary language. Apply this to the title too, within the commit-lane rules.
+Choose that opening from the behavior the change affects, not the names of
+the mechanisms edited. Say plainly when the intended result is still unfinished.
 
-Next, explain a small before/after example in words. Use code when it helps the
-reader see that behavior; unfamiliar syntax also needs an introduction. Explain
-why the change produces the result, then add implementation detail as the reader
-gains the context to follow it.
-A plain opening followed by a wall of internal terms still fails this reading
-order. Each paragraph should answer a question raised by the preceding one,
-rather than assume the reader already knows the implementation.
+An opening such as "Preserve post-call facts through returned scalar views"
+requires subsystem knowledge. "Keep value information after calls" removes
+some jargon but still leaves the reader to work out the benefit. Build the
+explanation in layers, as in this example:
 
-For example, "Preserve post-call facts through returned scalar views" names a
-mechanism. "Keep value information after calls" is simpler but still explains
-little. Instead: "A caller can rely on a function's promise about the number it
-writes when doing later calculations. This fixes cases where the compiler
-forgot that promise and rejected safe subtraction." The next paragraph can show
-why a promise to write 9 makes subtracting 9 safe, while an earlier copy keeps
-its old value. Explain saved references and collection slots afterward. Test
-values illustrate the purpose; they do not supply it.
+"A program can now subtract 9 after calling a helper that guarantees the number
+is at least 9. The compiler used to forget that guarantee and reject the
+calculation."
 
-Introduce a technical term with its meaning when it becomes useful, then use the
-canonical term consistently. Replacing "lineage" with "permission information"
-does not explain which data may be used or why. For an internal repair, state
-the real effect on a program or development workflow; do not invent a user
-benefit. Source comments start with the local purpose or failure they prevent,
-then explain the invariant. Match their detail to the surrounding code.
+"The problem occurred when the program kept a reference to the number in an
+array. Updating an array entry and updating the number it points to are
+different operations, but the compiler was treating uncertainty about the
+entry as uncertainty about the number. It now tracks those locations separately."
 
-Put validation and detailed provenance after the explanation, linking existing
-evidence or using a details section for long records. Keep any limitation that
-materially qualifies the result beside that result. Preserve exact evidence
-identities, failures and unverified cases. A small change may need only one
-paragraph; this is a reading order, not a form to fill with headings.
+Only after that explanation does the reader have a reason to learn which
+stored-reference paths and call-completion checks changed. A result such as
+"the example now returns 73" needs the same treatment: explain what that value
+demonstrates. For internal work, name the maintenance or development benefit
+without inventing an end-user feature.
 
-Before publishing, read only the opening, then read through one paragraph at a
-time. Does each stopping point leave a useful, accurate understanding without
-requiring a definition from later in the text? Rewrite where it does not. Check
-the explanation against the final diff and observed behavior. If the purpose
-is unclear, inspect the code and witness before making a claim. Rewrite when
-the scope changes rather than appending the session's history.
+Each paragraph should answer a question the preceding text raises. Explain the
+example before showing unfamiliar syntax, and the cause before naming the
+mechanism that fixes it. A plain opening followed by a list of internal terms
+still fails. Readers should be able to stop after a paragraph with a useful
+understanding, rather than needing a later paragraph to decode it.
+
+Simplify the explanation, not just the vocabulary. "Permission information" is
+still opaque unless the reader learns who may read or write which data and for
+how long. Once a term is explained, use its canonical name consistently. Source
+comments begin with the local reason for the code, then the constraint that
+must hold. For example: "A saved copy must keep pointing at the original data
+when the caller replaces the variable." Then give any necessary details about
+how that is maintained. Use the surrounding code's context; do not narrate
+obvious operations or add a tutorial.
+
+Put validation and detailed provenance after the explanation. Keep a limitation
+beside any result it materially qualifies, and preserve exact evidence
+identities, failures and unverified cases. Link long records or use details
+sections. A small change may need only one paragraph; do not inflate it to fill
+a template.
+
+Check accuracy and clarity separately. Verify claims against the final diff
+and observed behavior, inspecting unclear code instead of inventing a plausible
+story. Then set the diff and session history aside and read the title and
+opening alone. Can you explain what happens differently and why it matters
+without repeating unexplained labels from the text? Check each following
+paragraph the same way. Familiarity with the implementation can hide missing
+explanations. Rewrite when scope changes; omit the session's chronology.
 
 ## Law of completion
 
@@ -598,6 +614,11 @@ profiles bound to the actual binary digests. See
   bootstrap gates, test selection, slow builds — lives in
   [tools/testing.md](tools/testing.md). Read it before running more than the
   affected crate's check.
+- Before each build or test, name the decision, smallest meaningful check,
+  applicable reusable evidence, and expected time and resources. If it
+  overruns, inspect progress and record a reasoned decision rather than blindly
+  waiting or restarting. Reviewers need not repeat expensive checks without a
+  material evidence gap; required CI and release gates still apply.
 - Reuse valid completed evidence when its inputs and affected consumers still
   apply; retain its revision, command and outcome. A broader run needs a concrete
   change-specific obligation that focused affected-path tests and relevant
@@ -781,7 +802,7 @@ The rules that touch every edit:
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   the sample loop, `rust-systems-programmer` for Rust implementation and review,
   `architecture-cleanup`, `task-board-cleanup`, `local-swarm`, `devin-swarm`,
-  `codex-swarm`, `cursor-swarm`.
+  `codex-swarm`, `cursor-swarm`, `claude-swarm`.
 
 Deliberate configuration — do not "fix" it: `clippy.toml` thresholds are
 raised and dev/test profiles use `debug = 0` and `opt-level = 1`;
@@ -799,6 +820,13 @@ are byte-sensitive.
 - The session that starts work finishes it. A claim records what a session
   is doing so other sessions can see it; it grants nothing and blocks nothing.
   Parked work is available to any session once its prerequisite is met.
+- You still own your open PRs after a session ends or changes. At startup
+  and resumption, check the PRs you opened, including earlier sessions, against
+  retained worktree and claim records. Keep each PR's URL, submitted head,
+  remaining acceptance or failure, and next action in its existing claim note.
+  Resume the unfinished work and carry authorized publication through verified
+  merge. Close a PR only when its work is deliberately withdrawn or superseded,
+  with the disposition recorded; age alone does not end ownership.
 - A sample's work includes the complete application and the compiler repairs
   it needs to run; carry it through source, native/Terminal execution, invalid
   controls and publication. Several failing samples with one demonstrated root
@@ -905,6 +933,14 @@ To reuse a worktree for a new task, simply reset its detached HEAD to the latest
 Only remove worktrees (`git worktree remove .agents/worktree/<short-name>`) when
 explicitly requested or when reclaiming disk space.
 
+In a Claude Code cloud session, `.agents/worktree/warm` arrives checked out at
+a recent main commit with that commit's compiler build already restored
+([tools/warm_build.py](tools/warm_build.py)). Run
+`python3 tools/warm_build.py wait`, then use it as the workbench and record its
+commit as the fixed base. Do not move it to a newer main first: main's frequent
+changes to the lowest crates make that rebuild as slow as a cold build
+(12 minutes).
+
 Before launching a new swarm or creating a new worker, successfully fetch remote
 `main` (`git fetch origin main`) and record its exact commit. Do not modify, pull into,
 or fast-forward the primary checkout; preserve it intact as a stable reference.
@@ -936,6 +972,11 @@ not a completed launch preflight.
   carries authorized work through implementation, testing, review, normal
   main landing and remote verification, and keeps working until it is
   complete.
+- **Never schedule timers or polling check-ins during coordination.** After
+  launching background tasks or subagents, stop calling tools and let
+  reactive wakeups (subagent messages and background task completion events)
+  resume execution. Periodic timers (`schedule`, cron, `send_later`, or sleep
+  loops) burn coordinator context and tokens without advancing work.
 - Dot-created Omega cloud sessions and their native workers default to
   **GPT 6.1 Sol, medium reasoning** (`gpt-6.1-sol`, `medium`), unless the user
   specifies another model or effort. Select them through the runtime's exposed
@@ -946,6 +987,10 @@ not a completed launch preflight.
   [cursor-swarm](.agents/skills/cursor-swarm/SKILL.md). Each worker is a
   Cursor Task subagent with its own VM and branch, started from fetched
   remote main. Select its model through the exposed Task fields.
+- A requested Claude Code cloud wave follows
+  [claude-swarm](.agents/skills/claude-swarm/SKILL.md). Each worker is a
+  Claude Code cloud session with its own container and branch, started at a
+  pinned base. Select its model through `create_session`'s `model` field.
 - Parallel sessions take distinct samples, chosen by root cause, not by
   file. Shared implementation paths are fine; each session works in its
   own worktree and reconciles at rebase. Reuse another session's repair when

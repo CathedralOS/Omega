@@ -44,96 +44,6 @@ fn same_static_selection_metadata(
         })
 }
 
-#[cfg(test)]
-mod resolution_payload_tests {
-    use super::*;
-    use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
-
-    #[test]
-    fn repeated_array_traversal_and_substitution_are_independent_of_extent() {
-        let array = StructuralTerm::RepeatedArray {
-            length: 1_000_000_000,
-            element: Some(Box::new(StructuralTerm::Integer(
-                numerics::bignum::BigInt::zero(),
-            ))),
-        };
-        let mut visits = 0;
-        array.for_each_child(|_| visits += 1);
-        assert_eq!(visits, 1);
-        let mut substitutions = 0;
-        let changed = array.clone().map_children(|_| {
-            substitutions += 1;
-            StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(1))
-        });
-        assert_eq!(substitutions, 1);
-        assert_ne!(array, changed);
-        assert!(array.same_resolution_payload(&array.clone()));
-        assert!(!array.same_resolution_payload(&changed));
-        let mut different_length = array.clone();
-        if let StructuralTerm::RepeatedArray { length, .. } = &mut different_length {
-            *length = 2;
-        }
-        assert_ne!(array, different_length);
-        let empty = StructuralTerm::RepeatedArray {
-            length: 0,
-            element: None,
-        };
-        assert!(!empty.any_child(|_| true));
-    }
-
-    #[test]
-    fn payload_comparison_keeps_hidden_descriptors_and_nested_authority() {
-        let integer = |value| StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(value));
-        let observed = |reference, descriptor| StructuralTerm::ObservedValue {
-            observed_type: TypeReferenceHandle::from_arena_index(reference),
-            value: Box::new(integer(7)),
-            descriptor,
-        };
-        let nested = |value| StructuralTerm::Constructor {
-            data: "Carrier".to_owned(),
-            case: "Only".to_owned(),
-            fields: vec![("value".to_owned(), value)],
-        };
-        let binary = |reference| StructuralTerm::ScalarBinary {
-            references: [TypeReferenceHandle::from_arena_index(reference); 2],
-            operator: typed_trees::expression::BinaryOperator::Add,
-            meaning: [(
-                PrimitiveType::I32,
-                numerics::arithmetic::ArithmeticDomain::Exact,
-            ); 2],
-            left: Box::new(integer(1)),
-            right: Box::new(integer(2)),
-        };
-        let pairs = [
-            (observed(1, None), observed(2, None)),
-            (observed(1, None), observed(1, Some(Box::new(integer(1))))),
-            (
-                observed(1, Some(Box::new(integer(1)))),
-                observed(1, Some(Box::new(integer(2)))),
-            ),
-            (
-                observed(1, Some(Box::new(observed(1, Some(Box::new(integer(1))))))),
-                observed(1, Some(Box::new(observed(1, Some(Box::new(integer(2))))))),
-            ),
-            (binary(1), binary(2)),
-            (
-                StructuralTerm::Float(numerics::literals::FloatLiteral::parse("1.25f32").unwrap()),
-                StructuralTerm::Float(numerics::literals::FloatLiteral::parse("1.25f64").unwrap()),
-            ),
-        ];
-        for (left, right) in pairs {
-            let (left, right) = (nested(left), nested(right));
-            assert_eq!(
-                left, right,
-                "the semantic comparison must erase this metadata"
-            );
-            assert!(left.same_resolution_payload(&left.clone()));
-            assert!(!left.same_resolution_payload(&right));
-            assert!(!right.same_resolution_payload(&left));
-        }
-    }
-}
-
 impl StructuralTerm {
     /// Recurrence compares the complete retained resolver input. Semantic
     /// equality alone erases observation authority and float landing metadata;
@@ -282,7 +192,7 @@ impl StructuralTerm {
                 }
                 Self::Constructor { fields, .. } => fields.iter().any(|(_, value)| visit(value)),
                 Self::Application { arguments, .. } | Self::CallProjection { arguments, .. } => {
-                    arguments.iter().any(|argument| visit(argument))
+                    arguments.iter().any(&mut *visit)
                 }
                 Self::IndexedValue {
                     collection, index, ..
@@ -301,14 +211,10 @@ impl StructuralTerm {
         }
     }
 
-    /// Stable key of an already authenticated completed value observation.
-    /// Reuse this owner's semantic formatting, also used by polynomial keys:
-    /// it erases observation-only shells exactly as semantic equality does.
-    /// Event handles and capture sequence remain part of the key, so another
-    /// prefix can compare the same snapshot without renaming a later read.
-    pub(in crate::proof_contracts::contract_entailment) fn observation_identity_key(
-        &self,
-    ) -> Option<String> {
+    /// Whether the value's semantic identity is recorded without an opaque spelling.
+    /// This checks representation only; callers still establish observation
+    /// authority and the meaning of each selected operation.
+    pub(in crate::proof_contracts::contract_entailment) fn has_observation_identity(&self) -> bool {
         fn available(value: &StructuralTerm, depth: usize) -> bool {
             if depth >= 64 {
                 return false;
@@ -326,7 +232,19 @@ impl StructuralTerm {
             !matches!(value, StructuralTerm::Opaque(_))
                 && !value.any_child(|child| !available(child, depth + 1))
         }
-        available(self, 0).then(|| format!("{:?}", self.semantic_value()))
+        available(self, 0)
+    }
+
+    /// Stable key of an already authenticated completed value observation.
+    /// Reuse this owner's semantic formatting, also used by polynomial keys:
+    /// it erases observation-only shells exactly as semantic equality does.
+    /// Event handles and capture sequence remain part of the key, so another
+    /// prefix can compare the same snapshot without renaming a later read.
+    pub(in crate::proof_contracts::contract_entailment) fn observation_identity_key(
+        &self,
+    ) -> Option<String> {
+        self.has_observation_identity()
+            .then(|| format!("{:?}", self.semantic_value()))
     }
 }
 
@@ -713,6 +631,96 @@ impl std::fmt::Debug for StructuralTerm {
                 .field("right", right)
                 .finish(),
             Self::Opaque(value) => formatter.debug_tuple("Opaque").field(value).finish(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod resolution_payload_tests {
+    use super::*;
+    use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+
+    #[test]
+    fn repeated_array_traversal_and_substitution_are_independent_of_extent() {
+        let array = StructuralTerm::RepeatedArray {
+            length: 1_000_000_000,
+            element: Some(Box::new(StructuralTerm::Integer(
+                numerics::bignum::BigInt::zero(),
+            ))),
+        };
+        let mut visits = 0;
+        array.for_each_child(|_| visits += 1);
+        assert_eq!(visits, 1);
+        let mut substitutions = 0;
+        let changed = array.clone().map_children(|_| {
+            substitutions += 1;
+            StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(1))
+        });
+        assert_eq!(substitutions, 1);
+        assert_ne!(array, changed);
+        assert!(array.same_resolution_payload(&array.clone()));
+        assert!(!array.same_resolution_payload(&changed));
+        let mut different_length = array.clone();
+        if let StructuralTerm::RepeatedArray { length, .. } = &mut different_length {
+            *length = 2;
+        }
+        assert_ne!(array, different_length);
+        let empty = StructuralTerm::RepeatedArray {
+            length: 0,
+            element: None,
+        };
+        assert!(!empty.any_child(|_| true));
+    }
+
+    #[test]
+    fn payload_comparison_keeps_hidden_descriptors_and_nested_authority() {
+        let integer = |value| StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(value));
+        let observed = |reference, descriptor| StructuralTerm::ObservedValue {
+            observed_type: TypeReferenceHandle::from_arena_index(reference),
+            value: Box::new(integer(7)),
+            descriptor,
+        };
+        let nested = |value| StructuralTerm::Constructor {
+            data: "Carrier".to_owned(),
+            case: "Only".to_owned(),
+            fields: vec![("value".to_owned(), value)],
+        };
+        let binary = |reference| StructuralTerm::ScalarBinary {
+            references: [TypeReferenceHandle::from_arena_index(reference); 2],
+            operator: typed_trees::expression::BinaryOperator::Add,
+            meaning: [(
+                PrimitiveType::I32,
+                numerics::arithmetic::ArithmeticDomain::Exact,
+            ); 2],
+            left: Box::new(integer(1)),
+            right: Box::new(integer(2)),
+        };
+        let pairs = [
+            (observed(1, None), observed(2, None)),
+            (observed(1, None), observed(1, Some(Box::new(integer(1))))),
+            (
+                observed(1, Some(Box::new(integer(1)))),
+                observed(1, Some(Box::new(integer(2)))),
+            ),
+            (
+                observed(1, Some(Box::new(observed(1, Some(Box::new(integer(1))))))),
+                observed(1, Some(Box::new(observed(1, Some(Box::new(integer(2))))))),
+            ),
+            (binary(1), binary(2)),
+            (
+                StructuralTerm::Float(numerics::literals::FloatLiteral::parse("1.25f32").unwrap()),
+                StructuralTerm::Float(numerics::literals::FloatLiteral::parse("1.25f64").unwrap()),
+            ),
+        ];
+        for (left, right) in pairs {
+            let (left, right) = (nested(left), nested(right));
+            assert_eq!(
+                left, right,
+                "the semantic comparison must erase this metadata"
+            );
+            assert!(left.same_resolution_payload(&left.clone()));
+            assert!(!left.same_resolution_payload(&right));
+            assert!(!right.same_resolution_payload(&left));
         }
     }
 }

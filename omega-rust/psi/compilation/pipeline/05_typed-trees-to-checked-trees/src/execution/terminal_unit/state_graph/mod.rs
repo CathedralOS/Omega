@@ -24,7 +24,6 @@ use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::calls::{
     entry_claims, free_structural_scalar_entry_signature_traced, structural_scalar_signature_traced,
 };
-use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
 use crate::execution::terminal_unit::structural_value_calls::PreparedCalls;
 use crate::execution::terminal_unit::types::erased_proof_parameter_plans;
 use crate::execution::terminal_unit::types::erased_scalar_parameter_plans;
@@ -55,7 +54,7 @@ mod terminal_calls;
 mod terminator;
 
 use fused::fused_states;
-pub(super) use fused::{FusedStates, fused_target_index, terminator_statement_index};
+pub(super) use fused::{FusedStates, fused_target_index};
 use guards::checked_qualified_arrivals;
 pub(super) use guards::{guard_is_boolean, retained_guard};
 pub(super) use result_custody::retained_structural_result;
@@ -322,7 +321,8 @@ pub(super) fn build_traced(
         trace.state(Some(state.symbol));
         let (structural, scalar) = &signatures[state_index];
         let statements = program.statement_table.statements(state.statement_nodes);
-        let terminator_index = terminator_statement_index(statements, &result);
+        let terminator_index =
+            control::statement_sequence::terminator_statement_index(program, state);
         let terminator_statement_ordinal = u32::try_from(terminator_index).ok()?;
         trace.phase("state graph: state flow");
         let flow = state_flow(facts, owner.symbol, state.symbol)?;
@@ -347,7 +347,7 @@ pub(super) fn build_traced(
         {
             std::ops::Bound::Included(terminator_index)
         } else if control::terminal_invocation(program, owner, state, terminator_index)
-            .is_some_and(|target| fused_target_index(program, &fused, target).is_none())
+            .is_some_and(|target| fused_target_index(program, fused, target).is_none())
         {
             // An unconditional terminal machine call is this state's last
             // operation (`terminal_calls`), whatever the machine's result: the
@@ -382,7 +382,7 @@ pub(super) fn build_traced(
         trace.phase("state graph: parameter storage");
         // Composed graphs admit no machine binders (see the entry guard).
         let parameter_storage = parameter_storage_plans(program, shapes, state, &[], scalar)?;
-        let sequence = phase_profile::scope(
+        let mut sequence = phase_profile::scope(
             "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.statement_sequence",
             || {
                 control::statement_sequence::build(
@@ -407,9 +407,7 @@ pub(super) fn build_traced(
             },
         )?;
         trace.phase("state graph: operation custody");
-        let mut operations = sequence.operations;
-        let place_loans = sequence.place_loans;
-        operation_custody::admit(program, state, &mut operations, trace)?;
+        operation_custody::admit(program, state, &mut sequence.operations, trace)?;
         drop(_seq_guard);
         // Completion custody, not state count or borrow spelling, determines
         // the returned value. The receiving graph rejoins its exact producer
@@ -434,7 +432,7 @@ pub(super) fn build_traced(
             sequence.scalar_result.as_ref(),
             sequence.structural_result.as_ref(),
             sequence.next_scalar_binding,
-            &mut operations,
+            &mut sequence.operations,
             terminator_index,
             trace,
         )?;
@@ -448,7 +446,7 @@ pub(super) fn build_traced(
         // does not exempt a returning sibling.
         trace.phase("state graph: borrowed windows at selected exits");
         if !sequence.windows.is_closed()
-            && !terminator.all_paths_crash(&operations, &facts.flow.guarded_exits)?
+            && !terminator.all_paths_crash(&sequence.operations, &facts.flow.guarded_exits)?
         {
             return None;
         }
@@ -466,10 +464,31 @@ pub(super) fn build_traced(
             &super::structural_value_calls::StateCallInputs {
                 parameters: structural,
                 entry_claims: &state_entry_claims[state_index],
-                operations: &operations,
+                operations: &sequence.operations,
                 trivial_locals: &[],
             },
         )?;
+        let returned = match &terminator {
+            checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnStructural {
+                result,
+            } => Some(result),
+            _ => None,
+        };
+        sequence.finish_reference_retirement(
+            program,
+            facts,
+            prepared_calls,
+            shapes,
+            structural,
+            &[],
+            &state_entry_claims[state_index],
+            owner,
+            state,
+            returned,
+            trace,
+        )?;
+        let mut operations = sequence.operations;
+        let place_loans = sequence.place_loans;
         trace.phase("state graph: value call source custody");
         super::structural_value_calls::consume_caller_results(
             program,
@@ -660,39 +679,11 @@ pub(super) fn build_traced(
             }
         }
     }
-    // Retain only this machine's direct provider-field calls. Each ordinary
-    // callee owns its own attachment requirements, even through a receiver loan.
-    trace.phase("state graph: provider attachment requirements");
-    trace.state(None);
-    let provider_attachment_requirements = if let Some(identity) = &attachment {
-        let flows = fused
-            .iter()
-            .zip(&planned)
-            .map(|(&(owner, state), plan)| {
-                let flow = state_flow(facts, owner.symbol, state.symbol)?;
-                Some((
-                    owner,
-                    state,
-                    facts.flow.control.calls.span_or_empty(flow.calls),
-                    plan.operations.as_slice(),
-                ))
-            })
-            .collect::<Option<Vec<_>>>()?;
-        checked_composed_provider_attachment_requirements(program, shapes, *identity, &flows)?
-    } else {
-        Vec::new()
-    };
     trace.phase("state graph: finish");
-    let mut plan = composed_control::finish_state_graph(
-        program,
-        facts,
-        machine,
-        attachment,
-        provider_attachment_requirements,
-        planned,
-    )
-    .map_err(|reason| trace.phase(reason))
-    .ok()?;
+    let mut plan =
+        composed_control::finish_state_graph(program, facts, machine, attachment, planned)
+            .map_err(|reason| trace.phase(reason))
+            .ok()?;
     plan.natural_ranks = natural_ranks;
     plan.rank_components = rank_components;
     plan.preserving_rank_edges = preserving_rank_edges;

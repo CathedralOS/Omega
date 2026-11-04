@@ -79,6 +79,53 @@ fn parses_domain_definition_surface() {
 }
 
 #[test]
+fn parses_domain_on_applied_carrier_without_mixing_domain_arguments() {
+    let source = "domain<T, const N: u64> Buffer<Pair<T, u32>, N>::Live<T>;";
+    let parsed = super::parse_source(source, "applied carrier domain should parse");
+    let domain = super::root_domain(&parsed, "domain");
+    assert_eq!(domain.name.as_str(&parsed), "Live");
+    let TypeReferenceNode::Generic {
+        base_name,
+        arguments,
+        ..
+    } = parsed.type_references.type_reference(domain.target_type)
+    else {
+        panic!("domain carrier must retain its type application");
+    };
+    assert_eq!(base_name.as_str(&parsed), "Buffer");
+    let carrier_arguments = parsed.type_references.type_reference_handles(*arguments);
+    assert_eq!(carrier_arguments.len(), 2);
+    let TypeReferenceNode::Generic {
+        base_name,
+        arguments,
+        ..
+    } = parsed.type_references.type_reference(carrier_arguments[0])
+    else {
+        panic!("nested carrier argument must retain its application");
+    };
+    assert_eq!(base_name.as_str(&parsed), "Pair");
+    assert_eq!(
+        parsed
+            .type_references
+            .type_reference_handles(*arguments)
+            .len(),
+        2
+    );
+    assert!(matches!(
+        parsed.type_references.type_reference(carrier_arguments[1]),
+        TypeReferenceNode::Named(name) if name.as_str(&parsed) == "N"
+    ));
+    let domain_arguments = parsed
+        .type_references
+        .type_reference_handles(domain.index_arguments);
+    assert_eq!(domain_arguments.len(), 1);
+    assert!(matches!(
+        parsed.type_references.type_reference(domain_arguments[0]),
+        TypeReferenceNode::Named(name) if name.as_str(&parsed) == "T"
+    ));
+}
+
+#[test]
 fn parses_domain_requires_and_requirement_routes_independently() {
     let source = r#"
         domain Reservation::Confirmed
@@ -593,11 +640,24 @@ fn tail_self_call_retains_authored_call_until_resolution() {
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
-    let StatementNode::Expression(expression) = parsed
+    // A final value completes the invocation like an unconditional value arm.
+    // The completion keeps the authored call as its value; only resolution
+    // may normalize a recursive tail call into a named transfer.
+    let StatementNode::Transition(transition) = parsed
         .statements
         .statement(parsed.items.statements(state.statements)[0])
     else {
-        panic!("parsing retains the authored expression; resolution owns tail normalization");
+        panic!("the final value completes the invocation");
+    };
+    assert!(transition.ends_dispatch);
+    assert!(matches!(
+        transition.guard,
+        syntax_trees::statement::TransitionGuardNode::Always
+    ));
+    let syntax_trees::statement::TransitionTargetNode::Value(expression) =
+        parsed.statements.transition_target(transition.target)
+    else {
+        panic!("parsing retains the authored value; resolution owns tail normalization");
     };
     let ExpressionNode::Call(call) = parsed.expressions.expression(*expression) else {
         panic!("the terminal expression retains its exact authored call");

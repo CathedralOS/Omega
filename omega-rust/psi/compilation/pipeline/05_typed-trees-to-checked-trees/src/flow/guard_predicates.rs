@@ -211,7 +211,7 @@ pub(crate) fn saved_guard_observations<'program>(
                 &mut observations,
             );
             for (expression, value) in observations {
-                let current_expression = (expression_is_stable_predicate(program, expression)
+                let current_expression = if expression_is_stable_predicate(program, expression)
                     && reads_survive(
                         program,
                         machine,
@@ -220,9 +220,11 @@ pub(crate) fn saved_guard_observations<'program>(
                         expression,
                         &dispatch_writes,
                         frames,
-                    ))
-                .then_some(expression)
-                .unwrap_or(ExpressionHandle::invalid());
+                    ) {
+                    expression
+                } else {
+                    ExpressionHandle::invalid()
+                };
                 let observation = GuardObservation {
                     expression,
                     value,
@@ -459,6 +461,23 @@ fn reads_survive(
                     collection_length_receiver(program, machine, Some(state), node).unwrap_or(node);
                 frames
                     .reference_expression_origins_before_statement(machine, statement, source)
+                    .or_else(|| {
+                        // When the element itself has no exact origin, its
+                        // collection's footprint covers the collection
+                        // and every element, so any write to either still
+                        // withdraws the read while a disjoint sibling write keeps
+                        // it. The index is checked separately as a value read.
+                        let ExpressionNode::Indexed(indexed) =
+                            program.expression_table.expression(node)
+                        else {
+                            return None;
+                        };
+                        frames.reference_expression_origins_before_statement(
+                            machine,
+                            statement,
+                            indexed.collection,
+                        )
+                    })
                     .and_then(|origins| {
                         origins
                             .into_iter()

@@ -7,6 +7,9 @@ use super::super::StructuralTerm;
 use super::{CapturedStorageCoordinate, StructuralJudge};
 use typed_trees::{expression::ExpressionHandle, machine::Machine, state::State};
 
+/// Largest fixed array whose slots each keep an entry observation.
+const ENTRY_SLOT_OBSERVATION_LIMIT: usize = 64;
+
 impl StructuralJudge<'_> {
     /// A readable scalar parameter supplies initialized entry contents even
     /// when Requires says nothing about their value. Keep that unknown value
@@ -85,6 +88,15 @@ impl StructuralJudge<'_> {
             if !Self::nominal_type_has_data_predicates(program, element, active) {
                 return None;
             }
+            // Every judge for a state repeats this walk, so a per-slot copy of
+            // a 131072-slot table cost the Psi product gate about 45 ms per
+            // judge and over an hour per check. Past the limit an array keeps
+            // no entry slot observations, as before slot retention existed.
+            // ponytail: slot limit; one quantified observation over all slots
+            // would keep large arrays' bounds if a program needs them.
+            if length > ENTRY_SLOT_OBSERVATION_LIMIT {
+                return None;
+            }
             for element_index in 0..length {
                 let mut child = place.clone();
                 child.segments.push(facts::PlaceSegment::FixedIndex {
@@ -110,11 +122,7 @@ impl StructuralJudge<'_> {
             }
             return None;
         }
-        let Some(definition) =
-            crate::field_domains::readable_nominal_definition(program, reference)
-        else {
-            return None;
-        };
+        let definition = crate::field_domains::readable_nominal_definition(program, reference)?;
         if active.contains(&definition.symbol) {
             return None;
         }
@@ -295,8 +303,7 @@ impl StructuralJudge<'_> {
             .ok_or("entry predicate has no fixed declaration coordinate")?;
         self.retain_storage_value(coordinate.clone(), value.clone(), true);
         let stored = std::sync::Arc::make_mut(&mut self.stored_values)
-            .iter_mut()
-            .find(|stored| stored.coordinate == coordinate)
+            .value_at_mut(&coordinate)
             .ok_or("entry predicate lost its logical snapshot")?;
         stored.current = None;
         stored.backing = None;
@@ -509,8 +516,7 @@ impl StructuralJudge<'_> {
         let backing = self.freeze_entry_read_backing(state, backing);
         self.retain_storage_value(coordinate.clone(), value, true);
         let stored = std::sync::Arc::make_mut(&mut self.stored_values)
-            .iter_mut()
-            .find(|stored| stored.coordinate == coordinate)
+            .value_at_mut(&coordinate)
             .ok_or("the rank entry input lost its retained storage observation")?;
         stored.backing = Some(backing);
         stored.completed_read = None;

@@ -17,9 +17,8 @@
 //! call boundary truncates just before its first runtime segment: the
 //! prefix is the bound every caller can express in its own operand identity.
 //!
-//! `Revision` is carried per row like the effect summary: a retained row
-//! from an older unit revision is stale evidence, so the analysis manager
-//! force-invalidates this product across every commit.
+//! `Revision` is carried per row like the effect summary: a row is evidence
+//! only for the unit revision that computed it.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -598,6 +597,23 @@ fn scan_operation(
     match operation {
         O::ReleaseActivationClaim { source, .. } => {
             pending.attribute_argument(context, source, true, true)
+        }
+        O::ActivateTaskRegister {
+            gdt,
+            task_state,
+            scratch,
+            ..
+        } => {
+            pending.attribute_argument(context, gdt, true, true);
+            pending.attribute_argument(context, task_state, true, false);
+            pending.attribute_argument(context, scratch, false, true);
+        }
+        O::ReadTaskRegister { .. } => {}
+        O::GlobalDescriptorTable {
+            operation, source, ..
+        } => {
+            let writes = *operation == terminal_psi::GlobalDescriptorTableOperation::Store;
+            pending.attribute_argument(context, source, !writes, writes);
         }
         O::RegisterAccess { .. } => {
             // Register writes may change memory interpretation. They are not

@@ -156,7 +156,11 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Keep scalar prerequisites and public returned-borrow regions explicit.
 // Marker 238 combines both changes; the two earlier 237 layouts are incompatible.
 // Callable headers retain the exact remaining declaration binder count.
-pub(crate) const FORMAT_MARKER: u16 = 238;
+// Marker 239 retains every placement of a split private callback address.
+// Marker 240 keeps the binder-selected calling owner for inherited callbacks.
+// Marker 242 combines occupied-owner placement and borrowed descriptor instructions.
+// The two earlier 241 layouts are incompatible.
+pub(crate) const FORMAT_MARKER: u16 = 243;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -304,9 +308,15 @@ fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
     let byte_len =
         u64::try_from(bytes.len()).expect("terminal-Psi bytes fit the u64 digest domain");
     digest.raw(&byte_len.to_le_bytes());
-    digest.raw(&bytes);
+    digest.raw(bytes);
     SemanticFingerprint::from_bytes(digest.finish())
 }
 
 #[cfg(test)]
 mod normal_qualification_tests;
+
+#[cfg(test)]
+mod global_descriptor_table_tests;
+
+#[cfg(test)]
+mod task_register_tests;

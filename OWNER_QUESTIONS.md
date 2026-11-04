@@ -67,258 +67,102 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### 1. How should users select interpreted execution and a possible future JIT?
+### 1. Which input accepts an independent component's assumptions, and how is an accepted assumption spelled?
 
-AOT remains the established native execution path. How should users explicitly
-trigger standalone Terminal Psi interpretation? If we add a JIT later, should
-it be another explicitly selected execution mode, or should an opted-in runtime
-automatically compile hot code? Keep `--both` as a separate native/interpreter
-comparison choice rather than conflating comparison with engine selection.
+A verified component description can bind assumptions about its environment,
+such as an immediate port-space write, by digest. The specification requires
+the consuming side to tell verification which of those assumptions it accepts
+(cited below), so that a component is not admitted on its producer's word. That
+requirement, not the fixtures, motivates this question. No customer outside
+fixtures and samples uses the current surface, but retiring it under the
+surface-retirement rule would leave the requirement with no input at all, which
+is why the question is not settled as Option B by default.
 
-The concrete customer is running an ordinary Omega program through the chosen
-engine, including running it without first generating a native executable.
-The current CLI exposes native `omega run` and comparison through `--both`, but
-no interpreter-only option. This asks for the user-facing selection policy, not
-an implementation change or a decision that JIT must be built.
+The repository has a Build call for this, `Build::accept_component_assumption(builder, digest)`.
+Its prelude comment (`omega-rust/omega/packages/build-declarations/src/prelude.rs:306-315`)
+says the build "accepts one exact digest per call, authored as the same
+lowercase hex spelling verification diagnostics report" and that the
+declaration "is harvested statically". The last sentence is stale. Today the
+call does nothing:
+- the checked Build evaluator evaluates the digest and discards it;
+- `EvaluatedBuild.accepted_component_assumptions` has no producer;
+- provider settlement still passes that always-empty set to component
+  verification, so any description that binds an assumption is refused as
+  unaccepted whatever the build declares;
+- any spelling, including a malformed or short one, is accepted silently.
 
-Contracts checked: [embedding's engine/target separation](wiki/spec/build/embedding.md#target-environments-and-execution-engines)
-already treats interpreted and native execution independently from OS targets;
-[separate Terminal consumption](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
-allows compilation to stop at Terminal Psi for later interpretation or native
-lowering. The embedding execution contract says no JIT is required, and its
-[implementation ownership](wiki/spec/build/embedding.md#authority-evidence-and-ownership-of-implementation)
-treats the CLI as a library client. These establish independent interpretation
-but do not settle a standalone CLI selection surface or a future JIT trigger
-policy. Any future automatic JIT policy would be an explicit new design choice,
-not an implicit requirement of the existing interpreter contract.
+#1156 removed the static harvester and its digest decoder as unused. That decoder
+required 64 hex characters and accepted either case.
 
-### 2. Must a guard on a copy of an array element be rejected after the element is overwritten and restored?
+The programs that depend on the answer:
+- `tests/omega/fail/build/component_assumption_{malformed,short}` expect a
+  spelling refusal ("64 hexadecimal characters") but compile.
+- `tests/omega/pass/build/component_assumption_{acceptance,policy_accepted,policy_changed,reborrow}`
+  make the Build call. `component_assumption_reborrow` spells its digest in
+  uppercase. `component_assumption_policy_missing` omits the call;
+  `component_assumption_mechanism` is the dependency that publishes the port
+  assumption. Together the three `policy_*` fixtures are meant to distinguish a
+  missing, a changed and a correct acceptance, which nothing distinguishes today.
+  `component_assumption_user_declaration` calls an unrelated
+  `Policy::accept_component_assumption`.
+- `samples/cli/independent/component_assumption_recording` and
+  `samples/cli/probes/build_component_assumptions` (with its
+  `controls/invalid_assumption_one_arg`) make the call. The probe's README says
+  the call "records the exact assumption in the selected build", which is
+  currently false.
+- `tests/omega/fail/build/component_assumption_{other_builder,swapped,wrong_arity}`
+  pin the call's shape (Build activation, argument types, arity). They reject
+  the same way under Options A and C.
 
-`tests/omega/fail/contracts/scalar_copy_guard_after_source_restore` is a reject
-twin that main now accepts. Its `inspect` machine reads `main.items[selector]`
-twice (`copied`, then `saved`), writes `0` to the element, writes `saved` back,
-and only then tests `copied >= 48 && copied <= 49` before transitioning to
-`bounded`, which `requires main.items[selector] >= 48` and `<= 49`. The twin
-expects `cannot prove requires contract`. On base `60f7e3cd4ee` a focused corpus
-run of the fixture reports `checked`, not `rejected`. The investigation traced
-this to #985 (`0020604823c`, 2026-10-31): the checker proves both requirements
-because `copied`, `saved` and `main.items[selector]` all denote the stored
-contents at state entry, and the restore writes back exactly that value. The program meets `bounded`'s
-requirements on every execution. Must it still be rejected? Is the twin's oracle
-a language rule, or a limit of the earlier analysis that the stronger one
-legitimately lifted?
+Option A, the Build call is the acceptance input: Build evaluation records each
+digest, with its machine and span, into the evaluated Build result, and the
+verifier receives exactly that set. It refuses a spelling that is not 64 hex
+characters. The owner also fixes whether case is significant: with
+case-insensitive digests `component_assumption_reborrow` keeps its spelling;
+with lowercase only, it migrates. The two fail fixtures become real reject
+twins, and the `policy_*` fixtures regain their distinction. No source
+re-reading is reintroduced.
 
-Option A, the twin is stale: accepting is correct. The fixture moves out of
-`fail/contracts/` (to `pass/` or deleted) and its golden rows are re-recorded.
-The language then admits a guard on a scalar copy across a write that restores
-the source, when the written value is provably the copied one. Sibling controls
-that change the stored value (`scalar_copy_guard_after_source_write`,
-`scalar_copy_guard_after_selector_write`) keep rejecting; four soundness probes
-still reject too (aliasing write through another index, restore of a different
-value, re-read after a write, store of a late read into `main.saved`).
+Option B, acceptance belongs to package acceptance policy: assumptions are
+accepted through the lock and acceptance comparison, like other trust-bearing
+decisions, keyed by assumption meaning rather than a spelling. The Build call is
+retired. So are the five `fail/build/component_assumption_*` fixtures, the probe control and the Build calls in
+the four pass fixtures and two samples. The `policy_*` distinction moves to
+lock-acceptance fixtures. The verifier receives the set the lock accepted.
 
-Option B, the twin states a rule: the program must be rejected. The analysis
-must stop relating `copied` to the element once any write to the element
-intervenes, even a value-equal restore. That requires deliberately weakening
-the stored-value tracking in the scalar copy guard route
-(`current_values::proves_call`, `guard_observations.rs`) for restored values,
-rejecting a program that provably satisfies its contracts, and a written rule
-to cite.
+Option C, both: the Build call states the build's intent, and the lock records
+the reviewed acceptance as a risk-bearing row, as it does for assumed binding
+relationships. Verification requires the digest in both, so the spelling rule
+of Option A applies to the call.
 
-Evidence, from the investigation on base `661760196df`: the call-site proof is
-`captured_boolean::judgment` -> `captured_contract_proven` ->
-`current_values::proves_call`, where the three values share one atom,
-`completed-scalar:IndexedValue{main.items, selector}`. #985 switched
-`numeric_observations` from `declared_integer_field_read` (declared fields only)
-to `integer_storage_read` (any fixed-integer storage read, array elements
-included). The golden row (`rejected`, `@ccdb99ca2214`) was recorded by #889
-(`c64728d90e8`) before #985 merged. The twin's shape comes from `10aeeb04a5b`,
-whose `guard_observations.rs` header says "a write followed by restoration
-still breaks the relation". That sentence is implementation commentary on
-the guard copy-relation route, not a language rule.
+A `TopologyRequest` (topology.md, owner intent) also lists accepted assumptions,
+but it is a package-defined plan input for instance graphs, not a compiler
+input for single-component verification, so it is not offered as a separate
+option.
 
-Contracts checked:
-[primitive reads](wiki/spec/terminal-psi/fact_validity.md) (line 28) allow
-an equality between a copied result and an exact reaching stored value and
-say later writes cannot change either captured value, but name "missing
-stores" as preventing introduction; `copied` and `saved` have no reaching
-store, only state-entry contents. [Entry hypotheses](wiki/spec/terminal-psi/fact_validity.md)
-(line 67) bind "structural entry paths" and say current body values are not
-entry snapshots; whether a body read of an unchanged entry path may be
-identified with that path is not stated. [Mutation and subject
-identity](wiki/spec/language/state_contracts.md#mutation-and-subject-identity)
-(lines 175-198) says copies "transport facts about the captured value" and
-that overlapping destination facts are invalidated at a write, then the new
-value is established; it does not say a value-equal restore must lose facts
-about the copy. [Lifetimes](wiki/spec/language/lifetimes.md) (line 101) says
-integer snapshots are not live storage. No passage names scalar copy guards or
-requires a restore to break a relation. These establish that facts follow
-captured values and storage footprints but leave the restore case open.
-
-### 3. Does a coerced `dyn` selector narrow its call to the selected conformance's envelope, or keep the requirement ceiling?
-
-Two accepted passages disagree. [Dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md)
-(lines 81-93) lists service reach, suspension, blocking, failure, termination
-and crash routes as per-requirement envelope axes and says "Coercion retains
-the selected conformance's exact envelope"; `suspend` and `block`
-acknowledgements "use the retained envelope, not the wider base declaration".
-[Effects](wiki/spec/language/effects.md) (lines 184-187) says dynamic and
-boundary calls "retain pinned requirement ceilings, not a narrower provider
-body eventually selected for them", and that their operational
-acknowledgements "still use the requirement envelope".
-
-Option A, the selector narrows: a selection known at check time, such as
-`QuietSource as dyn Source` carried through locals, fields, constants, private
-calls, joins and nested machines, contributes the selected conformance's
-published rows. An unknown selector (an unannotated public `dyn` parameter)
-keeps the requirement ceiling, and "eventually selected" in effects.md reads
-as a selection made by Build or at run time. `samples/cli/facts/dynamic_suspension`
-(suspension and blocking) and `samples/cli/facts/dynamic_selected_reach`
-(service reach) implement this reading. The `dynamic/` places of
-`samples/cli/facts/unannotated_direct_boundary_call` now reach `Mark` from the
-selected body, because their silent selection no longer carried the
-requirement's `Mark` row.
-
-Option B, the ceiling stays: every `dyn` call contributes its requirement's
-whole envelope, whatever the coercion selected. dynamic_dispatch.md's
-"retained envelope" then means the requirement's envelope, and both fact rows
-above, with their pinned fixtures, are reverted.
-
-In both options public and annotated ceilings, Build-selected providers and
-unknown selectors keep the requirement row; only check-time coercions differ.
-
-### 4. What evidence lets open index normalization drop an identity element (`N + 0`, `N * 1`)?
-
-[Licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-lists zero/one identities among the normalizations a selected conformance
-licenses, each by its own law, and says connecting nullary algebra operations to
-constructor constants requires ordinary unfolding or citation. An open index
-spells an identity element as an integer leaf, `N + 0` or `N * 1`, and its
-expression fragment has no call, so no index can apply `zero()` or `one()`.
-`source/library/core/algebra.omg` states the identities over those nullary slot
-applications (`add(a, zero()) == a`) and says the checker has no compiler-known
-zero/one form. On base `05a6f6af37e` both spellings of an identity law leave
-`Indexed<N + 0>` and `Indexed<N>` distinct (`index compatibility condition ...
-is not established`): a trait whose laws name the literals (`add(a, 0) == a`,
-`multiply(a, 1) == a`) and a trait whose laws name the slot applications
-(`add(a, zero()) == a`). What evidence lets the normalizer drop a `0` or `1`
-leaf?
-
-Option A, the law names the literal: an identity law slot over the integer
-literal itself, detected by shape like commutativity and recorded on the
-selection beside the other laws. No connection between a nullary slot and a
-constant is needed because the law is stated about the leaf. The trait then
-fixes its operand to a numeric type, and left and right identity are separate
-laws.
-
-Option B, the library form plus a connection law: `CommutativeSemiring`'s
-identity laws over `zero()` and `one()`, plus a law slot `zero() == 0` (and
-`one() == 1`) that connects each nullary application to its constant. The
-normalizer drops a leaf only when the selected conformance declares both slots.
-
-Option C, no normalizer rule: identity elimination stays an ordinary
-established equality (a cited identity law and a local fact `N + 0 == N`), and
-open index normalization never removes a leaf. `N + 0` and `N` remain distinct
-instances whose compatibility needs that fact.
-
-The answer also fixes whether identities compose with distributivity
-(`A * (B + 1)` against `A * B + A`).
-
-Contracts checked: [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-names the identities and says nothing of their shape or of how an integer leaf
-meets a nullary slot. [Domains](wiki/spec/language/domains.md) says computed open
-indices retain their selected operation and normalized expression and that
-compatibility is a verification condition, not evaluation in type equality.
-[Canonical static identities](wiki/spec/language/evaluation.md#canonical-static-identities)
-keeps open symbolic indices as normalized artifact data and keeps machine
-evaluation out of type equality, which rules out evaluating `zero()` to `0`
-inside an identity. [Conformances](wiki/spec/language/conformances.md) says the
-index checker consumes selected evidence and does not infer an algebra from
-operator punctuation. None says how a literal leaf acquires an identity law.
-`samples/cli/facts/open_index_distributivity` records the distributivity
-evidence this question leaves out.
-
-### 5. Is the expanded sum of products the canonical form of an open index under a declared distributivity law?
-
-[Licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-says distributivity requires its law, that changing the canonical form is an
-explicit language compatibility event, and that index normalizer version 3
-retains the exact selected provider. Version 3 sorted operands under
-commutativity and flattened under associativity, and ignored a declared
-distributivity law. The compiler now applies a declared left-distributivity law
-by expanding `x * (y + z)` to `x * y + x * z` once per summand, flattening and
-sorting the result under the addition's own laws, and expanding a nested sum in
-the same way. It keeps `normalizer_version: 3` and caps an expansion at 64
-summands, keeping the unexpanded form beyond. A trait that declares
-distributivity in both directions (a distributive lattice) expands in neither.
-Which expressions are identified depends only on the laws a conformance
-licenses; this question settles the representative text, the version label and
-the cap.
-
-Option A, expansion is canonical and the version advances to 4: amend the
-sentence naming version 3 and record the compatibility event.
-
-Option B, expansion is canonical and the version stays 3: no recorded form
-changes, because an expression's form moves only when its trait declares a
-distributivity law, which no normalizer consulted until now, and the library's
-only such trait (`CommutativeSemiring`) has no index customer.
-
-Option C, another representative (factoring, or a polynomial with explicit
-coefficients): every form the implementation produces under the law changes.
-
-Contracts checked: [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-fixes the licensing and the version provenance but names no representative.
-`source/library/core/algebra.omg` describes the proof engine's tier-2
-normalizer as expanding a capped natural-coefficient polynomial form; that is
-commentary on the proof side, not a rule for index identity. [Domains](wiki/spec/language/domains.md)
-says computed open indices retain a normalized expression and that exact
-operation and law identities survive generic substitution and interface
-publication, without defining the expression's form.
-`samples/cli/facts/open_index_distributivity` pins the expansion with its reject
-twins.
-
-### 6. May a boundary requirement's own signature bind a generic evidence parameter?
-
-A target-prefixed family member may be generic over an implementation map, for
-example `forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32` in
-`samples/cli/facts/selected_crash_formal/target_body` and
-`selected<Index: u32, Implementation satisfies Choose<Cell>>(...)` in
-`samples/cli/facts/selected_value_application/target_body`. Moving such a
-family to ordinary named implementations selected by target-keyed Build rows
-needs a requirement with the same telescope:
-`boundary trait SelectedForward { machine forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32 ...; }`.
-The parser refuses it ("an evidence binder `Implementation satisfies
-Trait<...>` is not admitted in this parameter list"): requirement signatures
-admit type, const, value and machine parameters but no conformance binder,
-while machine, trait and data declarations admit one. The other places of
-these two folders are unaffected; only their target_body places keep the
-retired prefix.
-
-The product requirement is the one the migration serves: one portable call to a
-generic algorithm whose per-target bodies differ, such as a per-ISA kernel that
-is generic over the arithmetic or ordering map it is applied to.
-
-Option A, admit the binder: a requirement may declare `<I satisfies T<...>>`.
-The caller names the implementation at each call, exactly as for a generic
-machine; every implementation declares the same binder telescope and refines
-the requirement's contract for every admitted `I`; a Build row selects the
-requirement's implementation per target and never fills `I`. Specialization
-then closes each selected implementation at the caller's map.
-
-Option B, keep the exclusion: the evidence binder stays on an ordinary generic
-machine, and only non-generic leaves are selected per target. A fact whose
-selected body is itself generic over the map (these two) is then restated with
-the generic part outside the selected requirement, or moved to a trait-level
-binder (`boundary trait SelectedForward<I satisfies Reader<Zero>>`) if that form
-is intended.
-
-Contracts checked: [named conformances](wiki/spec/language/conformances.md#declaration-and-selection)
-define generic evidence binders and say a Build provider row cannot fill one,
-without saying where a binder may be declared.
-[Build-owned target selection](wiki/spec/build/provider_selection.md#build-owned-target-selection)
-and [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
-require ordinary named implementations of an exact requirement and are silent
-on generic requirement telescopes. [Lifetimes](wiki/spec/language/lifetimes.md#binders-and-source-applications)
-lets static callable requirements bind fresh per-invocation lifetimes, and the
-[static machine binder categories](wiki/spec/language/generics.md#static-machine-binder-categories)
-cover machine binders; neither covers evidence binders on a requirement.
+Contracts checked, and why they do not decide it:
+- [Verified component descriptions](wiki/spec/build/component_publication.md#verified-component-descriptions)
+  (lines 91-96, 130-135): verification returns a `VerifiedComponent` "with
+  accepted assumptions", the expected subject and profile "come from independent
+  caller policy", "unaccepted assumptions" is a distinct failure, and
+  assumptions "are inseparable from claim consumption". This requires accepted
+  assumptions to reach verification but names no input that carries them.
+- [Topology](wiki/spec/packages/topology.md), verified-description consumer
+  (line 228) and owner intent (lines 376-382): the consumer uses "independently
+  selected subject, verification profile, and accepted assumptions", and a
+  `TopologyRequest` lists accepted assumptions. Neither says whether Build or
+  the lock supplies them to compilation.
+- [Package acceptance](wiki/spec/packages/acceptance.md) (line 96): "explicit
+  trust-bearing assumptions require acceptance". Line 249: "Acceptance binds
+  permission and assumption meaning, not diagnostic wording". This leans
+  toward Option B, and against keying acceptance on a diagnostic-reported
+  spelling, but does not mention component assumptions or the Build call.
+- [Locks](wiki/spec/packages/locks.md) (lines 36-43) and
+  [assumed binding contracts](wiki/spec/build/assumed_binding_contracts.md):
+  assumed binding relationships are risk-bearing rows the lock retains. This is a
+  precedent for Option C's shape, but it is stated for binding relationships only.
+- [Compiler request](wiki/spec/build/compiler_request.md) (line 52): "External
+  admissions cover the assumptions and authority required by the requested
+  compilation". This bears on Option B without naming component assumptions.
+- No clause in `wiki/spec/build` defines `Build::accept_component_assumption`
+  or a digest spelling rule.

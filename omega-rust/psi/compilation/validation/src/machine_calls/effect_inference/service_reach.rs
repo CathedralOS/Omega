@@ -756,15 +756,15 @@ fn direct_service_reach_for_operational_call(
     call: &flow_effects::CallOperational,
 ) -> DirectServiceReach {
     let mut reach = direct_service_reach_for_call(program, call.target_state_symbol);
-    if let Some(contract) = with_call_target_index(program, |index| {
-        retained_contract_view(program, index, call.static_machine_parameter)
-    }) {
-        // Selection substitutes nominal reach only. Structural requirements
-        // remain fixed even when the selected implementation has a smaller row.
-        if let typed_trees::data::MachineParameterContractView::Structural(signature) = contract {
-            extend_signature_service_rows(program, signature, &mut reach);
-            record_signature_reach(program, signature, &mut reach);
-        }
+    // Selection substitutes nominal reach only. Structural requirements
+    // remain fixed even when the selected implementation has a smaller row.
+    if let Some(typed_trees::data::MachineParameterContractView::Structural(signature)) =
+        with_call_target_index(program, |index| {
+            retained_contract_view(program, index, call.static_machine_parameter)
+        })
+    {
+        extend_signature_service_rows(program, signature, &mut reach);
+        record_signature_reach(program, signature, &mut reach);
     }
     reach
 }

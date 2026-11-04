@@ -106,7 +106,9 @@ pub(crate) fn boundary_targets(
     let mut targets = Vec::new();
     for handle in reachable_nodes(checked, &roots)? {
         if let CheckedScalarComputationKind::Call {
-            callee: checked_trees::CheckedScalarCallee::Boundary { machine, .. },
+            callee:
+                checked_trees::CheckedScalarCallee::Boundary { machine, .. }
+                | checked_trees::CheckedScalarCallee::TaskRegister { machine, .. },
             ..
         } = plans.nodes.get(handle).kind
             && !targets.contains(&machine)
@@ -194,15 +196,12 @@ fn collect_call_targets(
         if let Some(call) = operation
             .call()
             .filter(|call| call.is_module() && call.scalar_result().is_some())
-        {
-            if !structural_only
+            && (!structural_only
                 || !call.structural_arguments.is_empty()
-                || !call.claim_transfers().is_empty()
-            {
-                if !targets.contains(&call.target.machine) {
-                    targets.push(call.target.machine);
-                }
-            }
+                || !call.claim_transfers().is_empty())
+            && !targets.contains(&call.target.machine)
+        {
+            targets.push(call.target.machine);
         }
     }
     Ok(targets)

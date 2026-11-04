@@ -815,7 +815,7 @@ mod tests {
         let source_root = root.join("source");
         std::fs::create_dir_all(&source_root).unwrap();
         let sponsor = filesystem_authority::FilesystemSponsor::create_private(
-            &root.join(name),
+            root.join(name),
             filesystem_authority::FilesystemSponsorLimits::COMPILER_DEFAULT,
         )
         .unwrap();

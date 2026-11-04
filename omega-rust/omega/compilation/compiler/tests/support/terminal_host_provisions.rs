@@ -26,7 +26,8 @@ mod result_custody;
 mod result_observation;
 #[path = "terminal_storage_budget.rs"]
 mod storage_budget;
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+// The one shared provision frame; every provision module below reaches it
+// through `super` so the file is loaded once.
 #[path = "terminal_provision.rs"]
 mod terminal_provision;
 

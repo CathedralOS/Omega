@@ -151,13 +151,14 @@ pub mod values;
 mod wire_schema_queries;
 
 pub use access_views::{
-    AccessAtomicObservingResultContract, AccessAtomicResidentContract, AccessExecutionDeclaration,
-    AccessFieldPlan, AccessLifecycleOperation, AccessLifecyclePlan, AccessViewPlan,
-    AccessorPrimitive, AccessorTarget, PlanLaidBitField, PlanLaidBitFragment,
-    PlanLaidFieldLayoutSource, PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout,
-    PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidRetiredFieldIdentity,
-    PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
-    PrivateCallbackSlotApplication, ScalarAccessorDeclaration, ScalarAccessorOperation,
+    AccessAtomicObservingResultContract, AccessAtomicResidentContract, AccessContentShape,
+    AccessExecutionDeclaration, AccessFieldPlan, AccessLifecycleOperation, AccessLifecycleOwner,
+    AccessLifecyclePlan, AccessLifecycleStorage, AccessViewPlan, AccessorPrimitive, AccessorTarget,
+    PlanLaidBitField, PlanLaidBitFragment, PlanLaidFieldLayoutSource, PlanLaidGeometry,
+    PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations, PlanLaidRepeatedField,
+    PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument, PlanLaidSchemaField,
+    PlanLaidSchemaFieldKind, PlanLaidTargetLayout, PrivateCallbackSlotApplication,
+    ScalarAccessorDeclaration, ScalarAccessorOperation,
 };
 pub use commitments::{
     CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,
@@ -353,7 +354,7 @@ pub struct TypedTrees {
     /// The hash-consed structural type keys minted on demand by the type
     /// identity queries. A handle minted here compares by integer; its text
     /// stays inside the table for diagnostics and artifact encoding.
-    pub type_identities: OwnedInterner<crate::type_identity::TypeIdentityTable>,
+    pub type_identities: crate::type_identity::TypeIdentityTable,
 }
 
 /// A package-scoped declaration whose consumer role supplies its completion
@@ -649,7 +650,7 @@ impl TypedTrees {
             constant_recipe_closure: constant_recipes::ConstantRecipeClosure::default(),
             callable_identities: OwnedInterner::default(),
             callable_identity_memo: OwnedIndex::default(),
-            type_identities: OwnedInterner::default(),
+            type_identities: Default::default(),
         }
     }
 

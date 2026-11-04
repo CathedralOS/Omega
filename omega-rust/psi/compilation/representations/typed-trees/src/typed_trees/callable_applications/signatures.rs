@@ -325,23 +325,37 @@ impl CallableApplication {
                         )
                     }
                     data::MachineParameterContract::Nominal {
+                        receiving_trait,
+                        receiving_arguments,
                         trait_definition,
                         requirement,
                         trait_arguments,
-                        ..
+                        instantiated,
                     } => {
+                        let receiving_arguments = receiving_arguments
+                            .into_iter()
+                            .map(|argument| self.type_reference(program, argument))
+                            .collect::<Result<Vec<_>, _>>()?;
                         let arguments = trait_arguments
                             .into_iter()
                             .map(|argument| self.type_reference(program, argument))
                             .collect::<Result<Vec<_>, _>>()?;
-                        let instantiated = self
-                            .nominal(program, trait_definition, requirement, &arguments)?
-                            .map(Box::new);
-                        data::MachineParameterContract::Nominal {
-                            trait_definition,
-                            requirement,
-                            trait_arguments: arguments,
-                            instantiated,
+                        if let Some(signature) = instantiated {
+                            data::MachineParameterContract::Nominal {
+                                receiving_trait,
+                                receiving_arguments,
+                                trait_definition,
+                                requirement,
+                                trait_arguments: arguments,
+                                instantiated: Some(Box::new(self.signature(program, &signature)?)),
+                            }
+                        } else {
+                            self.nominal_contract(
+                                program,
+                                receiving_trait,
+                                requirement,
+                                receiving_arguments,
+                            )?
                         }
                     }
                     data::MachineParameterContract::RequirementIdentity => {
@@ -421,6 +435,16 @@ impl CallableApplication {
                     membership.domain_arguments =
                         self.type_arguments(program, membership.domain_arguments)?;
                     membership.domain_symbol = self.symbol(membership.domain_symbol);
+                    let arguments = program
+                        .type_reference_table
+                        .type_reference_handles(membership.domain_arguments)
+                        .to_vec();
+                    membership.semantic_domain = Self::domain_identity(
+                        program,
+                        membership.domain_symbol,
+                        &arguments,
+                        membership.semantic_domain,
+                    )?;
                     domain::ProofFact::Membership(membership)
                 }
                 domain::ProofFact::Proposition(mut application) => {

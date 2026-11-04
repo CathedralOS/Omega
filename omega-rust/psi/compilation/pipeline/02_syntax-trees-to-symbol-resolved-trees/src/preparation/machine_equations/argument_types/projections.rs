@@ -65,7 +65,7 @@ pub(super) fn member_types<'trees>(
                 generic_data::selected_data_item(syntax, Some(selection), base_name),
                 Some((
                     base_name.clone(),
-                    syntax_type_references(&syntax)
+                    syntax_type_references(syntax)
                         .type_reference_handles(*arguments)
                         .to_vec(),
                 )),
@@ -100,7 +100,7 @@ pub(super) fn member_types<'trees>(
                         let (symbol, resolved) = origin.declaration(trees)?;
                         (symbol == field).then_some((authored, resolved))
                     })?;
-            let parameters = syntax_items(&syntax)
+            let parameters = syntax_items(syntax)
                 .type_parameters(declaration.type_parameters)
                 .to_vec();
             let names = parameters

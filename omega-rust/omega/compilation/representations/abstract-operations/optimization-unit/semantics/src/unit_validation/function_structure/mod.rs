@@ -68,17 +68,16 @@ pub(crate) fn validate_function(
     ownership_frontiers: &mut Vec<optimization_unit::OwnershipFrontierFact>,
     reference_memberships: Option<&mut ReferenceMembershipValidation<'_>>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    if let Some(subject) = function.nominal_cleanup_subject {
-        if function.attachment != Some(subject)
+    if let Some(subject) = function.nominal_cleanup_subject
+        && (function.attachment != Some(subject)
             || !structural_types.contains_key(&subject)
             || functions
                 .values()
                 .filter(|candidate| candidate.nominal_cleanup_subject == Some(subject))
                 .count()
-                != 1
-        {
-            return Err(catalog_mismatch(function));
-        }
+                != 1)
+    {
+        return Err(catalog_mismatch(function));
     }
     if !valid_service_ceiling(&function.published_service_ceiling, services) {
         return Err(

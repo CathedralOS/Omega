@@ -25,7 +25,7 @@ pub(super) fn complete_arguments(
         )
         .with_source_span(target.source_span()));
     };
-    let all_parameters = syntax_items(&syntax)
+    let all_parameters = syntax_items(syntax)
         .type_parameters(declaration.type_parameters)
         .to_vec();
     // Machines retain their explicit conformance suffix separately from the
@@ -60,13 +60,13 @@ pub(super) fn complete_arguments(
             .iter()
             .map(|bound| bound.binder.as_str(syntax).to_owned()),
     );
-    let signature_mentions = syntax_items(&syntax)
+    let signature_mentions = syntax_items(syntax)
         .state_handles(declaration.states)
         .first()
         .map(|entry| syntax.items.state(*entry))
         .into_iter()
         .flat_map(|entry| {
-            syntax_items(&syntax)
+            syntax_items(syntax)
                 .state_parameters(entry.parameters)
                 .iter()
                 .map(|parameter| syntax.items.state_parameter(*parameter).type_reference)

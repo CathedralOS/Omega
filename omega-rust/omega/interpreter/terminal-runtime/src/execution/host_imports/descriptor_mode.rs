@@ -111,7 +111,7 @@ impl TerminalEffectHandler for DescriptorModeImport {
         storage_buffers: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         let invalid = super::refusal("descriptor-mode operands differ from the installed contract");
-        let call = super::call_operands(effect, &invalid)?;
+        let call = super::call_operands(effect, invalid)?;
         if !byte_buffers.is_empty() || !storage_buffers.is_empty() {
             return Err(invalid());
         }
@@ -135,7 +135,7 @@ impl TerminalEffectHandler for DescriptorModeImport {
             return Err(invalid());
         }
         // Only the standard descriptors exist in this runtime model.
-        if !matches!(*descriptor, 0 | 1 | 2) {
+        if !matches!(*descriptor, 0..=2) {
             return self.result(-1);
         }
         let previous = self.modes.insert(*descriptor, *mode).unwrap_or(O_TEXT);

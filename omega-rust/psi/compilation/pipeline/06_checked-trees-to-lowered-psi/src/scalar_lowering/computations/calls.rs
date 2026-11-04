@@ -522,15 +522,18 @@ impl Expansion<'_> {
                 });
             }
         }
-        // A direct callee's scalar formals as its body receives them; each
-        // actual arrives as `received_scalar_type` says.
+        // A direct callee's scalar formals as its body or boundary declaration
+        // receives them; each actual arrives as `received_scalar_type` says.
         let arrival_types = match callee.static_target() {
-            Some(_) if !signature.boundary => Some(
+            Some(_) if signature.boundary => self
+                .qualifications
+                .boundary_scalar_formals(self.checked, target_machine),
+            Some(_) => Some(
                 self.qualifications
                     .scalar_state_types(self.checked, target_state)?
                     .0,
             ),
-            _ => None,
+            None => None,
         };
         let mut prefixes = vec![input_types.to_vec()];
         let mut scalar_actuals = vec![None; scalars.len()];
@@ -604,7 +607,7 @@ impl Expansion<'_> {
             let coordinate = coordinate.statement().ok_or(LoweringError::Unsupported(
                 "dynamic invocation lacks statement custody",
             ))?;
-            let slot_plan = flow_facts(&self.checked)
+            let slot_plan = flow_facts(self.checked)
                 .terminal_unit_effects
                 .dynamic_slots
                 .iter()
@@ -613,12 +616,12 @@ impl Expansion<'_> {
                     "selector call has no exact checked shape",
                 ))?;
             let family_tuple = slot_plan.family_tuple.clone();
-            let requirement_identity = flow_facts(&self.checked)
+            let requirement_identity = flow_facts(self.checked)
                 .terminal_unit_effects
                 .dynamic_slots
                 .iter()
                 .find(|plan| plan.slot == *slot)
-                .map(|plan| plan.requirement_identity.clone())
+                .map(|plan| plan.requirement_identity)
                 .ok_or(LoweringError::Unsupported(
                     "selector call names a slot with no checked call shape",
                 ))?;
@@ -639,7 +642,7 @@ impl Expansion<'_> {
                         LoweringError::Unsupported("dynamic family operand ordinal overflows")
                     })?,
                 };
-                let (_, expression) = value_facts(&self.checked)
+                let (_, expression) = value_facts(self.checked)
                     .scalar_expressions
                     .bound_expression_at(
                         site.state,
@@ -664,7 +667,7 @@ impl Expansion<'_> {
                 loan_completions,
                 source_expression: source.expression,
                 slot: *slot,
-                interface_identity: interface_identity.clone(),
+                interface_identity: *interface_identity,
                 requirement_identity,
                 family_tuple,
                 result_type,
@@ -682,6 +685,30 @@ impl Expansion<'_> {
                     self.structural_types,
                 )?,
             })
+        } else if let checked_trees::CheckedScalarCallee::TaskRegister {
+            operation, service, ..
+        } = callee
+        {
+            LoweredScalarBinding::TaskRegister(
+                crate::emission::operation_emission::task_register::LoweredTaskRegisterBinding {
+                    source_coordinate: coordinate.statement().ok_or_else(|| {
+                        LoweringError::InvalidDeclarationIdentity(
+                            "checked task-register instruction lost its statement coordinate"
+                                .to_owned(),
+                        )
+                    })?,
+                    loan_completions,
+                    source_site: checked_trees::NominalMachineUseSite::Expression(
+                        source.expression,
+                    ),
+                    target_machine,
+                    result_type,
+                    operation: *operation,
+                    service: *service,
+                    arguments: scalar_actuals,
+                    structural_arguments,
+                },
+            )
         } else if signature.boundary {
             let coordinate = coordinate.statement().ok_or(LoweringError::Unsupported(
                 "boundary invocation lacks statement custody",

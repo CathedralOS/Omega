@@ -251,14 +251,13 @@ pub(crate) fn expression_is_contextual_statement_primitive(
         program,
         containing_expression,
         |_, state, statement_index, _| {
-            let Some(type_reference) =
-                expression_type_reference_in_state(program, state.symbol, statement_index, operand)
-            else {
-                return None;
-            };
-            if program.primitive_type_reference(type_reference).is_none() {
-                return None;
-            }
+            let type_reference = expression_type_reference_in_state(
+                program,
+                state.symbol,
+                statement_index,
+                operand,
+            )?;
+            program.primitive_type_reference(type_reference)?;
             found = true;
             Some(())
         },

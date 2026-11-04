@@ -74,9 +74,9 @@ fn position_motive(arena: &mut TermArena) -> TermHandle {
     lambda(arena, domain, codomain)
 }
 
-/// `Id Two zero one` — the dead child position under the nil tag.
+// `Id Two zero one` — the dead child position under the nil tag.
 
-/// `Id Two zero zero` — the single live child position under cons.
+// `Id Two zero zero` — the single live child position under cons.
 
 // ── The description, parameterized by element type and level ──────────
 //

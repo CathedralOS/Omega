@@ -8,15 +8,13 @@ use crate::unit::attached_unit::admission::retain_call_boundaries;
 use crate::unit::attached_unit::bodies::UnitPlans;
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 
-/// A composed graph does not lower an attachment or its provider fields yet:
-/// Psi 05 can plan them (`checked_composed_provider_attachment_requirements`),
-/// and this route refuses the machine rather than drop them.
+/// A composed graph does not lower an attachment yet; this route refuses the
+/// machine rather than drop it.
 pub(super) fn reject_attachment(
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
 ) -> Result<(), LoweringError> {
-    if plan.attachment_type_identity.is_some() || !plan.provider_attachment_requirements.is_empty()
-    {
-        return unsupported("composed Unit graph does not lower an attachment or provider field");
+    if plan.attachment_type_identity.is_some() {
+        return unsupported("composed Unit graph does not lower an attachment");
     }
     Ok(())
 }
@@ -29,15 +27,15 @@ pub(super) fn admit_calls<'a>(
 ) -> Result<Vec<(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)>, LoweringError> {
     let plans = UnitPlans::published(&checked.facts.flow);
     let mut boundaries = Vec::new();
-    for state in call_states.iter().copied() {
+    for state in call_states {
         for operation in state.operation_dependencies() {
             retain_call_boundaries(checked, plans, std::iter::once(operation), &mut boundaries)?;
-            // A call state's operations are its call and the effects that
+            // A call state retains its invocation and the effects that
             // prepare it: the ones the frame emits (`OperationFrame::lowers`),
             // plus the frame-local storage mints a statement establishes
             // without a callee. Nothing else belongs to a call state.
             match operation {
-                _ if operation.call().is_some() => {}
+                _ if OperationFrame::consumes_prepared_operands(operation) => {}
                 CheckedUnitEffectOperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. }
                     | checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. },

@@ -28,17 +28,17 @@ data Main {
 
 machine Main::main(main: &mut Main) reaches Clock + Console {
     Console::write_line("game_of_life_glider: a glider crossing a 24x12 field, animated in place");
-    transition { _ -> clear_grid(main, 0) }
+    transition { _ -> block clear_grid(main, 0) }
 
     machine clear_grid(main: &mut Main, cell_index: i32) {
         transition cell_index >= 0 && cell_index < 364 {
-            true -> clear_cell(main, cell_index)
-            _ -> seed(main)
+            true -> block clear_cell(main, cell_index)
+            _ -> block seed(main)
         }
     }
     machine clear_cell(main: &mut Main, cell_index: i32) {
         main.grid[cell_index] = 0;
-        transition { _ -> clear_grid(main, cell_index + 1) }
+        transition { _ -> block clear_grid(main, cell_index + 1) }
     }
     machine seed(main: &mut Main) {
         // Glider at padded rows 1..3, columns 1..3.
@@ -47,37 +47,37 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         main.grid[79] = 1;
         main.grid[80] = 1;
         main.grid[81] = 1;
-        transition { _ -> generation_loop(main, 0) }
+        transition { _ -> block generation_loop(main, 0) }
     }
     machine generation_loop(main: &mut Main, generation: i32) {
         transition generation >= 0 && generation < 40 {
-            true -> render(main, generation)
-            _ -> finish(main)
+            true -> block render(main, generation)
+            _ -> block finish(main)
         }
     }
     machine render(main: &mut Main, generation: i32) {
         let rendered: bool = Main::render(main);
         transition rendered {
-            true -> advance(main, generation)
-            _ -> bad(main)
+            true -> block advance(main, generation)
+            _ -> block bad(main)
         }
     }
     machine advance(main: &mut Main, generation: i32) {
         Clock::sleep(90);
         let advanced: bool = advance_generation(&mut main.grid);
         transition advanced {
-            true -> next_generation(main, generation)
-            _ -> bad(main)
+            true -> block next_generation(main, generation)
+            _ -> block bad(main)
         }
     }
     machine next_generation(main: &mut Main, generation: i32) {
         transition generation >= 0 && generation < 40 {
-            true -> increment_generation(main, generation)
-            _ -> finish(main)
+            true -> block increment_generation(main, generation)
+            _ -> block finish(main)
         }
     }
     machine increment_generation(main: &mut Main, generation: i32) {
-        transition { _ -> generation_loop(main, generation + 1) }
+        transition { _ -> block generation_loop(main, generation + 1) }
     }
     machine finish(main: &mut Main) {
         Console::write_line("PASS: 40 generations rendered (exit 0)");

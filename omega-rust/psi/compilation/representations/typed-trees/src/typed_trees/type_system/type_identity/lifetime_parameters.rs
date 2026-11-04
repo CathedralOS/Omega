@@ -24,6 +24,21 @@ pub fn portable_lifetime_parameter_identity(
     program: &TypedTrees,
     region: LifetimeParameterIdentity,
 ) -> Option<String> {
+    portable_lifetime_parameter_identity_in_context(
+        program,
+        region,
+        &super::identity_context::TypeIdentityContext {
+            qualification: super::TypeIdentityQualification::PackageQualified,
+            ..Default::default()
+        },
+    )
+}
+
+pub(super) fn portable_lifetime_parameter_identity_in_context(
+    program: &TypedTrees,
+    region: LifetimeParameterIdentity,
+    context: &super::identity_context::TypeIdentityContext<'_>,
+) -> Option<String> {
     lifetime_parameter_name(program, region)?;
     let owner = region.declaration;
     let (kind, declaration) = if let Some(machine) = program.machine_by_symbol(owner) {
@@ -59,11 +74,7 @@ pub fn portable_lifetime_parameter_identity(
     if declaration.is_empty() {
         return None;
     }
-    let coordinate = super::identity_context::TypeIdentityContext {
-        qualification: super::TypeIdentityQualification::PackageQualified,
-        ..Default::default()
-    }
-    .qualify_non_binder_name(program, owner, declaration);
+    let coordinate = context.qualify_non_binder_name(program, owner, declaration);
     Some(compound(
         RegionForm::Region,
         [

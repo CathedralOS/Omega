@@ -20,6 +20,7 @@ use crate::boundary::effects::results::TerminalEffectResult;
 use crate::boundary::effects::{TerminalEffect, TerminalEffectHandler, TerminalEffectRejection};
 use crate::boundary::errors::{TerminalInterpretError, malformed};
 use crate::boundary::results::TerminalExecutionStatus;
+use crate::boundary::values::StructuralRuntimePlace;
 use crate::engine::custody::{
     bind_active_structural_arguments, bind_arguments, bind_boundary_arguments, complete_claims,
     remove_affine_root, validate_boundary_requirements,
@@ -29,7 +30,6 @@ use crate::engine::execution::{
     operation_kind,
 };
 use crate::storage::runtime_rows::RuntimeRows;
-use crate::boundary::values::StructuralRuntimePlace;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     ClaimTransfer, OperationKind, StructuralAccess, StructuralMultiplicity, TerminalMachineResult,
@@ -354,12 +354,22 @@ impl<'artifact> TerminalExecution<'artifact> {
                     // Dynamic rejection still owes the ordinary result carrying
                     // both original inputs. Neither outcome may publish ahead of
                     // the complete value/extent custody transaction.
-                    let prepared = self.provider_storage.prepare_initial_image(
+                    let mut prepared = self.provider_storage.prepare_initial_image(
                         binding,
                         supplied,
                         &plan.placement,
                         image,
                     )?;
+                    // A run's backing is exactly its occupied cells; unlike a
+                    // resident it cannot silently retain an unoccupied tail.
+                    if matches!(
+                        plan.storage.owner,
+                        terminal_psi::TerminalAccessOwner::Run { .. }
+                    ) && plan.placement.layout().size != Some(binding.length)
+                        && prepared.is_ok()
+                    {
+                        prepared = Err(crate::storage::provider_storage::initialization::InitializationRejection::IncompatibleSupply);
+                    }
                     match prepared {
                         Err(rejection) => self.reject_access_initialization(
                             operation,

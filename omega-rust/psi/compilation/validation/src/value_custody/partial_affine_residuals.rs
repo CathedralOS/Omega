@@ -479,14 +479,8 @@ fn visit_region(
                         case_identity: case.identity.clone(),
                     });
                 }
-                let payload_moves = moved_paths.iter().filter_map(|(path, identity)| {
-                    matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Case(candidate)) if candidate == &case.identity)
-                        .then(|| (&path[1..], *identity))
-                }).collect::<Vec<_>>();
-                let payload_boundaries = boundaries.iter().filter_map(|(path, identity)| {
-                    matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Case(candidate)) if candidate == &case.identity)
-                        .then(|| (&path[1..], *identity))
-                }).collect::<Vec<_>>();
+                let payload_moves = moved_paths.iter().filter(|&(path, _identity)| matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Case(candidate)) if candidate == &case.identity)).map(|(path, identity)| (&path[1..], *identity)).collect::<Vec<_>>();
+                let payload_boundaries = boundaries.iter().filter(|&(path, _identity)| matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Case(candidate)) if candidate == &case.identity)).map(|(path, identity)| (&path[1..], *identity)).collect::<Vec<_>>();
                 // An empty/inline selected alternative still owes disposal of
                 // the sum occurrence. Its condition names the tag separately:
                 // a bare Case segment is not a typed payload projection.
@@ -525,7 +519,10 @@ fn visit_region(
                 }
                 traversal.conditions.truncate(condition_depth);
             }
-            if reachable_cases == 0 || (established_cases > 0 && reachable_cases != 1) {
+            // When checked evidence rules out every case, no payload exists to
+            // dispose; the occurrence's own hook and common fields still run.
+            // A selected case beside any other reachable one is contradictory.
+            if established_cases > 0 && reachable_cases != 1 {
                 return None;
             }
             // Common storage is independent of the active payload. Schedule it

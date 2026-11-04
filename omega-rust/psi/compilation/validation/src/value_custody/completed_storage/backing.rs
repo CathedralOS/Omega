@@ -148,10 +148,17 @@ impl Resolver<'_, '_> {
             FrozenReferenceSelection::NotFrozen | FrozenReferenceSelection::ThroughReference => {}
         }
         if path.is_empty()
-            && crate::reference_shell(self.program, capture.type_reference).is_some()
+            && (crate::reference_shell(self.program, capture.type_reference).is_some()
+                || matches!(
+                    capture.completion,
+                    checked_trees::FlowOperandCompletion::Observation
+                ))
             && let Some(profile) = self.profile(&capture)
             && profile.alternatives.is_empty()
         {
+            // A captured scalar destination can still occupy storage behind a
+            // recast. Its original enclosure bounds possible writes without
+            // supplying a scalar value or a projectable field coordinate.
             if profile.enclosing_storage.is_valid() {
                 return self.enclosing(profile.enclosing_storage);
             }
@@ -441,16 +448,15 @@ pub fn direct_referent_places(
         if !referent.root.is_valid() {
             return None;
         }
-        if referent.formation.is_valid() {
-            if !control.referent_formations.is_valid(referent.formation)
+        if referent.formation.is_valid()
+            && (!control.referent_formations.is_valid(referent.formation)
                 || control
                     .referent_formations
                     .get(referent.formation)
                     .owner
-                    .is_valid()
-            {
-                return None;
-            }
+                    .is_valid())
+        {
+            return None;
         }
         let place = CapturedPlace {
             incoming_reference: Handle::invalid(),

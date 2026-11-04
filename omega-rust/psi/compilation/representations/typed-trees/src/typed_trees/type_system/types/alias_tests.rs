@@ -56,7 +56,9 @@ fn alias_obligations_survive_copy_actual_substitution_and_complete_applied_views
     let original_application = application(&mut source, receiving_alias, input);
     retain(&mut source, written, original_application, receiving_alias);
     let mut program = crate::TypedTrees::default();
-    program.type_reference_table = source.clone();
+    // The table lives behind `DerefMut`, which also resets derived indexes.
+    let tables = &mut *program;
+    tables.type_reference_table = source.clone();
     let operand = program.static_operand_from_type_reference(written).unwrap();
     assert_eq!(operand.type_reference, written);
     assert!(operand.path.is_empty());

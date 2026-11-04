@@ -246,7 +246,33 @@ fn access_coordinates(
         .ok_or(SelectedInstructionError::custody())?;
     let coordinates = match &row.kind {
         I::ByteSequenceRead { source, .. } => vec![whole(*source)],
-        I::StorageAddress { source, path, .. } => {
+        I::ActivateTaskRegister {
+            gdt,
+            task_state,
+            scratch,
+            ..
+        } => {
+            let signature = function
+                .structural
+                .as_ref()
+                .ok_or(SelectedInstructionError::custody())?;
+            let mut coordinates = Vec::new();
+            for argument in [gdt, task_state, scratch]
+                .into_iter()
+                .filter(|argument| argument.place == access.place)
+            {
+                let root = root_type(function, argument.place)
+                    .ok_or(SelectedInstructionError::custody())?;
+                let selected =
+                    storage_address_geometry(root, &argument.path, &signature.structural_types)
+                        .ok_or(SelectedInstructionError::custody())?;
+                if selected.uses_borrowed_backing {
+                    coordinates.push(argument.clone());
+                }
+            }
+            coordinates
+        }
+        I::StorageAddress { source, path, .. } | I::GlobalDescriptorTable { source, path, .. } => {
             let signature = function
                 .structural
                 .as_ref()
@@ -382,7 +408,7 @@ fn field_coordinate(
     coordinate
         .path
         .push(terminal_psi::StructuralPathSegment::Field(
-            selected.identity.clone(),
+            selected.identity,
         ));
     Ok(coordinate)
 }

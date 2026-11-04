@@ -101,6 +101,9 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub port_write: Option<RegisterConstraintKey>,
     pub system_register_read: Option<RegisterConstraintKey>,
     pub system_register_write: Option<RegisterConstraintKey>,
+    pub global_descriptor_table: Option<RegisterConstraintKey>,
+    pub task_register_activate: Option<RegisterConstraintKey>,
+    pub task_register_read: Option<RegisterConstraintKey>,
     pub control_register_read: Option<RegisterConstraintKey>,
     pub control_register_write: Option<RegisterConstraintKey>,
     pub port_register_read: Option<RegisterConstraintKey>,
@@ -115,6 +118,8 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub atomic_store: Option<RegisterConstraintKey>,
     pub atomic_update: Option<RegisterConstraintKey>,
     pub atomic_compare_exchange: Option<RegisterConstraintKey>,
+    /// Single-attempt exchange returns the observed resident and outcome tag.
+    pub atomic_compare_exchange_once: Option<RegisterConstraintKey>,
     /// Bitwise RMW may need a retry sequence with a different register contract.
     pub atomic_bitwise_update: Option<RegisterConstraintKey>,
     pub crash: RegisterConstraintKey,
@@ -746,17 +751,17 @@ pub fn call_constraint_keys(variants: std::ops::Range<u16>) -> Vec<RegisterConst
 }
 
 /// The constraint row keyed `key` in a constraint row list.
-pub fn find_register_constraint<'rows>(
-    rows: &'rows [RegisterInstructionConstraint],
+pub fn find_register_constraint(
+    rows: &[RegisterInstructionConstraint],
     key: RegisterConstraintKey,
-) -> Option<&'rows RegisterInstructionConstraint> {
+) -> Option<&RegisterInstructionConstraint> {
     rows.iter().find(|row| row.key == key)
 }
 
 /// The mutable constraint row keyed `key` in a constraint row list.
-pub fn find_register_constraint_mut<'rows>(
-    rows: &'rows mut [RegisterInstructionConstraint],
+pub fn find_register_constraint_mut(
+    rows: &mut [RegisterInstructionConstraint],
     key: RegisterConstraintKey,
-) -> Option<&'rows mut RegisterInstructionConstraint> {
+) -> Option<&mut RegisterInstructionConstraint> {
     rows.iter_mut().find(|row| row.key == key)
 }

@@ -147,7 +147,7 @@ fn float_result_policy_catalog_rejects_changed_dependencies_and_trap_surfaces() 
         let mut wrong_declaration = source.clone();
         wrong_constraint
             .operands
-            .insert(0, wrong_constraint.operands[0].clone());
+            .insert(0, wrong_constraint.operands[0]);
         wrong_declaration.alternatives[0]
             .encoded
             .external_operand_reads

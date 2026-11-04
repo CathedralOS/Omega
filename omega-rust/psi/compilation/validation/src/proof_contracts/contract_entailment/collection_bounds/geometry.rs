@@ -14,23 +14,49 @@ pub(in crate::proof_contracts::contract_entailment) fn proves_observed_bounds(
     judge: &StructuralJudge<'_>,
     indexed: &TableIndexedExpression,
     collection_type: TypeReferenceHandle,
+    array_extent: Option<&crate::ResolvedArrayExtent>,
     collection: StructuralTerm,
     mut operand: impl FnMut(ExpressionHandle) -> Option<(StructuralTerm, Option<TypeReferenceHandle>)>,
 ) -> bool {
-    let Some(length) = super::super::structural_terms::observed_collection_measure(
-        program,
-        collection_type,
-        language_semantics::declaration_selection::CollectionMeasure::Length,
-        || Some(collection),
-    ) else {
-        return false;
-    };
-    let length_type = crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-        program,
-        symbols::BuiltinTypeAtom::U64,
-    );
-    let Some(length) = integer_operand(program, length, length_type) else {
-        return false;
+    let length = if crate::fixed_array_type_extent(program, collection_type).is_some() {
+        // The source projection supplies this extent, not a raw field binder.
+        // Its own carrier matters even when the selector uses another width.
+        match array_extent {
+            Some(crate::ResolvedArrayExtent::Closed(value)) => {
+                StructuralTerm::Integer(value.clone())
+            }
+            Some(crate::ResolvedArrayExtent::Bound {
+                symbol,
+                type_reference,
+            }) => {
+                let Some(value) = integer_operand(
+                    program,
+                    StructuralTerm::BoundValue(*symbol),
+                    Some(*type_reference),
+                ) else {
+                    return false;
+                };
+                value
+            }
+            None => return false,
+        }
+    } else {
+        let Some(length) = super::super::structural_terms::observed_collection_measure(
+            program,
+            collection_type,
+            language_semantics::declaration_selection::CollectionMeasure::Length,
+            || Some(collection),
+        ) else {
+            return false;
+        };
+        let length_type = crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+            program,
+            symbols::BuiltinTypeAtom::U64,
+        );
+        let Some(length) = integer_operand(program, length, length_type) else {
+            return false;
+        };
+        length
     };
     let zero = StructuralTerm::Integer(BigInt::zero());
     let mut value = |source: ExpressionHandle, default: StructuralTerm| {
@@ -94,7 +120,12 @@ fn integer_operand(
     if matches!(value.semantic_value(), StructuralTerm::Integer(_)) {
         return Some(value);
     }
-    let reference = reference?;
+    // A selector read through a readable borrow (`&u64`, `&mut u64`) denotes
+    // its referent's integer, the same value its preceding bound conjunct
+    // names. Write-only (`&write`) storage is never observed, so it stays out.
+    let reference = crate::value_custody::expression_types::readable_observation_type_reference(
+        program, reference?,
+    )?;
     program
         .primitive_type_reference(reference)
         .filter(|primitive| primitive.is_fixed_integer())?;

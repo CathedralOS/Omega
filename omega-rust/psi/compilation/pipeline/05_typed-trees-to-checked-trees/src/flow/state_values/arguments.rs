@@ -136,7 +136,7 @@ pub(in crate::flow) fn capture_argument(
     if !place
         .segments
         .iter()
-        .all(|segment| crate::flow::fixed_selection_segment(segment))
+        .all(crate::flow::fixed_selection_segment)
     {
         return ScalarValue::Unknown;
     }

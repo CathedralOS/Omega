@@ -194,7 +194,7 @@ fn expression_types<'trees>(
     selection: &ConstantSelection<'_>,
     pending_diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<Vec<(TypeReferenceHandle, &'trees TypeReference)>> {
-    let observed = match trees.tables.bodies.expressions.expression(expression) {
+    match trees.tables.bodies.expressions.expression(expression) {
         ExpressionNode::Name(name) => declared_type(syntax, trees, sources, name.symbol, false)
             .map(|reference| vec![reference]),
         ExpressionNode::Borrow(borrow) => {
@@ -243,10 +243,8 @@ fn expression_types<'trees>(
             // types first, then carry the substituted result to the consumer.
             // This descends only through argument expressions, never callee
             // bodies, so recursion in the source call graph needs no unfolding.
-            let Some(index) = super::selected_machine(trees, call.target_symbol) else {
-                return None;
-            };
-            let Some((authored_result, resolved_result)) =
+            let index = super::selected_machine(trees, call.target_symbol)?;
+            let (authored_result, resolved_result) =
                 sources
                     .declared_types
                     .iter()
@@ -256,17 +254,11 @@ fn expression_types<'trees>(
                         }
                         let (symbol, resolved) = origin.declaration(trees)?;
                         (symbol == call.target_symbol).then_some((authored, resolved))
-                    })
-            else {
-                return None;
-            };
-            let Some((original, _)) = sources
+                    })?;
+            let (original, _) = sources
                 .expressions
                 .iter()
-                .find(|(_, resolved)| *resolved == expression)
-            else {
-                return None;
-            };
+                .find(|(_, resolved)| *resolved == expression)?;
             let syntax_trees::expression::ExpressionNode::Call(authored) =
                 syntax.expressions.expression(*original).clone()
             else {
@@ -296,16 +288,14 @@ fn expression_types<'trees>(
         ExpressionNode::Match(dispatch) => {
             let mut references = Vec::new();
             for arm in trees.tables.bodies.expressions.match_arms(dispatch.arms) {
-                let Some(observed) = expression_types(
+                let observed = expression_types(
                     syntax,
                     trees,
                     sources,
                     arm.value,
                     selection,
                     pending_diagnostics,
-                ) else {
-                    return None;
-                };
+                )?;
                 references.extend(observed);
             }
             (!references.is_empty()).then_some(references)
@@ -314,8 +304,7 @@ fn expression_types<'trees>(
         // equation. In particular, array elements and a literal's magnitude
         // do not determine its generic application's type or extent.
         _ => None,
-    };
-    observed
+    }
 }
 
 fn constraints(
@@ -328,14 +317,14 @@ fn constraints(
     pending_diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<(TypeReferenceHandle, TypeReferenceHandle)> {
     let mut observations = Vec::new();
-    let Some((_, state)) = resolved_declarations(&trees)
+    let Some((_, state)) = resolved_declarations(trees)
         .machine_states
         .iter()
         .find(|(_, state)| state.symbol == target)
     else {
         return observations;
     };
-    let arguments = body_expressions(&trees).expression_handles(arguments);
+    let arguments = body_expressions(trees).expression_handles(arguments);
     if arguments.len() != state.parameters.count() as usize {
         return observations;
     }

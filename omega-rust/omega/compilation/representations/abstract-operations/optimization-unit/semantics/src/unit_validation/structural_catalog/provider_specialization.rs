@@ -1,126 +1,26 @@
 use crate::OptimizationUnitValidationError;
-use abstract_operations::AbstractOperation as O;
-use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BoundaryMachineId, StructuralPlaceKind, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
-/// Replay the exact specialization of an erased or retained service Record
-/// field into a canonical boundary-specific provider-root roster. These roots
-/// are retained specialization witnesses, not direct boundary/Unit-call
-/// structural arguments.
+/// No producer emits provider-attachment roots: providers hold no state, so a
+/// function has no attachment field to specialize. A root is therefore
+/// invalid rather than a specialization witness to replay.
 pub(crate) fn validate_provider_attachment_specialization(
     function: &PsiOptimizationFunction,
-    boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    _boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
+    _types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let provider_roots = function
+    if function
         .structural_places
         .iter()
-        .filter_map(|place| match place.kind {
-            StructuralPlaceKind::ProviderAttachment {
-                attachment,
-                field,
-                boundary,
-            } => Some((place.id, attachment, field, boundary)),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let provider_fields = function
-        .attachment
-        .and_then(|attachment| types.get(&attachment))
-        .and_then(|attachment| match &attachment.shape {
-            terminal_psi::StructuralTypeShape::Record { fields, .. } => Some(
-                fields
-                    .iter()
-                    .filter(|field| {
-                        // Catalog indexing already rejects duplicate type ids.
-                        // Pass its exact child to the shared shape join without
-                        // copying the catalog or converting the marker to data.
-                        terminal_semantics::fused_service_field_carrier(field).is_some()
-                    })
-                    .collect::<Vec<_>>(),
+        .any(|place| matches!(place.kind, StructuralPlaceKind::ProviderAttachment { .. }))
+    {
+        return Err(
+            OptimizationUnitValidationError::InvalidProviderAttachmentSpecialization(
+                function.machine,
             ),
-            _ => None,
-        })
-        .unwrap_or_default();
-    if provider_fields.is_empty() && provider_roots.is_empty() {
-        return Ok(());
-    }
-
-    let invalid = || {
-        OptimizationUnitValidationError::InvalidProviderAttachmentSpecialization(function.machine)
-    };
-    // One attachment may hold several provider fields; every root names one.
-    if provider_fields.is_empty() {
-        return Err(invalid());
-    }
-    let Some(attachment) = function.attachment else {
-        return Err(invalid());
-    };
-    if provider_roots.windows(2).any(|pair| pair[0].3 >= pair[1].3) {
-        return Err(invalid());
-    }
-
-    let mut specialized_boundaries = BTreeSet::new();
-    let provider_places = provider_roots
-        .iter()
-        .map(|(place, ..)| *place)
-        .collect::<BTreeSet<_>>();
-    for (_, root_attachment, field, boundary) in &provider_roots {
-        let Some(boundary_declaration) = boundary_machines.get(boundary) else {
-            return Err(invalid());
-        };
-        if *root_attachment != attachment
-            || !provider_fields
-                .iter()
-                .any(|provider_field| provider_field.id == *field)
-            || boundary_declaration.kind != terminal_psi::BoundaryRequirementKind::Trait
-            || !specialized_boundaries.insert(*boundary)
-        {
-            return Err(invalid());
-        }
-    }
-
-    let mut called_boundaries = BTreeSet::new();
-    for operation in function.block_nodes().map(|node| &node.operation) {
-        match operation {
-            O::BoundaryCall {
-                boundary,
-                structural_arguments,
-                ..
-            } => {
-                // Trait requirements consume provider fields. An operator's
-                // absent nominal attachment does not turn it into a trait call.
-                if boundary_machines.get(boundary).is_some_and(|declaration| {
-                    declaration.kind == terminal_psi::BoundaryRequirementKind::Trait
-                }) {
-                    called_boundaries.insert(*boundary);
-                }
-                if structural_arguments
-                    .iter()
-                    .any(|argument| provider_places.contains(&argument.place))
-                {
-                    return Err(invalid());
-                }
-            }
-            O::CallStructural {
-                structural_arguments,
-                result: AbstractStructuralCallResult::Unit,
-                ..
-            } if structural_arguments
-                .iter()
-                .any(|argument| provider_places.contains(&argument.place)) =>
-            {
-                return Err(invalid());
-            }
-            _ => {}
-        }
-    }
-    // Both sets are empty for an unused provider field. Any executed boundary
-    // still requires its exact root, and an uncalled root remains invalid.
-    if called_boundaries != specialized_boundaries {
-        return Err(invalid());
+        );
     }
     Ok(())
 }

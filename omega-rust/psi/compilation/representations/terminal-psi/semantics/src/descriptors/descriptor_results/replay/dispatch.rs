@@ -1,5 +1,5 @@
 //! Join executable post-state effects independently of public result contracts.
-use super::replay::Summary;
+use super::engine::Summary;
 use super::*;
 
 /// Stored effects are a may-union over every normal realization. An alternative

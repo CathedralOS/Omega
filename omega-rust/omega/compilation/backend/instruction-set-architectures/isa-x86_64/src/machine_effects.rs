@@ -213,6 +213,9 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             port_write: Some(crate::X86_64_PORT_WRITE),
             system_register_read: Some(crate::X86_64_FLAGS_SNAPSHOT),
             system_register_write: Some(crate::X86_64_FLAGS_RESTORE),
+            global_descriptor_table: Some(crate::X86_64_GLOBAL_DESCRIPTOR_TABLE),
+            task_register_activate: Some(crate::X86_64_TASK_REGISTER_ACTIVATE),
+            task_register_read: Some(crate::X86_64_TASK_REGISTER_READ),
             control_register_read: Some(crate::X86_64_CONTROL_REGISTER_READ),
             control_register_write: Some(crate::X86_64_CONTROL_REGISTER_WRITE),
             port_register_read: Some(crate::X86_64_PORT_REGISTER_READ),
@@ -232,6 +235,7 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             atomic_update: Some(crate::X86_64_ATOMIC_UPDATE),
             atomic_bitwise_update: Some(crate::X86_64_ATOMIC_BITWISE_UPDATE),
             atomic_compare_exchange: Some(crate::X86_64_ATOMIC_COMPARE_EXCHANGE),
+            atomic_compare_exchange_once: Some(crate::X86_64_ATOMIC_COMPARE_EXCHANGE_ONCE),
             crash: crate::X86_64_CRASH,
             load_packed: Some(crate::X86_64_LOAD_PACKED),
             store_packed: Some(crate::X86_64_STORE_PACKED),
@@ -559,6 +563,10 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
         | Semantic::ProcessorHalt
         | Semantic::InterruptControl
         | Semantic::ControlRegisterRead
+        | Semantic::TaskRegisterActivate
+        | Semantic::TaskRegisterRead
+        | Semantic::GlobalDescriptorTableLoad
+        | Semantic::GlobalDescriptorTableStore
         | Semantic::ControlRegisterWrite
         | Semantic::SystemRegisterRead => {
             return crate::selected_form_encoding::register_access::effects(
@@ -587,12 +595,11 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
         Semantic::FloatResultPolicy(form) => {
             return crate::selected_form_encoding::float_result_policy::effects(form);
         }
-        // LOCK-prefixed atomic forms read their address plus operation
-        // inputs and write the observed-prior output alone.
-        Semantic::AtomicAccess(form) => (
-            (0..form.operation.input_count()).collect(),
-            form.observed_operand().into_iter().collect(),
-        ),
+        // The atomic encoder owns both explicit results and implicit effects.
+        // Its outcome tag is a real output, alongside the observed resident.
+        Semantic::AtomicAccess(form) => {
+            return crate::selected_form_encoding::atomic::effects(form);
+        }
         Semantic::NearestIeeeFloatArithmetic(_) => {
             unreachable!("float arithmetic effects returned above")
         }
@@ -789,18 +796,6 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
                     MachineEncodedControlEffect::ReturnFromActivationStackV1,
                 )
             }
-            Semantic::AtomicAccess(form) => {
-                let encoded = crate::selected_form_encoding::atomic::effects(form);
-                (
-                    encoded.implicit_unit_uses,
-                    encoded.implicit_unit_defs,
-                    encoded.implicit_unit_clobbers,
-                    encoded.memory,
-                    encoded.stack,
-                    encoded.trap,
-                    encoded.control,
-                )
-            }
             // The xor-zero idiom defines its destination from no input and
             // clobbers RFLAGS; the baseline `mov r64, imm64` touches no flag.
             Semantic::MaterializeI64 if variant == 1 => (
@@ -858,7 +853,11 @@ fn size(semantic: Semantic) -> Size {
         | Semantic::SystemRegisterRead
         | Semantic::SystemRegisterWrite
         | Semantic::ControlRegisterRead
+        | Semantic::GlobalDescriptorTableLoad
+        | Semantic::GlobalDescriptorTableStore
         | Semantic::ControlRegisterWrite => crate::encoder_resolved(1, Some(40)),
+        Semantic::TaskRegisterActivate => crate::encoder_resolved(1, Some(512)),
+        Semantic::TaskRegisterRead => crate::encoder_resolved(1, Some(8)),
         Semantic::AccessorScalarAccess(_) => crate::encoder_resolved(7, Some(9)),
         Semantic::PortWrite => Size::ExactBytes(x86_encoding::IMMEDIATE_PORT_WRITE_WIDTH as u16),
         Semantic::AtomicFence | Semantic::MemoryFence => Size::ExactBytes(3),

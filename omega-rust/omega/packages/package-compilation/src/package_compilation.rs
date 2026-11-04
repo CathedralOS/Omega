@@ -162,17 +162,14 @@ impl PackageCompilationInputs {
 
     pub(crate) fn require_same_shared_product_sources(&self, other: &Self) -> Result<(), String> {
         for (identity, record) in &self.source.packages {
-            if let Some(previous) = other.source.packages.get(identity) {
-                if record.source_root != previous.source_root
+            if let Some(previous) = other.source.packages.get(identity)
+                && (record.source_root != previous.source_root
                     || record.canonical_name != previous.canonical_name
                     || record.captured_source != previous.captured_source
                     || record.captured_build_source != previous.captured_build_source
-                    || record.dependencies != previous.dependencies
-                {
-                    return Err(
-                        "Product query graphs disagree about a shared package source".into(),
-                    );
-                }
+                    || record.dependencies != previous.dependencies)
+            {
+                return Err("Product query graphs disagree about a shared package source".into());
             }
             if other
                 .source
@@ -640,27 +637,5 @@ mod acquisition_tests {
         wrong_package[0].package = root;
         assert!(inputs.with_dependency_acquisitions(wrong_package).unwrap_err().iter().any(|error| matches!(error,
             PackageCompilationInputError::InvalidDependencyAcquisition { reason, .. } if reason.contains("alias and purpose"))));
-    }
-}
-
-impl PackageCompilationSourceInputs {
-    /// Captured namespaces are immutable values. A metadata-only physical
-    /// package must reproduce its committed bytes now; location and old index
-    /// equality alone cannot attest unchanged source across invocations.
-    pub fn matches_current_source_identity(&self) -> Result<bool, String> {
-        for package in self.packages.values() {
-            if package.captured_source.is_some()
-                || self.filesystem.has_captured_namespace(&package.source_root)
-            {
-                continue;
-            }
-            let Some(expected) = &package.canonical_source_metadata else {
-                return Ok(false);
-            };
-            if crate::source::source_snapshot::capture(&package.source_root)? != *expected {
-                return Ok(false);
-            }
-        }
-        Ok(true)
     }
 }

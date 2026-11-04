@@ -169,21 +169,19 @@ pub(super) fn build_signature_crash_capsule(
         &termination,
         &callable_binders(&generics, parameters),
     );
-    let identity = program.type_identities.with(|table| {
-        checked_trees::contract_identity(
-            language_semantics::MachineSupplyMode::Requirement,
-            None,
-            &published_service_names,
-            language_semantics::SynchronousInvocationInterface::PublishedCeiling,
-            &published_invocations,
-            language_semantics::SuspensionInterface::PublishedMaySuspend(signature.suspends),
-            language_semantics::BlockingInterface::PublishedMayBlock(signature.blocks),
-            crash.interface(),
-            &termination,
-            &declaration,
-            table,
-        )
-    });
+    let identity = checked_trees::contract_identity(
+        language_semantics::MachineSupplyMode::Requirement,
+        None,
+        &published_service_names,
+        language_semantics::SynchronousInvocationInterface::PublishedCeiling,
+        &published_invocations,
+        language_semantics::SuspensionInterface::PublishedMaySuspend(signature.suspends),
+        language_semantics::BlockingInterface::PublishedMayBlock(signature.blocks),
+        crash.interface(),
+        &termination,
+        &declaration,
+        &program.type_identities,
+    );
     Ok(checked_trees::CrashContractCapsule::new_with_commitment(
         target_machine,
         target_state,
@@ -231,21 +229,19 @@ fn build_operator_crash_contract_capsule(
     // that declaration envelope; neither a selected provider nor an arithmetic
     // spelling can donate effects or a termination proof to the requirement.
     let termination = language_semantics::TerminationGuarantee::NoGuarantee;
-    let identity = program.type_identities.with(|table| {
-        checked_trees::contract_identity(
-            language_semantics::MachineSupplyMode::Requirement,
-            None,
-            &[],
-            language_semantics::SynchronousInvocationInterface::PublishedCeiling,
-            &[],
-            language_semantics::SuspensionInterface::PublishedMaySuspend(false),
-            language_semantics::BlockingInterface::PublishedMayBlock(false),
-            crash.interface(),
-            &checked_trees::DeclaredTermination::NoGuarantee,
-            &declaration,
-            table,
-        )
-    });
+    let identity = checked_trees::contract_identity(
+        language_semantics::MachineSupplyMode::Requirement,
+        None,
+        &[],
+        language_semantics::SynchronousInvocationInterface::PublishedCeiling,
+        &[],
+        language_semantics::SuspensionInterface::PublishedMaySuspend(false),
+        language_semantics::BlockingInterface::PublishedMayBlock(false),
+        crash.interface(),
+        &checked_trees::DeclaredTermination::NoGuarantee,
+        &declaration,
+        &program.type_identities,
+    );
     Ok(checked_trees::CrashContractCapsule::new_with_commitment(
         operator.symbol,
         operator.symbol,
@@ -355,11 +351,10 @@ fn build_structural_runtime_requirements(
             }
             typed_trees::domain::ProofFact::Membership(membership) => {
                 let primitive = validation::scalar_membership_carrier(program, membership)?;
-                let subject = values::lower_unit_scalar_argument(
+                let subject = values::lower_machine_entry_scalar_argument(
                     program,
                     operators,
-                    entry,
-                    0,
+                    machine,
                     membership.value,
                     primitive,
                 )?;
@@ -629,12 +624,10 @@ fn build_published_crash_buckets(
                 }
                 _ => {
                     let declaration = declared_fact(program, fact, &binders, content_conservation)?;
-                    program.type_identities.with(|table| {
-                        checked_trees::CrashPredicateIdentity::from_declared_fact(
-                            &declaration,
-                            table,
-                        )
-                    })
+                    checked_trees::CrashPredicateIdentity::from_declared_fact(
+                        &declaration,
+                        &program.type_identities,
+                    )
                 }
             };
             bucket.routes.push(identity);

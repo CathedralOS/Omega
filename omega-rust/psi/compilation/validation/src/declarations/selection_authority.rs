@@ -78,7 +78,8 @@ pub fn validate_authored_declaration_selections(
 pub fn checked_selection_requirements(
     program: &CheckedTrees,
 ) -> arena::Arena<checked_trees::CheckedSelectionRequirement> {
-    let skipped = crate::queries::execution_projection::descriptor_selection_occurrences(&program.typed);
+    let skipped =
+        crate::queries::execution_projection::descriptor_selection_occurrences(&program.typed);
     let mut result = Vec::new();
     for selection in program.facts.authored_declaration_selections() {
         let selected_is_pruned = match selection.target() {
@@ -198,7 +199,7 @@ fn normalize_checked_selection(
 
 /// Comparison data from a source checkpoint. It deliberately implements no
 /// authority trait: decoded scope can reject reuse, never authorize execution.
-#[derive(Clone, compiler_storage::Record)]
+#[derive(Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum RecordedDeclarationAuthority {
     Absent,
     Packages(std::collections::BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>),

@@ -62,6 +62,16 @@ impl OperationFrame<'_, '_> {
         operation: &CheckedUnitEffectOperationPlan,
         inputs: CallInputs<'_>,
     ) -> Result<(), LoweringError> {
+        if let CheckedUnitEffectOperationPlan::GlobalDescriptorTable {
+            operation,
+            storage,
+            service,
+            ..
+        } = operation
+        {
+            return self
+                .global_descriptor_table(identities, *operation, storage, *service, &inputs);
+        }
         let Some(call) = operation.call() else {
             return unsupported("operation frame call entry received a non-call operation");
         };
@@ -85,6 +95,21 @@ impl OperationFrame<'_, '_> {
         // The route and result select the emitter; each receives the call
         // plan and the result binding this match already destructured.
         match (call.route(), call.result()) {
+            (
+                CheckedUnitCallRoute::TaskRegister {
+                    operation,
+                    service,
+                    result_type,
+                },
+                _,
+            ) => self.task_register(
+                identities,
+                call,
+                *operation,
+                *service,
+                *result_type,
+                &inputs,
+            ),
             (
                 CheckedUnitCallRoute::ActivationStorage {
                     operation: action,
@@ -157,12 +182,11 @@ impl OperationFrame<'_, '_> {
                 call.coordinate.statement_index as usize,
                 call.coordinate.call_ordinal as usize,
             )
-        }) {
-            if let lowered_psi::LoweredSourceCallSite::Operation(operation) = emitted.terminal_site
-            {
-                self.evaluation
-                    .retire_structural_operation_operands(operation, self.operations)?;
-            }
+        }) && let lowered_psi::LoweredSourceCallSite::Operation(operation) =
+            emitted.terminal_site
+        {
+            self.evaluation
+                .retire_structural_operation_operands(operation, self.operations)?;
         }
         self.publish_loan_completions(identities, call)?;
         if let Some(completed) = inputs.completed_structural_arguments {

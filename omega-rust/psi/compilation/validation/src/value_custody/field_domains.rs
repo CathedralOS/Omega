@@ -478,14 +478,24 @@ pub fn declared_result_field_domain_contracts(
             })
             .collect::<Vec<_>>()
     };
-    for row in declared_owned_field_obligations(program, reference).domains {
-        if !rows
+    let owned = declared_owned_field_obligations(program, reference).domains;
+    // Large returned records can carry thousands of field requirements. Index
+    // their identities once instead of scanning all earlier fields for each
+    // owned requirement. Keep every readable row and the first owned addition,
+    // including its declared arguments, in the original traversal order.
+    let keep_owned = {
+        let mut seen: std::collections::HashSet<_> = rows.iter().map(|row| &row.identity).collect();
+        owned
             .iter()
-            .any(|existing| existing.identity == row.identity)
-        {
-            rows.push(row);
-        }
-    }
+            .map(|row| seen.insert(&row.identity))
+            .collect::<Vec<_>>()
+    };
+    rows.extend(
+        owned
+            .into_iter()
+            .zip(keep_owned)
+            .filter_map(|(row, keep)| keep.then_some(row)),
+    );
     rows
 }
 
@@ -839,6 +849,92 @@ pub fn domain_constraint_identities(
         .into_iter()
         .map(|domain| (domain.symbol, domain.semantic_id))
         .collect()
+}
+
+/// Whether `value as T` drops a membership the operand carries. A routed or
+/// predicate-free domain names a meaning, not a property of the bits, so a
+/// target that omits it erases it (domains.md, "Exact coercion and erasure").
+/// A predicate membership still holds on the unchanged value and is never
+/// erased here. A recast re-views the same storage, and an unresolved target
+/// erases nothing. A target alias keeps its atomic constituents.
+pub fn cast_erases_membership(
+    program: &dyn crate::CheckingInput,
+    cast: &typed_trees::expression::TableCastExpression,
+    domain_symbol: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+) -> bool {
+    fn names(
+        program: &dyn crate::CheckingInput,
+        symbol: SymbolHandle,
+        wanted: SymbolHandle,
+        stack: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        if symbol == wanted {
+            return true;
+        }
+        if stack.contains(&symbol) {
+            return false;
+        }
+        let Some(alias) = program
+            .domain_definition(symbol)
+            .and_then(|domain| domain.alias.as_ref())
+        else {
+            return false;
+        };
+        stack.push(symbol);
+        let found = alias
+            .constituents
+            .iter()
+            .any(|part| names(program, part.domain_symbol, wanted, stack));
+        stack.pop();
+        found
+    }
+    if cast.form.is_recast() || !cast.result_type.is_valid() {
+        return false;
+    }
+    let meaning_only = domain_requires_provenance(program, domain_symbol)
+        || program
+            .domain_definition(domain_symbol)
+            .is_some_and(|domain| !domain.predicate_presence.is_present());
+    // An alias constituent names its domain without index arguments, so it
+    // keeps only the atomic instance, never one instance of an indexed family.
+    let atomic = program
+        .domain_definition(domain_symbol)
+        .is_some_and(|domain| domain.semantic_id == semantic_domain);
+    meaning_only
+        && !domain_constraint_identities(program, cast.result_type)
+            .iter()
+            .any(|(symbol, identity)| {
+                (*symbol == domain_symbol && *identity == semantic_domain)
+                    || (*symbol != domain_symbol
+                        && atomic
+                        && names(program, *symbol, domain_symbol, &mut Vec::new()))
+            })
+}
+
+/// Whether the value `expression` delivers lost this membership to an
+/// erasing cast. A borrow lends the value it names, so `&(x as T)` lends a
+/// value without the meaning `T` omits, though the bytes stay in `x`.
+/// A recast or an unresolved cast ends the walk without erasing.
+pub fn expression_erases_membership(
+    program: &dyn crate::CheckingInput,
+    mut expression: typed_trees::expression::ExpressionHandle,
+    domain_symbol: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+) -> bool {
+    while let Some(borrow) = program.expression_table.borrow_expression(expression) {
+        expression = borrow.target;
+    }
+    while let Some(cast) = program.expression_table.cast_node(expression) {
+        if cast.form.is_recast() || !cast.result_type.is_valid() {
+            return false;
+        }
+        if cast_erases_membership(program, cast, domain_symbol, semantic_domain) {
+            return true;
+        }
+        expression = cast.value;
+    }
+    false
 }
 
 /// The exact declared domain constraints of a type-reference conjunction,

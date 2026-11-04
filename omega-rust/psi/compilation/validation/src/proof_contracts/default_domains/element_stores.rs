@@ -49,33 +49,22 @@ pub(super) fn handle_element_store<'program>(
     born_zero: bool,
     statement_index: usize,
 ) -> Option<crate::CanonicalPlace> {
-    let Some(indexed) = program.expression_table.indexed_node(target) else {
-        return None;
-    };
+    let indexed = program.expression_table.indexed_node(target)?;
     // `receiver.field[index]` names one element; a deeper selector such as
     // `receiver.field[i][j]` only says that some element of `field` changed.
     let (member_expression, element_index) =
         match program.expression_table.expression(indexed.collection) {
             ExpressionNode::Member(_) => (indexed.collection, Some(indexed.index)),
-            _ => match innermost_member(program, indexed.collection) {
-                Some(member) => (member, None),
-                None => return None,
-            },
+            _ => {
+                let member = innermost_member(program, indexed.collection)?;
+                (member, None)
+            }
         };
-    let Some(member) = program.expression_table.member_node(member_expression) else {
-        return None;
-    };
-    let Some(receiver_spelling) = write_place_spelling(program, member.receiver) else {
-        return None;
-    };
-    let Some(definition) =
-        data_definition_for_expression(program, machine, Some(state), member.receiver)
-    else {
-        return None;
-    };
-    let Some(field) = data_field(program, definition, member.member.as_str()) else {
-        return None;
-    };
+    let member = program.expression_table.member_node(member_expression)?;
+    let receiver_spelling = write_place_spelling(program, member.receiver)?;
+    let definition =
+        data_definition_for_expression(program, machine, Some(state), member.receiver)?;
+    let field = data_field(program, definition, member.member.as_str())?;
     // This names only the operation actually handled below. In particular,
     // canonicalizing a local view does not rebase it to the original lender.
     // Both the field's declaration identity and its full place must agree
@@ -108,6 +97,7 @@ pub(super) fn handle_element_store<'program>(
         receiver_spelling,
         definition,
         entry_valuations,
+        inherited_windows,
         poisoned_all,
         poisoned_paths,
         born_zero,
@@ -182,6 +172,11 @@ pub(super) fn handle_element_store<'program>(
         .retain(|symbol| *symbol != field.symbol);
     if !all_hold {
         place.element_windows.push(field.symbol);
+        place
+            .opening_write
+            .get_or_insert(program.expression_table.source_span(target));
+    } else if !place.any_window_open() {
+        place.opening_write = None;
     }
     handled
 }

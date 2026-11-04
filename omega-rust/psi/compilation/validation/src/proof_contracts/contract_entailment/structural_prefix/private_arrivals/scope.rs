@@ -128,6 +128,7 @@ struct SubordinateCallSite {
     caller_state: SymbolHandle,
     statement: usize,
     expression: Option<ExpressionHandle>,
+    transition_target: typed_trees::statement::TransitionTargetHandle,
     target_machine: SymbolHandle,
 }
 
@@ -198,9 +199,13 @@ impl ProgramPrivateArrivalIndex {
                         .statement_table
                         .indexed_statements(state.statement_nodes)
                     {
-                        for site in crate::machine_calls::calls::collect_call_sites_in_statement(
-                            program, caller, state, index,
-                        ) {
+                        for (ordinal, site) in
+                            crate::machine_calls::calls::collect_call_sites_in_statement(
+                                program, caller, state, index,
+                            )
+                            .into_iter()
+                            .enumerate()
+                        {
                             let Some(target) =
                                 program.machine_by_own_or_state_symbol(site.target_symbol(program))
                             else {
@@ -222,6 +227,10 @@ impl ProgramPrivateArrivalIndex {
                                 caller_state: state.symbol,
                                 statement: index,
                                 expression,
+                                transition_target: crate::transition_call_target(
+                                    program, caller, state, index, ordinal,
+                                )
+                                .unwrap_or_default(),
                                 target_machine: target.symbol,
                             };
                             for &root_symbol in roots {
@@ -294,12 +303,11 @@ pub(super) fn closed_arrivals(
     root: &Machine,
     callee: &Machine,
 ) -> Result<std::sync::Arc<ClosedArrivals>, &'static str> {
-    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
-        if let Ok(guard) = memos.private_closed_arrivals.lock()
-            && let Some(cached) = guard.get(&(root.symbol, callee.symbol))
-        {
-            return cached.clone();
-        }
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+        && let Ok(guard) = memos.private_closed_arrivals.lock()
+        && let Some(cached) = guard.get(&(root.symbol, callee.symbol))
+    {
+        return cached.clone();
     }
     // This summary depends only on the frozen call/use graph. It contains
     // neither a runtime observation nor a predicate's proof judgment.
@@ -365,6 +373,7 @@ fn compute_closed_arrivals(
                     caller: site.caller_state,
                     statement: site.statement,
                     expression: site.expression,
+                    transition_target: site.transition_target,
                 };
                 if expected_owners.iter().any(|(prior, owner)| {
                     prior.caller == arrival.caller && *owner != site.caller_machine_index

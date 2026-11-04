@@ -282,7 +282,10 @@ impl crate::CheckedTrees {
 pub fn closed_provider_leaf_applications(
     typed: &typed_trees::TypedTrees,
     template: &str,
-) -> Result<Vec<String>, Vec<String>> {
+) -> Result<
+    Vec<language_semantics::provider_declarations::ProviderRequirementApplication>,
+    Vec<String>,
+> {
     let mut identities = Vec::new();
     let mut diagnostics = Vec::new();
     for application in typed
@@ -301,7 +304,19 @@ pub fn closed_provider_leaf_applications(
         };
         let identity = typed.trait_requirement_callable_identity_text(owner, application.signature);
         if !identity.is_empty() && identity != template {
-            identities.push(identity);
+            let Some(receiving_application) = typed
+                .type_identity_text(application.portable_trait_application_identity)
+                .filter(|text| !text.is_empty())
+            else {
+                diagnostics.push("provider receiving application has no portable identity".into());
+                continue;
+            };
+            identities.push(
+                language_semantics::provider_declarations::ProviderRequirementApplication {
+                    requirement: identity,
+                    receiving_application,
+                },
+            );
         }
     }
     if diagnostics.is_empty() {

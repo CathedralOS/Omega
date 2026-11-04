@@ -113,11 +113,8 @@ fn captured_float_requirement(
     call: &FlowCallFact,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<bool> {
-    let (machine, target_state) =
-        validation::find_state(program, call.target_symbol).or_else(|| {
-            let machine = program.machine_by_symbol(call.target_symbol)?;
-            Some((machine, program.machine_states(machine).first()?))
-        })?;
+    // The public declaration supplies its parameters even when it has no
+    // executable body. Captured field facts need no private implementation.
     let parameters = validation::call_target_parameters(program, call.target_symbol)?;
     let arguments = call_values::captured_argument_expressions(program, facts, state, call)?;
     let contexts = InvocationContexts::from_call(facts, call, &arguments);
@@ -147,6 +144,11 @@ fn captured_float_requirement(
     {
         return Some(true);
     }
+    let (machine, target_state) =
+        validation::find_state(program, call.target_symbol).or_else(|| {
+            let machine = program.machine_by_symbol(call.target_symbol)?;
+            Some((machine, program.machine_states(machine).first()?))
+        })?;
     selected_float_boolean_requirement(
         program,
         facts,
@@ -841,7 +843,7 @@ fn exact_returned_loan(
         && place
             .segments
             .iter()
-            .all(|segment| crate::flow::fixed_selection_segment(segment))
+            .all(crate::flow::fixed_selection_segment)
         && loan_call_does_not_write(program, state_symbol, expression)
 }
 

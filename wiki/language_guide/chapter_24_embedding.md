@@ -68,6 +68,21 @@ how code executes. Most libraries are ordinary Omega code and work in both
 engines without another implementation. A platform library supplies target
 implementations; external mechanisms need host adapters for interpretation.
 
+The command-line choice is explicit:
+
+```text
+omega run --engine native main.omg
+omega run --engine terminal main.omg
+omega run --both main.omg
+```
+
+Native is the default. Terminal runs the interpreted program without producing
+or launching a native image. `--both` compares the two engines and is not combined
+with `--engine`. The target environment is still selected separately: interpreted
+Linux code needs the admitted Linux contracts, not arbitrary host substitutes.
+Missing adapters prevent execution rather than silently switching engines.
+JIT behavior is a separate deferred decision.
+
 ```text
 Filesystem::read(...)       -> selected portable filesystem slot
 LinuxRawSyscalls::read(...) -> selected Linux contract, not a similar host API

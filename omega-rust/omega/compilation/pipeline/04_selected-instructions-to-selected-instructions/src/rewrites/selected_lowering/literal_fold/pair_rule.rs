@@ -781,7 +781,7 @@ pub(crate) struct PairOperandShape {
 pub(crate) enum PairLiteralPosition {
     /// Binary consumer: the literal victim is the right `Use` operand
     /// (operand index 1); operand 0 is the other register input.
-    RightOperand,
+    Right,
     /// Binary consumer: the literal victim is the left `Use` operand
     /// (operand index 0); operand 1 is the other register input.
     ///
@@ -800,18 +800,18 @@ pub(crate) enum PairLiteralPosition {
     /// alone fixes the result (`0 & x` is zero for every `x` under the
     /// bitwise-and annihilator; `0 % x` is zero for every `x` the
     /// remainder's proven nonzero divisor admits).
-    LeftOperand,
+    Left,
     /// Unary consumer: the literal victim is the sole `Use` operand
     /// (operand index 0).
-    SoleOperand,
+    Sole,
 }
 
 impl PairLiteralPosition {
     /// The consumer operand index the folded literal occupies.
     pub(crate) const fn victim_operand(self) -> u16 {
         match self {
-            Self::RightOperand => 1,
-            Self::LeftOperand | Self::SoleOperand => 0,
+            Self::Right => 1,
+            Self::Left | Self::Sole => 0,
         }
     }
 
@@ -820,9 +820,9 @@ impl PairLiteralPosition {
     /// grammar consumes only the folded input.
     pub(crate) const fn survivor_operand(self) -> Option<u16> {
         match self {
-            Self::RightOperand => Some(0),
-            Self::LeftOperand => Some(1),
-            Self::SoleOperand => None,
+            Self::Right => Some(0),
+            Self::Left => Some(1),
+            Self::Sole => None,
         }
     }
 }
@@ -922,7 +922,7 @@ impl PairOperandShape {
     /// rewritten instruction — the immediate-form binary arithmetic and
     /// compare rules.
     pub(crate) const BINARY_RIGHT_LITERAL: Self = Self {
-        position: PairLiteralPosition::RightOperand,
+        position: PairLiteralPosition::Right,
         result_kind: PairOperandResult::SurvivingOperand,
         tail: PairTailCustody::Bare,
     };
@@ -939,7 +939,7 @@ impl PairOperandShape {
     /// subtraction and comparison fix the literal's role, so
     /// only those families declare a left-literal pair.
     pub(crate) const BINARY_LEFT_LITERAL: Self = Self {
-        position: PairLiteralPosition::LeftOperand,
+        position: PairLiteralPosition::Left,
         result_kind: PairOperandResult::SurvivingOperand,
         tail: PairTailCustody::Bare,
     };
@@ -959,7 +959,7 @@ impl PairOperandShape {
     /// the inverted subtraction to every register reader with no audit
     /// to refuse it.
     pub(crate) const BINARY_LEFT_LITERAL_OPERAND_SWAP: Self = Self {
-        position: PairLiteralPosition::LeftOperand,
+        position: PairLiteralPosition::Left,
         result_kind: PairOperandResult::SwappedOperand,
         tail: PairTailCustody::Bare,
     };
@@ -969,7 +969,7 @@ impl PairOperandShape {
     /// extension-elimination and copy-materialization rules whose rewritten
     /// form is a `MaterializeI64`.
     pub(crate) const UNARY_LITERAL: Self = Self {
-        position: PairLiteralPosition::SoleOperand,
+        position: PairLiteralPosition::Sole,
         result_kind: PairOperandResult::LiteralRecompute,
         tail: PairTailCustody::Bare,
     };
@@ -985,7 +985,7 @@ impl PairOperandShape {
     /// that is not a dropped `Use` — a `Def`, or any operand at position 0
     /// through 2 outside this grammar — rejects.
     pub(crate) const BINARY_RIGHT_LITERAL_AUXILIARY_USES: Self = Self {
-        position: PairLiteralPosition::RightOperand,
+        position: PairLiteralPosition::Right,
         result_kind: PairOperandResult::SurvivingOperand,
         tail: PairTailCustody::AuxiliaryUses,
     };
@@ -1003,7 +1003,7 @@ impl PairOperandShape {
     /// past the result, or any operand at positions 0 through 2 outside
     /// this grammar — rejects.
     pub(crate) const BINARY_RIGHT_LITERAL_CONSTANT_RESULT: Self = Self {
-        position: PairLiteralPosition::RightOperand,
+        position: PairLiteralPosition::Right,
         result_kind: PairOperandResult::ConstantOfLiteral,
         tail: PairTailCustody::ScratchDefs,
     };
@@ -1026,7 +1026,7 @@ impl PairOperandShape {
     /// or any operand at positions 0 through 2 outside this grammar —
     /// rejects.
     pub(crate) const BINARY_LEFT_LITERAL_CONSTANT_RESULT: Self = Self {
-        position: PairLiteralPosition::LeftOperand,
+        position: PairLiteralPosition::Left,
         result_kind: PairOperandResult::ConstantOfLiteral,
         tail: PairTailCustody::ScratchDefs,
     };
@@ -1050,7 +1050,7 @@ impl PairOperandShape {
     /// result, or any operand at positions 0 through 2 outside this
     /// grammar — rejects.
     pub(crate) const BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES: Self = Self {
-        position: PairLiteralPosition::LeftOperand,
+        position: PairLiteralPosition::Left,
         result_kind: PairOperandResult::ConstantOfLiteral,
         tail: PairTailCustody::AuxiliaryUses,
     };
@@ -1071,7 +1071,7 @@ impl PairOperandShape {
     /// past the result, or any operand at positions 0 through 2 outside
     /// this grammar — rejects.
     pub(crate) const BINARY_RIGHT_LITERAL_SCRATCH_DEFS: Self = Self {
-        position: PairLiteralPosition::RightOperand,
+        position: PairLiteralPosition::Right,
         result_kind: PairOperandResult::SurvivingOperand,
         tail: PairTailCustody::ScratchDefs,
     };
@@ -1091,7 +1091,7 @@ impl PairOperandShape {
     /// `Use` past the result, or any operand at positions 0 through 2
     /// outside this grammar — rejects.
     pub(crate) const BINARY_LEFT_LITERAL_SCRATCH_DEFS: Self = Self {
-        position: PairLiteralPosition::LeftOperand,
+        position: PairLiteralPosition::Left,
         result_kind: PairOperandResult::SurvivingOperand,
         tail: PairTailCustody::ScratchDefs,
     };
@@ -1115,7 +1115,7 @@ impl PairOperandShape {
     /// or any operand at positions 0 through 2 outside this grammar
     /// rejects.
     pub(crate) const BINARY_RIGHT_LITERAL_AUXILIARY_USES_OR_SCRATCH_DEFS: Self = Self {
-        position: PairLiteralPosition::RightOperand,
+        position: PairLiteralPosition::Right,
         result_kind: PairOperandResult::SurvivingOperand,
         tail: PairTailCustody::AuxiliaryUsesOrScratchDefs,
     };
@@ -1141,7 +1141,7 @@ impl PairOperandShape {
     /// rejects.
     pub(crate) const BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES_OR_SCRATCH_DEFS: Self =
         Self {
-            position: PairLiteralPosition::LeftOperand,
+            position: PairLiteralPosition::Left,
             result_kind: PairOperandResult::ConstantOfLiteral,
             tail: PairTailCustody::AuxiliaryUsesOrScratchDefs,
         };
@@ -1165,9 +1165,9 @@ impl PairOperandShape {
     pub(crate) const fn result_operand(self, result: PairResultDisposition) -> Option<u16> {
         match (self.position, result) {
             (_, PairResultDisposition::ImplicitUnits) => None,
-            (PairLiteralPosition::SoleOperand, PairResultDisposition::ScalarRegister) => Some(1),
+            (PairLiteralPosition::Sole, PairResultDisposition::ScalarRegister) => Some(1),
             (
-                PairLiteralPosition::RightOperand | PairLiteralPosition::LeftOperand,
+                PairLiteralPosition::Right | PairLiteralPosition::Left,
                 PairResultDisposition::ScalarRegister,
             ) => Some(2),
         }

@@ -243,7 +243,7 @@ fn resolved_path(
                         .and_then(|leaf| leaf.leaf_declaration(types.iter()))
                         .map(|declaration| declaration.id),
                 };
-                StructuralPathSegment::Field(field.identity.clone())
+                StructuralPathSegment::Field(field.identity)
             }
             _ => return None,
         });

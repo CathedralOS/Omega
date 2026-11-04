@@ -50,6 +50,19 @@ must be resolved before landing. Do not repeat broad suites to attribute one tes
 
 ### Merge validation budget
 
+For each proposed build or test, name the decision it answers, the affected
+behavior, and why applicable existing evidence is insufficient. Estimate time
+and resources, including compilation. Reuse evidence only when its revision,
+toolchain, configuration, relevant dependencies and consumers still apply;
+distinguish cold and warm observations. Retain command, inputs and outcome.
+
+If a run exceeds its budget, inspect progress, CPU activity, logs and blockers
+before deciding whether to continue, narrow or revise it. Record the decision
+and reason; do not blindly wait, restart or expand the suite. A justified slow
+run may continue. A budget is not an automatic timeout or a passing result.
+Reviewers rerun checks to resolve material evidence gaps, not every expensive
+build by default. Required CI and release gates remain mandatory.
+
 Before starting a build, record a short plan in the PR or claim: the behavior
 changed, the smallest checks that establish it, reusable observations, and the
 expected build plus execution time. Choose by affected behavior, not by a
@@ -469,35 +482,6 @@ and package crates carry no behavior tests; do not add them back. A test that
 scans a crate's own sources as an architecture guard is the one exception. The `compiler`
 crate's only test target is `corpus_runner`; see
 `omega-rust/omega/compilation/compiler/tests/README.md`.
-
-## Cache independence
-
-`cache_gate.py` compares warm and empty-cache CLI invocations on disposable
-projects, using child-process cache directories rather than the user's cache.
-Supply two optimized producers with different compiler input identities:
-
-```bash
-python tools/build_slot.py --slots 2 -- python tools/cache_gate.py \
-  --cli /path/to/current/omega --other-cli /path/to/previous/omega \
-  --output build/cache-independence
-```
-
-The output directory must be new. The gate requires observed retained-check
-hits before mutation. It changes bodies, same-size/timestamp-preserving
-contracts, declared path dependencies, transitive modules, module existence,
-and the selected build entry. Stale locked compilations must refuse; explicit
-updates must agree with fresh compilation. It also corrupts or removes retained
-records, leaves incomplete temporary records, terminates its own writer during
-record staging, and switches compiler identities. If it misses the interruption
-window, the gate fails rather than counting interruption coverage.
-
-Accepted pairs must produce byte-identical native images and matching native
-exit/stdout/stderr; invalid pairs must reject with the intended diagnostic and
-publish no image. Logs, source snapshots, artifact digests, producer profiles,
-and comparison results remain under the output directory. Test fixtures alone
-receive automatic review decisions. These checks cover the native host and
-named mutations, not every dependency kind, power-loss behavior, or malicious
-cache forgery. They are correctness checks, not compilation benchmarks.
 
 ## Corpus outcome gate
 
@@ -986,6 +970,20 @@ the run tier or the `*_exit` convention. A matching refusal records
 executed program. Wrong diagnostics, another status or execution facts make
 `--record` refuse the row. Use this only for an authored publication refusal,
 not for missing implementation in a program intended to run.
+
+`expected_native_rejection.<target>.txt` overrides the portable refusal file.
+Source rows use their actual `check-target`, while native rows use the target
+being realized. A control may therefore require refusal on three hosted targets
+and an ordinary exit on the fourth. The pilot keeps that control on the same
+product path and validates the refusal without counting an engine execution.
+
+For an ordinary sample whose source is valid, declare its normal `program` role
+in `sample.json` when a control-folder name would infer `intended-invalid`.
+The native sample gate completes normal package review, checks the source, then
+compiles without launching and requires exit 1 plus every target refusal fragment.
+A source error, unrelated refusal, panic or successful build cannot satisfy it.
+The result records `native-rejection:match` separately from executions. Existing
+source-invalid controls keep their checking-only path.
 
 `expected_native_exit.txt` holds one decimal process exit code or `trap`.
 The latter requires SIGTRAP for ARM64, SIGILL for Unix x86-64, or
@@ -1536,7 +1534,7 @@ speedup.
 
 [release_record.py](release/release_record.py) runs the
 [release matrix](../wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
-the eight `RC-*` gates with their exact contract invocations on one host, and
+the six `RC-*` gates with their exact contract invocations on one host, and
 writes that lane's release record (`commit`, toolchain, host, commands,
 results, elapsed time, expected skips, direct-execution observation). `close`
 joins the four lanes' same-commit records into the release closure. It does

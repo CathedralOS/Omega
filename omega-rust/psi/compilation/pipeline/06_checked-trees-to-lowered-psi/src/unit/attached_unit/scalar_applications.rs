@@ -393,6 +393,39 @@ impl SourceScalarApplications {
         checked: &CheckedTrees,
         entry: ConstantEvaluationEntry,
     ) -> Result<ScalarApplicationId, LoweringError> {
+        // Establish safety before discovering executable bodies. Otherwise a
+        // missing lowering path can hide the unsafe constant invocation.
+        let failures = checked.body_crash_summary(entry.entry);
+        let refusal = match failures {
+            Some(summary) if summary.buckets().is_empty() => None,
+            Some(summary) => {
+                let causes = summary
+                    .buckets()
+                    .iter()
+                    .map(|bucket| format!("{:?}", bucket.cause()))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let calls = checked
+                    .facts
+                    .contract_plans
+                    .for_machine(entry.entry)
+                    .into_iter()
+                    .flat_map(|plan| plan.crash.checked_calls())
+                    .filter(|call| !call.surviving_buckets().is_empty())
+                    .map(|call| checked.symbols.name(call.target_machine()))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                Some(format!(
+                    "a checked crash route remains possible ({causes}); calls: [{calls}]"
+                ))
+            }
+            None => Some("the invocation has no complete checked crash summary".to_owned()),
+        };
+        semantic_vocabulary::compiler_evaluation::require_compiler_evaluation_failures(
+            checked.symbols.name(entry.entry),
+            refusal.as_deref().map_or(Ok(()), Err),
+        )
+        .map_err(LoweringError::CompilerEvaluationAdmission)?;
         let primitive = checked
             .typed
             .primitive_type_reference(entry.result_type)

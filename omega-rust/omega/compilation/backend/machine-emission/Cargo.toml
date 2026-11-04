@@ -38,4 +38,6 @@ terminal-fuel = { path = "../../../../psi/compilation/representations/terminal-p
 physical-instructions = { path = "../../representations/post-allocation-machine" }
 
 [dev-dependencies]
+iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }

@@ -1,5 +1,6 @@
-//! `run` requests a retained native product through the shared Build owner.
-//! It owns no package preparation or compilation dispatch. Reference execution
+//! `run` requests a retained native product through the shared Build owner,
+//! or, for `--engine terminal`, the same native request stopped after runtime
+//! admission. It owns no package preparation or compilation dispatch. Reference execution
 //! consumes the exact produced Terminal artifact and its retained runtime
 //! provisions before publication
 //! transfers that payload. Rechecking source or interpreting checked trees would
@@ -27,6 +28,7 @@ pub(super) struct ProbeCompilation {
 pub(super) fn compile(
     private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     options: CompileOptions,
+    destination: NativeDestination,
     reference_inputs: Vec<std::fs::File>,
     terminal_fuel_allowance: u64,
 ) -> Result<ProbeCompilation, Vec<Diagnostic>> {
@@ -42,7 +44,7 @@ pub(super) fn compile(
         build_directory: options.build_dir,
         targets,
         product: ProjectProduct::Native {
-            destination: NativeDestination::Retained,
+            destination,
             private_entry_ram,
         },
         timings: false,
@@ -66,7 +68,14 @@ pub(super) fn compile(
         .report;
     let interpretations = reference_inputs
         .into_iter()
-        .map(|input| interpret_product(&report, Some(input), target_name, terminal_fuel_allowance))
+        .map(|input| {
+            interpret_product(
+                &report,
+                Some(Box::new(input)),
+                target_name,
+                terminal_fuel_allowance,
+            )
+        })
         .collect();
     Ok(ProbeCompilation {
         report,
@@ -77,21 +86,26 @@ pub(super) fn compile(
 
 pub(super) fn interpret_product(
     report: &CompileReport,
-    input: Option<std::fs::File>,
+    input: Option<Box<dyn std::io::Read + Send>>,
     target: &str,
     terminal_fuel_allowance: u64,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
+    // A retained native product carries its Terminal program; a Terminal-only
+    // run's report is that program with the provisions native admission settled.
     let artifact = report
         .retained_native_program()
         .map(|program| program.psi_artifact())
+        .or_else(|| report.artifact())
         .ok_or(TerminalRuntimeError::InvalidProvision(
-            "native report lost its produced Terminal artifact before comparison",
+            "report lost its produced Terminal artifact before execution",
         ))?;
     terminal_runtime::execute(TerminalRuntimeRequest {
+        native_image: report.retained_native_artifact(),
         entry: None,
         filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,
-        // `run` executes this product natively on the same host; its admitted
-        // imports may perform their declared package-owned reach here too.
+        // `run` executes this product on the same host, natively or through
+        // Terminal; its admitted imports may perform their declared
+        // package-owned reach here too.
         native_services: terminal_runtime::TerminalNativeServiceDelegation::MatchingHost,
         native_provider: Some(std::process::Command::new(
             std::env::current_exe().map_err(|error| TerminalRuntimeError::MissingProvision {
@@ -111,7 +125,7 @@ pub(super) fn interpret_product(
         // `run` sponsors one standalone private domain. Its death cannot end
         // this CLI or invalidate another instance's storage/capabilities.
         domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
-        standard_input: input.map(|file| Box::new(file) as Box<dyn std::io::Read + Send>),
+        standard_input: input,
         clock: Some(terminal_runtime::TerminalClockEnvironment::Host),
     })
 }

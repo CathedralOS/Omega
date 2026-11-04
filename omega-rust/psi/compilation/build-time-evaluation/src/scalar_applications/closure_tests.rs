@@ -68,6 +68,7 @@ fn scalar_closure_does_not_admit_unchecked_entries_as_roots_or_callees() {
     for entry in [3, 4] {
         let installation = program
             .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+                native_code_layouts: None,
                 entry: Some(TargetMachineCallable::Machine(machine_id(entry))),
                 installation: Some(&providers),
                 target_machines: Some(&targets),
@@ -120,10 +121,15 @@ fn scalar_closure_derives_supplemental_scope_from_shared_condition_owner() {
     let mut module = scoped_graph(41).view().module().clone();
     module.scalar_applications.conditions = Default::default();
     let scope = &mut module.scalar_applications.proof_scope;
+    let owners = scope
+        .plan
+        .symbols
+        .span(scope.plan.obligation_owners)
+        .expect("the scoped graph records its per-target owners")
+        .to_vec();
     scope.plan.has_obligations = false;
     scope.plan.obligation_owners = Default::default();
-    let helper =
-        terminal_psi::ProofDeclarationId(u32::try_from(scope.declarations.len() + 1).unwrap());
+    let helper = next_declaration(scope);
     scope
         .declarations
         .insert(ProofScopeDeclaration::Unavailable("shared helper".into()));
@@ -132,7 +138,7 @@ fn scalar_closure_derives_supplemental_scope_from_shared_condition_owner() {
         product_selected: true,
         ..Default::default()
     });
-    for caller in [1, 2] {
+    for caller in owners {
         let calls = scope.calls.calls.insert_many([
             semantic_vocabulary::proof_applications::ProofApplicationCall {
                 callee: helper,
@@ -140,7 +146,7 @@ fn scalar_closure_derives_supplemental_scope_from_shared_condition_owner() {
             },
         ]);
         scope.calls.machines.insert(ProofCallMachine {
-            machine: terminal_psi::ProofDeclarationId(caller),
+            machine: caller,
             calls,
             ..Default::default()
         });
@@ -258,6 +264,7 @@ fn scalar_closure_supplies_resolved_extent_to_ordinary_entry_storage() {
     let program = TerminalProgram::borrow(artifact.view());
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            native_code_layouts: None,
             entry: Some(TargetMachineCallable::Machine(machine_id(3))),
             installation: Some(&providers),
             target_machines: Some(&targets),
@@ -349,6 +356,7 @@ fn scalar_closure_admits_ordinary_execution_after_complete_checking() {
         let program = TerminalProgram::borrow(artifact.view());
         let other_installation = program
             .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+                native_code_layouts: None,
                 entry: Some(TargetMachineCallable::Machine(machine_id(2))),
                 installation: Some(&providers),
                 target_machines: Some(&other_selections),
@@ -373,6 +381,7 @@ fn scalar_closure_admits_ordinary_execution_after_complete_checking() {
             let program = TerminalProgram::borrow(code);
             let installation = program
                 .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+                    native_code_layouts: None,
                     entry: Some(TargetMachineCallable::Machine(machine_id(2))),
                     installation: Some(&providers),
                     target_machines: Some(&targets),
@@ -404,30 +413,30 @@ fn scoped_graph(windows_value: u64) -> CanonicalTerminalArtifact {
     let mut module = graph(24, false, false).view().module().clone();
     let scope = &mut module.scalar_applications.proof_scope;
     scope.plan.has_obligations = true;
-    for (ordinal, target) in [(1, "macos_arm64"), (2, "windows_x86_64")] {
+    let mut owners = Vec::new();
+    for target in ["macos_arm64", "windows_x86_64"] {
+        let owner = next_declaration(scope);
         scope
             .declarations
             .insert(ProofScopeDeclaration::Unavailable(format!(
                 "{target} owner"
             )));
         scope.plan.machines.insert(ProofApplicationMachine {
-            machine: terminal_psi::ProofDeclarationId(ordinal),
+            machine: owner,
             authored_target: Some(target.into()),
             source_target: Some(target.into()),
             product_selected: true,
             ..Default::default()
         });
+        owners.push(owner);
     }
-    scope.plan.obligation_owners = scope.plan.symbols.insert_many([
-        terminal_psi::ProofDeclarationId(1),
-        terminal_psi::ProofDeclarationId(2),
-    ]);
-    for (owner, value) in [(1, 41), (2, windows_value)] {
+    scope.plan.obligation_owners = scope.plan.symbols.insert_many(owners.iter().copied());
+    for (owner, value) in owners.into_iter().zip([41, windows_value]) {
         module
             .scalar_applications
             .conditions
             .retain_range(
-                ScalarConditionSubject::Declaration(terminal_psi::ProofDeclarationId(owner)),
+                ScalarConditionSubject::Declaration(owner),
                 semantic_vocabulary::ScalarConditionRole::Prerequisite,
                 ScalarRangeRequirement::Fixed {
                     minimum: BigInt::from_u64(41),

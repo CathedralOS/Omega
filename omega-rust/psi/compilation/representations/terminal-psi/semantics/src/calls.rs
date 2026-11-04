@@ -7,4 +7,3 @@ pub mod closed_conformances;
 pub mod closed_reach;
 pub mod evidence_calls;
 pub(crate) mod invocation_inputs;
-pub(crate) mod service_binding;

@@ -71,7 +71,7 @@ fn term_dependencies<'a>(
             let path = path
                 .iter()
                 .map(|step| match step {
-                    ScalarReadProjection::Static(step) => Some(step.clone()),
+                    ScalarReadProjection::Static(step) => Some(*step),
                     _ => None,
                 })
                 .collect::<Option<Vec<_>>>()?;
@@ -186,6 +186,25 @@ fn predicate_dependencies<'a>(
                 visit(types.clone(), carrier, subject, premise, output, depth + 1)?;
                 visit(types, carrier, subject, conclusion, output, depth + 1)
             }
+            // `self in T::Case` observes the tag of the sum at its path. The
+            // case must be declared there; the whole sum value is the
+            // dependency, so a write of the tag or of any payload overlaps it.
+            Proposition::StructuralCaseMembership {
+                subject: observed,
+                case,
+            } => {
+                if observed.root() != subject {
+                    return None;
+                }
+                crate::canonical_structural_path_tip(types, carrier, observed.path())?
+                    .shape
+                    .sum_cases()?
+                    .iter()
+                    .any(|declared| declared.id == *case)
+                    .then_some(())?;
+                output.push(observed.path().to_vec());
+                Some(())
+            }
             _ => None,
         }
     }
@@ -232,7 +251,16 @@ fn storage_path<'a>(
         return None;
     }
     if let Some((Segment::Field(field), prefix)) = path.split_last() {
-        let mut storage = crate::canonical_structural_storage_path(types.clone(), carrier, prefix)?;
+        // A payload field `self.lo` under `self in T::Range` is observed as
+        // `[Case(Range), Field(lo)]`. The storage walk cannot end inside a
+        // case namespace, so resolve the sum's own path and keep the Case
+        // step; the field lookup below checks the case is declared there.
+        let (sum, case) = match prefix.split_last() {
+            Some((Segment::Case(case), sum)) => (sum, Some(*case)),
+            _ => (prefix, None),
+        };
+        let mut storage = crate::canonical_structural_storage_path(types.clone(), carrier, sum)?;
+        storage.extend(case.map(StructuralPathSegment::Case));
         let field = crate::observed_field_declaration(types, carrier, prefix, *field)?;
         storage.push(StructuralPathSegment::Field(field.identity));
         Some(storage)
@@ -346,9 +374,7 @@ fn content_dependencies<'a>(
                 })
             }
         };
-        if valid.is_none() {
-            return None;
-        }
+        valid?;
     }
     Some(())
 }
@@ -536,7 +562,7 @@ pub fn store_preserves_content<'a>(
             ) else {
                 return false;
             };
-            if !structural_paths_may_overlap(&input, &write) {
+            if !structural_paths_may_overlap(&input, write) {
                 return true;
             }
             let Some(relative) = write.strip_prefix(input.as_slice()) else {
@@ -566,3 +592,6 @@ pub fn store_preserves_content<'a>(
             })
         })
 }
+
+#[cfg(test)]
+mod tests;

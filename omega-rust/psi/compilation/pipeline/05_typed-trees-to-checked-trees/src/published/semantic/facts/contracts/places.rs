@@ -268,16 +268,14 @@ fn contract_name_path_place(
         return None;
     } else if path.head_symbol.is_valid() {
         (facts.append_symbol_place(path.head_symbol), 1usize)
-    } else if let Some(parameter_symbol) =
-        contract_owner_parameter_symbol(program, proof, contract.owner, path, members.first())
-    {
+    } else {
+        let parameter_symbol =
+            contract_owner_parameter_symbol(program, proof, contract.owner, path, members.first())?;
         // A head name that resolves to a parameter of the contract's owner
         // (for example `item` in `requires item in Item::Ready`) roots the
         // place at that parameter, matching how call-site obligations
         // instantiate the same contract against caller arguments.
         (facts.append_symbol_place(parameter_symbol), 1usize)
-    } else {
-        return None;
     };
 
     for (offset, member_name) in members.iter().skip(start_index).enumerate() {

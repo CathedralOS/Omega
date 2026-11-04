@@ -304,8 +304,20 @@ pub struct BorrowCallReferenceSlotEffect {
     pub may_select: bool,
 }
 
+/// A returned pointer can forward an existing descriptor or form a new view.
+/// Projected returns require the complete checked invocation association before
+/// their source permission can become a borrowing parent.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum BorrowLoanFormation {
+    #[default]
+    Ordinary,
+    ReturnedDescriptor,
+    ReturnedProjection,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowLoanFact {
+    pub formation: BorrowLoanFormation,
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
     pub incoming_owner_path: HandleSpan<facts::PlaceSegment>,
     /// Address admitted with a representation footprint, in this loan's same
@@ -340,10 +352,11 @@ pub struct BorrowLoanFact {
     /// the whole owner; dynamic indexes conservatively overlap every element.
     pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
     pub source_owner_symbol: SymbolHandle,
-    /// Immediate historical descriptor alternatives transported into this
-    /// leaf, in `BorrowFacts::loan_suppliers`. These are not reborrow parents.
-    /// A shared dependency graph retains every supplier without enumerating
-    /// complete histories when conditional replacements repeatedly converge.
+    /// Immediate saved-descriptor alternatives supplying this value or its
+    /// captured source, in `BorrowFacts::loan_suppliers`. A pure transfer
+    /// copies permission; a real view also retains this forwarding route beside
+    /// its borrowing parent. These descriptor edges are not reborrow events.
+    /// The shared graph keeps every supplier without expanding whole histories.
     pub supplying_loans: HandleSpan<Handle<BorrowLoanFact>>,
     /// Checked formation lineage for this loan occurrence.
     ///
@@ -471,6 +484,18 @@ pub struct CheckedDirectBorrowRestorationObligation {
     pub weakening_reason: crate::FlowBorrowWeakeningReason,
 }
 
+/// A resource remains held by every exact transported descriptor after its
+/// original slot retires. Keep the lexical retirement and final holding event
+/// distinct; neither a later slot generation nor equal geometry is a holder.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedBorrowResourceRetention {
+    pub lexical_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    /// Includes descriptors a completed call installed; those carry custody
+    /// without a local loan and have no activation or weakening rows.
+    pub holders: HandleSpan<Handle<BorrowLoanFact>>,
+    pub final_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+}
+
 /// Checked-only resource closure for one state-local loan captured directly
 /// from a root authority occurrence.
 ///
@@ -486,6 +511,7 @@ pub struct CheckedDirectBorrowLoanResource {
     pub captured_place: CapturedPlace,
     pub access: BorrowAccessKind,
     pub activation_source: crate::FlowInvalidationSource,
+    pub retention: CheckedBorrowResourceRetention,
     pub weakening_source: crate::FlowInvalidationSource,
     pub weakening_reason: crate::FlowBorrowWeakeningReason,
     pub parent_lifetime: CheckedDirectBorrowParentLifetime,
@@ -532,10 +558,11 @@ pub struct CheckedReborrowRestorationObligation {
 /// Exact checked-flow boundary at which an explicit direct reborrow suspends
 /// use through its immediate parent occurrence.
 ///
-/// The parent constraint is the unique occurrence present immediately before
-/// the child activation. This checked-only join says nothing about the parent
-/// after formation: it is not interval containment, reactivation, completed
-/// restoration, or Terminal authority.
+/// The source constraint names the current descriptor immediately before child
+/// activation. A saved descriptor may forward the actual parent's permission;
+/// its frozen capture is checked separately and does not revive the old slot.
+/// This join establishes no later parent activity, restoration, or Terminal
+/// authority.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReborrowParentSuspensionBoundary {
     pub child_loan: Handle<BorrowLoanFact>,
@@ -543,6 +570,8 @@ pub struct CheckedReborrowParentSuspensionBoundary {
     pub parent_resource: CheckedParentBorrowResource,
     pub child_activation: Handle<crate::FlowBorrowActivationFact>,
     pub parent_entry_constraint: Handle<crate::FlowConstraintRef>,
+    /// The current descriptor forwarding this parent permission at formation.
+    pub source_loan: Handle<BorrowLoanFact>,
     pub source: crate::FlowInvalidationSource,
 }
 
@@ -699,6 +728,7 @@ pub struct CheckedReborrowLoanResource {
     pub parent_access: BorrowAccessKind,
     pub access_effect: CheckedReborrowAccessEffect,
     pub activation_source: crate::FlowInvalidationSource,
+    pub retention: CheckedBorrowResourceRetention,
     pub weakening_source: crate::FlowInvalidationSource,
     pub weakening_reason: crate::FlowBorrowWeakeningReason,
     pub parent_loan: Handle<BorrowLoanFact>,
@@ -728,6 +758,7 @@ pub struct BorrowFacts {
     pub reference_slot_effects: Arena<BorrowCallReferenceSlotEffect>,
     pub loans: Arena<BorrowLoanFact>,
     pub loan_suppliers: Arena<Handle<BorrowLoanFact>>,
+    pub resource_holders: Arena<Handle<BorrowLoanFact>>,
     pub returned_loans: Arena<BorrowReturnedLoanFact>,
     pub states: Arena<StateBorrowFact>,
     /// `(machine, state) -> state rows` grouping owned by this ledger. The
@@ -801,6 +832,7 @@ impl BorrowFacts {
             reference_slot_effects,
             loans,
             loan_suppliers,
+            resource_holders: Arena::new(),
             returned_loans,
             states,
             state_index: KeyedRows::default(),
@@ -838,11 +870,11 @@ impl BorrowFacts {
         &self,
         state: &StateBorrowFact,
     ) -> impl Iterator<Item = (Handle<BorrowLoanFact>, &BorrowLoanFact)> {
-        state.loans.handles().filter_map(|handle| {
-            self.loans
-                .is_valid(handle)
-                .then(|| (handle, self.loans.get(handle)))
-        })
+        state
+            .loans
+            .handles()
+            .filter(|&handle| self.loans.is_valid(handle))
+            .map(|handle| (handle, self.loans.get(handle)))
     }
 
     /// Exact state membership and the statement-resource role share one

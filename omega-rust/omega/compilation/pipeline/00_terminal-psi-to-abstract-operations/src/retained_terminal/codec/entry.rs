@@ -5,55 +5,6 @@ use super::value::{
 use program_entry_plan::*;
 use terminal_psi::TerminalIdentityTable;
 
-#[cfg(test)]
-mod tests {
-    use super::super::value::RecordLimits;
-    use super::*;
-
-    #[test]
-    fn entry_record_round_trip_preserves_declaration_without_synthetic_fields() {
-        let mut identities = TerminalIdentityTable::default().into_builder();
-        let callable = identities.intern("fixture::start");
-        let source = SelectedProgramEntrySignature::from_checked_declaration(
-            target::TargetProfile::host().program_entry_slot(),
-            "fixture::start".to_owned(),
-            "start".to_owned(),
-            "start".to_owned(),
-            callable,
-            Vec::new(),
-            identities.build(),
-        )
-        .expect("free hosted entry signature");
-        let entry = crate::NativeProgramEntrySettlement::new(&source, None);
-        let mut output = RecordWriter::new(RecordLimits::default());
-        EntryRecord::write_borrowed(entry, &mut output).expect("entry encoding");
-        let bytes = output.finish();
-        let mut input =
-            RecordReader::new(&bytes, RecordLimits::default()).expect("bounded entry bytes");
-        let recovered = EntryRecord::read(&mut input).expect("entry decoding");
-        input.finish().expect("complete entry consumption");
-        assert_eq!(recovered.source, source);
-        assert!(recovered.semantic.is_none());
-        assert!(recovered.physical.is_none());
-        assert!(recovered.storage.is_none());
-        assert!(recovered.checked.is_none());
-        assert!(!recovered.physical_adapter_requested);
-        let mut output = RecordWriter::new(RecordLimits::default());
-        EntryRecord::write_borrowed(recovered.borrowed(), &mut output)
-            .expect("recovered entry encoding");
-        assert_eq!(output.finish(), bytes);
-
-        for length in 0..bytes.len() {
-            let mut input = RecordReader::new(&bytes[..length], RecordLimits::default())
-                .expect("bounded truncated input");
-            assert!(
-                EntryRecord::read(&mut input).is_err(),
-                "accepted prefix {length}"
-            );
-        }
-    }
-}
-
 pub(super) struct EntryRecord {
     pub source: SelectedProgramEntrySignature,
     pub semantic: Option<calling_conventions::BoundaryCallingApplication>,
@@ -283,6 +234,55 @@ impl RecordValue for SelectedProgramStorageEntryPlan {
             Some(physical) => plan
                 .with_physical_contract(physical)
                 .map_err(|reason| input.error(reason.to_string())),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::value::RecordLimits;
+    use super::*;
+
+    #[test]
+    fn entry_record_round_trip_preserves_declaration_without_synthetic_fields() {
+        let mut identities = TerminalIdentityTable::default().into_builder();
+        let callable = identities.intern("fixture::start");
+        let source = SelectedProgramEntrySignature::from_checked_declaration(
+            target::TargetProfile::host().program_entry_slot(),
+            "fixture::start".to_owned(),
+            "start".to_owned(),
+            "start".to_owned(),
+            callable,
+            Vec::new(),
+            identities.build(),
+        )
+        .expect("free hosted entry signature");
+        let entry = crate::NativeProgramEntrySettlement::new(&source, None);
+        let mut output = RecordWriter::new(RecordLimits::default());
+        EntryRecord::write_borrowed(entry, &mut output).expect("entry encoding");
+        let bytes = output.finish();
+        let mut input =
+            RecordReader::new(&bytes, RecordLimits::default()).expect("bounded entry bytes");
+        let recovered = EntryRecord::read(&mut input).expect("entry decoding");
+        input.finish().expect("complete entry consumption");
+        assert_eq!(recovered.source, source);
+        assert!(recovered.semantic.is_none());
+        assert!(recovered.physical.is_none());
+        assert!(recovered.storage.is_none());
+        assert!(recovered.checked.is_none());
+        assert!(!recovered.physical_adapter_requested);
+        let mut output = RecordWriter::new(RecordLimits::default());
+        EntryRecord::write_borrowed(recovered.borrowed(), &mut output)
+            .expect("recovered entry encoding");
+        assert_eq!(output.finish(), bytes);
+
+        for length in 0..bytes.len() {
+            let mut input = RecordReader::new(&bytes[..length], RecordLimits::default())
+                .expect("bounded truncated input");
+            assert!(
+                EntryRecord::read(&mut input).is_err(),
+                "accepted prefix {length}"
+            );
         }
     }
 }

@@ -1,7 +1,6 @@
 use super::plan::unexpected;
 use std::collections::BTreeMap;
 
-use calling_conventions::MachineRegister;
 use physical_instructions::PostAllocationMachineInstruction;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
@@ -311,76 +310,27 @@ fn validate_callback_materializations(
                 Architecture::X86_64,
                 SelectedFormCallbackMaterializationEncoding::X86_64Relative32 { patch_row_offset },
             ) => {
-                let canonical = match callback.destination {
-                    CallbackAddressDestination::Register(_) => {
-                        // REX 8D modrm disp32 — seven bytes, disp32 patch at +3.
-                        callback.code_byte_count == 7
-                            && patch_row_offset as u64 == cursor + 3
-                            && group.len() == 7
-                            && group[0] & 0xfe == 0x48
-                            && group[1] == 0x8d
-                            && group[2] & 0xc7 == 0x05
-                            && zero_patch(patch_row_offset)?
+                let destination = match callback.destination.clone() {
+                    CallbackAddressDestination::Register(register) => {
+                        isa_x86_64::X86_64CallbackMaterializationDestination::Register(register)
                     }
                     CallbackAddressDestination::RecordField {
                         root_register,
-                        byte_offset,
-                    } => {
-                        // lea r11, [rip+disp32] then mov [root+off], r11 —
-                        // fourteen bytes, disp32 patch at +3.
-                        if !matches!(
-                            root_register,
-                            MachineRegister::X86Rax
-                                | MachineRegister::X86Rcx
-                                | MachineRegister::X86Rdx
-                                | MachineRegister::X86Rbx
-                                | MachineRegister::X86Rsi
-                                | MachineRegister::X86Rdi
-                                | MachineRegister::X86R8
-                                | MachineRegister::X86R9
-                                | MachineRegister::X86R10
-                                | MachineRegister::X86R11
-                                | MachineRegister::X86R12
-                                | MachineRegister::X86R13
-                                | MachineRegister::X86R14
-                                | MachineRegister::X86R15
-                        ) {
-                            return unexpected(instruction.id);
-                        }
-                        let root = root_register.codec_index();
-                        callback.code_byte_count == 14
-                            && patch_row_offset as u64 == cursor + 3
-                            && group.len() == 14
-                            && group[0] == 0x4c
-                            && group[1] == 0x8d
-                            && group[2] == 0x1d
-                            && group[7] == 0x4c | u8::from(root >= 8)
-                            && group[8] == 0x89
-                            && group[9] == 0x98 | (root & 7)
-                            && u32::from_le_bytes([group[10], group[11], group[12], group[13]])
-                                == byte_offset
-                            && zero_patch(patch_row_offset)?
-                    }
+                        placements,
+                    } => isa_x86_64::X86_64CallbackMaterializationDestination::RecordField {
+                        root_register,
+                        placements,
+                    },
                     CallbackAddressDestination::OutgoingStack { byte_offset } => {
-                        // lea r11, [rip+disp32], then the exact-width pointer
-                        // store at pre-call RSP; CALL's return address is not
-                        // part of this outgoing-area coordinate.
-                        let mut expected = vec![0x4c, 0x8d, 0x1d, 0, 0, 0, 0, 0x4c, 0x89];
-                        if byte_offset > i32::MAX as u32 {
-                            return unexpected(instruction.id);
+                        isa_x86_64::X86_64CallbackMaterializationDestination::OutgoingStack {
+                            byte_offset,
                         }
-                        if byte_offset <= i8::MAX as u32 {
-                            expected.extend_from_slice(&[0x5c, 0x24, byte_offset as u8]);
-                        } else {
-                            expected.extend_from_slice(&[0x9c, 0x24]);
-                            expected.extend_from_slice(&byte_offset.to_le_bytes());
-                        }
-                        callback.code_byte_count as usize == expected.len()
-                            && patch_row_offset as u64 == cursor + 3
-                            && group == expected
-                            && zero_patch(patch_row_offset)?
                     }
                 };
+                let canonical = isa_x86_64::encode_private_callback_materialization(destination)
+                    .is_some_and(|expected| group == expected)
+                    && patch_row_offset as u64 == cursor + 3
+                    && zero_patch(patch_row_offset)?;
                 if !canonical {
                     return unexpected(instruction.id);
                 }
@@ -392,58 +342,25 @@ fn validate_callback_materializations(
                     page_offset_patch_row_offset,
                 },
             ) => {
-                let canonical = match callback.destination {
-                    CallbackAddressDestination::Register(_) => {
-                        callback.code_byte_count == 8
-                            && page_patch_row_offset as u64 == cursor
-                            && page_offset_patch_row_offset as u64 == cursor + 4
-                            && group.len() == 8
-                            && group[1] == 0
-                            && group[2] == 0
-                            && group[3] == 0x90
-                            && group[0] & 0xe0 == 0
-                            && group[5] & 0xfc == 0
-                            && group[6] == 0
-                            && group[7] == 0x91
-                            && group[4] & 0x1f == group[0] & 0x1f
-                            && group[4] >> 5 == group[0] & 7
-                            && group[5] & 3 == group[0] >> 3 & 3
+                let destination = match callback.destination.clone() {
+                    CallbackAddressDestination::Register(register) => {
+                        isa_aarch64::Aarch64CallbackMaterializationDestination::Register(register)
                     }
                     CallbackAddressDestination::RecordField {
                         root_register,
-                        byte_offset,
-                    } => {
-                        let MachineRegister::Aarch64X(root) = root_register else {
-                            return unexpected(instruction.id);
-                        };
-                        let store = group
-                            .get(8..12)
-                            .map(|word| u32::from_le_bytes([word[0], word[1], word[2], word[3]]));
-                        callback.code_byte_count == 12
-                            && byte_offset % 8 == 0
-                            && page_patch_row_offset as u64 == cursor
-                            && page_offset_patch_row_offset as u64 == cursor + 4
-                            && group.len() == 12
-                            && group[0] == 16
-                            && group[1] == 0
-                            && group[2] == 0
-                            && group[3] == 0x90
-                            && group[4] == 0x10
-                            && group[5] == 0x02
-                            && group[6] == 0
-                            && group[7] == 0x91
-                            && store
-                                == Some(
-                                    0xF900_0000_u32
-                                        | ((byte_offset / 8) << 10)
-                                        | (u32::from(root) << 5)
-                                        | 16,
-                                )
-                    }
+                        placements,
+                    } => isa_aarch64::Aarch64CallbackMaterializationDestination::RecordField {
+                        root_register,
+                        placements,
+                    },
                     CallbackAddressDestination::OutgoingStack { .. } => {
                         return unexpected(instruction.id);
                     }
                 };
+                let canonical = isa_aarch64::encode_private_callback_materialization(&destination)
+                    .is_some_and(|expected| group == expected)
+                    && page_patch_row_offset as u64 == cursor
+                    && page_offset_patch_row_offset as u64 == cursor + 4;
                 if !canonical {
                     return unexpected(instruction.id);
                 }

@@ -83,7 +83,7 @@ pub(super) fn write(
         row,
         destination.place,
         byte_offset,
-        u32::from(byte_count),
+        byte_count,
         SelectedMemoryAccessRole::WriteElementView {
             index,
             length,

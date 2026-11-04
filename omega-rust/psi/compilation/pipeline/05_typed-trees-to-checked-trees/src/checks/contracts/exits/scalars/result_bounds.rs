@@ -31,9 +31,7 @@ impl ExitScalars<'_, '_> {
     /// one exact scalar value. Retain the selected arithmetic policy, including
     /// wrapping, rather than interpreting its syntax as unbounded arithmetic.
     fn current_bounds_comparison(&self, expression: ExpressionHandle) -> Option<bool> {
-        let Some(binary) = self.program.expression_table.binary_node(expression) else {
-            return None;
-        };
+        let binary = self.program.expression_table.binary_node(expression)?;
         if !matches!(
             binary.operator,
             BinaryOperator::Equal
@@ -126,9 +124,7 @@ impl ExitScalars<'_, '_> {
                 .result_bounds_comparison(unary.operand)
                 .map(|value| !value);
         }
-        let Some(binary) = self.program.expression_table.binary_node(expression) else {
-            return None;
-        };
+        let binary = self.program.expression_table.binary_node(expression)?;
         let spelling = validation::comparison_operator_spelling(binary.operator)?;
         // A result operand is the bare return reference or a member
         // projection through it (`result.first`); both carry the selected

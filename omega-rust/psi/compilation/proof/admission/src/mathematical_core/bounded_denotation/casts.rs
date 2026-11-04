@@ -96,9 +96,7 @@ impl Denotation {
     fn cast_edge_definition(
         proposition: &Proposition,
     ) -> Option<(&ScalarTerm, &ScalarTerm, IntegerOperation)> {
-        let Some((next, definition)) = proposition.as_equal() else {
-            return None;
-        };
+        let (next, definition) = proposition.as_equal()?;
         let operation = match definition {
             ScalarTerm::IntegerWiden {
                 source_type,

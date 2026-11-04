@@ -78,6 +78,11 @@ extends this lifecycle through the ordinary Bump package: exhausted allocation,
 release without cursor rewind, checked recomposition, full reset, and reuse.
 Generic Vec element ownership and cleanup remain the parent outcome's acceptance.
 
+The [generic-move production](generic_move/README.md) extracts and reinstalls a
+complete element through generic helpers and returns both storage claims in one
+record. Its affine composition observes exactly-once cleanup; its controls reject
+a different placement identity and reuse of the consumed element.
+
 The [library-growth production](library_growth/README.md) runs that lifecycle
 through the alloc package's runtime-sized u32 vector. The application provides
 backing and its selected profile; the library preserves the initialized prefix

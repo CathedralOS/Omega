@@ -307,6 +307,18 @@ pub(super) fn adapt(
             };
             let mut payload_writes = Vec::new();
             match &operation.kind {
+                OperationKind::ActivateTaskRegister { gdt, scratch, .. } => {
+                    for source in [gdt, scratch] {
+                        payload_writes.push(payload_query(source.place, &source.path, None));
+                    }
+                }
+                OperationKind::GlobalDescriptorTable {
+                    operation: terminal_psi::GlobalDescriptorTableOperation::Store,
+                    source,
+                    ..
+                } => {
+                    payload_writes.push(payload_query(source.place, &source.path, None));
+                }
                 OperationKind::WriteOnlyPrimitiveStore {
                     destination, path, ..
                 } => {
@@ -849,9 +861,7 @@ pub(super) fn adapt(
                             | StructuralTypeShape::Mixed { cases, .. } => cases,
                             _ => return None,
                         };
-                        if terminal_psi::find_structural_case(cases, *result_case).is_none() {
-                            return None;
-                        }
+                        terminal_psi::find_structural_case(cases, *result_case)?;
                         // The retained constructor tag proves that sibling-case
                         // payload slots do not exist in this value. Only those
                         // slots have no backing; an unresolved live field stays

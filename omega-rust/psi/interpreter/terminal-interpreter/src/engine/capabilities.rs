@@ -191,9 +191,18 @@ pub(crate) fn check_with_private_entry_ram(
                 }
                 let callee = match &operation.kind {
                     OperationKind::EstablishNativeCodeLayout { machine } => {
-                        return Err(TerminalInterpretError::UnsupportedCapability(
-                            TerminalUnsupportedCapability::NativeCodeLayout { machine: *machine },
-                        ));
+                        if installation
+                            .and_then(|supplies| supplies.native_code_layouts.as_ref())
+                            .and_then(|layouts| layouts.layout(*machine))
+                            .is_none()
+                        {
+                            return Err(TerminalInterpretError::UnsupportedCapability(
+                                TerminalUnsupportedCapability::NativeCodeLayout {
+                                    machine: *machine,
+                                },
+                            ));
+                        }
+                        None
                     }
                     OperationKind::RegisterAccess {
                         event:
@@ -214,6 +223,27 @@ pub(crate) fn check_with_private_entry_ram(
                         .is_some_and(|model| model.supports(*kind)) =>
                     {
                         None
+                    }
+                    OperationKind::ActivateTaskRegister { .. } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess {
+                                operation: terminal_psi::RegisterOperation::TaskRegisterActivate,
+                            },
+                        ));
+                    }
+                    OperationKind::ReadTaskRegister { .. } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess {
+                                operation: terminal_psi::RegisterOperation::TaskRegisterRead,
+                            },
+                        ));
+                    }
+                    OperationKind::GlobalDescriptorTable { operation, .. } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess {
+                                operation: terminal_psi::RegisterOperation::GlobalDescriptorTable(*operation),
+                            },
+                        ));
                     }
                     OperationKind::RegisterAccess { event, .. } => {
                         return Err(TerminalInterpretError::UnsupportedCapability(
@@ -546,7 +576,14 @@ mod tests {
             parameters: Vec::new(),
             parameter_order: Vec::new(),
             structural_parameters: Vec::new(),
-            structural_places: Vec::new(),
+            structural_places: if selected_origins > 0 {
+                vec![terminal_psi::StructuralPlaceDeclaration {
+                    id: PlaceId::new(1).unwrap(),
+                    kind: semantic_vocabulary::StructuralPlaceKind::Result,
+                }]
+            } else {
+                Vec::new()
+            },
             entry_claims: Vec::new(),
             block_entry_claims: Vec::new(),
             loan_completions: Vec::new(),
@@ -567,6 +604,34 @@ mod tests {
     fn program() -> AdmittedTerminalProgram<'static> {
         let entry = MachineId::new(1).unwrap();
         let mut module = TerminalModule::for_entry(entry);
+        // Returned places still need their carrier declarations when this
+        // graph-only fixture walks the storage used by a reached return.
+        let declaration = |id, shape| terminal_psi::StructuralTypeDeclaration {
+            quotient_carrier: None,
+            id: StructuralTypeId::new(id).unwrap(),
+            identity: terminal_psi::TerminalIdentityIndex(0),
+            owns_linear_claim: false,
+            copyable: false,
+            no_code_affine_cleanup: true,
+            descriptor_cleanup: true,
+            shape,
+            scalar_restriction: None,
+        };
+        module.structural_types = vec![
+            declaration(
+                1,
+                terminal_psi::StructuralTypeShape::Reference {
+                    referent: StructuralTypeId::new(2).unwrap(),
+                    access: StructuralAccess::MutableBorrow,
+                },
+            ),
+            declaration(
+                2,
+                terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                    semantic_vocabulary::ScalarType::Boolean,
+                ),
+            ),
+        ];
         module.machines.push(machine(0, Vec::new()));
         let identity = terminal_codec::terminal_psi_identity(&module).unwrap();
         let mut program = AdmittedTerminalProgram {
@@ -1059,6 +1124,7 @@ mod tests {
             folded_constant_target: None,
             target_machines: None,
             target_layouts: None,
+            native_code_layouts: None,
         };
         assert_eq!(
             check(&program, Some(&installation)),
@@ -1272,6 +1338,7 @@ mod tests {
             folded_constant_target: None,
             target_machines: None,
             target_layouts: None,
+            native_code_layouts: None,
         };
         // Multi-source result transport no longer adds a capability demand.
         // Following the installed provider satisfies this graph's missing

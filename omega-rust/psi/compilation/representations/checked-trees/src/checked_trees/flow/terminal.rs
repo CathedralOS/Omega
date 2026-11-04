@@ -55,7 +55,7 @@ pub use boundary_machine_plans::{
     CheckedBoundaryLifetimeDependency, CheckedBoundaryMachinePlan,
     CheckedBoundaryMachineResultPlan, CheckedBoundaryReferenceDestination,
     CheckedBoundaryReferenceOutput, CheckedBoundaryScalarDomainRequirementPlan,
-    CheckedBoundaryScalarGuarantee, CheckedProviderAttachmentRequirementPlan,
+    CheckedBoundaryScalarGuarantee,
 };
 pub use composed_unit_control_plans::{
     CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
@@ -116,10 +116,11 @@ pub use unit_call_plans::{
     CheckedUnitCallTarget, CheckedUnitCallTransfers,
 };
 pub use unit_effect_plans::{
-    CheckedLayoutObservation, CheckedOperandSequence, CheckedStructuralValueCall,
-    CheckedUnitCallableEntry, CheckedUnitCleanupBoundary, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitLocalBindingPlan,
-    CheckedUnitParameterStoragePlan, CheckedUnitPlanGap, CheckedUnitPlanGapReason,
-    CheckedUnitScalarControlPlan, CheckedUnitSelectedReferenceRetirementPlan,
+    CheckedLayoutObservation, CheckedOperandSequence, CheckedStructuralInvocation,
+    CheckedStructuralValueCall, CheckedUnitCallableEntry, CheckedUnitCleanupBoundary,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
+    CheckedUnitLocalBindingPlan, CheckedUnitParameterStoragePlan, CheckedUnitPlanGap,
+    CheckedUnitPlanGapReason, CheckedUnitScalarControlPlan,
+    CheckedUnitSelectedReferenceRetirementPlan,
 };
 pub use unit_plans::CheckedUnitPlan;

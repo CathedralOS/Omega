@@ -667,12 +667,11 @@ pub(crate) fn construction_application(
             if selection.source_span() != expression_table(program).source_span(expression) {
                 continue;
             }
-            if let Some(selected) = selection.target().as_resolved() {
-                if let Some(declaration) =
+            if let Some(selected) = selection.target().as_resolved()
+                && let Some(declaration) =
                     program.const_declaration_by_symbol(selected.selected_symbol())
-                {
-                    return declaration.declared_type;
-                }
+            {
+                return declaration.declared_type;
             }
         }
     }

@@ -135,7 +135,7 @@ usable without contacting a source remote after its Cargo dependencies are prese
 
 `--allow-dirty` is for developing the packager, not publishing a release: it
 marks both the version and manifest dirty. Normal packaging requires a clean
-checkout. The smoke suite is installed-product coverage, not the eight-gate
+checkout. The smoke suite is installed-product coverage, not the six-gate
 compiler-completion matrix below. Run the same command on each supported host;
 a Windows result does not establish a macOS/Linux pass.
 
@@ -222,7 +222,7 @@ not require the producer's Rust checkout.
 [the completion contract](../../wiki/drafts/reference/rust_compiler_completion.md#closure-rule):
 the record must contain the commit, pinned Rust toolchain, host OS and
 architecture, commands, results, elapsed time, and the exact list of expected
-skips. The tool owns the eight-gate manifest verbatim, runs a gate's command
+skips. The tool owns the six-gate manifest verbatim, runs a gate's command
 block on one host, writes one `omega-release-record/3` JSON document per
 runner row under `records/`, and joins the four rows' records into one
 `omega-release-closure/1` document. It is the only release recorder.
@@ -357,7 +357,7 @@ the lane this host can record, and every command this host cannot run.
 PowerShell uses the same invocation with `python`. Restrict to one gate with
 `--gate RC-REPOSITORY` (repeatable). The per-host gates `RC-NATIVE-MATRIX`
 and `RC-REPRESENTATIVE-PROGRAMS` must run in every lane's record; the other
-six must pass in every record that runs them and run in at least one. A red
+four must pass in every record that runs them and run in at least one. A red
 gate still writes a record — the record is the evidence, open rows and all —
 so `run` exits 0 after writing and reports the record's open rows and its log
 directory.

@@ -7,11 +7,7 @@
 //! queries without publishing truncated effects as complete evidence.
 
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
-use crate::machine_calls::calls::write_frames::alias_bindings::{
-    rebind_direct_assignment_target, representable_assignment_alias_rebinding,
-};
 use crate::machine_calls::calls::write_frames::alias_origins::{
-    stable_alias_initializer_origin, stable_alias_initializer_origins,
     stable_assignment_target_path, stable_local_reference_alias_origin,
     stable_local_reference_alias_origins,
 };
@@ -139,15 +135,10 @@ pub(crate) struct StateWritePrefix {
     pub(crate) stored: Vec<StoredLocalOrigins>,
 }
 
-/// What an `Assignment` query returns for one statement: the direct target
-/// and the prefix origins it closes over.
+/// What an `Assignment` query returns for one statement: its direct target.
 #[derive(Clone)]
 pub(crate) struct AssignmentPrefix {
-    pub(crate) isolated_locals: Vec<String>,
     pub(crate) target: AssignmentWriteTarget,
-    pub(crate) aliases: Vec<(String, FramePlaceOrigin)>,
-    pub(crate) divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
-    pub(crate) stored: Vec<StoredLocalOrigins>,
 }
 
 /// Every assignment statement's `Assignment` query result, by statement index,
@@ -162,11 +153,7 @@ fn push_queried_storage_assignment(
     queried_assignment: bool,
     assignments: &mut Option<&mut Vec<(usize, AssignmentPrefix)>>,
     statement_index: usize,
-    isolated_local_roots: &[String],
     paths: &[String],
-    local_alias_origins: &[(String, FramePlaceOrigin)],
-    divergent_alias_origins: &[(String, Vec<FramePlaceOrigin>)],
-    stored: &[StoredLocalOrigins],
 ) {
     if queried_assignment {
         let Some(record) = assignments.as_deref_mut() else {
@@ -175,13 +162,9 @@ fn push_queried_storage_assignment(
         record.push((
             statement_index,
             AssignmentPrefix {
-                isolated_locals: isolated_local_roots.to_vec(),
                 target: AssignmentWriteTarget::Storage {
                     paths: paths.to_vec(),
                 },
-                aliases: local_alias_origins.to_vec(),
-                divergent: divergent_alias_origins.to_vec(),
-                stored: stored.to_vec(),
             },
         ));
     }
@@ -193,25 +176,12 @@ fn record_local_replacement_assignment(
     assignments: &mut Option<&mut Vec<(usize, AssignmentPrefix)>>,
     statement_index: usize,
     path: String,
-    isolated_local_roots: &[String],
-    local_alias_origins: &[(String, FramePlaceOrigin)],
-    divergent_alias_origins: &[(String, Vec<FramePlaceOrigin>)],
-    stored: &[StoredLocalOrigins],
 ) {
     let target = AssignmentWriteTarget::LocalBindingReplacement { path };
     let Some(record) = assignments.as_deref_mut() else {
         unreachable!("assignments are recorded only into a roster")
     };
-    record.push((
-        statement_index,
-        AssignmentPrefix {
-            isolated_locals: isolated_local_roots.to_vec(),
-            target,
-            aliases: local_alias_origins.to_vec(),
-            divergent: divergent_alias_origins.to_vec(),
-            stored: stored.to_vec(),
-        },
-    ));
+    record.push((statement_index, AssignmentPrefix { target }));
 }
 
 pub(crate) fn walk_state_assignments(
@@ -573,11 +543,7 @@ fn walk_state_write_prefix_body(
                 record.push((
                     statement_index,
                     AssignmentPrefix {
-                        isolated_locals: isolated_local_roots.clone(),
                         target: AssignmentWriteTarget::Storage { paths: vec![path] },
-                        aliases: Vec::new(),
-                        divergent: Vec::new(),
-                        stored: Vec::new(),
                     },
                 ));
             }
@@ -587,8 +553,7 @@ fn walk_state_write_prefix_body(
             StatementNode::LocalData(local)
                 if (type_may_carry_write(program, local.type_reference)
                     && !type_is_caller_isolated_local(program, local.type_reference))
-                    || (include_shared
-                        && type_reference_is_reference(program, local.type_reference)) =>
+                    || type_reference_is_reference(program, local.type_reference) =>
             {
                 stable_local_reference_alias_origin(
                     program,
@@ -607,34 +572,8 @@ fn walk_state_write_prefix_body(
             }
             _ => None,
         };
-        let representable_alias_rebinding = representable_assignment_alias_rebinding(
-            program,
-            machine,
-            state,
-            statement,
-            &local_alias_origins,
-            |aliases, value| {
-                if include_shared {
-                    return reference_subjects::backing_origin(
-                        program, machine, value, symbols, inference, aliases, &stored,
-                    );
-                }
-                stable_alias_initializer_origin(
-                    program,
-                    machine,
-                    &machine_symbols,
-                    inference,
-                    value,
-                    parameters,
-                    &isolated_local_roots,
-                    aliases,
-                    &divergent_alias_origins,
-                    symbols,
-                    true,
-                    &stored,
-                )
-            },
-        );
+        let replaces_local_binding =
+            super::reference_subjects::replaces_binding(program, machine, statement)?;
         let declared_stored_origins = match statement {
             StatementNode::LocalData(local)
                 if ((type_may_carry_write(program, local.type_reference)
@@ -725,7 +664,7 @@ fn walk_state_write_prefix_body(
         ) {
             return None;
         }
-        if !divergent_alias_origins.is_empty() {
+        if !replaces_local_binding && !divergent_alias_origins.is_empty() {
             let divergent_roots = divergent_alias_origins
                 .iter()
                 .map(|(name, _)| name.clone())
@@ -755,99 +694,53 @@ fn walk_state_write_prefix_body(
                         program.expression_table.expression(assignment.target),
                         typed_trees::expression::ExpressionNode::Name(_)
                     );
-                    if bare_name_target
-                        && suffix.is_empty()
-                        && local_aliases::expression_may_rebind_mutable_alias(
+                    // A value RHS into a reference-typed interior slot
+                    // writes through that slot's own referent, which the
+                    // path frame cannot name.
+                    if !bare_name_target
+                        && !local_aliases::expression_may_rebind_mutable_alias(
                             program,
                             machine,
                             state,
                             assignment.value,
                         )
-                    {
-                        let origins = stable_alias_initializer_origins(
+                        && crate::value_custody::places::declared_place_type_raw(
                             program,
                             machine,
-                            &machine_symbols,
-                            inference,
-                            assignment.value,
-                            parameters,
-                            &isolated_local_roots,
-                            &local_alias_origins,
-                            &divergent_alias_origins,
-                            symbols,
-                            true,
-                            &stored,
-                        )?;
-                        if queried_assignment {
-                            record_local_replacement_assignment(
-                                &mut assignments,
-                                statement_index,
-                                relative,
-                                &isolated_local_roots,
-                                &local_alias_origins,
-                                &divergent_alias_origins,
-                                &stored,
-                            );
-                        }
-                        divergent_alias_origins[position].1 = origins;
-                    } else {
-                        // A value RHS into a reference-typed interior slot
-                        // writes through that slot's own referent, which the
-                        // path frame cannot name.
-                        if !bare_name_target
-                            && !local_aliases::expression_may_rebind_mutable_alias(
-                                program,
-                                machine,
-                                state,
-                                assignment.value,
-                            )
-                            && crate::value_custody::places::declared_place_type_raw(
-                                program,
-                                machine,
-                                Some(state),
-                                assignment.target,
-                            )
-                            .is_some_and(|reference| {
-                                type_reference_is_reference(program, reference)
-                            })
+                            Some(state),
+                            assignment.target,
+                        )
+                        .is_some_and(|reference| type_reference_is_reference(program, reference))
+                    {
+                        return None;
+                    }
+                    // A bare write through the binding lands on one proven
+                    // referent, so the frame records the whole union. Each
+                    // candidate still expands through the ordinary write
+                    // path so stored carrier slots contribute their
+                    // overlapping external leaves.
+                    let mut paths = Vec::new();
+                    for origin in &divergent_alias_origins[position].1 {
+                        let composed =
+                            super::place_paths::project_write_path(program, origin, suffix);
+                        for path in
+                            expand_write_path(program, &composed, &local_alias_origins, &stored)?
                         {
-                            return None;
-                        }
-                        // A bare write through the binding lands on one proven
-                        // referent, so the frame records the whole union. Each
-                        // candidate still expands through the ordinary write
-                        // path so stored carrier slots contribute their
-                        // overlapping external leaves.
-                        let mut paths = Vec::new();
-                        for origin in &divergent_alias_origins[position].1 {
-                            let composed =
-                                super::place_paths::project_write_path(program, origin, suffix);
-                            for path in expand_write_path(
-                                program,
-                                &composed,
-                                &local_alias_origins,
-                                &stored,
-                            )? {
-                                if !paths.contains(&path) {
-                                    paths.push(path);
-                                }
+                            if !paths.contains(&path) {
+                                paths.push(path);
                             }
                         }
-
-                        push_queried_assignment_and_visible_paths(
-                            queried_assignment,
-                            &mut assignments,
-                            statement_index,
-                            &isolated_local_roots,
-                            &paths,
-                            &local_alias_origins,
-                            &divergent_alias_origins,
-                            &stored,
-                            &mut written,
-                            parameters,
-                            &locals,
-                        )?;
                     }
+
+                    push_queried_assignment_and_visible_paths(
+                        queried_assignment,
+                        &mut assignments,
+                        statement_index,
+                        &paths,
+                        &mut written,
+                        parameters,
+                        &locals,
+                    )?;
                     install_statement_call_effects(
                         program,
                         inference,
@@ -887,7 +780,7 @@ fn walk_state_write_prefix_body(
             );
             if exposes_reference_binding
                 && declared_local_alias_origin.is_none()
-                && !representable_alias_rebinding
+                && !replaces_local_binding
                 && !(include_shared
                     && declared_stored_origins.is_some()
                     && !reference_subjects::bindings::calls_expose_bindings(
@@ -933,9 +826,6 @@ fn walk_state_write_prefix_body(
         match statement {
             StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
             StatementNode::Assignment(assignment) => {
-                let replaces_local_binding = representable_alias_rebinding
-                    || (include_shared
-                        && reference_subjects::replaces_binding(program, machine, statement)?);
                 let replacement = stored_origins::assignment_origins(
                     program,
                     machine,
@@ -949,72 +839,26 @@ fn walk_state_write_prefix_body(
                     include_shared,
                     replaces_local_binding,
                 )?;
-                if let Some(relative) = rebind_direct_assignment_target(
-                    program,
-                    machine,
-                    state,
-                    assignment,
-                    &mut local_alias_origins,
-                    |aliases, relative| {
-                        let origin = if include_shared {
-                            reference_subjects::backing_origin(
-                                program,
-                                machine,
-                                assignment.value,
-                                symbols,
-                                inference,
-                                aliases,
-                                &stored,
-                            )
-                        } else {
-                            stable_alias_initializer_origin(
-                                program,
-                                machine,
-                                &machine_symbols,
-                                inference,
-                                assignment.value,
-                                parameters,
-                                &isolated_local_roots,
-                                aliases,
-                                &divergent_alias_origins,
-                                symbols,
-                                true,
-                                &stored,
-                            )
-                        };
-                        origin.or_else(|| {
-                            if !include_shared {
-                                return None;
-                            }
-                            let reference = crate::value_custody::places::declared_place_type_raw(
-                                program,
-                                machine,
-                                Some(state),
-                                assignment.target,
-                            )?;
-                            reference_subjects::unknown_readonly_origin(
-                                program, reference, relative,
-                            )
-                        })
-                    },
-                )? {
+                if replaces_local_binding {
+                    let relative = coarse_place_path(program, assignment.target)?;
                     if queried_assignment {
                         record_local_replacement_assignment(
                             &mut assignments,
                             statement_index,
-                            relative.to_owned(),
-                            &isolated_local_roots,
-                            &local_alias_origins,
-                            &divergent_alias_origins,
-                            &stored,
+                            relative.clone(),
                         );
                     }
+                    // The RHS and its effects saw the previous binding. Only
+                    // now replace it, retaining every captured destination.
                     install_statement_call_effects(
                         program,
                         inference,
                         &mut stored,
                         stored_call_effects.as_ref(),
                     );
+                    local_alias_origins.retain(|(name, _)| name != &relative);
+                    divergent_alias_origins.retain(|(name, _)| name != &relative);
+                    replacement?.install(inference, &mut stored);
                     continue;
                 }
                 let relative = stable_assignment_target_path(
@@ -1033,11 +877,7 @@ fn walk_state_write_prefix_body(
                     queried_assignment,
                     &mut assignments,
                     statement_index,
-                    &isolated_local_roots,
                     &paths,
-                    &local_alias_origins,
-                    &divergent_alias_origins,
-                    &stored,
                     &mut written,
                     parameters,
                     &locals,
@@ -1243,13 +1083,13 @@ fn walk_state_write_prefix_body(
             }
             StatementNode::Expression(_) => {}
             StatementNode::LocalData(local) => {
-                if (type_may_carry_write(program, local.type_reference)
+                if let Some(origin) = declared_local_alias_origin {
+                    local_alias_origins.push((local.name.as_str().to_owned(), origin));
+                } else if (type_may_carry_write(program, local.type_reference)
                     && !type_is_caller_isolated_local(program, local.type_reference))
                     || include_shared
                 {
-                    if let Some(origin) = declared_local_alias_origin {
-                        local_alias_origins.push((local.name.as_str().to_owned(), origin));
-                    } else if let Some(origins) = declared_stored_origins {
+                    if let Some(origins) = declared_stored_origins {
                         // A reference has one leaf but may retain several
                         // captured referents. Preserve those established rows
                         // before considering an unknown read-only binding.
@@ -1365,30 +1205,16 @@ fn install_statement_call_effects(
 
 /// Record a queried storage assignment for `paths`, then write each into the
 /// visible frame roster — the queried-write pair both statement arms share.
-#[allow(clippy::too_many_arguments)]
 fn push_queried_assignment_and_visible_paths(
     queried_assignment: bool,
     assignments: &mut Option<&mut Vec<(usize, AssignmentPrefix)>>,
     statement_index: usize,
-    isolated_local_roots: &[String],
     paths: &[String],
-    local_alias_origins: &[(String, FramePlaceOrigin)],
-    divergent_alias_origins: &[(String, Vec<FramePlaceOrigin>)],
-    stored: &[StoredLocalOrigins],
     written: &mut Vec<String>,
     parameters: &[StateParameter],
     locals: &[String],
 ) -> Option<()> {
-    push_queried_storage_assignment(
-        queried_assignment,
-        assignments,
-        statement_index,
-        isolated_local_roots,
-        paths,
-        local_alias_origins,
-        divergent_alias_origins,
-        stored,
-    );
+    push_queried_storage_assignment(queried_assignment, assignments, statement_index, paths);
     for path in paths {
         push_visible_frame_path(written, path.clone(), parameters, locals)?;
     }

@@ -97,20 +97,18 @@ impl compiler_storage::Record for ProducedTerminalProgram {
                 Record::read(input)?;
             let provenance = Record::read(input)?;
             let source_records = Record::read(input)?;
-            for application in &applications {
-                if let Ok(application) = application {
-                    if let Ok(Some(receipt)) = &application.receipt {
-                        rejoin_program_entry_receipt(receipt, &artifact)
-                            .map_err(|error| input.error(error.to_string()))?;
-                    }
-                    for root in application
-                        .roots
-                        .iter()
-                        .filter_map(|root| root.as_ref().ok())
-                    {
-                        if artifact.semantic_module().machine(root.machine).is_none() {
-                            return Err(input.error("composition root lost its canonical machine"));
-                        }
+            for application in applications.iter().flatten() {
+                if let Ok(Some(receipt)) = &application.receipt {
+                    rejoin_program_entry_receipt(receipt, &artifact)
+                        .map_err(|error| input.error(error.to_string()))?;
+                }
+                for root in application
+                    .roots
+                    .iter()
+                    .filter_map(|root| root.as_ref().ok())
+                {
+                    if artifact.semantic_module().machine(root.machine).is_none() {
+                        return Err(input.error("composition root lost its canonical machine"));
                     }
                 }
             }

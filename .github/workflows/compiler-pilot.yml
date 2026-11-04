@@ -60,7 +60,9 @@ jobs:
       CARGO_INCREMENTAL: '0'
       CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
       CARGO_BUILD_FINGERPRINT: content
-      OMEGA_CORPUS_JOBS: '2'
+      # Large calling-policy checks use about 2.8 GiB each. Run one fixture
+      # at a time to reduce concurrent memory pressure.
+      OMEGA_CORPUS_JOBS: '1'
       RUST_MIN_STACK: '67108864'
       # Match Linux/macOS post-merge storage; Windows keeps its short target path.
       CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}

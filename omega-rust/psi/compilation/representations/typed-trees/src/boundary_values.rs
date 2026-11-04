@@ -356,10 +356,10 @@ pub fn foreign_reference_uses_descriptor(
     {
         referent = *base_type;
     }
-    match typed.type_reference_table.type_reference(referent) {
-        TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => true,
-        _ => false,
-    }
+    matches!(
+        typed.type_reference_table.type_reference(referent),
+        TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. }
+    )
 }
 
 /// Apply the already selected simultaneous boundary type frame. This preserves

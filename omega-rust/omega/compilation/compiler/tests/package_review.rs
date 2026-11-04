@@ -127,7 +127,8 @@ fn callback_review_rejoins_candidate_types_reports_and_target_members() {
                 .geometry
         }
     };
-    geometry.private_callback_demands[0].offset = 0;
+    geometry.private_callback_demands[0].placements =
+        vec![layout_plans::LayoutPlacementReport::At { offset: 0 }];
     reject(
         typed,
         "callback source layout changed its complete selected report",
@@ -670,6 +671,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         .retained_native_artifact()
         .expect("Windows native emission");
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+        native_image: None,
         entry: None,
         filesystem: Default::default(),
         native_services: Default::default(),

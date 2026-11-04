@@ -146,18 +146,21 @@ pub fn structural_state_contract_predicates(
             .primitive_type_reference(parameter.type_reference)
             .is_some()
         {
-            if !parameter.is_mutable {
-                expected.extend(
-                    crate::scalar_predicate_domains(program, parameter.type_reference)
-                        .into_iter()
-                        .chain(crate::scalar_type_tags(program, parameter.type_reference))
-                        .chain(crate::scalar_type_routed_domains(
-                            program,
-                            parameter.type_reference,
-                        ))
-                        .map(|(_, domain)| (parameter.symbol, domain.0)),
-                );
-            }
+            // An owned scalar's declared qualification is its caller's arrival
+            // obligation whether or not the body may rebind it: `mut` lets the
+            // body write the binding, assignments must preserve the domain,
+            // and other writes invalidate the membership. The synthesized
+            // membership restatement therefore matches for both bindings.
+            expected.extend(
+                crate::scalar_predicate_domains(program, parameter.type_reference)
+                    .into_iter()
+                    .chain(crate::scalar_type_tags(program, parameter.type_reference))
+                    .chain(crate::scalar_type_routed_domains(
+                        program,
+                        parameter.type_reference,
+                    ))
+                    .map(|(_, domain)| (parameter.symbol, domain.0)),
+            );
             continue;
         }
         let reference = program
@@ -193,14 +196,10 @@ pub fn structural_state_contract_predicates(
             match fact {
                 typed_trees::domain::ProofFact::Membership(membership) => {
                     let path = expression_table(program).name_path_node(membership.value)?;
-                    let Some(symbol) =
-                        crate::queries::expression_traversal::single_segment_name_symbol(
-                            program,
-                            membership.value,
-                        )
-                    else {
-                        return None;
-                    };
+                    let symbol = crate::queries::expression_traversal::single_segment_name_symbol(
+                        program,
+                        membership.value,
+                    )?;
                     program.domain_definition(membership.domain_symbol)?;
                     // A scalar parameter's predicate membership is carried as its
                     // complete declaration; a scalar tag is carried by the qualified

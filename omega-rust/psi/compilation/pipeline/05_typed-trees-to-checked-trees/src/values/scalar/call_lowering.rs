@@ -490,7 +490,6 @@ pub(crate) fn lower_erased_scalar_argument(
 /// field whose declared type is primitive lowers through the scalar lane
 /// into a `Scalar` leaf — the erased record carrier's runtime payload is
 /// retained as a term, not a runtime operand.
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_proof_term(
     program: &dyn ::validation::CheckingInput,

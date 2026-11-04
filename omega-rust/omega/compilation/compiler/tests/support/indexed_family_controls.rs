@@ -200,14 +200,7 @@ pub(super) fn produce(
                         _ => None,
                     };
                 }
-                if signature
-                    .declarations
-                    .get(declaration as usize)?
-                    .body
-                    .is_none()
-                {
-                    return None;
-                }
+                signature.declarations.get(declaration as usize)?.body?;
                 term = *arguments.first()?;
             }
             None

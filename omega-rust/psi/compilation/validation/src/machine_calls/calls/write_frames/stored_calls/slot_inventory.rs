@@ -144,6 +144,19 @@ pub(super) fn parameter_destination_inventory(
                 return None;
             }
             visited.push(reference);
+            // Scalar elements cannot contain reference destinations, even
+            // before their fixed-array count is closed. Nonspatial lifetime
+            // obligations remain separate and must also be completely absent.
+            if crate::has_contents(
+                program,
+                reference,
+                &[],
+                crate::ContentsRequirement::BorrowFree,
+            ) && crate::borrow_contracts::retained_lifetime_owner_paths(program, reference)
+                .is_some_and(|paths| paths.is_empty())
+            {
+                continue;
+            }
             let Some(inventory) = stored_origins::declared_origins_for_query(
                 program,
                 parameter.symbol,
@@ -208,9 +221,7 @@ pub(super) fn parameter_destination_inventory(
                         template_dependent = true;
                         continue;
                     }
-                    if leaf.lifetime_dependencies.is_none() {
-                        return None;
-                    }
+                    leaf.lifetime_dependencies.as_ref()?;
                     let (definition, _) = frames::type_instantiation::DeclarationScopes::default()
                         .definition(program, leaf_type, 0)?;
                     if definition.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque
