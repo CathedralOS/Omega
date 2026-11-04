@@ -1290,17 +1290,67 @@ impl TypedTrees {
         )
     }
 
-    /// Compare an array size through the exact enclosing argument scopes.
+    /// Compare an array size locally through its exact argument scopes.
     /// Each supplied argument sees only the scopes before its own group.
+    /// Open-subject keys stay within this program, never a portable commitment.
     pub fn scoped_fixed_array_length_identity(
         &self,
         length: &crate::types::FixedArrayLength,
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         scope_starts: &[usize],
     ) -> Option<NormalizedTypeIdentity> {
+        let mut subjects = match length {
+            crate::types::FixedArrayLength::ConstParameter { symbol, .. } => vec![*symbol],
+            crate::types::FixedArrayLength::Expression(reference) => {
+                if !self.contains_type_reference(*reference) {
+                    return None;
+                }
+                crate::references::collect_type_symbol_dependencies(self, *reference)
+            }
+            _ => Vec::new(),
+        };
+        for (_, argument) in substitutions {
+            if !self.contains_type_reference(*argument) {
+                return None;
+            }
+            subjects.extend(crate::references::collect_type_symbol_dependencies(
+                self, *argument,
+            ));
+        }
+        subjects.retain(|symbol| {
+            symbol.is_valid()
+                && matches!(
+                    self.symbols.get(*symbol).kind,
+                    symbols::SymbolKind::TypeParameter
+                        | symbols::SymbolKind::Parameter
+                        | symbols::SymbolKind::Local
+                        | symbols::SymbolKind::MachineParameter
+                        | symbols::SymbolKind::ConformanceParameter
+                        | symbols::SymbolKind::PropositionParameter
+                        | symbols::SymbolKind::PropositionMachineParameter
+                )
+        });
+        subjects.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+        subjects.dedup();
+        // This comparison stays inside one program. Open subjects need exact
+        // handles: overloaded declarations can share a displayed path. Closed
+        // constants still compare by their canonical values, not these keys.
+        let binders = subjects
+            .into_iter()
+            .map(|symbol| {
+                (
+                    symbol,
+                    format!(
+                        "array-index:{}:{}",
+                        symbol.arena_index(),
+                        symbol.generation()
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
         self.fixed_array_length_identity_with_substitution_semantics(
             length,
-            &[],
+            &binders,
             substitutions,
             SubstitutionSemantics::Transitive,
             scope_starts,
