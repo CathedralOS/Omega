@@ -20,10 +20,12 @@ pub(crate) fn collect_operation_requirements(
     domains: &mut Vec<SemanticDomainId>,
 ) -> Result<bool, LoweringError> {
     if let checked_trees::CheckedUnitEffectOperationPlan::EstablishReference {
-        backing_type, ..
+        backing_type,
+        storage,
+        ..
     } = operation
     {
-        collect_reference_contract(checked, *backing_type, domains)?;
+        collect_reference_contract(checked, *backing_type, *storage, domains)?;
     }
     let Some((value, _)) = operation.structural_value_evaluation() else {
         return Ok(false);
@@ -125,9 +127,10 @@ fn collect_domains(
             CheckedStructuralValueKind::Reference {
                 backing_type,
                 source_value,
+                storage,
                 ..
             } => {
-                collect_reference_contract(checked, *backing_type, domains)?;
+                collect_reference_contract(checked, *backing_type, *storage, domains)?;
                 if source_value.is_valid() {
                     if !plans.nodes.is_valid(*source_value) {
                         return unsupported("reference domain catalog has stale source value");
@@ -238,8 +241,19 @@ fn collect_domains(
 fn collect_reference_contract(
     checked: &CheckedTrees,
     backing_type: TypeReferenceHandle,
+    storage: checked_trees::CheckedReferenceStorage,
     domains: &mut Vec<SemanticDomainId>,
 ) -> Result<(), LoweringError> {
+    // Access views retain their separate profile/owner interpretation. Only
+    // the ordinary and explicit representation-view formations below consume
+    // this declared payload inventory.
+    if !matches!(
+        storage,
+        checked_trees::CheckedReferenceStorage::Declared
+            | checked_trees::CheckedReferenceStorage::View { .. }
+    ) {
+        return Ok(());
+    }
     if !backing_type.is_valid() {
         return unsupported("reference domain catalog lost its supplying type");
     }
