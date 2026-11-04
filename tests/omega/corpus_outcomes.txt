@@ -3532,6 +3532,8 @@ fail/providers/applied_calling_surface_incomplete_result rejected 8128ms expecte
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/providers/boundary_guarded_array_requires_false rejected 1400ms expected @a889c2d8b84c
 	cannot prove requires contract for call bytes from main: 1 == 4 || left.bytes[1] == 0 (needs fact `count == 4 || left[count] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/providers/checked_const_application_copied_scope_bound rejected 105950ms expected @12385533695f
+	constant checking: scalar predicate is false: index `8` of `buffer.values`
 fail/providers/implicit_method_conflicting_array_counts rejected 332ms expected @a889c2d8b84c
 	public method inference has conflicting structural operands for `Count`
 fail/providers/implicit_method_unused_const_count rejected 468ms expected @33b180036351
@@ -3909,7 +3911,7 @@ pass/borrow/mutable_selector_rhs_snapshot_exit rejected 2768ms check-target:maco
 	cannot prove index `chosen` is within length 4 in main::entry
 pass/borrow/mutable_selector_unchanged_exit rejected 3123ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove index `other` is within length 4 in main::entry
-pass/borrow/named_operator_disjoint_argument_preserves_bound checked 2422ms @ccdb99ca2214
+pass/borrow/named_operator_disjoint_argument_preserves_bound checked 6477ms @12385533695f
 pass/borrow/nested_reference_parameter_referent_assignment checked 2407ms @ccdb99ca2214
 pass/borrow/owned_capture_replaced_reference checked 2177ms @ccdb99ca2214
 pass/borrow/owned_capture_weaker_formal checked 2409ms @ccdb99ca2214
@@ -5237,7 +5239,7 @@ pass/contracts/carry_contract_decl checked 3437ms @ccdb99ca2214
 pass/contracts/case_requires_payload_field_read_exit checked 3010ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/completed_anonymous_cast_preserves_prefix_exit checked 2307ms check-target:macos_arm64 @17690916d54b
 pass/contracts/completed_unit_call_post_case checked 2080ms check-target:macos_arm64 @d2f3e99f1e08
-pass/contracts/contract_declaration_boundary checked 7603ms @18fc751d0060+wt
+pass/contracts/contract_declaration_boundary checked 7180ms @12385533695f
 pass/contracts/current_computed_scalar_guard_exit checked 18790ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/disequality_disjoin checked 3443ms @ccdb99ca2214
 pass/contracts/disjunctive_ensures checked 3509ms @ccdb99ca2214
@@ -5246,7 +5248,7 @@ pass/contracts/ensures_borrowed_parameter_field_exit checked 16230ms check-targe
 pass/contracts/ensures_fact_list checked 3802ms @ccdb99ca2214
 pass/contracts/ensures_fact_list_exit checked 11492ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/ensures_named_parameter_arithmetic_exit checked 2804ms check-target:macos_arm64 @ccdb99ca2214
-pass/contracts/ensures_operand_discharge checked 3744ms @ccdb99ca2214
+pass/contracts/ensures_operand_discharge checked 6741ms @12385533695f
 pass/contracts/ensures_saturating_field_arithmetic_exit checked 12050ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/ensures_tail_forward checked 4857ms @ccdb99ca2214
 pass/contracts/ensures_wrapping_field_arithmetic_exit checked 13175ms check-target:macos_arm64 @ccdb99ca2214
@@ -6104,7 +6106,7 @@ pass/effects/windows_filesystem_capability_rows checked 37396ms @ccdb99ca2214
 pass/effects/windows_owned_anonymous_opens checked 50545ms @ccdb99ca2214
 pass/entry/nested_where_record_binding_field_exit checked 57025ms check-target:macos_arm64 @911f6617ba9e
 pass/entry/service_borrowed_slice_call checked 3222ms check-target:macos_arm64 @ccdb99ca2214
-pass/errors/crash_route_boundary checked 3430ms @ccdb99ca2214
+pass/errors/crash_route_boundary checked 6109ms @12385533695f
 pass/errors/crash_unrecoverable_stmt checked 3606ms @ccdb99ca2214
 pass/errors/member_crash_route checked 3546ms @ccdb99ca2214
 pass/errors/reconstructed_case_payload_exit checked 18317ms check-target:macos_arm64 @ccdb99ca2214
@@ -13280,17 +13282,17 @@ pass/objc/native_gui_loop checked 74683ms @911f6617ba9e
 pass/objc/objc_get_class checked 20027ms @ccdb99ca2214
 pass/objc/objc_msgsend_scalar checked 16737ms @ccdb99ca2214
 pass/operators/compound_assignment_exit checked 12736ms check-target:macos_arm64 @ccdb99ca2214
-pass/operators/core_operator_spelling_surface checked 7641ms check-target:macos_arm64 @18fc751d0060+wt
-pass/operators/core_owned_primitive_operator_meaning checked 9444ms check-target:macos_arm64 @18fc751d0060+wt
-pass/operators/crash_routes checked 3630ms check-target:macos_arm64 @ccdb99ca2214
+pass/operators/core_operator_spelling_surface checked 5912ms check-target:macos_arm64 @12385533695f
+pass/operators/core_owned_primitive_operator_meaning checked 9228ms check-target:macos_arm64 @12385533695f
+pass/operators/crash_routes checked 5811ms check-target:macos_arm64 @12385533695f
 pass/operators/division_value_entry_selection checked 12016ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/domain_operator_overload_signature_compile checked 2641ms @ccdb99ca2214
 pass/operators/domain_qualified_boundary_operator_exit checked 6439ms check-target:macos_arm64 @18fc751d0060+wt
-pass/operators/fixed_token_operators checked 6157ms @18fc751d0060+wt
+pass/operators/fixed_token_operators checked 6520ms @12385533695f
 pass/operators/fixed_use_survives_division_and_call_exit checked 12082ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/float_operator_identities checked 16714ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/integer_literal_suffix_exit checked 11189ms check-target:macos_arm64 @ccdb99ca2214
-pass/operators/operand_requires_after_effects checked 2664ms @ccdb99ca2214
+pass/operators/operand_requires_after_effects checked 4808ms @12385533695f
 pass/operators/parenthesized_precedence_value checked 2359ms @ccdb99ca2214
 pass/operators/range_extent_preserves_numeric_contract_exit checked 3519ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/result_domain_operator_family_conversion_exit rejected 2489ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -13307,7 +13309,7 @@ pass/operators/runtime_declared_reference_index_capture_exit checked 3406ms chec
 pass/operators/runtime_generic_copy_index_result_projection_exit checked 3938ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/runtime_generic_reference_selector_snapshot_exit checked 6639ms check-target:macos_arm64 @911f6617ba9e
 pass/operators/runtime_named_unit_statement_effects_exit checked 4455ms check-target:macos_arm64 @ccdb99ca2214
-pass/operators/runtime_selected_operator_requires_after_effects_exit checked 3267ms check-target:macos_arm64 @ccdb99ca2214
+pass/operators/runtime_selected_operator_requires_after_effects_exit checked 6439ms check-target:macos_arm64 @12385533695f
 pass/operators/runtime_xorshift_prng_exit checked 13755ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/slice_index_bounds_from_operator_contract checked 8246ms @93ac4da811fe
 pass/operators/slice_range_bounds_from_operator_contract checked 9186ms @93ac4da811fe
@@ -13837,12 +13839,12 @@ pass/providers/build_product_adapter_frontiers_exit rejected 951ms check-target:
 	anonymous source tests/omega/pass/providers/build_product_adapter_frontiers_exit/support/values.omg belongs to a different reconciled package at Product join
 pass/providers/calling_application_region_scopes_exit checked 4336ms check-target:macos_arm64 @5d84e10310e4+wt
 pass/providers/canonical_inherited_provider_instances_exit checked 3219ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/checked_boundary_operator_const_application_alternate_exit rejected 19831ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("pending constant expression has no retained complete evaluation entry"))
+pass/providers/checked_boundary_operator_const_application_alternate_exit checked 161757ms check-target:macos_arm64 @12385533695f
 pass/providers/checked_boundary_operator_physical_custody checked 9520ms check-target:macos_arm64 boundary-provider-controls:match terminal-inspections:match @478546d89e31
 pass/providers/checked_boundary_requirement_dispatch_exit checked 15252ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/checked_fixed_operator_dispatch_exit checked 11581ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/checked_fixed_operator_physical_custody checked 12530ms check-target:macos_arm64 @ccdb99ca2214
+pass/providers/checked_const_application_copied_scope checked 171621ms check-target:macos_arm64 @12385533695f
+pass/providers/checked_fixed_operator_dispatch_exit checked 108436ms check-target:macos_arm64 @12385533695f
+pass/providers/checked_fixed_operator_physical_custody checked 108131ms check-target:macos_arm64 @12385533695f
 pass/providers/closed_boundary_callback_contract checked 19818ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/closed_callback_repeated_application checked 22019ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/component_owner_provider_override_compile checked 3351ms check-target:macos_arm64 @ccdb99ca2214
@@ -13977,8 +13979,7 @@ pass/providers/same_name_requirement_right_dispatch_exit rejected 12517ms check-
 pass/providers/same_target_internal checked 3433ms @ccdb99ca2214
 pass/providers/scalar_membership_boundary_exit checked 4706ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/scalar_membership_foreign checked 3013ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/selected_const_provider_call_identity_exit rejected 13878ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("pending constant expression has no retained complete evaluation entry"))
+pass/providers/selected_const_provider_call_identity_exit checked 147092ms check-target:macos_arm64 @12385533695f
 pass/providers/selected_lifecycle_review_exit checked 12248ms check-target:macos_arm64 @73e41145e49b
 pass/providers/selected_parent_ignores_unused_descendant_exit checked 2268ms check-target:macos_arm64 @002791b61f14
 pass/providers/service_borrowed_parameter checked 1969ms @ccdb99ca2214
@@ -13996,7 +13997,8 @@ pass/providers/structural_result_field_guarantee_exit checked 4145ms check-targe
 pass/providers/table_leaf_dispatch_parameter_exit checked 6147ms check-target:macos_arm64 @7ebdc5f3adcb
 pass/providers/target_contract_adjacency_exit checked 3257ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/target_family_entry checked 3097ms @ccdb99ca2214
-pass/providers/token_machine_family_override_exit checked 12968ms check-target:macos_arm64 @ccdb99ca2214
+pass/providers/token_machine_family_override_exit rejected 333259ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64 @12385533695f
+	provider choice transport: Semantic(MalformedStructuralOperation { machine: "named-callable(path(nominal\\\\(package-owner\\\\(32:a82aa27cdf8ceaf98375d6bbcb031185b76243c232aba825c6562b8b1b4ce5fa\\\\)\\\\,path\\\\(WindowsFilesystemNativeProvider::directory_nth\\\\)\\\\)),parameters(parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,ref\\\\(constrained\\\\(slice\\\\(named\\\\(name\\\\(u8\\\\)\\\\)\\\\)\\\\,declared-domain\\\\(name\\\\(package:a82aa27cdf8ceaf98375d6bbcb031185b76243c232aba825c6562b8b1b4ce5fa:product::[u8]::Path\\\\)\\\\)\\\\)\\\\)\\\\)\\\\,parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)),result-dispatch())", operation: OperationId(134), reason: "leaf copy memberships do not follow from every current payload source: source=PlaceId(414), path=[], requested=StructuralTypeId(238)/[StructuralDomainId(2)]/[], current=None, history=[], phase=targets, machine_present=false" })
 pass/providers/uncalled_boundary_provider_exit checked 3494ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/unreached_console_provider_rows checked 16889ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/unused_named_provider_candidates checked 3791ms check-target:macos_arm64 @ccdb99ca2214
@@ -14727,7 +14729,7 @@ pass/termination/runtime_stored_exclusive_endpoint_exit checked 91830ms check-ta
 pass/termination/runtime_zero_local_rank_prefix_exit checked 3033ms check-target:macos_arm64 @ccdb99ca2214
 pass/termination/satisfies_terminates checked 3274ms @ccdb99ca2214
 pass/termination/scratch_input_rank checked 3251ms @ccdb99ca2214
-pass/termination/slice_rank_unrelated_float_operator checked 4853ms @ccdb99ca2214
+pass/termination/slice_rank_unrelated_float_operator checked 8435ms @12385533695f
 pass/termination/slice_tail_rank checked 9670ms @7b4244a67630
 pass/termination/state_cycle_record checked 7398ms @ccdb99ca2214
 pass/termination/stored_reference_endpoint_arrivals checked 5287ms @911f6617ba9e
@@ -15742,9 +15744,9 @@ fail/asm/proposition_wrong_transparent_exit rejected 1922ms expected @0af7c594a1
 	cannot prove asm `ensures` fact at block exit in change state `entry` (statement 3): boolean:subject.value > 0
 fail/asm/requires_after_prior_block_write rejected 1896ms expected @0af7c594a1c0
 	cannot prove asm `requires` fact at block entry in Subject::change state `change` (statement 5): subject.ready
-fail/asm/scratch_catalog_subtract_meaning rejected 342ms expected regressed-from:checked @18fc751d0060+wt
+fail/asm/scratch_catalog_subtract_meaning rejected 379ms expected regressed-from:checked @12385533695f
 	`u32::replacement` binds the fixed operator token `-` over operands that name no declared type or domain (u32[in Wrapping], u32[in Wrapping]); that joins a primitive operator family, which only the core semantic-home owner may publish -- give the binding a data or domain home among its operands
-fail/asm/scratch_catalog_zero_flag_meaning rejected 358ms expected regressed-from:checked @18fc751d0060+wt
+fail/asm/scratch_catalog_zero_flag_meaning rejected 333ms expected regressed-from:checked @12385533695f
 	`u32::replacement` binds the fixed operator token `==` over operands that name no declared type or domain (u32, u32); that joins a primitive operator family, which only the core semantic-home owner may publish -- give the binding a data or domain home among its operands
 fail/asm/scratch_destination_finite_indexed rejected 816ms expected @ccdb99ca2214
 	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
@@ -15918,7 +15920,7 @@ fail/borrow/mutated_selector_entry_actual_guard rejected 2240ms expected @ccdb99
 	cannot prove index `other` is within length 4 in main::entry
 fail/borrow/named_operator_effectful_argument_retires_bound rejected 5507ms expected @ccdb99ca2214
 	cannot prove index `index` is within length 4 in keep::entry
-fail/borrow/named_operator_mutable_argument_retires_bound rejected 2085ms expected @ccdb99ca2214
+fail/borrow/named_operator_mutable_argument_retires_bound rejected 4499ms expected @12385533695f
 	cannot prove index `index` is within length 4 in keep::entry
 fail/borrow/nested_aggregate_result_invalidated rejected 1752ms expected @ccdb99ca2214
 	statement 1 mutates `right` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
@@ -19233,8 +19235,8 @@ fail/domains/array_constructor_unissued_element rejected 1997ms expected @ccdb99
 	array literal element is not proven in domain `Resource::Issued` in main state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/domains/authored_record_result_unauthorized_issuer rejected 4681ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from rogue at statement 0: result in Cell::Admitted
-fail/domains/bitwise_membership_authored_operand rejected 965ms expected @ccdb99ca2214
-	`as ... in Clear` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+fail/domains/bitwise_membership_authored_operand rejected 353ms expected @12385533695f
+	`Integer::replace` binds the fixed operator token `+` over operands that name no declared type or domain (u32, u32); that joins a primitive operator family, which only the core semantic-home owner may publish -- give the binding a data or domain home among its operands
 fail/domains/bitwise_membership_false_arrival rejected 2557ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from main: 130 in u32::Clear in state `entry`
 fail/domains/bitwise_membership_false_literal rejected 2588ms expected @ccdb99ca2214
@@ -31716,7 +31718,7 @@ fail/float/format_conversion_requires_result_proof rejected 3177ms expected @661
 	cannot prove return value `F32.from_f64(value)` satisfies `finite` for bounded return type in `unknown.entry`
 fail/float/generic_constructor_suffix_format_disagrees rejected 1920ms expected @ccdb99ca2214
 	literal `3.0` is suffixed `f64` but lands in a `f32` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
-fail/float/guarded_range_requires_builtin_boolean_wrapper rejected 3918ms expected @ccdb99ca2214
+fail/float/guarded_range_requires_builtin_boolean_wrapper rejected 7094ms expected @12385533695f
 	cannot prove requires contract for call bounded from select: value >= 0.0 && value <= 1.0 (needs fact `value >= 0.0 && value <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/guarded_range_requires_current_observation rejected 4859ms expected @ccdb99ca2214
 	cannot prove requires contract for call bounded from mutating_guard: reading >= 0.0 && reading <= 1.0 (needs fact `changed >= 0.0 && changed <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -31724,7 +31726,7 @@ fail/float/guarded_range_requires_current_observation rejected 4859ms expected @
 	cannot prove requires contract for call bounded from reassigned_guard: value >= 0.0 && value <= 1.0 (needs fact `reassigned >= 0.0 && reassigned <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call bounded from changed_selector: values[selected] >= 0.0 && values[selected] <= 1.0 (needs fact `selected >= 0.0 && selected <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove index `selected` is within length 2 in changed_selector::entry
-fail/float/guarded_range_requires_ieee_comparison rejected 367ms expected @18fc751d0060+wt
+fail/float/guarded_range_requires_ieee_comparison rejected 397ms expected @12385533695f
 	`Unrelated::less` binds the fixed operator token `<` over operands that name no declared type or domain (f64, f64); that joins a primitive operator family, which only the core semantic-home owner may publish -- give the binding a data or domain home among its operands
 	`Unrelated::add` binds the fixed operator token `+` over operands that name no declared type or domain (u64, u64); that joins a primitive operator family, which only the core semantic-home owner may publish -- give the binding a data or domain home among its operands
 fail/float/guarded_range_requires_ordered_value rejected 4216ms expected @ccdb99ca2214
@@ -31827,7 +31829,7 @@ fail/float/policy_cast_requires_unchanged_denotation rejected 1691ms expected @c
 	machine `lossy_format` state `entry` cannot prove Exact float-to-`f32` cast operand `3.0000000000000004` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `outside_carrier` state `entry` cannot prove Exact float-to-`u8` cast operand `300.0` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `outside_carrier` state `entry` cannot prove unqualified `U8::from_f64` operand `300.0` is finite and truncates into `u8`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `u8 in Trapping` or `u8 in Saturating`
-fail/float/primitive_comparison_forged_home rejected 394ms expected regressed-from:checked @18fc751d0060+wt
+fail/float/primitive_comparison_forged_home rejected 2516ms expected regressed-from:checked @12385533695f
 	`Float::equal` binds the fixed operator token `==` over operands that name no declared type or domain (f64, f64); that joins a primitive operator family, which only the core semantic-home owner may publish -- give the binding a data or domain home among its operands
 fail/float/primitive_comparison_no_named_helper_exposure rejected 1933ms expected @ccdb99ca2214
 	validated named operator application has no checked selected use
@@ -33291,7 +33293,7 @@ fail/operators/named_unit_result_argument_rejected rejected 843ms expected @ccdb
 	machine `main` state `entry`: `set(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
 fail/operators/named_unit_result_local_rejected rejected 915ms expected @ccdb99ca2214
 	machine `main` state `entry`: `set(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
-fail/operators/operand_requires_invalidated rejected 2414ms expected @ccdb99ca2214
+fail/operators/operand_requires_invalidated rejected 15224ms expected @12385533695f
 	cannot prove requires contract for call equal from compare: value >= 0 (needs fact `right >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/operators/range_extent_false_conjunct_cannot_establish rejected 1636ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from window at statement 0: false && result.len == limit - offset
@@ -33303,7 +33305,7 @@ fail/operators/result_domain_operator_family_wrong_signature rejected 3261ms exp
 	machine `wrong` does not match one exact overload of operator requirement `I8::from_f32`; its entry parameter and result types must equal one declared requirement signature
 fail/operators/root_operator_alpha_equivalent_generic_duplicate rejected 761ms expected @ccdb99ca2214
 	duplicate operator declaration `Slice::index`
-fail/operators/selected_crash_invocation rejected 6334ms expected @18fc751d0060+wt
+fail/operators/selected_crash_invocation rejected 6527ms expected @12385533695f
 	call from `compare` to `Float::equal` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/optimizer/unexecutable_post_allocation_rule_rejected rejected 3940ms expected @ccdb99ca2214
 	selected optimization `Aarch64ElideSameViewCopyI64BeforeReturnV1` failed in the complete verified optimizer pipeline during selected/physical validation: common physical staging failed: PostAllocationMachine(Optimization(NoExecutor { optimization: Aarch64ElideSameViewCopyI64BeforeReturnV1 })); no alternate compiler route was run and no output was installed
@@ -34484,14 +34486,14 @@ fail/providers/boundary_issuance_refuted_with_opaque_conjunct rejected 1757ms ex
 fail/providers/boundary_lent_linear_satisfier_narrowed rejected 16222ms expected @ee4dbb4b2d56
 	machine `TokenScaleProvider::weigh` state `weigh` does not satisfy trait `TokenScale` machine `weigh` parameter `token`: expected `&Token`, got `&Token[in Token::Issued]`
 	machine `TokenScaleProvider::weigh` realizes `TokenScale::weigh` but requires `token in Token::Issued`, which the requirement does not imply; callers of the requirement prove only its own `requires`
-fail/providers/boundary_operator_without_provider rejected 3795ms expected @ccdb99ca2214
+fail/providers/boundary_operator_without_provider rejected 6784ms expected @12385533695f
 	no provider is selected for boundary requirement `Integer::equal`, which the program entry reaches on target `windows_x86_64`
 fail/providers/carry_external_issuance_unadmitted rejected 744ms expected @ccdb99ca2214
 	external machine `issue` cannot directly admit carry permission `Carry::AcrossSuspend`; publish it on an owner-authorized boundary trait requirement and satisfy that requirement through the provider
 fail/providers/checked_boundary_extent_index_out_of_bounds rejected 15221ms expected @ccdb99ca2214
 	constant checking: scalar predicate is false: index `8` of `main.bytes`
-fail/providers/checked_boundary_operator_const_application_unselected rejected 9571ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("pending constant expression has no retained complete evaluation entry"))
+fail/providers/checked_boundary_operator_const_application_unselected rejected 119326ms expected @12385533695f
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(494)]
 fail/providers/checked_boundary_operator_missing_contract rejected 1737ms expected @ccdb99ca2214
 	checked operator provider `CheckedMathProvider::identity_impl` proves no ensures matching operator requirement `operator::CheckedMath::identity(named(name(i32)))->named(name(i32))` contract `result == value`
 fail/providers/checked_completion_changed_status rejected 3963ms expected @ccdb99ca2214
@@ -34641,7 +34643,7 @@ fail/providers/qualified_state_without_issuance rejected 12509ms expected @ee4db
 	cannot prove requires contract for call consume from Main::main: root in Root::Granted in state `main`
 fail/providers/returned_write_only_call_observation rejected 1084ms expected @ccdb99ca2214
 	machine `main` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/providers/satisfier_extra_parameter_rejected rejected 6445ms expected @a562d4060f10+wt
+fail/providers/satisfier_extra_parameter_rejected rejected 3769ms expected @12385533695f
 	machine `MappedTally::add` state `add` declares 2 parameter(s), but trait `Tally` machine `add` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
 	machine `DirectTally::add` state `add` declares 2 parameter(s), but trait `Tally` machine `add` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
 	machine `stateful_exit` state `entry` declares 2 parameter(s), but trait `Process` machine `exit` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
@@ -35680,7 +35682,7 @@ fail/termination/saved_field_predicate_overwritten rejected 600ms expected @ccdb
 fail/termination/saved_field_predicate_wrong_field rejected 734ms expected @ccdb99ca2214
 	exact arithmetic in construction of `Countdown` field `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `walk` state `entry` transition argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/termination/saved_rank_authored_operator_rejected rejected 1954ms unexpected @ccdb99ca2214
+fail/termination/saved_rank_authored_operator_rejected rejected 5390ms unexpected @12385533695f
 	cannot prove requires contract for call step from hold: subtract(saved, 1) <= 9 (needs fact `remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	machine call cycle: `Main::count`, `hold`, `Main::step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/selected_requirement_rank_composed_prefix_write rejected 1981ms unexpected @ccdb99ca2214
