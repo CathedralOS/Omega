@@ -4,11 +4,11 @@
 
 use super::{Destination, Query, Results, Transfers, ValueReceiver, query_for_storage};
 use checked_trees::{
-    CheckFacts, CheckedCallScalarArgument, CheckedComposedUnitControlTerminatorPlan,
-    CheckedScalarExpressionRole, CheckedStructuralScalarParameterPlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitScalarControlPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralReturnPlan, FlowClaimJoinExit,
+    CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpressionRole,
+    CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitScalarControlPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralReturnPlan, FlowClaimJoinExit,
 };
 use symbols::SymbolHandle;
 
@@ -153,7 +153,7 @@ impl Query<'_> {
                 )
             }
             CompletionOutcome::Scalar => self.scalar_role(
-                completion.plan.state(),
+                completion.state(),
                 u32::try_from(exit.statement_index)
                     .map_err(|_| "completion cleanup: return statement is out of range")?,
                 if exit.kind == checked_trees::FlowClaimJoinExitKind::TransitionContinuation {
@@ -163,7 +163,7 @@ impl Query<'_> {
                 },
             ),
             CompletionOutcome::Operation(operation) => self.outgoing_operation(operation),
-            CompletionOutcome::Arm(arm) => self.return_arm(completion.plan.state(), exit, arm),
+            CompletionOutcome::Arm(arm) => self.return_arm(completion.state(), exit, arm),
             CompletionOutcome::Successor(successor) => {
                 let CompletionPlan::Composed(graph) = completion else {
                     return Err("completion cleanup: a successor has no prepared graph signature");
