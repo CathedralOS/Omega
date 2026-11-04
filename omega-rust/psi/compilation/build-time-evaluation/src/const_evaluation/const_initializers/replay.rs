@@ -38,113 +38,6 @@ struct Leaf {
     expected: DecodedCanonicalConstValue,
 }
 
-#[derive(Clone, Copy)]
-struct ReplayRootCallContext {
-    declaration: symbols::SymbolHandle,
-    root: ExpressionHandle,
-    target: symbols::SymbolHandle,
-    authored_application: typed_trees::static_applications::StaticMachineApplicationHandle,
-    authored_owner: symbols::SymbolHandle,
-    selection_application: typed_trees::static_applications::StaticMachineApplicationHandle,
-    selection_owner: symbols::SymbolHandle,
-    selected_map_present: bool,
-    scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
-    scope_default: Option<bool>,
-    expected_trait: symbols::SymbolHandle,
-    expected_trait_present: bool,
-}
-
-impl std::fmt::Debug for ReplayRootCallContext {
-    fn fmt(&self, output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        output
-            .debug_struct("ReplayRootCallContext")
-            .field("declaration", &self.declaration)
-            .field("root", &self.root)
-            .field("target", &self.target)
-            .field("authored_application", &self.authored_application)
-            .field("authored_owner", &self.authored_owner)
-            .field("selection_application", &self.selection_application)
-            .field("selection_owner", &self.selection_owner)
-            .field("selected_map_present", &self.selected_map_present)
-            .field("scope", &self.scope)
-            .field("scope_default", &self.scope_default)
-            .field("expected_trait", &self.expected_trait)
-            .field("expected_trait_present", &self.expected_trait_present)
-            .finish()
-    }
-}
-
-// Only exact authored root calls are observed here. These handles and presence
-// facts explain a later refusal; they never select or admit an invocation.
-fn replay_root_call_contexts(
-    program: &TypedTrees,
-    declarations: &[&typed_trees::constant::ConstDeclaration],
-) -> Vec<ReplayRootCallContext> {
-    declarations
-        .iter()
-        .filter_map(|declaration| {
-            let root = declaration.authored_initializer;
-            if !expression_table(program).expression_is_valid(root) {
-                return None;
-            }
-            let call = expression_table(program).call_node(root)?;
-            let authored_application = call.authored_machine_application;
-            let mut context = ReplayRootCallContext {
-                declaration: declaration.symbol,
-                root,
-                target: call.target_symbol,
-                authored_application,
-                authored_owner: if authored_application.is_valid() {
-                    expression_table(program)
-                        .static_machine_application(authored_application)
-                        .lexical_owner
-                } else {
-                    symbols::SymbolHandle::invalid()
-                },
-                selection_application: Default::default(),
-                selection_owner: symbols::SymbolHandle::invalid(),
-                selected_map_present: false,
-                scope: None,
-                scope_default: None,
-                expected_trait: symbols::SymbolHandle::invalid(),
-                expected_trait_present: false,
-            };
-            if let Some(dispatch) = &call.static_requirement_dispatch {
-                context.selection_application = dispatch.selection_application;
-                if dispatch.selection_application.is_valid() {
-                    let source = expression_table(program)
-                        .static_machine_application(dispatch.selection_application);
-                    context.selection_owner = source.lexical_owner;
-                    if let Some(application) = source
-                        .conformance_selection
-                        .as_ref()
-                        .and_then(|selection| selection.application.as_deref())
-                    {
-                        context.selected_map_present = true;
-                        context.scope = Some(application.trait_scope);
-                        context.scope_default = Some(application.trait_scope == Default::default());
-                        context.expected_trait = application.trait_definition;
-                        context.expected_trait_present = context.expected_trait.is_valid()
-                            && program
-                                .trait_definition_by_symbol(context.expected_trait)
-                                .is_some();
-                    }
-                }
-            }
-            Some(context)
-        })
-        .collect()
-}
-
-fn replay_root_call_context(
-    contexts: &[ReplayRootCallContext],
-    declaration: symbols::SymbolHandle,
-) -> Option<&ReplayRootCallContext> {
-    contexts
-        .iter()
-        .find(|context| context.declaration == declaration)
-}
-
 pub(crate) fn validate(
     typed: &TypedTrees,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
@@ -418,17 +311,14 @@ pub(crate) fn validate(
                 )
             })?;
     }
-    let authored_call_contexts = replay_root_call_contexts(&probe, &replay_declarations);
     // Rejoin supplied execution only after authenticating authored custody.
     // Selected providers then enter the same actual call closure as settlement.
     let probe = prepare_selected_execution(&probe, selected.provider_bodies, selected.operators)
         .map_err(|reason| super::failure(source::SourceSpan::default(), reason))?
         .unwrap_or(probe);
-    let selected_call_contexts = replay_root_call_contexts(&probe, &replay_declarations);
     let replay_execution =
         PreparedEvaluationInputs::domain_for_program(&probe, &probe_symbols, &[]);
     let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probe, &replay_execution)?;
-    let prepared_call_contexts = replay_root_call_contexts(prepared.typed(), &replay_declarations);
     let checked = super::invocations::CheckedInitializers::prepare(
         &prepared,
         authority.clone(),
@@ -437,7 +327,6 @@ pub(crate) fn validate(
         selected.operators,
     )?;
     let program = checked.typed();
-    let checked_call_contexts = replay_root_call_contexts(program, &replay_declarations);
     // A dependency capsule names a separate declaration job. Validate every
     // owner's exact realized roster before trusting any capsule or replaying a
     // selected value. A declaration outside this replay domain cannot silently
@@ -461,14 +350,10 @@ pub(crate) fn validate(
                 super::failure(
                     declaration.initializer_source_span,
                     format!(
-                        "realized call custody for declaration {:?}, roots {:?}/{:?}, probe {owner:?}: {reason}; root call after authored audit {:?}; after selected execution {:?}; after execution preparation {:?}; after helper checking {:?}",
+                        "realized call custody for declaration {:?}, roots {:?}/{:?}, probe {owner:?}: {reason}",
                         declaration.symbol,
                         declaration.authored_initializer,
                         declaration.materialized_initializer,
-                        replay_root_call_context(&authored_call_contexts, declaration.symbol),
-                        replay_root_call_context(&selected_call_contexts, declaration.symbol),
-                        replay_root_call_context(&prepared_call_contexts, declaration.symbol),
-                        replay_root_call_context(&checked_call_contexts, declaration.symbol),
                     ),
                 )
             })?;

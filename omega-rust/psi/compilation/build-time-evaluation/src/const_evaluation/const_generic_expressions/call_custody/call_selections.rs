@@ -425,38 +425,7 @@ fn logical_requirement_refusal(
         && let CallSite::Expression { expression, call } = site
         && let Err(unavailable) = program.resolve_requirement_call_signature(lexical_owner, call)
     {
-        let mut application_context = format!(
-            "authored application {:?}",
-            call.authored_machine_application
-        );
-        if let Some(dispatch) = &call.static_requirement_dispatch {
-            let applications = program.selected_conformance_applications(
-                lexical_owner,
-                dispatch.selection_application,
-                dispatch.evidence_parameter,
-                dispatch.requirement,
-                dispatch.application_report_fingerprint,
-                dispatch.application_commitment,
-            );
-            application_context.push_str(&format!(
-                ", selection application {:?}, selected map count {}",
-                dispatch.selection_application,
-                applications.len(),
-            ));
-            if let [application] = applications.as_slice() {
-                let scope = application.trait_scope;
-                let expected_trait = application.trait_definition;
-                let expected_trait_present = expected_trait.is_valid()
-                    && program.trait_definition_by_symbol(expected_trait).is_some();
-                application_context.push_str(&format!(
-                    ", scope {scope:?}, scope default {}, expected trait {expected_trait:?}, expected trait present {expected_trait_present}",
-                    scope == Default::default(),
-                ));
-            }
-        }
-        return format!(
-            "{reason}; {context}, expression {expression:?}: {unavailable}; {application_context}"
-        );
+        return format!("{reason}; {context}, expression {expression:?}: {unavailable}");
     }
     format!("{reason}; {context}")
 }

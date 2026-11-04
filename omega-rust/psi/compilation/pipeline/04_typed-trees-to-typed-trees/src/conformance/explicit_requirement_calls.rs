@@ -649,6 +649,7 @@ impl ExplicitApplication<'_> {
             operand_ordinal: ordinal,
             application: Some(Box::new(application.clone())),
         }));
+        program.prepare_closed_conformance_occurrence_scope(source_application)?;
         Ok(ExplicitRequirementRewrite {
             call: self.call,
             target,
