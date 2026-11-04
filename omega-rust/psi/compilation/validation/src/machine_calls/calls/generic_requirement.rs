@@ -87,7 +87,7 @@ pub fn requirement_contract_signature<'program>(
 
 /// Admission needs the precise refusal when a selected public contract is
 /// unavailable. Optional signature queries above use the same resolution.
-pub(super) fn resolve_requirement_contract<'program>(
+pub fn resolve_requirement_contract<'program>(
     program: &'program dyn crate::CheckingInput,
     caller: symbols::SymbolHandle,
     site: &super::CallSite<'_>,

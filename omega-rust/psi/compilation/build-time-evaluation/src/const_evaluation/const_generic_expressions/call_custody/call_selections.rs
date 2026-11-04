@@ -286,6 +286,24 @@ pub(super) fn logical_requirement_matches(
         return Ok(false);
     }
     let binder = program.symbols.get(source.parent);
+    if binder.kind == SymbolKind::Trait {
+        let Some(dispatch) = site.static_requirement_dispatch() else {
+            return Ok(false);
+        };
+        if dispatch.requirement != authored || dispatch.declaring_trait != source.parent {
+            return Ok(false);
+        }
+        // Preparation can replace a public method with a captured private body.
+        // Keep the authored method as the dependency, and authenticate its body
+        // through this call's complete selected application rather than trying
+        // to recover the supplying implementation from its rewritten receiver.
+        let (_, signature) = validation::resolve_requirement_contract(program, lexical_owner, site)
+            .map_err(|reason| format!("constant selected requirement is not admitted: {reason}"))?;
+        let template = program
+            .closed_requirement_application(signature.symbol)
+            .map_or(signature.symbol, |application| application.template);
+        return Ok(template == authored);
+    }
     if binder.kind != SymbolKind::ConformanceParameter {
         return Ok(false);
     }
@@ -297,11 +315,9 @@ pub(super) fn logical_requirement_matches(
     else {
         return Ok(false);
     };
-    let Some((selected_trait, selected_signature)) =
-        validation::requirement_contract_signature(program, lexical_owner, site)
-    else {
-        return Ok(false);
-    };
+    let (selected_trait, selected_signature) =
+        validation::resolve_requirement_contract(program, lexical_owner, site)
+            .map_err(|reason| format!("constant evidence requirement is not admitted: {reason}"))?;
     let template = program
         .closed_requirement_application(selected_signature.symbol)
         .map_or(selected_signature.symbol, |application| {
