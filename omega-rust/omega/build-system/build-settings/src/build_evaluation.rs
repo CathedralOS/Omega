@@ -266,14 +266,6 @@ pub fn prepare_build_evaluation(
         .map(|(inputs, owner)| owner.matching_configuration(inputs))
         .transpose()?
         .flatten();
-    if std::env::var_os("OMEGA_BUILD_REUSE_TRACE").is_some() {
-        eprintln!(
-            "Build reuse: purpose={execution_purpose:?} eligible={} owner={} matched={}",
-            inputs.is_some(),
-            pure_build_compilation.is_some(),
-            reusable.is_some()
-        );
-    }
     let state = if let Some(configuration) = reusable {
         let configuration = if let Some(sponsor) = admitted.evaluation_sponsor.as_ref() {
             // Reusing a value avoids execution, not the current occurrence's
