@@ -1,5 +1,5 @@
 // The target_body carrier is u8, so membership in the u16 domain Small is ill-formed and must reject.
-// A u16 value is a member of the u16 domain Small (self <= 10) only on its own u16 carrier, so 10 - value is exact.
+// A u8 value is a member of the u8 domain Small (self <= 10) only on its own u8 carrier, so 10 - value is exact.
 
 domain u16::Small requires self <= 10;
 

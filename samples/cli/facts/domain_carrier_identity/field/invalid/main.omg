@@ -1,11 +1,11 @@
 // The field carrier is u8, so membership in the u16 domain Small is ill-formed and must reject.
-// A u16 value is a member of the u16 domain Small (self <= 10) only on its own u16 carrier, so 10 - value is exact.
+// A u8 value is a member of the u8 domain Small (self <= 10) only on its own u8 carrier, so 10 - value is exact.
 
 domain u16::Small requires self <= 10;
 
-data Reading [copy] { before: u16; level: u8; after: u16; }
+data Reading [copy] { before: u8; level: u8; after: u8; }
 
-machine headroom(reading: Reading) -> u16 requires reading.level in Small {
+machine headroom(reading: Reading) -> u8 requires reading.level in Small {
     10 - reading.level
 }
 

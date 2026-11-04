@@ -1,5 +1,5 @@
 // The call_result carrier is u8, so membership in the u16 domain Small is ill-formed and must reject.
-// A u16 value is a member of the u16 domain Small (self <= 10) only on its own u16 carrier, so 10 - value is exact.
+// A u8 value is a member of the u8 domain Small (self <= 10) only on its own u8 carrier, so 10 - value is exact.
 
 domain u16::Small requires self <= 10;
 
@@ -7,7 +7,7 @@ machine sample(value: u8) -> u8 requires value in Small ensures result in Small 
     value
 }
 
-machine headroom(value: u16) -> u16 requires value in Small {
+machine headroom(value: u8) -> u8 requires value in Small {
     10 - value
 }
 
