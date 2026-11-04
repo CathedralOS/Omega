@@ -210,7 +210,7 @@ pub fn prepare_build_evaluation(
     // Every activation checks its helpers before snapshot capture or effects.
     // Package authority adds to that semantic floor; standalone source cannot
     // bypass it. Admission below consumes this exact checked program.
-    let (prepared, retained_check) = crate::admission::checking::prepare_checked_build(
+    let (prepared, providers, retained_check) = crate::admission::checking::prepare_checked_build(
         typed,
         pre_checks,
         selected_machine,
@@ -233,6 +233,7 @@ pub fn prepare_build_evaluation(
     )?;
     let admitted = crate::admit_build_program(
         prepared,
+        providers,
         selected_machine,
         &filesystem_scope,
         evaluation_sponsor.as_ref(),

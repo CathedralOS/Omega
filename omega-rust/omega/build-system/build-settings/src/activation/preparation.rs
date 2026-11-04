@@ -12,6 +12,7 @@ use std::sync::Arc;
 pub struct PreparedBuildExecution {
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<psi_compiler::ProducedTerminalProgram>,
+    providers: Arc<crate::admission::provider_execution::BuildProviderInstallation>,
     account: evaluation_accounting::EvaluationInvocationAccount,
     machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
     filesystem_scope: package_compilation::BuildMachineFilesystemScope,
@@ -28,6 +29,7 @@ impl PreparedBuildExecution {
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
             prepared,
+            providers,
             machine,
             filesystem_scope,
             evaluation_sponsor,
@@ -52,6 +54,7 @@ impl PreparedBuildExecution {
         let produced = production
             .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
             .map_err(|error| error.diagnostics())?;
+        let providers = providers.admit(produced.view())?;
 
         // These are Terminal units. An existing tree-measured sponsor is never
         // relabeled or silently replaced by a fresh account.
@@ -83,6 +86,7 @@ impl PreparedBuildExecution {
         Ok(Self {
             execution_purpose,
             produced: Arc::new(produced),
+            providers: Arc::new(providers),
             account,
             machine: Arc::new(machine),
             filesystem_scope,
@@ -103,6 +107,7 @@ impl PreparedBuildExecution {
         crate::TerminalBuildHost::new(
             self.execution_purpose,
             Arc::clone(&self.produced),
+            Arc::clone(&self.providers),
             &self.account,
             Arc::clone(&self.machine),
             &self.filesystem_scope,

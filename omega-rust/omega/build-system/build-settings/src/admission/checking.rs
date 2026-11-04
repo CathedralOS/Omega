@@ -34,7 +34,14 @@ pub(crate) fn prepare_checked_build(
     timings: &mut artifacts::compile_timings::CompileTimings,
     priors: &[&RetainedCheck],
     retain: bool,
-) -> Result<(PreparedBuildMachineProgram, Option<RetainedCheck>), Vec<Diagnostic>> {
+) -> Result<
+    (
+        PreparedBuildMachineProgram,
+        super::provider_execution::BuildProviderPlans,
+        Option<RetainedCheck>,
+    ),
+    Vec<Diagnostic>,
+> {
     // Retained applications belong to the canonical typed owner. Rejoin before
     // projecting so pending evaluation and every later projection retain the
     // same exact closed declarations and type arguments.
@@ -220,5 +227,14 @@ pub(crate) fn prepare_checked_build(
         .iter()
         .map(|continuation| continuation.exclude_completed_work(typed, &checked))
         .collect::<Result<_, _>>()?;
-    Ok((PreparedBuildMachineProgram::from_checked(checked), retained))
+    let providers = super::provider_execution::BuildProviderPlans::capture(
+        &checked,
+        selected_provider_plan_facts,
+        &provenance,
+    )?;
+    Ok((
+        PreparedBuildMachineProgram::from_checked(checked),
+        providers,
+        retained,
+    ))
 }

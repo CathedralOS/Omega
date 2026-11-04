@@ -383,6 +383,39 @@ impl<'host> HostBindingTarget<'host> for terminal_interpreter::TerminalComponent
     }
 }
 
+fn bind_numeric_import<'host>(
+    program: &TerminalProgram,
+    instance: &mut impl HostBindingTarget<'host>,
+    slot: BoundaryMachineId,
+    realization: target_operations::NearestIeeeFloatArithmeticRealization,
+) -> Result<(), TerminalRuntimeError> {
+    let declaration = instance
+        .import(slot)
+        .ok_or(TerminalRuntimeError::InvalidProvision(
+            "numeric host provision names no demanded import",
+        ))?;
+    let adapter = numeric::NumericImport::for_import(program, declaration, realization)?;
+    instance.bind_import(slot, adapter)
+}
+
+/// Bind independently admitted semantic imports to this existing invocation.
+/// This creates no host environment, execution loop or service delegation.
+pub fn bind_admitted_intrinsics(
+    program: &TerminalProgram,
+    instance: &mut TerminalInstance<'_, '_>,
+    admitted: &provider_admission::provider_admission::AdmittedTerminalIntrinsics,
+) -> Result<(), TerminalRuntimeError> {
+    if program.execution_identity() != admitted.terminal() {
+        return Err(TerminalRuntimeError::InvalidProvision(
+            "semantic intrinsic admission belongs to another Terminal artifact",
+        ));
+    }
+    for (slot, realization) in admitted.operations() {
+        bind_numeric_import(program, instance, *slot, *realization)?;
+    }
+    Ok(())
+}
+
 pub(super) fn bind<'host>(
     program: &TerminalProgram,
     instance: &mut impl HostBindingTarget<'host>,
@@ -443,15 +476,7 @@ pub(super) fn bind<'host>(
             BoundarySettlementRealization::Builtin(
                 BoundaryRealization::NearestIeeeFloatArithmetic(realization),
             ) => {
-                let declaration =
-                    instance
-                        .import(*slot)
-                        .ok_or(TerminalRuntimeError::InvalidProvision(
-                            "numeric host provision names no demanded import",
-                        ))?;
-                let adapter =
-                    numeric::NumericImport::for_import(program, declaration, realization)?;
-                instance.bind_import(*slot, adapter)?;
+                bind_numeric_import(program, instance, *slot, realization)?;
                 continue;
             }
             BoundarySettlementRealization::NormalizedForeignCall(ref binding) => {

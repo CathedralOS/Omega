@@ -30,6 +30,7 @@ fn reuse_condition(condition: bool, failure: &str) -> bool {
 #[derive(Clone)]
 pub(crate) struct CompletedPureBuildInputs {
     checked: build_time_evaluation::CheckedBuildProgram,
+    providers: crate::admission::provider_execution::BuildProviderPlans,
     measurement_identity: evaluation_accounting::EvaluationMeasurementIdentity,
     // Absence is the ordinary per-invocation policy, not a reason to repeat
     // pure execution. Sponsored usage carries different ceilings and units;
@@ -64,6 +65,7 @@ impl CompletedPureBuildInputs {
     /// completed carrier prevents an admitted-but-unexecuted value from reuse.
     pub(crate) fn from_admitted(
         checked: build_time_evaluation::CheckedBuildProgram,
+        providers: crate::admission::provider_execution::BuildProviderPlans,
         selected_entry: symbols::SymbolHandle,
         initial_build: BuildTimeValue,
         packages: Option<&package_compilation::PackageCompilationInputs>,
@@ -95,6 +97,7 @@ impl CompletedPureBuildInputs {
         }
         Some(Self {
             checked,
+            providers,
             measurement_identity,
             sponsor_policy: sponsor.map(|sponsor| (sponsor.measurement(), sponsor.limits())),
             selected_entry,
@@ -124,6 +127,9 @@ impl CompletedPureBuildInputs {
         reuse_condition(
             self.checked == other.checked,
             "key differs: checked program",
+        ) && reuse_condition(
+            self.providers == other.providers,
+            "key differs: selected provider execution",
         ) && reuse_condition(
             self.measurement_identity == other.measurement_identity,
             "key differs: measurement",

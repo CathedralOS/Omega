@@ -86,6 +86,7 @@ impl ReturnedBuild {
 pub struct TerminalBuildHost {
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<ProducedTerminalProgram>,
+    providers: Arc<crate::admission::provider_execution::BuildProviderInstallation>,
     account: EvaluationInvocationAccount,
     original: TerminalStructuralValue,
     requests: Arc<TerminalBuildRequestHost>,
@@ -103,6 +104,7 @@ impl TerminalBuildHost {
     pub(crate) fn new(
         execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
         produced: Arc<ProducedTerminalProgram>,
+        providers: Arc<crate::admission::provider_execution::BuildProviderInstallation>,
         account: &EvaluationInvocationAccount,
         machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
         filesystem_scope: &package_compilation::BuildMachineFilesystemScope,
@@ -144,6 +146,7 @@ impl TerminalBuildHost {
         Ok(Arc::new(Self {
             execution_purpose,
             produced,
+            providers,
             account: account.clone(),
             original,
             requests,
@@ -200,13 +203,20 @@ impl TerminalBuildHost {
             .chain(query_calls.iter().map(|call| call.boundary))
             .chain(filesystem_calls.iter().map(|call| call.boundary))
             .collect::<Vec<_>>();
+        host_imports.extend(
+            self.providers
+                .intrinsics
+                .operations()
+                .iter()
+                .map(|(slot, _)| *slot),
+        );
         host_imports.sort_unstable();
         host_imports.dedup();
         let mut supplies = program
             .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
                 native_code_layouts: None,
                 host_imports: &host_imports,
-                installation: None,
+                installation: Some(&self.providers.checked),
                 entry: None,
                 x86_flags: None,
                 memory_ordering: None,
@@ -231,6 +241,12 @@ impl TerminalBuildHost {
                 ..Default::default()
             })
             .map_err(describe)?;
+        terminal_runtime::bind_admitted_intrinsics(
+            &program,
+            &mut instance,
+            &self.providers.intrinsics,
+        )
+        .map_err(|reason| format!("Build selected intrinsic binding: {reason:?}"))?;
         for boundary in instance.unbound_imports().collect::<Vec<_>>() {
             if provider_slots.contains(&boundary) {
                 continue;

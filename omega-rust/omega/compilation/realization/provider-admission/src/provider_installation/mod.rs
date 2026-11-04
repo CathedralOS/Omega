@@ -14,6 +14,7 @@ pub use error::ProviderInstallationError;
 
 use abstract_operations::CompletionClaimSource;
 pub(crate) use admission::admit_provider_installation_with_projection;
+pub use admission::admit_terminal_provider_installation;
 use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::{InvocationSite, MachineId};
 use terminal_psi::{CompletionReceipt, ProviderCandidateConformance, StructuralArgument};

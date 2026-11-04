@@ -15,6 +15,7 @@ use symbols::SymbolHandle;
 #[must_use = "an admitted build program must prepare its execution"]
 pub(crate) struct AdmittedBuildProgram {
     pub(crate) prepared: PreparedBuildMachineProgram,
+    pub(crate) providers: super::provider_execution::BuildProviderPlans,
     pub(crate) machine: SelectedBuildMachine,
     pub(crate) filesystem_scope: BuildMachineFilesystemScope,
     pub(crate) evaluation_sponsor: Option<BuildEvaluationSponsor>,
@@ -66,6 +67,7 @@ impl AdmittedBuildProgram {
         };
         crate::activation::completed_pure_build::CompletedPureBuildInputs::from_admitted(
             checked,
+            self.providers.clone(),
             self.machine.symbol,
             self.machine.initial_build.clone(),
             packages,
@@ -87,6 +89,7 @@ impl AdmittedBuildProgram {
 /// only entry token accepted by its prepared program.
 pub(crate) fn admit_build_program(
     prepared: PreparedBuildMachineProgram,
+    providers: super::provider_execution::BuildProviderPlans,
     machine_symbol: SymbolHandle,
     filesystem_scope: &BuildMachineFilesystemScope,
     evaluation_sponsor: Option<&BuildEvaluationSponsor>,
@@ -117,6 +120,7 @@ pub(crate) fn admit_build_program(
     )?;
     Ok(AdmittedBuildProgram {
         prepared,
+        providers,
         machine,
         filesystem_scope,
         evaluation_sponsor: evaluation_sponsor.cloned(),

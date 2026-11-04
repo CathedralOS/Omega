@@ -32,7 +32,7 @@ fn close_nominal_declaration(
         .and_then(|identity| context.typed.type_identity_text(identity))
         .ok_or_else(|| {
             vec![Diagnostic::error(
-                "native provider selection lost its exact declaration owner",
+                "selected provider lost its exact declaration owner",
             )]
         })
 }
@@ -52,7 +52,7 @@ pub(crate) fn close_provider_declarations(
         || provider.row_requirements.len() != plan.rows.len()
     {
         return Err(vec![Diagnostic::error(
-            "native provider selection lost row realization custody",
+            "selected provider lost row realization custody",
         )]);
     }
     let provider_declaration =
