@@ -19,6 +19,11 @@ pub enum BuildAdvance {
     Complete(Result<Option<build_settings::ReturnedBuild>, CompileFailure>),
 }
 
+pub(super) enum BuildSourcePurpose<'request> {
+    Defaults,
+    Source(&'request CompletedProviderDefaults),
+}
+
 pub(super) struct SourceBuild {
     state: State,
 }
@@ -80,7 +85,7 @@ impl SourceBuild {
             core_source,
             core_child,
             Some(compilation),
-            None,
+            BuildSourcePurpose::Defaults,
         )?;
         Ok(Self {
             state: State::Defaults {
@@ -171,7 +176,7 @@ impl SourceBuild {
                 settled_check_reuse: reuse,
             },
             Some(&compilation),
-            Some(&defaults),
+            BuildSourcePurpose::Source(&defaults),
         )?;
         self.state = State::Root {
             invocation: Box::new(invocation),

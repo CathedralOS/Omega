@@ -36,9 +36,19 @@ pub(super) fn prepare_build_invocation(
     frontier: TypedCompilationFrontier,
     mut timings: CompileTimings,
     pure_build_compilation: Option<&build_settings::PureBuildCompilation>,
-    toolchain_defaults: Option<&package_compilation::CompletedProviderDefaults>,
+    purpose: super::source_build::BuildSourcePurpose<'_>,
 ) -> Result<BuildSourceInvocation, CompileFailure> {
     let started = std::time::Instant::now();
+    let (execution_purpose, toolchain_defaults) = match purpose {
+        super::source_build::BuildSourcePurpose::Defaults => (
+            artifacts::compile_timings::counters::BuildExecutionPurpose::ProviderDefaults,
+            None,
+        ),
+        super::source_build::BuildSourcePurpose::Source(defaults) => (
+            artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
+            Some(defaults),
+        ),
+    };
     let CheckedExecutionRequest {
         selected_target_profile,
         package_inputs,
@@ -61,6 +71,7 @@ pub(super) fn prepare_build_invocation(
     let build_input = source.build_input();
     let evaluation = build_settings::prepare_build_evaluation(
         build_settings::BuildEvaluationRequest {
+            execution_purpose,
             pure_build_compilation,
             toolchain_defaults,
             root_path,

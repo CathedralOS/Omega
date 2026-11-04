@@ -21,6 +21,8 @@ use typed_trees::TypedTrees;
 /// Inputs to one activation. Source assembly and typing have already finished;
 /// this operation neither discovers source nor compiles generated continuations.
 pub struct BuildEvaluationRequest<'request> {
+    /// Measurement only; source custody and admission independently establish authority.
+    pub execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     /// Completed core selections for this Build's own admitted execution scope.
     /// These are defaults; its unfinished Product choices supply no authority.
     pub toolchain_defaults: Option<&'request package_compilation::CompletedProviderDefaults>,
@@ -139,6 +141,7 @@ pub fn prepare_build_evaluation(
     timings: &mut CompileTimings,
 ) -> Result<PreparedBuildEvaluation, CompileFailure> {
     let BuildEvaluationRequest {
+        execution_purpose,
         pure_build_compilation,
         toolchain_defaults,
         root_path,
@@ -286,7 +289,10 @@ pub fn prepare_build_evaluation(
         };
         BuildEvaluationState::Complete(configuration)
     } else {
-        BuildEvaluationState::Execute(PreparedBuildExecution::prepare(admitted)?)
+        BuildEvaluationState::Execute(PreparedBuildExecution::prepare(
+            admitted,
+            execution_purpose,
+        )?)
     };
     Ok(PreparedBuildEvaluation {
         state,

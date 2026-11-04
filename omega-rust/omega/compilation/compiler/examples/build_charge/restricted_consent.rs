@@ -101,6 +101,8 @@ machine build(builder: &mut Build) crashes Trap {
         // ordinary package compiler continues to supply captured source custody.
         let admitted = build_settings::prepare_build_evaluation(
             build_settings::BuildEvaluationRequest {
+                execution_purpose:
+                    artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
                 pure_build_compilation: None,
                 toolchain_defaults: None,
                 root_path: &entry,
