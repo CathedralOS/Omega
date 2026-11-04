@@ -126,6 +126,10 @@ fail/calls/nested_machine_qualified_call_carriers rejected 1056ms expected @11bd
 	call `outer::generic_helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
 	call `outer::subject_helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
 	call `outer::terminal_helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
+fail/calls/private_arrival_guarded_helper_range_rejected rejected 1819ms expected @6f6402629925
+	exact arithmetic in machine `step` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/calls/private_arrival_identity_return_range_rejected rejected 1906ms expected @6f6402629925
+	exact arithmetic in machine `step` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/calls/runtime_guarded_reference_return_nested_local_escape rejected 4129ms expected @c79bb8268163+wt
 	machine `failed` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/calls/selected_crash_argument_snapshot_rejected rejected 8318ms expected @feef96dc297d
@@ -3572,6 +3576,13 @@ fail/float/ieee_collection_index_rewrite_retires_guard rejected 3499ms expected 
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[slot]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/ieee_collection_other_element_write_retires_guard rejected 2367ms expected @085f035b8b6e+wt
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/float/private_arrival_inexact_integer_coercion_rejected rejected 3751ms expected @469d71d218e2
+	machine `convert` state `entry` cannot prove integer-to-`f64` cast operand `value` preserves its denotation; prove exact format representability or use a named conversion to round
+	machine `convert` state `entry` cannot prove integer-to-`f64` cast operand `value` preserves its denotation; prove exact format representability or use a named conversion to round
+	machine `convert` state `entry` cannot prove integer-to-`f64` cast operand `value` preserves its denotation; prove exact format representability or use a named conversion to round
+fail/float/private_arrival_unguarded_exact_coercion_rejected rejected 3862ms expected @18fc751d0060+wt
+	machine `convert` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/specification_index_reference_selector_unbounded rejected 4743ms expected @e8827ad1dd64+wt
 	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
 	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
@@ -4943,6 +4954,8 @@ pass/calls/owned_mixed_overaligned_call checked 12475ms check-target:macos_arm64
 pass/calls/owned_overaligned_local_call checked 3953ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/owned_state_parameter_call_exit checked 15998ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/prefix_effectful_call checked 9472ms @7b4244a67630
+pass/calls/private_arrival_guarded_helper_range_exit checked 9944ms check-target:macos_arm64 @6f6402629925
+pass/calls/private_arrival_identity_return_range_exit checked 9976ms check-target:macos_arm64 @6f6402629925
 pass/calls/private_callback_call_closure checked 22551ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/projected_receiver_callee checked 7606ms @911f6617ba9e
 pass/calls/qualified_record_call_result_field_exit checked 16957ms check-target:macos_arm64 @ccdb99ca2214

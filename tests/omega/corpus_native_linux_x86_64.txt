@@ -795,6 +795,8 @@ pass/calls/owned_mixed_overaligned_call built 6345ms exit:0 @a92f16431042
 pass/calls/owned_overaligned_local_call built 2431ms exit:0 @a92f16431042
 pass/calls/owned_state_parameter_call_exit built 5800ms exit:70 @a92f16431042
 pass/calls/prefix_effectful_call checked 2239ms @a92f16431042
+pass/calls/private_arrival_guarded_helper_range_exit built 9935ms exit:0 @6f6402629925
+pass/calls/private_arrival_identity_return_range_exit built 9935ms exit:0 @6f6402629925
 pass/calls/private_callback_call_closure built 14001ms exit:0 stdout:match stderr:match @a92f16431042
 pass/calls/projected_receiver_callee checked 1907ms @a92f16431042
 pass/calls/qualified_record_call_result_field_exit built 7759ms exit:70 @a92f16431042
