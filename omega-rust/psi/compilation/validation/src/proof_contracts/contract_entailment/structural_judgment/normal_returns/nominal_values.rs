@@ -3,52 +3,6 @@
 //! constructor syntax or a destination type cannot establish that validity.
 use super::{ExpressionHandle, StructuralJudge, StructuralTerm, TypeReferenceHandle, ValueScope};
 
-fn traced_nominal_subject(value: &StructuralTerm, depth: usize) -> String {
-    if depth >= 3 {
-        return "nested".to_owned();
-    }
-    match value {
-        StructuralTerm::ObservedValue {
-            observed_type,
-            value,
-            descriptor,
-        } => format!(
-            "observed(type={observed_type:?},descriptor={},value={})",
-            descriptor.is_some(),
-            traced_nominal_subject(value, depth + 1),
-        ),
-        StructuralTerm::CapturedValue {
-            expression,
-            statement,
-            callable,
-            occurrence,
-            result_type,
-            ..
-        } => format!(
-            "capture(expression={expression:?},statement={statement:?},callable={callable:?},occurrence={occurrence},type={result_type:?})"
-        ),
-        StructuralTerm::Projection { subject, path } => format!(
-            "projection(fields={},subject={})",
-            path.split('.').count(),
-            traced_nominal_subject(subject, depth + 1),
-        ),
-        StructuralTerm::Variable(name) => {
-            format!("variable({:?})", name.chars().take(64).collect::<String>())
-        }
-        StructuralTerm::BoundValue(symbol) => format!("bound({symbol:?})"),
-        StructuralTerm::BoundProjection { subject, path } => {
-            format!(
-                "bound-field(subject={subject:?},fields={})",
-                path.split('.').count()
-            )
-        }
-        StructuralTerm::Constructor { fields, .. } => {
-            format!("constructor(fields={})", fields.len())
-        }
-        _ => "other".to_owned(),
-    }
-}
-
 impl StructuralJudge<'_> {
     /// Keep the returned value's saved field and constructor information
     /// available to its caller. Follow the exact captured values it contains;
@@ -290,25 +244,6 @@ impl StructuralJudge<'_> {
         else {
             return None;
         };
-        let trace = |phase: &str,
-                     saved: Option<TypeReferenceHandle>,
-                     projected: Option<TypeReferenceHandle>,
-                     source: Option<&StructuralTerm>| {
-            if super::super::super::struct_trace() {
-                eprintln!(
-                    "STRUCT nominal-subject owner={:?} state={:?} observed={} root={} owned={owned:?} saved={saved:?} projected={projected:?} fields={} source={} phase={phase}",
-                    self.machine_symbol,
-                    self.declaration_state,
-                    traced_nominal_subject(value, 0),
-                    traced_nominal_subject(root, 0),
-                    path.split('.').count(),
-                    source.map_or_else(
-                        || "none".to_owned(),
-                        |source| traced_nominal_subject(source, 0)
-                    ),
-                );
-            }
-        };
         let Some(capture) = self
             .completed_nominal_values
             .iter()
@@ -333,21 +268,19 @@ impl StructuralJudge<'_> {
             &names,
         );
         let [path] = paths.as_slice() else {
-            trace("owned-field-path", Some(capture.reference), None, None);
             return None;
         };
         let projected =
             crate::project_type_reference_from_segments(self.program, capture.reference, path);
-        let Some(projected) = projected.filter(|projected| {
+        let Some(_) = projected.filter(|projected| {
             crate::reference_shell(self.program, *projected).is_none()
                 && owned.is_none_or(|owned| {
                     crate::declared_carriers_match(self.program, owned, *projected)
                 })
         }) else {
-            trace("owned-field-type", Some(capture.reference), projected, None);
             return None;
         };
-        let source = super::super::super::observed_projections::project_observed_value_in_scope(
+        super::super::super::observed_projections::project_observed_value_in_scope(
             self.program,
             self,
             capture.reference,
@@ -357,18 +290,7 @@ impl StructuralJudge<'_> {
                 capture.observed_value.clone(),
             ),
             path,
-        );
-        trace(
-            if source.is_some() {
-                "followed"
-            } else {
-                "saved-field-projection"
-            },
-            Some(capture.reference),
-            Some(projected),
-            source.as_ref(),
-        );
-        source
+        )
     }
 
     /// Recover this occurrence's constructor and, inside it, the constructor

@@ -56,11 +56,7 @@ pub(super) fn solve<'program>(
             symbols,
             inference,
             include_shared,
-        );
-        if equation.is_none() {
-            super::trace_result_refusal(owner, state, "return-equation");
-        }
-        let equation = equation?;
+        )?;
         for edge in &equation.edges {
             if !states
                 .iter()

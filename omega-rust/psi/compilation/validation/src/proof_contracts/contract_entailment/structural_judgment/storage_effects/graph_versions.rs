@@ -469,12 +469,6 @@ impl<'program> StructuralJudge<'program> {
             crate::completed_storage::StoredObservation::Contents
         };
         if stored.current_anchors.is_empty() || stored.anchor_state != at.state {
-            if super::super::super::struct_trace() {
-                eprintln!(
-                    "STRUCT storage-value-retired coordinate={coordinate:?} inline={inline} at={at:?} anchors={:?} anchor_state={:?} phase=establishment-state",
-                    stored.current_anchors, stored.anchor_state,
-                );
-            }
             return false;
         }
         // A whole immutable scalar binding has no write authority: no effect,
@@ -600,79 +594,6 @@ impl<'program> StructuralJudge<'program> {
                 .any(|anchor| matches!(anchor, StorageAnchor::After(cut) if preserved(*cut))),
             Some(reaching) => reached(&reaching),
         };
-        if !valid && super::super::super::struct_trace() {
-            eprintln!(
-                "STRUCT storage-value-retired coordinate={coordinate:?} inline={inline} at={at:?} anchors={:?}",
-                stored.current_anchors,
-            );
-            // Show this observation's recorded cuts and call associations
-            // without evaluating storage again or interpreting effects.
-            let calls = self
-                .flow_state(at.state)
-                .and_then(|state| graph.calls.span(state.calls))
-                .unwrap_or(&[]);
-            let mut previous_cuts = Vec::new();
-            let mut cut = at.snapshot;
-            let describe_writes = |span| {
-                graph.operand_origin_writes.span(span).map(|writes| {
-                    let prefix = writes
-                        .iter()
-                        .take(4)
-                        .map(|write| {
-                            let path = graph.operand_referent_segments.span(write.segments).map(
-                                |segments| {
-                                    (
-                                        segments.len(),
-                                        segments.iter().take(4).copied().collect::<Vec<_>>(),
-                                    )
-                                },
-                            );
-                            (write.root, path)
-                        })
-                        .collect::<Vec<_>>();
-                    (writes.len(), prefix)
-                })
-            };
-            for _ in 0..16 {
-                if !graph.storage_snapshots.is_valid(cut) {
-                    break;
-                }
-                let snapshot = graph.storage_snapshots.get(cut);
-                let associations = calls
-                    .iter()
-                    .filter(|call| call.invocation_storage == cut || call.completed_storage == cut)
-                    .take(4)
-                    .map(|call| {
-                        (
-                            call.statement_index,
-                            call.call_ordinal,
-                            call.authored_expression,
-                            call.target_symbol,
-                            call.invocation_storage,
-                            call.completed_storage,
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                let writes = match snapshot.operation {
-                    checked_trees::FlowStorageOperation::Writes {
-                        bindings, contents, ..
-                    } => Some((describe_writes(bindings), describe_writes(contents))),
-                    _ => None,
-                };
-                previous_cuts.push((
-                    cut,
-                    snapshot.previous,
-                    snapshot.operation,
-                    associations,
-                    writes,
-                ));
-                if snapshot.previous == cut {
-                    break;
-                }
-                cut = snapshot.previous;
-            }
-            eprintln!("STRUCT storage-retirement-cuts at={at:?} previous={previous_cuts:?}");
-        }
         valid
     }
 }

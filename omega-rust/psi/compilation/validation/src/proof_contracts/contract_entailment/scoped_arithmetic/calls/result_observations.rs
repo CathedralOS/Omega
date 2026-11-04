@@ -109,20 +109,12 @@ fn discover_result_observations<'program>(
     let mut pending = guarantees.clone();
     let mut coordinates: Vec<super::super::PendingScopedCallResultObservation> = Vec::new();
     let mut visited = Vec::new();
-    let mut reserved_coordinates = 0;
-    let mut selected_coordinates = 0;
     while let Some(selected) = pending.pop() {
         if visited.contains(&selected) {
             continue;
         }
         visited.push(selected);
         let place = crate::reserved_result_place(program, selected);
-        reserved_coordinates += usize::from(place.is_some());
-        selected_coordinates += usize::from(
-            place
-                .as_ref()
-                .is_some_and(|place| place.machine_symbol == result_owner),
-        );
         if let Some(place) = place
             && place.machine_symbol == result_owner
             && !place.segments.is_empty()
@@ -190,17 +182,6 @@ fn discover_result_observations<'program>(
             program,
             program.expression_table.expression(selected),
             |child| pending.push(child),
-        );
-    }
-    if super::super::super::struct_trace() {
-        eprintln!(
-            "STRUCT result-observation-plan expression={expression:?} owner={result_owner:?} type={reference:?} guarantees={} reserved={reserved_coordinates} selected={selected_coordinates} coordinates={} backing={}",
-            guarantees.len(),
-            coordinates.len(),
-            coordinates
-                .iter()
-                .filter(|coordinate| coordinate.requires_backing)
-                .count(),
         );
     }
     Some(ResultObservationPlan {

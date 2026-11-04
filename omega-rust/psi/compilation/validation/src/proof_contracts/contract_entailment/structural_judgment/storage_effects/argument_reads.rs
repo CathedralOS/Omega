@@ -70,8 +70,6 @@ impl StructuralJudge<'_> {
             }) else {
                 continue;
             };
-            let before = values.len();
-            let mut candidates = 0;
             for stored in self.stored_values.iter() {
                 if stored.backing.is_none()
                     || stored.current.is_none()
@@ -87,7 +85,6 @@ impl StructuralJudge<'_> {
                 else {
                     continue;
                 };
-                candidates += 1;
                 let coordinate = CapturedStorageCoordinate {
                     root: facts::PlaceRoot::Symbol(parameter.symbol),
                     segments: suffix.to_vec(),
@@ -126,15 +123,6 @@ impl StructuralJudge<'_> {
                     current_anchors: vec![StorageAnchor::Incoming],
                     anchor_state: entry.symbol,
                 });
-            }
-            if super::super::super::struct_trace() {
-                eprintln!(
-                    "STRUCT owned-argument-current-values caller={:?} entry={:?} parameter={:?} source={expression:?} candidates={candidates} retained={}",
-                    caller.symbol,
-                    entry.symbol,
-                    parameter.symbol,
-                    values.len() - before,
-                );
             }
         }
         values

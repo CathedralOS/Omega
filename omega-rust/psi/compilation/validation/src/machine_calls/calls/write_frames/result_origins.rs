@@ -39,15 +39,6 @@ pub(super) use primitive_results::extent_view_types;
 mod selected_sources;
 mod state_equations;
 
-fn trace_result_refusal(machine: &Machine, state: &State, phase: &str) {
-    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-        eprintln!(
-            "STRUCT state-result-origins-refused machine={} state={:?} phase={phase}",
-            machine.name, state.symbol,
-        );
-    }
-}
-
 pub(super) fn call_result_origins(
     program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
@@ -174,23 +165,6 @@ fn call_body_result_origins(
         || arguments.len() != parameters.len()
         || !super::isolation::aggregate_storage_types_match(program, applied_result, expected)
     {
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-            eprintln!(
-                "STRUCT call-result-origins-refused caller={} callee={} expression={expression:?} target={:?} active={} supply={:?} body={} generic_parameters={} machine_arguments={} receiver={} attached_data={} arguments={} parameters={} applied={applied_result:?} expected={expected:?}",
-                caller_machine.name,
-                machine.name,
-                call.target_symbol,
-                inference.active_states.contains(&state.symbol),
-                machine.supply_mode,
-                machine.body_is_present,
-                program.machine_type_parameters(machine).len(),
-                call.machine_arguments.len(),
-                call.receiver.is_valid(),
-                machine.attached_data.is_some(),
-                arguments.len(),
-                parameters.len(),
-            );
-        }
         return None;
     }
     // Generic declarations can establish input-relative origins before their
@@ -214,12 +188,6 @@ fn call_body_result_origins(
                 include_shared,
             )
         });
-        if relative.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-            eprintln!(
-                "STRUCT call-result-origins-refused caller={} callee={} expression={expression:?} phase=normal-result-relation",
-                caller_machine.name, machine.name,
-            );
-        }
         relative?
     };
     let returned = instantiate_result_origins(
@@ -234,12 +202,6 @@ fn call_body_result_origins(
         include_shared,
         inputs,
     );
-    if returned.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-        eprintln!(
-            "STRUCT call-result-origins-refused caller={} callee={} expression={expression:?} phase=completed-input-substitution",
-            caller_machine.name, machine.name,
-        );
-    }
     returned
 }
 
@@ -263,7 +225,6 @@ pub(super) fn state_result_origins<'program>(
         return Some(origin);
     }
     if inference.active_states.contains(&state.symbol) {
-        trace_result_refusal(machine, state, "active-body");
         return None;
     }
     let parameter_count = program.state_parameters(state).len();
@@ -312,9 +273,6 @@ fn state_equation<'program>(
         symbols,
         inference,
     );
-    if inputs.is_none() {
-        trace_result_refusal(machine, state, "frozen-inputs");
-    }
     inputs?;
     let statements = program.statement_table.statements(state.statement_nodes);
     // Every borrowed origin must retain its declaration. The shared transfer
@@ -336,7 +294,6 @@ fn state_equation<'program>(
                 )
             })
     }) {
-        trace_result_refusal(machine, state, "undeclared-exclusive-borrow");
         return None;
     }
     for statement in statements {
@@ -401,9 +358,6 @@ fn state_equation<'program>(
                 _ => false,
             },
         );
-        if prefix.is_none() {
-            trace_result_refusal(machine, state, "completed-body-prefix");
-        }
         let (context, prefixes) = prefix?;
         for local in &context.stored {
             inference.record_local(local);
@@ -470,12 +424,6 @@ fn state_equation<'program>(
                 include_shared,
                 prefixes.get(index).and_then(Option::as_ref),
             );
-            if merged.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-                eprintln!(
-                    "STRUCT state-result-origins-refused machine={} state={:?} expression={result:?} expected={expected_result:?} phase=returned-value-suppliers",
-                    machine.name, state.symbol,
-                );
-            }
             merged
         };
         for (index, statement) in statements.iter().enumerate() {
@@ -799,12 +747,6 @@ fn merge_relative_origins(
             // These are callee-state summaries. A caller observation cannot
             // escape without its own inventory finishing the demanded path.
             Some(ReferenceSource::Captured(_)) => {
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-                    eprintln!(
-                        "STRUCT state-result-origins-refused machine={} state={:?} leaf={:?} phase=unsettled-returned-descriptor",
-                        machine.name, state.symbol, leaf.origin,
-                    );
-                }
                 return None;
             }
             origin => canonical_result_reference_origins(

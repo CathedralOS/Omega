@@ -210,16 +210,7 @@ impl Operand {
         })();
         match result {
             Ok(preserved) => preserved,
-            Err(reason) => {
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-                    eprintln!(
-                        "STRUCT arithmetic-read-retired state={:?} root={root:?} steps={} phase={reason}",
-                        state.symbol,
-                        segments.len()
-                    );
-                }
-                Some(false)
-            }
+            Err(_) => Some(false),
         }
     }
 }

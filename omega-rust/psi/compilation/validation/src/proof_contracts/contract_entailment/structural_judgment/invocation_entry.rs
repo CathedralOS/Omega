@@ -119,12 +119,6 @@ impl<'program> StructuralJudge<'program> {
         if (caller.graph_storage_mode() && completion_version.is_none())
             || completion_version.is_some_and(|version| version.state != state.symbol)
         {
-            if super::super::struct_trace() {
-                eprintln!(
-                    "STRUCT invocation-completion-refused state={:?} completion={completion_version:?} phase=caller-completion-cut",
-                    state.symbol,
-                );
-            }
             return None;
         }
         let returned_nominal_values = self.returned_nominal_values(returned, caller);

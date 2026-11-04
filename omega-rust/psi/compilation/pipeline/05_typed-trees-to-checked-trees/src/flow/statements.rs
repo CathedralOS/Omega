@@ -776,16 +776,6 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             _ => None,
         };
         if let Some((bindings, contents)) = final_write {
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-                eprintln!(
-                    "STRUCT storage-write machine={} state={} statement={statement_index} bindings={bindings:?} contents={contents:?}",
-                    machine.name, state.name,
-                );
-                if bindings.is_none() {
-                    let target = build.control.statements.get(statement_fact).store_target;
-                    trace_unavailable_storage_address(program, &build.control, target);
-                }
-            }
             let snapshot = build
                 .control
                 .statements
@@ -954,59 +944,4 @@ fn statement_record_ranges(
         }
     }
     ranges
-}
-
-/// Show where a failed store's already evaluated address lost its sources.
-/// Follow its recorded backing chain; the trace never reconstructs an address.
-fn trace_unavailable_storage_address(
-    program: &dyn validation::CheckingInput,
-    control: &checked_trees::FlowControlFacts,
-    mut target: Handle<checked_trees::FlowOperandFact>,
-) {
-    if !control.operands.is_valid(target) {
-        eprintln!("STRUCT storage-write-target phase=missing-completed-target");
-        return;
-    }
-    let mut visited = Vec::new();
-    while control.operands.is_valid(target) && !visited.contains(&target) {
-        visited.push(target);
-        let capture = control.operands.get(target);
-        let label = program
-            .expression_table
-            .expression_is_valid(capture.expression)
-            .then(|| program.expression_table.display_name(capture.expression));
-        let reference = program
-            .type_reference_table
-            .contains_type_reference(capture.type_reference)
-            .then(|| {
-                program
-                    .type_reference_table
-                    .type_reference(capture.type_reference)
-            });
-        eprintln!(
-            "STRUCT storage-write-target capture={target:?} expression={:?} label={label:?} type={:?} carrier={reference:?} referents={:?} retention={:?} completion={:?} backing={:?} case_access={:?}",
-            capture.expression,
-            capture.type_reference,
-            capture.referents,
-            capture.retention,
-            capture.completion,
-            capture.backing,
-            capture.case_access,
-        );
-        for referent in control.operand_referents.span_or_empty(capture.referents) {
-            let formation = control
-                .referent_formations
-                .is_valid(referent.formation)
-                .then(|| control.referent_formations.get(referent.formation));
-            eprintln!(
-                "STRUCT storage-write-target-referent capture={target:?} root={:?} path={:?} formation={formation:?}",
-                referent.root,
-                control.operand_referent_segments.span(referent.segments),
-            );
-        }
-        target = capture.backing;
-    }
-    if control.operands.is_valid(target) {
-        eprintln!("STRUCT storage-write-target capture={target:?} phase=cyclic-backing");
-    }
 }

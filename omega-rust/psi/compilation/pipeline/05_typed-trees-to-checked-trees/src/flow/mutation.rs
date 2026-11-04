@@ -62,24 +62,6 @@ pub(in crate::flow) struct CallMutationWrite {
     pub checked_write_type: typed_trees::types::TypeReferenceHandle,
 }
 
-/// Identify which existing footprint check declined without resolving effects again.
-pub(in crate::flow) fn trace_call_storage_refusal(
-    machine: SymbolHandle,
-    state: SymbolHandle,
-    call: &BorrowCallFact,
-    phase: &str,
-    path: Option<&str>,
-    root: Option<facts::PlaceRoot>,
-) {
-    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-        let path = path.map(|path| (path.len(), path.chars().take(96).collect::<String>()));
-        eprintln!(
-            "STRUCT flow-call-storage-refused machine={machine:?} state={state:?} statement={} ordinal={} expression={:?} target={:?} phase={phase} path={path:?} root={root:?}",
-            call.statement_index, call.call_ordinal, call.authored_expression, call.target_symbol,
-        );
-    }
-}
-
 /// Caller storage footprint. `None` requires full invalidation; an empty
 /// complete footprint preserves facts. Neither may be represented by an
 /// unresolved reference-binding root.
@@ -155,14 +137,6 @@ pub(in crate::flow) fn call_mutation_writes(
         caller_state_symbol,
         &site,
     ) {
-        trace_call_storage_refusal(
-            caller_machine_symbol,
-            caller_state_symbol,
-            borrow_call,
-            "operand-coordinates",
-            None,
-            None,
-        );
         return None;
     }
     // Reserved byte predicates observe storage but cannot write it. Recognize
@@ -178,7 +152,7 @@ pub(in crate::flow) fn call_mutation_writes(
     // (mutation/ceiling.rs); only an unrepresentable ceiling stays unknown and
     // retires every live fact. `call_write_places` already applies that
     // fallback for this namespace, so no second copy stands here.
-    let Some(mut writes) = call_write_places(
+    let mut writes = call_write_places(
         program,
         caller_machine_symbol,
         caller_state_symbol,
@@ -188,38 +162,17 @@ pub(in crate::flow) fn call_mutation_writes(
         WritePlaceNamespace::Storage,
         call_frames,
         None,
-    ) else {
-        trace_call_storage_refusal(
-            caller_machine_symbol,
-            caller_state_symbol,
-            borrow_call,
-            "call-frame",
-            None,
-            None,
-        );
-        return None;
-    };
+    )?;
     // Normal completion of the carrier closes its retained debt even when a
     // checked helper's visible frame mentions only the token. Neither a pure
     // token move nor the nominal layout proves unchanged opaque backing.
-    let Some(retained) = ceiling::retained_loan_write_regions(
+    for region in ceiling::retained_loan_write_regions(
         program,
         caller_machine_symbol,
         caller_state_symbol,
         borrow,
         borrow_call,
-    ) else {
-        trace_call_storage_refusal(
-            caller_machine_symbol,
-            caller_state_symbol,
-            borrow_call,
-            "retained-loan",
-            None,
-            None,
-        );
-        return None;
-    };
-    for region in retained {
+    )? {
         if !writes.iter().any(|write| write.region == region) {
             writes.push(CallMutationWrite {
                 region,
@@ -500,17 +453,7 @@ fn shared_call_storage_regions(
         borrow_call.statement_index,
         borrow_call.call_ordinal,
     )?;
-    let Some(resolver) = call_frames else {
-        trace_call_storage_refusal(
-            caller_machine_symbol,
-            caller_state_symbol,
-            borrow_call,
-            "boundary-resolver",
-            None,
-            None,
-        );
-        return None;
-    };
+    let resolver = call_frames?;
     let frame = match &site {
         CallSite::Statement(call) => resolver.may_write_frame(machine, call),
         CallSite::Expression { expression, .. } => {
@@ -528,50 +471,16 @@ fn shared_call_storage_regions(
         call_frames,
     );
     let mut places = Vec::new();
-    let Some(paths) = frame.complete_paths() else {
-        trace_call_storage_refusal(
-            caller_machine_symbol,
-            caller_state_symbol,
-            borrow_call,
-            "boundary-frame",
-            None,
-            None,
-        );
-        return None;
-    };
-    for path in paths {
-        let Some(source) =
-            local_origins::frame_write_place(program, state, borrow_call.statement_index, path)
-        else {
-            trace_call_storage_refusal(
-                caller_machine_symbol,
-                caller_state_symbol,
-                borrow_call,
-                "boundary-coordinate",
-                Some(path),
-                None,
-            );
-            return None;
-        };
-        let source_root = source.root;
-        let Some(regions) = local_origins::rebase_local_write_regions(
+    for path in frame.complete_paths()? {
+        let source =
+            local_origins::frame_write_place(program, state, borrow_call.statement_index, path)?;
+        for region in local_origins::rebase_local_write_regions(
             program,
             caller_state_symbol,
             borrow_call.statement_index,
             source,
             call_frames,
-        ) else {
-            trace_call_storage_refusal(
-                caller_machine_symbol,
-                caller_state_symbol,
-                borrow_call,
-                "boundary-origin",
-                Some(path),
-                Some(source_root),
-            );
-            return None;
-        };
-        for region in regions {
+        )? {
             let StorageRegion::Declared(coarse) = region else {
                 crate::shared::collections::push_unique(&mut places, region);
                 continue;
@@ -614,25 +523,14 @@ fn shared_call_storage_regions(
     // Opaque boundary bodies may exercise carried capability authority even
     // when their ordinary descriptor frame is empty. A by-value resident
     // lends no descriptor bytes but still carries its external content.
-    let Some(ceiling) = ceiling::signature_ceiling_regions(
+    for region in ceiling::signature_ceiling_regions(
         program,
         caller_machine_symbol,
         caller_state_symbol,
         Some(borrow),
         borrow_call,
         call_frames,
-    ) else {
-        trace_call_storage_refusal(
-            caller_machine_symbol,
-            caller_state_symbol,
-            borrow_call,
-            "boundary-capability-ceiling",
-            None,
-            None,
-        );
-        return None;
-    };
-    for region in ceiling {
+    )? {
         if !matches!(region, StorageRegion::Declared(_)) && !places.contains(&region) {
             places.push(region);
         }

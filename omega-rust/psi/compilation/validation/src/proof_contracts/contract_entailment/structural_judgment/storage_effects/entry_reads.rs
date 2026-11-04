@@ -108,14 +108,7 @@ impl StructuralJudge<'_> {
                     {
                         continue;
                     }
-                    if let Err(reason) = self.retain_entry_predicate_scalar(machine, state, place)
-                        && super::super::super::struct_trace()
-                    {
-                        eprintln!(
-                            "STRUCT entry-return-scalar-refused state={:?} phase={reason}",
-                            state.symbol,
-                        );
-                    }
+                    let _ = self.retain_entry_predicate_scalar(machine, state, place);
                 }
             }
         }

@@ -491,20 +491,13 @@ impl StructuralJudge<'_> {
             return;
         };
         for (canonical, expression) in self.entry_scalar_read_coordinates(machine, state, fact) {
-            let Some(root) = canonical.root.as_symbol() else {
+            let Some(_) = canonical.root.as_symbol() else {
                 continue;
             };
             let Some(value) = self.declaration_term(expression) else {
                 continue;
             };
-            if let Err(reason) = self.retain_entry_scalar_snapshot(machine, state, canonical, value)
-                && super::super::struct_trace()
-            {
-                eprintln!(
-                    "STRUCT entry-contract-scalar-refused state={:?} root={root:?} phase={reason}",
-                    state.symbol,
-                );
-            }
+            let _ = self.retain_entry_scalar_snapshot(machine, state, canonical, value);
         }
     }
 

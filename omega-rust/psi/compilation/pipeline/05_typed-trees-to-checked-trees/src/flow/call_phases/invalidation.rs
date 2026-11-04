@@ -5,7 +5,7 @@ use validation::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::appended_span_since;
 use crate::flow::mutation::close_storage_places_over_aliases;
-use crate::flow::mutation::{CallMutationWrite, call_mutation_writes, trace_call_storage_refusal};
+use crate::flow::mutation::{CallMutationWrite, call_mutation_writes};
 use crate::flow::project_constraint_refs_to_active_contexts;
 use arena::HandleSpan;
 use checked_trees::{
@@ -155,18 +155,7 @@ fn call_storage_mutations(
                 build.call_frames,
             )
         },
-    );
-    let Some(writes) = writes else {
-        trace_call_storage_refusal(
-            machine.symbol,
-            state.symbol,
-            borrow_call,
-            "mutation-writes",
-            None,
-            None,
-        );
-        return None;
-    };
+    )?;
     let mut result = Vec::new();
     for mut write in writes {
         // Unresolved content names the carrier the capability is attached to.
@@ -178,14 +167,6 @@ fn call_storage_mutations(
             // spatially separate allocation. Its anchor alone cannot close
             // aliases in caller storage: retain full unknown invalidation.
             if matches!(write.region.anchor().root, PlaceRoot::InvocationOutput(_)) {
-                trace_call_storage_refusal(
-                    machine.symbol,
-                    state.symbol,
-                    borrow_call,
-                    "unresolved-output",
-                    None,
-                    Some(write.region.anchor().root),
-                );
                 return None;
             }
             let carrier = write.region.anchor().clone();
@@ -199,7 +180,7 @@ fn call_storage_mutations(
         // reference local of finite candidate origins is such a state),
         // borrow exclusivity already forbids a second live alias of the
         // written storage, so the places stand without the closure.
-        let observations =
+        let mut observations =
             phase_profile::scope("psi.05.build_check_facts.flow.invoke.close_aliases", || {
                 close_storage_places_over_aliases(
                     program,
@@ -219,18 +200,7 @@ fn call_storage_mutations(
                     crate::flow::mutation::StorageRegion::NonresidentContent { .. } => None,
                     crate::flow::mutation::StorageRegion::UnresolvedContent { .. } => None,
                 })
-            });
-        let Some(mut observations) = observations else {
-            trace_call_storage_refusal(
-                machine.symbol,
-                state.symbol,
-                borrow_call,
-                "alias-closure",
-                None,
-                Some(write.region.anchor().root),
-            );
-            return None;
-        };
+            })?;
         // Keep the current state's observation coordinates even when a
         // transported view proves that the physical store is content, not
         // descriptor replacement. Both namespaces must see invalidation.

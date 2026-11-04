@@ -1579,16 +1579,9 @@ impl<'program> CallFrameResolver<'program> {
                     trace_unavailable("operation write paths");
                     return None;
                 }
-                let traced_paths = std::env::var_os("OMEGA_STRUCT_TRACE").map(|_| written.clone());
                 let closed = prefix.close_observed_paths(self.program, written);
                 if closed.is_none() {
                     trace_unavailable("captured write alias closure");
-                    if let Some(paths) = traced_paths {
-                        eprintln!(
-                            "STRUCT unavailable-operation-write-paths caller={} expression={expression:?} paths={paths:?}",
-                            current_machine.name,
-                        );
-                    }
                 }
                 closed
             },

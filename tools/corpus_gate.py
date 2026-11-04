@@ -728,8 +728,7 @@ def run_runner(binary: Path, root: Path = ROOT, *, freshly_built=False) -> list[
         for line in proc.stderr:
             if line.startswith(root_prefix):
                 root_reports.append(line[len(root_prefix):].strip())
-            # An explicitly requested proof trace must survive a normal runner exit.
-            elif line.startswith("corpus_runner:") or "OMEGA_STRUCT_TRACE" in env:
+            elif line.startswith("corpus_runner:"):
                 sys.stderr.write(line)
                 sys.stderr.flush()
             else:

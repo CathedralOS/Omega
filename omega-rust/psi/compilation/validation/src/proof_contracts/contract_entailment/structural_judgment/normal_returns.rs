@@ -2306,12 +2306,6 @@ impl<'program> StructuralJudge<'program> {
                 .storage_version
                 .is_some_and(|version| version.state == scope.1.symbol)
         {
-            if super::super::struct_trace() {
-                eprintln!(
-                    "STRUCT reference-subject-refused parameter={:?} state={:?} source_cut={:?} phase=current-source-cut",
-                    subject.parameter, scope.1.symbol, self.storage_version,
-                );
-            }
             return None;
         }
         crate::reference_shell(program, subject.parameter_type)?
