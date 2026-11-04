@@ -6,9 +6,10 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
     use AbstractOperation as O;
     match operation {
         O::RegisterAccess { result, .. } => result.map(|result| (result.value, result.scalar_type)),
-        O::ActivateTaskRegister { result, .. } | O::ReadTaskRegister { result, .. } => {
-            Some((result.value, result.scalar_type))
-        }
+        O::ActivateTaskRegister { result, .. }
+        | O::ReadTaskRegister { result, .. }
+        | O::ReloadSegmentDescriptors { result, .. }
+        | O::ReadSegmentSelector { result, .. } => Some((result.value, result.scalar_type)),
         O::Call {
             result,
             scalar_type,
@@ -115,8 +116,10 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         } => vec![*committed],
         O::ReleaseActivationClaim { .. } | O::MergeActivationClaim { .. } => Vec::new(),
         O::RegisterAccess { event, .. } => event.inputs().copied().collect(),
-        O::ActivateTaskRegister { selector, .. } => vec![*selector],
-        O::ReadTaskRegister { .. } => Vec::new(),
+        O::ActivateTaskRegister { selector, .. } | O::ReloadSegmentDescriptors { selector, .. } => {
+            vec![*selector]
+        }
+        O::ReadTaskRegister { .. } | O::ReadSegmentSelector { .. } => Vec::new(),
         abstract_operations::establish_case_or_record_fields_pattern!(fields) => fields
             .iter()
             .filter_map(|initializer| match &initializer.value {

@@ -123,6 +123,7 @@ pub(super) fn lower(
             observed: prior()?,
         },
         AtomicAccessEvent::CompareExchangeOnce {
+            custody,
             expected,
             replacement,
             success,
@@ -131,9 +132,7 @@ pub(super) fn lower(
             let outcome = operation
                 .result
                 .as_structural()
-                .filter(|result| {
-                    result.is_unrestricted_plain() && result.qualification_establishments.is_empty()
-                })
+                .filter(|result| terminal_psi::types::atomic_once_result_is_plain(result, custody))
                 .ok_or_else(malformed)?;
             terminal_psi::types::atomic_once_outcome_cases(
                 structural_types
@@ -141,6 +140,7 @@ pub(super) fn lower(
                     .find(|row| row.id == outcome.structural_type)
                     .ok_or_else(malformed)?,
                 leaf,
+                custody,
             )
             .ok_or_else(malformed)?;
             AbstractAtomicEvent::CompareExchangeOnce {
@@ -150,7 +150,7 @@ pub(super) fn lower(
                 expected,
                 replacement,
                 outcome: outcome.clone(),
-                custody: event.single_attempt_custody().ok_or_else(malformed)?,
+                custody,
             }
         }
     };

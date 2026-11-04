@@ -1228,6 +1228,39 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         }
         if releases.is_empty() {
             if !pending.is_empty() {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    for (_, operation, storage_loans) in &pending {
+                        let OperationPlan::ReleaseReference {
+                            source: SourcePlan::StructuralResult { binding_ordinal },
+                            loans,
+                            ..
+                        } = operation
+                        else {
+                            continue;
+                        };
+                        let Some((result, owner)) = results
+                            .iter()
+                            .find(|(result, _)| result.binding_ordinal == *binding_ordinal)
+                        else {
+                            continue;
+                        };
+                        eprintln!(
+                            "CHECKSITE completion-retirement-blocked machine={machine:?} state={state:?} binding={binding_ordinal} owner={owner:?} carrier_children_retired={} storage_loans={storage_loans:?} descriptor_loans={loans:?}",
+                            retirement.carrier_children_retired(result),
+                        );
+                    }
+                    if let Some(Some(borrowing)) = unique_borrow_state(facts, machine, state)
+                        && let Some(resources) = facts.borrow.statement_resource_loans(borrowing)
+                    {
+                        for (handle, loan) in resources {
+                            eprintln!(
+                                "CHECKSITE completion-retirement-holder loan={handle:?} retired={} occurrence={loan:?} weakening={:?}",
+                                retirement.holder_retired(handle),
+                                loan_weakening(facts, machine, state, handle),
+                            );
+                        }
+                    }
+                }
                 return None;
             }
             break;
@@ -1461,6 +1494,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
     results: &mut Vec<(BindingPlan, PlaceRoot)>,
     operations: &mut [OperationPlan],
     calls: &[CheckedStructuralValueCall],
+    trace: &LocalConstructionTrace,
 ) -> Option<()> {
     for call in calls {
         // Every retained producer has an exact source occurrence, including
@@ -1476,13 +1510,22 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
             let Some(result) = operand.structural_result_binding() else {
                 continue;
             };
+            trace.phase("call sources: producer occurrence");
+            trace.statement(Some(result.statement_index));
             let expression = if let Some(producer) = operand.call() {
                 let Some(NominalMachineUseSite::Expression(expression)) = producer.source_site()
                 else {
+                    if std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+                        eprintln!(
+                            "CHECKSITE completion-call-source-kind trace={trace:?} producer={producer:?}"
+                        );
+                    }
                     return None;
                 };
                 expression
             } else {
+                trace.phase("call sources: non-call producer");
+                trace.statement(Some(result.statement_index));
                 match operand {
                     OperationPlan::EstablishLocal(
                         CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
@@ -1495,15 +1538,29 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
                         expression: formation_expression,
                         ..
                     } => *formation_expression,
-                    _ => return None,
+                    _ => {
+                        if std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+                            eprintln!(
+                                "CHECKSITE completion-producer-kind trace={trace:?} producer={operand:?}"
+                            );
+                        }
+                        return None;
+                    }
                 }
             };
             let root = PlaceRoot::Expression(expression);
+            trace.phase("call sources: binding agreement");
+            trace.statement(Some(result.statement_index));
             if let Some((existing, existing_root)) = results
                 .iter()
                 .find(|(existing, _)| existing.binding_ordinal == result.binding_ordinal)
             {
                 if existing != result || *existing_root != root {
+                    if std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+                        eprintln!(
+                            "CHECKSITE completion-binding-conflict trace={trace:?} existing={existing:?} existing_root={existing_root:?} result={result:?} root={root:?} producer={operand:?}"
+                        );
+                    }
                     return None;
                 }
                 continue;
@@ -1521,11 +1578,14 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
                 ..
             }) = operation
             {
+                trace.phase("call sources: stored value transfer");
                 consume_value_places(facts, *value, results, operations)?;
             }
+            trace.phase("call sources: retained result transfer");
             consume_retained_results(operations, operation)?;
         }
     }
+    trace.phase("call sources: finished");
     Some(())
 }
 
@@ -1707,7 +1767,9 @@ pub(in crate::execution::terminal_unit) fn prepare_value_operands(
     if completion == CheckedValueCompletion::NoNormal {
         // Only invocations actually reached consume their arguments. The
         // enclosing construction never completes and transfers no whole root.
-        consume_value_call_sources(facts, results, operations, &calls)?;
+        trace.phase("value operands: nonreturning call sources");
+        trace.statement(Some(statement_ordinal));
+        consume_value_call_sources(facts, results, operations, &calls, trace)?;
         return Some((calls, completion));
     }
     if facts
@@ -1716,11 +1778,19 @@ pub(in crate::execution::terminal_unit) fn prepare_value_operands(
         .owned_selection_at(state.symbol, statement_ordinal)
         .is_some()
     {
+        trace.phase("value operands: selected sources");
+        trace.statement(Some(statement_ordinal));
         retain_selected_sources(program, facts, state, statement_ordinal, operations)?;
     } else {
+        trace.phase("value operands: stored sources");
+        trace.statement(Some(statement_ordinal));
         consume_value_places(facts, root, results, operations)?;
     }
-    consume_value_call_sources(facts, results, operations, &calls)?;
+    trace.phase("value operands: completed call sources");
+    trace.statement(Some(statement_ordinal));
+    consume_value_call_sources(facts, results, operations, &calls, trace)?;
+    trace.phase("value operands: finished");
+    trace.statement(Some(statement_ordinal));
     Some((calls, completion))
 }
 

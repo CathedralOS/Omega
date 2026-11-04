@@ -165,9 +165,31 @@ impl<'program> StructuralJudge<'program> {
         // An overwritten referent supplies no stable input observation, but
         // does not erase independent guarantees about this returned value.
         // Equations requiring an omitted formal fail exact substitution.
+        let case_guarantees =
+            self.normal_call_case_guarantees(&owner, parameters, bindings, captured.as_ref());
+        for guarantee in &case_guarantees {
+            self.intake_case_guarantee(guarantee);
+        }
         if let Some(captured) = &captured {
-            post_storage
-                .extend(self.stage_completed_result_reads(scope.0, scope.1, expression, captured));
+            let pending =
+                super::super::super::scoped_arithmetic::pending_scoped_call_result_observations(
+                    program, scope.0, scope.1, expression,
+                );
+            if pending.iter().any(|coordinate| coordinate.requires_backing) {
+                // A checked public promise can establish the case and extent
+                // needed by its later byte clauses. Import those independently
+                // formable facts before making any pending byte cell available.
+                let prerequisites =
+                    self.complete_selected_guarantees(prepared_guarantees, Some(captured), 0)?;
+                for (left, right) in prerequisites.equations {
+                    self.intake_completed_equation(left, right, 0);
+                }
+                post_storage.extend(
+                    self.stage_completed_result_reads(
+                        scope.0, scope.1, expression, captured, pending,
+                    ),
+                );
+            }
         }
         let guarantees =
             self.complete_selected_guarantees(prepared_guarantees, captured.as_ref(), 0)?;
@@ -176,6 +198,12 @@ impl<'program> StructuralJudge<'program> {
             .into_iter()
             .map(CapturedResultEquation::public)
             .collect::<Vec<_>>();
+        equations.extend(
+            guarantees
+                .data_identities
+                .into_iter()
+                .map(CapturedResultEquation::data_identity),
+        );
         // A completed occurrence keeps its identity. Both existing value-call
         // judgments establish repeatability: conditional primitive normal
         // returns, and the custody-free denotational call owner. Neither an
@@ -246,11 +274,6 @@ impl<'program> StructuralJudge<'program> {
             }
         }
         Arc::make_mut(&mut self.normal_content_guarantees).extend(guarantees.content);
-        // A saved local now resolves to this occurrence, so the callee's case
-        // tags must classify it here; the citation route's saved-binding tags
-        // never meet that environment term. Tags never become value equations.
-        let case_guarantees =
-            self.normal_call_case_guarantees(&owner, parameters, bindings, captured.as_ref());
         let selected_signature = match owner {
             SelectedCallContract::Signature(signature)
             | SelectedCallContract::DynamicSlot { signature, .. } => Some(signature),
@@ -343,9 +366,6 @@ impl<'program> StructuralJudge<'program> {
             // A construction describes payload, never the identity or admission of
             // this call's result. Equal field geometry cannot merge linear roots.
             Arc::make_mut(&mut self.normal_results).push((expression, captured));
-        }
-        for guarantee in &case_guarantees {
-            self.intake_case_guarantee(guarantee);
         }
         Some(CapturedNormalCall {
             result: completed_result,

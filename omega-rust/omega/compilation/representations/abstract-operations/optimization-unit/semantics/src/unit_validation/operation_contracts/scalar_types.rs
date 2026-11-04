@@ -68,7 +68,14 @@ pub(crate) fn operation_scalar_types_match(
                 && scalar(result.value) == Some(result.scalar_type)
                 && scalar(*selector).is_some_and(|ty| unsigned(ty, 16))
         }
-        O::ReadTaskRegister { result, .. } => matches!(result.scalar_type, ScalarType::Integer(integer)
+        O::ReloadSegmentDescriptors { result, selector, entries, .. } => {
+            let unsigned = |ty, bits| matches!(ty, ScalarType::Integer(integer)
+                if fixed(integer) && integer.bits() == bits && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned);
+            (1..=8192).contains(entries) && unsigned(result.scalar_type, 8)
+                && scalar(result.value) == Some(result.scalar_type)
+                && scalar(*selector).is_some_and(|ty| unsigned(ty, 16))
+        }
+        O::ReadTaskRegister { result, .. } | O::ReadSegmentSelector { result, .. } => matches!(result.scalar_type, ScalarType::Integer(integer)
             if fixed(integer) && integer.bits() == 16 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
             && scalar(result.value) == Some(result.scalar_type),
         O::GlobalDescriptorTable { .. } => true,
@@ -171,11 +178,12 @@ pub(crate) fn operation_scalar_types_match(
                         expected,
                         replacement,
                         outcome,
+                        custody,
                         ..
                     } => scalar(*expected).is_some() && scalar(*expected) == scalar(*replacement)
-                        && outcome.is_unrestricted_plain() && outcome.qualification_establishments.is_empty()
+                        && terminal_psi::types::atomic_once_result_is_plain(outcome, *custody)
                         && unit.structural_types.iter().find(|row| row.id == outcome.structural_type)
-                            .is_some_and(|declaration| terminal_psi::types::atomic_once_outcome_cases(declaration, scalar(*expected).unwrap()).is_some()),
+                            .is_some_and(|declaration| terminal_psi::types::atomic_once_outcome_cases(declaration, scalar(*expected).unwrap(), *custody).is_some()),
                     E::Fence { .. } => true,
                 }
         }

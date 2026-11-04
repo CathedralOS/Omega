@@ -124,7 +124,9 @@ impl TerminalFuelSchedule {
             | OperationKind::StorageAddress { .. }
             | OperationKind::GlobalDescriptorTable { .. }
             | OperationKind::ActivateTaskRegister { .. }
-            | OperationKind::ReadTaskRegister { .. } => 1,
+            | OperationKind::ReadTaskRegister { .. }
+            | OperationKind::ReloadSegmentDescriptors { .. }
+            | OperationKind::ReadSegmentSelector { .. } => 1,
         }
     }
 

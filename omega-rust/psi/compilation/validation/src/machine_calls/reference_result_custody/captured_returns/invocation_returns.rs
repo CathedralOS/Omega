@@ -7,9 +7,9 @@ use super::super::{
     MAX_REFERENCE_ORIGIN_LEAVES, declared_carrier_references, origin_place_segments,
 };
 use super::{
-    Captures, CheckedReferenceOriginProjection, CheckedReturnedReferencePlan,
-    CheckedUnitStructuralPathSegment, SymbolHandle, TypeReferenceHandle, loan_owner_path,
-    loan_place_segments,
+    CapturedReturnOrigin, CapturedReturnPresentation, Captures, CheckedReferenceOriginProjection,
+    CheckedReturnedReferencePlan, CheckedUnitStructuralPathSegment, SymbolHandle,
+    TypeReferenceHandle, loan_owner_path, loan_place_segments,
 };
 
 impl Captures<'_> {
@@ -23,39 +23,35 @@ impl Captures<'_> {
         loans: &[checked_trees::BorrowReturnedLoanFact],
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-        let target = crate::call_target_state(self.program, call.target_symbol)?;
-        let frames = crate::CallFrameResolver::new(self.program)?;
-        let transports = frames.reference_result_transports(target.symbol)?;
-        let mut relative = Vec::new();
-        for transport in transports {
-            match transport {
-                crate::ReferenceResultTransport::Reference(leaf) => relative.push(leaf),
-                crate::ReferenceResultTransport::Value {
-                    result_path,
-                    source,
-                    type_reference,
-                } => {
-                    // Enumerate possible descriptor slots, not their pointees.
-                    // captured_input_sources below must establish each slot's
-                    // actual presence and substitute this edge's completed
-                    // operand. The returned-loan join still owns authority.
-                    for leaf in declared_carrier_references(self.program, type_reference)? {
-                        let suffix =
-                            origin_place_segments(self.program, type_reference, leaf.path)?;
-                        let mut destination = result_path.clone();
-                        destination.extend_from_slice(&suffix);
-                        let mut source = source.clone();
-                        source.segments.extend(suffix);
-                        relative.push(crate::ReferenceResultLeafOrigin {
-                            result_path: destination,
-                            source,
-                        });
-                    }
-                }
-            }
-        }
+        // A forwarding body consumes the same checked return relation as its
+        // other callers. Lifetime-only frame summaries cannot replace that
+        // relation or recover the origins of an abstract requirement's result.
+        let relative = self.target_sources(call.target_symbol, active)?;
         let leaves = self.reference_leaves(state)?;
-        let parameters = self.program.state_parameters(target);
+        if self.trace_return_state(state) {
+            eprintln!(
+                "CHECKSITE completion-invocation-origins state={:?} call={:?} relative={:?} leaves={:?}",
+                state.symbol,
+                call,
+                relative,
+                leaves
+                    .iter()
+                    .map(|leaf| (&leaf.path, &leaf.source))
+                    .collect::<Vec<_>>()
+            );
+        }
+        let return_type = crate::call_target_return_type(self.program, call.target_symbol)?;
+        // This declaration roster supplies result paths and types only. Its
+        // placeholder source does not establish a parameter or permission;
+        // target_sources and the exact returned loans own those obligations.
+        let target_leaves = super::super::record_carrier_sources(
+            self.program,
+            return_type,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: 0,
+            },
+        )?;
+        let parameters = crate::call_target_parameters(self.program, call.target_symbol)?;
         let operands = self
             .facts
             .flow
@@ -66,41 +62,77 @@ impl Captures<'_> {
             return None;
         }
         let mut origins = Vec::new();
+        let mut independent = Vec::new();
         for candidate in relative {
-            let (result_path, _) = super::super::source_paths::structural_path(
-                self.program,
-                target.return_type,
-                &candidate.result_path,
-            )?;
-            if !leaves.iter().any(|leaf| leaf.path == result_path) {
+            let leaf = leaves.iter().find(|leaf| leaf.path == candidate.path)?;
+            if candidate.source.access != leaf.source.access {
                 return None;
             }
-            let result_path = loan_place_segments(self.program, state.return_type, &result_path)?;
-            if candidate.source.is_image_storage {
-                // Immutable image storage carries no invocation-relative loan.
-                // Its checked formation retains the backing independently.
+            let result_path =
+                loan_place_segments(self.program, state.return_type, &candidate.path)?;
+            let checked_trees::CheckedReferenceOriginRoot::Parameter { index } =
+                &candidate.source.root
+            else {
+                independent.push(candidate);
                 continue;
-            }
+            };
             let (position, parameter) = parameters
                 .iter()
                 .enumerate()
-                .find(|(_, parameter)| parameter.symbol == candidate.source.root)?;
+                .filter(|(_, parameter)| {
+                    super::super::is_mutable_structural_parameter(self.program, parameter)
+                })
+                .nth(*index as usize)?;
             let operand = operands.get(position)?;
             if operand.state_symbol != state.symbol
                 || operand.statement_index != call.statement_index
             {
                 return None;
             }
-            for source in self.captured_input_sources(
+            let target_leaf = target_leaves
+                .iter()
+                .find(|leaf| leaf.path == candidate.path)?;
+            let input_origin = self.checked_input_origin(
+                parameter,
+                &candidate.source,
+                target_leaf.source.type_identity,
+            );
+            if input_origin.is_none() && self.trace_return_state(state) {
+                eprintln!(
+                    "CHECKSITE completion-input-origin state={:?} parameter={:?} candidate={:?} result_type={:?}",
+                    state.symbol, parameter, candidate, target_leaf.source.type_identity
+                );
+            }
+            let (relative, presentation) = input_origin?;
+            let inputs = self.argument_return_sources(
                 state,
                 parameter.type_reference,
                 call.argument_operands().handles().nth(position)?,
-                &candidate.source,
+                call.invocation_storage,
+                &relative,
+                &presentation,
                 active,
-            )? {
-                let origin = crate::ReferenceResultLeafOrigin {
+                &mut Vec::new(),
+            );
+            if inputs.is_none() && self.trace_return_state(state) {
+                eprintln!(
+                    "CHECKSITE completion-input-sources state={:?} parameter={:?} operand={:?} relative={:?}",
+                    state.symbol, parameter, operand, relative
+                );
+            }
+            for input in inputs? {
+                let origin = CapturedReturnOrigin {
                     result_path: result_path.clone(),
-                    source,
+                    source: input.source,
+                    extent: if candidate.source.extent
+                        == semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                        || input.extent == semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                    {
+                        semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                    } else {
+                        semantic_vocabulary::ReferenceOriginExtent::Projected
+                    },
+                    presentation: Some(input.presentation),
                 };
                 if !origins.contains(&origin) {
                     origins.push(origin);
@@ -128,6 +160,79 @@ impl Captures<'_> {
                 &loan_owner_path(self.program, state.return_type, &leaf.path)?,
             )?;
             let mut captured = false;
+            for candidate in independent
+                .iter()
+                .filter(|candidate| candidate.path == leaf.path)
+            {
+                let checked_trees::CheckedReferenceOriginRoot::Invocation { carrier_type } =
+                    &candidate.source.root
+                else {
+                    return None;
+                };
+                if candidate.source.entry_reference_hops != 0 {
+                    return None;
+                }
+                let mut supplied = false;
+                for loan in site_loans.iter().filter(|loan| {
+                    self.returned_loan_owner_path(state, loan).as_deref()
+                        == Some(owner_path.as_slice())
+                        && self
+                            .facts
+                            .borrow
+                            .incoming_references
+                            .is_valid(loan.incoming_reference)
+                }) {
+                    let incoming = self
+                        .facts
+                        .borrow
+                        .incoming_references
+                        .get(loan.incoming_reference);
+                    if incoming.state_symbol != state.symbol
+                        || !matches!(incoming.origin, checked_trees::IncomingReferenceOrigin::Invocation { expression, target }
+                            if expression == call.authored_expression
+                                && crate::call_target_entry_symbol(self.program, target) == call.target_symbol)
+                        || self.program.normalized_type_identity(incoming.carrier_type)
+                            != *carrier_type
+                        || leaf.source.access.borrow_access_kind()? != loan.kind
+                    {
+                        continue;
+                    }
+                    let mut projection = super::super::origin_place_projection(
+                        self.program,
+                        incoming.carrier_type,
+                        candidate.source.path.iter().cloned(),
+                    )?;
+                    if projection.type_identity(self.program) != candidate.source.type_identity {
+                        return None;
+                    }
+                    for mut source in self.return_origin(
+                        state,
+                        loan,
+                        &leaf,
+                        self.facts.borrow.access_segments.span(loan.segments)?,
+                        &site_loans,
+                    )? {
+                        if candidate.source.extent
+                            == semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                        {
+                            source.extent =
+                                semantic_vocabulary::ReferenceOriginExtent::WithinRegion;
+                        }
+                        let returned = CheckedReturnedReferencePlan {
+                            path: leaf.path.clone(),
+                            source,
+                        };
+                        if !output.contains(&returned) {
+                            output.push(returned);
+                        }
+                        supplied = true;
+                    }
+                }
+                if !supplied {
+                    return None;
+                }
+                captured = true;
+            }
             for origin in origins
                 .iter()
                 .filter(|origin| origin.result_path == result_path)
@@ -137,7 +242,7 @@ impl Captures<'_> {
                     loan.root == facts::PlaceRoot::Symbol(origin.source.root)
                         && self.returned_loan_owner_path(state, loan).as_deref()
                             == Some(owner_path.as_slice())
-                        && self.origin_matches_returned_loan(state, loan, &origin.source)
+                        && self.origin_matches_returned_loan(state, loan, origin)
                 }) {
                     if leaf.source.access.borrow_access_kind()? != loan.kind {
                         return None;
@@ -161,6 +266,20 @@ impl Captures<'_> {
                     }
                 }
                 if !covered {
+                    if self.trace_return_state(state) {
+                        eprintln!(
+                            "CHECKSITE completion-uncovered-origin state={:?} leaf={:?} source={:?} extent={:?} loans={:?} loan_segments={:?}",
+                            state.symbol,
+                            leaf.path,
+                            origin.source,
+                            origin.extent,
+                            site_loans,
+                            site_loans
+                                .iter()
+                                .map(|loan| self.facts.borrow.access_segments.span(loan.segments))
+                                .collect::<Vec<_>>()
+                        );
+                    }
                     return None;
                 }
                 captured = true;
@@ -175,32 +294,117 @@ impl Captures<'_> {
         Some(output)
     }
 
-    fn captured_input_sources(
+    fn checked_input_origin(
+        &self,
+        parameter: &typed_trees::signature::StateParameter,
+        origin: &checked_trees::CheckedReferenceOriginSourcePlan,
+        result_type: typed_trees::type_identity::TypeIdentityId,
+    ) -> Option<(crate::LocalWriteSource, CapturedReturnPresentation)> {
+        let ingress = super::super::stored_loan_parts(self.program, parameter.type_reference)
+            .map_or(parameter.type_reference, |(referent, _)| referent);
+        let mut entered = parameter.type_reference;
+        let mut path = origin.path.as_slice();
+        for _ in 0..origin.entry_reference_hops {
+            let (
+                CheckedReferenceOriginProjection::Exact(CheckedUnitStructuralPathSegment::Referent),
+                remaining,
+            ) = path.split_first()?
+            else {
+                return None;
+            };
+            entered = crate::reference_shell(self.program, entered)?.referee;
+            path = remaining;
+        }
+        if origin.entry_reference_hops != 0
+            && self.program.normalized_type_identity(entered)
+                != self.program.normalized_type_identity(ingress)
+        {
+            return None;
+        }
+        // Substitute addresses only up to the first checked interpretation.
+        // Following fields belong to that presentation's declaration and must
+        // retain their typed coordinates, rather than become backing fields.
+        let interpretation = path
+            .iter()
+            .position(|projection| {
+                matches!(
+                    projection,
+                    CheckedReferenceOriginProjection::Exact(
+                        CheckedUnitStructuralPathSegment::RepresentationView { .. }
+                    )
+                )
+            })
+            .unwrap_or(path.len());
+        let (physical, presentation) = path.split_at(interpretation);
+        let mut projected =
+            super::super::origin_place_projection(self.program, ingress, physical.iter().cloned())?;
+        let source_type = projected.type_identity(self.program);
+        if !source_type.is_valid()
+            || (presentation.is_empty() && source_type != origin.type_identity)
+        {
+            return None;
+        }
+        let source = crate::LocalWriteSource {
+            invocation_output: None,
+            invocation_result: None,
+            is_image_storage: false,
+            recasts: Vec::new(),
+            representation: None,
+            path: self.program.symbols.name(parameter.symbol).to_owned(),
+            collection_coarse: false,
+            root: parameter.symbol,
+            segments: projected.segments,
+        };
+        Some((
+            source,
+            CapturedReturnPresentation {
+                path: presentation.to_vec(),
+                source_type,
+                endpoint_type: origin.type_identity,
+                result_type,
+            },
+        ))
+    }
+
+    pub(super) fn captured_input_sources(
         &self,
         state: &typed_trees::state::State,
         reference: TypeReferenceHandle,
         operand_handle: arena::Handle<checked_trees::FlowOperandFact>,
+        current: arena::Handle<checked_trees::FlowStorageSnapshot>,
         relative: &crate::LocalWriteSource,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<crate::LocalWriteSource>> {
         let actual = self.facts.flow.control.operands.get(operand_handle);
-        let operand = self.completed_operand_source(actual)?;
+        // Pointer identity may come from an earlier capture; its pointee's
+        // descriptor slots are still read at this invocation's consumer cut.
+        let mut completed = *self.completed_operand_source(actual)?;
+        completed.storage_snapshot = current;
+        let operand = &completed;
         let mut relative = relative.clone();
         let selected = operand;
-        if crate::reference_shell(self.program, reference).is_none() {
-            let carrier = declared_carrier_references(self.program, reference)?;
-            let mut boundary = None;
-            for leaf in carrier {
-                let segments =
-                    origin_place_segments(self.program, reference, leaf.path.iter().cloned())?;
-                if relative.segments.starts_with(&segments) {
-                    if boundary.is_some() {
-                        return None;
-                    }
-                    boundary = Some((leaf, segments));
-                }
+        let outer_reference = crate::reference_shell(self.program, reference).is_some();
+        // A write-only input exposes its pointer, not the descriptors inside
+        // its pointee. Keeping that outer type leaves pointer forwarding intact.
+        let carrier =
+            super::super::input_carrier_type(self.program, reference).unwrap_or(reference);
+        let mut boundary = None;
+        for leaf in declared_carrier_references(self.program, carrier)? {
+            let segments = origin_place_segments(self.program, carrier, leaf.path.iter().cloned())?;
+            // Forwarding the outer reference preserves that captured pointer.
+            // A reference stored inside its record is a different pointer: read
+            // that slot at this call's storage cut, including preceding writes.
+            if outer_reference && segments.is_empty() {
+                continue;
             }
-            let (leaf, segments) = boundary?;
+            if relative.segments.starts_with(&segments) {
+                if boundary.is_some() {
+                    return None;
+                }
+                boundary = Some((leaf, segments));
+            }
+        }
+        if let Some((leaf, segments)) = boundary {
             let path = leaf
                 .path
                 .iter()
@@ -225,7 +429,7 @@ impl Captures<'_> {
                 .strip_prefix(segments.as_slice())?
                 .to_vec();
             let expected =
-                crate::project_type_reference_from_segments(self.program, reference, &segments)?;
+                crate::project_type_reference_from_segments(self.program, carrier, &segments)?;
             let actual_path = loan_place_segments(self.program, actual.type_reference, &path)?;
             return self.completed_descriptor_sources(
                 state,
@@ -233,8 +437,12 @@ impl Captures<'_> {
                 &actual_path,
                 expected,
                 &relative,
+                current,
                 &mut Vec::new(),
             );
+        }
+        if !outer_reference {
+            return None;
         }
         let referents = self
             .facts
@@ -253,6 +461,7 @@ impl Captures<'_> {
                 &[],
                 reference,
                 &relative,
+                current,
                 &mut Vec::new(),
             );
         }

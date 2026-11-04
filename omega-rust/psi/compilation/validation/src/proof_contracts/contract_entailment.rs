@@ -478,7 +478,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         let paths: Vec<_> = case_arms
             .as_ref()?
             .iter()
-            .map(|arm| (&arm.normal_judge, &arm.value))
+            .map(|arm| (&arm.normal_judge, &arm.value, arm.value_source.clone()))
             .collect();
         // A conditional normal-return contract may be vacuous. An empty
         // observation frontier is not an independently established theorem.
@@ -488,7 +488,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         let mut verdict = StructuralJudgment::Proven;
         let mut dependencies = Vec::new();
         let mut complete_candidate = true;
-        for (judge, value) in paths {
+        for (judge, value, source) in paths {
             let (judgment, dependency) = if let Some(plan) = content_plan {
                 content_conservation::judge_content_conservation_with_dependencies(
                     program,
@@ -500,9 +500,9 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             } else {
                 let mut bound = judge.clone();
                 if !result_is_parameter {
-                    bound.bind_returned_value(value);
+                    bound.bind_returned_value(value, source);
                 }
-                (bound.judge(program, fact), None)
+                (bound.judge_proposition(program, fact), None)
             };
             if struct_trace() {
                 eprintln!(
@@ -561,12 +561,15 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             if !crate::reserved_result_place(program, comparison.left)
                 .is_some_and(|place| place.machine_symbol == machine.symbol)
             {
-                return structural.judge(program, fact);
+                return structural.judge_proposition(program, fact);
             }
             if paths.iter().all(|path| {
                 let mut bound = path.normal_judge.clone();
-                bound.bind_returned_value(&path.value);
-                matches!(bound.judge(program, fact), StructuralJudgment::Proven)
+                bound.bind_returned_value(&path.value, path.value_source.clone());
+                matches!(
+                    bound.judge_proposition(program, fact),
+                    StructuralJudgment::Proven
+                )
             }) {
                 return StructuralJudgment::Proven;
             }
@@ -588,7 +591,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             return *verdict;
         }
         let Some(arms) = &case_arms else {
-            return structural.judge(program, fact);
+            return structural.judge_proposition(program, fact);
         };
         let mut verdict = StructuralJudgment::Proven;
         for arm in arms {
@@ -610,14 +613,16 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 //
                 // VACUOUS LEAF: judge refutation before intake, because
                 // intaking the premise itself could mask a constructor clash.
-                if requires
-                    .iter()
-                    .any(|fact| matches!(bound.judge(program, *fact), StructuralJudgment::Refuted))
-                {
+                if requires.iter().any(|fact| {
+                    matches!(
+                        bound.judge_proposition(program, *fact),
+                        StructuralJudgment::Refuted
+                    )
+                }) {
                     continue;
                 }
                 for fact in &requires {
-                    bound.intake(program, *fact);
+                    bound.intake_proposition(program, *fact);
                 }
                 if bound.hypotheses_contradictory {
                     continue;
@@ -628,6 +633,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             for (left, right) in arm.citations.iter().chain(&arm.normal_guarantees) {
                 bound.intake_equation(left.clone(), right.clone(), 0);
             }
+            bound.retain_data_identities_from(&arm.normal_judge);
             // Inductive hypotheses: instantiate every ensures conjunct for
             // each self-application in the arm's value term. For a
             // REQUIRES-bearing machine the IH is CONDITIONAL: its requires,
@@ -689,9 +695,9 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 }
             }
             if !result_is_parameter {
-                bound.bind_returned_value(&arm.value);
+                bound.bind_returned_value(&arm.value, arm.value_source.clone());
             }
-            match bound.judge(program, fact) {
+            match bound.judge_proposition(program, fact) {
                 StructuralJudgment::Proven => {}
                 StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
                 StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,

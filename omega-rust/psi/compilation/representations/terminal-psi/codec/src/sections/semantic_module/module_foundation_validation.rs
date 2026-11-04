@@ -1028,8 +1028,11 @@ fn validate_operation_foundation(
         call_structural_pair_pattern!(..) => validate_call_structural(module, machine, operation)?,
         OperationKind::BoundaryCall { .. } => validate_boundary_call(module, machine, operation)?,
         OperationKind::PortWrite { .. } => validate_port_write(module, operation)?,
-        OperationKind::ActivateTaskRegister { .. } | OperationKind::ReadTaskRegister { .. } => {
-            storage_foundations::validate_task_register(module, machine, operation)?
+        OperationKind::ActivateTaskRegister { .. }
+        | OperationKind::ReadTaskRegister { .. }
+        | OperationKind::ReloadSegmentDescriptors { .. }
+        | OperationKind::ReadSegmentSelector { .. } => {
+            storage_foundations::validate_descriptor_operation(module, machine, operation)?
         }
         OperationKind::GlobalDescriptorTable { .. } => {
             storage_foundations::validate_global_descriptor_table(module, machine, operation)?
@@ -1118,13 +1121,15 @@ fn validate_operation_foundation(
                 }
                 OperationResult::Unit => !event.observes_resident(),
                 OperationResult::Structural(result) => {
-                    once && result.is_unrestricted_plain()
-                        && result.qualification_establishments.is_empty()
-                        && module.structural_type(result.structural_type).is_some_and(
-                            |declaration| {
-                                atomic_once_outcome_cases(declaration, resident).is_some()
-                            },
-                        )
+                    event.single_attempt_custody().is_some_and(|custody| {
+                        terminal_psi::types::atomic_once_result_is_plain(result, custody)
+                    }) && module.structural_type(result.structural_type).is_some_and(
+                        |declaration| {
+                            event.single_attempt_custody().is_some_and(|custody| {
+                                atomic_once_outcome_cases(declaration, resident, custody).is_some()
+                            })
+                        },
+                    )
                 }
             };
             if !shape_matches {

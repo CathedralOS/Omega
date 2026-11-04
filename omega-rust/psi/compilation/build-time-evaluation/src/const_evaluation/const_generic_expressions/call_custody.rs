@@ -51,33 +51,14 @@ struct Context<'program> {
     initializer: bool,
 }
 
-/// Every authored call expression surviving inside detached initializer
-/// expression roots, in deterministic walk order. Aggregate-producing leaf
-/// probes discharge each of these invocations individually before
-/// interpretation; hoisted probe bodies contribute one root per statement.
-pub(super) fn call_expressions(
-    program: &TypedTrees,
-    roots: &[ExpressionHandle],
-) -> Result<Vec<ExpressionHandle>, String> {
-    let mut calls = Vec::new();
-    for_each_initializer_expression(program, roots, |expression| {
-        if matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::Call(_)
-        ) {
-            calls.push(expression);
-        }
-    })?;
-    Ok(calls)
-}
-
 pub(super) fn contains_call(program: &TypedTrees, root: ExpressionHandle) -> Result<bool, String> {
     let mut contains_call = false;
-    for_each_initializer_expression(program, &[root], |expression| {
+    for_each_initializer_expression(program, &[root], expression_children, |expression| {
         contains_call |= matches!(
             program.expression_table.expression(expression),
             ExpressionNode::Call(_)
         );
+        true
     })?;
     Ok(contains_call)
 }
@@ -90,7 +71,8 @@ pub(super) fn contains_call(program: &TypedTrees, root: ExpressionHandle) -> Res
 fn for_each_initializer_expression(
     program: &TypedTrees,
     roots: &[ExpressionHandle],
-    mut visit: impl FnMut(ExpressionHandle),
+    children_at: impl Fn(&TypedTrees, ExpressionHandle) -> Result<Vec<ExpressionHandle>, String>,
+    mut visit: impl FnMut(ExpressionHandle) -> bool,
 ) -> Result<(), String> {
     let mut pending: Vec<(ExpressionHandle, bool)> =
         roots.iter().rev().map(|root| (*root, false)).collect();
@@ -110,16 +92,53 @@ fn for_each_initializer_expression(
         if complete.contains(&expression) {
             continue;
         }
-        let children = expression_children(program, expression)?;
-        visit(expression);
+        let children = children_at(program, expression)?;
+        let descend = visit(expression);
         active.push(expression);
         pending.push((expression, true));
-        pending.extend(children.into_iter().rev().map(|child| (child, false)));
+        if descend {
+            pending.extend(children.into_iter().rev().map(|child| (child, false)));
+        }
     }
     Ok(())
 }
 
+/// Calls own validation of their argument expressions. Stop at that boundary
+/// so a caller does not recursively revisit a flat list of all descendants.
+/// Authored recipes remain with the full custody walk above; this query follows
+/// only the current expression's executable operands.
+pub(super) fn immediate_call_expressions(
+    program: &TypedTrees,
+    roots: &[ExpressionHandle],
+) -> Result<Vec<ExpressionHandle>, String> {
+    let mut calls = Vec::new();
+    for_each_initializer_expression(program, roots, expression_operand_children, |expression| {
+        if matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Call(_)
+        ) {
+            calls.push(expression);
+            false
+        } else {
+            true
+        }
+    })?;
+    Ok(calls)
+}
+
 fn expression_children(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Result<Vec<ExpressionHandle>, String> {
+    let mut children = expression_operand_children(program, expression)?;
+    let authored = program.expression_table.materialization_source(expression);
+    if authored.is_valid() {
+        children.insert(0, authored);
+    }
+    Ok(children)
+}
+
+fn expression_operand_children(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Result<Vec<ExpressionHandle>, String> {
@@ -128,10 +147,6 @@ fn expression_children(
         return Err("constant initializer contains a stale expression".into());
     }
     let mut children = Vec::new();
-    let authored = table.materialization_source(expression);
-    if authored.is_valid() {
-        children.push(authored);
-    }
     match table.expression(expression) {
         ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Call(call) => {
@@ -313,10 +328,9 @@ pub(super) fn validate_retained(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    root: ExpressionHandle,
-    materialized: ExpressionHandle,
+    declaration: &typed_trees::constant::ConstDeclaration,
 ) -> Result<Vec<DependencyValue>, String> {
-    validate(program, machine, state, root, materialized, true)
+    validate(program, machine, state, declaration, true)
 }
 
 /// Before private specialization, the retained recipe must still select its
@@ -326,20 +340,20 @@ pub(super) fn validate_authored(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    root: ExpressionHandle,
-    materialized: ExpressionHandle,
+    declaration: &typed_trees::constant::ConstDeclaration,
 ) -> Result<Vec<DependencyValue>, String> {
-    validate(program, machine, state, root, materialized, false)
+    validate(program, machine, state, declaration, false)
 }
 
 fn validate(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    root: ExpressionHandle,
-    materialized: ExpressionHandle,
+    declaration: &typed_trees::constant::ConstDeclaration,
     specialized_calls: bool,
 ) -> Result<Vec<DependencyValue>, String> {
+    let root = declaration.authored_initializer;
+    let materialized = declaration.materialized_initializer;
     if !program.expression_table.expression_is_valid(materialized) {
         return Err("constant call receipt has a stale materialized root".into());
     }
@@ -365,10 +379,17 @@ fn validate(
         let target = (selection.source_span(), selected.selected_symbol());
         push_unique(&mut expected, target);
     }
-    let actual = collect_internal(
+    // Source replay authenticated this declaration before execution projection.
+    // Its roots keep that source owner even when the private program omits the
+    // declaration root. The execution machine and state remain independent.
+    let actual = collect_in_context(
         program,
-        machine,
-        state,
+        Context {
+            machine,
+            state,
+            lexical_owner: declaration.symbol,
+            initializer: true,
+        },
         &[root],
         false,
         None,
@@ -404,6 +425,26 @@ fn collect_internal(
         lexical_owner: machine.symbol,
         initializer: true,
     };
+    collect_in_context(
+        program,
+        context,
+        roots,
+        public,
+        syntax,
+        specialized_calls,
+        expand_callees,
+    )
+}
+
+fn collect_in_context<'program>(
+    program: &'program TypedTrees,
+    context: Context<'program>,
+    roots: &[ExpressionHandle],
+    public: bool,
+    syntax: Option<&'program SyntaxTrees>,
+    specialized_calls: bool,
+    expand_callees: bool,
+) -> Result<Custody, String> {
     let mut collector = Collector {
         program,
         syntax,
@@ -918,10 +959,10 @@ impl<'program> Collector<'program> {
         let executable = binding.selected;
         let target = binding.original;
         let symbol = self.program.symbols.get(target);
-        let bound_requirement = symbol.kind == SymbolKind::State
-            && symbol.parent.is_valid()
-            && self.program.symbols.get(symbol.parent).kind == SymbolKind::ConformanceParameter
-            && validation::selected_requirement_signature(self.program, target).is_some();
+        let bound_requirement = self
+            .program
+            .evidence_requirement_declaration(target)?
+            .is_some();
         let trait_requirement = symbol.kind == SymbolKind::State
             && symbol.parent.is_valid()
             && self.program.symbols.get(symbol.parent).kind == SymbolKind::Trait;
@@ -930,55 +971,21 @@ impl<'program> Collector<'program> {
             SymbolKind::Operator | SymbolKind::MachineParameter
         ) || bound_requirement
             || trait_requirement;
-        let machine = match symbol.kind {
-            SymbolKind::Machine => Some(target),
+        match symbol.kind {
+            SymbolKind::Machine => (),
             SymbolKind::State
                 if self.program.symbols.get(symbol.parent).kind == SymbolKind::Machine =>
             {
-                Some(symbol.parent)
+                ()
             }
-            _ if logical => None,
+            _ if logical => (),
             _ => {
                 return Err(
                     "constant call has no exact ordinary machine or state selection".into(),
                 );
             }
         };
-        let declaration = self
-            .program
-            .symbols
-            .symbol_source_span(target)
-            .or_else(|| {
-                // A generated entry state has no authored token. Its callable
-                // declaration is the owning machine, while the retained selection
-                // continues to name this exact entry-state symbol.
-                if symbol.kind != SymbolKind::State {
-                    return None;
-                }
-                let mut owners = self
-                    .program
-                    .machines()
-                    .iter()
-                    .filter(|owner| Some(owner.symbol) == machine);
-                let owner = owners.next()?;
-                if owners.next().is_some() {
-                    return None;
-                }
-                let states = self.program.machine_states(owner);
-                if states.len() != owner.states.len() || states.first()?.symbol != target {
-                    return None;
-                }
-                self.program.symbols.symbol_source_span(machine?)
-            })
-            .or_else(|| {
-                // A bound requirement child keeps only its spelling and
-                // inherits provenance from its evidence binder, as source
-                // dependency collection records it.
-                logical
-                    .then(|| self.program.symbols.symbol_provenance_source_span(target))
-                    .flatten()
-            })
-            .ok_or("constant call lost its exact selected declaration source")?;
+        let declaration = call_selections::call_custody_source(self.program, target)?;
         let selection = (reference, declaration);
         push_unique(&mut self.custody.calls, selection);
         push_unique(&mut self.custody.call_targets, (reference, target));
@@ -1090,7 +1097,17 @@ impl<'program> Collector<'program> {
             return Ok(());
         }
         self.expanded_constants.push(symbol);
+        // A referenced constant owns its initializer and type even when another
+        // declaration's probe discovers it. The current execution frame stays.
+        let context = Context {
+            lexical_owner: declaration.symbol,
+            ..context
+        };
         self.type_dependencies(types::Root::Type(declaration.declared_type), context)?;
+        let context = Context {
+            initializer: true,
+            ..context
+        };
         if self.specialized_calls && declaration.authored_initializer.is_valid() {
             // This ready declaration owns another normalization job. Its
             // materialized capsule supplies that job's retained realized roster;
@@ -1133,21 +1150,10 @@ impl<'program> Collector<'program> {
                 )?;
                 push_unique(&mut self.custody.call_occurrences, occurrence);
             }
-            self.expressions.push((
-                materialized,
-                Context {
-                    initializer: true,
-                    ..context
-                },
-            ));
+            self.expressions.push((materialized, context));
         } else if declaration.authored_initializer.is_valid() {
-            self.expressions.push((
-                declaration.authored_initializer,
-                Context {
-                    initializer: true,
-                    ..context
-                },
-            ));
+            self.expressions
+                .push((declaration.authored_initializer, context));
         }
         Ok(())
     }

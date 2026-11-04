@@ -157,7 +157,11 @@ fn call_body_result_origins(
         || (primitive_origin.is_none()
             && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
                 || !machine.body_is_present))
-        || call.receiver.is_valid() != machine.attached_data.is_some()
+        // A qualifier selects code without supplying a runtime receiver.
+        // Authenticate that role against this exact target before comparing
+        // value receivers with the callee's attached data.
+        || (!program.call_has_no_runtime_receiver_for_target(call)
+            && call.receiver.is_valid() != machine.attached_data.is_some())
         || arguments.len() != parameters.len()
         || !super::isolation::aggregate_storage_types_match(program, applied_result, expected)
     {
@@ -173,7 +177,7 @@ fn call_body_result_origins(
     } else {
         let values = inference.argument_values(program, arguments);
         let indices = inference.argument_indices(program, arguments);
-        inference.with_invocation(program, state, &values, &indices, |inference| {
+        let relative = inference.with_invocation(program, state, &values, &indices, |inference| {
             state_result_origins(
                 program,
                 machine,
@@ -183,9 +187,10 @@ fn call_body_result_origins(
                 inference,
                 include_shared,
             )
-        })?
+        });
+        relative?
     };
-    instantiate_result_origins(
+    let returned = instantiate_result_origins(
         program,
         caller_machine,
         parameters,
@@ -196,7 +201,8 @@ fn call_body_result_origins(
         inference,
         include_shared,
         inputs,
-    )
+    );
+    returned
 }
 
 /// Complete result relation in the requested state's own parameter namespace.
@@ -259,14 +265,15 @@ fn state_equation<'program>(
     inference: &mut FrameInference,
     include_shared: bool,
 ) -> Option<state_equations::Equation<'program>> {
-    input_moves::validate_frozen_inputs(
+    let inputs = input_moves::validate_frozen_inputs(
         program,
         machine,
         state,
         include_shared,
         symbols,
         inference,
-    )?;
+    );
+    inputs?;
     let statements = program.statement_table.statements(state.statement_nodes);
     // Every borrowed origin must retain its declaration. The shared transfer
     // below decides whether a reborrow exposes an unresolved binding or writes
@@ -329,7 +336,7 @@ fn state_equation<'program>(
         // collects only boundaries consumed by result arms. Each selected
         // snapshot retains the complete alias/stored closure at that point;
         // discarded statements still undergo the same validation walk.
-        let (context, prefixes) = walk_state_write_prefix_collected(
+        let prefix = walk_state_write_prefix_collected(
             program,
             machine,
             state,
@@ -350,7 +357,8 @@ fn state_equation<'program>(
                 }
                 _ => false,
             },
-        )?;
+        );
+        let (context, prefixes) = prefix?;
         for local in &context.stored {
             inference.record_local(local);
         }
@@ -402,7 +410,7 @@ fn state_equation<'program>(
                 return Some(());
             }
             *returns = true;
-            merge_result_arm(
+            let merged = merge_result_arm(
                 program,
                 machine,
                 state,
@@ -415,7 +423,8 @@ fn state_equation<'program>(
                 inference,
                 include_shared,
                 prefixes.get(index).and_then(Option::as_ref),
-            )
+            );
+            merged
         };
         for (index, statement) in statements.iter().enumerate() {
             match statement {
@@ -737,7 +746,9 @@ fn merge_relative_origins(
         let origins = match &leaf.origin {
             // These are callee-state summaries. A caller observation cannot
             // escape without its own inventory finishing the demanded path.
-            Some(ReferenceSource::Captured(_)) => return None,
+            Some(ReferenceSource::Captured(_)) => {
+                return None;
+            }
             origin => canonical_result_reference_origins(
                 program,
                 state,

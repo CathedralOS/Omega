@@ -238,8 +238,12 @@ impl StructuralJudge<'_> {
         subjects: &[crate::machine_calls::calls::InvocationEntrySubject],
         bindings: &[(SymbolHandle, Option<super::StructuralTerm>)],
     ) {
+        let caller_version = self.storage_version;
+        let mut values = self.owned_argument_storage_values(entry, caller_state, bindings);
         self.storage_version = self.incoming_storage_version(entry);
-        let mut values = Vec::new();
+        // Operand writes belong to the caller; this invocation starts at its
+        // own entry cut before any of its body writes.
+        self.storage_write_sequence = 0;
         for subject in subjects {
             if !crate::reference_shell(self.program, subject.parameter_type)
                 .is_some_and(|shell| shell.access.is_readable())
@@ -261,6 +265,9 @@ impl StructuralJudge<'_> {
                 else {
                     continue;
                 };
+                if !self.storage_value_transfer_is_current(stored, caller_version) {
+                    continue;
+                }
                 let Some(current) = stored.current.clone() else {
                     continue;
                 };
@@ -345,6 +352,9 @@ impl StructuralJudge<'_> {
                     if stored.coordinate.root != facts::PlaceRoot::Symbol(subject.parameter) {
                         continue;
                     }
+                    if !self.storage_value_transfer_is_current(stored, self.storage_version) {
+                        continue;
+                    }
                     let Some(current) = stored.current.clone() else {
                         continue;
                     };
@@ -374,12 +384,27 @@ impl StructuralJudge<'_> {
                 }
             }
         }
+        self.storage_version = returned.storage_version;
         self.stored_values = returned.stored_values;
         self.invalidated_storage = returned.invalidated_storage;
         self.premise_facts = returned.premise_facts;
         self.storage_write_sequence = returned.storage_write_sequence;
         self.capture_sequence = self.capture_sequence.max(returned.capture_sequence);
         Some(())
+    }
+
+    /// Transferring a current cell requires its actual source cut whenever
+    /// the program has a storage graph. Captured arguments and returned values
+    /// carry their own saved fields separately.
+    fn storage_value_transfer_is_current(
+        &self,
+        stored: &CapturedStorageValue,
+        version: Option<StorageVersion>,
+    ) -> bool {
+        match version {
+            Some(version) => self.current_value_valid(stored, &stored.coordinate, version),
+            None => self.storage_graph().is_none(),
+        }
     }
 
     /// Unknown effects retire reachable live storage observations, not immutable
@@ -465,54 +490,14 @@ impl StructuralJudge<'_> {
         let Some(machine) = self.program.machine(self.machine_symbol) else {
             return;
         };
-        let mut expressions = Vec::new();
-        crate::queries::expression_traversal::collect_expression_tree(
-            self.program,
-            fact,
-            &mut expressions,
-        );
-        for expression in expressions {
-            if super::super::observed_projections::scalar_storage_read(
-                self.program,
-                machine,
-                state,
-                expression,
-            )
-            .is_none()
-            {
-                continue;
-            }
-            if !self.ordinary_storage_path(Some((machine, state)), expression) {
-                continue;
-            }
-            let Some(place) = crate::canonical_place_from_expression(self.program, expression)
-                .and_then(|place| self.capture_entry_storage_place(place))
-            else {
-                continue;
-            };
-            let Some(canonical) = crate::canonical_place_from_expression(self.program, expression)
-            else {
-                continue;
-            };
-            let Some(root) = place.root.as_symbol() else {
-                continue;
-            };
-            let Some(backing) = self.entry_read_backing(machine, state, root, &canonical.segments)
-            else {
+        for (canonical, expression) in self.entry_scalar_read_coordinates(machine, state, fact) {
+            let Some(_) = canonical.root.as_symbol() else {
                 continue;
             };
             let Some(value) = self.declaration_term(expression) else {
                 continue;
             };
-            let backing = self.freeze_entry_read_backing(state, backing);
-            self.retain_storage_value(place.clone(), value, true);
-            if let Some(stored) =
-                std::sync::Arc::make_mut(&mut self.stored_values).value_at_mut(&place)
-            {
-                stored.backing = Some(backing);
-                // No executable read was observed while admitting a Requires.
-                stored.completed_read = None;
-            }
+            let _ = self.retain_entry_scalar_snapshot(machine, state, canonical, value);
         }
     }
 

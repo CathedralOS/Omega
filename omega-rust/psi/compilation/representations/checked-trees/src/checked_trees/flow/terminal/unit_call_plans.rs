@@ -71,10 +71,10 @@ pub struct CheckedUnitCallTarget {
 /// How a call reaches its target.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitCallRoute {
-    /// A checked task-register operation uses the ordinary evaluated arguments
+    /// A checked descriptor operation uses the ordinary evaluated arguments
     /// without entering the private core declaration's nonexistent frame.
-    TaskRegister {
-        operation: language_core::task_register::TaskRegisterOperation,
+    DescriptorTable {
+        operation: language_core::descriptor_tables::DescriptorTableOperation,
         service: language_semantics::ServiceReachId,
         result_type: typed_trees::types::PrimitiveType,
     },
@@ -225,7 +225,7 @@ impl CheckedUnitCallPlan {
             ),
             BoundaryCompletion::NormalReturn => match (&route, &result, &transfers) {
                 (
-                    CheckedUnitCallRoute::TaskRegister {
+                    CheckedUnitCallRoute::DescriptorTable {
                         operation,
                         result_type,
                         ..
@@ -239,15 +239,24 @@ impl CheckedUnitCallPlan {
                             _ => true,
                         }
                         && match operation {
-                            language_core::task_register::TaskRegisterOperation::Activate {
+                            language_core::descriptor_tables::DescriptorTableOperation::ActivateTask {
                                 entries,
                             } => {
-                                (2..=8192).contains(entries)
+                                *result_type == typed_trees::types::PrimitiveType::U8
+                                    && (2..=8192).contains(entries)
                                     && structural_arguments.len() == 3
                                     && scalar_arguments.len() == 1
                             }
-                            language_core::task_register::TaskRegisterOperation::Selector => {
-                                structural_arguments.is_empty() && scalar_arguments.is_empty()
+                            language_core::descriptor_tables::DescriptorTableOperation::ReloadSegments { entries, .. } => {
+                                *result_type == typed_trees::types::PrimitiveType::U8
+                                    && (1..=8192).contains(entries)
+                                    && structural_arguments.len() == 2
+                                    && scalar_arguments.len() == 1
+                            }
+                            language_core::descriptor_tables::DescriptorTableOperation::ReadTask
+                            | language_core::descriptor_tables::DescriptorTableOperation::ReadSegment { .. } => {
+                                *result_type == typed_trees::types::PrimitiveType::U16
+                                    && structural_arguments.is_empty() && scalar_arguments.is_empty()
                             }
                         }
                 }
@@ -428,7 +437,7 @@ impl CheckedUnitCallPlan {
                 ..
             } => *contract_commitment,
             CheckedUnitCallRoute::ActivationStorage { .. }
-            | CheckedUnitCallRoute::TaskRegister { .. }
+            | CheckedUnitCallRoute::DescriptorTable { .. }
             | CheckedUnitCallRoute::Boundary
             | CheckedUnitCallRoute::Dynamic { .. } => None,
         }
@@ -443,7 +452,7 @@ impl CheckedUnitCallPlan {
                 ..
             } => Some(erased_scalar_arguments),
             CheckedUnitCallRoute::ActivationStorage { .. }
-            | CheckedUnitCallRoute::TaskRegister { .. }
+            | CheckedUnitCallRoute::DescriptorTable { .. }
             | CheckedUnitCallRoute::Boundary
             | CheckedUnitCallRoute::Dynamic { .. } => None,
         }
@@ -458,7 +467,7 @@ impl CheckedUnitCallPlan {
                 ..
             } => Some(erased_proof_arguments),
             CheckedUnitCallRoute::ActivationStorage { .. }
-            | CheckedUnitCallRoute::TaskRegister { .. }
+            | CheckedUnitCallRoute::DescriptorTable { .. }
             | CheckedUnitCallRoute::Boundary
             | CheckedUnitCallRoute::Dynamic { .. } => None,
         }

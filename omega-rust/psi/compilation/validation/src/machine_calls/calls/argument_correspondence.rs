@@ -107,8 +107,8 @@ pub fn selected_call_arguments<'program>(
     let dispatch = site
         .static_requirement_dispatch()
         .ok_or("argument correspondence requires a retained selected application")?;
-    let (_, applied) = requirement_contract_signature(program, caller, site)
-        .ok_or("selected call has no admitted public application")?;
+    let (_, applied) =
+        super::generic_requirement::resolve_requirement_contract(program, caller, site)?;
     let (_, declared) = program
         .trait_machine_signature(dispatch.requirement)
         .filter(|(owner, _)| owner.symbol == dispatch.declaring_trait)
@@ -209,7 +209,7 @@ pub fn selected_call_arguments<'program>(
             (public.symbol, public.type_reference, Some(position))
         } else {
             let binding = runtime_bindings[position - logical.len()];
-            if binding.parameter != origin || realized_binders.contains(&origin) {
+            if realized_binders.contains(&origin) {
                 return Err(
                     "selected call changed or duplicated its realized Value binder order".into(),
                 );
@@ -245,6 +245,40 @@ pub fn selected_call_arguments<'program>(
                 .iter()
                 .position(|binder| binder.symbol == authored_binder)
                 .ok_or("selected Value argument is not an authored member binder")?;
+            // Selection can retain either the public invocation's header or
+            // the supplying machine's header. Rejoin the exact source binder
+            // before comparing its captured operand with the executable tail.
+            let binding_declaration = expression_table(program)
+                .static_machine_application(authored_application)
+                .binding_declaration;
+            let retained_parameter = if program.machine_by_symbol(binding_declaration).is_some() {
+                origin
+            } else {
+                let (source_trait, source_signature) = program
+                    .trait_machine_signature(binding_declaration)
+                    .ok_or("selected Value header has no exact source declaration")?;
+                if source_trait.symbol != dispatch.declaring_trait
+                    || (source_signature.symbol != declared.symbol
+                        && program
+                            .closed_requirement_application(source_signature.symbol)
+                            .is_none_or(|closed| {
+                                closed.template != declared.symbol
+                                    || closed.declaring_trait != dispatch.declaring_trait
+                            }))
+                {
+                    return Err("selected Value header belongs to another requirement".into());
+                }
+                program
+                    .applied_signature_parameter(
+                        declared,
+                        source_signature,
+                        declared_binders[binder_position].symbol,
+                    )
+                    .ok_or("selected Value header lost its exact public source binder")?
+            };
+            if binding.parameter != retained_parameter {
+                return Err("selected Value operand belongs to another source binder".into());
+            }
             let logical_parameter = program
                 .applied_signature_parameter(
                     declared,
@@ -630,8 +664,9 @@ pub(crate) fn call_binding_correspondence(
     })
 }
 
-/// A requirement has no realized body or trailing executable Value operands.
-/// Its exact open or closed public view still transports the authored header.
+/// A requirement keeps its public header after executable selection. Its exact
+/// open or closed view still transports the authored arguments; the selected
+/// argument owner separately authenticates any executable Value suffix.
 /// A dynamic slot keeps that same public header while its row-selection
 /// operands are observed separately from the selector and ordinary data.
 /// Rejoin through the same applied-signature owner that prepared its public
@@ -642,9 +677,10 @@ fn requirement_binding_correspondence(
     site: &CallSite<'_>,
     handle: typed_trees::static_applications::StaticMachineApplicationHandle,
 ) -> Result<CallBindingCorrespondence, &'static str> {
-    if site.static_requirement_dispatch().is_some() {
-        return Err("a realized requirement header has no authored machine declaration");
-    }
+    let selected_arguments = site
+        .static_requirement_dispatch()
+        .map(|_| selected_call_arguments(program, caller, site).map_err(|error| error.reason))
+        .transpose()?;
     let application = expression_table(program).static_machine_application(handle);
     let (declared, public, declaration) = if let Some(signature) =
         program.machine_by_symbol(caller).and_then(|machine| {
@@ -771,6 +807,37 @@ fn requirement_binding_correspondence(
         ) {
             if !matches!(parameter.kind, TypeParameterKind::Value { .. }) {
                 return Err("the open runtime operand does not belong to a Value binder");
+            }
+            if let Some(arguments) = &selected_arguments {
+                let mut supplied = arguments.iter().filter(|argument| {
+                    argument.public_position.is_none() && argument.logical_parameter == selected
+                });
+                let (Some(argument), None) = (supplied.next(), supplied.next()) else {
+                    return Err(
+                        "the selected public Value binder has no unique executable operand",
+                    );
+                };
+                let StaticMachineBindingValue::RuntimeValue {
+                    type_reference,
+                    subject,
+                    expression,
+                } = binding.value
+                else {
+                    unreachable!()
+                };
+                if !crate::declared_carriers_match(
+                    program,
+                    type_reference,
+                    argument.logical_type_reference,
+                ) || !runtime_source_matches(program, subject, expression, argument.expression)
+                {
+                    return Err(
+                        "the selected public Value operand differs from its retained source binding",
+                    );
+                }
+                runtime_parameters.push(parameter.symbol);
+                parameters.push((parameter.symbol, selected));
+                continue;
             }
             let executable = program.state_signature_parameters(public);
             let mut formals = executable

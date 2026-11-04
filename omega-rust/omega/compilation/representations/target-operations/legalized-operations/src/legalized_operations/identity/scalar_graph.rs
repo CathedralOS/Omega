@@ -613,6 +613,32 @@ pub(super) fn encode(
                     bytes.push(132);
                     bytes.extend_from_slice(&service.get().to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::ReloadSegmentDescriptors {
+                    service,
+                    entries,
+                    gdt,
+                    kind,
+                    selector,
+                    scratch,
+                    indices,
+                } => {
+                    bytes.push(133);
+                    bytes.push(kind.code());
+                    bytes.extend_from_slice(&service.get().to_le_bytes());
+                    bytes.extend_from_slice(&entries.to_le_bytes());
+                    for argument in [gdt, scratch] {
+                        super::structural_types::encode_structural_argument(bytes, argument);
+                    }
+                    bytes.extend_from_slice(&selector.get().to_le_bytes());
+                    for collection in indices {
+                        encode_runtime_indices(bytes, collection);
+                    }
+                }
+                LegalizedScalarInstructionKind::ReadSegmentSelector { service, register } => {
+                    bytes.push(134);
+                    bytes.push(register.code());
+                    bytes.extend_from_slice(&service.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::GlobalDescriptorTable {
                     service,
                     operation,
@@ -1297,11 +1323,33 @@ fn encode_atomic_event(bytes: &mut Vec<u8>, event: terminal_psi::AtomicAccessEve
             ordering(bytes, failure);
         }
         Event::CompareExchangeOnce {
-            success, failure, ..
+            success,
+            failure,
+            custody,
+            ..
         } => {
+            use language_core::atomic::{
+                AtomicCompareExchangeAttemptAxis as Attempt,
+                AtomicCompareExchangeObservationAxis as Observation,
+                AtomicCompareExchangeOutcomeIdentity as Outcome,
+            };
             bytes.push(5);
             ordering(bytes, success);
             ordering(bytes, failure);
+            bytes.push(match custody.attempt {
+                Attempt::Decisive => 1,
+                Attempt::SingleAttempt => 2,
+            });
+            bytes.push(match custody.observation {
+                Observation::Observing => 1,
+                Observation::NonObserving => 2,
+            });
+            bytes.push(match custody.outcome_identity {
+                Outcome::AtomicCompareExchangeOutcome => 1,
+                Outcome::AtomicCompareExchangeOnceOutcome => 2,
+                Outcome::AtomicTryExchangeOutcome => 3,
+                Outcome::AtomicTryExchangeOnceOutcome => 4,
+            });
         }
     }
     for operand in event.operands() {

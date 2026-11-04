@@ -2906,13 +2906,12 @@ pub(in crate::legalization) fn apply(
 /// formal origin. The declaration lists possible case slots, not simultaneous
 /// permissions; inactive payloads owe no descriptor. Establishment and transfer
 /// reconstruct the resident roster before this independent return audit.
-fn transfer_return_custody(
-    custody: &mut Custody,
+fn validate_return_custody(
+    custody: &Custody,
     function: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
     source: PlaceId,
     result: &terminal_psi::StructuralResultDeclaration,
-    cleanup_actions: &[terminal_psi::TerminalAffineCleanupAction],
 ) -> Result<(), LegalizationError> {
     if !contains_reference(types, result.structural_type) {
         return Err(invalid());
@@ -2944,17 +2943,22 @@ fn transfer_return_custody(
                         carrier_type, path: origin.path.clone(), extent: origin.extent, access,
                     });
                 }
-                let target_operations::TargetReferenceOriginBase::Storage { root } = origin.base else {
-                    // An authored current-slot path is not automatically the
-                    // captured entry value after replacement.
-                    return false;
+                let (root, source_path) = match &origin.base {
+                    target_operations::TargetReferenceOriginBase::Storage { root } =>
+                        (*root, std::borrow::Cow::Borrowed(origin.path.as_slice())),
+                    target_operations::TargetReferenceOriginBase::IncomingContents { root, .. } =>
+                        // This is a declaration-only comparison. The captured
+                        // slot adds its explicit pointer crossing; it does not
+                        // become a current reload address or storage cursor.
+                        (*root, origin.type_projection()),
+                    _ => return false,
                 };
                 let Some(parameter) = function.structural_parameter(root) else {
                     return false;
                 };
                 // Summarize a captured selection without replaying its index or
                 // expanding an input collection into a finite candidate roster.
-                let mut path = origin.path.iter().map(|projection| match projection {
+                let mut path = source_path.iter().map(|projection| match projection {
                     ReferenceOriginProjection::Exact(StructuralPathSegment::RuntimeIndex { .. }) =>
                         ReferenceOriginProjection::Element,
                     _ => projection.clone(),
@@ -3004,6 +3008,18 @@ fn transfer_return_custody(
         };
         let admitted = declared(&leaf.root);
         if !admitted && !descriptor_backing::matches_return(&leaf.backing, &declared) {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE returned-reference-contract machine={:?} source={:?} path={:?} referent={:?} roots={:?} backing={:?} allowed={:?}",
+                    function.machine,
+                    source,
+                    path,
+                    leaf.referent,
+                    leaf.root,
+                    leaf.backing,
+                    mapping.sources
+                );
+            }
             return Err(invalid());
         }
         if custody
@@ -3028,65 +3044,79 @@ fn transfer_return_custody(
             return Err(invalid());
         }
     }
-    // Output is already formed. Its original storage and admitted view chain
-    // were matched above; the signature never supplies an origin. Close only
-    // local ancestry with actual disposal on this path, including earlier
-    // replacements. Residency selects return/cleanup; identity selects ancestry.
-    // Case alternatives of one carrier are one residency (validated with the
-    // custody): it is returned by any alternative and disposed only when every
-    // alternative is disposed.
-    // Borrowed entry anchors remain in the caller's scope. Keep their in-body
-    // access/restoration inventory, but do not demand their disposal to close
-    // this activation. Establishment identity excludes local replacements.
-    let external = custody
-        .leaves
-        .iter()
-        .filter(|((carrier, path), leaf)| leaf.is_external_entry_anchor(function, *carrier, path))
-        .map(|(_, leaf)| leaf.identity.clone())
-        .collect::<BTreeSet<_>>();
+    Ok(())
+}
+
+/// Close the activation's reference outputs before executing its selected
+/// cleanup. Result descriptors and current caller-storage residents both leave
+/// this frame. Keep every ancestry edge: external residence does not forgive
+/// a local predecessor's disposal or a surviving local sibling.
+fn complete_reference_outputs(
+    custody: &mut Custody,
+    function: &PsiOptimizationFunction,
+    types: &[StructuralTypeDeclaration],
+    source: Option<PlaceId>,
+    cleanup_actions: &[terminal_psi::TerminalAffineCleanupAction],
+) -> Result<(), LegalizationError> {
     let mut occurrences = Vec::<terminal_semantics::ReferenceCompletionOccurrence<'_, _>>::new();
     for ((carrier, path), leaf) in &custody.leaves {
-        let returned = *carrier == source && owned_relative_path(path, &[]).is_some();
-        let disposed = function
-            .structural_parameter(*carrier)
-            .is_none_or(|parameter| parameter.access == StructuralAccess::Owned)
-            && terminal_semantics::cleanup_disposes_reference(cleanup_actions, *carrier, path);
+        let returned = source == Some(*carrier) && owned_relative_path(path, &[]).is_some();
+        let in_caller_storage = leaf.in_caller_storage(function, types, *carrier, path)?;
+        let disposed =
+            terminal_semantics::cleanup_disposes_reference(cleanup_actions, *carrier, path);
         if let Some(alternative) = occurrences
             .iter_mut()
             .find(|occurrence| *occurrence.identity == leaf.identity)
         {
             alternative.returned |= returned;
+            alternative.in_caller_storage &= in_caller_storage;
             alternative.disposed &= disposed;
             continue;
         }
         occurrences.push(terminal_semantics::ReferenceCompletionOccurrence {
             identity: &leaf.identity,
-            parents: leaf
-                .obligations()
-                .filter(|parent| !external.contains(*parent))
-                .collect(),
+            parents: leaf.obligations().collect(),
             returned,
+            in_caller_storage,
             disposed,
         });
     }
     occurrences.extend(custody.retired.values().map(|retired| {
         terminal_semantics::ReferenceCompletionOccurrence {
             identity: &retired.leaf.identity,
-            parents: retired
-                .leaf
-                .obligations()
-                .filter(|parent| !external.contains(*parent))
-                .collect(),
+            parents: retired.leaf.obligations().collect(),
             returned: false,
+            in_caller_storage: false,
             // These are replayed disposal operations on this exact path, not
             // missing residents inferred to have been disposed at some point.
             disposed: !retired.disposals.is_empty(),
         }
     }));
     terminal_semantics::validate_reference_result_completion(&occurrences)
-        .map_err(|reason| LegalizationError::ReferenceCompletion { reason })?;
+        .map_err(|reason| {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE returned-reference-completion machine={:?} source={:?} reason={:?} occurrences={:?} cleanup={:?}",
+                    function.machine,
+                    source,
+                    reason,
+                    occurrences
+                        .iter()
+                        .map(|occurrence| (
+                            occurrence.identity,
+                            &occurrence.parents,
+                            occurrence.returned,
+                            occurrence.in_caller_storage,
+                            occurrence.disposed,
+                        ))
+                        .collect::<Vec<_>>(),
+                    cleanup_actions,
+                );
+            }
+            LegalizationError::ReferenceCompletion { reason }
+        })?;
     custody.leaves.retain(|(carrier, path), _| {
-        *carrier != source || owned_relative_path(path, &[]).is_none()
+        source != Some(*carrier) || owned_relative_path(path, &[]).is_none()
     });
     custody.prune_retired();
     Ok(())
@@ -3104,15 +3134,27 @@ pub(in crate::legalization) fn apply_terminator(
         return Ok(());
     }
     let types = &plan.structural_types[..];
-    if let AbstractOperation::ReturnStructural {
-        source,
-        cleanup_actions,
-        ..
-    } = operation
-        && let Some(result) = function.result.structural()
-        && contains_reference(types, result.structural_type)
-    {
-        transfer_return_custody(custody, function, types, *source, result, cleanup_actions)?;
+    match operation {
+        AbstractOperation::ReturnStructural {
+            source,
+            cleanup_actions,
+            ..
+        } => {
+            let result = function.result.structural().ok_or_else(|| invalid())?;
+            if contains_reference(types, result.structural_type) {
+                validate_return_custody(custody, function, types, *source, result)?;
+            }
+            complete_reference_outputs(custody, function, types, Some(*source), cleanup_actions)?;
+        }
+        AbstractOperation::Return {
+            cleanup_actions, ..
+        }
+        | AbstractOperation::ReturnUnit {
+            cleanup_actions, ..
+        } => {
+            complete_reference_outputs(custody, function, types, None, cleanup_actions)?;
+        }
+        _ => {}
     }
     let mut exits = Vec::new();
     for (edge, actions) in operation.cleanup_rosters() {
@@ -3607,15 +3649,13 @@ fn entry(
         .ok_or_else(|| invalid())?;
         for path in paths {
             let identity = (parameter.place, path.clone());
+            let root = Root::incoming_contents(parameter.place, path.clone());
             custody.leaves.insert(
                 identity.clone(),
                 Leaf {
                     identity: OccurrenceIdentity::parameter(&identity),
-                    root: Root::Ingress(parameter.place, path.clone()),
-                    backing: vec![descriptor_backing::Backing::Source(Root::Ingress(
-                        parameter.place,
-                        path.clone(),
-                    ))],
+                    root: root.clone(),
+                    backing: vec![descriptor_backing::Backing::Source(root)],
                     parents: Vec::new(),
                     lifetime_debts: Vec::new(),
                     contract: CarrierContract::Parameter(parameter.clone()),

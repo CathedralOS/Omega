@@ -16,6 +16,59 @@ pub struct GenericBoundRequirement<'program> {
 }
 
 impl TypedTrees {
+    /// Find which declared public method a local evidence child represents.
+    /// Symbol creation gives the binder's children the same order as its
+    /// declared, refined and inherited methods; validate the complete list
+    /// before using the selected child's position.
+    pub fn evidence_requirement_declaration(
+        &self,
+        target: SymbolHandle,
+    ) -> Result<Option<&StateSignature>, String> {
+        let selected = self.symbols.get(target);
+        if selected.kind != symbols::SymbolKind::State
+            || !selected.parent.is_valid()
+            || self.symbols.get(selected.parent).kind != symbols::SymbolKind::ConformanceParameter
+        {
+            return Ok(None);
+        }
+        let binder = selected.parent;
+        let owner = self.symbols.get(binder).parent;
+        let bounds = self
+            .declaration_conformance_bounds(owner)
+            .ok_or("evidence child lost its declaring bound owner")?;
+        let mut bounds = bounds.iter().filter(|bound| bound.binder == binder);
+        let bound = bounds
+            .next()
+            .ok_or("evidence child lost its exact authored bound")?;
+        if bounds.next().is_some() {
+            return Err("evidence child has multiple authored bounds".into());
+        }
+        let mut requirements = Vec::new();
+        collect_requirement_namespace(
+            self,
+            bound.trait_symbol,
+            &mut Vec::new(),
+            &mut requirements,
+        )?;
+        let children = self
+            .symbols
+            .child_handles(binder)
+            .ok_or("evidence binder lost its requirement children")?
+            .collect::<Vec<_>>();
+        if children.len() != requirements.len()
+            || children
+                .iter()
+                .any(|child| self.symbols.get(*child).kind != symbols::SymbolKind::State)
+        {
+            return Err("evidence namespace disagrees with its declared requirements".into());
+        }
+        let ordinal = children
+            .iter()
+            .position(|child| *child == target)
+            .ok_or("evidence requirement is not an exact binder child")?;
+        Ok(Some(requirements[ordinal]))
+    }
+
     /// Align a provider's separate evidence suffix with the public member's
     /// inline evidence positions. Both source orders remain intact within
     /// their own telescope; callers still check kinds, bounds and contracts.
@@ -90,6 +143,29 @@ impl TypedTrees {
             .map(|contract| contract.signature().conformance_bounds.as_slice())
     }
 
+    /// Read the evidence promises owned by this declaration, including callable
+    /// contracts nested in another declaration's parameters.
+    fn declaration_conformance_bounds(
+        &self,
+        owner: SymbolHandle,
+    ) -> Option<&[crate::machine::GenericConformanceBound]> {
+        self.callable_conformance_bounds(owner)
+            .or_else(|| {
+                self.trait_definition_by_symbol(owner)
+                    .map(|declaration| declaration.conformance_bounds.as_slice())
+            })
+            .or_else(|| {
+                self.unique_data_definition_by_symbol(owner)
+                    .map(|declaration| declaration.conformance_bounds.as_slice())
+            })
+            .or_else(|| {
+                self.type_aliases()
+                    .iter()
+                    .find(|declaration| declaration.symbol == owner)
+                    .map(|declaration| declaration.conformance_bounds.as_slice())
+            })
+    }
+
     /// Prefer the invocation's retained lexical application. Its enclosing
     /// declaration is an exact fallback owner, never an ambient map search.
     pub fn callable_conformance_bound(
@@ -109,21 +185,7 @@ impl TypedTrees {
             return Some(bound);
         }
         let parent = self.symbols.get(binder).parent;
-        self.callable_conformance_bounds(parent)
-            .or_else(|| {
-                self.trait_definition_by_symbol(parent)
-                    .map(|declaration| declaration.conformance_bounds.as_slice())
-            })
-            .or_else(|| {
-                self.unique_data_definition_by_symbol(parent)
-                    .map(|declaration| declaration.conformance_bounds.as_slice())
-            })
-            .or_else(|| {
-                self.type_aliases()
-                    .iter()
-                    .find(|declaration| declaration.symbol == parent)
-                    .map(|declaration| declaration.conformance_bounds.as_slice())
-            })
+        self.declaration_conformance_bounds(parent)
             .and_then(|bounds| bounds.iter().find(|bound| bound.binder == binder))
     }
 
@@ -157,8 +219,8 @@ impl TypedTrees {
         self.evidence_bound_requirement(machine.symbol, receiver, target)
     }
 
-    /// Resolve the namespace of an authored implementation parameter in either
-    /// a machine or a trait law. The owner and child are exact declarations;
+    /// Resolve the namespace of an authored implementation parameter in its
+    /// declaring telescope. The owner and child are exact declarations;
     /// no global name or selected private implementation supplies the bound.
     pub fn evidence_bound_requirement<'program>(
         &'program self,
@@ -166,11 +228,7 @@ impl TypedTrees {
         receiver: SymbolHandle,
         target: SymbolHandle,
     ) -> Result<Option<GenericBoundRequirement<'program>>, String> {
-        let bounds = if let Some(machine) = self.machine_by_symbol(owner) {
-            &machine.conformance_bounds
-        } else if let Some(declaration) = self.trait_definition_by_symbol(owner) {
-            &declaration.conformance_bounds
-        } else {
+        let Some(bounds) = self.declaration_conformance_bounds(owner) else {
             return Ok(None);
         };
         if !receiver.is_valid()
@@ -211,6 +269,15 @@ impl TypedTrees {
                 failure()
             ));
         }
+        let authored_requirement = if prepared.is_none() {
+            Some(
+                self.evidence_requirement_declaration(target)?
+                    .ok_or_else(failure)?
+                    .symbol,
+            )
+        } else {
+            None
+        };
         let carrier = self
             .trait_definition_by_symbol(bound.trait_symbol)
             .ok_or_else(failure)?;
@@ -238,7 +305,7 @@ impl TypedTrees {
                     prepared.template == signature.symbol
                         && self.requirement_application_matches_scope(target, application)
                 } else {
-                    signature.name.as_str() == self.symbols.name(target)
+                    Some(signature.symbol) == authored_requirement
                 };
                 if !matches {
                     continue;
@@ -265,9 +332,33 @@ impl TypedTrees {
         }
         selected.map(Some).ok_or_else(|| {
             format!(
-                "{}: its selected name has no reachable authored requirement",
+                "{}: its selected child has no reachable authored requirement",
                 failure()
             )
         })
     }
+}
+
+fn collect_requirement_namespace<'program>(
+    program: &'program TypedTrees,
+    trait_symbol: SymbolHandle,
+    visited: &mut Vec<SymbolHandle>,
+    output: &mut Vec<&'program StateSignature>,
+) -> Result<(), String> {
+    if visited.contains(&trait_symbol) {
+        return Ok(());
+    }
+    let declaration = program
+        .trait_definition_by_symbol(trait_symbol)
+        .ok_or("evidence namespace lost a resolved trait declaration")?;
+    visited.push(trait_symbol);
+    output.extend(program.trait_machine_signatures(declaration));
+    for parent in declaration
+        .refines
+        .iter()
+        .chain(program.trait_requirements(declaration))
+    {
+        collect_requirement_namespace(program, parent.symbol, visited, output)?;
+    }
+    Ok(())
 }

@@ -70,6 +70,10 @@ pub enum AtomicAccessOperation {
         success: MemoryOrdering,
         failure: MemoryOrdering,
     },
+    TryExchangeOnce {
+        success: MemoryOrdering,
+        failure: MemoryOrdering,
+    },
 }
 
 impl AtomicAccessOperation {
@@ -79,6 +83,37 @@ impl AtomicAccessOperation {
     /// This is one fact for all families, including the mutating ones.
     pub const fn receiver_polarity(self) -> BorrowPolarity {
         BorrowPolarity::Shared
+    }
+
+    pub const fn single_attempt(
+        observation: language_core::atomic::AtomicCompareExchangeObservationAxis,
+        success: MemoryOrdering,
+        failure: MemoryOrdering,
+    ) -> Self {
+        match observation {
+            language_core::atomic::AtomicCompareExchangeObservationAxis::Observing => {
+                Self::CompareExchangeOnce { success, failure }
+            }
+            language_core::atomic::AtomicCompareExchangeObservationAxis::NonObserving => {
+                Self::TryExchangeOnce { success, failure }
+            }
+        }
+    }
+
+    pub const fn single_attempt_custody(
+        self,
+    ) -> Option<language_core::atomic::AtomicCompareExchangeOnceResultCustody> {
+        use language_core::atomic::AtomicCompareExchangeObservationAxis as Observation;
+        let observation = match self {
+            Self::CompareExchangeOnce { .. } => Observation::Observing,
+            Self::TryExchangeOnce { .. } => Observation::NonObserving,
+            _ => return None,
+        };
+        Some(
+            language_core::atomic::AtomicCompareExchangeOnceResultCustody::for_observation(
+                observation,
+            ),
+        )
     }
 
     pub const fn ordering_plan(self) -> AtomicOrderingPlan {
@@ -94,7 +129,8 @@ impl AtomicAccessOperation {
             Self::CompareExchange { success, failure } => {
                 AtomicOrderingPlan::CompareExchange { success, failure }
             }
-            Self::CompareExchangeOnce { success, failure } => {
+            Self::CompareExchangeOnce { success, failure }
+            | Self::TryExchangeOnce { success, failure } => {
                 AtomicOrderingPlan::CompareExchangeOnce { success, failure }
             }
         }

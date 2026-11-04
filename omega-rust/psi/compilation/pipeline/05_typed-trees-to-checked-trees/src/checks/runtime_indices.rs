@@ -1955,30 +1955,62 @@ impl Scope<'_> {
                     .unconstrained_type_reference(required.reference);
                 let data = self
                     .program
-                    .data_application_definition(reference)
-                    .or_else(|| {
-                        self.program
-                            .type_reference_table
-                            .type_head_symbol(reference)
-                            .and_then(|symbol| self.program.data_definition_by_symbol(symbol))
-                    });
+                    .data_constructor_definition(reference, literal.type_symbol);
                 if let Some(data) = data {
                     let fields = self.program.expression_table.struct_fields(literal.fields);
-                    // One authored roster for both obligations below: the
+                    let selected_case = match literal.case_symbol {
+                        Some(case) => {
+                            let Some(selected) = self.program.data_constructor_case(
+                                reference,
+                                literal.type_symbol,
+                                case,
+                            ) else {
+                                diagnostics.push(
+                                    Diagnostic::error(
+                                        "runtime indexed construction cannot resolve its selected case in the receiving application",
+                                    )
+                                    .with_source_span(
+                                        self.program.expression_table.source_span(expression),
+                                    ),
+                                );
+                                return;
+                            };
+                            Some(selected.symbol)
+                        }
+                        None => None,
+                    };
+                    // One receiving roster for both obligations below: the
                     // construction's common fields and the payload fields of
                     // the case it selects.
-                    let declared = self.program.data_construction_fields(
-                        self.program.data_members(data),
-                        literal.case_symbol,
-                    );
+                    let declared = self
+                        .program
+                        .data_construction_fields(self.program.data_members(data), selected_case);
+                    // Specialization changes field handles. Resolve each authored
+                    // selector against this exact receiving application once,
+                    // retaining its substituted type and selected-case membership.
+                    let selected_fields = fields
+                        .iter()
+                        .map(|field| {
+                            self.program
+                                .data_constructor_field(
+                                    reference,
+                                    literal.type_symbol,
+                                    field.field_symbol,
+                                )
+                                .filter(|selected| {
+                                    declared.iter().any(|field| field.symbol == selected.symbol)
+                                })
+                        })
+                        .collect::<Vec<_>>();
                     for declared in &declared {
                         if self
                             .program
                             .type_application_value_indices(declared.type_reference)
                             .has_runtime_values()
-                            && !fields
+                            && !selected_fields
                                 .iter()
-                                .any(|field| field.field_symbol == declared.symbol)
+                                .flatten()
+                                .any(|field| field.symbol == declared.symbol)
                         {
                             diagnostics.push(Diagnostic::error(
                                 "runtime indexed field requires an explicit captured construction",
@@ -1986,8 +2018,10 @@ impl Scope<'_> {
                         }
                     }
                     for (symbol, argument) in self.descriptor_arguments(&required) {
-                        if let Some(field) =
-                            fields.iter().find(|field| field.field_symbol == symbol)
+                        if let Some((field, _)) =
+                            fields.iter().zip(&selected_fields).find(|(_, selected)| {
+                                selected.is_some_and(|field| field.symbol == symbol)
+                            })
                         {
                             self.check_descriptor(field.value, argument, &required, diagnostics);
                         } else {
@@ -1996,16 +2030,12 @@ impl Scope<'_> {
                             ));
                         }
                     }
-                    for field in fields {
-                        let field_type = declared
-                            .iter()
-                            .find(|declared| declared.symbol == field.field_symbol)
-                            .map(|declared| declared.type_reference);
-                        if let Some(reference) = field_type {
+                    for (field, selected) in fields.iter().zip(selected_fields) {
+                        if let Some(selected) = selected {
                             self.check(
                                 field.value,
                                 Application {
-                                    reference,
+                                    reference: selected.type_reference,
                                     ..required.clone()
                                 },
                                 diagnostics,

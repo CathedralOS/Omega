@@ -535,7 +535,13 @@ fn validate_atomic_call_orderings(
             let _ = memory_ordering_from_expression(syntax_trees, *ordering)
                 .map_err(ParseError::new)?;
         }
-        ("compare_exchange" | "compare_exchange_once", [_, _, success, failure]) => {
+        (member, [_, _, success, failure])
+            if member == "compare_exchange"
+                || language_core::atomic::AtomicCompareExchangeObservationAxis::single_attempt_member(
+                    member,
+                )
+                .is_some() =>
+        {
             let success =
                 memory_ordering_from_expression(syntax_trees, *success).map_err(ParseError::new)?;
             let failure =

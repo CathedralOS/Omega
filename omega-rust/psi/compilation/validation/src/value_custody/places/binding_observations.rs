@@ -22,6 +22,19 @@ pub fn stable_slice_descriptor_place(
     symbol: SymbolHandle,
     segments: &[facts::PlaceSegment],
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let reference = stable_reference_descriptor_place(program, state, symbol, segments)?;
+    crate::slice_view_shell(program, reference, &[])?;
+    Some(reference)
+}
+
+/// A fixed descriptor home is unchanged only when the state neither replaces
+/// nor exposes that home. This preserves its pointer value, never its referent.
+pub(crate) fn stable_reference_descriptor_place(
+    program: &dyn CheckingInput,
+    state: &State,
+    symbol: SymbolHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<typed_trees::types::TypeReferenceHandle> {
     let root_reference = crate::state_root_type(program, state, symbol)?;
     let mut reference = root_reference;
     for (position, segment) in segments.iter().enumerate() {
@@ -37,7 +50,7 @@ pub fn stable_slice_descriptor_place(
             &segments[..=position],
         )?;
     }
-    crate::slice_view_shell(program, reference, &[])?;
+    crate::reference_shell(program, reference)?;
     (!binding_is_exclusively_exposed(program, state, symbol)
         && !binding_is_written(program, state, symbol, BindingObservation::Descriptor))
     .then_some(reference)

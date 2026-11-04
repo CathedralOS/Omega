@@ -108,7 +108,7 @@ pub(crate) fn boundary_targets(
         if let CheckedScalarComputationKind::Call {
             callee:
                 checked_trees::CheckedScalarCallee::Boundary { machine, .. }
-                | checked_trees::CheckedScalarCallee::TaskRegister { machine, .. },
+                | checked_trees::CheckedScalarCallee::DescriptorTable { machine, .. },
             ..
         } = plans.nodes.get(handle).kind
             && !targets.contains(&machine)

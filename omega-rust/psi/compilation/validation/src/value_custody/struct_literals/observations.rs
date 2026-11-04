@@ -23,6 +23,7 @@ pub(super) struct ConstructionObservations<'program> {
     construction_root: ExpressionHandle,
     environments: OnceLock<OccurrenceValueEnvironments>,
     range_obligations: Option<Mutex<Vec<checked_trees::IntegerRangeObligation>>>,
+    pending_predicates: Option<Mutex<Vec<super::PendingConstructionPredicates>>>,
 }
 
 impl<'program> ConstructionObservations<'program> {
@@ -39,12 +40,36 @@ impl<'program> ConstructionObservations<'program> {
             construction_root,
             environments: OnceLock::new(),
             range_obligations: None,
+            pending_predicates: None,
         }
     }
 
     pub(super) fn retaining_range_obligations(mut self) -> Self {
         self.range_obligations = Some(Default::default());
         self
+    }
+
+    pub(super) fn retaining_pending_predicates(mut self) -> Self {
+        self.pending_predicates = Some(Default::default());
+        self
+    }
+
+    pub(super) fn retain_pending_predicates(
+        &self,
+        construction: super::PendingConstructionPredicates,
+    ) -> Result<(), super::PendingConstructionPredicates> {
+        let Some(pending) = &self.pending_predicates else {
+            return Err(construction);
+        };
+        pending.lock().unwrap().push(construction);
+        Ok(())
+    }
+
+    pub(super) fn take_pending_predicates(&self) -> Vec<super::PendingConstructionPredicates> {
+        self.pending_predicates
+            .as_ref()
+            .map(|rows| std::mem::take(&mut *rows.lock().unwrap()))
+            .unwrap_or_default()
     }
 
     pub(super) fn retain_range_obligations(
