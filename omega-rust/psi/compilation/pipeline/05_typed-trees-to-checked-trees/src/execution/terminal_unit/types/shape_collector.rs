@@ -1372,7 +1372,8 @@ impl<'program> ShapeCollector<'program> {
             return None;
         }
         let shape_kind = DataDefinition::shape_kind_from_members(&members);
-        // Interval-only `where` facts become the named fields' bounds.
+        // Atomic fields retain resident bounds from the declaration. Plain
+        // scalar fields keep these as whole-record predicate obligations.
         let stated_intervals = data_where_field_intervals(self.program, &data).unwrap_or_default();
         let stated = |field: &DataField| {
             stated_intervals
@@ -1405,10 +1406,8 @@ impl<'program> ShapeCollector<'program> {
                         if ::validation::impossible_variant(self.program, variant) {
                             continue;
                         }
-                        // Case-local intervals use the same bounded field
-                        // representation as record facts. Keeping the owning
-                        // case here lets Terminal check every constructor and
-                        // expose the bounds only on its selected payload edge.
+                        // Select resident bounds using the exact case. Plain
+                        // scalar payloads retain only their own storage type.
                         let intervals =
                             case_where_field_intervals(self.program, variant).unwrap_or_default();
                         let mut payload_fields = Vec::new();
@@ -1693,11 +1692,9 @@ impl<'program> ShapeCollector<'program> {
                     | CheckedUnitStructuralFieldType::BoundedInteger(_)
                     | CheckedUnitStructuralFieldType::RefinedScalar { .. }
             ) {
-            // The inline field restriction includes this owner's stated bounds.
-            // Qualification lowering also needs the declared scalar restriction
-            // under its exact type identity after the mathematical view expires.
-            // Register that declaration separately and keep its dependency with
-            // the field; do not import field-only bounds into the scalar type.
+            // Qualification lowering needs the scalar's own declared
+            // restriction under its exact identity. Register it separately;
+            // an enclosing record predicate does not narrow this scalar type.
             self.add_type(field_type_reference, binders, substitutions)?
         } else {
             Default::default()

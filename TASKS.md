@@ -198,15 +198,16 @@ retired-syntax deletions to completion.
   and [generic inference rule](wiki/spec/language/generics.md) end to end and
   remove integer and float `T [lo..hi]` / `T [lo..=hi]` suffixes after their
   customers migrate.
-  - Carry field/case propositions through construction
-    (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
-    remaining case/aggregate writes, record-field and owned-array
-    predicate handback with current storage versions.
-  - Complete changed-source scalar-loan representation guarantees, common-field
-    case-predicate rosters, and recursive/reference predicate read inventories.
-    Carry the remaining propositions through reads, calls, state joins,
+  - Finish proving field and case requirements when constructing records
+    ([construction checks](omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/construction_predicates.rs)),
+    after the remaining case and aggregate writes, and when returning loans of
+    record fields or updating owned arrays. Use the contents after the write.
+  - Finish checking and lowering loans of scalar fields so their storage
+    restrictions remain enforced. Cover requirements on fields shared by all
+    cases, and track reads through recursive records and references.
+    Preserve the remaining requirements through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/validation/recasts.md), and
-    returns, preserving the audited inventories in
+    returns. Keep the audited coverage in
     [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md).
   - Qualify the applicable migrated filesystem customers' native/Terminal
     oracles with **FILESYSTEM-PLATFORM-SERVICES**.
