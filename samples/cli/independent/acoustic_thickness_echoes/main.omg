@@ -13,12 +13,12 @@ machine Main::main(main: &mut Main) reaches Console {
     let present: Token = block read_token();
     let reference: Token = block read_token();
     transition layers.valid && echoes.valid && window.valid && present.valid && reference.valid {
-        true -> header(&mut acquisition, layers.value, echoes.value, window.value, present.value, reference.value)
+        true -> block header(&mut acquisition, layers.value, echoes.value, window.value, present.value, reference.value)
         false -> malformed()
     }
     machine header(acquisition: &mut Acquisition, layers: i64 in Saturating, echoes: i64 in Saturating, window: i64 in Saturating, present: i64 in Saturating, reference: i64 in Saturating) {
         transition layers >= 1 && layers <= 4 && echoes >= 1 && echoes <= 8 && window <= 1000 && reference <= 1000000 && present <= 1 {
-            true -> reference_check(acquisition, layers, echoes, window, present, reference)
+            true -> block reference_check(acquisition, layers, echoes, window, present, reference)
             false -> invalid_header()
         }
     }
@@ -31,14 +31,14 @@ machine Main::main(main: &mut Main) reaches Console {
         acquisition.reference_present = present;
         acquisition.reference = reference;
         transition present == 1 {
-            true -> layer(acquisition, 0)
+            true -> block layer(acquisition, 0)
             false -> missing_reference()
         }
     }
     machine layer(acquisition: &mut Acquisition, index: u64 in Saturating) {
         transition index < acquisition.layers && index < 4 {
-            true -> read_layer(acquisition, index)
-            false -> echo(acquisition, 0)
+            true -> block read_layer(acquisition, index)
+            false -> block echo(acquisition, 0)
         }
     }
     machine read_layer(acquisition: &mut Acquisition, index: u64 in Saturating)
@@ -46,14 +46,14 @@ machine Main::main(main: &mut Main) reaches Console {
         let speed: Token = block read_token();
         let thickness: Token = block read_token();
         transition speed.valid && thickness.valid {
-            true -> validate_layer(acquisition, index, speed.value, thickness.value)
+            true -> block validate_layer(acquisition, index, speed.value, thickness.value)
             false -> malformed()
         }
     }
     machine validate_layer(acquisition: &mut Acquisition, index: u64 in Saturating, speed: i64 in Saturating, thickness: i64 in Saturating)
     requires index < 4 {
         transition speed >= 1000 && speed <= 10000 && thickness >= 1 && thickness <= 1000000 {
-            true -> store_layer(acquisition, index, speed, thickness)
+            true -> block store_layer(acquisition, index, speed, thickness)
             false -> invalid_layer()
         }
     }
@@ -61,33 +61,33 @@ machine Main::main(main: &mut Main) reaches Console {
     requires index < 4 {
         acquisition.speeds[index] = speed;
         acquisition.thicknesses[index] = thickness;
-        transition { _ -> layer(acquisition, index + 1) }
+        transition { _ -> block layer(acquisition, index + 1) }
     }
     machine echo(acquisition: &mut Acquisition, index: u64 in Saturating) {
         transition index < acquisition.echoes && index < 8 {
-            true -> read_echo(acquisition, index)
-            false -> finish_input(acquisition)
+            true -> block read_echo(acquisition, index)
+            false -> block finish_input(acquisition)
         }
     }
     machine read_echo(acquisition: &mut Acquisition, index: u64 in Saturating)
     requires index < 8 {
         let arrival: Token = block read_token();
         transition arrival.valid {
-            true -> validate_echo(acquisition, index, arrival.value)
+            true -> block validate_echo(acquisition, index, arrival.value)
             false -> malformed()
         }
     }
     machine validate_echo(acquisition: &mut Acquisition, index: u64 in Saturating, arrival: i64 in Saturating)
     requires index < 8 {
         transition arrival >= acquisition.reference && arrival <= 9000000 {
-            true -> store_echo(acquisition, index, arrival)
+            true -> block store_echo(acquisition, index, arrival)
             false -> invalid_echo()
         }
     }
     machine store_echo(acquisition: &mut Acquisition, index: u64 in Saturating, arrival: i64 in Saturating)
     requires index < 8 {
         acquisition.arrivals[index] = arrival;
-        transition { _ -> echo(acquisition, index + 1) }
+        transition { _ -> block echo(acquisition, index + 1) }
     }
     machine finish_input(acquisition: &mut Acquisition) {
         let ended: bool = block at_end();

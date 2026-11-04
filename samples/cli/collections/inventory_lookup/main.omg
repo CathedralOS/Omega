@@ -31,15 +31,15 @@ machine Main::main(main: &mut Main) reaches Console {
     main.items[2].name = "Potion";
 
     transition main.items[0].name == "Shield" {
-        true -> found0(main)
-        _ -> check1(main)
+        true -> block found0(main)
+        _ -> block check1(main)
     }
 
     machine check1(main: &mut Main) {
-        transition main.items[1].name == "Shield" { true -> found1(main) _ -> check2(main) }
+        transition main.items[1].name == "Shield" { true -> block found1(main) _ -> block check2(main) }
     }
     machine check2(main: &mut Main) {
-        transition main.items[2].name == "Shield" { true -> found2(main) _ -> missing(main) }
+        transition main.items[2].name == "Shield" { true -> block found2(main) _ -> block missing(main) }
     }
 
     machine found0(main: &mut Main) {

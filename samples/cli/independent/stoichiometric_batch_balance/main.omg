@@ -18,10 +18,10 @@ data Input {
 machine Main::main(context: &mut Main) reaches Console {
     let produced: chemistry::model::Signature = chemistry::balance::signature_of(3, 2, 1, 2, 1);
     let local_fourth: i64 in Wrapping = produced.fourth;
-    transition { _ -> hold(context, produced, local_fourth) }
+    transition { _ -> block hold(context, produced, local_fourth) }
     machine hold(context: &mut Main, parameter: chemistry::model::Signature, local_fourth: i64 in Wrapping) {
         transition parameter.active == 3 && parameter.fourth == 0 && local_fourth == 0 {
-            true -> store(context, parameter)
+            true -> block store(context, parameter)
             false -> signature_mismatch(context)
         }
     }
@@ -29,7 +29,7 @@ machine Main::main(context: &mut Main) reaches Console {
         context.signature = parameter;
         let called: chemistry::model::Signature = chemistry::balance::signature_of(4, 1, 1, 1, 1);
         transition context.signature.active == 3 && context.signature.fourth == 0 && called.active == 4 && called.fourth == 1 {
-            true -> rows(context)
+            true -> block rows(context)
             false -> signature_mismatch(context)
         }
     }
@@ -42,7 +42,7 @@ machine Main::main(context: &mut Main) reaches Console {
         let via_parameter: i64 in Wrapping = chemistry::balance::read_axis(selected);
         let via_call: &[i64 in Wrapping; 4] = chemistry::balance::axis(&first, &second, &third, 2);
         transition selected[0] == 2 && held.row[0] == 2 && via_parameter == 2 && via_call[3] == 1 {
-            true -> windows(context)
+            true -> block windows(context)
             false -> signature_mismatch(context)
         }
     }
@@ -55,7 +55,7 @@ machine Main::main(context: &mut Main) reaches Console {
         let via_parameter: i64 in Wrapping = chemistry::balance::read_window(held.values);
         let via_call: &[i64 in Wrapping] = chemistry::balance::reactant_window(&coefficients, 1);
         transition reactants.len == 2 && reactants[0] == 2 && reactants[1] == 1 && held.values.len == 2 && via_parameter == 2 && via_call.len == 2 {
-            true -> consume(context)
+            true -> block consume(context)
             false -> signature_mismatch(context)
         }
     }
@@ -207,50 +207,50 @@ use omega::language::core::numeric_conversion;
 machine Main::read(context: &mut Main, input: &mut Input) reaches Console {
     input.count = 0;
     input.status = 0;
-    transition { _ -> scan(context, input, 0, false, 0) }
+    transition { _ -> block scan(context, input, 0, false, 0) }
     machine scan(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> end(context, input, value, digits)
-            ByteRead::Byte { value as byte } -> byte_value(context, input, value, digits, consumed, byte)
+            ByteRead::Byte { value as byte } -> block byte_value(context, input, value, digits, consumed, byte)
         }
     }
     machine byte_value(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
         transition consumed < 1024 {
-            true -> classify(context, input, value, digits, consumed + 1, byte)
+            true -> block classify(context, input, value, digits, consumed + 1, byte)
             false -> invalid(input)
         }
     }
     machine classify(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
         transition byte >= 48 && byte <= 57 {
-            true -> digit(context, input, value, consumed, byte)
-            false -> separator(context, input, value, digits, consumed, byte)
+            true -> block digit(context, input, value, consumed, byte)
+            false -> block separator(context, input, value, digits, consumed, byte)
         }
     }
     machine digit(context: &mut Main, input: &mut Input, value: i64 in Wrapping, consumed: i64 in Wrapping, byte: i32) {
         let wide: i64 in Wrapping = widen_i32_to_i64(byte) as i64 in Wrapping;
         let next: i64 in Wrapping = value * 10 + wide - 48;
         transition next <= 2147483647 {
-            true -> scan(context, input, next, true, consumed)
+            true -> block scan(context, input, next, true, consumed)
             false -> invalid(input)
         }
     }
     machine separator(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
         transition byte == 9 || byte == 10 || byte == 13 || byte == 32 {
-            true -> whitespace(context, input, value, digits, consumed)
+            true -> block whitespace(context, input, value, digits, consumed)
             false -> invalid(input)
         }
     }
     machine whitespace(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping) {
         transition digits {
-            true -> commit(context, input, value, consumed)
-            false -> scan(context, input, 0, false, consumed)
+            true -> block commit(context, input, value, consumed)
+            false -> block scan(context, input, 0, false, consumed)
         }
     }
     machine commit(context: &mut Main, input: &mut Input, value: i64 in Wrapping, consumed: i64 in Wrapping) {
         let index: u64 = input.count;
         transition index < 19 {
-            true -> store(context, input, value, consumed, index)
+            true -> block store(context, input, value, consumed, index)
             false -> invalid(input)
         }
     }
@@ -258,7 +258,7 @@ machine Main::read(context: &mut Main, input: &mut Input) reaches Console {
     requires index < 19 {
         input.values[index] = value;
         input.count = index + 1;
-        transition { _ -> scan(context, input, 0, false, consumed) }
+        transition { _ -> block scan(context, input, 0, false, consumed) }
     }
     machine end(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool) {
         transition digits {
