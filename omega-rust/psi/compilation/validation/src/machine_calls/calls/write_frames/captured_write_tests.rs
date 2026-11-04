@@ -88,11 +88,14 @@ fn signature_state_keeps_captured_write_origins() {
         return_type: unit,
         ..Default::default()
     };
-    for (index, name) in ["syntax", "captured"].into_iter().enumerate() {
+    for (symbol, name) in [
+        (locals.handle_at(0), "syntax"),
+        (locals.handle_at(1), "captured"),
+    ] {
         program.push_state_parameter(
             &mut entry,
             StateParameter {
-                symbol: locals.handle_at(index),
+                symbol,
                 name: Identifier::generated(name),
                 type_reference: unit,
                 is_mutable: true,
