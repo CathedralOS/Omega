@@ -1,0 +1,2 @@
+remains live, but its effective policy is `carry(suspension: forbidden
+while `cell` remains live
