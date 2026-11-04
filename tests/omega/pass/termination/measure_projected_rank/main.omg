@@ -19,6 +19,7 @@ terminates by countdown.remaining -> Countdown::Doubled in 0..=limit {
     transition { _ -> step(countdown, limit) }
     machine step(current: Countdown, bound: u64) -> u64
         requires 0 <= bound && bound <= 10
+    terminates by current.remaining -> Countdown::Doubled
     {
         transition current.remaining > 0 {
             true -> step(Countdown { remaining: current.remaining - 1 }, bound)
