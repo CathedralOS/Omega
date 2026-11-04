@@ -591,6 +591,59 @@ pub(crate) fn projected_observed_path(
     })
 }
 
+/// A local loan's leading referent crossings are shells of that local.
+/// The type past those shells stays on the source. Lowering reads it from
+/// the plan, including when the local has no established result row.
+pub(crate) fn retain_local_reference_source(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    source: CheckedUnitStructuralArgumentSourcePlan,
+    path: &[PathSegment],
+) -> CheckedUnitStructuralArgumentSourcePlan {
+    let CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } = source else {
+        return source;
+    };
+    let Some(state) = program.state_by_symbol(state_symbol) else {
+        return CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol };
+    };
+    let Some((_, local)) = program.state_local_declaration(state, symbol) else {
+        return CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol };
+    };
+    // A live local's result row is the source type lowering already reads.
+    // Reclassifying that loan drops the established expression. The dispatch
+    // subject of an erased binding has no result row, so the type past its
+    // reference shells has to travel on the source itself.
+    if !validation::dispatch_subject_of_erased_binding(program, state, local) {
+        return CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol };
+    }
+    let mut reference = local.type_reference;
+    let mut hops = 0u32;
+    for segment in path {
+        if !matches!(segment, PathSegment::Referent) {
+            break;
+        }
+        let Some(shell) = reference_shell(program, reference) else {
+            break;
+        };
+        if shell.access == ReferenceAccess::WriteOnly
+            || !stores_reference_shape(program, reference, &[])
+        {
+            break;
+        }
+        reference = shell.referee;
+        hops += 1;
+    }
+    let root_type_identity = stored_structural_type_identity(program, reference, &[], &[]);
+    if hops == 0 || !root_type_identity.is_valid() {
+        return CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol };
+    }
+    CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
+        symbol,
+        root_type_identity,
+        root_reference_hops: hops,
+    }
+}
+
 /// A computation owner supplies executable selectors at the same projected
 /// storage join. Other callers pass no evaluator and cannot invent a value.
 pub(crate) fn projected_evaluated_path(
