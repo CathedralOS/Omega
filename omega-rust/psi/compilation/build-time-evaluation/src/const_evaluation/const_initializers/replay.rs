@@ -344,7 +344,7 @@ pub(crate) fn validate(
             })?
             .1;
         let dependencies = checked
-            .calls_for_symbol(owner)
+            .calls_for_retained_initializer(owner, declaration.symbol)
             .and_then(|calls| calls.validate_custody(declaration))
             .map_err(|reason| {
                 super::failure(
@@ -388,7 +388,7 @@ pub(crate) fn validate(
     }
     for (declaration, owner, dependencies) in dependency_jobs {
         let calls = checked
-            .calls_for_symbol(owner)
+            .calls_for_retained_initializer(owner, declaration.symbol)
             .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
         if let Some((_, destination)) = floating_declarations
             .iter()
@@ -415,8 +415,9 @@ pub(crate) fn validate(
     }
     for (leaf, (original_owner, materialized_owner)) in leaves.iter().zip(owners) {
         let result = (|| {
-            let calls = checked.calls_for_symbol(original_owner)?;
-            let materialized_calls = checked.calls_for_symbol(materialized_owner)?;
+            let calls = checked.calls_for_retained_initializer(original_owner, leaf.owner)?;
+            let materialized_calls =
+                checked.calls_for_retained_initializer(materialized_owner, leaf.owner)?;
             if let Some(destination) = scalar_probe_destination(program, leaf.destination) {
                 let original = decode_scalar(calls.evaluate_probe_scalar(destination)?.0)?;
                 let materialized =

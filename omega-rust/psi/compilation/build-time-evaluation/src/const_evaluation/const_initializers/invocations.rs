@@ -169,6 +169,7 @@ impl CheckedInitializers {
             program: self,
             machine,
             state,
+            lexical_owner: machine.symbol,
         }
     }
 
@@ -200,12 +201,26 @@ impl CheckedInitializers {
         };
         Ok(self.calls(machine, state))
     }
+
+    /// Retained initializer jobs already pair a source declaration with its
+    /// exact probe. Keep that source owner for call joins while the probe's
+    /// machine and state still govern evaluation and admission.
+    pub(super) fn calls_for_retained_initializer(
+        &self,
+        probe: SymbolHandle,
+        declaration: SymbolHandle,
+    ) -> Result<Invocation<'_>, String> {
+        let mut calls = self.calls_for_symbol(probe)?;
+        calls.lexical_owner = declaration;
+        Ok(calls)
+    }
 }
 
 pub(crate) struct Invocation<'program> {
     program: &'program CheckedInitializers,
     machine: &'program Machine,
     state: &'program State,
+    lexical_owner: SymbolHandle,
 }
 
 type ArgumentSnapshot = crate::machine_execution::admission::SnapshotArgument;
@@ -338,7 +353,7 @@ impl Invocation<'_> {
             .static_requirement_dispatch
             .as_ref()
             .map(|_| {
-                validation::resolve_requirement_contract(typed, self.machine.symbol, &site)
+                validation::resolve_requirement_contract(typed, self.lexical_owner, &site)
                     .map(|(_, signature)| signature)
                     .map_err(|reason| {
                         format!("constant call has an invalid prepared public contract: {reason}")
@@ -735,7 +750,7 @@ impl Invocation<'_> {
         let operands = match target {
             SelectedCall::Entry { .. } if call.static_requirement_dispatch.is_some() => {
                 let site = validation::CallSite::Expression { expression, call };
-                validation::selected_call_arguments(typed, self.machine.symbol, &site)
+                validation::selected_call_arguments(typed, self.lexical_owner, &site)
                     .map_err(|reason| {
                         format!("constant call has invalid prepared arguments: {reason}")
                     })?

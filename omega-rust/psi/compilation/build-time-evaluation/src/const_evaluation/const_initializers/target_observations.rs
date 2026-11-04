@@ -209,7 +209,9 @@ pub(crate) fn settle(
                 "target constant lost its private value exit".into(),
             ));
         };
-        let calls = checked.calls_for_symbol(owner).map_err(&failure)?;
+        let calls = checked
+            .calls_for_retained_initializer(owner, declaration.symbol)
+            .map_err(&failure)?;
         let (value, warnings) = value::evaluate_scalar_with_policy(
             execution,
             machine,
