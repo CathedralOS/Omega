@@ -293,18 +293,8 @@ pub(in super::super) fn build(
         // their retained completion owner. The call occurrence ledger already
         // assigns that owner's nested calls; do not invoke the outer call a
         // second time through the statement roster.
-        let completion_expression = match statement {
-            StatementNode::Expression(expression) => Some(*expression),
-            StatementNode::Transition(transition) if terminal_call => {
-                match program.statement_table.transition_target(transition.target) {
-                    typed_trees::statement::TransitionTargetNode::Value(expression) => {
-                        Some(*expression)
-                    }
-                    _ => None,
-                }
-            }
-            _ => None,
-        };
+        let completion_expression =
+            call_occurrences::completion_expression(program, machine, state, index);
         !completion_expression.is_some_and(|expression| {
             !is_unit(program, state.return_type)
                 && ((!matches!(
@@ -782,6 +772,7 @@ pub(in super::super) fn build(
                 prepared_calls,
                 binders: &binders,
                 calls,
+                statement_end,
                 scalar_control,
                 operations,
                 place_loans,
