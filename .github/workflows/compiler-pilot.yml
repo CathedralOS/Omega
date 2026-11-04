@@ -57,6 +57,7 @@ jobs:
     timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
     env:
       CARGO_BUILD_JOBS: '2'
+      OMEGA_COMPILER_CHECK_SITES: '1'
       CARGO_INCREMENTAL: '0'
       CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
       CARGO_BUILD_FINGERPRINT: content
