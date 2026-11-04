@@ -183,12 +183,24 @@ fail/contracts/generic_issued_result_wrong_type rejected 3333ms expected @af6bba
 	index compatibility condition `index-equality:Issued:relay::entry:call-1-0:Issued<Word>==Issued<FirstRole>` is not established: actual `Issued<Word>` and expected `Issued<FirstRole>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 	index compatibility condition `index-equality:Issued:relay$specialized$686c6d9df5a0cdd5$0$2683::entry:call-1-0:Issued<Word>==Issued<FirstRole>` is not established: actual `Issued<Word>` and expected `Issued<FirstRole>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 	index compatibility condition `index-equality:Issued:relay$specialized$18e2f5c80845adeb$1$2687::entry:call-1-0:Issued<Word>==Issued<FirstRole>` is not established: actual `Issued<Word>` and expected `Issued<FirstRole>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/contracts/overwritten_requirement_cannot_rule_out_branch rejected 2011ms expected @6be568cdb4e5
+	exact arithmetic in machine `pick` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/contracts/recursive_private_arrival_exit rejected 2447ms expected @7391b2ce665a
 	cannot prove requires contract for call ones from emit: 48 <= 48 + rest && 48 + rest <= 57 (needs fact `48 <= value && value <= 57` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call ones from digit: 48 <= 48 + rest && 48 + rest <= 57 (needs fact `48 <= value && value <= 57` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/returned_case_geometry_domain_exit rejected 2460ms expected @12dc24de59c1+wt
 	construction of `BootGeometryCheck` field `geometry` is not proven in domain `BootGeometry::Separated` in separate state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for return from separate, state entry, at statement 3: BootGeometryCheck::Ready.geometry requires BootGeometry::Separated
+fail/contracts/ruled_out_arm_value_does_not_reach_join rejected 2712ms expected @6be568cdb4e5
+	unreachable branch: the `true` arm of a match in machine `pick` state `entry` can never run; its pattern contradicts the facts in force here: count >= 10
+	exact arithmetic in machine `pick` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/contracts/ruled_out_branch_requires_resolved_names rejected 1757ms expected @6be568cdb4e5
+	machine `pick` state `entry` uses `missing_name`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+	unreachable branch: the `true` arm of a transition in machine `pick` state `entry` can never run; its guard contradicts the facts in force here: count >= 10
+	exact arithmetic in machine `pick` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/contracts/ruled_out_caller_does_not_bound_callee_body rejected 1756ms expected @6be568cdb4e5
+	unreachable branch: the `true` arm of a transition in machine `pick` state `entry` can never run; its guard contradicts the facts in force here: count >= 10
+	exact arithmetic in machine `helper` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/contracts/runtime_recursive_result_false_base rejected 5958ms expected @3a4409d34005
 	cannot prove ensures contract for exit from carry at statement 2: result.first == first
 	cannot prove ensures contract for exit from carry at statement 2: result.second == second
@@ -199,6 +211,10 @@ fail/contracts/runtime_recursive_result_swapped_actual rejected 7117ms expected 
 	cannot prove ensures contract for exit from step at statement 0: result.second == second
 fail/contracts/transition_argument_effects_reject_old_observation rejected 1317ms expected @d2f3e99f1e08
 	cannot prove requires contract for call finish from main: cell.value == 7 (needs fact `observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/unproved_branch_is_not_contradiction rejected 1905ms expected @6be568cdb4e5
+	exact arithmetic in machine `pick` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/contracts/written_element_cannot_rule_out_branch rejected 1737ms expected @6be568cdb4e5
+	exact arithmetic in machine `pick` state `entry` return value may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/control_flow/selected_adapter_missing_rejected rejected 2876ms expected @ee4dbb4b2d56
 	machine `Selector::select` state `select`: value call `select_missing(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
 fail/core/scoped_integer_call_crash_route_blocks_unfolding rejected 6309ms expected @7a2c1562808d+wt
@@ -5430,7 +5446,14 @@ pass/contracts/carry_contract_decl checked 3437ms @ccdb99ca2214
 pass/contracts/case_requires_payload_field_read_exit checked 3010ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/completed_anonymous_cast_preserves_prefix_exit checked 2307ms check-target:macos_arm64 @17690916d54b
 pass/contracts/completed_unit_call_post_case checked 2080ms check-target:macos_arm64 @d2f3e99f1e08
+pass/contracts/consistent_branches_quiet_exit checked 8641ms check-target:macos_arm64 @6be568cdb4e5
 pass/contracts/contract_declaration_boundary checked 2871ms @ccdb99ca2214
+pass/contracts/contradictory_boolean_match_arm_exit checked 8639ms check-target:macos_arm64 @6be568cdb4e5
+pass/contracts/contradictory_branch_call_admission_exit checked 8664ms check-target:macos_arm64 @6be568cdb4e5
+pass/contracts/contradictory_branch_closes_obligation_exit checked 8636ms check-target:macos_arm64 @6be568cdb4e5
+pass/contracts/contradictory_branch_result_guarantee_exit checked 8238ms check-target:macos_arm64 @6be568cdb4e5
+pass/contracts/contradictory_match_predecessor_join_exit checked 8170ms check-target:macos_arm64 @6be568cdb4e5
+pass/contracts/contradictory_relational_branch_exit checked 8782ms check-target:macos_arm64 @6be568cdb4e5
 pass/contracts/current_computed_scalar_guard_exit checked 18790ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/disequality_disjoin checked 3443ms @ccdb99ca2214
 pass/contracts/disjunctive_ensures checked 3509ms @ccdb99ca2214
@@ -5447,6 +5470,7 @@ pass/contracts/entry_case_replaced_before_call checked 2415ms @ccdb99ca2214
 pass/contracts/float_guard_disjoint_operand_write rejected 5456ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call from `read` to `invalid` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 pass/contracts/folded_actual_requires checked 3653ms @ccdb99ca2214
+pass/contracts/generic_branch_contract_contradiction_exit checked 8815ms check-target:macos_arm64 @6be568cdb4e5
 pass/contracts/generic_effective_result_comparison_exit checked 3300ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/generic_issued_result_exit checked 4553ms check-target:macos_arm64 @af6bba8b4fb9
 pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit checked 3923ms check-target:macos_arm64 @ccdb99ca2214
@@ -5509,6 +5533,7 @@ pass/contracts/saved_case_guarantee checked 3469ms @ccdb99ca2214
 pass/contracts/scalar_reference_unit_completion_exit checked 3852ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/selected_storage_contract_exit checked 4058ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/shared_field_current_arithmetic checked 2087ms @ccdb99ca2214
+pass/contracts/specialized_branch_selection_quiet_exit checked 8555ms check-target:macos_arm64 @6be568cdb4e5
 pass/contracts/static_type_requires_prior_call_exit checked 3740ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/strict_clause_terminated_headers checked 2600ms @ccdb99ca2214
 pass/contracts/terminal_contract checked 3686ms @ccdb99ca2214

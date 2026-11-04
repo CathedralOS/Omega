@@ -11,6 +11,7 @@ mod integer_establishment;
 mod local_data_statements;
 pub(super) use local_data_statements::validate_type_reference as validate_local_type_reference;
 mod transition_statements;
+mod unreachable_branches;
 
 use crate::value_custody::expression_types::{
     self, ExpressionTypeOwner, validate_expression_type_handle,
@@ -236,6 +237,16 @@ pub(super) fn validate_state_statement_node<'p>(
         local_write_origins,
         call_frames,
     };
+    if let Some(state) = current_state {
+        unreachable_branches::warn(
+            program,
+            machine,
+            state,
+            statement,
+            value_environment,
+            diagnostics,
+        );
+    }
     let mut outputs = StatementOutputs {
         stored_integer_writes,
         value_environment,
