@@ -263,6 +263,12 @@ not combine it with the other selection inputs. `source_only: true` limits its
 corpus leg to checking while permitting the selected ordinary CLI and sample
 runtime consumers.
 
+For a focused timing investigation, `phase_profile=true` enables the existing
+compiler phase profiler during consumers. It is off by default and changes no
+compiler acceptance rule or fixture timeout. Completed scopes remain in the job
+log if a corpus fixture reaches its existing time cap. Use one selected fixture
+to keep concurrent work out of that measurement.
+
 The plan records the original producer commit, tree, target, toolchain,
 executable digests and optimized profiles, plus the complete compiler, SDK,
 bootstrap and build-input Git objects. These inputs must remain identical in
@@ -271,6 +277,9 @@ the replay authenticates their hashes before querying their profiles, then
 keeps immutable copies. A missing or different executable refuses without a
 Cargo build fallback. Records retain the original producer revision separately
 from the current consumer revision and the originating run/cache reference.
+The validated plan's original key selects the exact cache before Cargo checking;
+a missing entry stops the job without trying a newer branch cache. Replays do
+not replace that cache. Fresh compiler builds keep their ordinary cache path.
 
 A failed fixture or oracle leaves the run red, while independent ordinary CLI
 and sample consumers still record their own outcomes. A changed source or
