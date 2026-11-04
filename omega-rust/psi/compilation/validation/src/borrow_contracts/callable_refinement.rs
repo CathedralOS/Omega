@@ -327,8 +327,11 @@ impl PreparedCallableBorrowRefinement {
             &actual_frontier.outputs,
             actual.parameters,
         );
-        for (required_leaves, actual_leaves) in
-            required_frontier.inputs.iter().zip(&actual_frontier.inputs)
+        for (ordinal, (required_leaves, actual_leaves)) in required_frontier
+            .inputs
+            .iter()
+            .zip(&actual_frontier.inputs)
+            .enumerate()
         {
             for required_leaf in required_leaves {
                 let Some(actual_leaf) = actual_leaves.iter().find(|leaf| {
@@ -340,18 +343,47 @@ impl PreparedCallableBorrowRefinement {
                             &leaf.owner_path,
                         )
                 }) else {
-                    return Err("callable input has a different carried region frontier".to_owned());
+                    return Err(format!(
+                        "callable input has a different carried region frontier [parameter {ordinal}; required path {:?}; required: {}; actual: {}]",
+                        required_leaf.owner_path,
+                        super::region_correspondence::region_context(
+                            program,
+                            &required,
+                            &required_frontier.regions
+                        ),
+                        super::region_correspondence::region_context(
+                            program,
+                            &actual,
+                            &actual_frontier.regions
+                        ),
+                    ));
                 };
                 if let Some(required_region) = &required_leaf.lifetime
                     && actual_leaf.lifetime.as_ref() != Some(required_region)
                 {
-                    return Err(match required_region {
+                    let reason = match required_region {
                         RegionIdentity::Fresh(_) => {
                             "fresh invocation region is replaced by a captured or different region"
                         }
                         _ => "callable input does not preserve its captured region identity",
-                    }
-                    .to_owned());
+                    };
+                    return Err(format!(
+                        "{reason} [parameter {ordinal}; path {:?}; required region {required_region:?} from {:?}; actual region {:?} from {:?}; required: {}; actual: {}]",
+                        required_leaf.owner_path,
+                        required_leaf.reference,
+                        actual_leaf.lifetime,
+                        actual_leaf.reference,
+                        super::region_correspondence::region_context(
+                            program,
+                            &required,
+                            &required_frontier.regions
+                        ),
+                        super::region_correspondence::region_context(
+                            program,
+                            &actual,
+                            &actual_frontier.regions
+                        ),
+                    ));
                 }
             }
         }

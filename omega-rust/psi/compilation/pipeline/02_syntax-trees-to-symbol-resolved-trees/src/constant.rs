@@ -196,8 +196,8 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     assign_constant_expression_symbols(program, const_expression_roots.iter().copied());
     // Selection recording reads the call target. A named-implementation call
     // in a constant initializer has no machine-body route yet, so bind the
-    // owned realization entry before that recording. Later requirement
-    // routing still publishes the public requirement on machine-body calls.
+    // public requirement before that recording. Its row's executable body
+    // remains a separate dependency, just as for calls from machine bodies.
     bind_named_implementation_const_calls(program, &const_expression_roots)
         .map_err(|message| vec![Diagnostic::error(message)])?;
     if lowerer.const_resolution_mode == crate::resolution::lowerer::ConstResolutionMode::Complete {

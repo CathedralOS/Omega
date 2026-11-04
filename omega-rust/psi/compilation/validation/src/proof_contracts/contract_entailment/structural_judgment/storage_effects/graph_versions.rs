@@ -20,9 +20,12 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::state::State;
 
+#[cfg(test)]
+mod tests;
+
 /// One position in the storage graph: a state's history and the version after
 /// the last effect observed there. The invalid snapshot is incoming storage.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(in crate::proof_contracts::contract_entailment) struct StorageVersion {
     pub(in crate::proof_contracts::contract_entailment) state: SymbolHandle,
     pub(in crate::proof_contracts::contract_entailment) snapshot: Handle<FlowStorageSnapshot>,
@@ -38,7 +41,9 @@ impl StorageVersion {
 }
 
 impl<'program> StructuralJudge<'program> {
-    pub(super) fn storage_graph(&self) -> Option<&'program FlowControlFacts> {
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn storage_graph(
+        &self,
+    ) -> Option<&'program FlowControlFacts> {
         self.program.storage_graph()
     }
 
@@ -102,6 +107,34 @@ impl<'program> StructuralJudge<'program> {
             expression,
         )?;
         Some(StorageVersion {
+            state: state.symbol,
+            snapshot: call.completed_storage,
+        })
+    }
+
+    /// A named terminal call has no expression handle. Its actual source
+    /// occurrence selects the completed call cut; another arm's call or the
+    /// pre-call statement snapshot cannot describe this normal return.
+    pub(in crate::proof_contracts::contract_entailment) fn transition_call_storage_version(
+        &self,
+        machine: &typed_trees::machine::Machine,
+        state: &State,
+        target: typed_trees::statement::TransitionTargetHandle,
+    ) -> Option<StorageVersion> {
+        let graph = self.storage_graph()?;
+        let row = self.flow_state(state.symbol)?;
+        let mut calls = graph.calls.span(row.calls)?.iter().filter(|call| {
+            crate::find_call_site(
+                self.program,
+                machine.symbol,
+                state.symbol,
+                call.statement_index,
+                call.call_ordinal,
+            )
+            .is_some_and(|site| site.completes_transition(self.program, target))
+        });
+        let call = calls.next()?;
+        calls.next().is_none().then_some(StorageVersion {
             state: state.symbol,
             snapshot: call.completed_storage,
         })
@@ -570,7 +603,7 @@ impl<'program> StructuralJudge<'program> {
                 stored.current_anchors,
             );
         }
-        match reaching {
+        let valid = match reaching {
             None => reached(&crate::completed_storage::StoredOperand::Incoming(
                 place.clone(),
             )),
@@ -582,7 +615,8 @@ impl<'program> StructuralJudge<'program> {
                 .iter()
                 .any(|anchor| matches!(anchor, StorageAnchor::After(cut) if preserved(*cut))),
             Some(reaching) => reached(&reaching),
-        }
+        };
+        valid
     }
 }
 

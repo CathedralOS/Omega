@@ -85,7 +85,7 @@
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/crash_routes/crash_predicates.rs
 40 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/crash_routes/scalar_terms.rs
 43 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/crash_routes/structural_members.rs
-18 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/crash_routes/structural_route_buckets.rs
+16 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/crash_routes/structural_route_buckets.rs
 21 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/evidence_lowering.rs
 12 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/evidence_lowering/evidence_terms.rs
 29 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/evidence_lowering/outcome_specific_calls.rs

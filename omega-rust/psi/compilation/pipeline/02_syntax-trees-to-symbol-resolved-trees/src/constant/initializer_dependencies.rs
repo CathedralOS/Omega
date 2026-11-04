@@ -5,13 +5,12 @@
 //! that specialization may execute. Retain both without treating an abstract
 //! binder as an ordinary body or granting execution from source readiness.
 
-use crate::selection::call_identity::call_declaration_source;
+use crate::selection::call_identity::{call_custody_source, call_declaration_source};
 use crate::tables::body_expressions;
 use crate::tables::resolved_declarations;
 use language_core::data_layout_queries::is_data_layout_query_spelling;
 use language_semantics::declaration_selection::{
-    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
-    ResolvedAuthoredCallBinding,
+    AuthoredDeclarationSelectionTarget, ResolvedAuthoredCallBinding,
 };
 use source::SourceSpan;
 use std::iter::once;
@@ -77,8 +76,17 @@ pub(crate) fn collect_machine_body_demand(
 ) -> Result<ResolvedMachineBodyDemand, String> {
     let mut collector = Collector {
         machines: machine_roots.iter().rev().copied().collect(),
-        expressions: expression_roots.iter().rev().copied().collect(),
-        initializer_expressions: expression_roots.to_vec(),
+        expressions: expression_roots
+            .iter()
+            .rev()
+            .copied()
+            .map(DependencyWork::unscoped)
+            .collect(),
+        initializer_expressions: expression_roots
+            .iter()
+            .copied()
+            .map(DependencyWork::unscoped)
+            .collect(),
         // An exact initializer owner supplies its declared type as readiness
         // input too. Its selected implementation members must be complete
         // before ordinary dependency collection; this grants no invocation.
@@ -93,7 +101,7 @@ pub(crate) fn collect_machine_body_demand(
                 };
                 expression_roots.contains(&initializer)
             })
-            .map(|declaration| &declaration.declared_type)
+            .map(|declaration| DependencyWork::unscoped(&declaration.declared_type))
             .collect(),
         deferred_machines: Some(Vec::new()),
         // This route completes declarations before source or realized custody
@@ -142,8 +150,8 @@ pub(crate) fn collect(
     selected_calls: Option<&[(SourceSpan, SourceSpan)]>,
 ) -> Result<ConstInitializerDependencies, String> {
     let mut collector = Collector {
-        expressions: vec![root],
-        initializer_expressions: vec![root],
+        expressions: vec![DependencyWork::unscoped(root)],
+        initializer_expressions: vec![DependencyWork::unscoped(root)],
         selected_calls,
         ..Collector::new(program)
     };
@@ -163,10 +171,10 @@ pub(crate) fn collect_declaration(
     selected_calls: Option<&[(SourceSpan, SourceSpan)]>,
 ) -> Result<ConstInitializerDependencies, String> {
     let mut collector = Collector {
-        expressions: vec![root],
-        initializer_expressions: vec![root],
+        expressions: vec![DependencyWork::unscoped(root)],
+        initializer_expressions: vec![DependencyWork::unscoped(root)],
         selected_calls,
-        types: vec![destination],
+        types: vec![DependencyWork::unscoped(destination)],
         purpose,
         ..Collector::new(program)
     };
@@ -222,16 +230,18 @@ pub(crate) fn expression_at_source(
     source: SourceSpan,
 ) -> Result<ExpressionHandle, String> {
     let mut collector = Collector {
-        expressions: vec![root],
+        expressions: vec![DependencyWork::unscoped(root)],
         follow_dependencies: false,
         ..Collector::new(program)
     };
     let mut selected = None;
-    while let Some(expression) = collector.expressions.pop() {
-        if collector.visited_expressions.contains(&expression) {
+    while let Some(work) = collector.expressions.pop() {
+        collector.lexical_owner = work.lexical_owner;
+        let expression = work.value;
+        if collector.visited_expressions.contains(&work) {
             continue;
         }
-        collector.visited_expressions.push(expression);
+        collector.visited_expressions.push(work);
         if program.tables.bodies.expressions.source_span(expression) == source {
             if selected.is_some() {
                 return Err("initializer leaf source correspondence is ambiguous".to_owned());
@@ -243,147 +253,11 @@ pub(crate) fn expression_at_source(
     selected.ok_or_else(|| "initializer leaf is absent from its retained original root".to_owned())
 }
 
-/// How a call through a named implementation contributes a constant dependency.
-/// Ordinary machine, operator, and evidence-binder calls stay on their existing
-/// paths. A concrete map supplies its owned realization body. A map that does
-/// not implement the named trait supplies no body; checking still rejects it.
-enum NamedImplementationDependency {
-    NotSelected,
-    Realization(ResolvedAuthoredCallBinding),
-    RequirementOnly(SymbolHandle),
-}
-
-fn named_implementation_dependency(
-    program: &SymbolResolvedTrees,
-    receiver_symbol: SymbolHandle,
-    target_symbol: SymbolHandle,
-    target_name: &str,
-    static_arguments: &[StaticMachineArgument],
-) -> Result<NamedImplementationDependency, String> {
-    let target = program.symbols.get(target_symbol);
-    let target_parent_kind = program.symbols.get(target.parent).kind;
-    if matches!(
-        target.kind,
-        SymbolKind::Machine | SymbolKind::Operator | SymbolKind::BuiltinFunction
-    ) || (target.kind == SymbolKind::State
-        && matches!(
-            target_parent_kind,
-            SymbolKind::Machine | SymbolKind::ConformanceParameter
-        ))
-    {
-        return Ok(NamedImplementationDependency::NotSelected);
-    }
-    let (implementation, requirement_trait) =
-        if program.symbols.get(receiver_symbol).kind == SymbolKind::Conformance {
-            (receiver_symbol, None)
-        } else if target.kind == SymbolKind::State && target_parent_kind == SymbolKind::Trait {
-            let Some(argument) = static_arguments.last() else {
-                return Ok(NamedImplementationDependency::NotSelected);
-            };
-            if program.symbols.get(argument.symbol).kind != SymbolKind::Conformance {
-                return Ok(NamedImplementationDependency::NotSelected);
-            }
-            (argument.symbol, Some(target.parent))
-        } else {
-            return Ok(NamedImplementationDependency::NotSelected);
-        };
-    let conformance = program
-        .conformances
-        .iter()
-        .find(|conformance| conformance.symbol == implementation)
-        .ok_or_else(|| {
-            format!(
-                "named implementation call lost its conformance declaration `{}`",
-                program.symbols.display_path(implementation, "::")
-            )
-        })?;
-    if let Some(requirement_trait) = requirement_trait
-        && !trait_supplies_requirement(program, conformance.trait_symbol, requirement_trait)
-    {
-        return Ok(NamedImplementationDependency::RequirementOnly(
-            target_symbol,
-        ));
-    }
-    let mut rows = conformance.rows.iter().filter(|row| {
-        if target_symbol.is_valid() && row.requirement.is_valid() {
-            row.requirement == target_symbol
-        } else {
-            row.requirement_name.as_str() == target_name
-        }
-    });
-    let Some(row) = rows.next() else {
-        if requirement_trait.is_some() {
-            return Ok(NamedImplementationDependency::RequirementOnly(
-                target_symbol,
-            ));
-        }
-        return Err(format!(
-            "named implementation `{}` has no row for `{target_name}`",
-            program.symbols.display_path(implementation, "::")
-        ));
-    };
-    if rows.next().is_some() {
-        return Err(format!(
-            "named implementation `{}` has more than one row for `{target_name}`",
-            program.symbols.display_path(implementation, "::")
-        ));
-    }
-    let machine =
-        crate::symbols::owned_conformance_realization(program, row).map_err(str::to_owned)?;
-    let entry = realization_entry(program, machine)?;
-    Ok(NamedImplementationDependency::Realization(
-        ResolvedAuthoredCallBinding {
-            selected: entry,
-            original: if requirement_trait.is_some() {
-                target_symbol
-            } else {
-                entry
-            },
-        },
-    ))
-}
-
-fn trait_supplies_requirement(
-    program: &SymbolResolvedTrees,
-    implementation_trait: SymbolHandle,
-    requirement_trait: SymbolHandle,
-) -> bool {
-    if !implementation_trait.is_valid() || !requirement_trait.is_valid() {
-        return false;
-    }
-    let mut pending = vec![implementation_trait];
-    let mut visited = Vec::new();
-    while let Some(current) = pending.pop() {
-        if !current.is_valid() || visited.contains(&current) {
-            continue;
-        }
-        if current == requirement_trait {
-            return true;
-        }
-        visited.push(current);
-        let Some(definition) = program
-            .traits
-            .iter()
-            .find(|definition| definition.symbol == current)
-        else {
-            continue;
-        };
-        pending.extend(
-            program
-                .trait_requirements(definition.requires)
-                .iter()
-                .map(|parent| parent.symbol),
-        );
-    }
-    false
-}
-
-/// Bind unresolved constant-initializer calls through a named implementation
-/// to that row's owned entry before authored-selection recording. Every copy
+/// Bind constant-initializer calls through a named implementation
+/// to its public requirement before authored-selection recording. Every copy
 /// of those source tokens is bound too: selection finalization groups copies
-/// by token, and one unresolved copy keeps a late call selection. Machine-body
-/// calls keep their own later requirement route. The entry is what constant
-/// custody compares with the call that remains.
+/// by token, and one unresolved copy keeps a late call selection. The private
+/// realization supplies body demand separately, just as for machine-body calls.
 pub(crate) fn bind_named_implementation_const_calls(
     program: &mut SymbolResolvedTrees,
     roots: &[ExpressionHandle],
@@ -397,180 +271,49 @@ pub(crate) fn bind_named_implementation_const_calls(
         .iter_expressions()
         .map(|(expression, _)| expression)
         .collect::<Vec<_>>();
-    let mut bound_entries: Vec<(SourceSpan, SymbolHandle)> = Vec::new();
+    let mut routing =
+        crate::selection::conformance_blocks::ProvisionalBodyCallRouting::new(program);
+    let mut targets = Vec::new();
     for expression in expressions {
         let node = expression_node(program, expression);
         let ExpressionNode::Call(call) = &node else {
             continue;
         };
-        if call.target_symbol.is_valid() || !spans.contains(&call.target.source_span()) {
+        if !spans.contains(&call.target.source_span()) {
             continue;
         }
         let receiver_symbol = body_expressions(program)
             .name_path_node(call.receiver)
             .map_or_else(SymbolHandle::invalid, |path| path.symbol);
-        let NamedImplementationDependency::Realization(binding) = named_implementation_dependency(
-            program,
-            receiver_symbol,
-            call.target_symbol,
-            call.target.as_str(),
+        let Some(binding) = routing.named_binding(
+            &crate::selection::body_calls::CallSite {
+                receiver_symbol,
+                target_symbol: call.target_symbol,
+                target: &call.target,
+                member: &call.target,
+                requirement_application: call.requirement_application,
+                local_receiver: !call.receiver.is_valid(),
+                argument_count: body_expressions(program)
+                    .expression_handles(call.arguments)
+                    .len(),
+            },
             &call.machine_arguments,
         )?
         else {
             continue;
         };
-        let mut entry = binding.selected;
-        let span = call.target.source_span();
-        if let Some((_, existing)) = bound_entries.iter().find(|(bound, _)| *bound == span) {
-            entry = *existing;
-        } else {
-            bound_entries.push((span, entry));
-        }
+        targets.push((expression, binding.original));
+    }
+    drop(routing);
+    for (expression, requirement) in targets {
         let ExpressionNode::Call(call) =
             program.tables.bodies.expressions.expression_mut(expression)
         else {
             continue;
         };
-        call.target_symbol = entry;
+        call.target_symbol = requirement;
     }
     Ok(())
-}
-
-/// Preserve reconciled source targets on retained initializer expressions.
-/// Ordinary overload selection initially needs the evaluator's typed owner;
-/// re-lowering its saved source after materialization leaves that target open.
-/// The declaration's own resolved selection supplies the original target here.
-/// Named-implementation routing can also move machine-reachable copies to the
-/// trait requirement; those copies retain the existing owned-entry restoration.
-pub(crate) fn restore_const_call_targets(
-    program: &mut SymbolResolvedTrees,
-    work: &[ExpressionHandle],
-) {
-    let roots = program
-        .const_declarations
-        .iter()
-        .flat_map(|declaration| [declaration.initializer, declaration.authored_initializer])
-        .filter(|expression| expression.is_valid())
-        .collect::<Vec<_>>();
-    let mut initializer_expressions = Vec::new();
-    collect_expression_handles(program, &roots, &mut initializer_expressions);
-    let mut initializer_targets = Vec::new();
-    let mut recorded = Vec::new();
-    for expression in &initializer_expressions {
-        let node = expression_node(program, *expression);
-        let ExpressionNode::Call(call) = &node else {
-            continue;
-        };
-        let Some(symbol) = recorded_call_selection(program, *expression, call.target.source_span())
-        else {
-            continue;
-        };
-        let selected_symbol = program.symbols.get(symbol);
-        if selected_symbol.kind != SymbolKind::State
-            || program.symbols.get(selected_symbol.parent).kind != SymbolKind::Machine
-        {
-            continue;
-        }
-        initializer_targets.push((*expression, symbol));
-        let span = call.target.source_span();
-        if let Some((_, existing)) = recorded.iter().find(|(bound, _)| *bound == span) {
-            if *existing != symbol {
-                recorded.retain(|(bound, _)| *bound != span);
-            }
-            continue;
-        }
-        recorded.push((span, symbol));
-    }
-    if recorded.is_empty() && initializer_targets.is_empty() {
-        return;
-    }
-    for &expression in work {
-        let node = expression_node(program, expression);
-        let ExpressionNode::Call(call) = &node else {
-            continue;
-        };
-        let receiver_symbol = body_expressions(program)
-            .name_path_node(call.receiver)
-            .map_or_else(SymbolHandle::invalid, |path| path.symbol);
-        // An ordinary unresolved call must be the exact declaration-owned
-        // expression carrying the reconciled selection. Equal source spans on
-        // other expressions do not authorize filling their targets. Keep a
-        // conflicting nonempty ordinary target for the custody checker to reject.
-        let initializer_target = (!call.target_symbol.is_valid())
-            .then(|| {
-                initializer_targets
-                    .iter()
-                    .find(|(owner, _)| *owner == expression)
-            })
-            .flatten()
-            .map(|(_, symbol)| *symbol);
-        let routed_target = (program.symbols.get(receiver_symbol).kind == SymbolKind::Conformance)
-            .then(|| {
-                recorded
-                    .iter()
-                    .find(|(span, _)| *span == call.target.source_span())
-            })
-            .flatten()
-            .map(|(_, symbol)| *symbol);
-        let Some(symbol) = initializer_target.or(routed_target) else {
-            continue;
-        };
-        if call.target_symbol == symbol {
-            continue;
-        }
-        let ExpressionNode::Call(call) =
-            program.tables.bodies.expressions.expression_mut(expression)
-        else {
-            continue;
-        };
-        call.target_symbol = symbol;
-    }
-}
-
-fn recorded_call_selection(
-    program: &SymbolResolvedTrees,
-    expression: ExpressionHandle,
-    span: SourceSpan,
-) -> Option<SymbolHandle> {
-    let mut selected = None;
-    for occurrence in body_expressions(program).authored_selection_occurrences(expression) {
-        let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
-            continue;
-        };
-        if selection.kind() != AuthoredDeclarationSelectionKind::Call
-            || selection.source_span() != span
-        {
-            continue;
-        }
-        let target = selection.target();
-        let resolved = target.as_resolved()?;
-        let symbol = resolved.selected_symbol();
-        match selected {
-            None => selected = Some(symbol),
-            Some(existing) if existing == symbol => {}
-            Some(_) => return None,
-        }
-    }
-    selected
-}
-
-fn collect_expression_handles(
-    program: &SymbolResolvedTrees,
-    roots: &[ExpressionHandle],
-    expressions: &mut Vec<ExpressionHandle>,
-) {
-    let mut pending = roots.to_vec();
-    while let Some(expression) = pending.pop() {
-        if !expression.is_valid() || expressions.contains(&expression) {
-            continue;
-        }
-        if !body_expressions(program).expression_is_valid(expression) {
-            continue;
-        }
-        expressions.push(expression);
-        let node = expression_node(program, expression);
-        pending.extend(expression_child_handles(program, &node));
-    }
 }
 
 fn collect_call_target_spans(
@@ -658,60 +401,50 @@ fn expression_child_handles(
     }
 }
 
-fn realization_entry(
-    program: &SymbolResolvedTrees,
-    machine_symbol: SymbolHandle,
-) -> Result<SymbolHandle, String> {
-    let mut machines = program
-        .machines
-        .iter()
-        .filter(|machine| machine.symbol == machine_symbol);
-    let machine = machines
-        .next()
-        .ok_or("owned conformance realization lost its machine declaration")?;
-    if machines.next().is_some() {
-        return Err("owned conformance realization has ambiguous machine declarations".to_owned());
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct DependencyWork<Value> {
+    value: Value,
+    // Default bodies can share source nodes across distinct realizations.
+    // Their queued work and visited keys must keep each row's exact owner.
+    lexical_owner: SymbolHandle,
+}
+
+impl<Value> DependencyWork<Value> {
+    fn unscoped(value: Value) -> Self {
+        Self {
+            value,
+            lexical_owner: SymbolHandle::invalid(),
+        }
     }
-    let leaf = machine
-        .name
-        .as_str()
-        .rsplit_once("::")
-        .map_or(machine.name.as_str(), |(_, leaf)| leaf);
-    let states = program.machine_state_handles(machine.states);
-    let state = states
-        .iter()
-        .find(|state| program.machine_state(**state).name.as_str() == leaf)
-        .or_else(|| {
-            states
-                .iter()
-                .find(|state| program.machine_state(**state).name.as_str() == "entry")
-        })
-        .ok_or("owned conformance realization has no entry state")?;
-    Ok(program.machine_state(*state).symbol)
 }
 
 struct Collector<'program, 'selection> {
     program: &'program SymbolResolvedTrees,
+    body_call_routing: crate::selection::conformance_blocks::ProvisionalBodyCallRouting<'program>,
     dependencies: ConstInitializerDependencies,
-    expressions: Vec<ExpressionHandle>,
+    expressions: Vec<DependencyWork<ExpressionHandle>>,
+    lexical_owner: SymbolHandle,
     /// Exact expression-tree membership, independent of diagnostic spans.
     /// Machine bodies and declaration type work enter their separate queues;
     /// following a call does not make its body an initializer expression.
-    initializer_expressions: Vec<ExpressionHandle>,
+    initializer_expressions: Vec<DependencyWork<ExpressionHandle>>,
     machines: Vec<SymbolHandle>,
     available_machines: Vec<SymbolHandle>,
-    types: Vec<&'program TypeReference>,
-    visited_type_children: Vec<arena::Handle<TypeReference>>,
+    types: Vec<DependencyWork<&'program TypeReference>>,
+    visited_type_children: Vec<(arena::Handle<TypeReference>, SymbolHandle)>,
     visited_type_declarations: Vec<SymbolHandle>,
     expanded_constants: Vec<SymbolHandle>,
-    visited_expressions: Vec<ExpressionHandle>,
-    visited_initializer_expressions: Vec<ExpressionHandle>,
+    visited_expressions: Vec<DependencyWork<ExpressionHandle>>,
+    visited_initializer_expressions: Vec<DependencyWork<ExpressionHandle>>,
     visited_machines: Vec<SymbolHandle>,
     /// Only a retained-body owner can request an incomplete dependency frontier.
     /// Ordinary initializer collection requires every reached body to exist.
     deferred_machines: Option<Vec<SymbolHandle>>,
     follow_dependencies: bool,
     purpose: DependencyPurpose,
+    // Typed choices disambiguate unresolved overload families. Readiness can
+    // also visit independently selected member bodies absent from that hint.
+    // Final normalization compares the complete reconstructed source roster.
     selected_calls: Option<&'selection [(SourceSpan, SourceSpan)]>,
 }
 
@@ -719,8 +452,11 @@ impl<'program, 'selection> Collector<'program, 'selection> {
     fn new(program: &'program SymbolResolvedTrees) -> Self {
         Self {
             program,
+            body_call_routing:
+                crate::selection::conformance_blocks::ProvisionalBodyCallRouting::new(program),
             dependencies: ConstInitializerDependencies::default(),
             expressions: Vec::new(),
+            lexical_owner: SymbolHandle::invalid(),
             initializer_expressions: Vec::new(),
             machines: Vec::new(),
             available_machines: Vec::new(),
@@ -738,23 +474,64 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         }
     }
 
+    fn expression_work(&self, value: ExpressionHandle) -> DependencyWork<ExpressionHandle> {
+        DependencyWork {
+            value,
+            lexical_owner: self.lexical_owner,
+        }
+    }
+
+    fn queue_expression(&mut self, value: ExpressionHandle) {
+        self.expressions.push(DependencyWork {
+            value,
+            lexical_owner: self.lexical_owner,
+        });
+    }
+
+    fn queue_expressions(&mut self, values: impl IntoIterator<Item = ExpressionHandle>) {
+        let lexical_owner = self.lexical_owner;
+        self.expressions
+            .extend(values.into_iter().map(|value| DependencyWork {
+                value,
+                lexical_owner,
+            }));
+    }
+
+    fn queue_type(&mut self, value: &'program TypeReference) {
+        self.types.push(DependencyWork {
+            value,
+            lexical_owner: self.lexical_owner,
+        });
+    }
+
+    fn queue_types(&mut self, values: impl IntoIterator<Item = &'program TypeReference>) {
+        let lexical_owner = self.lexical_owner;
+        self.types
+            .extend(values.into_iter().map(|value| DependencyWork {
+                value,
+                lexical_owner,
+            }));
+    }
+
     fn collect(&mut self) -> Result<(), String> {
         while !self.expressions.is_empty() || !self.machines.is_empty() || !self.types.is_empty() {
-            if let Some(expression) = self.expressions.pop() {
-                let initializer = self.initializer_expressions.contains(&expression);
-                if self.visited_expressions.contains(&expression)
-                    && (!initializer || self.visited_initializer_expressions.contains(&expression))
+            if let Some(work) = self.expressions.pop() {
+                self.lexical_owner = work.lexical_owner;
+                let expression = work.value;
+                let initializer = self.initializer_expressions.contains(&work);
+                if self.visited_expressions.contains(&work)
+                    && (!initializer || self.visited_initializer_expressions.contains(&work))
                 {
                     continue;
                 }
-                if !self.visited_expressions.contains(&expression) {
-                    self.visited_expressions.push(expression);
+                if !self.visited_expressions.contains(&work) {
+                    self.visited_expressions.push(work);
                 }
                 if initializer {
                     // A shared handle may first be reached by type/body work.
                     // Revisit its children once under initializer ownership;
                     // the two finite visited frontiers still terminate cycles.
-                    self.visited_initializer_expressions.push(expression);
+                    self.visited_initializer_expressions.push(work);
                 }
                 self.expression(expression)?;
             } else if let Some(machine) = self.machines.pop() {
@@ -763,8 +540,9 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                 }
                 self.visited_machines.push(machine);
                 self.machine(machine)?;
-            } else if let Some(reference) = self.types.pop() {
-                self.type_reference(reference)?;
+            } else if let Some(work) = self.types.pop() {
+                self.lexical_owner = work.lexical_owner;
+                self.type_reference(work.value)?;
             }
         }
         Ok(())
@@ -789,21 +567,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         }
         let bound_requirement = symbol.kind == SymbolKind::State
             && symbol.parent.is_valid()
-            && self.program.symbols.get(symbol.parent).kind == SymbolKind::ConformanceParameter
-            && self.program.machines.iter().any(|machine| {
-                machine.symbol == self.program.symbols.get(symbol.parent).parent
-                    && machine
-                        .conformance_bounds
-                        .iter()
-                        .filter(|bound| bound.binder == symbol.parent)
-                        .count()
-                        == 1
-            })
-            && self
-                .program
-                .symbols
-                .child_handles(symbol.parent)
-                .is_some_and(|mut children| children.any(|child| child == target));
+            && self.program.symbols.get(symbol.parent).kind == SymbolKind::ConformanceParameter;
         if matches!(
             symbol.kind,
             SymbolKind::Operator | SymbolKind::MachineParameter
@@ -811,7 +575,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         {
             // A logical requirement is an exact authored selection, not an
             // ordinary body. Evidence-binder children were installed from this
-            // machine's explicit bound; the typed invocation must independently
+            // declaration's explicit bound; the typed invocation must independently
             // rejoin its complete application before selecting executable code.
             // Named boundary operators likewise retain their declaration here.
             // This source dependency row grants no execution permission and
@@ -890,14 +654,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         target: SymbolHandle,
         reference: SourceSpan,
     ) -> Result<(), String> {
-        // A bound requirement child keeps only its spelling and inherits its
-        // provenance from the evidence binder that installed it, so its
-        // declaration source is that binder's, not a name span of its own.
-        let declaration = self
-            .program
-            .symbols
-            .symbol_provenance_source_span(target)
-            .ok_or("constant logical call lost its exact declaration source")?;
+        let declaration = call_custody_source(self.program, target)?;
         let selection = (reference, declaration);
         if !self.dependencies.calls.contains(&selection) {
             self.dependencies.calls.push(selection);
@@ -915,12 +672,25 @@ impl<'program, 'selection> Collector<'program, 'selection> {
 
     fn call_dependency(
         &mut self,
-        receiver_symbol: SymbolHandle,
-        target_symbol: SymbolHandle,
-        target_name: &str,
+        site: crate::selection::body_calls::CallSite<'_>,
         target_span: SourceSpan,
         static_arguments: &[StaticMachineArgument],
     ) -> Result<(), String> {
+        let receiver_symbol = site.receiver_symbol;
+        let target_symbol = site.target_symbol;
+        let target_name = site.member.as_str();
+        // Named implementation routing runs after lexical routing and owns the
+        // final choice for an explicit map call. Honor that choice first when
+        // discovering dependencies in either fresh or already-routed source.
+        if let Some(binding) = self
+            .body_call_routing
+            .named_binding(&site, static_arguments)?
+        {
+            return self.realized_call_dependency(binding, target_span);
+        }
+        if let Some(binding) = self.body_call_routing.binding(self.lexical_owner, &site)? {
+            return self.realized_call_dependency(binding, target_span);
+        }
         if !target_symbol.is_valid() {
             let symbols = &self.program.symbols;
             let candidates = if symbols.get(receiver_symbol).kind == SymbolKind::Module {
@@ -993,40 +763,31 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                 return Ok(());
             }
         }
-        match named_implementation_dependency(
-            self.program,
-            receiver_symbol,
-            target_symbol,
-            target_name,
-            static_arguments,
-        )? {
-            // A map that does not supply this requirement has no body to walk.
-            // The requirement declaration stays the dependency so checking can
-            // reject the selection; this row does not execute that body.
-            NamedImplementationDependency::RequirementOnly(requirement) => {
-                self.dependencies.pending_target_observation = true;
-                self.record_logical_call(requirement, target_span)
-            }
-            NamedImplementationDependency::Realization(binding) => {
-                if binding.original == binding.selected {
-                    return self.call(binding.original, target_span);
-                }
-                // The requirement is the authored selection. Its supplying
-                // row contributes a separate executable body, never a new
-                // source declaration at the same call occurrence.
-                self.record_logical_call(binding.original, target_span)?;
-                if self.follow_dependencies {
-                    self.machines
-                        .push(self.program.symbols.get(binding.selected).parent);
-                }
-                Ok(())
-            }
-            NamedImplementationDependency::NotSelected => self.call(target_symbol, target_span),
+        self.call(target_symbol, target_span)
+    }
+
+    fn realized_call_dependency(
+        &mut self,
+        binding: ResolvedAuthoredCallBinding,
+        reference: SourceSpan,
+    ) -> Result<(), String> {
+        if binding.original == binding.selected {
+            return self.call(binding.original, reference);
         }
+        // The public requirement remains the source dependency. Its exact
+        // supplying row contributes body demand without replacing that contract.
+        self.record_logical_call(binding.original, reference)?;
+        if self.follow_dependencies {
+            self.machines
+                .push(self.program.symbols.get(binding.selected).parent);
+        }
+        Ok(())
     }
 
     fn expression(&mut self, expression: ExpressionHandle) -> Result<(), String> {
-        let initializer = self.initializer_expressions.contains(&expression);
+        let initializer = self
+            .initializer_expressions
+            .contains(&self.expression_work(expression));
         let child_frontier = self.expressions.len();
         self.expression_dependencies(expression)?;
         if initializer {
@@ -1045,10 +806,15 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                     .expression(expression),
             );
             for child in children {
-                if self.expressions[child_frontier..].contains(&child)
-                    && !self.initializer_expressions.contains(&child)
+                if self.expressions[child_frontier..]
+                    .iter()
+                    .any(|work| *work == self.expression_work(child))
+                    && !self
+                        .initializer_expressions
+                        .contains(&self.expression_work(child))
                 {
-                    self.initializer_expressions.push(child);
+                    self.initializer_expressions
+                        .push(self.expression_work(child));
                 }
             }
         }
@@ -1066,11 +832,16 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             // A completed static operand keeps its original computation in
             // both source readiness and typed custody. Materialization erases
             // execution demand, never the initializer's authored dependency.
-            self.expressions.push(authored);
-            if self.initializer_expressions.contains(&expression)
-                && !self.initializer_expressions.contains(&authored)
+            self.queue_expression(authored);
+            if self
+                .initializer_expressions
+                .contains(&self.expression_work(expression))
+                && !self
+                    .initializer_expressions
+                    .contains(&self.expression_work(authored))
             {
-                self.initializer_expressions.push(authored);
+                self.initializer_expressions
+                    .push(self.expression_work(authored));
             }
         }
         if matches!(
@@ -1081,7 +852,9 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             // A binary's diagnostic span may name only its operator token:
             // the outer '*' span cannot contain the inner '/' in 7 / 2 * 2.
             // Custody follows exact expression children, never span nesting.
-            if self.initializer_expressions.contains(&expression)
+            if self
+                .initializer_expressions
+                .contains(&self.expression_work(expression))
                 && !self.dependencies.initializer_operators.contains(&reference)
             {
                 self.dependencies.initializer_operators.push(reference);
@@ -1142,39 +915,43 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                         .name_path_node(call.receiver)
                         .map_or_else(SymbolHandle::invalid, |path| path.symbol);
                     self.call_dependency(
-                        receiver_symbol,
-                        call.target_symbol,
-                        call.target.as_str(),
+                        crate::selection::body_calls::CallSite {
+                            receiver_symbol,
+                            target_symbol: call.target_symbol,
+                            target: &call.target,
+                            member: &call.target,
+                            requirement_application: call.requirement_application,
+                            local_receiver: !call.receiver.is_valid(),
+                            argument_count: table.expression_handles(call.arguments).len(),
+                        },
                         call.target.source_span(),
                         &call.machine_arguments,
                     )?;
                 }
                 if call.receiver.is_valid() {
-                    self.expressions.push(call.receiver);
+                    self.queue_expression(call.receiver);
                 }
                 let arguments = table.expression_handles(call.arguments);
                 if arguments.len() != call.arguments.len() {
                     return Err("constant call arguments have a stale span".to_owned());
                 }
-                self.expressions.extend(arguments.iter().rev().copied());
+                self.queue_expressions(arguments.iter().rev().copied());
             }
-            ExpressionNode::Binary(binary) => self.expressions.extend([binary.right, binary.left]),
-            ExpressionNode::Unary(unary) => self.expressions.push(unary.operand),
+            ExpressionNode::Binary(binary) => self.queue_expressions([binary.right, binary.left]),
+            ExpressionNode::Unary(unary) => self.queue_expression(unary.operand),
             ExpressionNode::Cast(cast) => {
                 self.type_child(cast.target_type)?;
                 self.type_arguments(cast.semantic_domain_arguments)?;
-                self.expressions.push(cast.value);
+                self.queue_expression(cast.value);
             }
-            ExpressionNode::Member(member) => self.expressions.push(member.receiver),
-            ExpressionNode::Borrow(borrow) => self.expressions.push(borrow.target),
+            ExpressionNode::Member(member) => self.queue_expression(member.receiver),
+            ExpressionNode::Borrow(borrow) => self.queue_expression(borrow.target),
             ExpressionNode::Indexed(indexed) => {
-                self.expressions.extend([indexed.index, indexed.collection])
+                self.queue_expressions([indexed.index, indexed.collection])
             }
-            ExpressionNode::Membership(membership) => self.expressions.push(membership.value),
-            ExpressionNode::Atomic(atomic) => {
-                self.expressions.extend([atomic.result, atomic.value])
-            }
-            ExpressionNode::Range(range) => self.expressions.extend(
+            ExpressionNode::Membership(membership) => self.queue_expression(membership.value),
+            ExpressionNode::Atomic(atomic) => self.queue_expressions([atomic.result, atomic.value]),
+            ExpressionNode::Range(range) => self.queue_expressions(
                 [range.end, range.start]
                     .into_iter()
                     .filter(|handle| handle.is_valid()),
@@ -1184,7 +961,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                 if values.len() != elements.len() {
                     return Err("constant array dependency has a stale span".to_owned());
                 }
-                self.expressions.extend(values.iter().rev().copied());
+                self.queue_expressions(values.iter().rev().copied());
             }
             ExpressionNode::StructLiteral(literal) => {
                 self.type_declaration(literal.type_symbol)?;
@@ -1192,8 +969,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                 if fields.len() != literal.fields.len() {
                     return Err("constant constructor dependency has a stale span".to_owned());
                 }
-                self.expressions
-                    .extend(fields.iter().rev().map(|field| field.value));
+                self.queue_expressions(fields.iter().rev().map(|field| field.value));
             }
             ExpressionNode::Match(dispatch) => {
                 let arms = table.match_arms(dispatch.arms);
@@ -1201,14 +977,13 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                     return Err("constant dispatch dependency has a stale span".to_owned());
                 }
                 for arm in arms.iter().rev() {
-                    self.expressions.push(arm.value);
-                    self.expressions
-                        .extend(table.match_pattern_dependencies(arm.pattern));
+                    self.queue_expression(arm.value);
+                    self.queue_expressions(table.match_pattern_dependencies(arm.pattern));
                 }
-                self.expressions.push(dispatch.subject);
+                self.queue_expression(dispatch.subject);
             }
             ExpressionNode::SavedSubject(saved) => {
-                self.expressions.extend([
+                self.queue_expressions([
                     table.match_subject(saved.capture).subject,
                     saved.pattern_head,
                 ]);
@@ -1261,11 +1036,11 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         for fact in facts {
             match fact {
                 ProofFact::Expression(expression) => {
-                    self.expressions.push(*expression);
+                    self.queue_expression(*expression);
                 }
                 ProofFact::Membership(membership) => {
-                    self.expressions.push(membership.value);
-                    self.types.extend(
+                    self.queue_expression(membership.value);
+                    self.queue_types(
                         self.program
                             .child_type_references(membership.domain_arguments),
                     );
@@ -1277,6 +1052,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
 
     fn machine(&mut self, symbol: SymbolHandle) -> Result<(), String> {
         use symbol_resolved_trees::statement::{Statement, TransitionGuard, TransitionTarget};
+        self.lexical_owner = symbol;
         let program = self.program;
         let mut machines = program
             .machines
@@ -1309,11 +1085,10 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             .declared_type_equations
             .span_or_empty(machine.declared_type_equations)
         {
-            self.types
-                .extend([&equation.parameter, &equation.definition]);
+            self.queue_types([&equation.parameter, &equation.definition]);
         }
         if let Some(reference) = &machine.attached_data_application {
-            self.types.push(reference);
+            self.queue_type(reference);
         }
         if machine.body_status == MachineBodyStatus::Deferred {
             let Some(deferred) = &mut self.deferred_machines else {
@@ -1335,9 +1110,9 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             return Err("constant dependency machine has stale owned initializers".to_owned());
         }
         for owned in owned_values {
-            self.types.push(&owned.type_reference);
+            self.queue_type(&owned.type_reference);
             if owned.initial_value.is_valid() {
-                self.expressions.push(owned.initial_value);
+                self.queue_expression(owned.initial_value);
             }
         }
         let expressions = &program.tables.bodies.expressions;
@@ -1346,7 +1121,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             self.contracts(state.contracts)?;
             self.state_parameters(state.parameters)?;
             if let Some(reference) = &state.return_type {
-                self.types.push(reference);
+                self.queue_type(reference);
             }
             if !state.symbol.is_valid()
                 || program.symbols.get(state.symbol).parent != machine.symbol
@@ -1377,7 +1152,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                                     return Err("constant dependency assembly has stale contracts"
                                         .to_owned());
                                 }
-                                self.expressions.extend(expressions.iter().copied());
+                                self.queue_expressions(expressions.iter().copied());
                             }
                             let body = declarations
                                 .state_statements
@@ -1389,25 +1164,25 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                             statements.extend(body.iter().rev());
                         }
                     }
-                    Statement::Expression(expression) => self.expressions.push(*expression),
+                    Statement::Expression(expression) => self.queue_expression(*expression),
                     Statement::LocalData(local) => {
-                        self.types.push(&local.type_reference);
+                        self.queue_type(&local.type_reference);
                         if local.initial_value.is_valid() {
-                            self.expressions.push(local.initial_value);
+                            self.queue_expression(local.initial_value);
                         }
                     }
-                    Statement::Assignment(assignment) => self
-                        .expressions
-                        .extend([assignment.target, assignment.value]),
+                    Statement::Assignment(assignment) => {
+                        self.queue_expressions([assignment.target, assignment.value])
+                    }
                     Statement::RootBinding(binding) => {
-                        self.expressions.push(binding.receiver);
+                        self.queue_expression(binding.receiver);
                         if binding.implementation_operand.is_valid() {
-                            self.expressions.push(binding.implementation_operand);
+                            self.queue_expression(binding.implementation_operand);
                         }
                     }
-                    Statement::AssemblyFact(fact) => self.expressions.push(fact.expression),
+                    Statement::AssemblyFact(fact) => self.queue_expression(fact.expression),
                     Statement::ProofOutputBindingStatement(binding) => {
-                        self.expressions.push(binding.call)
+                        self.queue_expression(binding.call)
                     }
                     Statement::Call(call) => {
                         self.static_arguments(&call.machine_arguments)?;
@@ -1419,9 +1194,17 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                         }
                         if !native_query {
                             self.call_dependency(
-                                call.receiver_symbol,
-                                call.target_symbol,
-                                call.target.as_str(),
+                                crate::selection::body_calls::CallSite {
+                                    receiver_symbol: call.receiver_symbol,
+                                    target_symbol: call.target_symbol,
+                                    target: &call.target,
+                                    member: &call.target,
+                                    requirement_application: arena::Handle::invalid(),
+                                    local_receiver: call.receiver.is_empty(),
+                                    argument_count: expressions
+                                        .expression_handles(call.arguments)
+                                        .len(),
+                                },
                                 call.target.source_span(),
                                 &call.machine_arguments,
                             )?;
@@ -1430,16 +1213,16 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                         if arguments.len() != call.arguments.len() {
                             return Err("constant statement call has stale arguments".to_owned());
                         }
-                        self.expressions.extend(arguments.iter().rev().copied());
+                        self.queue_expressions(arguments.iter().rev().copied());
                     }
                     Statement::Transition(transition) => {
                         if let TransitionGuard::When(guard) = &transition.guard {
-                            self.expressions.push(*guard);
+                            self.queue_expression(*guard);
                         }
                         for target in once(&transition.target).chain(transition.continuation.iter())
                         {
                             match target {
-                                TransitionTarget::Value(value) => self.expressions.push(*value),
+                                TransitionTarget::Value(value) => self.queue_expression(*value),
                                 TransitionTarget::Named(target) => {
                                     let path = resolved_declarations(program)
                                         .statement_path_members
@@ -1448,9 +1231,17 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                                         .last()
                                         .ok_or("constant transition lost its callable name")?;
                                     self.call_dependency(
-                                        target.receiver_symbol,
-                                        target.symbol,
-                                        name.as_str(),
+                                        crate::selection::body_calls::CallSite {
+                                            receiver_symbol: target.receiver_symbol,
+                                            target_symbol: target.symbol,
+                                            target: name,
+                                            member: name,
+                                            requirement_application: arena::Handle::invalid(),
+                                            local_receiver: path.len() == 1,
+                                            argument_count: expressions
+                                                .expression_handles(target.arguments)
+                                                .len(),
+                                        },
                                         target.source_span,
                                         &[],
                                     )?;
@@ -1460,7 +1251,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                                             "constant transition has stale arguments".to_owned()
                                         );
                                     }
-                                    self.expressions.extend(values.iter().rev().copied());
+                                    self.queue_expressions(values.iter().rev().copied());
                                 }
                                 TransitionTarget::Terminal => {}
                             }
