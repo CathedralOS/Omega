@@ -79,6 +79,42 @@ impl TypedTrees {
         )
     }
 
+    /// Whether this exact Value binder closes in every alternative of its
+    /// declaring machine's finite family. Nested bodies inherit that source
+    /// scope; a caller's literals, unrelated finite facts and same-spelled
+    /// declarations cannot make an unrestricted binder static.
+    pub fn finite_value_binder_in_scope(
+        &self,
+        mut owner: symbols::SymbolHandle,
+        binder: symbols::SymbolHandle,
+    ) -> bool {
+        let mut visited = Vec::new();
+        while owner.is_valid() {
+            owner = self.lifetime_declaration_owner(owner);
+            if !owner.is_valid() || visited.contains(&owner) {
+                return false;
+            }
+            if let Some(machine) = self.machine_declaration_for_lexical_scope(owner) {
+                if let Some(parameter) = self
+                    .machine_type_parameters(machine)
+                    .iter()
+                    .find(|parameter| parameter.symbol == binder)
+                {
+                    return matches!(parameter.kind, crate::data::TypeParameterKind::Value { .. })
+                        && matches!(
+                            self.finite_machine_family(machine),
+                            FamilyProbe::Finite { .. }
+                        );
+                }
+            } else if self.symbols.get(owner).kind == symbols::SymbolKind::Machine {
+                return false;
+            }
+            visited.push(owner);
+            owner = self.declaration_scope_parent(owner);
+        }
+        false
+    }
+
     fn finite_declaration_family(
         &self,
         owner: symbols::SymbolHandle,

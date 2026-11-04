@@ -688,32 +688,6 @@ enum ArgumentScope<'scope> {
     ClosedRequirement(&'scope [typed_trees::typed_trees::RequirementLocalArgument]),
 }
 
-/// Only a declaration's explicit complete roster makes its own generic Value
-/// binders available to const-only operations. A runtime parameter with an
-/// equality guard is still a runtime value; specialization of one caller does
-/// not strengthen the generic API. Carrier and call-contract checks remain on
-/// the original argument below.
-fn finite_family_binder(
-    program: &dyn CheckingInput,
-    scope: ArgumentScope<'_>,
-    symbol: symbols::SymbolHandle,
-) -> bool {
-    let ArgumentScope::Caller(Some(state)) = scope else {
-        return false;
-    };
-    let Some(machine) = program.machine_holding_state(state.symbol) else {
-        return false;
-    };
-    program
-        .machine_type_parameters(machine)
-        .iter()
-        .any(|parameter| parameter.symbol == symbol)
-        && matches!(
-            program.typed_program().finite_machine_family(machine),
-            typed_trees::finite_family::FamilyProbe::Finite { .. }
-        )
-}
-
 fn validate_arguments(
     program: &dyn CheckingInput,
     name: &str,
@@ -721,6 +695,10 @@ fn validate_arguments(
     arguments: &[StaticMachineArgument],
     scope: ArgumentScope<'_>,
 ) -> Result<(), Diagnostic> {
+    let caller = match scope {
+        ArgumentScope::Caller(Some(state)) => program.machine_holding_state(state.symbol),
+        _ => None,
+    };
     let has_types = parameters
         .iter()
         .any(|parameter| matches!(parameter.kind, TypeParameterKind::Type));
@@ -774,7 +752,11 @@ fn validate_arguments(
             && program
                 .data_type_parameter_by_symbol(argument.symbol)
                 .is_some_and(|source| matches!(source.kind, TypeParameterKind::Value { .. }))
-            && !finite_family_binder(program, scope, argument.symbol)
+            && !caller.is_some_and(|caller| {
+                program
+                    .typed_program()
+                    .finite_value_binder_in_scope(caller.symbol, argument.symbol)
+            })
         {
             return Err(Diagnostic::error(format!(
                 "const parameter `{}` of `{name}` cannot accept runtime-capable Value binder `{}`",
