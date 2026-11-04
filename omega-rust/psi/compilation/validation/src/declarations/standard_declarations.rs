@@ -94,12 +94,50 @@ pub(crate) fn is_core_vector_surface_state(
     // boundary operations, not empty runtime implementations. Do not infer an
     // effect-free body from these placeholders. Ordinary same-spelled user
     // methods retain normal body inference.
+    core_vector_surface_placeholder(program, machine, state)
+        || specialized_core_vector_surface_placeholder(program, machine, state)
+}
+
+fn core_vector_surface_placeholder(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> bool {
     has_toolchain_declaration_source(program, machine.symbol, "vec.omg")
         && program.machine_states(machine).len() == 1
         && program
             .statement_table
             .statements(state.statement_nodes)
             .is_empty()
+}
+
+/// A specialization clones the placeholder under a fresh symbol. The clone
+/// keeps the empty body; it is not a new implementation to complete.
+fn specialized_core_vector_surface_placeholder(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> bool {
+    if !program
+        .statement_table
+        .statements(state.statement_nodes)
+        .is_empty()
+    {
+        return false;
+    }
+    let Some(specialization) = program.machine_specialization(machine.symbol) else {
+        return false;
+    };
+    if specialization.template == machine.symbol {
+        return false;
+    }
+    let Some(template) = program.machine_by_symbol(specialization.template) else {
+        return false;
+    };
+    program
+        .machine_states(template)
+        .iter()
+        .any(|template_state| core_vector_surface_placeholder(program, template, template_state))
 }
 
 fn has_toolchain_declaration_source(

@@ -242,7 +242,7 @@ retired-syntax deletions to completion.
     `Build::select_provider`, `Build::exclude_service`,
     `Build::select_representation`, `Build::accept_boundary`,
     `Build::require_wire_compatibility`, `Build::assume_binding_contract`).
-  - Retire remaining attachment helpers in checking/lowering without
+  - Retire remaining attached-storage place helpers in checking/lowering without
     restoring hidden argument insertion.
   - Complete checked per-value loan carry evidence for suspension production
     without restoring hidden argument insertion: joins still refuse
