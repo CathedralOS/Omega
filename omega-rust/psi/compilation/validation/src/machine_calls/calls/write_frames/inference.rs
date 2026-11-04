@@ -394,22 +394,30 @@ impl ParameterValues {
         }
         if let StatementNode::LocalData(local) = statement {
             // A completed private scalar binding is a snapshot in this walk.
-            // Treat authored and normalized locals alike; never replay an
-            // initializer later when a stored selector is consumed.
-            let private_scalar = local.symbol.is_valid()
-                && local.role == language_core::LocalBindingRole::Value
-                && local.relevance == language_core::BindingRelevance::Relevant
-                && !super::type_reference_is_reference(program, local.type_reference)
-                && !binding_is_exclusively_exposed(program, state, local.symbol);
-            if !private_scalar {
-                return;
-            }
+            // Authored values and normalized dispatch subjects both carry an
+            // ordinary initializer: `transition selector { true -> ... }`
+            // stores the selector in a dispatch subject before the arms, and
+            // the arm test names that subject. Replay would see a later store.
             let boolean = crate::value_custody::recasts::exact_primitive_type(
                 program,
                 program
                     .type_reference_table
                     .unconstrained_type_reference(local.type_reference),
             ) == Some(typed_trees::types::PrimitiveType::Bool);
+            // Integer dispatch subjects are copies of selectors the integer
+            // roster must not freeze: a later store to the authored selector
+            // would disagree with that copy. Boolean subjects are the arm
+            // test itself and stay fixed for the transition.
+            let tracks = local.role == language_core::LocalBindingRole::Value
+                || (boolean && local.role == language_core::LocalBindingRole::DispatchSubject);
+            let private_scalar = local.symbol.is_valid()
+                && tracks
+                && local.relevance == language_core::BindingRelevance::Relevant
+                && !super::type_reference_is_reference(program, local.type_reference)
+                && !binding_is_exclusively_exposed(program, state, local.symbol);
+            if !private_scalar {
+                return;
+            }
             if boolean
                 && !binding_has_write_effects(
                     program,

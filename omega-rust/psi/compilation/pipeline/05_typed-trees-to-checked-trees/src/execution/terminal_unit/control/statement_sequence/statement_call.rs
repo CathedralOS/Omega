@@ -237,6 +237,16 @@ pub(super) fn plan(
             structural_replacement = Some(replacement);
         }
     }
+    if let Some(authored) = statement.as_call()
+        && validation::compiler_operations::statement_wire_codec_intrinsic(program, authored)
+            .is_some()
+    {
+        // Numbered-data `Schema::encode` / `decode` has no synthesized body.
+        // Operand preparation already recorded the exclusive argument writes.
+        // The check product does not invent a byte grammar for that call.
+        call_phase("statement sequence: call: derived wire codec");
+        return Some(());
+    }
     call_phase("statement sequence: call: call operation");
     let mut operation = build_call_operation(
         program,

@@ -14,7 +14,9 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionTarget as SelectionTarget,
 };
 use symbols::{SymbolHandle, SymbolKind};
-use validation::compiler_operations::classify_statement_call_intrinsic;
+use validation::compiler_operations::{
+    classify_statement_call_intrinsic, statement_wire_codec_intrinsic,
+};
 use validation::selection_resolution::{
     AuthoredSelectionResolution as SelectionResolution,
     AuthoredSelectionResolutionTarget as ResolutionTarget,
@@ -307,6 +309,7 @@ pub(crate) fn collect_checked_statement_selections(
                     .with_source_span(call.source_span));
                 }
                 let resolution_target = classify_statement_call_intrinsic(program, call)
+                    .or_else(|| statement_wire_codec_intrinsic(program, call))
                     .map(ResolutionTarget::Intrinsic)
                     .or_else(|| {
                         crate::flow::resolved_operator_statement_symbol(program, call)

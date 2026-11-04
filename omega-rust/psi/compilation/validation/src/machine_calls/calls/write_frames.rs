@@ -158,6 +158,49 @@ fn known_call_written_paths(
     )
 }
 
+/// Exclusive arguments of a derived `Schema::encode` / `decode`. A call or
+/// match argument contributes only origins the selector walk already proved.
+/// Anything else stays opaque so both index constants remain retired.
+fn derived_wire_codec_written_paths(
+    program: &dyn crate::CheckingInput,
+    arguments: &[ExpressionHandle],
+    current_machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+) -> Option<Vec<String>> {
+    let mut written = Vec::new();
+    for argument in arguments {
+        match super::expression_table(program).expression(*argument) {
+            ExpressionNode::Borrow(place) if place.access.is_exclusive() => {
+                let path = coarse_place_path(program, place.target)?;
+                if !written.contains(&path) {
+                    written.push(path);
+                }
+            }
+            ExpressionNode::Borrow(_) => {}
+            ExpressionNode::Call(_) | ExpressionNode::Match(_) | ExpressionNode::Name(_) => {
+                let origins = reference_origins::exclusive_reference_origins(
+                    program,
+                    current_machine,
+                    *argument,
+                    symbols,
+                    inference,
+                )?;
+                if origins.is_empty() {
+                    return None;
+                }
+                for origin in origins {
+                    if !written.contains(&origin.path) {
+                        written.push(origin.path);
+                    }
+                }
+            }
+            _ => return None,
+        }
+    }
+    Some(written)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn known_call_written_paths_for_parts(
     program: &dyn crate::CheckingInput,
@@ -173,6 +216,23 @@ fn known_call_written_paths_for_parts(
     inference: &mut FrameInference,
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
+    if !target_symbol.is_valid()
+        && matches!(target, "encode" | "decode")
+        && receiver_members.last().is_some_and(|leaf| {
+            program
+                .wire_schemas()
+                .iter()
+                .any(|schema| schema.name.as_str() == leaf)
+        })
+    {
+        return derived_wire_codec_written_paths(
+            program,
+            arguments,
+            current_machine,
+            symbols,
+            inference,
+        );
+    }
     if let Some(operation) =
         crate::machine_calls::compiler_operations::global_descriptor_table_operation(
             program,

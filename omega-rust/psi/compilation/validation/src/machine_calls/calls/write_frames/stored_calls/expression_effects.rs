@@ -466,30 +466,43 @@ fn evaluate_statement(
             }
         }
         if let Some(call) = statement.as_call() {
-            let called = super::call_effects(
-                program,
-                machine,
-                state,
-                call,
-                &completed_arguments,
-                &context,
-                symbols,
-                inference,
-            )
-            .unwrap_or_else(|| {
-                SlotRelationTransfer::unknown(
-                    &context,
-                    call.target_symbol,
-                    false,
-                    super::provider_output_relation_required(
-                        program,
-                        machine.symbol,
-                        call.target_symbol,
-                        ExpressionHandle::invalid(),
-                    ),
+            let wire_codec =
+                crate::machine_calls::compiler_operations::statement_wire_codec_intrinsic(
+                    program, call,
                 )
-            });
-            capture.completed_call(ExpressionHandle::invalid(), &called);
+                .is_some();
+            let called = if wire_codec {
+                SlotRelationTransfer::complete(Vec::new())
+            } else {
+                super::call_effects(
+                    program,
+                    machine,
+                    state,
+                    call,
+                    &completed_arguments,
+                    &context,
+                    symbols,
+                    inference,
+                )
+                .unwrap_or_else(|| {
+                    SlotRelationTransfer::unknown(
+                        &context,
+                        call.target_symbol,
+                        false,
+                        super::provider_output_relation_required(
+                            program,
+                            machine.symbol,
+                            call.target_symbol,
+                            ExpressionHandle::invalid(),
+                        ),
+                    )
+                })
+            };
+            // A derived codec has no checked invocation. Publishing the zero
+            // handle is the absence state, and completion rejects it.
+            if !wire_codec {
+                capture.completed_call(ExpressionHandle::invalid(), &called);
+            }
             install(program, &mut context, &mut effects, called, inference);
         }
     }

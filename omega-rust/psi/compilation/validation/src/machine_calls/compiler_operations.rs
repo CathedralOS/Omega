@@ -158,6 +158,32 @@ pub fn classify_statement_call_intrinsic(
     )
 }
 
+/// `Schema::encode` / `Schema::decode` on a numbered data declaration.
+/// Synthesis no longer installs a callable, and the schema symbol is not a
+/// machine. The leaf still names that declaration's derived wire schema.
+pub fn statement_wire_codec_intrinsic(
+    program: &dyn crate::CheckingInput,
+    call: &typed_trees::statement::TableCall,
+) -> Option<AuthoredDeclarationSelectionIntrinsic> {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
+
+    if call.target_symbol.is_valid() {
+        return None;
+    }
+    let intrinsic = match call.target.as_str() {
+        "encode" => Intrinsic::WireEncode,
+        "decode" => Intrinsic::WireDecode,
+        _ => return None,
+    };
+    let members = program.statement_table.name_path_members(call.receiver);
+    let leaf = members.last()?;
+    program
+        .wire_schemas()
+        .iter()
+        .any(|schema| schema.name.as_str() == leaf.as_str())
+        .then_some(intrinsic)
+}
+
 pub fn classify_expression_call_intrinsic(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
