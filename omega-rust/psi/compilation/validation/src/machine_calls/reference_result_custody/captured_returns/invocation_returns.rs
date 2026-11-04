@@ -76,18 +76,27 @@ impl Captures<'_> {
                 &candidate.source,
                 target_leaf.source.type_identity,
             )?;
-            for source in self.captured_input_sources(
+            for input in self.argument_return_sources(
                 state,
                 parameter.type_reference,
                 call.argument_operands().handles().nth(position)?,
                 &relative,
+                &presentation,
                 active,
+                &mut Vec::new(),
             )? {
                 let origin = CapturedReturnOrigin {
                     result_path: result_path.clone(),
-                    source,
-                    extent: candidate.source.extent,
-                    presentation: Some(presentation.clone()),
+                    source: input.source,
+                    extent: if candidate.source.extent
+                        == semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                        || input.extent == semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                    {
+                        semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                    } else {
+                        semantic_vocabulary::ReferenceOriginExtent::Projected
+                    },
+                    presentation: Some(input.presentation),
                 };
                 if !origins.contains(&origin) {
                     origins.push(origin);
@@ -307,7 +316,7 @@ impl Captures<'_> {
         ))
     }
 
-    fn captured_input_sources(
+    pub(super) fn captured_input_sources(
         &self,
         state: &typed_trees::state::State,
         reference: TypeReferenceHandle,

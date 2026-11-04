@@ -15,6 +15,7 @@
 
 mod descriptor_sources;
 mod incoming_origins;
+mod input_views;
 mod invocation_returns;
 mod presence;
 

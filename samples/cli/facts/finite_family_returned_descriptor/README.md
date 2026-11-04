@@ -68,6 +68,15 @@ records to isolate the caller's existing view; it retains the same byte, width
 choices and local-storage twin. The earlier source remains at `34f4d51`.
 No passing result is claimed for the new probe yet.
 
+The [incoming-pointer join](incoming_join/main.omg) chooses between an unchanged
+input pointer and a new borrow of a field before the same selected call. Both
+choices run at widths 16 and 32. The input reads 11 and the field reads 23, so
+losing either predecessor or choosing the wrong pointer fails. Its
+[twin](incoming_join/invalid/main.omg) changes only the selected method to return
+local storage. This checks that preserving a view also preserves ordinary
+incoming pointers in the complete set of possible sources. Fresh results are
+pending.
+
 The [target-qualification example](target_qualification/main.omg) calls an
 ordinary `SelectedTarget::target_only` requirement from a selected family member.
 Its public lifetime explicitly relates the returned view to its input. Four
