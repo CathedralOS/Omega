@@ -1,1 +1,1 @@
-root binding requires a compiler-issued &mut Build receiver
+argument `builder` for state `prepare` expects the `Build` data type but got `Main`
