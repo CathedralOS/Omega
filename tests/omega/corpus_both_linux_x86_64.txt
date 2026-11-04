@@ -58,6 +58,8 @@ pass/domains/erasing_cast_keeps_predicates_and_named_domains_exit built 8206ms e
 pass/domains/float_conversion_qualification_transport_exit built 11872ms exit:0 interpreter-exit:0 interpreter:agrees @30013776d577
 pass/domains/linear_routed_erasure_keeps_storage_exit built 7909ms exit:0 interpreter-exit:0 interpreter:agrees @f2672d675498
 pass/domains/mutable_domain_parameter_exit built 6259ms exit:0 interpreter-exit:0 interpreter:agrees @18fc751d0060+wt
+pass/domains/qualified_fixed_byte_array_ensured_mutation_exit built 8773ms exit:0 interpreter-exit:0 interpreter:agrees @29c0122d09c2
+pass/domains/qualified_fixed_byte_array_ensured_no_nul_store_exit built 8857ms exit:0 interpreter-exit:0 interpreter:agrees @c0f1dbfc2dfd
 pass/effects/optional_reach_declared_slack_exit built 6541ms exit:0 interpreter-exit:0 interpreter:agrees @d68d95fa82f8
 pass/effects/optional_reach_generic_narrow_exit built 6746ms exit:0 interpreter-exit:0 interpreter:agrees @d68d95fa82f8
 pass/effects/optional_reach_recursive_foreign_exit built 6590ms exit:0 interpreter-exit:0 interpreter:agrees @d68d95fa82f8
@@ -5716,6 +5718,7 @@ pass/facts/unsigned_shift_right_bound_through_other_machine_exit built 3010ms ex
 pass/facts/unsigned_shift_right_bound_through_other_state_exit built 3026ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/unsigned_shift_right_bound_through_parameter_exit built 2975ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/unsigned_shift_right_bound_through_target_body_exit built 2975ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/value_location_alignment_contract_field_exit built 8606ms exit:0 interpreter-exit:0 interpreter:agrees @8d6537e9a051
 pass/facts/view_extent_after_write_through_call_result_exit built 2978ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/view_extent_after_write_through_const_name_exit built 2915ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/view_extent_after_write_through_field_exit incomplete 2931ms interpreter:unchecked @a92f16431042
@@ -8299,8 +8302,7 @@ run/proofs/quotient_copy_paths built 7803ms exit:70 interpreter-exit:70 interpre
 run/providers/module_named_float_conversion_family_exit built 11159ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a92f16431042
 run/providers/target_applicable_provider_closure built 113223ms exit:0 interpreter-exit:0 interpreter:agrees @d68d95fa82f8
 run/providers/target_family_provider_boundary_identity_exit built 8268ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a92f16431042
-run/slices/call_result_mutable_window_exit incomplete 6467ms interpreter:unchecked @a92f16431042
-	`main` has no executable body: this compiler does not lower a call of it yet (state graph: structural result has duplicate dispositions); in state `main::entry`, statement 1
+run/slices/call_result_mutable_window_exit built 14036ms exit:0 interpreter-exit:0 interpreter:agrees @2ee634425779
 run/slices/computed_record_window built 7617ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 run/slices/disjoint_local_state_windows built 7491ms exit:12 interpreter-exit:12 interpreter:agrees @a92f16431042
 run/slices/edge_window_owned_backing built 2447ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

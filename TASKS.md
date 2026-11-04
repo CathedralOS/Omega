@@ -1255,12 +1255,9 @@ defines the complete product bar.
     correspondence"), and `look(&(issued as Ticket))` fails with "completed
     projection has no exact consumer capture", so no erasure positive can
     lend a cast at run time.
-  - Stop a borrowed erasing cast from supplying its erased domain through the
-    remaining routes: a parameter source (`outer(t: Ticket in Ticket::Held)`
-    calling `observe(&(t as Ticket))`), an annotated reference local
-    (`let r: &Ticket in Ticket::Held = &(issued as Ticket)`), and a record
-    holding the reference (`View { t: &(issued as Ticket) }`, then
-    `observe(v.t)`).
+  - Stop a stored reference to an erasing cast from supplying its erased
+    domain: `View { t: &(issued as Ticket) }`, then `observe(v.t)`, passes
+    checking because the requirement reads `v.t`'s referent, `issued`.
   - **DOMAIN-ISSUER-ROUTES:** extend same-project checked ordinary
     issuance/forwarding to cross-package private routes and selected structural
     payloads in
@@ -1422,8 +1419,9 @@ defines the complete product bar.
     placement/allocator contracts with runtime observation, exact location
     validity across view replacement, offsets and moved backing, and admitted
     interpreted geometry for such locations; `ensures` clauses, trait
-    requirement contracts, and contract queries over a field path or a slice
-    (all currently rejected).
+    requirement contracts, contract queries over a slice, an element or a case
+    payload field, and body queries on a case payload field, which need the
+    active-case proof an ordinary read owes (all currently rejected).
   - Complete remaining flag-producing instructions, remaining AArch64 register
     views, and checked hardware-effect retirement of exact linear obligations on
     every normal exit (assembly body contracts and label `ensures` are proof goals, never
@@ -1856,11 +1854,12 @@ defines the complete product bar.
 - **UNREACHABLE-BRANCH-DIAGNOSTICS.** Report source branches that contradict
   their machine's entry contract or established facts, under
   [unreachable branches](wiki/spec/language/state_contracts.md#unreachable-branches).
-  - Emit an advisory warning identifying the branch and conflicting premises,
-    retaining available source locations and exact subjects/storage versions.
-  - Keep routine generic-specialization and compile-time selection quiet without
-    suppressing contradictions already present in the generic's own contract.
-    Proof-internal impossible cases do not each produce a source warning.
+  - Report branches beyond transition arms and statement-level match arms:
+    matches nested inside other expressions, and the statements after an
+    exit-if transition whose guard always holds.
+  - Name each conflicting premise's source location and exact storage version,
+    and show the warning's location on a successful check (stderr currently
+    prints the message alone).
   Acceptance: focused examples pin warnings for source contradictions and no
   warning for ordinary specialization; warning emission and code pruning do not
   change proof acceptance. Missing, stale or out-of-scope contradiction evidence
