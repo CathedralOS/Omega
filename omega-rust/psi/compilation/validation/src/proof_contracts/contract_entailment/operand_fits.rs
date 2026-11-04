@@ -228,7 +228,7 @@ pub(crate) fn exact_integer_float_cast_fits_at_occurrence(
                 position: 0,
                 source: OperandSource::ExactIntegerFloat {
                     reference: source_reference,
-                    precision: u32::from(precision),
+                    precision,
                 },
                 target,
                 context_reference: source_reference,
