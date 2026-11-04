@@ -57,6 +57,16 @@ impl IntegerRangeRecipe {
         self.target_dependent
     }
 
+    /// The closed interval of a target-independent recipe. Composition
+    /// normalizes ground derivations to one step, so any other shape still
+    /// waits on a deferred observation and states no interval yet.
+    pub fn ground_bounds(&self) -> Option<(&BigInt, &BigInt)> {
+        match self.steps.as_slice() {
+            [RangeStep::Bounds { low, high }] if !self.target_dependent => Some((low, high)),
+            _ => None,
+        }
+    }
+
     pub fn binary(&self, operator: BinaryOperator, right: &Self) -> Option<Self> {
         let step = match operator {
             BinaryOperator::Add => RangeStep::Add,

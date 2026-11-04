@@ -261,6 +261,7 @@ impl<'program> IntegerObservations<'program> {
         &mut self,
         value: StructuralTerm,
         primitive: PrimitiveType,
+        proved: Option<(BigInt, BigInt)>,
     ) -> Option<Polynomial> {
         let position = if let Some(position) = self.atoms.iter().position(|atom| atom == &value) {
             position
@@ -271,7 +272,7 @@ impl<'program> IntegerObservations<'program> {
             position
         };
         let value = Polynomial::atom(atom_name(position));
-        self.install_observed_carrier_bounds(primitive, &value)?;
+        self.install_observed_carrier_bounds(primitive, &value, proved)?;
         Some(value)
     }
 
@@ -288,6 +289,7 @@ impl<'program> IntegerObservations<'program> {
         &mut self,
         primitive: PrimitiveType,
         value: &Polynomial,
+        proved: Option<(BigInt, BigInt)>,
     ) -> Option<()> {
         if primitive != PrimitiveType::Addr
             && let Some(constant) = value.constant_value()
@@ -297,10 +299,11 @@ impl<'program> IntegerObservations<'program> {
         {
             return Some(());
         }
-        if self
-            .carrier_bounds
-            .iter()
-            .any(|bounds| bounds.primitive == primitive && bounds.value == *value)
+        if proved.is_none()
+            && self
+                .carrier_bounds
+                .iter()
+                .any(|bounds| bounds.primitive == primitive && bounds.value == *value)
         {
             return Some(());
         }
@@ -312,9 +315,15 @@ impl<'program> IntegerObservations<'program> {
             )
         } else {
             let (minimum, maximum) = primitive.integer_bounds()?;
+            let (mut minimum, mut maximum) =
+                (BigInt::from_i128(minimum), BigInt::from_i128(maximum));
+            if let Some((low, high)) = proved {
+                minimum = minimum.max(low);
+                maximum = maximum.min(high);
+            }
             (
-                BigInt::from_i128(minimum),
-                Polynomial::constant(BigInt::from_i128(maximum)),
+                minimum,
+                Polynomial::constant(maximum),
                 BinaryOperator::LessOrEqual,
             )
         };
@@ -1935,6 +1944,10 @@ impl<'program> StructuralJudge<'program> {
         // A completed operand may be described by a public computed-result
         // equation. Preserve its captured leaves before normal arithmetic
         // resolution; no caller expression or private body supplies this value.
+        // Resolution below replaces a completed result with equal terms, such
+        // as its repeatable call identity; the interval proved for the
+        // occurrence still bounds whichever term ends up naming the value.
+        let occurrence_bounds = proved_integer_bounds(value);
         let observed_carrier = match value {
             StructuralTerm::ObservedValue { observed_type, .. } => {
                 self.program.primitive_type_reference(*observed_type) == Some(primitive)
@@ -1997,7 +2010,11 @@ impl<'program> StructuralJudge<'program> {
             && !matches!(value, StructuralTerm::ScalarBinary { .. })
             && !(resolves_completed_call && matches!(value, StructuralTerm::Integer(_)))
         {
-            return observations.observed_atom(canonical_atom(identity), primitive);
+            return observations.observed_atom(
+                canonical_atom(identity),
+                primitive,
+                proved_integer_bounds(identity).or(occurrence_bounds),
+            );
         }
         if let StructuralTerm::Integer(integer) = value {
             let value = Polynomial::constant(integer.clone());
@@ -2005,7 +2022,7 @@ impl<'program> StructuralJudge<'program> {
             // anonymous again. Contextual literal destinations carry no such
             // observation, nor does the operation whose fit is being queried.
             if observed_carrier || (resolves_completed_call && completed.is_some()) {
-                observations.install_observed_carrier_bounds(primitive, &value)?;
+                observations.install_observed_carrier_bounds(primitive, &value, None)?;
             }
             return Some(value);
         }
@@ -2076,7 +2093,11 @@ impl<'program> StructuralJudge<'program> {
             });
             let (value, formation) = if let Some((completed, _)) = completed {
                 (
-                    observations.observed_atom(canonical_atom(&completed), primitive)?,
+                    observations.observed_atom(
+                        canonical_atom(&completed),
+                        primitive,
+                        proved_integer_bounds(&completed),
+                    )?,
                     OperationFormation::CompletedValue,
                 )
             } else {
@@ -2098,7 +2119,11 @@ impl<'program> StructuralJudge<'program> {
         }
         // Only an opaque completed leaf receives intrinsic carrier bounds;
         // an unadmitted recipe has neither a carrier assumption nor an interval.
-        observations.observed_atom(canonical_atom(value), primitive)
+        observations.observed_atom(
+            canonical_atom(value),
+            primitive,
+            proved_integer_bounds(value).or(occurrence_bounds),
+        )
     }
 
     fn mathematical_value(
@@ -2189,6 +2214,24 @@ pub(super) fn scalar_arithmetic_carrier(term: &StructuralTerm) -> Option<Primiti
     }
 }
 
+/// A completed call result keeps the interval its producer proved for that
+/// exact occurrence, for example a helper whose every return arm reads a
+/// payload bounded by its data `requires`. The atom standing for that value,
+/// including its repeatable call identity, receives those bounds alongside the
+/// carrier's. A deferred target-dependent recipe states no interval yet.
+fn proved_integer_bounds(term: &StructuralTerm) -> Option<(BigInt, BigInt)> {
+    let StructuralTerm::CapturedValue {
+        integer_range: Some(range),
+        ..
+    } = term.semantic_value()
+    else {
+        return None;
+    };
+    range
+        .ground_bounds()
+        .map(|(low, high)| (low.clone(), high.clone()))
+}
+
 fn atom_name(position: usize) -> String {
     format!("\0captured-integer:{position}")
 }
@@ -2202,7 +2245,11 @@ mod carrier_bound_tests {
         for primitive in [PrimitiveType::I32, PrimitiveType::U64] {
             let mut observations = IntegerObservations::empty(&program);
             let value = observations
-                .observed_atom(StructuralTerm::Variable("observed".to_owned()), primitive)
+                .observed_atom(
+                    StructuralTerm::Variable("observed".to_owned()),
+                    primitive,
+                    None,
+                )
                 .unwrap();
             assert!(observations.install_premises(&mut Vec::new()));
             let (low, high) = primitive.integer_bounds().unwrap();
@@ -2218,6 +2265,46 @@ mod carrier_bound_tests {
                 &BigInt::from_i128(-high + 1)
             ));
         }
+    }
+
+    /// A call result proved to lie in [20, 60] keeps that interval on its
+    /// atom, so `60 - result` and `result - 20` fit `u64` while neither
+    /// endpoint moves further. A deferred recipe adds only the carrier range.
+    #[test]
+    fn captured_call_results_supply_their_proved_interval() {
+        let program = typed_trees::TypedTrees::default();
+        let captured = |integer_range| StructuralTerm::CapturedValue {
+            statement: arena::Handle::invalid(),
+            expression: typed_trees::expression::ExpressionHandle::invalid(),
+            callable: symbols::SymbolHandle::invalid(),
+            occurrence: 1,
+            result_type: typed_trees::types::TypeReferenceHandle::invalid(),
+            integer_range,
+        };
+        let proved = captured(Some(std::sync::Arc::new(
+            checked_trees::IntegerRangeRecipe::bounds(BigInt::from_i64(20), BigInt::from_i64(60)),
+        )));
+        let mut observations = IntegerObservations::empty(&program);
+        let bounds = proved_integer_bounds(&proved);
+        assert_eq!(bounds, Some((BigInt::from_i64(20), BigInt::from_i64(60))));
+        let value = observations
+            .observed_atom(proved, PrimitiveType::U64, bounds)
+            .unwrap();
+        assert!(observations.install_premises(&mut Vec::new()));
+        let queries = observations.engine.lower_bound_queries();
+        let negated = Polynomial::constant(BigInt::zero()).sub(&value);
+        assert!(queries.prove_at_least(&value, &BigInt::from_i64(20)));
+        assert!(queries.prove_at_least(&negated, &BigInt::from_i64(-60)));
+        assert!(!queries.prove_at_least(&value, &BigInt::from_i64(21)));
+        assert!(!queries.prove_at_least(&negated, &BigInt::from_i64(-59)));
+
+        let deferred = captured(Some(std::sync::Arc::new(
+            checked_trees::IntegerRangeRecipe::observation(
+                typed_trees::expression::ExpressionHandle::invalid(),
+                symbols::SymbolHandle::invalid(),
+            ),
+        )));
+        assert_eq!(proved_integer_bounds(&deferred), None);
     }
 }
 
