@@ -121,6 +121,12 @@ missing static type or bounds guarantee.
 
 ## Validation and remaining scope
 
+An actual record conflict required integrating main `9e959fe1460e`. All 343
+authored inputs remain unchanged. Its domain and call changes affect the
+counter qualifications and the UTF-8 snapshot control, so a focused replay is
+pending. The measurements below remain at their actual source `990cae4277cb`;
+they are not observations of this new integration.
+
 The measured producer is `990cae4277cbd9182e82d58f4fb508c9c2394af9`. It includes main
 `f5bae950d2fa`, merged after an actual result-record conflict. All 343 authored
 input hashes and 58 matching Main/Build pairs remain unchanged.

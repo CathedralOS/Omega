@@ -47,7 +47,7 @@ pub(super) fn unchanged(checked: &CheckedTrees, operand: Handle<FlowOperandFact>
             if !writes.starts_with(before) {
                 return false;
             }
-            let Some(subject) = validation::canonical_place_from_expression_in_state(
+            let Some(subject) = validation::storage_place_from_expression_in_state(
                 &checked.typed,
                 captured.state_symbol,
                 captured.statement_index,

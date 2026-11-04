@@ -705,6 +705,15 @@ combine a checked identity law with its connection to an exact typed literal,
 and affect canonical identity in every application position. Qualification and
 the authored operations' formation obligations remain intact.
 
+The selected laws also govern
+[bounded distributive normalization](../proofs/contracts.md#bounded-canonical-index-normalization).
+Equivalent pre-expansion forms under one law set receive the same identity and
+cutoff decision. A well-formed large index may remain unexpanded; if a required
+comparison cannot be established because of that cutoff, report the expansion
+measure and limit instead of asserting inequality. A checked exact equality
+may supply compatibility without renaming the domain application. No localized
+canonical-budget override or implicit algebra selection follows.
+
 Units, coordinate frames, currencies, tensor shapes, scales, and encodings are
 library customers, not compiler cases. Metadata erasure removes no scaling,
 range-check, or rounding work from the chosen library operation. Runtime
