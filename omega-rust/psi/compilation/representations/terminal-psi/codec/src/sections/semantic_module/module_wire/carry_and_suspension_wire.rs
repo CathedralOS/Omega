@@ -58,6 +58,7 @@ wire_record! {
         resource: Resource,
         parent: HandleKind,
         suppliers: SpanKind,
+        inputs: SpanKind,
         access: Access,
         active_at_call: Flag,
     }
@@ -97,17 +98,28 @@ wire_enum! {
             source_path: SpanKind,
         },
         2 => RetainedValue { live_value: U32, path: SpanKind },
+        3 => CompletedOutput { call: Id, argument: Argument, path: SpanKind },
+        4 => CallInput { call: Id, argument: Argument, path: SpanKind, stored: Flag },
+        5 => InputDependencies,
+        6 => DescriptorTransfer,
     }
     Backing: TerminalSuspensionLoanBacking, "TerminalSuspensionLoanBacking" {
         0 => Unresolved,
         1 => RetainedOwner { live_value: U32 },
         2 => IncomingReferent { argument: Argument },
+        3 => CompletedOutput { loan: HandleKind },
+        4 => InputDependencies,
+        5 => CapturedInput,
     }
     Resource: TerminalSuspensionLoanResource, "TerminalSuspensionLoanResource" {
         0 => Unresolved,
         1 => DirectRoot,
         2 => Reborrow,
         3 => IncomingReference,
+        4 => CompletedOutput,
+        5 => LifetimeDependency,
+        6 => OutputInput,
+        7 => DescriptorTransfer,
     }
 }
 
@@ -199,6 +211,10 @@ fn encode_loans(writer: &mut Writer, loans: &TerminalSuspensionLoans) -> Result<
     for (_, supplier) in loans.supplier_links.iter() {
         HandleKind::write(writer, supplier)?;
     }
+    writer.len("suspension loan inputs", loans.input_links.len())?;
+    for (_, input) in loans.input_links.iter() {
+        HandleKind::write(writer, input)?;
+    }
     writer.len("suspension loans", loans.occurrences.len())?;
     for (_, loan) in loans.occurrences.iter() {
         Loan::write(writer, loan)?;
@@ -216,6 +232,9 @@ fn decode_loans(reader: &mut Reader<'_>) -> Result<TerminalSuspensionLoans, Code
     }
     for supplier in List::<HandleKind>::read(reader)? {
         loans.supplier_links.insert(supplier);
+    }
+    for input in List::<HandleKind>::read(reader)? {
+        loans.input_links.insert(input);
     }
     for loan in List::<Loan>::read(reader)? {
         loans.occurrences.insert(loan);
@@ -239,13 +258,27 @@ fn validate_loan_coordinates(
             return Err(CodecError::NonCanonicalEncoding);
         }
     }
+    for (_, input) in loans.input_links.iter() {
+        if !loans.occurrences.is_valid(*input)
+            || loans.occurrences.get(*input).resource != TerminalSuspensionLoanResource::OutputInput
+        {
+            return Err(CodecError::NonCanonicalEncoding);
+        }
+    }
     for (_, loan) in loans.occurrences.iter() {
         if (loan.parent.is_valid() && !loans.occurrences.is_valid(loan.parent))
             || loans.supplier_links.span(loan.suppliers).is_none()
+            || loans.input_links.span(loan.inputs).is_none()
         {
             return Err(CodecError::NonCanonicalEncoding);
         }
         match loan.capture {
+            TerminalSuspensionLoanCapture::CompletedOutput { path, .. }
+            | TerminalSuspensionLoanCapture::CallInput { path, .. }
+                if loans.paths.span(path).is_none() =>
+            {
+                return Err(CodecError::NonCanonicalEncoding);
+            }
             TerminalSuspensionLoanCapture::Reference { source_path, .. }
                 if loans.paths.span(source_path).is_none() =>
             {
@@ -278,6 +311,54 @@ fn validate_loan_coordinates(
             ) || loan.parent.is_valid()
                 || !loan.suppliers.is_empty()
                 || !loan.active_at_call)
+        {
+            return Err(CodecError::NonCanonicalEncoding);
+        }
+        let valid_role = match loan.resource {
+            TerminalSuspensionLoanResource::CompletedOutput => {
+                matches!(
+                    loan.capture,
+                    TerminalSuspensionLoanCapture::CompletedOutput { .. }
+                ) && matches!(
+                    loan.backing,
+                    TerminalSuspensionLoanBacking::CompletedOutput { .. }
+                ) && !loan.parent.is_valid()
+            }
+            TerminalSuspensionLoanResource::LifetimeDependency => {
+                matches!(
+                    loan.capture,
+                    TerminalSuspensionLoanCapture::InputDependencies
+                ) && matches!(
+                    loan.backing,
+                    TerminalSuspensionLoanBacking::InputDependencies
+                ) && !loan.parent.is_valid()
+            }
+            TerminalSuspensionLoanResource::OutputInput => {
+                matches!(
+                    loan.capture,
+                    TerminalSuspensionLoanCapture::CallInput { .. }
+                ) && !loan.parent.is_valid()
+                    && loan.inputs.is_empty()
+                    && !loan.active_at_call
+            }
+            TerminalSuspensionLoanResource::DescriptorTransfer => {
+                matches!(
+                    loan.capture,
+                    TerminalSuspensionLoanCapture::DescriptorTransfer
+                        | TerminalSuspensionLoanCapture::RetainedValue { .. }
+                ) && !loan.parent.is_valid()
+                    && !loan.suppliers.is_empty()
+                    && loan.inputs.is_empty()
+            }
+            _ => loan.inputs.is_empty(),
+        };
+        if !valid_role {
+            return Err(CodecError::NonCanonicalEncoding);
+        }
+        if let TerminalSuspensionLoanBacking::CompletedOutput { loan: output } = loan.backing
+            && (!loans.occurrences.is_valid(output)
+                || loans.occurrences.get(output).resource
+                    != TerminalSuspensionLoanResource::CompletedOutput)
         {
             return Err(CodecError::NonCanonicalEncoding);
         }

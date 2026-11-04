@@ -156,7 +156,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Keep scalar prerequisites and public returned-borrow regions explicit.
 // Marker 238 combines both changes; the two earlier 237 layouts are incompatible.
 // Callable headers retain the exact remaining declaration binder count.
-pub(crate) const FORMAT_MARKER: u16 = 238;
+// Marker 239 adds completed-output captures and separate input-obligation links.
+pub(crate) const FORMAT_MARKER: u16 = 239;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

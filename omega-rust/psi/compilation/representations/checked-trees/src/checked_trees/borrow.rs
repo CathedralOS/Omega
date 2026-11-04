@@ -563,6 +563,8 @@ impl Default for CheckedOutputLifetimeDependencySource {
 /// descriptor; its outer actual can point at a slot overwritten by the call.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedOutputBorrowInput {
+    /// Selected leaf below the original evaluated actual, at call entry.
+    pub capture_path: HandleSpan<crate::CheckedUnitStructuralPathSegment>,
     pub source: Handle<crate::FlowOperandRetainedSupplier>,
     pub stored: Handle<crate::FlowOperandStoredSource>,
     pub permission: CheckedOutputBorrowInputPermission,

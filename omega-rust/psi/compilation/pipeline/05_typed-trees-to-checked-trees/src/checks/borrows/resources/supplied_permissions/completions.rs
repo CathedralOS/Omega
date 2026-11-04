@@ -131,7 +131,7 @@ pub(in crate::checks::borrows::resources) fn install(
     for (mut output, inputs, debts) in plans {
         let mut handles = Vec::with_capacity(inputs.resources.len());
         for input in inputs.resources {
-            let permission = match input.permission {
+            let (permission, capture_path) = match input.permission {
                 super::inputs::InputPermissionDraft::Borrowed(mut draft) => {
                     if let CheckedCallBorrowLoanSource::CallAccess { parents, .. } =
                         &mut draft.resource.source
@@ -149,25 +149,52 @@ pub(in crate::checks::borrows::resources) fn install(
                             .ok_or_else(|| {
                                 diagnostic("completed input permission has no typed capture path")
                             })?;
-                    checked_trees::CheckedOutputBorrowInputPermission::Borrowed { resource }
+                    (
+                        checked_trees::CheckedOutputBorrowInputPermission::Borrowed { resource },
+                        facts.borrow.call_loan_resources.get(resource).capture_path,
+                    )
                 }
-                super::inputs::InputPermissionDraft::Incoming { place, access } => {
-                    checked_trees::CheckedOutputBorrowInputPermission::Incoming {
-                        identity: place.incoming_reference,
-                        access,
-                        root: place.root,
-                        path: facts
-                            .borrow
-                            .call_loan_backing_paths
-                            .insert_many(place.segments),
-                        owner_path: facts
-                            .borrow
-                            .call_loan_backing_paths
-                            .insert_many(place.incoming_owner_path),
-                    }
+                super::inputs::InputPermissionDraft::Incoming {
+                    place,
+                    access,
+                    owner_path,
+                } => {
+                    let contract = facts
+                        .flow
+                        .control
+                        .operand_retained_suppliers
+                        .get(input.source)
+                        .contract
+                        .ok_or_else(|| {
+                            diagnostic("completed input has no original declared edge")
+                        })?;
+                    let actual = facts.flow.control.operands.get(contract.input);
+                    let path =
+                        crate::borrow::carrier_path(program, actual.type_reference, &owner_path)
+                            .ok_or_else(|| {
+                                diagnostic("incoming input has no typed captured leaf path")
+                            })?;
+                    let capture_path = facts.borrow.call_loan_paths.insert_many(path);
+                    (
+                        checked_trees::CheckedOutputBorrowInputPermission::Incoming {
+                            identity: place.incoming_reference,
+                            access,
+                            root: place.root,
+                            path: facts
+                                .borrow
+                                .call_loan_backing_paths
+                                .insert_many(place.segments),
+                            owner_path: facts
+                                .borrow
+                                .call_loan_backing_paths
+                                .insert_many(place.incoming_owner_path),
+                        },
+                        capture_path,
+                    )
                 }
             };
             handles.push(checked_trees::CheckedOutputBorrowInput {
+                capture_path,
                 source: input.source,
                 stored: input.stored,
                 permission,

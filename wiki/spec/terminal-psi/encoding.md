@@ -2103,14 +2103,14 @@ identities: two actual positions may name the same storage and still contribute
 separate rows, claims and policies. Preserve every occurrence and the complete
 count; do not deduplicate equal coordinates. Each live value's claims are
 strictly ordered by claim id. The frontier commitment uses the
-`terminal-suspension-frontier-v8` domain and includes the ordered roster and
+`terminal-suspension-frontier-v9` domain and includes the ordered roster and
 its cardinality, each value's loan links and the complete loan graph. Marker
 137 adds evaluated-actual captures; earlier markers are not reinterpreted.
 
 Each live value ends with a loan tag: `0` unresolved, `1` view-free, or `2`
 followed by a span into the plan's loan-link arena. The plan then encodes counted
 structural path segments, counted value-to-loan handles, counted supplier
-handles and counted loan occurrences. Marker 158 replaces a single supplier
+handles, counted input-obligation handles and counted loan occurrences. Marker 158 replaces a single supplier
 handle with a span of immediate supplier alternatives; earlier markers are not
 reinterpreted. Shared predecessors retain custody without enumerating histories.
 Handles are `u32` one-based slot plus `u32` generation: zero/zero is absent,
@@ -2119,7 +2119,7 @@ zero/zero/zero empty representation. Decoder bounds checks concern foreign
 coordinates, not source borrow admission.
 
 A loan occurrence encodes capture, backing, resource kind, parent handle,
-supplier span, structural access and an active-at-call Boolean. Capture is
+supplier span, input-obligation span, structural access and an active-at-call Boolean. Capture is
 `0` unresolved, or `1` followed by formation operation, carrier place, source
 place, source access and a source-path span, or `2` followed by a `u32`
 retained live-value position and a captured-leaf path span. This position
@@ -2132,7 +2132,26 @@ structural argument. Resource kind is `0` unresolved, `1` direct root,
 ingress captures, ordinary no-normal invocations and inherited scalar-domain
 membership rows. Earlier independent marker-195 and marker-196 layouts reject
 rather than being reinterpreted.
-Parentage and supplier transport are distinct relationships.
+Marker 239 adds completed helper outputs and their original input obligations.
+Capture `3` names the normal-completion operation, its evaluated output argument
+and the selected output-leaf path. Capture `4` names the earlier call operation,
+its evaluated input argument, selected leaf path and a Stored Boolean: true
+selects the input's stored descriptor contents at invocation entry; false
+selects its referent. The distinction remains explicit for an empty path.
+Capture `5` is a nonspatial input obligation; capture `6` is descriptor transport
+through the separately encoded immediate suppliers.
+
+Backing `3` names the retained completed-output loan occurrence, `4` denotes
+nonspatial input obligations, and `5` denotes the backing observed by that row's
+earlier call-input capture. Resource tags `4`, `5`, `6` and `7` respectively
+identify a completed output, lifetime dependency, captured output input and
+descriptor transport. Every input-obligation link names a captured output-input
+row. Those links retain all inputs; supplier alternatives and borrowing parents
+remain different relationships. The output's pointer permission does not make
+its lifetime-related inputs spatial parents or its old variable owned backing.
+Earlier wire markers reject rather than reinterpret these records.
+
+Parentage, supplier transport and input retention are distinct relationships.
 Incoming referents are not descriptor-slot ownership; retired dependencies do
 not become active because descendants retain them. These rows record demands,
 not a completed lifetime, activation or physical-preservation judgment.

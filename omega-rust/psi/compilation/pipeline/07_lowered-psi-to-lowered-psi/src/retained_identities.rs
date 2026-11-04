@@ -66,8 +66,15 @@ pub(crate) fn record_named_rows(module: &terminal_psi::TerminalModule) -> Record
             rows.values.insert(value);
         });
         for (_, loan) in plan.loans.occurrences.iter() {
-            if let TerminalSuspensionLoanCapture::Reference { formation, .. } = loan.capture {
-                rows.operations.insert(formation);
+            match loan.capture {
+                TerminalSuspensionLoanCapture::Reference { formation, .. } => {
+                    rows.operations.insert(formation);
+                }
+                TerminalSuspensionLoanCapture::CompletedOutput { call, .. }
+                | TerminalSuspensionLoanCapture::CallInput { call, .. } => {
+                    rows.operations.insert(call);
+                }
+                _ => {}
             }
         }
     }

@@ -16,6 +16,7 @@ pub(super) enum InputPermissionDraft {
     Incoming {
         place: CapturedPlace,
         access: ReferenceAccess,
+        owner_path: Vec<checked_trees::BorrowLoanOwnerSegment>,
     },
 }
 pub(super) struct InputResourceDraft {
@@ -223,6 +224,7 @@ pub(super) fn plan(
                                 permission: InputPermissionDraft::Incoming {
                                     place: alias.place,
                                     access: reference_access(&access),
+                                    owner_path: owner_path.clone(),
                                 },
                             });
                         }
