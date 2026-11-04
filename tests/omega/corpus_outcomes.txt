@@ -745,34 +745,43 @@ fail/facts/data_where_standing_mutable_premature_use rejected 2106ms expected @f
 	cannot complete a call at statement 2 in machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/facts/data_where_standing_mutable_snapshot_bound rejected 2832ms expected @f78c2623a68c
 	cannot prove requires contract for call require_bound from fill: saved <= 60 (needs fact `value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/data_where_standing_nested_borrowed_field_call_result rejected 2100ms expected @d3679195288a
-	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_const_name rejected 1975ms expected @d3679195288a
-	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_nested_borrowed_field_call_result rejected 2991ms expected @1c3290b7e989
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/data_where_standing_nested_borrowed_field_const_name rejected 3086ms expected @1c3290b7e989
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/data_where_standing_nested_borrowed_field_descriptor_identity rejected 5990ms expected @d3679195288a
 	cannot prove requires contract for call require_same from compute: value == read(selected.value) (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/data_where_standing_nested_borrowed_field_field rejected 1772ms expected @d3679195288a
-	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_nested_borrowed_field_field rejected 2808ms expected @1c3290b7e989
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/data_where_standing_nested_borrowed_field_incoming_compatibility rejected 4041ms expected @1c3290b7e989
+	state `compute` receives `left.value` while local borrow `counter` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 1 mutates `destination` while local borrow `entry` is still active (borrowed at statement 0; its last use is at statement 2; an invocation's captured backing conflicts with its exclusive storage)
+	statement 1 mutates `destination` while local borrow `old` is still active (borrowed at statement 0; its last use is at statement 2; an invocation's captured backing conflicts with its exclusive storage)
+	statement 4 borrows `left.value` while local borrow `counter` is still active (borrowed at statement 2; its last use is at statement 4) in machine `main`, state `entry`, statement 4
+	statement 4 mutates `left.value` while local borrow `counter` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/data_where_standing_nested_borrowed_field_incoming_snapshot_missing_bound rejected 3649ms expected @1c3290b7e989
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_nested_borrowed_field_incoming_snapshot_wrong_identity rejected 3404ms expected @1c3290b7e989
+	cannot prove requires contract for call require_same from compute: observed == read(holder.counter.value) (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/data_where_standing_nested_borrowed_field_intermediate_write_only rejected 1930ms expected @d3679195288a
 	machine `compute` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_local rejected 1911ms expected @d3679195288a
-	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_match_join rejected 2625ms expected @d3679195288a
-	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_other_machine rejected 1903ms expected @d3679195288a
-	exact arithmetic in machine `add` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_other_state rejected 2279ms expected @d3679195288a
-	exact arithmetic in machine `next` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_parameter rejected 2246ms expected @d3679195288a
-	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_nested_borrowed_field_local rejected 3002ms expected @1c3290b7e989
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/data_where_standing_nested_borrowed_field_match_join rejected 2951ms expected @1c3290b7e989
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/data_where_standing_nested_borrowed_field_other_machine rejected 3494ms expected @1c3290b7e989
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/data_where_standing_nested_borrowed_field_other_state rejected 2824ms expected @1c3290b7e989
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/data_where_standing_nested_borrowed_field_parameter rejected 3436ms expected @1c3290b7e989
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/data_where_standing_nested_borrowed_field_suspended_descriptor_slot rejected 5637ms expected @d3679195288a
 	state `read` receives `holder.counter.value` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 creates local borrow `entry` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 reads `holder.counter.value` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
-fail/facts/data_where_standing_nested_borrowed_field_target_body rejected 2143ms expected @d3679195288a
-	exact arithmetic in machine `X86Compute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `ArmCompute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_nested_borrowed_field_target_body rejected 2460ms expected @1c3290b7e989
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/data_where_standing_predicate_helper_call_result_unrestored rejected 4822ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/data_where_standing_predicate_helper_const_name_unrestored rejected 554ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
@@ -7829,17 +7838,29 @@ pass/facts/data_where_standing_mutable_recast_through_parameter_exit checked 384
 pass/facts/data_where_standing_mutable_recast_through_target_body_exit checked 3271ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_restoration checked 3284ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_restoration_snapshot checked 3689ms check-target:macos_arm64 @f78c2623a68c
-pass/facts/data_where_standing_nested_borrowed_field_call_result checked 10646ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_const_name checked 10606ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_call_result incomplete 3652ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1c3290b7e989
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_const_name incomplete 4493ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1c3290b7e989
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
 pass/facts/data_where_standing_nested_borrowed_field_descriptor_snapshot checked 8757ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_field checked 10168ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_field incomplete 3675ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1c3290b7e989
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_incoming_compatibility checked 5342ms check-target:macos_arm64 @1c3290b7e989
+pass/facts/data_where_standing_nested_borrowed_field_incoming_snapshot incomplete 3694ms check-target:macos_arm64 @1c3290b7e989
+	`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion carrier retirement order); in state `main::entry`
 pass/facts/data_where_standing_nested_borrowed_field_known_saved_descriptor checked 9338ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_local checked 9219ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_match_join checked 8711ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_other_machine checked 8692ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_other_state checked 8758ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_parameter checked 8852ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_target_body checked 8922ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_local incomplete 5632ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1c3290b7e989
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_match_join incomplete 3532ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1c3290b7e989
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_other_machine incomplete 5740ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1c3290b7e989
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_other_state incomplete 4841ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1c3290b7e989
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_parameter incomplete 6287ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1c3290b7e989
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_target_body incomplete 4398ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1c3290b7e989
+	`x86_entry` calls `main`; `main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
 pass/facts/data_where_standing_owned_whole_replacement_child_restoration checked 3306ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_predicate_helper_alias_exit checked 5396ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_predicate_helper_literal_exit checked 5347ms check-target:macos_arm64 @911f6617ba9e
