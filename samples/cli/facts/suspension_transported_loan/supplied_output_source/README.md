@@ -77,7 +77,7 @@ mutable-source admission; those refusals are not arithmetic or final carry-polic
 evidence.
 
 All nine places now check and run with native and Terminal exits 0 at
-abc3be58c6d00bd092dc692f91d4020e9e48800b. All nine policy twins reach their
+103a32b6b6bf27ed0bdf896e35a452b9cef025b0. All nine policy twins reach their
 intended refusal for forbidden backing. The caller can fill two output records
 and then choose between their distinct installed references; both choices execute.
 The original 54 frozen files and their 73/11 outcomes are unchanged. Byte-identical
@@ -86,8 +86,8 @@ inputs are pinned as `supplied_output_loan_through_<place>` under
 [fail facts](../../../../../tests/omega/fail/facts/). Corpus registration and
 final integrated validation remain pending.
 
-The same producer completes 28 programs in both engines across 80 recorded
-commands (52 source checks plus those 28 runs). A saved view survives replacing
+The same producer completes 30 programs in both engines across 82 recorded
+commands (52 source checks plus those 30 runs). A saved view survives replacing
 its output variable, a compatible view survives the possible pause, and an
 original mutable input becomes writable after every saved copy ends. The
 early-read and early-write controls still reject access before that closure.
@@ -99,28 +99,22 @@ A shared containing record can now lend a shared view of its mutable-reference
 field: the program checks and both engines observe the installed 73. Its
 mutable-upgrade twin still reaches the intended access refusal.
 
-The full repair remains unfinished. Ordinary helper-installed generations still
-lack an input-permission association in two controls. The incoming descriptor
-relay has inconsistent pointer-slot read checks, and the alternative-handback
-control loses three later qualification obligations. A new conditional/no-store
-composition with an incoming record stops earlier at its incoming entry
-permission; it does not yet qualify the lossless conditional-retirement branch.
-Those refusals do not establish their intended negative controls. These
-compositions, scoped fixture checks, exact final review and main publication
-remain required.
+An ordinary checked helper now keeps the input reference it saved, including
+its original backing and call. An earlier argument also keeps its first value
+when a later argument replaces the pointer variable; both reads run in both
+engines. The [ordinary helper control](controls/ordinary_helper_saved_reference/main.omg)
+and its [forbidden-backing twin](controls/ordinary_helper_saved_reference_forbidden/main.omg)
+retain byte-identical copies of the frozen programs. The positive executes on
+this producer; the twin's intended policy refusal is retained at a3f125, with
+that policy consumer unchanged. Fixture-path qualification is separate.
 
-Sources, hashes and raw observations are retained in build/supplied-output-loan/.
-The 54-file row was frozen before compiler edits. The two match-join mains were
-strengthened before implementation; their initial bytes and baseline are retained
-separately. Earlier bare lifetime-parameterized Output annotations and an untyped
-local attempt are authoring history, not accepted compiler-defect evidence.
-
-This checkpoint is unfinished. The nine-place row has native/Terminal evidence
-and diagnostic pins; the remaining compositions, scoped tests, exact review and
-normal main publication remain required. The
-scheduler returns inline, so actual parking, resumption and cancellation are not
-claimed. Parent work outside this production, including ownerless backing and
-Terminal Unresolved labels, remains open.
+The full repair remains unfinished. Borrowing an incoming pointer slot still
+conflicts with a saved reference, and the alternative-handback control loses
+three later qualification obligations. A conditional update of a record received
+from its caller now gets past its original entry-permission error but still
+lacks a lifetime resource at the pause. These two original programs and the
+conditional program, scoped fixture checks, checked-to-lowered retention plans,
+exact final review and main publication remain required.
 
 The [read-only containing-record control](controls/shared_stored_input_ceiling/main.omg)
 and its [mutable-upgrade reject](controls/shared_stored_input_no_mutable_upgrade/main.omg)
