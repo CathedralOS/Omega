@@ -48,6 +48,44 @@ impl RuntimeRankComponents {
             .find(|component| component.contains(&machine_position))
             .map(Vec::as_slice)
     }
+    /// The first recurrent component a terminating promise at `origin` depends
+    /// on although no member authors a ranking, admitted witness or published
+    /// promise. Calls are followed through acyclic machines only: a ranked
+    /// component is judged by its own members' promises, and the origin's own
+    /// component is judged with the origin. Unknown progress in a reached
+    /// component prevents a checked termination guarantee for the origin.
+    pub fn unranked_component_reached_from(
+        &self,
+        program: &dyn crate::CheckingInput,
+        origin: usize,
+    ) -> Option<&[usize]> {
+        let ranked = |component: &[usize]| {
+            component.iter().any(|position| {
+                let plan = &program.machines()[*position].termination_plan;
+                plan.implementation_witness.is_some()
+                    || plan
+                        .interface
+                        .published()
+                        .is_some_and(language_semantics::TerminationGuarantee::promises_termination)
+            })
+        };
+        let mut seen = vec![false; self.adjacency.len()];
+        *seen.get_mut(origin)? = true;
+        let mut pending = self.adjacency.get(origin)?.clone();
+        while let Some(position) = pending.pop() {
+            if std::mem::replace(seen.get_mut(position)?, true) {
+                continue;
+            }
+            if let Some(component) = self.component_containing(position) {
+                if !component.contains(&origin) && !ranked(component) {
+                    return Some(component);
+                }
+                continue;
+            }
+            pending.extend(self.adjacency.get(position)?.iter().copied());
+        }
+        None
+    }
     /// Exact recurrent member positions. Self and mutual machine calls share
     /// one source-complete call-component judgment. A private unpromised
     /// productive self loop supplies no termination evidence and needs none.
