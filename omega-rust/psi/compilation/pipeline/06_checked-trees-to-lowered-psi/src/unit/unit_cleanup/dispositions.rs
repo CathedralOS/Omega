@@ -1,6 +1,6 @@
-//! A disposition settles one storage occurrence. Replacing that storage
-//! withdraws its earlier disposal receipt; the new occurrence still owns its
-//! selected normal-exit actions. This sequencing is shared by both body emitters.
+//! A cleanup or release can settle an exit action before the body ends.
+//! Storing a replacement makes that region owe cleanup again. Both body
+//! emitters use the same ordering.
 
 use checked_trees::{
     CheckedNormalCleanupAction, CheckedStoreLeaf, CheckedStoreRoot, CheckedUnitEffectOperationPlan,
@@ -8,8 +8,9 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
-/// Match names the body actually publishes; this grants no storage availability.
-/// A rebind withdraws the old association rather than following its copied value.
+/// Match a local with the result currently stored there so releasing it also
+/// cancels cleanup recorded under either name. A replacement ends that match;
+/// this table does not establish that the storage is live.
 struct CurrentHomes {
     locals: Vec<(SymbolHandle, Option<u32>)>,
 }
