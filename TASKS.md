@@ -513,6 +513,9 @@ narrows realization only.
     progress, intrinsic review and deferred array/const-generic recipes)
     from typed/checked records to canonical Terminal Psi
     plus target Build rows.
+  - Make selected provider binding take an owner-checked view, so
+    `bind_selected_provider_plan_facts` cannot run before
+    `require_prepared_owner`; no test covers that order now.
   - Resolve a Build provider plan's schema text to the Terminal catalog's
     schema identity handle once at the stage-00 join (provider-selection
     boundary_review `requirement_binds`), so
@@ -1121,6 +1124,36 @@ defines the complete product bar.
   rows, and escaping variable-shaped results without an authored sum/descriptor
   reject.
 
+- **DOMAIN-CARRIER-FORMATION.** Enforce
+  [carrier-exact membership](wiki/spec/language/domains.md#carrier-exact-membership)
+  through proof formation, executable tests, qualification, and published
+  evidence. On fixed base `79eb08a76a7`, an optimized exact-source compiler
+  accepts `machine guarded(value: u8) -> u16 requires value in Small { 3 }`
+  under `domain u16::Small requires self <= 10;`. Hosted checking observations
+  `41656219861` and `41657251758` also accepted a suffixed `7u8` with and without
+  an unrelated declaration mentioning `u8`.
+  - Make the exact resolved applied carrier a formation obligation before
+    predicate substitution or mathematical-value projection. The domain already
+    retains a `TypeReferenceHandle`; reconcile proof-fact validation with the
+    executable carrier check through the owning type-correspondence boundary,
+    not a spelling-based lookup or another value-only acceptance path.
+  - Preserve nominal data identities, generic substitutions and declared type
+    equations, qualified carriers, and normal borrow/projection semantics.
+    Cover domain/data predicates, callable and trait contracts, statement facts,
+    literals, fields, call results, and specialized domain applications without
+    per-source-shape exceptions or accepting absent type information as a match.
+  - Preserve same-carrier membership, explicit exact conversions, anonymous
+    literal landing, generic family applications, and cross-width numeric
+    comparisons. Reject typed cross-width, signedness, nominal, and applied
+    carrier mismatches even when predicate values coincide; an unrelated type
+    declaration must not affect the result. Migrate any source this rejects.
+  Acceptance: one carrier-identity fact runs through all nine transport places
+  with `omega run --both` and authored outcomes on the four hosted targets;
+  fact-sensitive wrong-carrier twins and focused formation controls reject and
+  are pinned in the corpus. Predicate, policy, provenance, ownership, and access
+  obligations remain intact. Arbitrary-width integers and integer-family
+  constraint syntax are not prerequisites.
+
 - **NOMINAL-FIELD-FLOW.** Close the Dungeon Crawler's field-domain execution and
   [representation-erased domain qualification](wiki/spec/language/domains.md)
   end to end under
@@ -1179,6 +1212,10 @@ defines the complete product bar.
     [temporary qualified-view retirement](wiki/spec/language/domains.md#temporary-qualified-views)
     across loan cohorts, and scalar reads/results under
     [copy and publication rules](wiki/spec/language/domains.md#establishment-transport-and-helper-calls).
+  - Stop a borrow of an erasing cast from recovering its routed membership:
+    `observe(&(issued as Ticket))` with `observe(t: &Ticket in Ticket::Held)`
+    passes checking, because a borrow names its operand's storage, and then
+    fails in lowering ("completed projection has no exact consumer capture").
   - **DOMAIN-ISSUER-ROUTES:** extend same-project checked ordinary
     issuance/forwarding to cross-package private routes and selected structural
     payloads in
@@ -1218,6 +1255,16 @@ defines the complete product bar.
   `omega-rust/psi/compilation/validation/src/machine_calls/call_cycles/runtime_ranking/`,
   Psi 06 `src/unit/attached_unit/`, and
   `omega-rust/psi/interpreter/terminal-interpreter/src/engine/terminators/`.
+  - A termination promise that reaches a recursive component with no ranking
+    of its own is accepted unchecked; twelve `fail/termination` twins
+    (`rank_arrival_*`, `rank_range_declared_step_unbounded`,
+    `rank_range_record_stepped_copy_stale`, `rank_state_dependent_bound_prefix_write`,
+    `endpoint_folded_into_payload`, `stored_reference_endpoint_reseat`) compile.
+    The reach rule is implemented on `work/wave1-termination-reach` and lands
+    last, with its positive migrations, once component ranking accepts the
+    projected and arrival rank subjects those helpers need: captured copies,
+    formal/result-equation arrivals, opaque children, ranges and
+    stored-reference endpoints.
   - Re-run the external-result and `std`-loop execution controls
     (`external_result_ranked_arrival_compile` currently refuses with `provider
     candidate requires beyond its boundary's declared obligations`) once
@@ -1943,6 +1990,11 @@ defines the complete product bar.
   - Replace the opaque `ExportSurface.identity` string with the export's
     requirement identity so a demanded import is checked against the offered
     export (needed by the [topology](wiki/spec/packages/topology.md) demand/supply join).
+  - Have provider settlement publish component export calling applications so
+    component completion (`compiler/src/product_execution/component.rs`
+    `prepare_exported_calling_applications`) stops re-deriving them; over every
+    selected provider that derivation refuses `FilesystemService::create` on
+    `tests/omega/pass/providers/phantom_local_calling_applications`.
   Acceptance: a two-package `Independent` build and an installed-image customer
   execute crossing calls, placement-independent invocation, new-era routing, and
   old-era drain on matching hosts, while omitted/duplicate assumptions,
@@ -1997,7 +2049,7 @@ defines the complete product bar.
   [review cache](omega-rust/omega/packages/package-manager/src/review/candidate/review_cache.rs)
   is a different artifact. Layouts used only inside unselected library code
   are a separate share of the cost, covered by the
-  [layout-demand question](OWNER_QUESTIONS.md#3-is-a-layout-used-only-inside-unselected-library-code-a-psi-obligation-under-every-target).
+  [layout formation scope](wiki/spec/layouts/plans.md#compile-time-journey-and-build).
   - Persist an admitted dependency's checked representation under its exact
     identity. Bind it to an applicability proof over the premises the
     specification lists: the target, the provider closure, root-sensitive

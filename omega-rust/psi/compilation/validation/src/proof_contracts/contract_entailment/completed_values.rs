@@ -490,9 +490,13 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
                     ))
                 })
                 .collect::<Vec<_>>();
-            let value = outcome
-                .judge
-                .completed_value_identity(outcome.value.clone());
+            // A completed owned construction publishes a fresh value so its
+            // validity is never re-derived from equal fields. Its children
+            // are still the operands this occurrence evaluated; recover
+            // that receipt before describing the demanded projections.
+            let value = outcome.judge.completed_value_identity(
+                outcome.judge.completed_nominal_observation(&outcome.value),
+            );
             let mut projections = Vec::new();
             observed_projections(
                 program,
