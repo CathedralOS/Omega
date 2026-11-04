@@ -428,18 +428,38 @@ retired-syntax deletions to completion.
     rejection of unsafe Exact intermediates, conditional or foreign laws, and
     unproved literal connections. Prove these cases through nine-place fact
     witnesses, fact-sensitive reject twins, and their pinned corpus fixtures.
-  - Apply the eventual [distributivity representative decision](OWNER_QUESTIONS.md#1-is-the-expanded-sum-of-products-the-canonical-form-of-an-open-index-under-a-declared-distributivity-law).
-    Identity-law ratification does not choose that representative or a new
-    expansion limit. Internal normalizer provenance and rebuilding unreleased
-    development artifacts are implementation bookkeeping, not a legacy support
-    requirement.
+  - Implement [bounded canonical index normalization](wiki/spec/proofs/contracts.md#bounded-canonical-index-normalization)
+    and its shared published encoding independently of storage representation.
+    Repair `(A * (B + C)) * D` against `A * ((B + C) * D)` under associative,
+    noncommutative multiplication and left distributivity: merge the full
+    same-authority chain before expansion, rather than normalizing its inner
+    product into a sum first. Preserve partial law sets and prohibit invented
+    numeral identities such as `N + N == 2 * N` without additional evidence.
+  - Decide the 64-summand measure from the canonical pre-expansion form, retain
+    coherent unexpanded fallback and cutoff evidence, and diagnose the measure
+    and limit only when compatibility remains unresolved. Cover 63/64/65-term
+    boundaries, regrouping and operand-order variants, identity removal, and
+    the `S * (X + Y)` budget edge when `S` has 65 summands. Establish fixed-law
+    determinism/idempotence and below-budget preservation of identifications
+    under added valid laws, with the named mutual-distributivity exception.
+    Supply a correctness argument and focused property tests, not only the
+    counterexample repair.
+  - Carry checked generic compatibility evidence through exact specialization
+    substitutions without repeating the proof, and evaluate fully closed
+    selected index operations to canonical values under ordinary admission.
+    Pin direct theorem guarantees as a compatibility escape route, preserve
+    independent call/formation/target checks, and compare canonical identity
+    encoding across producer implementations. Record internal provenance
+    updates and rebuild development artifacts as needed; add no local
+    canonical-budget override syntax or legacy-normalizer support requirement.
   - Migrate top-level library/corpus/embedded declarations off the `operator`
     introducer ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
     and remove legacy parser/IR consumers and undifferentiated
     `MachineSupplyMode::Boundary`.
   Acceptance: `tests/omega/pass/expressions/declared_operator_match_result/`
   (exit 70), `samples/cli/facts/{body_bearing_comparison,generic_comparison_body,projection_call_premise,abstract_signature_call,static_evidence_premise}`,
-  and new fixtures for generic/stateful bodies, private helpers, qualifiers,
+  `samples/cli/facts/open_index_distributivity` and its necessary additional
+  productions, and new fixtures for generic/stateful bodies, private helpers, qualifiers,
   ordered operands, and receiver/result loans pass `omega run --both` on every
   host, while missing bodies, duplicate shapes, unproved laws, and missing
   premises reject.
@@ -513,6 +533,9 @@ narrows realization only.
     progress, intrinsic review and deferred array/const-generic recipes)
     from typed/checked records to canonical Terminal Psi
     plus target Build rows.
+  - Make selected provider binding take an owner-checked view, so
+    `bind_selected_provider_plan_facts` cannot run before
+    `require_prepared_owner`; no test covers that order now.
   - Resolve a Build provider plan's schema text to the Terminal catalog's
     schema identity handle once at the stage-00 join (provider-selection
     boundary_review `requirement_binds`), so
@@ -1121,35 +1144,19 @@ defines the complete product bar.
   rows, and escaping variable-shaped results without an authored sum/descriptor
   reject.
 
-- **DOMAIN-CARRIER-FORMATION.** Enforce
+- **DOMAIN-CARRIER-FORMATION.** Finish
   [carrier-exact membership](wiki/spec/language/domains.md#carrier-exact-membership)
-  through proof formation, executable tests, qualification, and published
-  evidence. On fixed base `79eb08a76a7`, an optimized exact-source compiler
-  accepts `machine guarded(value: u8) -> u16 requires value in Small { 3 }`
-  under `domain u16::Small requires self <= 10;`. Hosted checking observations
-  `41656219861` and `41657251758` also accepted a suffixed `7u8` with and without
-  an unrelated declaration mentioning `u8`.
-  - Make the exact resolved applied carrier a formation obligation before
-    predicate substitution or mathematical-value projection. The domain already
-    retains a `TypeReferenceHandle`; reconcile proof-fact validation with the
-    executable carrier check through the owning type-correspondence boundary,
-    not a spelling-based lookup or another value-only acceptance path.
-  - Preserve nominal data identities, generic substitutions and declared type
-    equations, qualified carriers, and normal borrow/projection semantics.
-    Cover domain/data predicates, callable and trait contracts, statement facts,
-    literals, fields, call results, and specialized domain applications without
-    per-source-shape exceptions or accepting absent type information as a match.
-  - Preserve same-carrier membership, explicit exact conversions, anonymous
-    literal landing, generic family applications, and cross-width numeric
-    comparisons. Reject typed cross-width, signedness, nominal, and applied
-    carrier mismatches even when predicate values coincide; an unrelated type
-    declaration must not affect the result. Migrate any source this rejects.
-  Acceptance: one carrier-identity fact runs through all nine transport places
-  with `omega run --both` and authored outcomes on the four hosted targets;
-  fact-sensitive wrong-carrier twins and focused formation controls reject and
-  are pinned in the corpus. Predicate, policy, provenance, ownership, and access
-  obligations remain intact. Arbitrary-width integers and integer-family
-  constraint syntax are not prerequisites.
+  for the forms the nine-place row
+  [`domain_carrier_identity`](samples/cli/facts/domain_carrier_identity/README.md)
+  does not cover.
+  - Let a caller discharge a precondition whose subject is an explicit exact
+    conversion: `converted(4u8)` with `requires (narrow as u16) in Small`
+    forms but reports `cannot prove requires contract`.
+  - Judge carrier-generic domain families whose carrier is a type parameter
+    at each applied carrier, and statement-position membership facts, with
+    wrong-carrier rejects.
+  Acceptance: those forms run with `omega run --both` and their wrong-carrier
+  twins reject, pinned in the corpus.
 
 - **NOMINAL-FIELD-FLOW.** Close the Dungeon Crawler's field-domain execution and
   [representation-erased domain qualification](wiki/spec/language/domains.md)
@@ -1263,9 +1270,9 @@ defines the complete product bar.
     `endpoint_folded_into_payload`, `stored_reference_endpoint_reseat`) compile.
     The reach rule is implemented on `work/wave1-termination-reach` and lands
     last, with its positive migrations, once component ranking accepts the
-    projected and arrival rank subjects those helpers need: captured copies,
-    formal/result-equation arrivals, opaque children, ranges and
-    stored-reference endpoints.
+    projected and arrival rank subjects those helpers need: measures applied
+    to a field (`pending.held -> Countdown::Remaining`), formal/result-equation
+    arrivals, opaque children, ranges and stored-reference endpoints.
   - Re-run the external-result and `std`-loop execution controls
     (`external_result_ranked_arrival_compile` currently refuses with `provider
     candidate requires beyond its boundary's declared obligations`) once
@@ -1991,6 +1998,11 @@ defines the complete product bar.
   - Replace the opaque `ExportSurface.identity` string with the export's
     requirement identity so a demanded import is checked against the offered
     export (needed by the [topology](wiki/spec/packages/topology.md) demand/supply join).
+  - Have provider settlement publish component export calling applications so
+    component completion (`compiler/src/product_execution/component.rs`
+    `prepare_exported_calling_applications`) stops re-deriving them; over every
+    selected provider that derivation refuses `FilesystemService::create` on
+    `tests/omega/pass/providers/phantom_local_calling_applications`.
   Acceptance: a two-package `Independent` build and an installed-image customer
   execute crossing calls, placement-independent invocation, new-era routing, and
   old-era drain on matching hosts, while omitted/duplicate assumptions,
