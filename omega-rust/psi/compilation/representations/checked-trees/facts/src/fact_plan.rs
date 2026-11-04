@@ -522,12 +522,22 @@ impl FactPlan {
         &self,
         contexts: impl IntoIterator<Item = FactContextHandle>,
     ) -> Vec<FactHandle> {
-        arena::unique_handles_in_order(contexts.into_iter().flat_map(|context| {
+        arena::unique_handles_in_order(self.context_fact_handles(contexts))
+    }
+
+    /// Visit the supplied contexts in order, retaining repeated fact identities.
+    /// Consumers that select only some payloads can avoid preparing unrelated
+    /// facts before removing their own duplicate observations.
+    pub fn context_fact_handles(
+        &self,
+        contexts: impl IntoIterator<Item = FactContextHandle>,
+    ) -> impl Iterator<Item = FactHandle> {
+        contexts.into_iter().flat_map(move |context| {
             self.refs
                 .span_or_empty(self.contexts.get(context).facts)
                 .iter()
                 .map(|reference| reference.fact)
-        }))
+        })
     }
 
     pub fn contexts_at_point(

@@ -68,6 +68,24 @@ pass/effects/optional_reach_declared_slack_exit built 6541ms exit:0 interpreter-
 pass/effects/optional_reach_generic_narrow_exit built 6746ms exit:0 interpreter-exit:0 interpreter:agrees @d68d95fa82f8
 pass/effects/optional_reach_recursive_foreign_exit built 6590ms exit:0 interpreter-exit:0 interpreter:agrees @d68d95fa82f8
 pass/effects/optional_reach_target_union_exit built 6662ms exit:0 interpreter-exit:0 interpreter:agrees @d68d95fa82f8
+pass/facts/atomic_bounded_fetch/call_result built 4688ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/const_name built 4766ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/field built 4719ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/local built 4682ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/match_join built 4722ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/other_machine built 4775ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/other_state built 4755ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/parameter built 4654ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/resident_bound/call_result built 4615ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/resident_bound/const_name built 4671ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/resident_bound/field built 4662ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/resident_bound/local built 4619ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/resident_bound/match_join built 4780ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/resident_bound/other_machine built 4781ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/resident_bound/other_state built 4698ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/resident_bound/parameter built 4549ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/resident_bound/target_body built 4592ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
+pass/facts/atomic_bounded_fetch/target_body built 4613ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
 pass/facts/bounded_activation_generic_holder_transfer_exit built 13034ms exit:0 interpreter-exit:0 interpreter:agrees @ba59c06f6982
 pass/facts/bounded_activation_generic_nested_holder_transfer_exit built 13326ms exit:0 interpreter-exit:0 interpreter:agrees @ba59c06f6982
 pass/facts/build_activation_borrow_entry_return_exit built 11951ms exit:0 interpreter-exit:0 interpreter:agrees @b208ceef9bc2
@@ -482,7 +500,7 @@ pass/asm/state_fact_transfers_exit built 2789ms exit:0 interpreter-exit:0 interp
 pass/atomics/atomic_global_order_operations checked 2128ms @a92f16431042
 pass/atomics/atomic_order_surface checked 2281ms @a92f16431042
 pass/atomics/runtime_atomic_after_quoted_write_exit built 6568ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/atomics/runtime_atomic_boolean_orderings_exit built 2005ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/atomics/runtime_atomic_boolean_orderings_exit built 4744ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
 pass/atomics/runtime_atomic_case_field_state_exit built 2014ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/atomics/runtime_atomic_compare_exchange_exit built 6387ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/atomics/runtime_atomic_computed_operands_exit built 2140ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -2302,7 +2320,7 @@ pass/facts/atomic_compare_exchange_once_target_body_exit built 8444ms exit:0 int
 pass/facts/atomic_compare_exchange_once_through_call_result_exit built 8435ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
 pass/facts/atomic_compare_exchange_once_through_const_name_exit built 8412ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
 pass/facts/atomic_compare_exchange_once_through_field_exit built 8341ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
-pass/facts/atomic_compare_exchange_once_through_local_exit built 8321ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_through_local_exit built 4529ms exit:0 interpreter-exit:0 interpreter:agrees @d322ce056e15
 pass/facts/atomic_compare_exchange_once_through_match_join_exit built 8492ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
 pass/facts/atomic_compare_exchange_once_through_other_machine_exit built 8343ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
 pass/facts/atomic_compare_exchange_once_through_other_state_exit built 8536ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
@@ -2585,7 +2603,7 @@ pass/asm/scratch_latest_zero_flag_exit built 2098ms exit:0 interpreter-exit:0 in
 pass/asm/scratch_subtract_modular_underflow_exit built 3863ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/asm/scratch_target_sibling_capture_identity_exit built 3255ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/asm/scratch_zero_flag_survives_move_exit built 2761ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/atomics/runtime_atomic_bitwise_widths_exit built 6531ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/atomics/runtime_atomic_bitwise_widths_exit built 88444ms exit:70 interpreter-exit:70 interpreter:agrees @d322ce056e15
 pass/atomics/shared_receiver_atomic_store built 7131ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/blockexec/blocking_executor_custody_claims_compile built 2903ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/blockexec/runtime_selected_worker_body_exit built 2412ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

@@ -30,7 +30,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
     allow_const_value: bool,
     extent_exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<(), Vec<Diagnostic>> {
-    use typed_trees::data::{TypeParameter, TypeParameterKind};
+    use typed_trees::data::TypeParameter;
     use typed_trees::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
 
     macro_rules! validate_child {
@@ -45,14 +45,14 @@ pub(crate) fn validate_package_type_identity_input_inner(
             )
         };
     }
-    // A declared type argument carries a value only in the const slot of its
-    // own telescope. Domain applications use the declaration's index roster:
-    // only generic-carrier families omit a carrier parameter from that roster.
+    // A type argument carries a value only in a const or value parameter of
+    // its own declaration. Domain applications use that declaration's index
+    // parameters; generic-carrier families omit the carrier parameter.
     let validate_argument = |argument, parameters: Option<&[TypeParameter]>, index: usize| {
-        let is_const = parameters
+        let accepts_value = parameters
             .and_then(|parameters| parameters.get(index))
-            .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }));
-        validate_child!(argument, is_const)
+            .is_some_and(|parameter| parameter.kind.is_const_or_value());
+        validate_child!(argument, accepts_value)
     };
 
     match program.type_reference_table.type_reference(type_reference) {
@@ -190,7 +190,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
         TypeReferenceNode::ConstExpression(expression) => {
             if !allow_const_value {
                 return Err(vec![Diagnostic::error(
-                    "package review rejects a const expression outside one exact declared const-parameter slot",
+                    "package review rejects a value expression outside one exact declared const or value parameter",
                 )]);
             }
             validate_package_index_expression(compilation, program, *expression, binders, None)
