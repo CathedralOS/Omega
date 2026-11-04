@@ -54,44 +54,55 @@ byte snapshots, extent checks and write markers leave that evaluation. The live
 mutable reference stays inside it. Main checks those observations and runs the
 same observer at runtime.
 
-[Run 41747418767](https://github.com/CathedralOS/Omega/actions/runs/41747418767),
-at exact producer source `6fd663e9e8c6b834b3578664238b33db6ffc8f44`,
+[Run 41755781071](https://github.com/CathedralOS/Omega/actions/runs/41755781071),
+at exact producer source `1c88c0139494dce4c4060709b8d3ab23b4297b5d`,
 checks and executes seven places: local, field, parameter, call result, match
 join, nested machine and other machine. Each returns native 0 and Terminal 0
-with engine agreement. The returned-data identity control and three constant-call
-identity controls also return zero in both engines.
+with engine agreement. Fifteen of seventeen runtime positives return zero in
+both engines, including the new owned-record constant-argument witness and
+affected-main controls. These observations belong to 1c88, not the later
+diagnostic and expectation-only checkpoints.
 
 The length guarantee now survives forwarding because the checker joins the
 saved descriptor identities before normalization can replace their subjects.
-The constant program retains its exact selected public method, then reaches a
-separate argument-admission failure. Two places still fail checking:
+The owned-record witness now exercises computed record arguments through scalar
+and record results. The buffered constant program moves past argument admission
+and reaches an unresolved ordinary call. Two places still fail checking:
 
 | Place | Remaining source obligation |
 | --- | --- |
 | Selected implementation | Preserve the returned Pair's identity with the input after forwarding. |
-| Constant name | Admit the exact owned Pair argument during constant evaluation. |
+| Constant name | Resolve unqualified `try_from(request)` in `Writer::encode_sufficient` to its exact ordinary machine during constant normalization. |
 
-The run checks 30 source rows: 11 positives check and 19 programs reject, including
-those two unintended positive failures. All 17 selected negative expectations
-match. The selected-implementation decoder twin also reports its positive's
-consumer proof error, so it is not yet clean evidence of only the decoder law.
-No infrastructure failure occurred.
+The run checks 39 source rows: 15 check and 24 reject, including those two
+unintended positive failures. All 22 negatives reject; 21 expectations match.
+The new owned-record negative correctly rejects `read` because its argument makes
+the required `packet.first == 7` false (`8 == 7`), but its original expected
+wording mismatches. That report retains `expected_satisfied: false`. A later
+checkpoint corrects only this new expectation; revalidation remains required.
+Only the selected-implementation decoder twin also reports the shared consumer
+proof error, so it is not yet clean evidence of only the decoder law.
 
-The broader 72-source qualification, nine ordinary CLI projects and eighteen
-positive/invalid samples remain required. This run measures Linux x86-64;
-four hosted Build entries are authored, while other-host execution remains open.
-The [earlier broader run](https://github.com/CathedralOS/Omega/actions/runs/41743667622)
-at original source `3676a32990a7560230cc040907a4e1c704175908` retains its own
-25 runtime observations and four explicit header-zero postchecks. Those results
-belong to that earlier producer. No full acceptance or row closure is claimed.
+The held full qualification proposal has 82 source rows: 36 runtime positives,
+two source-only positives and 44 negatives, followed by nine ordinary CLI
+projects and eighteen positive/invalid samples. The corrected new expectation
+still needs actual validation before a producer is selected. Four explicit
+header-zero postchecks remain required. Ordinary CLI and samples are unmeasured.
+This run measures Linux x86-64; four hosted Build entries are authored, while
+other-host execution remains open. No full acceptance or row closure is claimed.
 
 The [original valid-source baseline](https://github.com/CathedralOS/Omega/actions/runs/41546898552)
 and [compiler changes](https://github.com/CathedralOS/Omega/pull/1562) retain the
-earlier diagnostics and repairs. Five additional controls remain unchanged and
-unaccepted: the [four reference-control baseline checks](https://github.com/CathedralOS/Omega/actions/runs/41707158340)
-and the [separate case-membership baseline check](https://github.com/CathedralOS/Omega/actions/runs/41742072821)
-reproduce their early refusals or timeout at fixed main on identical inputs.
-They are excluded from intended-control acceptance, with separate provenance.
+earlier diagnostics and repairs. [Comparison 41761529176](https://github.com/CathedralOS/Omega/actions/runs/41761529176)
+checks five previously excluded controls with authenticated pinned-main 9e and
+original-1c88 producers on identical fixture/library inputs. Both give the same
+statuses, diagnostics and expectation outcomes. Four controls still stop at
+earlier formation or borrowing-source refusals; they remain unchanged and
+unaccepted baseline exceptions. The
+[nested-machine sibling-write control](../../../../tests/omega/fail/borrows/nested_machine_carried_field_sibling_rejected/main.omg)
+now rejects its intended live-borrow write in both and returns to the intended
+control scope. The comparison supplies source attribution, not runtime or
+performance evidence.
 
 The requirements below remain open until the fresh source and runtime results
 satisfy them:
@@ -102,9 +113,9 @@ satisfy them:
 | Value identity and lifetime | The input Pair keeps its saved value. The returned buffer permits a caller-visible write, and the frame borrow has a separate lifetime from its buffer. |
 | Composition | The public round-trip promise justifies the consuming call directly. Each place carries the completed Result before that call. |
 | Ownership and proof boundaries | Reading borrows the frame while its owner keeps the mutable buffer. Only owned observations leave constant evaluation. The corrupt decoder must fail its field promise. |
-| Checked source to Terminal Psi | Four places return Terminal exit 0; the other five remain blocked during source checking. All-place execution remains required. |
+| Checked source to Terminal Psi | Seven places return Terminal exit 0; constant name and selected implementation remain blocked during source checking. All-place execution remains required. |
 | Build selection, layout and calls | All four hosted entries are bound. Selected-body markers and neighboring fields/bytes detect the wrong implementation or misplaced storage. |
-| Instructions, registers and frames | Four places return native exit 0 and agree with Terminal. The remaining five places still need source and runtime acceptance. |
+| Instructions, registers and frames | Seven places return native exit 0 and agree with Terminal. The remaining two places still need source and runtime acceptance. |
 | Encoding and native image | The emitted program must execute and agree with Terminal Psi. Other-host observations remain open. |
 | Runtime falsifiability | Main traps on a wrong Pair, byte, length, write, marker or neighbor; it exercises both Pair inputs, both join arms and explicit failures. |
 
