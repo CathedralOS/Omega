@@ -1,7 +1,8 @@
 # fixed_token_operators
 
-Fixed-token declaration heads: `operator + i32::add;` names the builtin
-arithmetic surface; `boundary machine []` and `boundary machine [..]`
+Fixed-token declaration heads: `operator + Cell::add;` binds a
+fixture-owned operator, since primitive `i32 +` belongs to the core
+semantic home; `boundary machine []` and `boundary machine [..]`
 bind fixture-owned collection operators — generic over `T`, with
 requires contracts that stay provider-agnostic.
 

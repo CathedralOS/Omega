@@ -61,15 +61,15 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Verify: state chain ended at 24079.
     transition main.roller.rng_state == 24079 {
-        true -> check_total(main)
-        _ -> bad_state(main)
+        true -> block check_total(main)
+        _ -> block bad_state(main)
     }
 
     machine check_total(main: &mut Main) {
         // r1=4, r2=1, r3=4, r4=1, r5=2 -> total=12
         transition main.roller.total == 12 {
-            true -> good(main)
-            _ -> bad_total(main)
+            true -> block good(main)
+            _ -> block bad_total(main)
         }
     }
 

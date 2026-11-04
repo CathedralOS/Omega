@@ -47,6 +47,15 @@ proves its subtraction; the contract adds the caller-side obligation, not a
 premise the body depends on. A weaker clause therefore cannot make the body's
 subtraction fail, which is why the twin changes the storage, not the bound.
 
+The same contract production also observes a field path below a parameter:
+[contract field requirement](compositions/contract_field_requirement/main.omg)
+states `requires align_of(holder.cell) >= 8u64` on a `&Holder` parameter, and
+a companion clause observes the neighbouring `u8` and `u32` fields, whose
+results (1 and 4) the program checks at run time. Its
+[twin](compositions/contract_field_requirement/invalid/main.omg) changes only
+the field to `u32` and rejects with "scalar predicate is false: requires
+contract".
+
 Each twin changes only the observed location's storage to `u32`. Its
 guaranteed alignment is 4, so the unchanged `alignment - 8u64` is rejected with
 bounds `[-4, -4]`. Positives and twins are mirrored under
@@ -94,7 +103,7 @@ authored rows, unexecuted here.
   and the runtime checks follow it.
 - Identity: the subject is the exact place the operand names, through
   references to the referent. A value leaf, a constant, a slice not proved
-  nonempty, or a contract query that is not a whole parameter is rejected rather than given a fabricated location.
+  nonempty, or a contract query that is not a parameter or a field path below one is rejected rather than given a fabricated location.
 - Composition: the result is an ordinary `u64` whose layout-observation fact
   survives copies, fields, call returns, joins and machine arguments, through
   the existing layout-observation route.
@@ -102,10 +111,14 @@ authored rows, unexecuted here.
 ## What remains open
 
 - Contract positions: `requires` on an ordinary machine accepts a whole
-  parameter or its referent. Still rejected: `ensures` clauses (a true clause
-  cannot yet be proved at exit), contracts on trait requirements (so a
-  per-target implementation cannot carry the clause), and field paths or
-  slices in any contract.
+  parameter, its referent, or a field path below either. Still rejected:
+  `ensures` clauses (a true clause cannot yet be proved at exit), contracts on
+  trait requirements (so a per-target implementation cannot carry the clause),
+  and slices, elements or case payload fields in any contract.
+- Case payload fields: a body query on `s.x` where `x` is a case payload is
+  rejected, because the query does not carry the active-case proof an
+  ordinary read owes; it would otherwise report the first matching case's
+  field type.
 - Stronger-than-type alignment from placement or allocator contracts, and
   runtime computation of a location's alignment, are not implemented; the
   result is always the type minimum.

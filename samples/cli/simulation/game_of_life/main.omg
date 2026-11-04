@@ -732,8 +732,8 @@ machine Main::main(context: &mut Main) reaches Console {
     let code: i32 in Wrapping = sum + context.g.offset;
 
     transition code == 70 {
-        true -> good(context)
-        _ -> bad(context)
+        true -> block good(context)
+        _ -> block bad(context)
     }
 
     machine good(context: &mut Main) {
