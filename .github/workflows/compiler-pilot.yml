@@ -46,9 +46,10 @@ permissions:
   contents: read
 
 # A new PR revision supersedes its old check; never cancel a merge-group check
-# merely because another PR entered the queue.
+# merely because another PR entered the queue. Manual revisions use isolated
+# runners and may proceed while an earlier revision finishes its consumers.
 concurrency:
-  group: compiler-pilot-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
+  group: compiler-pilot-${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
