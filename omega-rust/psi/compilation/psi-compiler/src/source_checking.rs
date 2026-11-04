@@ -49,6 +49,9 @@ pub fn retained_layout_match_hits() -> u64 {
 /// These are not provider selections or execution authority.
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
+    /// Exact entries already selected by Build. Each entry must establish its
+    /// own input compatibility, independently of ordinary calls to that body.
+    pub external_roots: &'request [symbols::SymbolHandle],
     pub completion: validation::source_completion::SourceCompletionAdmission<'request>,
     pub representations: ProductRepresentationInput<'request>,
     pub layout_scopes: &'request [build_time_evaluation::FixedLayoutTargetScope],
@@ -163,7 +166,8 @@ impl CheckRequest<'_> {
             preparation = preparation.with_asm_authority(authority);
         }
         let checking = typed_trees_to_checked_trees::CheckingRequest::new()
-            .with_declaration_authority(self.admission.declarations);
+            .with_declaration_authority(self.admission.declarations)
+            .with_external_roots(self.admission.external_roots);
         let admission = preparation.admission();
         let layout_authority = self.admission.layout_selection_authority.as_deref();
         // A judgment whose layout evaluation saw this exact input judged the

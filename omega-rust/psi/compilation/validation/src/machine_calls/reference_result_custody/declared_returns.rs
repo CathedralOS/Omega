@@ -51,6 +51,7 @@ pub fn returned_sources(
                     .get(parameter_index)
                     .ok_or("public result lifetime names no parameter")?
                     .type_reference,
+                source_reference_hops: 0,
                 parameter_index,
                 kind: leaf
                     .source
@@ -120,15 +121,24 @@ pub fn returned_sources(
                     .ok_or("public input cannot expose stored descriptors")?
             }
         };
-        let input_leaves = super::declared_carrier_references(program, input_carrier)
-            .ok_or("public input has no complete reference carrier roster")?;
-        let input = input_leaves
-            .iter()
-            .find(|leaf| {
-                super::origin_owner_path(program, input_carrier, leaf.path.iter().cloned()).as_ref()
-                    == Some(&field.source_path)
-            })
-            .ok_or("public input lifetime path has no matching carrier leaf")?;
+        let input = match field.source {
+            ViewReturnInputSource::Referent => {
+                let input_leaves = super::declared_carrier_references(program, input_carrier)
+                    .ok_or("public input has no complete reference carrier roster")?;
+                input_leaves.into_iter().find(|leaf| {
+                    super::origin_owner_path(program, input_carrier, leaf.path.iter().cloned())
+                        .as_ref()
+                        == Some(&field.source_path)
+                })
+            }
+            ViewReturnInputSource::Stored => super::declared_input_reference(
+                program,
+                input_carrier,
+                &field.source_path,
+                field.source_reference_hops,
+            ),
+        }
+        .ok_or("public input lifetime path has no matching carrier leaf")?;
         let result = result_leaves
             .iter()
             .find(|leaf| {

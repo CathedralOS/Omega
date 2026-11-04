@@ -38,12 +38,14 @@ use typed_trees_to_typed_trees::TypedPreparation;
 #[derive(Clone, Copy, Default)]
 pub struct CheckingRequest<'request> {
     declaration_authority: Option<&'request dyn validation::DeclarationSelectionAuthority>,
+    external_roots: &'request [symbols::SymbolHandle],
 }
 
 impl<'request> CheckingRequest<'request> {
     pub const fn new() -> Self {
         Self {
             declaration_authority: None,
+            external_roots: &[],
         }
     }
 
@@ -53,6 +55,13 @@ impl<'request> CheckingRequest<'request> {
         authority: Option<&'request dyn validation::DeclarationSelectionAuthority>,
     ) -> Self {
         self.declaration_authority = authority;
+        self
+    }
+
+    /// Ordinary callers cannot establish input compatibility for an external
+    /// entry. Check the selected entries on every request, including reuse.
+    pub const fn with_external_roots(mut self, roots: &'request [symbols::SymbolHandle]) -> Self {
+        self.external_roots = roots;
         self
     }
 }
@@ -161,8 +170,8 @@ pub fn reuse_retained_check(
 ) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
     let checked = prior.checked.clone();
     let retained = retain.then(|| prior.clone());
-    phase_profile::scope("psi.05.declaration_authority", || {
-        admit_declaration_authority(&checked, request)
+    phase_profile::scope("psi.05.request_admission", || {
+        admit_request(&checked, request)
     })?;
     Ok(CheckingOutcome {
         checked,
@@ -215,8 +224,8 @@ pub fn lower_typed_trees_reusing(
         frozen_dependency_bodies,
         dependency_bodies,
     });
-    phase_profile::scope("psi.05.declaration_authority", || {
-        admit_declaration_authority(&checked, request)
+    phase_profile::scope("psi.05.request_admission", || {
+        admit_request(&checked, request)
     })?;
     Ok(CheckingOutcome {
         checked,
@@ -225,15 +234,16 @@ pub fn lower_typed_trees_reusing(
     })
 }
 
-/// Package authority is invocation-owned, not part of the language judgment:
-/// admit the returned selections under the caller's authority on every path.
-fn admit_declaration_authority(
+/// Package authority and selected entry admission belong to this request.
+/// Neither can be supplied by a preceding request's ordinary source judgment.
+fn admit_request(
     checked: &CheckedTrees,
     request: &CheckingRequest<'_>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     if let Some(authority) = request.declaration_authority {
         validation::validate_authored_declaration_selections(checked, authority)?;
     }
+    checks::check_external_root_borrows(checked, request.external_roots)?;
     Ok(())
 }
 

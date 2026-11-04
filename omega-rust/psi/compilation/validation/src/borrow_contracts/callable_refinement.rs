@@ -333,6 +333,7 @@ impl PreparedCallableBorrowRefinement {
             for required_leaf in required_leaves {
                 let Some(actual_leaf) = actual_leaves.iter().find(|leaf| {
                     required_leaf.source == leaf.source
+                        && required_leaf.reference_hops == leaf.reference_hops
                         && contract_paths_correspond(
                             program,
                             &required_leaf.owner_path,
@@ -499,6 +500,7 @@ fn frontier_sources(
                         lifetime_only: leaf.lifetime_only,
                         retained_contract: leaf.retained_contract,
                         reference: leaf.reference,
+                        reference_hops: leaf.reference_hops,
                         owner_path: leaf.owner_path.clone(),
                         lifetime: leaf.lifetime.clone(),
                         access: leaf.access,
@@ -664,6 +666,7 @@ fn sources_refine(
                     )
                     && actual.parameter_index == required.parameter_index
                     && actual.source == required.source
+                    && actual.source_reference_hops == required.source_reference_hops
                     && actual.kind == required.kind
             })
         }) =>

@@ -2,7 +2,7 @@
 
 A helper saves a reference to a number, then replaces the pointer field it came
 from. The saved reference must still name the original number and keep its known
-bound, so adding 70 remains safe. The changed programs are awaiting qualification.
+bound, so adding 70 remains safe. The changed programs still reject at borrow and lifetime checks; execution is pending.
 
 Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
 
@@ -49,6 +49,7 @@ binds all four hosted targets.
 
 | Pointer control | Obligation |
 | --- | --- |
+| [Actual write destination](controls/incoming_compatibility/main.omg) | A saved reference permits a write to another scalar, while [its alias twin](controls/incoming_compatibility/invalid/main.omg) rejects a write to its own scalar. |
 | [Saved pointer](controls/snapshot/main.omg) | A copied scalar pointer keeps its original referent after the local record pointer is replaced. |
 | [Replacement identity](controls/snapshot/invalid/main.omg) | The old value cannot prove equality to a read through the replacement. |
 | [Known local supplier](controls/known_source/main.omg) | A locally constructed descriptor keeps its established supplier. |
@@ -67,8 +68,9 @@ binds all four hosted targets.
   separately saved reference. That reference keeps its original storage and
   lifetime; the holder's address does not become the scalar's address.
 - **Composition:** every place transports the same record/reference/predicate.
-  A match preserves every incoming origin and the selected receiver identity.
-  Descriptor snapshots and current referenced contents have separate epochs.
+  A match keeps the possible reference sources from every arm.
+  A copied pointer keeps its original value; a later read through the holder
+  follows the pointer currently stored there.
   Replacing SourceHolder.counter must install the new reference without
   retargeting the separately saved scalar reference or its surviving predicate.
 - **Soundness:** every possible source must permit the read. Access and lifetime
@@ -99,6 +101,14 @@ incompatible historical package locks; those setup outcomes remain separate.
 Replays in fresh projects containing the identical authored files establish the
 nine constructor refusals without changing or deleting those historical locks.
 
+Optimized producer `b52ca03df8a90543384f55a5e7416a8ee8903e1e` now proves
+the saved read's arithmetic and the output-record predicates. The positives
+still reject because the compiler cannot establish that the pointer-field store
+is compatible with the saved reference, and returning that reference loses its
+declared storage lifetime. The identity control reaches its intended missing
+equality; all nine predicate-removal twins reject their intended construction.
+These source-checking results do not establish runtime behavior.
+
 The current row still requires every positive to produce native and Terminal
 exit 0, each sole-predicate twin to retain its Counter-construction refusal,
 and the existing identity/authority controls to retain their intended outcomes.
@@ -119,6 +129,11 @@ The exact storage and lifetime rules are
 [replacement of carried borrows](../../../../../../wiki/spec/language/lifetimes.md),
 [captured places](../../../../../../wiki/spec/terminal-psi/loans.md#captured-places-and-available-premises)
 and [source-derived qualification](../../../../../../wiki/spec/language/domains.md#declaration-and-membership).
+
+This repair covers direct assignments. A saved reference held across a write
+performed by a mutating helper still needs the same compatibility check.
+Unresolved dynamic paths and changing recursive call relations also remain
+implementation work; no opaque pointer identity proves them safe.
 
 This production does not close the parent task's remaining recursive/case/
 collection inventories, proposition handback, filesystem qualification or

@@ -26,5 +26,13 @@ removed checks successfully; the frozen program and its oracles are unchanged.
 
 The second repair retains an already observed scalar with its saved shared
 reference. The shared loan prevents mutation until that reference's last use.
+The third optimized producer, `b52ca03df8a90543384f55a5e7416a8ee8903e1e`, proves
+the saved read's arithmetic bound and the nine places' output-record bounds. The
+identity twin now reaches its intended missing-equality diagnostic. Positives
+still reject because the borrow checker cannot establish compatibility between
+the saved reference and the pointer-field store; returning the reference also
+loses its declared storage lifetime. These are unfinished implementation repairs.
+Neither engine ran for these positives.
+
 Fresh native/Terminal execution and the extended nine-place row remain required;
 this control alone does not complete the fact.

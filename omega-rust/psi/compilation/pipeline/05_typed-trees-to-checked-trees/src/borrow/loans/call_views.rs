@@ -94,6 +94,7 @@ impl CallViewReturnContract<'_> {
                 owner_path: Vec::new(),
                 source_path: Vec::new(),
                 source_type: self.parameter_type_reference(program, parameter_index),
+                source_reference_hops: 0,
                 parameter_index,
                 kind: super::types::reference_borrow_access_kind(
                     program,

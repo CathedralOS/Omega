@@ -26,6 +26,8 @@ pub(super) fn check_statement_borrows<'p>(
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_state: &checked_trees::StateBorrowFact,
+    incoming_backing: &super::incoming_backing::IncomingBackingCalls<'_>,
+    incoming_requirements: &mut Vec<super::incoming_backing::PendingRequirement>,
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
     state_mutation_summaries: &StateMutationSummaryCache,
@@ -611,9 +613,25 @@ pub(super) fn check_statement_borrows<'p>(
             ) {
                 continue;
             }
+            let compatibility = incoming_backing.require(
+                program,
+                facts,
+                state_flow,
+                statement,
+                loan_handle,
+                &destinations,
+                incoming_requirements,
+            );
+            if matches!(compatibility, Ok(true)) {
+                continue;
+            }
+            let reason = compatibility
+                .err()
+                .map(|reason| format!("; {reason}"))
+                .unwrap_or_default();
             let loan = facts.borrow.loans.get(loan_handle);
             diagnostics.push(Diagnostic::error(format!(
-                "statement {} mutates `{}` while local borrow `{}` is still active ({})",
+                "statement {} mutates `{}` while local borrow `{}` is still active ({}{reason})",
                 statement.statement_index,
                 mutated_place.label(program),
                 symbol_name(program, loan.owner_symbol),

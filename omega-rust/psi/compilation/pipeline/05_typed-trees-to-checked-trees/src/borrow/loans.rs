@@ -389,6 +389,7 @@ pub(super) fn returned_value_loans(
                             owner_path: Vec::new(),
                             source_path: Vec::new(),
                             source_type: parameter.type_reference,
+                            source_reference_hops: 0,
                             parameter_index,
                             kind,
                         }]
