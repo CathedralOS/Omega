@@ -40,7 +40,8 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 85 preserves foreign reference transport roles on identity-only leaves.
 // Version 89 retains all private callback address placements.
 // Version 90 retains typed descriptor-table instructions.
-const VERSION: u32 = 90;
+// Version 91 separates the occupied owner from its granted backing.
+const VERSION: u32 = 91;
 const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
