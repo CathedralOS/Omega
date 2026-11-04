@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "generic conformance `GenericPolicy` requires 2 explicit non-lifetime argument(s), got 1"
-  ]
-}

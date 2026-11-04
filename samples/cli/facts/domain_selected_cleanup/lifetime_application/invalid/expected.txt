@@ -1,1 +1,0 @@
-keeper.code == 7

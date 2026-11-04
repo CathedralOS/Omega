@@ -26,7 +26,7 @@ terminates by (i, name.len) -> Nat::BoundedDistance
 {
     let step: Score = Main::step(name, i);
     transition i < name.len {
-        true -> walk(main, name, i + 1)
+        true -> Main::walk(main, name, i + 1)
         false -> leaf(main, name)
     }
 

@@ -1,0 +1,1 @@
+this write left the `requires` facts of `span` (data `Interval<32>`) unproved; restore them first

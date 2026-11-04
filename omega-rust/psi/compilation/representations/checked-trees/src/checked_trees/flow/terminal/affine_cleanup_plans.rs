@@ -196,7 +196,6 @@ pub struct CheckedNominalAffineUnitCleanupMachinePlan {
     /// stay in CheckedUnitEffectPlans; this catalogue owns no disposal stream.
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
-    pub attachment_type_identity: Option<TypeIdentityId>,
     /// Direct source caller prerequisites consumed by ordinary signature lowering.
     pub caller_requirements: Vec<CheckedUnitNominalAffineCallerRequirementPlan>,
 }

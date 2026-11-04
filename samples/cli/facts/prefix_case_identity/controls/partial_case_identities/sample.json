@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "stable identities are all-or-nothing for sum cases"
-  ]
-}

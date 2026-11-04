@@ -25,6 +25,14 @@ pub(super) fn validate(
     if !machine.supplies_checked_body() || calls::unit_type(program, state.return_type) {
         return;
     }
+    // Core `Vec::as_slice` keeps an empty body because it is a source-visible
+    // signature for a boundary operation, not an executable implementation.
+    // Write-frame inference already refuses to invent a body from it.
+    if crate::declarations::standard_declarations::is_core_vector_surface_state(
+        program, machine, state,
+    ) {
+        return;
+    }
     let statements = program.statement_table.statements(state.statement_nodes);
     let Ok(Some(order)) = program
         .statement_table

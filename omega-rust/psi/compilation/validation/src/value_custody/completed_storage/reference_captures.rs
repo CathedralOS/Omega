@@ -315,19 +315,50 @@ impl Resolver<'_> {
             };
         }
         if let FlowOperandCompletion::Selected(alternatives) = capture.completion {
-            let Some(rows) = self.control.operand_alternatives.span(alternatives) else {
-                return Selection::Unavailable;
-            };
-            if rows.is_empty() || rows.iter().any(|row| !row.source_arm.is_valid()) {
-                return Selection::Unavailable;
+            // Arm operands can omit the addresses formation already recorded
+            // on this view. Those recorded referents are the authenticated
+            // set; an empty record still walks the arms and stays unavailable
+            // when an arm has no address.
+            let arm_values = self
+                .control
+                .operand_alternatives
+                .span(alternatives)
+                .and_then(|rows| {
+                    if rows.is_empty() || rows.iter().any(|row| !row.source_arm.is_valid()) {
+                        return None;
+                    }
+                    Some(rows.iter().map(|row| row.value).collect::<Vec<_>>())
+                });
+            let walked = arm_values.and_then(|values| {
+                let joined = join(
+                    values
+                        .into_iter()
+                        .map(|value| self.select(value, path))
+                        .collect(),
+                );
+                match joined {
+                    Selection::Unavailable => None,
+                    selected => Some(selected),
+                }
+            });
+            if let Some(selected) = walked {
+                return selected;
             }
-            let values = rows.iter().map(|row| row.value).collect::<Vec<_>>();
-            return join(
-                values
-                    .into_iter()
-                    .map(|value| self.select(value, path))
-                    .collect(),
-            );
+            if path.is_empty()
+                && crate::reference_shell(self.program, capture.type_reference).is_some()
+                && !capture.referents.is_empty()
+            {
+                return Selection::Sources {
+                    incoming: Vec::new(),
+                    values: vec![StoredCapture {
+                        capture: value,
+                        reference: capture.type_reference,
+                        projection: Vec::new(),
+                        slot: None,
+                    }],
+                };
+            }
+            return Selection::Unavailable;
         }
         let view = crate::reference_shell(self.program, capture.type_reference).is_some();
         if view

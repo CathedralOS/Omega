@@ -531,7 +531,14 @@ impl StructuralJudge<'_> {
             | StructuralTerm::Float(_)
             | StructuralTerm::ScalarRepresentation { .. }
             | StructuralTerm::BoundValue(_) => Some(term),
-            StructuralTerm::CapturedValue { .. } => Some(term),
+            StructuralTerm::CapturedValue { .. } => {
+                let observed = self.completed_nominal_observation(&term);
+                if observed != term {
+                    self.resolve_case_subject(observed, depth + 1)
+                } else {
+                    Some(term)
+                }
+            }
             application @ StructuralTerm::Application { .. } => {
                 self.selected_application_case_subject(&application, depth)
             }

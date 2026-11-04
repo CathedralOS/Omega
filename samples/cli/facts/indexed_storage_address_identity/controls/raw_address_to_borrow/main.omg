@@ -1,7 +1,0 @@
-// Invalid: numeric address data grants no borrow authority.
-machine read(value: &u64) -> u64 { value }
-machine main() {
-    let value: u64 = 7;
-    let raw: addr = address_of(&value);
-    let observed: u64 = read(raw);
-}

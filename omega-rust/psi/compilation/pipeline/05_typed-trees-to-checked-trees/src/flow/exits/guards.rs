@@ -970,6 +970,27 @@ pub(in crate::flow) fn append_match_pattern_context(
                 active_contexts,
                 active_constraints,
             );
+            // The copy carries the case. The arm's payload expression still
+            // names the copied-from subject, so that place needs the same case.
+            if alias.is_valid() && dispatch.subject.is_valid() && alias != dispatch.subject {
+                append_observation_context(
+                    program,
+                    semantic,
+                    build,
+                    state_symbol,
+                    statement_index,
+                    &[dispatch.subject],
+                    &[],
+                    FactPayload::CaseValue {
+                        variant: case,
+                        value: true,
+                    },
+                    point,
+                    FactOrigin::TransitionGuard,
+                    active_contexts,
+                    active_constraints,
+                );
+            }
         }
     }
     let Some((subject, pattern, matched)) = payload.match_pattern_comparison(program) else {
@@ -1313,8 +1334,19 @@ fn append_observation_context(
         {
             return Handle::invalid();
         }
-        let place = append_place(semantic, observed.root, &observed.segments);
-        crate::shared::collections::push_unique(&mut places, place);
+        // A dispatch copies its subject, then proves the case on the copy.
+        // The payload expression still names the copied-from place. The copy
+        // is that place's value at this guard, so the case holds there too
+        // until a later write invalidates it.
+        let mut recorded = Vec::new();
+        recorded.push(observed);
+        if matches!(payload, FactPayload::CaseValue { .. }) && recorded[0] != source {
+            recorded.push(source);
+        }
+        for recorded_place in recorded {
+            let place = append_place(semantic, recorded_place.root, &recorded_place.segments);
+            crate::shared::collections::push_unique(&mut places, place);
+        }
     }
     let mut refs = HandleSpan::empty();
     let mut dependent = Handle::invalid();

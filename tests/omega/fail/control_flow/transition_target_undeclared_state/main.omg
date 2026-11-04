@@ -1,7 +1,6 @@
-// A transition arm naming no state, machine, parameter or requirement is an
-// unresolved name at checking. Before, checking accepted it and the program
-// stopped later on an unrelated lowering invariant (an unresolved authored
-// call, or a service-reach mismatch from the half-planned body).
+// A terminal call naming no machine entry or callable requirement is rejected
+// at checking. `vanished` is not declared beside `good`, so the arm cannot
+// select a transition target.
 use omega_language_std::console;
 data Main {
 }
