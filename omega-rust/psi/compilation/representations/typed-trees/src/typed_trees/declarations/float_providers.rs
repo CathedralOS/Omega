@@ -44,6 +44,7 @@ pub fn intrinsic_member(
         || primary.is_boundary
         || !typed.trait_type_parameters(primary).is_empty()
         || !primary.lifetime_parameters.is_empty()
+        // These are inherited trait obligations, separate from machine slots.
         || !typed.trait_requirements(primary).is_empty()
         || !primary.conformance_bounds.is_empty()
         || row.source != ConformanceRowSource::Inline
