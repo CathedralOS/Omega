@@ -47,6 +47,25 @@ impl Execution<'_, '_, '_> {
                 &full_path,
                 snapshot,
             );
+            if matches!(
+                selected,
+                validation::completed_storage::StoredOperand::Unavailable
+            ) && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+            {
+                let actual = self.context.control.operands.get(input);
+                eprintln!(
+                    "CHECKSITE stored-lifetime-input-unavailable state={:?} statement={} input={input:?} expression={:?} type={:?} path={full_path:?} snapshot={snapshot:?} referents={:?} retention={:?}",
+                    self.state.symbol,
+                    self.statement_index,
+                    actual.expression,
+                    actual.type_reference,
+                    self.context
+                        .control
+                        .operand_referents
+                        .span_or_empty(actual.referents),
+                    actual.retention
+                );
+            }
             let leaf = self
                 .context
                 .control

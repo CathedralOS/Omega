@@ -693,7 +693,14 @@ pub(super) fn retained_lifetime_demand(
             // exact suppliers, which the walk below retains and checks.
             _ if crate::checks::borrows::transport_suppliers(borrow, state, loan_handle)
                 .is_some() => {}
-            _ => return Err("the loan lifetime resource is unavailable"),
+            _ => {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE suspension-lifetime-resource-unavailable loan={loan_handle:?} row={loan:?} resource={parent_resource:?}"
+                    );
+                }
+                return Err("the loan lifetime resource is unavailable");
+            }
         }
         for supplying in borrow.loan_suppliers.span_or_empty(loan.supplying_loans) {
             let supplier = frontier
