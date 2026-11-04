@@ -150,6 +150,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         atomic_store: None,
         atomic_update: None,
         atomic_compare_exchange: None,
+        atomic_compare_exchange_once: None,
         atomic_bitwise_update: None,
         crash: instruction_key(780),
         call_aggregate: Vec::new(),

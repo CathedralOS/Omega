@@ -1309,7 +1309,7 @@ fn validate_encoded_effects(
                 .external_operand_writes
                 .iter()
                 .copied()
-                .eq(form.observed_operand())
+                .eq(form.output_operands())
             && constraint
                 .operands
                 .iter()
@@ -1318,7 +1318,7 @@ fn validate_encoded_effects(
                     if usize::from(operand.operand) != index || operand.tied_to.is_some() {
                         return false;
                     }
-                    if Some(operand.operand) == form.observed_operand() {
+                    if form.output_operands().contains(&operand.operand) {
                         // Allocatable outputs require early clobber. A retry
                         // may instead use fixed homes: all inputs must also
                         // be fixed and distinct, and target catalog replay

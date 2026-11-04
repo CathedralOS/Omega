@@ -73,6 +73,7 @@ fn keys() -> SelectedConstraintKeys {
             atomic_store: Some(instruction(55)),
             atomic_update: Some(instruction(56)),
             atomic_compare_exchange: Some(instruction(57)),
+            atomic_compare_exchange_once: None,
             atomic_bitwise_update: Some(instruction(58)),
             crash: instruction(780),
             copy_bytes: Some(instruction(40)),

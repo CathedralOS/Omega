@@ -857,6 +857,16 @@ helper that passes does not close an item.
   as one reusable library-authoring path, not recognition of format names or
   attached data machines. Data remains layout-neutral; core/std and community
   policies use the same checked machinery.
+  - Implement [demand-driven layout formation](wiki/spec/layouts/plans.md#layout-demand-and-validation)
+    without an all-target pre-pass for unused bodies. Retain exact application
+    and target demand from entries, selected Build-row closures, transitive
+    helpers/callbacks and compile-time geometry consumers; validate a newly
+    demanded application before use while keeping all ordinary source checks.
+    Pin unused-layout non-evaluation and rejection when that same layout is
+    consumed, including newly selected closures and invalid source in unused
+    bodies. Keep `unselected_target_{helper,callback}_layout_underflow` and
+    `unselected_target_layout_contract` rejecting when another declared target
+    row demands the bad plan, regardless of `--target` output narrowing.
   - Implement transparent `data Alias<...> = TypeExpression;` with all existing
     binder kinds, partial application, computed const arguments, exact machine
     and conformance selection, lifetime/value-subject preservation, public
