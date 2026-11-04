@@ -53,7 +53,7 @@ impl CompletedPureBuildInputs {
         checked: build_time_evaluation::CheckedBuildProgram,
         selected_entry: symbols::SymbolHandle,
         initial_build: BuildTimeValue,
-        packages: &package_compilation::PackageCompilationInputs,
+        packages: Option<&package_compilation::PackageCompilationInputs>,
         snapshot: Option<&package_compilation::BuildSnapshotRequest>,
         scope: &package_compilation::BuildMachineFilesystemScope,
         artifact_only: bool,
@@ -70,15 +70,24 @@ impl CompletedPureBuildInputs {
             return None;
         }
         let activation = scope.activation();
+        let captured_inventory = scope.captured_source_inventory();
+        // A captured source can be checked before it has a package identity.
+        // Its complete immutable inventory still binds the same private Pure
+        // value; an uncaptured anonymous source supplies no reuse custody.
+        // Fresh semantic/grant admission and completion checks remain required.
+        if packages.is_none() && captured_inventory.is_none() {
+            return None;
+        }
         Some(Self {
             checked,
             measurement_identity,
             sponsor_policy: sponsor.map(|sponsor| (sponsor.measurement(), sponsor.limits())),
             selected_entry,
             initial_build,
-            source: SourceAssemblyInputs::new(Some(packages), activation.build_execution_profile()),
+            source: SourceAssemblyInputs::new(packages, activation.build_execution_profile()),
             dependencies: packages
-                .dependency_build_handoff_instances()
+                .into_iter()
+                .flat_map(|packages| packages.dependency_build_handoff_instances())
                 .map(|(consumer_scope, bundle)| CompletedPureBuildDependency {
                     consumer_scope,
                     package: bundle.package(),
@@ -90,7 +99,7 @@ impl CompletedPureBuildInputs {
                 .collect(),
             snapshot: snapshot.cloned(),
             activation,
-            captured_inventory: scope.captured_source_inventory(),
+            captured_inventory,
             artifact_only,
             default_source,
         })

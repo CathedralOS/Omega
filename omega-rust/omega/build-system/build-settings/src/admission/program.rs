@@ -61,7 +61,7 @@ impl AdmittedBuildProgram {
             self.prepared.checked_program()?,
             self.machine.symbol,
             self.machine.initial_build.clone(),
-            packages?,
+            packages,
             snapshot,
             &self.filesystem_scope,
             self.artifact_only,
