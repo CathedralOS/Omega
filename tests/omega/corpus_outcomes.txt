@@ -3964,11 +3964,11 @@ fail/traits/refinement_clause_terminators rejected 3ms expected @89956713be3d
 	tests/omega/fail/traits/refinement_clause_terminators/main.omg:4:29: expected `machine`, found identifier `terminates`
 fail/traits/requirement_evidence_wrong_region rejected 7060ms expected @b9975b628a04
 	provider `SelectedReader::read` does not refine requirement `read` evidence parameter `Evidence`: forwarded binder `Evidence` does not guarantee the exact `Reading` trait application
-fail/traits/runtime_dyn_family_local_width_requires rejected 9611ms expected @7b6988120e7e
+fail/traits/runtime_dyn_family_local_width_requires rejected 11704ms expected @4148c7ab0c1e
 	cannot prove requires contract for call dyn Family::row from create: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/traits/runtime_dyn_family_reordered_roster_requires rejected 8930ms expected @7b6988120e7e
+fail/traits/runtime_dyn_family_reordered_roster_requires rejected 10078ms expected @4148c7ab0c1e
 	cannot prove requires contract for call dyn Family::row from create: Width == 32 || Width == 16 || Width == 16 (needs fact `Width == 32 || Width == 16 || Width == 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/traits/runtime_dyn_family_replaced_width_requires rejected 9888ms expected @7b6988120e7e
+fail/traits/runtime_dyn_family_replaced_width_requires rejected 8829ms expected @4148c7ab0c1e
 	cannot prove requires contract for call dyn Family::row from create: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/types/address_sum_past_model_bound_rejected rejected 2388ms expected @bcbf0eef0c01+wt
 	exact arithmetic in machine `cut` state `entry` return value may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
@@ -8248,15 +8248,15 @@ pass/facts/finite_family_exclusive_result/other_machine checked 8080ms check-tar
 pass/facts/finite_family_exclusive_result/other_state checked 7991ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_exclusive_result/parameter checked 8043ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_exclusive_result/target_body checked 16804ms check-target:macos_arm64 @25f8bb78090b
-pass/facts/finite_family_input_index/call_result checked 15899ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/const_name checked 15017ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/field checked 15381ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/local checked 12285ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/match_join checked 12431ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/other_machine checked 13990ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/other_state checked 12316ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/parameter checked 12868ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/target_body checked 12216ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/call_result checked 15566ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/const_name checked 17162ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/field checked 15732ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/local checked 15565ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/match_join checked 15577ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/other_machine checked 18357ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/other_state checked 14815ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/parameter checked 13018ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/target_body checked 18230ms check-target:macos_arm64 @4148c7ab0c1e
 pass/facts/finite_family_returned_descriptor/call_result checked 8090ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_returned_descriptor/const_name checked 8868ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_returned_descriptor/field checked 6737ms check-target:macos_arm64 @05a6f6af37ec+wt
@@ -15116,11 +15116,13 @@ pass/traits/runtime_dyn_byte_record_result checked 3619ms check-target:macos_arm
 pass/traits/runtime_dyn_byte_result_candidates checked 4308ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_byte_subview_join checked 3471ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_data_argument_counts_exit checked 11178ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/runtime_dyn_family_local_width_exit checked 11708ms check-target:macos_arm64 @7b6988120e7e
-pass/traits/runtime_dyn_family_nested_result checked 93728ms check-target:macos_arm64 @7b6988120e7e
-pass/traits/runtime_dyn_family_reordered_roster_exit checked 11748ms check-target:macos_arm64 @7b6988120e7e
-pass/traits/runtime_dyn_family_replaced_width_exit checked 14132ms check-target:macos_arm64 @7b6988120e7e
-pass/traits/runtime_dyn_family_scalar_continuation checked 15484ms check-target:macos_arm64 @7b6988120e7e
+pass/traits/runtime_dyn_family_local_width_exit checked 13286ms check-target:macos_arm64 @4148c7ab0c1e
+pass/traits/runtime_dyn_family_nested_result rejected 58260ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4148c7ab0c1e
+	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 17954, generation: 1 }, but its retained targets are [(Handle { arena_index: 17954, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
+	retained requirement tuple lost its exact source call application: call `code` in `nested_read` binds declaration Handle { arena_index: 17954, generation: 1 }, but its retained targets are [(Handle { arena_index: 17954, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
+pass/traits/runtime_dyn_family_reordered_roster_exit checked 14674ms check-target:macos_arm64 @4148c7ab0c1e
+pass/traits/runtime_dyn_family_replaced_width_exit checked 14957ms check-target:macos_arm64 @4148c7ab0c1e
+pass/traits/runtime_dyn_family_scalar_continuation checked 15076ms check-target:macos_arm64 @4148c7ab0c1e
 pass/traits/runtime_dyn_field_assignment_establishment_exit checked 3362ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_guarded_result_exit checked 10404ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/traits/runtime_dyn_image_incoming_backing_exit checked 3641ms check-target:macos_arm64 @ccdb99ca2214
@@ -24220,30 +24222,28 @@ fail/facts/finite_family_exclusive_result/target_body rejected 16022ms expected 
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_input_index/call_result rejected 9033ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/call_result rejected 11424ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/const_name rejected 7997ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/const_name rejected 10324ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/field rejected 9640ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/field rejected 10001ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/local rejected 8098ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/local rejected 10032ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/match_join rejected 6491ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/match_join rejected 12135ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/other_machine rejected 14133ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/other_machine rejected 12319ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/other_state rejected 11782ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/other_state rejected 10078ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/parameter rejected 16530ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/parameter rejected 10494ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/target_body rejected 8905ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/target_body rejected 10205ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/wrong_provider rejected 7226ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/wrong_provider rejected 11117ms expected @4148c7ab0c1e
 	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
-	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
-	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
-	machine `produce$specialized$bf862e295a8967d7$0` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
-	machine `produce$specialized$d1322acad3338bfd$1` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
+	machine `produce$specialized$bf862e295a8967d7$0$2751` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
+	machine `produce$specialized$d1322acad3338bfd$1$2756` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
 fail/facts/finite_family_returned_descriptor/call_result rejected 4026ms expected @05a6f6af37ec+wt
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
