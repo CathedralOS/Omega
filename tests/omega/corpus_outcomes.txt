@@ -6402,24 +6402,42 @@ fail/facts/call_result_bound_discharge_through_target_body_rejected rejected 208
 	cannot prove requires contract for call take from Main::main: s <= 5 (needs fact `scale <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 	cannot prove requires contract for call take from Main::main: s <= 5 (needs fact `scale <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 	cannot prove requires contract for call take from Main::main: s <= 5 (needs fact `scale <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-fail/facts/captured_storage_bounds_through_call_result_rejected rejected 2559ms @9150cfa6fe03
-	machine `pump_next` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/captured_storage_bounds_through_const_name_rejected rejected 938ms @9150cfa6fe03
-	machine `pump_next` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/captured_storage_bounds_through_field_rejected rejected 825ms @9150cfa6fe03
-	machine `pump_next` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/captured_storage_bounds_through_local_rejected rejected 1093ms @9150cfa6fe03
-	machine `pump_next` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/captured_storage_bounds_through_match_join_rejected rejected 1625ms @9150cfa6fe03
-	machine `pump_next` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/captured_storage_bounds_through_other_machine_rejected rejected 1360ms @9150cfa6fe03
-	machine `pump_next` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/captured_storage_bounds_through_other_state_rejected rejected 1348ms @9150cfa6fe03
-	machine `pump_next` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/captured_storage_bounds_through_parameter_rejected rejected 1434ms @9150cfa6fe03
-	machine `pump_next` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/captured_storage_bounds_through_target_body_rejected rejected 1187ms @9150cfa6fe03
-	machine `pump_next` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/captured_storage_bounds_through_call_result_rejected rejected 3579ms expected @aa3f3437505e
+	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
+	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/captured_storage_bounds_through_const_name_rejected rejected 3733ms expected @aa3f3437505e
+	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
+	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/captured_storage_bounds_through_field_rejected rejected 3728ms expected @aa3f3437505e
+	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
+	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/captured_storage_bounds_through_local_rejected rejected 3523ms expected @aa3f3437505e
+	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
+	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/captured_storage_bounds_through_match_join_rejected rejected 3765ms expected @aa3f3437505e
+	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
+	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/captured_storage_bounds_through_other_machine_rejected rejected 3763ms expected @aa3f3437505e
+	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
+	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/captured_storage_bounds_through_other_state_rejected rejected 3654ms expected @aa3f3437505e
+	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
+	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/captured_storage_bounds_through_parameter_rejected rejected 3688ms expected @aa3f3437505e
+	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
+	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/captured_storage_bounds_through_target_body_rejected rejected 3696ms expected @aa3f3437505e
+	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
+	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/facts/captured_window_slot_retirement_through_call_result_rejected rejected 768ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 	statement 6 borrows `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
@@ -6555,27 +6573,25 @@ fail/facts/case_payload_stored_loan_through_parameter_rejected rejected 2936ms e
 fail/facts/case_payload_stored_loan_through_target_body_rejected rejected 3670ms expected @ccdb99ca2214
 	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
 	statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
-fail/facts/case_payload_transport_through_call_result_rejected rejected 3038ms unexpected @ccdb99ca2214
-	cannot prove ensures contract for exit from eval at statement 4: result <= 60
-fail/facts/case_payload_transport_through_const_name_rejected rejected 2995ms unexpected @ccdb99ca2214
-	cannot prove ensures contract for exit from eval at statement 3: result <= 60
-fail/facts/case_payload_transport_through_field_rejected rejected 3219ms unexpected @ccdb99ca2214
-	cannot prove ensures contract for exit from eval at statement 4: result <= 60
-fail/facts/case_payload_transport_through_local_rejected rejected 2994ms unexpected @ccdb99ca2214
-	cannot prove ensures contract for exit from eval at statement 4: result <= 60
-fail/facts/case_payload_transport_through_match_join_rejected rejected 2963ms unexpected @ccdb99ca2214
-	cannot prove ensures contract for exit from eval at statement 3: result <= 60
-fail/facts/case_payload_transport_through_other_machine_rejected rejected 2566ms unexpected @ccdb99ca2214
-	cannot prove ensures contract for exit from inspect at statement 3: result <= 60
-fail/facts/case_payload_transport_through_other_state_rejected rejected 2751ms unexpected @ccdb99ca2214
+fail/facts/case_payload_transport_through_call_result_rejected rejected 3810ms expected @aa3f3437505e
+	cannot prove ensures contract for exit from eval at statement 2: result <= 60
+fail/facts/case_payload_transport_through_const_name_rejected rejected 3993ms expected @aa3f3437505e
+	cannot prove ensures contract for exit from eval at statement 1: result <= 60
+fail/facts/case_payload_transport_through_field_rejected rejected 3845ms expected @aa3f3437505e
+	cannot prove ensures contract for exit from eval at statement 2: result <= 60
+fail/facts/case_payload_transport_through_local_rejected rejected 3935ms expected @aa3f3437505e
+	cannot prove ensures contract for exit from eval at statement 2: result <= 60
+fail/facts/case_payload_transport_through_match_join_rejected rejected 3945ms expected @aa3f3437505e
+	cannot prove ensures contract for exit from eval at statement 1: result <= 60
+fail/facts/case_payload_transport_through_other_machine_rejected rejected 3850ms expected @aa3f3437505e
+	cannot prove ensures contract for exit from inspect at statement 1: result <= 60
+fail/facts/case_payload_transport_through_other_state_rejected rejected 3898ms expected @aa3f3437505e
 	cannot prove ensures contract for exit from eval at statement 0: result <= 60
-fail/facts/case_payload_transport_through_parameter_rejected rejected 2473ms unexpected @ccdb99ca2214
-	cannot prove ensures contract for exit from eval at statement 3: result <= 60
-fail/facts/case_payload_transport_through_target_body_rejected rejected 3038ms unexpected @ccdb99ca2214
-	cannot prove ensures contract for exit from eval at statement 3: result <= 60
-	cannot prove ensures contract for exit from eval at statement 3: result <= 60
-	cannot prove ensures contract for exit from eval at statement 3: result <= 60
-	cannot prove ensures contract for exit from eval at statement 3: result <= 60
+fail/facts/case_payload_transport_through_parameter_rejected rejected 3922ms expected @aa3f3437505e
+	cannot prove ensures contract for exit from eval at statement 1: result <= 60
+fail/facts/case_payload_transport_through_target_body_rejected rejected 3915ms expected @aa3f3437505e
+	cannot prove ensures contract for exit from X86Eval::eval at statement 2: result <= 60
+	cannot prove ensures contract for exit from ArmEval::eval at statement 2: result <= 60
 fail/facts/case_predicate_alias_sibling_restore_rejected rejected 5283ms expected @ff6d0a18a03d
 	cannot complete return from machine `restore` state `entry`: this write left the `requires` facts of `span` (data `Interval<32>`) unproved; restore them first
 fail/facts/case_predicate_recast_sibling_restore_rejected rejected 5261ms expected @ff6d0a18a03d
@@ -22257,15 +22273,15 @@ pass/facts/callee_saved_across_nested_calls_through_other_machine_exit checked 3
 pass/facts/callee_saved_across_nested_calls_through_other_state_exit checked 4105ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/callee_saved_across_nested_calls_through_parameter_exit checked 3175ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/callee_saved_across_nested_calls_through_target_body_exit checked 4126ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/captured_storage_bounds_through_call_result_exit checked 5687ms check-target:macos_arm64 @9150cfa6fe03
-pass/facts/captured_storage_bounds_through_const_name_exit checked 6463ms check-target:macos_arm64 @9150cfa6fe03
-pass/facts/captured_storage_bounds_through_field_exit checked 5682ms check-target:macos_arm64 @9150cfa6fe03
-pass/facts/captured_storage_bounds_through_local_exit checked 7585ms check-target:macos_arm64 @9150cfa6fe03
-pass/facts/captured_storage_bounds_through_match_join_exit checked 8944ms check-target:macos_arm64 @9150cfa6fe03
-pass/facts/captured_storage_bounds_through_other_machine_exit checked 8944ms check-target:macos_arm64 @9150cfa6fe03
-pass/facts/captured_storage_bounds_through_other_state_exit checked 6650ms check-target:macos_arm64 @9150cfa6fe03
-pass/facts/captured_storage_bounds_through_parameter_exit checked 9175ms check-target:macos_arm64 @9150cfa6fe03
-pass/facts/captured_storage_bounds_through_target_body_exit checked 7686ms check-target:macos_arm64 @9150cfa6fe03
+pass/facts/captured_storage_bounds_through_call_result_exit checked 5326ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_const_name_exit checked 5325ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_field_exit checked 5187ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_local_exit checked 5129ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_match_join_exit checked 5137ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_other_machine_exit checked 5148ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_other_state_exit checked 5229ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_parameter_exit checked 5161ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_target_body_exit checked 5407ms check-target:macos_arm64 @aa3f3437505e
 pass/facts/captured_window_slot_retirement_through_call_result_exit checked 1089ms check-target:macos_arm64 @04f5793fae62
 pass/facts/captured_window_slot_retirement_through_const_name_exit checked 1118ms check-target:macos_arm64 @04f5793fae62
 pass/facts/captured_window_slot_retirement_through_field_exit checked 1018ms check-target:macos_arm64 @04f5793fae62
@@ -22324,15 +22340,15 @@ pass/facts/case_payload_stored_loan_through_other_machine_exit checked 3364ms ch
 pass/facts/case_payload_stored_loan_through_other_state_exit checked 4737ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_payload_stored_loan_through_parameter_exit checked 3495ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_payload_stored_loan_through_target_body_exit checked 3698ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_transport_through_call_result_exit checked 7220ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_transport_through_const_name_exit checked 3672ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_transport_through_field_exit checked 3555ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_transport_through_local_exit checked 3703ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_transport_through_match_join_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_transport_through_other_machine_exit checked 3848ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_transport_through_other_state_exit checked 2949ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_transport_through_parameter_exit checked 3540ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_transport_through_target_body_exit checked 3567ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/case_payload_transport_through_call_result_exit checked 5252ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_const_name_exit checked 5176ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_field_exit checked 5047ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_local_exit checked 5112ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_match_join_exit checked 5144ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_other_machine_exit checked 5268ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_other_state_exit checked 5314ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_parameter_exit checked 5296ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_target_body_exit checked 5239ms check-target:macos_arm64 @aa3f3437505e
 pass/facts/case_tag_discriminant_layout_through_call_result_exit checked 4330ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_tag_discriminant_layout_through_const_name_exit checked 4341ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_tag_discriminant_layout_through_field_exit checked 2876ms check-target:macos_arm64 @ccdb99ca2214
