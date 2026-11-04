@@ -158,6 +158,41 @@ pub fn classify_statement_call_intrinsic(
     )
 }
 
+/// `Schema::encode` / `Schema::decode` on a numbered data declaration.
+/// Synthesis no longer installs a callable, and the schema symbol is not a
+/// machine. The leaf still names that declaration's derived wire schema.
+pub fn statement_wire_codec_intrinsic(
+    program: &dyn crate::CheckingInput,
+    call: &typed_trees::statement::TableCall,
+) -> Option<AuthoredDeclarationSelectionIntrinsic> {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
+
+    if call.target_symbol.is_valid() {
+        return None;
+    }
+    let intrinsic = match call.target.as_str() {
+        "encode" => Intrinsic::WireEncode,
+        "decode" => Intrinsic::WireDecode,
+        _ => return None,
+    };
+    let members = program.statement_table.name_path_members(call.receiver);
+    let leaf = members.last()?;
+    program
+        .wire_schemas()
+        .iter()
+        .any(|schema| schema.name.as_str() == leaf.as_str())
+        .then_some(intrinsic)
+}
+
+/// The one caller place an exclusive reference argument denotes.
+pub fn single_exclusive_reference_storage(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    argument: typed_trees::expression::ExpressionHandle,
+) -> Option<(symbols::SymbolHandle, Vec<facts::PlaceSegment>)> {
+    crate::machine_calls::calls::single_exclusive_reference_storage(program, machine, argument)
+}
+
 pub fn classify_expression_call_intrinsic(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
@@ -273,17 +308,23 @@ pub fn storage_address_operand(
 /// These resolved observations neither write caller storage nor install
 /// reference slots. Their runtime operands still execute with their ordinary
 /// effects; an ordinary same-spelled declaration does not select this rule.
+///
+/// `size_of` and `align_of` are the same kind of observation: the call node
+/// retains a layout query, and the answer is a `u64` closed by the selected
+/// target. They are not invocations, so a missing callee body is not an
+/// incomplete reference relation.
 pub(crate) fn expression_call_only_observes_operands(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
-    matches!(
-        classify_expression_call_intrinsic(program, call),
-        Some(
-            AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_)
-                | AuthoredDeclarationSelectionIntrinsic::StorageAddress
+    call.layout_query.is_some()
+        || matches!(
+            classify_expression_call_intrinsic(program, call),
+            Some(
+                AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_)
+                    | AuthoredDeclarationSelectionIntrinsic::StorageAddress
+            )
         )
-    )
 }
 
 /// A descriptor instruction borrows exactly ten bytes. Hardware-written bytes

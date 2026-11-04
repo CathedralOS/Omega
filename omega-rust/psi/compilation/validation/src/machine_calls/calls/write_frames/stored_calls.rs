@@ -78,6 +78,13 @@ fn call_effects(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<SlotRelationTransfer> {
+    if crate::machine_calls::compiler_operations::statement_wire_codec_intrinsic(program, call)
+        .is_some()
+    {
+        // The codec writes through its exclusive arguments. It does not
+        // install a new caller reference slot.
+        return Some(SlotRelationTransfer::complete(Vec::new()));
+    }
     invocation_effects(
         program,
         machine,

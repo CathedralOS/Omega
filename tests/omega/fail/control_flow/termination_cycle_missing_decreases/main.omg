@@ -9,7 +9,7 @@ machine Main::countdown(main: &mut Main, remaining: u64) -> u64
 terminates
 {
     transition remaining > 0 {
-        true -> countdown(main, remaining - 1)
+        true -> Main::countdown(main, remaining - 1)
         false -> 0
     }
 }

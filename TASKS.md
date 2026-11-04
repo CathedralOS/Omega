@@ -242,7 +242,7 @@ retired-syntax deletions to completion.
     `Build::select_provider`, `Build::exclude_service`,
     `Build::select_representation`, `Build::accept_boundary`,
     `Build::require_wire_compatibility`, `Build::assume_binding_contract`).
-  - Retire remaining attachment helpers in checking/lowering without
+  - Retire remaining attached-storage place helpers in checking/lowering without
     restoring hidden argument insertion.
   - Complete checked per-value loan carry evidence for suspension production
     without restoring hidden argument insertion: joins still refuse
@@ -1160,8 +1160,7 @@ defines the complete product bar.
   Owners:
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization/dynamic_families.rs`
   and `omega-rust/psi/compilation/validation/src/machine_calls/calls/dynamic_requirement.rs`.
-  - Complete structural field reads rooted in entry content claims and
-    target-ineligible/const-only bridge qualification.
+  - Complete target-ineligible bridge qualification.
   Acceptance: pass/fail/run finite-family fixtures execute via `omega run --both`
   preserving effects, index identity, and once-only moves/cleanup across
   selection, forwarding, and storage, while unproved membership, missing/wrong

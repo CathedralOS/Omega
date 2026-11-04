@@ -7,7 +7,6 @@ pub(in crate::execution::terminal_unit) fn finish(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
-    attachment_type_identity: Option<typed_trees::type_identity::TypeIdentityId>,
     states: Vec<CheckedComposedUnitControlStatePlan>,
 ) -> Result<CheckedComposedUnitControlMachinePlan, &'static str> {
     let body_qualifications =
@@ -30,7 +29,6 @@ pub(in crate::execution::terminal_unit) fn finish(
         natural_ranks: Vec::new(),
         rank_components: Default::default(),
         preserving_rank_edges: Vec::new(),
-        attachment_type_identity,
         body_qualifications,
         contract_report_fingerprint: contract.report_fingerprint,
         contract_commitment: contract.commitment,

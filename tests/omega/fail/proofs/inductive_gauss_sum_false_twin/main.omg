@@ -21,7 +21,7 @@ ensures
     result * 2 == acc * 2 + n * (n + 1) + 1
 {
     transition n > 0 {
-        true -> gauss_sum(main, n - 1, acc + n)
+        true -> Main::gauss_sum(main, n - 1, acc + n)
         false -> acc
     }
 }

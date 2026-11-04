@@ -382,26 +382,6 @@ pub(crate) fn prepare_place_observations(
     observations.into()
 }
 
-/// The type identity a captured root or referee resolves under. A type naming
-/// the machine itself denotes the attached data record its states operate on.
-fn carrier_identity(
-    checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
-    reference: typed_trees::types::TypeReferenceHandle,
-) -> Result<String, LoweringError> {
-    match checked.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } if *symbol == machine.symbol => {
-            let identity = checked
-                .normalized_nominal_type_identity(machine.attached_data_symbol)
-                .ok_or(LoweringError::Unsupported(
-                    "record loan's attached carrier has no identity",
-                ))?;
-            Ok(checked.type_identity_text(identity).unwrap_or_default())
-        }
-        _ => Ok(checked.normalized_type_identity_text(reference)),
-    }
-}
-
 /// A silent loan names no established place of its own, so a member read or
 /// store through it resolves the storage the loan captured plus the canonical
 /// path from that root to the referee. `None` means the loan's referee has no
@@ -424,8 +404,7 @@ fn captured_place_subject(
     {
         return Ok(None);
     }
-    let (owner, state_declaration) =
-        crate::shared::declarations::state_declaration(checked, state)?;
+    let (_, state_declaration) = crate::shared::declarations::state_declaration(checked, state)?;
     let source = match loan.root {
         checked_trees::CheckedPlaceLoanRoot::StructuralParameter { parameter_index } => {
             LoanedSource::Parameter(parameter_index)
@@ -454,7 +433,7 @@ fn captured_place_subject(
             LoanedSource::Local(parameter.symbol)
         }
     };
-    let root_identity = carrier_identity(checked, owner, loan.root_type)?;
+    let root_identity = checked.normalized_type_identity_text(loan.root_type);
     let mut declaration =
         terminal_psi::structural_type_by_identity(types, identities.intern(&root_identity)).ok_or(
             LoweringError::Unsupported("record loan's captured root has no structural namespace"),
@@ -596,7 +575,7 @@ fn captured_place_subject(
     // this namespace selection from granting access outside the region.
     let mut terminal = declaration.id;
     let mut byte_overlay = None;
-    let referee_identity = carrier_identity(checked, owner, referee)?;
+    let referee_identity = checked.normalized_type_identity_text(referee);
     if (literal_index_tail || runtime_index.is_some())
         && matches!(
             &declaration.shape,
