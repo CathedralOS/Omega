@@ -536,8 +536,12 @@ impl ScalarBindings {
             if alias.selectors.len() != count {
                 return unsupported("place loan selectors were not captured at formation");
             }
+            // The alias has no descriptor word to load. Remove only its
+            // producer-spelled outer crossing; a reference stored inside the
+            // borrowed value still needs its own real pointer load.
+            let omitted_crossing = usize::from(argument.borrowed_root_reference_hops() > 0);
             let mut prefix = alias.loan.path.clone();
-            prefix.extend(argument.path);
+            prefix.extend(argument.path.iter().skip(omitted_crossing).cloned());
             argument.path = prefix;
             let mut coordinates = alias.selectors.clone();
             coordinates.extend(captured);

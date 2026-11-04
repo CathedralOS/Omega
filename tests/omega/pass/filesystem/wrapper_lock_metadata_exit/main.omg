@@ -23,63 +23,63 @@ data Main {
     file_handle: u64;
     close_result: UnitResult;
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.open_result = block Filesystem::create(&mut main.fs, "omega_lock_probe.txt");
-    transition main.open_result { OpenResult::Ok { file } -> seed(main, file) _ -> bad(main, 71) }
+    transition main.open_result { OpenResult::Ok { file } -> block seed(main, file) _ -> bad(main, 71) }
     machine seed(main: &mut Main, file: File) {
         main.file_handle = file.handle;
         main.io_result = block Filesystem::write(&mut main.fs, File { handle: main.file_handle }, "hello");
-        transition main.io_result { IoResult::Ok { count } -> seeded(main, count) _ -> bad(main, 72) }
+        transition main.io_result { IoResult::Ok { count } -> block seeded(main, count) _ -> bad(main, 72) }
     }
     machine seeded(main: &mut Main, count: u64) {
-        transition count == 5 { true -> meta(main) _ -> bad(main, 72) }
+        transition count == 5 { true -> block meta(main) _ -> bad(main, 72) }
     }
     machine meta(main: &mut Main) {
         main.meta_result = block Filesystem::metadata(&mut main.fs, File { handle: main.file_handle });
-        transition main.meta_result { MetadataResult::Ok { meta } -> ckmeta(main, meta) _ -> bad(main, 73) }
+        transition main.meta_result { MetadataResult::Ok { meta } -> block ckmeta(main, meta) _ -> bad(main, 73) }
     }
     machine ckmeta(main: &mut Main, meta: Metadata) {
-        transition meta.len == 5 { true -> lockx(main) _ -> bad(main, 73) }
+        transition meta.len == 5 { true -> block lockx(main) _ -> bad(main, 73) }
     }
     machine lockx(main: &mut Main) {
         main.unit_result = block Filesystem::lock(&mut main.fs, File { handle: main.file_handle });
-        transition main.unit_result { UnitResult::Ok -> contender(main) _ -> bad(main, 74) }
+        transition main.unit_result { UnitResult::Ok -> block contender(main) _ -> bad(main, 74) }
     }
     machine contender(main: &mut Main) {
         let opened: OpenResult = block Filesystem::open(&mut main.fs, "omega_lock_probe.txt");
-        transition opened { OpenResult::Ok { file } -> try_contender(main, file) _ -> bad(main, 82) }
+        transition opened { OpenResult::Ok { file } -> block try_contender(main, file) _ -> bad(main, 82) }
     }
     machine try_contender(main: &mut Main, file: File) {
         let attempted: TryLockResult = block Filesystem::try_lock(&mut main.fs, file);
-        transition attempted { TryLockResult::WouldBlock -> close_contender(main, file) _ -> bad(main, 83) }
+        transition attempted { TryLockResult::WouldBlock -> block close_contender(main, file) _ -> bad(main, 83) }
     }
     machine close_contender(main: &mut Main, file: File) {
         let closed: UnitResult = block Filesystem::close(&mut main.fs, file);
-        transition closed { UnitResult::Ok -> un1(main) _ -> bad(main, 84) }
+        transition closed { UnitResult::Ok -> block un1(main) _ -> bad(main, 84) }
     }
     machine un1(main: &mut Main) {
         main.unit_result = block Filesystem::unlock(&mut main.fs, File { handle: main.file_handle });
-        transition main.unit_result { UnitResult::Ok -> locksh(main) _ -> bad(main, 75) }
+        transition main.unit_result { UnitResult::Ok -> block locksh(main) _ -> bad(main, 75) }
     }
     machine locksh(main: &mut Main) {
         main.unit_result = block Filesystem::lock_shared(&mut main.fs, File { handle: main.file_handle });
-        transition main.unit_result { UnitResult::Ok -> un2(main) _ -> bad(main, 76) }
+        transition main.unit_result { UnitResult::Ok -> block un2(main) _ -> bad(main, 76) }
     }
     machine un2(main: &mut Main) {
         main.unit_result = block Filesystem::unlock(&mut main.fs, File { handle: main.file_handle });
-        transition main.unit_result { UnitResult::Ok -> tryx(main) _ -> bad(main, 77) }
+        transition main.unit_result { UnitResult::Ok -> block tryx(main) _ -> bad(main, 77) }
     }
     machine tryx(main: &mut Main) {
         main.try_result = block Filesystem::try_lock(&mut main.fs, File { handle: main.file_handle });
-        transition main.try_result { TryLockResult::Acquired -> un3(main) _ -> bad(main, 78) }
+        transition main.try_result { TryLockResult::Acquired -> block un3(main) _ -> bad(main, 78) }
     }
     machine un3(main: &mut Main) {
         main.unit_result = block Filesystem::unlock(&mut main.fs, File { handle: main.file_handle });
-        transition main.unit_result { UnitResult::Ok -> trysh(main) _ -> bad(main, 79) }
+        transition main.unit_result { UnitResult::Ok -> block trysh(main) _ -> bad(main, 79) }
     }
     machine trysh(main: &mut Main) {
         main.try_result = block Filesystem::try_lock_shared(&mut main.fs, File { handle: main.file_handle });
-        transition main.try_result { TryLockResult::Acquired -> un4(main) _ -> bad(main, 80) }
+        transition main.try_result { TryLockResult::Acquired -> block un4(main) _ -> bad(main, 80) }
     }
     machine un4(main: &mut Main) {
         main.unit_result = block Filesystem::unlock(&mut main.fs, File { handle: main.file_handle });
@@ -92,7 +92,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

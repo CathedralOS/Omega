@@ -33,10 +33,12 @@ public data LineReadResult {
 public boundary trait Console {
     machine write_line(text: &[u8])
     reaches
-        Console;
+        Console
+    invokes WindowsConsoleIo;
     machine write(text: &[u8])
     reaches
-        Console;
+        Console
+    invokes WindowsConsoleIo;
     // Fill the existing writable extent without resizing it. Preserve every
     // byte, including CR and the terminating LF; callers interpret the prefix.
     // Hosted input may occupy the worker while waiting and traps on a failed
@@ -44,6 +46,7 @@ public boundary trait Console {
     machine read_line(out_line: &mut [u8]) -> LineReadResult
     reaches
         Console
+    invokes WindowsConsoleIo
     blocks
     crashes Trap;
     // Byte-level stdin/stdout (the settled universal console surface):
@@ -55,11 +58,13 @@ public boundary trait Console {
     machine read_byte() -> ByteRead
     reaches
         Console
+    invokes WindowsConsoleIo
     blocks
     crashes Trap;
     machine write_byte(byte: i32)
     reaches
-        Console;
+        Console
+    invokes WindowsConsoleIo;
     machine exit_process(return_code: i32)
     reaches
         Console;

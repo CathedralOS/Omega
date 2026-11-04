@@ -232,7 +232,9 @@ pub(super) fn signature_has_closed_value_effects(
             .iter()
             .all(|parameter| {
                 !parameter.is_mutable
-                    && crate::reference_shell(program, parameter.type_reference).is_none()
+                    && crate::reference_shell(program, parameter.type_reference).is_none_or(
+                        |reference| reference.access == language_semantics::ReferenceAccess::Shared,
+                    )
             })
         && program
             .state_signature_contracts(signature)

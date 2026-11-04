@@ -43,6 +43,7 @@ mod jump;
 pub(crate) mod materialization;
 mod memory;
 mod normalized_foreign_call;
+pub use normalized_foreign_call::callback_group_bytes;
 mod request_validation;
 pub(crate) mod saturating_forms;
 mod scalar_call;

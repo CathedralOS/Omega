@@ -1,5 +1,6 @@
 //! Exercise native layout identity from retained and decoded artifacts only.
 
+use layout_plans::LayoutPlacementReport;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::{NativeLayoutCatalog, NativeLayoutRealization, TerminalModule};
@@ -66,9 +67,11 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact) -> Result<(), String>
                 return Err("native layout lost its exact private slot".into());
             };
             slot.slot_application.validate_identity_encoding()?;
-            if slot.offset != 8 || slot.layout_subject_identity != original.policy_identity {
+            if slot.placements.as_slice() != [LayoutPlacementReport::At { offset: 8 }]
+                || slot.layout_subject_identity != original.policy_identity
+            {
                 return Err(
-                    "native layout changed its selected private slot owner or offset".into(),
+                    "native layout changed its selected private slot owner or placements".into(),
                 );
             }
             sizes.push(
@@ -126,15 +129,23 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact) -> Result<(), String>
         if original != loaded || original.len() != 2 {
             return Err("retained/decoded callback paths differ or omit a private slot".into());
         }
-        let mut offsets = original
+        let placements = original
             .iter()
-            .map(|row| row.field_offset(profile.native_target()))
+            .map(|row| row.field_placements(profile.native_target()))
             .collect::<Result<Vec<_>, _>>()?;
-        offsets.sort_unstable();
-        if offsets != [8, 24]
+        // Each callback still occupies one whole pointer. Compare complete
+        // placements so extra fragments cannot hide behind a matching offset.
+        let expected_placements = [
+            vec![LayoutPlacementReport::At { offset: 8 }],
+            vec![LayoutPlacementReport::At { offset: 24 }],
+        ];
+        if expected_placements
+            .iter()
+            .any(|expected| !placements.contains(expected))
             || original.iter().any(|row| {
                 !row.fields().is_ok_and(|fields| fields.len() == 1)
-                    || row.terminal.offset != 8
+                    || row.terminal.placements.as_slice()
+                        != [LayoutPlacementReport::At { offset: 8 }]
                     || row.root.size != if target == "windows_x86_64" { 48 } else { 40 }
             })
         {
@@ -149,7 +160,7 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact) -> Result<(), String>
         (Mutation::SlotOverlap, "overlaps semantic field storage"),
         (
             Mutation::SlotOverflow,
-            "invalid target alignment or containing extent",
+            "private callback whole-pointer placement exceeds its storage",
         ),
     ] {
         let mut changed = module.clone();
@@ -269,7 +280,7 @@ fn mutate(
                 Mutation::Semantic => {}
                 Mutation::SlotOverlap | Mutation::SlotOverflow => {
                     for row in &mut rows {
-                        row.report.private_callback_demands[0].offset = match mutation {
+                        let offset = match mutation {
                             Mutation::SlotOverlap => 0,
                             _ => row
                                 .report
@@ -277,6 +288,8 @@ fn mutate(
                                 .size
                                 .ok_or("mutation needs a fixed extent")?,
                         };
+                        row.report.private_callback_demands[0].placements =
+                            vec![LayoutPlacementReport::At { offset }];
                     }
                 }
                 Mutation::DropRecord => {}

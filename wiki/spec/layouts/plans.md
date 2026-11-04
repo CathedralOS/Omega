@@ -314,6 +314,45 @@ There is no per-layout registration, Build blessing, manual invocation of
 instantiate its layouts. Normal package review and compile-time execution
 admission still apply.
 
+## Layout demand and validation
+
+Named decision: `demand-driven-layout-formation`, settled 2026-11-03.
+
+Concrete target-layout evaluation is demand-driven. Do not pre-evaluate every
+fixed-representation application in supplied library bodies merely because
+those bodies are imported, resolved, typed or checked. A use reached by no entry,
+no selected Build-row closure and no other checked consumer remains a deferred
+layout application, not an accepted concrete target plan.
+
+An entry or a target-keyed Build row demands the layout applications needed by
+its complete closure, including helpers, callbacks and selected implementations.
+Each row retains its own target applicability even when that target is outside
+the requested output set. `--target` does not suppress validation of another
+declared row's demanded layouts. Target keys remain on Build rows; source bodies
+do not acquire target tags through this rule.
+
+Storage, projections, ABI planning and compile-time operations that consume
+concrete geometry must establish their exact layout demand before using it.
+For example, evaluating `size_of<T>()` or a proof that needs a concrete field
+offset cannot proceed with a placeholder or unvalidated plan. A required policy
+still undergoes admission, evaluation and full validation with the exact schema,
+representation application and authorized target facts. Layout-dependent
+constants retain the ordinary multi-target agreement rules.
+
+Every supplied implementation retains ordinary source checks, including invalid
+code in unselected bodies. Those checks do not require speculative target-fact
+layout formation for otherwise unused applications. A later selection or
+consumer must validate the newly demanded application before it can establish
+an operation's obligations, publish a successful realization or execute. Missing
+facts, invalid plans, cycles and incompatible target geometry reject at that
+point, never as fabricated zero sizes or successful deferred receipts.
+
+Consequently, a package can contain a latent target-layout incompatibility that
+is discovered only when a consumer demands that application. This is the
+accepted diagnostic-timing trade-off, not evidence that the unused layout was
+previously validated. Deferral changes when work is performed, not the validity,
+authority or custody required by a consuming operation.
+
 Applying a layout to existing storage cannot enlarge its authorized footprint
 or widen its access mode, exclusive loan, lifetime or content custody. New
 storage follows ordinary allocation and storage-admission rules; a plan supplies

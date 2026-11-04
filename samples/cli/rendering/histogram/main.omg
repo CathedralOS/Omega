@@ -47,43 +47,43 @@ machine Main::main(main: &mut Main) reaches Console {
     main.k = 0;
 
     transition {
-        _ -> tally_loop(main)
+        _ -> block tally_loop(main)
     }
 
     // Walk the samples; the loop counter `k` is bounded by the array length.
     machine tally_loop(main: &mut Main) {
         transition main.k < 8 {
-            true -> load_sample(main)
-            _ -> done(main)
+            true -> block load_sample(main)
+            _ -> block done(main)
         }
     }
 
     machine load_sample(main: &mut Main) {
         main.v = main.samples[main.k];
         transition {
-            _ -> bounded_tally(main)
+            _ -> block bounded_tally(main)
         }
     }
 
     // Admit the histogram index only where it is provably in range.
     machine bounded_tally(main: &mut Main) {
         transition main.v < 4 {
-            true -> bump(main)
-            _ -> advance(main)
+            true -> block bump(main)
+            _ -> block advance(main)
         }
     }
 
     machine bump(main: &mut Main) {
         main.histogram[main.v] = main.histogram[main.v] + 1;
         transition {
-            _ -> advance(main)
+            _ -> block advance(main)
         }
     }
 
     machine advance(main: &mut Main) {
         main.k = main.k + 1;
         transition {
-            _ -> tally_loop(main)
+            _ -> block tally_loop(main)
         }
     }
 

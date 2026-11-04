@@ -1,8 +1,5 @@
 use super::open_index_expressions::validate_indexed_domain_arguments;
-use super::{
-    StateSignatureOwner, TypeParameterScope, TypeReferenceOwner, type_reference_label,
-    type_references_match,
-};
+use super::{StateSignatureOwner, TypeParameterScope, TypeReferenceOwner, type_reference_label};
 use crate::value_custody::places::collection_operations::type_reference_is_collection;
 use diagnostics::Diagnostic;
 use language_semantics::value_domain::ValueDomain;
@@ -32,15 +29,14 @@ fn domain_is_declared(
                 && domain.semantic_roles.arithmetic_policy.is_some()
                     == constraint.semantic_roles.arithmetic_policy.is_some()
                 && domain.establishment_routes == constraint.establishment_routes
-                && if typed_trees::domain::has_generic_carrier(program, domain) {
-                    constraint.arguments.len()
-                        == typed_trees::domain::index_parameters(program, domain).len()
-                } else if typed_trees::domain::index_parameters(program, domain).is_empty() {
-                    type_references_match(program, base_type, domain.target_type)
-                } else {
-                    constraint.arguments.len()
-                        == typed_trees::domain::index_parameters(program, domain).len()
-                }
+                && constraint.arguments.len()
+                    == typed_trees::domain::index_parameters(program, domain).len()
+                && typed_trees::domain::domain_accepts_carrier(
+                    program,
+                    domain,
+                    base_type,
+                    &constraint.arguments,
+                )
         })
 }
 

@@ -5,8 +5,9 @@
 
 use crate::TypedTrees;
 use crate::name::Identifier;
+use crate::static_applications::StaticMachineApplicationHandle;
 use crate::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
-use crate::typed_trees::ClosedConformanceApplicationSite;
+use crate::typed_trees::{ClosedConformanceApplication, ClosedConformanceApplicationSite};
 
 impl TypedTrees {
     /// Portable identity of the complete selected implementation telescope.
@@ -91,64 +92,93 @@ impl TypedTrees {
             .map(|(site, _, supplying, application)| (site, supplying, application.clone()))
             .collect::<Vec<_>>();
         for (site, binding_application, application) in pending {
-            if !binding_application.is_valid() {
-                return Err(
-                    "closed implementation application lost its supplying source application"
-                        .into(),
-                );
-            }
-            // Specialization owns the executable body, not its caller's regions.
-            // The retained binding application preserves the supplying telescope.
-            let owner = self
-                .static_machine_application(binding_application)
-                .lexical_owner;
-            let arguments = application
-                .arguments
-                .iter()
-                .map(|argument| self.static_operand_type_reference_in_scope(argument, owner))
-                .collect::<Result<Vec<_>, _>>()?;
-            let lifetimes = application
-                .lifetime_arguments
-                .iter()
-                .map(Identifier::generated)
-                .collect::<Vec<_>>();
-            let declaration = self
-                .conformance_by_symbol(application.declaration)
-                .ok_or_else(|| {
-                    let source_owner = match site {
-                        ClosedConformanceApplicationSite::TraitArgument(handle) => self
-                            .trait_implementation_applications
-                            .get(handle)
-                            .source_scope
-                            .supplying_owner(),
-                        _ => symbols::SymbolHandle::invalid(),
-                    };
-                    format!(
-                        "closed implementation application lost its declaration: site={site:?}, declaration={:?} ({:?}), supplying_application={binding_application:?}, generated_owner={owner:?} ({:?}), retained_source_owner={source_owner:?} ({:?})",
-                        application.declaration,
-                        self.symbols.display_path(application.declaration, "::"),
-                        self.symbols.display_path(owner, "::"),
-                        self.symbols.display_path(source_owner, "::"),
-                    )
-                })?;
-            let scope = AppliedTraitScope::from_conformance_application(
-                self,
-                declaration,
-                TraitApplicationArguments {
-                    lexical_owner: owner,
-                    enclosing_data_applications: &[],
-                    arguments: &arguments,
-                    lifetimes: &lifetimes,
-                },
-            )
-            .ok_or("closed implementation application lost its complete source telescope")?;
-            let scope = scope.environment().retain(self)?;
-            self.closed_conformance_application_at_mut(site)
-                .ok_or("closed implementation application lost its occurrence")?
-                .trait_scope = scope;
-            self.prepare_realization_contracts(&application, owner, scope)
-                .map_err(str::to_owned)?;
+            self.prepare_closed_conformance_scope(site, binding_application, application)?;
         }
+        Ok(())
+    }
+
+    /// Keep the public signature available as soon as this call selects an
+    /// implementation. Its own source application supplies every captured
+    /// argument and region.
+    pub fn prepare_closed_conformance_occurrence_scope(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+    ) -> Result<(), String> {
+        if !application.is_valid() {
+            return Err(
+                "closed implementation application lost its supplying source application".into(),
+            );
+        }
+        let site = ClosedConformanceApplicationSite::Occurrence(application);
+        let selected = self
+            .closed_conformance_application_at_mut(site)
+            .ok_or("closed implementation application lost its occurrence")?
+            .clone();
+        self.prepare_closed_conformance_scope(site, application, selected)
+    }
+
+    fn prepare_closed_conformance_scope(
+        &mut self,
+        site: ClosedConformanceApplicationSite,
+        binding_application: StaticMachineApplicationHandle,
+        application: ClosedConformanceApplication,
+    ) -> Result<(), String> {
+        if !binding_application.is_valid() {
+            return Err(
+                "closed implementation application lost its supplying source application".into(),
+            );
+        }
+        // Specialization owns the executable body, not its caller's regions.
+        // The retained binding application preserves the supplying telescope.
+        let owner = self
+            .static_machine_application(binding_application)
+            .lexical_owner;
+        let arguments = application
+            .arguments
+            .iter()
+            .map(|argument| self.static_operand_type_reference_in_scope(argument, owner))
+            .collect::<Result<Vec<_>, _>>()?;
+        let lifetimes = application
+            .lifetime_arguments
+            .iter()
+            .map(Identifier::generated)
+            .collect::<Vec<_>>();
+        let declaration = self
+            .conformance_by_symbol(application.declaration)
+            .ok_or_else(|| {
+                let source_owner = match site {
+                    ClosedConformanceApplicationSite::TraitArgument(handle) => self
+                        .trait_implementation_applications
+                        .get(handle)
+                        .source_scope
+                        .supplying_owner(),
+                    _ => symbols::SymbolHandle::invalid(),
+                };
+                format!(
+                    "closed implementation application lost its declaration: site={site:?}, declaration={:?} ({:?}), supplying_application={binding_application:?}, generated_owner={owner:?} ({:?}), retained_source_owner={source_owner:?} ({:?})",
+                    application.declaration,
+                    self.symbols.display_path(application.declaration, "::"),
+                    self.symbols.display_path(owner, "::"),
+                    self.symbols.display_path(source_owner, "::"),
+                )
+            })?;
+        let scope = AppliedTraitScope::from_conformance_application(
+            self,
+            declaration,
+            TraitApplicationArguments {
+                lexical_owner: owner,
+                enclosing_data_applications: &[],
+                arguments: &arguments,
+                lifetimes: &lifetimes,
+            },
+        )
+        .ok_or("closed implementation application lost its complete source telescope")?;
+        let scope = scope.environment().retain(self)?;
+        self.closed_conformance_application_at_mut(site)
+            .ok_or("closed implementation application lost its occurrence")?
+            .trait_scope = scope;
+        self.prepare_realization_contracts(&application, owner, scope)
+            .map_err(str::to_owned)?;
         Ok(())
     }
 }

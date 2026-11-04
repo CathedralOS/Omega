@@ -268,6 +268,24 @@ fn predicate_holds_on_current_storage(
             bindings.push((field.name.to_string(), value));
         }
     }
+    // A requirement may depend only on the field just written. Prove it from
+    // captured current fields even when write-only authority prevents reading
+    // the rest of the record. Do not invent a complete record or assume the
+    // requirement being checked.
+    if let Some(term) = current_projection_predicate(
+        program,
+        judge,
+        place,
+        application,
+        definition,
+        predicate,
+        (&parameters, &bindings),
+    ) && matches!(
+        judge.judge_observed_predicate(term, 0),
+        StructuralJudgment::Proven
+    ) {
+        return true;
+    }
     let subject_demanded = definition.predicate_subject_symbol.is_valid()
         && crate::queries::expression_traversal::visit_pre_order(
             program,
@@ -312,6 +330,164 @@ fn predicate_holds_on_current_storage(
         Some((machine, state)),
     );
     matches!(judgment, StructuralJudgment::Proven)
+}
+
+/// Prove a field-only requirement using captured current fields. If it needs
+/// the whole record, crosses a reference, or uses an unavailable field, fall
+/// back to the complete-record check. Missing fields never become assumed values.
+fn current_projection_predicate(
+    program: &dyn crate::CheckingInput,
+    judge: &super::structural_judgment::StructuralJudge<'_>,
+    place: &crate::CanonicalPlace,
+    application: TypeReferenceHandle,
+    definition: &DataDefinition,
+    predicate: ExpressionHandle,
+    environment: (
+        &[StateParameter],
+        &[(String, super::structural_judgment::StructuralTerm)],
+    ),
+) -> Option<super::structural_judgment::StructuralTerm> {
+    let (parameters, bindings) = environment;
+    // Field declarations type the question; only captured contents supply values.
+    let mut parameters = parameters.to_vec();
+    for field in program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_field())
+    {
+        if !parameters
+            .iter()
+            .any(|parameter| parameter.symbol == field.symbol)
+        {
+            let path = [facts::PlaceSegment::Field {
+                symbol: field.symbol,
+            }];
+            parameters.push(StateParameter {
+                symbol: field.symbol,
+                name: field.name.clone(),
+                type_reference: crate::project_type_reference_from_segments(
+                    program,
+                    application,
+                    &path,
+                )?,
+                ..Default::default()
+            });
+        }
+    }
+    if definition.predicate_subject_symbol.is_valid() {
+        parameters.push(StateParameter {
+            symbol: definition.predicate_subject_symbol,
+            name: "\0current_predicate_subject".into(),
+            type_reference: application,
+            ..Default::default()
+        });
+    }
+    let observed_projection = std::cell::Cell::new(false);
+    let unavailable_projection = std::cell::Cell::new(false);
+    let term = super::structural_terms::structural_term(
+        program,
+        None,
+        Some((definition.symbol, &parameters)),
+        predicate,
+        Some(&|expression| {
+            if let Some(path) = super::super::default_domains::predicate_projection(
+                program,
+                definition,
+                application,
+                expression,
+            ) {
+                let selected = (!path.is_empty())
+                    .then(|| predicate_projection_place(program, place, application, &path))
+                    .flatten();
+                let value = selected.as_ref().and_then(|selected| {
+                    judge.captured_place_projection(selected, ContentPlaceVersion::Current)
+                });
+                if super::struct_trace() {
+                    eprintln!(
+                        "STRUCT current-predicate-field data={} expression={expression:?} selected={selected:?} value={value:?}",
+                        definition.name,
+                    );
+                }
+                if value.is_some() {
+                    observed_projection.set(true);
+                } else {
+                    unavailable_projection.set(true);
+                }
+                return value;
+            }
+            // A refused projection must not become a symbolic field or subject
+            // through the ordinary term reader's fallback. This also covers
+            // capture expressions reached through static or mathematical calls.
+            if predicate_storage_root(program, definition, expression) {
+                unavailable_projection.set(true);
+                return None;
+            }
+            let name = program.expression_table.name_path_node(expression)?;
+            let parameter = parameters
+                .iter()
+                .find(|parameter| parameter.symbol == name.symbol)?;
+            bindings
+                .iter()
+                .find(|(name, _)| *name == parameter.name.as_str())
+                .map(|(_, value)| value.clone())
+        }),
+    )?;
+    // An opaque call can omit its operands from term construction. It has no
+    // identity bound to the observed arguments, so leave it to the full check.
+    (observed_projection.get() && !unavailable_projection.get() && term.has_observation_identity())
+        .then_some(term)
+}
+
+fn predicate_storage_root(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(root) = crate::canonical_place_from_expression(program, expression)
+        .and_then(|place| place.root.as_symbol())
+    else {
+        return false;
+    };
+    root == definition.predicate_subject_symbol
+        || program
+            .data_members(definition)
+            .iter()
+            .any(|member| match member {
+                typed_trees::data::DataMember::Field(field) => field.symbol == root,
+                typed_trees::data::DataMember::Variant(case) => program
+                    .data_payload_fields(case)
+                    .iter()
+                    .any(|field| field.symbol == root),
+            })
+}
+
+/// Rejoin semantic fields to their actual storage at every nested projection.
+/// Only fixed coordinates are available here; a runtime selector still needs
+/// its own captured value and cannot be replaced by a chosen array element.
+fn predicate_projection_place(
+    program: &dyn crate::CheckingInput,
+    place: &crate::CanonicalPlace,
+    mut reference: TypeReferenceHandle,
+    path: &[facts::PlaceSegment],
+) -> Option<crate::CanonicalPlace> {
+    let mut selected = place.clone();
+    for segment in path {
+        match *segment {
+            facts::PlaceSegment::Field { symbol } => {
+                let definition =
+                    crate::value_custody::places::data_definition_for_type(program, reference)?;
+                selected = predicate_field_place(program, &selected, definition, symbol)?;
+            }
+            facts::PlaceSegment::FixedIndex { .. } => selected.segments.push(*segment),
+            _ => return None,
+        }
+        reference = crate::project_type_reference_from_segments(
+            program,
+            reference,
+            std::slice::from_ref(segment),
+        )?;
+    }
+    Some(selected)
 }
 
 /// Predicates name semantic fields; a selected layout owns distinct physical

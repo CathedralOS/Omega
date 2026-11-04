@@ -16,7 +16,7 @@ impl EvaluationSemanticsIdentity {
 }
 
 pub const CURRENT_EVALUATION_SEMANTICS: EvaluationSemanticsIdentity =
-    EvaluationSemanticsIdentity(5);
+    EvaluationSemanticsIdentity(6);
 
 /// Identity of the deterministic evaluator-step schedule used before the
 /// canonical portable IR exists.
@@ -306,16 +306,16 @@ impl<T> MeasuredEvaluation<T> {
 /// One executed compiler-known private layout placement. The static
 /// conformance application is retained exactly; semantic validation, not the
 /// evaluator, decides whether it is the declared slot for the active layout.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PrivateLayoutPlacementReceipt {
     pub operation_expression: typed_trees::expression::ExpressionHandle,
     pub selected_slot: typed_trees::expression::StaticMachineArgument,
-    pub offset: u64,
+    pub placement: build_time_values::BuildTimeValue,
 }
 
 /// Structured evaluation plus compiler-only operation receipts. Receipts are
 /// not Omega values and cannot be observed or fabricated by evaluated code.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BuildTimeOperationEvaluation<T> {
     pub(crate) measured: MeasuredEvaluation<T>,
     pub(crate) private_layout_placements: Vec<PrivateLayoutPlacementReceipt>,

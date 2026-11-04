@@ -52,12 +52,13 @@ pub(super) fn scalar_completion(
         return None;
     }
     if let Some(binding) = returned_binding {
-        // The state's final expression. A closing terminal machine call's
-        // bound result completes through `terminal_calls::completion`.
-        return (matches!(
-            statements.get(terminator_index..),
-            Some([StatementNode::Expression(_)])
-        ) && binding.primitive_type == primitive_type)
+        // The retained result is complete before this terminator, including
+        // when typing normalized its final invocation into a value arm.
+        return (terminator_index.checked_add(1)? == statements.len()
+            && control::completion_expression(program, machine, state, terminator_index)
+                .is_some()
+            && usize::try_from(binding.statement_index).ok()? == terminator_index
+            && binding.primitive_type == primitive_type)
             .then_some(checked_trees::CheckedScalarReturnPlan::Binding(*binding));
     }
     let (exits, prefix) =
@@ -280,27 +281,55 @@ pub(super) fn return_value_operation(
     // The expression produces a value, including a permission descriptor when
     // returning a reference. Argument presentation peels its shell and names
     // the referent; it cannot classify the returned carrier.
-    let mut result = control::checked_structural_result_type(
+    trace.phase("state graph: structural return value: returned type");
+    trace.statement(Some(statement_ordinal));
+    let result = control::checked_structural_result_type(
         program,
         shapes,
         state.return_type,
         &crate::execution::terminal_unit::types::machine_binders(program, machine),
-    )?;
+    );
+    if result.is_none() && std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+        eprintln!(
+            "CHECKSITE completion-return-type machine={} state={} type={:?} declaration={:?} stored_loan={:?} slice={:?}",
+            machine.name,
+            state.name,
+            state.return_type,
+            program
+                .type_reference_table
+                .type_reference(state.return_type),
+            validation::reference_result_custody::stored_loan_parts(program, state.return_type),
+            validation::slice_view_shell(program, state.return_type, &[]),
+        );
+    }
+    let mut result = result?;
     result.statement_index = statement_ordinal;
     result.binding_ordinal = u32::try_from(*count).ok()?;
     *count = count.checked_add(1)?;
-    Some((
-        control::structural_operands::establish_value(
-            facts,
-            result,
+    trace.phase("state graph: structural return value: producer");
+    trace.statement(Some(statement_ordinal));
+    let operation = control::structural_operands::establish_value(
+        facts,
+        result,
+        root.root,
+        calls,
+        None,
+        false,
+        &mut operand_calls,
+    );
+    if operation.is_none() && std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+        eprintln!(
+            "CHECKSITE completion-return-producer machine={} state={} root={:?} value={:?}",
+            machine.name,
+            state.name,
             root.root,
-            calls,
-            None,
-            false,
-            &mut operand_calls,
-        )?,
-        operand_calls,
-    ))
+            facts.values.structural_values.nodes.get(root.root),
+        );
+    }
+    let operation = operation?;
+    trace.phase("state graph: structural return value: finished");
+    trace.statement(Some(statement_ordinal));
+    Some((operation, operand_calls))
 }
 
 /// Materialize exact authored literal octets into fresh bounded ownership,

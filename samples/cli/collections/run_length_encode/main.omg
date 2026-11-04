@@ -38,21 +38,21 @@ machine Main::main(main: &mut Main) reaches Console {
     main.i = 1;
     main.runs = 0;
     transition {
-        _ -> step(main)
+        _ -> block step(main)
     }
 
     machine step(main: &mut Main) {
         transition main.i < 20 {
-            true -> read(main)
-            _ -> done(main)
+            true -> block read(main)
+            _ -> block done(main)
         }
     }
 
     machine read(main: &mut Main) {
         main.b = main.data[main.i];
         transition main.b == main.prev {
-            true -> bump(main)
-            _ -> emit_mid(main)
+            true -> block bump(main)
+            _ -> block emit_mid(main)
         }
     }
 
@@ -60,7 +60,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.count = main.count + 1;
         main.i = main.i + 1;
         transition {
-            _ -> step(main)
+            _ -> block step(main)
         }
     }
 
@@ -76,7 +76,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.count = 1;
         main.i = main.i + 1;
         transition {
-            _ -> step(main)
+            _ -> block step(main)
         }
     }
 
@@ -89,7 +89,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("");
         main.runs = main.runs + 1;
         transition {
-            _ -> finish(main)
+            _ -> block finish(main)
         }
     }
 

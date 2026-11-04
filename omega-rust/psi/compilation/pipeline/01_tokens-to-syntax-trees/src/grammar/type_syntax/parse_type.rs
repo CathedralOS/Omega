@@ -190,8 +190,19 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         ));
     }
 
-    let (base_name, mut input) = parse_static_name(input)?;
+    let (base_name, input) = parse_static_name(input)?;
+    parse_named_type_reference(syntax_trees, base_name, input, allow_trailing_domain)
+}
 
+/// Parse a named carrier after its owner has consumed the name. Domain heads
+/// reserve the following `::` for the domain rather than the carrier path;
+/// their type applications still use exactly the ordinary argument grammar.
+pub(crate) fn parse_named_type_reference<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    base_name: Identifier,
+    mut input: Input<'tokens, 'source>,
+    allow_trailing_domain: bool,
+) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
     let mut type_reference = if input.at_punctuation(PunctuationKind::Less) {
         input = input.take_punctuation(PunctuationKind::Less, "<")?;
         let mut lifetime_arguments = Vec::new();

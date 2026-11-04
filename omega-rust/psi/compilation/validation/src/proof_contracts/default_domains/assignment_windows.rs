@@ -1,32 +1,29 @@
-//! Handling assignments: preserving proven establishment, refusing open
-//! windows and the case facts an assignment mentions.
+//! Track which record requirements an assignment must restore.
 //!
-//! A runtime-selected field write can preserve an already valid region without
-//! identifying the selected element. It cannot restore an invalid region: two
-//! writes with the same wildcard spelling may select different elements. Keep
-//! preservation separate from re-establishment, including debt inherited from
-//! predecessor states and debt on overlapping concrete places.
+//! Two writes through a computed array index may select different elements.
+//! A valid replacement preserves an already valid array, but cannot prove that
+//! an earlier invalid element was restored. Requirements left unfinished by an
+//! earlier state or an overlapping write still need proof.
 
 use crate::proof_contracts::default_domains::data_reads::range_gates_hold;
 use crate::proof_contracts::default_domains::place_queries::{
     data_definition_for_expression, data_has_case_where_facts, declared_root_established,
-    fact_span_mentions_field, field_is_where_mentioned, is_data_rooted, is_subplace,
-    membership_field, place_spelling_covers, place_spellings_may_overlap, write_place_spelling,
+    is_data_rooted, is_subplace, membership_field, place_spelling_covers,
+    place_spellings_may_overlap, write_place_spelling,
 };
 use crate::proof_contracts::default_domains::state_flow::PlaceValuation;
 use crate::proof_contracts::default_domains::symbolic_values::{
     LiteralValue, expression_sequence_measures, expression_symbolic_value, fold, literal_value,
 };
-use crate::proof_contracts::default_domains::{InvariantWindow, TrackedPlace};
+use crate::proof_contracts::default_domains::{DomainRequirement, InvariantWindow, TrackedPlace};
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
-/// A call invalidates exact field valuations through aliasing, but it cannot
-/// invalidate establishment: every accepted write in every checked callee must
-/// leave the default domain true. Preserve that monotone fact before clearing
-/// the more precise tracked valuation.
+/// A call may change field contents, but a checked callee must restore the
+/// record's requirements before returning. Retain that validity after checking
+/// open windows, then discard any precise values the call may change.
 pub(crate) fn preserve_proven_establishment(
     tracked: &[TrackedPlace<'_>],
     established: &mut Vec<String>,
@@ -39,34 +36,48 @@ pub(crate) fn preserve_proven_establishment(
     );
 }
 
-/// Ch11 (slice 8): refuse every open invariant window at a consumption
-/// point, naming the place and the point -- both this state's own open
-/// windows and the ones transported from predecessor states.
+/// Report a record that still needs restoration when a call or return would
+/// expose it. Point at the write that opened the window when it is available.
 pub(crate) fn refuse_open_windows(
     tracked: &[TrackedPlace<'_>],
     inherited_windows: &[InvariantWindow],
+    machine: &Machine,
+    state: &State,
+    statement_index: Option<usize>,
     consumption_point: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if !tracked.iter().any(TrackedPlace::any_window_open) && inherited_windows.is_empty() {
+        return;
+    }
+    let point = match statement_index {
+        Some(index) => format!(
+            "{consumption_point} at statement {} in machine `{}` state `{}`",
+            index + 1,
+            machine.name,
+            state.name
+        ),
+        None => format!(
+            "{consumption_point} from machine `{}` state `{}`",
+            machine.name, state.name
+        ),
+    };
     for place in tracked.iter().filter(|place| place.any_window_open()) {
-        diagnostics.push(Diagnostic::error(format!(
-            "data `{}`'s default domain is still FALSE at {consumption_point}: the \
-             invariant window opened on `{}` must close first -- restore the \
-             `requires` facts before this consumption point (ch11)",
-            place.definition.name.as_str(),
-            place.spelling
-        )));
+        let mut diagnostic = Diagnostic::error(format!(
+            "cannot complete {point}: this write left the `requires` facts of `{}` (data `{}`) unproved; restore them first",
+            place.spelling, place.definition.name,
+        ));
+        if let Some(opening) = place.opening_write {
+            diagnostic = diagnostic.with_source_span(opening);
+        }
+        diagnostics.push(diagnostic);
     }
     for (spelling, data_name, _) in inherited_windows {
         if tracked.iter().any(|place| place.spelling == *spelling) {
-            // The tracked entry already reported (open) or closed it.
             continue;
         }
         diagnostics.push(Diagnostic::error(format!(
-            "data `{data_name}`'s default domain is still FALSE at {consumption_point}: \
-             the invariant window opened on `{spelling}` in a predecessor state must \
-             close first -- restore the `requires` facts before this consumption point \
-             (ch11 window transport)"
+            "cannot complete {point}: an earlier state left the `requires` facts of `{spelling}` (data `{data_name}`) unproved; restore them first"
         )));
     }
 }
@@ -89,6 +100,15 @@ pub(crate) fn handle_assignment<'program>(
     let Some(assignment) = statement.as_assignment() else {
         return;
     };
+    let resident_requirement =
+        crate::atomic_assignment_carrier(program, assignment).and_then(|_| {
+            super::where_fact_intervals::stored_field_where_interval(
+                program,
+                machine,
+                state,
+                assignment.target,
+            )
+        });
     let target = assignment.target;
     let value = assignment.value;
     // The binding naming the record this state's places are rooted at; see
@@ -173,13 +193,15 @@ pub(crate) fn handle_assignment<'program>(
                 spelling,
                 definition,
                 fields,
-                established_fields: Vec::new(),
+                established_fields: super::established_common_fields(program, definition),
+                pending_requirements: Vec::new(),
                 symbols,
                 measures,
                 // Assignment checking proved the exact destination type.
                 established: true,
                 born_zero: place_born_zero,
                 window_open: false,
+                opening_write: None,
                 elements: Vec::new(),
                 element_windows: Vec::new(),
                 // Whole replacement transports the same completed case row as
@@ -242,6 +264,12 @@ pub(crate) fn handle_assignment<'program>(
             return;
         }
     };
+    if crate::proof_contracts::contract_entailment::struct_trace() {
+        eprintln!(
+            "DEFAULT assignment-origins machine={} destinations={:?}",
+            machine.name, origins.destinations,
+        );
+    }
     let definite = origins.destinations.len() == 1;
     for origin in origins.destinations {
         let coordinate = match origin.storage_coordinate(program, state) {
@@ -296,6 +324,7 @@ pub(crate) fn handle_assignment<'program>(
                 born_zero,
                 statement_index,
                 data_binding,
+                resident_requirement,
             );
         }
     }
@@ -413,6 +442,7 @@ fn handle_field_store<'program>(
     born_zero: bool,
     statement_index: usize,
     data_binding: Option<&str>,
+    resident_requirement: Option<crate::proof_contracts::arithmetic_domains::Interval>,
 ) {
     // Replacing this field retires tracked descendants of its actual backing,
     // independently of the alias that named the performed store.
@@ -477,6 +507,7 @@ fn handle_field_store<'program>(
         receiver_spelling,
         definition,
         entry_valuations,
+        inherited_windows,
         poisoned_all,
         poisoned_paths,
         born_zero,
@@ -535,6 +566,10 @@ fn handle_field_store<'program>(
             }
             place.established = true;
             place.window_open = false;
+            place.pending_requirements.clear();
+            if !place.any_window_open() {
+                place.opening_write = None;
+            }
             return;
         }
         // A symbolic or representation-changing store may lack a literal
@@ -559,20 +594,42 @@ fn handle_field_store<'program>(
     {
         place.established_fields.push(field.symbol);
     }
-    // CASE-CONSTRAINTS (ch12): the facts a field write must re-prove include
-    // the ACTIVE case's `where` facts. A known active case contributes its
-    // own fact set only when the write touches a fact-mentioned name; an
-    // unknown active case joins the facts of every case whose fact set
-    // mentions the field (a payload write is only meaningful under a case
-    // that owns the name, so demanding each candidate's facts is the
-    // conservative meet).
-    let case_fact_spans = case_fact_spans_mentioning(program, place, &field_name);
-    if !field_is_where_mentioned(program, place.definition, &field_name)
-        && case_fact_spans.is_empty()
-        && !field_type.is_some_and(|field_type| {
-            crate::value_custody::data::type_requires_establishment(program, field_type)
+    // The atomic checker already proved that the replacement preserves the
+    // resident bound. Reuse that proof only for the same field, numeric
+    // interpretation and bound. Plain stores update the requirements below.
+    let resident_field = resident_requirement
+        .filter(|checked| {
+            whole_field
+                && store.preserves_scalar_value
+                && super::where_fact_intervals::atomic_field_interval(
+                    program,
+                    place.definition,
+                    store.field,
+                ) == Some(*checked)
         })
-    {
+        .map(|_| store.field.symbol);
+    let requirements = domain_requirements(program, place.definition, place.active_case);
+    if crate::proof_contracts::contract_entailment::struct_trace() {
+        eprintln!(
+            "DEFAULT owner-store machine={} data={} receiver={:?} destination={:?} field={:?} requirements={}",
+            machine.name,
+            place.definition.name,
+            store.receiver,
+            store.destination,
+            store.field.symbol,
+            requirements.len(),
+        );
+    }
+    if !requirements.iter().any(|requirement| {
+        super::place_queries::fact_names_field(
+            program,
+            place.definition,
+            &requirement.fact,
+            &field_name,
+        )
+    }) && !field_type.is_some_and(|field_type| {
+        crate::value_custody::data::type_requires_establishment(program, field_type)
+    }) {
         return;
     }
     let valuation: Vec<(&str, Option<LiteralValue>)> = place
@@ -586,141 +643,142 @@ fn handle_field_store<'program>(
     // predicates still require the post-write proof below. A fresh invalid
     // root must establish its gates; scalar writes cannot mint child membership.
     let mut all_hold = region_was_established || range_gates_hold(program, place);
-    // Interval-only facts each bound one field, and every store to that field
-    // is range-checked against it, so they hold after any accepted store.
-    let store_checked =
-        whole_field && super::data_where_field_intervals(program, place.definition).is_some();
-    // Const-only clauses settle at application. A tag-only clause is also
-    // preserved by a scalar field store; whole-value replacement owns its
-    // tag and complete default-domain construction obligation separately.
     let definition = place.definition;
-    // A collection-predicate fact over other fields is untouched by this
-    // store; its element windows are tracked separately.
     let written_field = selected_field.map(|field| field.symbol);
-    // Read the same ordered obligation roster as establishment and handback.
-    // Closed storage preserves untouched rows; a fresh root or open window
-    // still owes every conjunct, including field-free false obligations.
-    let declared_facts = if store_checked {
-        Vec::new()
-    } else {
-        program
-            .conjunctive_proof_facts(definition.where_facts)
-            .collect()
-    };
-    let type_facts = declared_facts.iter().filter(|fact| {
-        if !region_was_established {
-            return true;
-        }
-        if !super::place_queries::fact_names_field(program, definition, fact, &field_name) {
-            return false;
-        }
-        if store
-            .destination
-            .segments
-            .strip_prefix(store.receiver.segments.as_slice())
-            .is_some_and(|path| {
-                super::place_queries::fact_is_disjoint_from_store(program, definition, fact, path)
-            })
-        {
-            return false;
-        }
-        let Some(expression) = fact.as_expression() else {
-            return true;
-        };
-        written_field.is_none_or(|written| {
-            crate::proof_contracts::collection_predicates::data_fact_applies_to_field(
+    // A case change replaces the value and its obligations. A known current
+    // tag also makes the other cases' conditional requirements inapplicable.
+    place.pending_requirements.retain(|requirement| {
+        !requirement.case.is_valid()
+            || place
+                .active_case
+                .is_none_or(|active| active == requirement.case)
+    });
+    let requirements = requirements
+        .into_iter()
+        .filter(|requirement| {
+            if !place.established || place.pending_requirements.contains(requirement) {
+                return true;
+            }
+            if !super::place_queries::fact_names_field(
                 program,
                 definition,
-                *expression,
-                written,
-            ) != Some(false)
-        })
-    });
-    let case_facts = case_fact_spans
-        .iter()
-        .copied()
-        .flat_map(|span| program.proof_facts.span_or_empty(span));
-    for fact in type_facts.chain(case_facts) {
-        match fact {
-            typed_trees::domain::ProofFact::Expression(expression) => {
-                match fold(
+                &requirement.fact,
+                &field_name,
+            ) {
+                return false;
+            }
+            let disjoint = store
+                .destination
+                .segments
+                .strip_prefix(store.receiver.segments.as_slice())
+                .is_some_and(|path| {
+                    super::place_queries::fact_is_disjoint_from_store(
+                        program,
+                        definition,
+                        &requirement.fact,
+                        path,
+                    )
+                });
+            if crate::proof_contracts::contract_entailment::struct_trace() {
+                eprintln!(
+                    "DEFAULT owner-requirement machine={} data={} fact={:?} disjoint={disjoint}",
+                    machine.name, definition.name, requirement.fact,
+                );
+            }
+            if disjoint {
+                return false;
+            }
+            let Some(expression) = requirement.fact.as_expression() else {
+                return true;
+            };
+            written_field.is_none_or(|written| {
+                crate::proof_contracts::collection_predicates::data_fact_applies_to_field(
                     program,
-                    place.definition,
-                    &valuation,
-                    &place.symbols,
-                    &place.measures,
-                    place.born_zero,
-                    place.active_case,
+                    definition,
                     *expression,
-                ) {
-                    Some(value) if value != 0 => {}
-                    // Ch11 (slice 8): a checkable violation OPENS a window instead
-                    // of refusing -- the consumption points demand closure.
-                    Some(_) => all_hold = false,
-                    None if written_field.is_some_and(|written| {
-                        super::post_store_predicates::post_store_predicate_holds(
-                            program,
-                            machine,
-                            state,
-                            statement_index,
-                            &store.receiver,
-                            store.receiver_type,
-                            store.preserves_scalar_value,
-                            &store.destination,
-                            place,
-                            written,
-                            value,
-                            *expression,
-                        )
-                    }) => {}
-                    None => {
-                        all_hold = false;
-                        // A named runtime value may be written into multiple
-                        // correlated fields inside one invariant window. Its
-                        // stable symbol lets a later write prove equality; do
-                        // not reject before that closing write arrives.
-                        // An unknown intermediate value remains unproved;
-                        // the next consumption must establish the complete
-                        // domain. Later stores may close the same window.
-                    }
-                }
-            }
-            typed_trees::domain::ProofFact::Membership(membership) => {
-                let mentioned = membership_field(program, place.definition, membership.value);
-                if mentioned.is_some_and(|field| Some(field.symbol) == written_field) {
-                    if !crate::proof_contracts::proof_facts::string_literal_grants_domain(
+                    written,
+                ) != Some(false)
+            })
+        })
+        .collect::<Vec<_>>();
+    for requirement in requirements {
+        let fact = &requirement.fact;
+        let resident_proven = !requirement.case.is_valid()
+            && resident_field.is_some_and(|field| {
+                super::place_queries::data_predicate_fields(program, place.definition, fact)
+                    == [field]
+            });
+        let proven = resident_proven
+            || match fact {
+                typed_trees::domain::ProofFact::Expression(expression) => {
+                    match fold(
                         program,
-                        value,
-                        membership.domain_symbol,
+                        place.definition,
+                        &valuation,
+                        &place.symbols,
+                        &place.measures,
+                        place.born_zero,
+                        place.active_case,
+                        *expression,
                     ) {
-                        all_hold = false;
+                        Some(value) => value != 0,
+                        None => written_field.is_some_and(|written| {
+                            super::post_store_predicates::post_store_predicate_holds(
+                                program,
+                                machine,
+                                state,
+                                statement_index,
+                                &store.receiver,
+                                store.receiver_type,
+                                store.preserves_scalar_value,
+                                &store.destination,
+                                place,
+                                written,
+                                value,
+                                *expression,
+                            )
+                        }),
                     }
-                } else if mentioned.is_none() {
-                    all_hold &= crate::proof_contracts::proof_facts::string_literal_grants_domain(
-                        program,
-                        membership.value,
-                        membership.domain_symbol,
-                    );
-                } else if !place.established || place.any_window_open() {
-                    // A write to another field preserves a previously true
-                    // membership, but cannot manufacture a missing one.
-                    all_hold = false;
                 }
-            }
-            typed_trees::domain::ProofFact::Proposition(_) => {
-                // Proposition entailment is proof-layer work. The default-domain
-                // interval checker must not pretend a proposition is Boolean.
-                all_hold = false;
-            }
+                typed_trees::domain::ProofFact::Membership(membership) => {
+                    let mentioned = membership_field(program, place.definition, membership.value);
+                    if mentioned.is_some_and(|field| Some(field.symbol) == written_field) {
+                        crate::proof_contracts::proof_facts::string_literal_grants_domain(
+                            program,
+                            value,
+                            membership.domain_symbol,
+                        )
+                    } else if mentioned.is_none() {
+                        crate::proof_contracts::proof_facts::string_literal_grants_domain(
+                            program,
+                            membership.value,
+                            membership.domain_symbol,
+                        )
+                    } else {
+                        place.established && !place.any_window_open()
+                    }
+                }
+                // An unproved proposition remains owed; it is not a Boolean value.
+                typed_trees::domain::ProofFact::Proposition(_) => false,
+            };
+        if crate::proof_contracts::contract_entailment::struct_trace() {
+            eprintln!(
+                "DEFAULT owner-proof machine={} data={} fact={fact:?} proven={proven}",
+                machine.name, definition.name,
+            );
+        }
+        if proven {
+            place
+                .pending_requirements
+                .retain(|pending| *pending != requirement);
+        } else if !place.pending_requirements.contains(&requirement) {
+            place.pending_requirements.push(requirement);
         }
     }
-    // Every fact re-proven at the post-write valuation: the place
-    // satisfies its domain again (any open window CLOSES; a gated place
-    // establishes). A checkable violation leaves the window OPEN for the
-    // consumption points to police (ch11). A wildcard write preserves a
-    // previously established, debt-free region when its post-write facts hold,
-    // but cannot close an existing region window. Its selected position is not
-    // an identity shared with earlier writes, even in a predecessor state.
+    all_hold &= place.pending_requirements.is_empty();
+    // Close the window only after every requirement holds. A runtime-selected
+    // element may differ between writes, so it can preserve an already valid
+    // region but cannot establish that an earlier invalid element was restored.
     if all_hold && (!place.spelling.contains("[*]") || region_was_established) {
         place.established = true;
         place.window_open = false;
@@ -729,6 +787,13 @@ fn handle_field_store<'program>(
         // previously established value owns restoration debt; reads of an
         // unfinished whole value still fail the establishment gate.
         place.window_open = place.established || place.window_open;
+    }
+    if place.any_window_open() {
+        place
+            .opening_write
+            .get_or_insert(program.expression_table.source_span(value));
+    } else {
+        place.opening_write = None;
     }
 }
 
@@ -741,6 +806,7 @@ pub(super) fn tracked_receiver<'program>(
     receiver_spelling: String,
     definition: &'program typed_trees::data::DataDefinition,
     entry_valuations: &[PlaceValuation],
+    inherited_windows: &[InvariantWindow],
     poisoned_all: bool,
     poisoned_paths: &[String],
     born_zero: bool,
@@ -752,9 +818,8 @@ pub(super) fn tracked_receiver<'program>(
     {
         return position;
     }
-    // R2 rung 3 slice 5: seed the fresh place from its transported entry
-    // valuation unless an opaque call, or a known overlapping write,
-    // poisoned this place's view.
+    // Reuse incoming field values only when no call or overlapping write has
+    // invalidated them. Unknown contents remain unknown.
     let poisoned = poisoned_all
         || poisoned_paths
             .iter()
@@ -774,11 +839,28 @@ pub(super) fn tracked_receiver<'program>(
     }) || declared_root_established(program, state, receiver_root)
         || (data_rooted
             && !crate::value_custody::data::data_requires_establishment(program, definition));
+    let pending_requirements = if !established
+        || inherited_windows.iter().any(|(spelling, _, _)| {
+            place_spelling_covers(&receiver_spelling, spelling)
+                || place_spelling_covers(spelling, &receiver_spelling)
+        }) {
+        domain_requirements(program, definition, seeded_case)
+    } else {
+        Vec::new()
+    };
     tracked.push(TrackedPlace {
         spelling: receiver_spelling,
         definition,
         fields: seeded_fields,
-        established_fields: Vec::new(),
+        // A valid incoming record already establishes each child's declared
+        // type. Changing another field does not require reconstructing that
+        // child. Any nested write still has its own tracked restoration window.
+        established_fields: if established {
+            super::established_common_fields(program, definition)
+        } else {
+            Vec::new()
+        },
+        pending_requirements,
         symbols: Vec::new(),
         measures: Vec::new(),
         // Zero-satisfying data is born established; gated data must
@@ -797,6 +879,7 @@ pub(super) fn tracked_receiver<'program>(
                         .state_local_declaration(state, receiver_root)
                         .is_some_and(|(_, local)| !local.initial_value.is_valid()))),
         window_open: false,
+        opening_write: None,
         elements: Vec::new(),
         element_windows: Vec::new(),
         alternatives: Vec::new(),
@@ -805,40 +888,35 @@ pub(super) fn tracked_receiver<'program>(
     tracked.len() - 1
 }
 
-/// CASE-CONSTRAINTS (ch12): the case-local `where` fact spans a field write
-/// must re-prove. When the place's active case is known, only that case's
-/// facts apply -- and only when the written field is one the facts name
-/// (an unrelated write preserves the current window state, exactly as an
-/// unrelated common-field write does). When the active case is unknown, the
-/// write joins every case whose fact set names the field: a payload write is
-/// only meaningful under a case owning that binding, so requiring each
-/// candidate's facts is the conservative meet. A known case without facts
-/// (or whose facts ignore the field) contributes nothing -- an omitted case
-/// clause contributes true.
-fn case_fact_spans_mentioning(
+/// List every declaration requirement that must hold before exposing this
+/// value. Keep case identities distinct when its tag is not known.
+fn domain_requirements(
     program: &dyn crate::CheckingInput,
-    place: &TrackedPlace<'_>,
-    field_name: &str,
-) -> Vec<arena::HandleSpan<typed_trees::domain::ProofFact>> {
-    program
-        .data_members(place.definition)
-        .iter()
-        .filter_map(|member| {
-            let variant = member.as_variant()?;
-            if variant.where_facts.is_empty()
-                || !fact_span_mentions_field(
-                    program,
-                    place.definition,
-                    variant.where_facts,
-                    field_name,
-                )
-                || place
-                    .active_case
-                    .is_some_and(|active| active != variant.symbol)
-            {
-                return None;
-            }
-            Some(variant.where_facts)
+    definition: &typed_trees::data::DataDefinition,
+    active_case: Option<symbols::SymbolHandle>,
+) -> Vec<DomainRequirement> {
+    let mut requirements = program
+        .conjunctive_proof_facts(definition.where_facts)
+        .map(|fact| DomainRequirement {
+            case: symbols::SymbolHandle::invalid(),
+            fact,
         })
-        .collect()
+        .collect::<Vec<_>>();
+    for member in program.data_members(definition) {
+        let Some(case) = member.as_variant() else {
+            continue;
+        };
+        if active_case.is_some_and(|active| active != case.symbol) {
+            continue;
+        }
+        requirements.extend(
+            program
+                .conjunctive_proof_facts(case.where_facts)
+                .map(|fact| DomainRequirement {
+                    case: case.symbol,
+                    fact,
+                }),
+        );
+    }
+    requirements
 }

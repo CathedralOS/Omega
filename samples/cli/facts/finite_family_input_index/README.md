@@ -1,91 +1,204 @@
-# finite family input index
+# Keep the ordinary input index through a selected function
 
-Owning outcomes: **FINITE-GENERIC-DISPATCH** and
-**RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** in [TASKS.md](../../../../TASKS.md).
+These programs select a function at runtime, then pass its result through calls,
+storage and state transitions. The result must retain the captured value of the
+ordinary `limit` argument. Its payload remains 7.
+
+Owning tasks: **BUILD-OWNED-TARGET-SELECTION** and **FINITE-GENERIC-DISPATCH**
+in [TASKS.md](../../../../TASKS.md).
 
 A finite-family result retains the captured ordinary input index through selection, forwarding and storage, and its payload remains 7.
 
-The finite-specialization and dynamic-family contracts retain each exact public tuple and the ordinary operand's captured index. Generic substitution uses declaration identity, including formal parameter position; private provider names cannot identify public result subjects. The provider deliberately renames every binder. A wrong-provider control returns the other same-carrier input index and must reject.
+The public `Family::row` contract returns `Indexed<limit>` for widths 16 and 32.
+The helper renames those parameters to `Span`, `payload` and `bound`; matching
+must use their declarations and positions. It cannot substitute another ordinary
+argument merely because its carrier is also `u32`.
 
-The local reproduction first failed because prepared public formal symbols were orphan roots; after attaching exact executable owners, conformance matching still ignored the already established positional value binding. The repair records the complete child telescope under its fresh executable signature and consults exact existing formal correspondence in dependent named indices. Logical checking views retain their existing identities.
+Each program saves `limit == 16`, evaluates an input helper, then supplies the
+current limit to the selected member. A positive helper leaves that limit alone.
+Its twin changes the limit to 32 before the second ordinary argument is read.
+The result can no longer have the saved index 16. That twin must refuse the
+index mismatch; a caller guard does not establish a missing index relationship.
+The wrong-provider control instead declares its result against `payload`, rather
+than `bound`, and must also refuse.
 
-Each positive runs both tuples/conformances and passes its result through the named transport place to a payload check of 7. Every twin changes only the nested first operand to write 32 into the ordinary index input before that second operand is read. The saved old index cannot type the completed result. This must reach `cannot prove runtime index subject equality`, rather than a carrier, provider, roster or nested-call refusal. The const-name place names the preserved result index; both match arms execute. Four hosted entry bindings are present; only Linux x86-64 execution is measured here.
+## Places and existing controls
 
-Sources and oracles are mirrored under tests/omega/{pass,fail}/facts/finite_family_input_index. Establishment comes from the declaration and admitted tuple; identity belongs to the operand snapshot; forwarding and storage preserve it. The ordinary checked call path publishes Terminal Psi and native artifacts with no synthesized result index or storage authority. Publication requires fixed-candidate capture, independent review and the normal merge queue; whole-item std authority and canonical automatic cleanup remain separate acceptance obligations.
+| Place | Positive | Index-sensitive twin |
+| --- | --- | --- |
+| Local | [program](local/main.omg) | [reject](local/invalid/main.omg) |
+| Field | [program](field/main.omg) | [reject](field/invalid/main.omg) |
+| Parameter | [program](parameter/main.omg) | [reject](parameter/invalid/main.omg) |
+| Call result | [program](call_result/main.omg) | [reject](call_result/invalid/main.omg) |
+| Match join | [program](match_join/main.omg) | [reject](match_join/invalid/main.omg) |
+| Const name | [program](const_name/main.omg) | [reject](const_name/invalid/main.omg) |
+| Nested machine | [program](other_state/main.omg) | [reject](other_state/invalid/main.omg) |
+| Other machine | [program](other_machine/main.omg) | [reject](other_machine/invalid/main.omg) |
+| Selected target body | [program](target_body/main.omg) | [reject](target_body/invalid/main.omg) |
 
-The target-body production also exposed result discovery that accepted only entry-state symbols. A portable family call may name its exact machine head; signature discovery retains that common result contract without choosing a target body or granting a receiver. Missing target bodies remain realization failures.
+The original three parameter compositions remain:
 
-## Public family membership
+- [Local width](parameter/controls/local_width/main.omg) copies the input before
+  selecting a row. Its [twin](parameter/controls/local_width/invalid/main.omg)
+  removes only the establishing membership contract.
+- [Replaced width](parameter/controls/replaced_width/main.omg) lets an earlier
+  operand write 32 into the row-selection variable. Both initial widths must
+  observe row 32, the unchanged neighboring limit 16 and payload 7. Its
+  [twin](parameter/controls/replaced_width/invalid/main.omg) changes the write
+  and its own postcondition to 64, outside the public family.
+- [Reordered roster](parameter/controls/reordered_roster/main.omg) declares
+  widths 32, 16 and 16 while the caller retains its 16-or-32 contract. Its
+  [twin](parameter/controls/reordered_roster/invalid/main.omg) admits 64 only at
+  the caller; every admitted alternative must satisfy the public requirement.
 
-The family roster uses `requires`. At fixed base
-`6e5131c510b9e6227b4592652c9a5a39e350a970`, optimized producer
+The [wrong-provider control](wrong_provider/invalid/main.omg), all nine twins
+and those compositions stay in scope. All 25 discovered projects have matching
+corpus Main/Build companions. No project is removed because its outcome is red.
+
+## Observe the actual calls
+
+Both implementations still return the same payload, so that value alone cannot
+expose a wrong implementation. One ordinary mutable array records what actually
+ran. It is explicit data, separate from the `dyn Family` selector:
+
+| Element | Written by | Checked value |
+| --- | --- | --- |
+| 0 | The selected member | 31 for `Selected`, 47 for `Other` |
+| 1 | The renamed helper | Its actual family width |
+| 2 | The renamed helper | Its actual ordinary limit, 16 |
+| 3 | The match helper | 3 or 7 for the chosen arm; 0 elsewhere |
+| 4 | The input helper | One call, counted with wrapping arithmetic |
+
+Each positive exercises both widths with both named implementations. The match
+caller supplies its expected arm marker independently; inverting the match or
+always taking one arm must trap. The nested-machine place carries the current
+observation array as an ordinary state argument after the producing call.
+
+These checks observe execution after the existing result transport. They add no
+input precondition, change no `Indexed` carrier and prove no static index fact.
+The public result type supplies that fact before any runtime check runs. Every
+positive retains the four hosted entry bindings and `Expected exit: 0`.
+
+## Build selects the relay
+
+The four identical target-prefixed `relay` bodies become one ordinary
+`PortableInputIndexRelay` implementation. Four explicit Build rows select it for
+Windows x86-64, Linux x86-64, macOS ARM64 and Linux ARM64. The portable caller
+uses the public `InputIndexRelay::relay` requirement.
+
+That requirement has empty service reach. The caller names its synchronous
+entry with `invokes InputIndexRelay`; selecting code adds no service identity.
+Build chooses the relay implementation. The explicit `dyn Family` selector
+parameter passes through that relay and selects the inner family member.
+Both calls keep their data arguments explicit.
+
+## Review the selected result type
+
+The selected relay returns `Indexed<16>`. Its `Limit: u32` declaration is a
+value parameter, so a literal 16 is a valid argument. Package review must retain
+that exact type just as the checker and both execution engines do. It must not
+mistake the declared value parameter for a type-only parameter.
+
+The retained Linux compiler at `60cb5e1f79dd` checks and executes the selected
+target program, but ordinary `omega update` rejects its package review with
+`package review rejects a const expression outside one exact declared const-parameter slot`.
+The source and oracle were frozen before changing the compiler. The shared
+review validator now recognizes the exact declaration's value or const
+parameter, as the existing conformance and calling-signature review already do.
+It retains declaration ownership, argument position, expression identity and
+binder checks. A literal in a type-only parameter is still ineligible.
+
+Independent source review accepted this correction. Linux and macOS now pass
+the full focused scope below. The existing static inline-result target and twin
+also confirm that ordinary const-parameter review is preserved.
+
+## Requirements and validation
+
+The governing contracts are [runtime index identity](../../../../wiki/spec/language/generics.md#runtime-index-identity-and-storage),
+[finite specialization](../../../../wiki/spec/language/generics.md#finite-specialization-boundary),
+[finite dynamic families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families),
+[dependent values](../../../../wiki/spec/language/dependent_values.md),
+[provider selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection)
+and [service reach and invocation](../../../../wiki/spec/language/effects.md).
+
+Establishment comes from the public family and exact ordinary argument.
+Identity belongs to that argument's captured value, rather than a later value
+of the same variable. Calls, fields, joins and state transitions must preserve
+it. The reject twins challenge only their own index or membership obligation.
+Ordinary borrow and cleanup rules still apply to the observation argument;
+recording a value grants no extra access or lifetime.
+
+The complete checked call, family table, selected Build row and result survive
+Terminal production, interpretation, calling plans and native execution on the
+two measured hosts. The focused scope includes this row's 12 positive projects
+and 13 reject controls, plus the existing static inline-result target and twin.
+
+At exact source `6877d16bd42c53f2c3dd9a9cf4f733a6ffdbd550`,
+[Linux qualification](https://github.com/CathedralOS/Omega/actions/runs/41813105626)
+and the [macOS replay](https://github.com/CathedralOS/Omega/actions/runs/41817261002)
+each observe 13 checked positives, 14 intended corpus refusals and 13 actual
+native/Terminal exit-zero agreements. All 27 ordinary projects meet their
+expectations: 13 zero agreements and 14 intended refusals. The selected-target
+program now completes ordinary package review and executes at zero.
+
+Both compiler profiles use optimization level 1. The macOS replay authenticates
+the exact binaries from its [two-case seed](https://github.com/CathedralOS/Omega/actions/runs/41813109293);
+it performs no second compiler build and changes no gate limits. The
+[source archive](https://github.com/CathedralOS/Omega/pull/1805) retains that
+measured compiler independently of later metadata and publication.
+
+The final follow-up also includes an already published floating-point proof
+repair. Independent review verified that this additional change affects only
+sealed floating-point catalog selection; this row's integer, Boolean, index and
+selector consumers are unchanged. These results remain observations at
+`6877d16bd42`, with that applicability argument. They are not a new-head replay.
+Published corpus records remain unchanged because their status, facts and
+diagnostics match the actual focused observations; new CLI evidence is retained
+separately.
+
+This completes the selected-relay migration and its ordinary package-review
+repair on Linux x86-64 and macOS ARM64. Windows, Linux ARM64, Product producer
+parity and the broader acceptance of both parent tasks remain open.
+
+<details>
+<summary>Earlier source and measurements</summary>
+
+The target-prefixed programs were working migration inputs, not a demonstrated
+compiler defect. At fixed published source
+`60cb5e1f79dd05465f77775990e46bcc2e789470`, the
+[optimized Linux baseline](https://github.com/CathedralOS/Omega/actions/runs/41798897195)
+observed 12 checked positives, 13 intended corpus refusals and 12 actual
+native/Terminal zero agreements. Ordinary projects had 12 zero agreements,
+ten matching refusals and three failures caused by missing authored rejection
+text. Those diagnostics were the intended family-membership refusals. Their
+existing corpus fragments were copied into the samples; the original job
+remains failed.
+
+With the strengthened inputs at `09e488e7eb34` and that same compiled producer,
+[the input-only run](https://github.com/CathedralOS/Omega/actions/runs/41811098484)
+checked all 25 cases and observed all 12 corpus zero agreements. Ordinary
+projects had 11 zero agreements, 13 intended refusals and one valid
+selected-target package-review failure. The frozen target was replayed to
+capture its exact diagnostic before the one-file compiler repair. The source,
+producer and failure remain historical rather than being relabeled as success.
+
+The [previous README](https://github.com/CathedralOS/Omega/blob/60cb5e1f79dd05465f77775990e46bcc2e789470/samples/cli/facts/finite_family_input_index/README.md)
+retains the original index-binding repair and membership investigation. Fixed
+base `6e5131c510b9e6227b4592652c9a5a39e350a970` and optimized producer
 `96a6da9b73e3b863bcf2238aeca3db1cbb61268d5ce0c4a8ab44d39abad2eab0`
-refuses the spelling-only migrated parameter witness: `cannot prove requires
-contract for call dyn Family::row`, naming `Width == 16 || Width == 32`.
-The caller already establishes the corresponding predicate on its `width`.
-The dynamic call's retained application must carry that exact runtime actual
-into the public contract; the selected implementation supplies no stronger
-premise. The nine existing places, index-sensitive twins and wrong-provider
-control retain their original values, indices and consuming operations.
+refused the parameter membership call before its repair.
 
-[Local width](parameter/controls/local_width/main.omg) copies the same input
-into a local before selecting the family row. Its [twin](parameter/controls/local_width/invalid/main.omg)
-removes only the establishing membership contract.
-[Replaced width](parameter/controls/replaced_width/main.omg) lets an earlier
-data operand replace the row-selection scalar, with an explicit public write
-postcondition. It retains the same captured ordinary index and payload 7.
-Its result also records the selected width: both initial widths must observe
-row 32 and an untouched neighboring limit of 16. Reading the old row, omitting
-the write, corrupting the neighbor or losing the payload traps. Its
-[twin](parameter/controls/replaced_width/invalid/main.omg) changes only the
-replacement and its own postcondition from 32 to 64, outside the declared roster.
-Both controls are pinned under `tests/omega/{pass,fail}/traits/runtime_dyn_family_*`.
+At `7b6988120e7ed1d2a87b396676600fd78f378042`, the earlier Linux scope had
+17 checked and 17 intended rejected corpus cases; 16 native/Terminal pairs
+agreed at zero and the existing nested-result neighbor agreed at 70. A
+corrupted replaced-width expectation trapped in both engines. Those results
+remain historical and do not qualify the new observation arguments.
 
-These compositions use the same fact and operation as the existing row. They
-establish exact application identity and current storage observations after
-ordinary operands complete; missing or stale membership remains a source
-obligation. The ordinary checked plans and complete evaluation bindings carry
-those observations through Terminal production and dispatch, with the existing
-record layout, calling plans and native encoding. Native/Terminal observations
-are recorded with their actual producer and host; this does not close Product
-producer parity, operational-envelope refinement or other-host acceptance.
+The [original evidence archive](https://github.com/CathedralOS/Omega/blob/e84e6e4660226bd086c7b9accf17f5bba8fc4f7c/wiki/drafts/measurements/dynamic_family_membership_2026_11_01/raw-evidence.tar.gz)
+retains commands, logs, producer identities and the source bundle. Its SHA-256
+is `5c0c4ba9c5e4b05f9aebe1092293c629b9d5b7e4f9fa3e316a65a7959f5fd089`.
+The recorded optimized CLI SHA-256 is
+`15a75295c6e8eafd66c290ba0834660d85f07b8a2117f8087b831bacfed676d1`.
+These observations do not establish Product parity or other-host execution.
 
-[Reordered roster](parameter/controls/reordered_roster/main.omg) uses the same
-finite widths with reversed order and a duplicate. Its caller keeps the original
-16-or-32 contract. The [twin](parameter/controls/reordered_roster/invalid/main.omg)
-adds 64 only to the caller's admitted alternatives; all alternatives must imply
-the public requirement. Prefix alternatives enter only a private entailment
-query after operand formation; they do not become global facts or establish
-their own partial operations. The local production also uses the shared
-parameter-plus-local symbol roster, so a local width cannot read the selector's
-parameter slot. The larger `runtime_dyn_family_nested_result` fixture retains
-its original duplicate/reordered three-width roster and exit-70 oracle.
-
-## Measured replay
-
-Optimized source checkpoint `7b6988120e7ed1d2a87b396676600fd78f378042`
-was measured on Linux x86-64 over the fixed base above. The scoped Source
-checks covered 34 fixtures: 17 checked and 17 rejected with their expected
-fragments. Native/Terminal execution covered 17 positive fixtures: 16 agreed
-on exit 0 and the unchanged nested-result fixture agreed on exit 70. This
-includes all nine places, the three compositions, both migrated fixtures and
-three existing dynamic-contract/division-snapshot controls. A deliberately
-corrupted replaced-width oracle (expecting row 16 instead of 32) traps in both
-engines with the same final producer.
-
-Focused Clippy for `validation`, `typed-trees-to-checked-trees` and
-`checked-trees-to-lowered-psi` completed with existing warnings. The Source
-control's diagnostic label changed from `terminal expression` to `return value`;
-the retained fixed-base producer confirms the latter wording and the same
-independent-formation rejection. The division-snapshot native result had no
-prior golden row; its successful actual replay was recorded separately.
-
-The [raw evidence archive](https://github.com/CathedralOS/Omega/blob/e84e6e4660226bd086c7b9accf17f5bba8fc4f7c/wiki/drafts/measurements/dynamic_family_membership_2026_11_01/raw-evidence.tar.gz)
-at the pinned pre-publication evidence commit retains commands, logs, producer
-digests, canonical context and the exact
-source bundle (requiring the fixed base). Its SHA-256 is
-`5c0c4ba9c5e4b05f9aebe1092293c629b9d5b7e4f9fa3e316a65a7959f5fd089`. Extract it at a repository root.
-The final CLI SHA-256 is
-`15a75295c6e8eafd66c290ba0834660d85f07b8a2117f8087b831bacfed676d1`
-(opt-level 1). These observations do not establish Product compiler parity or
-execution on other hosts.
+</details>

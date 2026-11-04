@@ -183,8 +183,27 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::PrimitiveLocalStore { value, .. } => {
                 visit(value.value)
             }
+            LegalizedScalarInstructionKind::ActivateTaskRegister {
+                selector, indices, ..
+            } => {
+                visit(*selector);
+                for index in indices.iter().flatten() {
+                    visit(index.operand.value);
+                }
+            }
+            LegalizedScalarInstructionKind::ReloadSegmentDescriptors {
+                selector, indices, ..
+            } => {
+                visit(*selector);
+                for index in indices.iter().flatten() {
+                    visit(index.operand.value);
+                }
+            }
+            LegalizedScalarInstructionKind::ReadTaskRegister { .. }
+            | LegalizedScalarInstructionKind::ReadSegmentSelector { .. } => {}
             LegalizedScalarInstructionKind::ByteSequenceLength { indices, .. }
             | LegalizedScalarInstructionKind::ElementViewLength { indices, .. }
+            | LegalizedScalarInstructionKind::GlobalDescriptorTable { indices, .. }
             | LegalizedScalarInstructionKind::StorageAddress { indices, .. }
             | LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
@@ -456,6 +475,38 @@ pub enum LegalizedScalarInstructionKind {
         boundary: semantic_vocabulary::BoundaryMachineId,
     },
     StorageAddress {
+        source: semantic_vocabulary::PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
+    },
+    ActivateTaskRegister {
+        service: semantic_vocabulary::ServiceId,
+        entries: u16,
+        gdt: terminal_psi::StructuralArgument,
+        task_state: terminal_psi::StructuralArgument,
+        selector: ValueId,
+        scratch: terminal_psi::StructuralArgument,
+        indices: [Vec<LegalizedRuntimeIndexOperand>; 3],
+    },
+    ReloadSegmentDescriptors {
+        service: semantic_vocabulary::ServiceId,
+        entries: u16,
+        kind: terminal_psi::SegmentReload,
+        gdt: terminal_psi::StructuralArgument,
+        selector: ValueId,
+        scratch: terminal_psi::StructuralArgument,
+        indices: [Vec<LegalizedRuntimeIndexOperand>; 2],
+    },
+    ReadSegmentSelector {
+        service: semantic_vocabulary::ServiceId,
+        register: terminal_psi::SegmentRegister,
+    },
+    ReadTaskRegister {
+        service: semantic_vocabulary::ServiceId,
+    },
+    GlobalDescriptorTable {
+        service: semantic_vocabulary::ServiceId,
+        operation: terminal_psi::GlobalDescriptorTableOperation,
         source: semantic_vocabulary::PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
         indices: Vec<LegalizedRuntimeIndexOperand>,
@@ -1096,6 +1147,11 @@ impl LegalizedScalarInstructionKind {
             | Self::SelectImplementation { .. }
             | Self::FloatResultPolicy { .. }
             | Self::PortWrite { .. }
+            | Self::ActivateTaskRegister { .. }
+            | Self::ReadTaskRegister { .. }
+            | Self::ReloadSegmentDescriptors { .. }
+            | Self::ReadSegmentSelector { .. }
+            | Self::GlobalDescriptorTable { .. }
             | Self::RegisterAccess { .. }
             | Self::AtomicFence { .. }
             | Self::AccessorScalarAccess { .. }

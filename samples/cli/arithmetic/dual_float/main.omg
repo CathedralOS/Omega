@@ -52,8 +52,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Check sum_f32 is ~7.0.
     transition main.f.sum_f32 > 6.9 {
-        true -> check_sum_upper(main)
-        _ -> bad_sum_low(main)
+        true -> block check_sum_upper(main)
+        _ -> block bad_sum_low(main)
     }
 
     machine bad_sum_low(main: &mut Main) {
@@ -65,8 +65,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine check_sum_upper(main: &mut Main) {
         transition main.f.sum_f32 < 7.1 {
-            true -> check_diff_low(main)
-            _ -> bad_sum_high(main)
+            true -> block check_diff_low(main)
+            _ -> block bad_sum_high(main)
         }
     }
     machine bad_sum_high(main: &mut Main) {
@@ -79,8 +79,8 @@ machine Main::main(main: &mut Main) reaches Console {
     // Check diff_f64 is ~3.5.
     machine check_diff_low(main: &mut Main) {
         transition main.f.diff_f64 > 3.4 {
-            true -> check_diff_high(main)
-            _ -> bad_diff_low(main)
+            true -> block check_diff_high(main)
+            _ -> block bad_diff_low(main)
         }
     }
     machine bad_diff_low(main: &mut Main) {
@@ -92,8 +92,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine check_diff_high(main: &mut Main) {
         transition main.f.diff_f64 < 3.6 {
-            true -> store_result(main)
-            _ -> bad_diff_high(main)
+            true -> block store_result(main)
+            _ -> block bad_diff_high(main)
         }
     }
     machine bad_diff_high(main: &mut Main) {
@@ -107,8 +107,8 @@ machine Main::main(main: &mut Main) reaches Console {
     machine store_result(main: &mut Main) {
         main.f.result = 70;
         transition main.f.result == 70 {
-            true -> good(main)
-            _ -> bad_result(main)
+            true -> block good(main)
+            _ -> block bad_result(main)
         }
     }
 

@@ -270,8 +270,17 @@ mod authored_type_occurrence_tests {
             BinaryOperator, OpenIndexOperationSelection, StaticMachineArgument,
             TableBinaryExpression, TableCastExpression,
         };
-        let mut program = TypedTrees::default();
-        let owner = SymbolHandle::from_parts(41, 1);
+        // Per-owner discovery finds a machine body through its declared
+        // symbol kind, so the owner must be a registered machine symbol.
+        let mut symbols = symbols::SymbolTableBuilder::default();
+        let owner = symbols.insert_root(
+            symbols::SymbolKind::Machine,
+            symbols::SymbolNameRef::Static("owner"),
+        );
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
         let mut ty = |name: &str| {
             program
                 .type_reference_table

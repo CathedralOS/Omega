@@ -522,15 +522,18 @@ impl Expansion<'_> {
                 });
             }
         }
-        // A direct callee's scalar formals as its body receives them; each
-        // actual arrives as `received_scalar_type` says.
+        // A direct callee's scalar formals as its body or boundary declaration
+        // receives them; each actual arrives as `received_scalar_type` says.
         let arrival_types = match callee.static_target() {
-            Some(_) if !signature.boundary => Some(
+            Some(_) if signature.boundary => self
+                .qualifications
+                .boundary_scalar_formals(self.checked, target_machine),
+            Some(_) => Some(
                 self.qualifications
                     .scalar_state_types(self.checked, target_state)?
                     .0,
             ),
-            _ => None,
+            None => None,
         };
         let mut prefixes = vec![input_types.to_vec()];
         let mut scalar_actuals = vec![None; scalars.len()];
@@ -682,6 +685,32 @@ impl Expansion<'_> {
                     self.structural_types,
                 )?,
             })
+        } else if let checked_trees::CheckedScalarCallee::DescriptorTable {
+            operation,
+            service,
+            ..
+        } = callee
+        {
+            LoweredScalarBinding::DescriptorTable(
+                crate::emission::operation_emission::descriptor_tables::LoweredDescriptorTableBinding {
+                    source_coordinate: coordinate.statement().ok_or_else(|| {
+                        LoweringError::InvalidDeclarationIdentity(
+                            "checked task-register instruction lost its statement coordinate"
+                                .to_owned(),
+                        )
+                    })?,
+                    loan_completions,
+                    source_site: checked_trees::NominalMachineUseSite::Expression(
+                        source.expression,
+                    ),
+                    target_machine,
+                    result_type,
+                    operation: *operation,
+                    service: *service,
+                    arguments: scalar_actuals,
+                    structural_arguments,
+                },
+            )
         } else if signature.boundary {
             let coordinate = coordinate.statement().ok_or(LoweringError::Unsupported(
                 "boundary invocation lacks statement custody",

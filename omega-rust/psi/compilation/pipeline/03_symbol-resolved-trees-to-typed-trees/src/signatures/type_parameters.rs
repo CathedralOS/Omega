@@ -109,6 +109,8 @@ pub(crate) fn lower_type_parameter_kind(
                         lowered_arguments.push(lower_type_reference_into_table(lowerer, argument)?);
                     }
                     typed::data::MachineParameterContract::Nominal {
+                        receiving_trait: *trait_definition,
+                        receiving_arguments: lowered_arguments.clone(),
                         trait_definition: *trait_definition,
                         requirement: *requirement,
                         trait_arguments: lowered_arguments,

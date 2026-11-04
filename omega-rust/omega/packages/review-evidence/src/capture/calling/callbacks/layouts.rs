@@ -157,7 +157,7 @@ pub(super) fn project(
         || source_slot.slot_identity != terminal.identity
         || source_slot.layout_subject_identity != terminal.policy
         || source_slot.callback_requirement_identity != terminal.requirement_identity
-        || source_slot.offset != terminal.offset
+        || source_slot.placements.as_slice() != terminal.placements.as_slice()
     {
         return Err(rejected(
             "callback slot differs from its exact source-owned review application",
@@ -184,11 +184,11 @@ pub(super) fn project(
             &source_slot.slot_application.application,
             lifetime_binders,
         )?,
-        terminal_offset: terminal.offset,
+        terminal_placements: terminal.placements.as_slice().to_vec(),
         terminal_byte_size: terminal.size,
         terminal_alignment: terminal.alignment,
-        composed_offset: entry
-            .composed_offset()
+        composed_placements: entry
+            .composed_placements()
             .map_err(|reason| rejected(&reason))?,
     })
 }

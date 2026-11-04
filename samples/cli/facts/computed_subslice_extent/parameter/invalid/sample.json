@@ -2,8 +2,7 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "cannot prove requires contract for call range from exercise",
-    "end <= items.len",
-    "in state `entry`"
+    "cannot prove subslice range",
+    "slice length"
   ]
 }

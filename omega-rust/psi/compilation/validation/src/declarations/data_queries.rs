@@ -59,7 +59,7 @@ pub(crate) fn data_field_type_by_symbol(
 /// a nested selection still visits its owning field, and predicate calls
 /// still visit every argument. Unknown name resolution and whole-owner uses
 /// cannot establish independence. The field's own type remains unchanged.
-pub(crate) fn data_field_is_where_independent(
+pub fn data_field_is_where_independent(
     program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     field: &typed_trees::data::DataField,

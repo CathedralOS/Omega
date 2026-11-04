@@ -42,6 +42,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         .report;
     let artifact = report.retained_native_artifact().unwrap().psi_artifact();
     let request = |target| TerminalRuntimeRequest {
+        native_image: None,
         entry: None,
         filesystem: Default::default(),
         native_services: Default::default(),

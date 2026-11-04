@@ -216,6 +216,9 @@ pub fn prepare_typed_trees(
     // targets.
     // Cloning binds only its newly produced instance after substitution; no
     // final whole-program receiver repair or data-method search is needed.
+    // A rebound reference parameter becomes a local home before any later
+    // stage reads its name as the caller's referent.
+    crate::rebound_parameter_homes::materialize(&mut program);
     validation::resolve_dynamic_call_targets(&mut program)?;
     program.retain_static_argument_contexts();
     // Executable specialization retains each consumed source application;
@@ -385,10 +388,12 @@ pub fn prepare_typed_trees(
     // A carrier that was open before binding must be judged after its caller
     // telescope and inferred destinations have closed, before frozen checking.
     phase_profile::scope("psi.04.post_specialization.domain_test_carriers", || {
+        // Specialized contract facts name their copied binders; the authored
+        // contract environments supply those binders' closed types.
         let contracts = arena::Arena::default();
         let owners =
-            validation::expression_owners::OwnerEnvironmentIndex::new(&program, &contracts);
-        validation::validate_executable_domain_test_carriers(&program, &contracts, &owners)
+            validation::expression_owners::OwnerEnvironmentIndex::for_preparation(&program);
+        validation::validate_domain_membership_carriers(&program, &contracts, &owners)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     phase_profile::scope("psi.04.post_specialization.assembly_admit", || {
@@ -520,6 +525,9 @@ pub fn prepare_constant_execution(mut program: TypedTrees) -> Result<TypedTrees,
     let type_frontier = program.type_reference_table.type_reference_count();
     value_location_alignment::settle(&mut program)?;
     elaborate(&mut program)?;
+    // A rebound reference parameter becomes a local home before any later
+    // stage reads its name as the caller's referent.
+    crate::rebound_parameter_homes::materialize(&mut program);
     validation::resolve_dynamic_call_targets(&mut program)?;
     program.retain_static_argument_contexts();
     selections::bind_pre_specialization_authored_selections(&mut program)

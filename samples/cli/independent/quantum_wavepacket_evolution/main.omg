@@ -20,10 +20,10 @@ machine Main::main(main: &mut Main) reaches Console {
     main.problem.spacing = spacing.value;
     main.problem.timestep = timestep.value;
     transition count.valid && count.integer && spacing.valid && timestep.valid && steps.valid && steps.integer && count.value == F64::from_i32(main.problem.cells) && steps.value == F64::from_i32(main.problem.steps) && main.problem.cells >= 8 && main.problem.cells <= 32 && main.problem.steps >= 0 && main.problem.steps <= 256 && spacing.value > 0.0 && timestep.value > 0.0 {
-        true -> read(main, 0) false -> invalid(main)
+        true -> block read(main, 0) false -> invalid(main)
     }
     machine read(main: &mut Main, row: i32) {
-        transition row >= 0 && row < main.problem.cells && row < 32 { true -> cell(main, row) false -> finish(main) }
+        transition row >= 0 && row < main.problem.cells && row < 32 { true -> block cell(main, row) false -> block finish(main) }
     }
     machine cell(main: &mut Main, row: i32) requires row >= 0 && row < 32 {
         let potential: Number = block number(&mut main.reader);
@@ -31,7 +31,7 @@ machine Main::main(main: &mut Main) reaches Console {
         let imaginary: Number = block number(&mut main.reader);
         main.problem.potential[row] = potential.value;
         main.problem.amplitude[row] = Complex { real: real.value, imaginary: imaginary.value };
-        transition potential.valid && real.valid && imaginary.valid { true -> read(main, row + 1) false -> invalid(main) }
+        transition potential.valid && real.valid && imaginary.valid { true -> block read(main, row + 1) false -> invalid(main) }
     }
     machine finish(main: &mut Main) {
         let complete: bool = block ended(&mut main.reader);

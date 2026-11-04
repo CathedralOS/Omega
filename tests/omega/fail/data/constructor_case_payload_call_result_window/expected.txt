@@ -1,1 +1,1 @@
-literal cannot prove the case constraint
+literal cannot prove the default domain

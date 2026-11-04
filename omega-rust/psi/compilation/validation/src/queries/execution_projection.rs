@@ -765,6 +765,7 @@ mod lifecycle_projection_tests {
                     policy_machine: Default::default(),
                     invocations,
                     placement: placement.clone(),
+                    storage: Default::default(),
                 });
         }
         apply_declaration_sidecar_pruning(&mut program, &HashSet::from([owner]));

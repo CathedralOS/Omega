@@ -6,7 +6,7 @@ pub(crate) fn plan_laid_semantic_ranges(
     plan: &checked_trees::typed_trees::typed_trees::PlanLaidLayout,
     geometry: &checked_trees::typed_trees::PlanLaidGeometry,
     fields: &[FieldLayout],
-) -> Result<Vec<(usize, usize)>, Diagnostic> {
+) -> Result<Vec<(u64, u64)>, Diagnostic> {
     let mut ranges = SemanticRanges {
         plan,
         geometry,
@@ -20,11 +20,23 @@ pub(crate) fn plan_laid_semantic_ranges(
         {
             for fragment in &bit_field.fragments {
                 let byte_size = usize::from(fragment.container_width_bits).div_ceil(8);
-                ranges.push(
+                ranges.validate_extent(
                     field.name.as_str(),
                     fragment.container_byte_offset,
                     byte_size,
                 )?;
+                let start = (fragment.container_byte_offset as u64)
+                    .checked_mul(8)
+                    .and_then(|base| base.checked_add(u64::from(fragment.destination_lsb)))
+                    .ok_or_else(|| {
+                        Diagnostic::error("callback semantic fragment offset overflows")
+                    })?;
+                let end = start
+                    .checked_add(u64::from(fragment.width))
+                    .ok_or_else(|| {
+                        Diagnostic::error("callback semantic fragment extent overflows")
+                    })?;
+                ranges.ranges.push((start, end));
             }
             continue;
         }
@@ -90,7 +102,7 @@ pub(crate) fn plan_laid_semantic_ranges(
 struct SemanticRanges<'a> {
     plan: &'a checked_trees::typed_trees::typed_trees::PlanLaidLayout,
     geometry: &'a checked_trees::typed_trees::PlanLaidGeometry,
-    ranges: Vec<(usize, usize)>,
+    ranges: Vec<(u64, u64)>,
 }
 
 impl SemanticRanges<'_> {
@@ -98,6 +110,23 @@ impl SemanticRanges<'_> {
         if byte_size == 0 {
             return Ok(());
         }
+        let end = self.validate_extent(field, start, byte_size)?;
+        self.ranges.push((
+            (start as u64)
+                .checked_mul(8)
+                .ok_or_else(|| Diagnostic::error("semantic bit offset overflows"))?,
+            (end as u64)
+                .checked_mul(8)
+                .ok_or_else(|| Diagnostic::error("semantic bit extent overflows"))?,
+        ));
+        Ok(())
+    }
+    fn validate_extent(
+        &self,
+        field: &str,
+        start: usize,
+        byte_size: usize,
+    ) -> Result<usize, Diagnostic> {
         let end = start.checked_add(byte_size).ok_or_else(|| {
             Diagnostic::error(format!(
                 "plan-laid data `{}` semantic field `{field}` extent overflows during private callback closure",
@@ -110,16 +139,15 @@ impl SemanticRanges<'_> {
                 self.plan.data_name, self.geometry.size
             )));
         }
-        self.ranges.push((start, end));
-        Ok(())
+        Ok(end)
     }
 }
 
 pub(crate) fn ranges_overlap(
-    left_start: usize,
-    left_end: usize,
-    right_start: usize,
-    right_end: usize,
+    left_start: u64,
+    left_end: u64,
+    right_start: u64,
+    right_end: u64,
 ) -> bool {
     left_start < right_end && right_start < left_end
 }

@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 abstract-operations = { path = "../abstract-operations" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 function-identity = { path = "../../../foundation/function-identity" }
@@ -26,4 +27,3 @@ sha2 = "0.10.9"
 
 [dev-dependencies]
 access-plans = { path = "../../../../psi/foundation/access-plans" }
-layout-plans = { path = "../../../../psi/foundation/layout-plans" }

@@ -19,7 +19,7 @@ pub use cleanup::{NominalAffineCleanup, StructuralAffineDiscard, TerminalAffineC
 pub use placement::{
     AccessRamCorrespondence, AccessRamFieldCorrespondence, AccessorScalarBoundaryDemand,
     ResidentReferenceSource, TerminalAccessFieldPlan, TerminalAccessLifecycleExecution,
-    TerminalAccessLifecycleOperation, TerminalAccessLifecyclePlan,
+    TerminalAccessLifecycleOperation, TerminalAccessLifecyclePlan, TerminalAccessOwner,
     TerminalAccessProfileRequirement, TerminalAccessStorage, TerminalAccessViewInput,
     TerminalAccessViewPlan, TerminalAccessor, TerminalAccessorKind, canonical_access_view_identity,
 };

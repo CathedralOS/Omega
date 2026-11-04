@@ -158,7 +158,7 @@ pub fn instantiate_foreign_call_constraint(
         match callback.destination {
             NativePlace::Parameter(identity) => {
                 if identity != callback.application.parameter
-                    || callback.field_byte_offset.is_some()
+                    || callback.field_placements.is_some()
                     || private_parameters.contains(&parameter)
                 {
                     return None;
@@ -182,7 +182,7 @@ pub fn instantiate_foreign_call_constraint(
                 ..
             } => {
                 if identity != callback.application.parameter
-                    || callback.field_byte_offset.is_none()
+                    || callback.field_placements.is_none()
                     || !matches!(
                         callback.application.placement.locations.as_slice(),
                         [ValueLocation::Register { .. }]
@@ -195,31 +195,42 @@ pub fn instantiate_foreign_call_constraint(
         }
     }
     if memory_destination {
-        let scratch = plan.call.policy.callback_field_scratch();
-        // A prefix materializes memory destinations before the counterparty
-        // consumes its inputs. Its fixed scratch cannot overwrite another
-        // parameter (including another private entry) or a hidden result
-        // pointer. Direct results are outputs, not live prefix inputs.
-        if plan.call.parameters.iter().any(|parameter| {
-            parameter
-                .locations
-                .iter()
-                .any(|location| location.direct_register() == Some(scratch))
-        }) || plan.call.result.as_ref().is_some_and(|result| {
-            result.locations.iter().any(|location| {
-                matches!(location,
+        let address_scratch = [plan.call.policy.callback_field_scratch()];
+        let scratch_registers = if call
+            .callbacks
+            .iter()
+            .any(|callback| callback.field_placements.is_some())
+        {
+            plan.call.policy.callback_fragment_scratch()
+        } else {
+            &address_scratch
+        };
+        for &scratch in scratch_registers {
+            // A prefix materializes memory destinations before the counterparty
+            // consumes its inputs. Its fixed scratch cannot overwrite another
+            // parameter (including another private entry) or a hidden result
+            // pointer. Direct results are outputs, not live prefix inputs.
+            if plan.call.parameters.iter().any(|parameter| {
+                parameter
+                    .locations
+                    .iter()
+                    .any(|location| location.direct_register() == Some(scratch))
+            }) || plan.call.result.as_ref().is_some_and(|result| {
+                result.locations.iter().any(|location| {
+                    matches!(location,
                 ValueLocation::Indirect { pointer: IndirectPointerLocation::Register(register), .. }
                     if *register == scratch)
-            })
-        }) {
-            return None;
+                })
+            }) {
+                return None;
+            }
+            row.implicit_uses.extend(
+                register_view(physical, scratch, &fixed_register_view)?
+                    .units
+                    .iter()
+                    .copied(),
+            );
         }
-        row.implicit_uses.extend(
-            register_view(physical, scratch, &fixed_register_view)?
-                .units
-                .iter()
-                .copied(),
-        );
     }
     row.implicit_uses.sort_unstable();
     row.implicit_uses.dedup();

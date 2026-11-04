@@ -1,0 +1,2 @@
+catalog requires x86_64
+which the realized target `linux_arm64` does not provide

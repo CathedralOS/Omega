@@ -195,6 +195,19 @@ pub(super) trait StructuralPrefixVisitor {
         _caller: SymbolHandle,
         _statement: usize,
         _expression: Option<typed_trees::expression::ExpressionHandle>,
+        _transition_target: typed_trees::statement::TransitionTargetHandle,
+        _entry: SymbolHandle,
+    ) {
+    }
+
+    /// A formed guard excludes this call before any of its operands execute.
+    /// This covers a syntactic use without inventing an invocation or values.
+    fn excluded_body(
+        &mut self,
+        _caller: SymbolHandle,
+        _statement: usize,
+        _expression: Option<typed_trees::expression::ExpressionHandle>,
+        _transition_target: typed_trees::statement::TransitionTargetHandle,
         _entry: SymbolHandle,
     ) {
     }

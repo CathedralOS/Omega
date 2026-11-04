@@ -103,7 +103,9 @@ pub use integer_arithmetic::{
     IntegerShiftPolicy,
 };
 pub mod operations;
-pub use operations::{AbstractOperation, ModuleInvocation};
+pub use operations::{
+    AbstractOperation, ModuleInvocation, StructuralResultMetadata, StructuralResultRole,
+};
 mod structural_stores;
 pub use structural_stores::{StructuralScalarStoreDestination, StructuralWindowRoot};
 mod structural_copy;

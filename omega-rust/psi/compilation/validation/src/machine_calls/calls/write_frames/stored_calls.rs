@@ -30,7 +30,6 @@ pub(crate) use slot_inventory::provider_completion_covers_writable_slots;
 use slot_inventory::{destination_inventory, parameter_destination_inventory};
 pub(super) use slot_inventory::{provider_output_relation_required, seed_incoming_slots};
 mod normal_exits;
-mod summary_windows;
 pub(super) use normal_exits::state_effects;
 mod instantiation;
 use instantiation::{aggregate_argument_sources, destination_source, instantiate};
@@ -53,6 +52,7 @@ mod dynamic_outputs;
 mod invocation_contract;
 mod opaque_outputs;
 pub(super) use dynamic_outputs::relative_effects as dynamic_effects;
+pub(super) use dynamic_outputs::{caller_may_receive_selector, declared_formal_effects};
 pub use invocation_contract::ReferenceSlotContract;
 pub(super) use invocation_contract::invocation_contract;
 pub(super) use opaque_outputs::owner_segments;
@@ -250,8 +250,14 @@ fn invocation_reference_effects(
     // Closed dynamic suppliers use the same completed argument captures and
     // output-occurrence rebasing as concrete bodies. Missing closed coverage
     // retains declared lifetime debts without inventing a supplied pointer.
+    // The program's closed roster covers only selectors this program forms;
+    // one received from the caller may be any fitting implementation, so it
+    // keeps the requirement's declared outputs (dynamic_dispatch.md, source
+    // eligibility: an unknown selection retains the requirement ceiling).
     if let Some(slot) = program.dynamic_slot_by_symbol(target) {
-        if let Some(relative) = dynamic_outputs::relative_effects(program, slot, symbols, inference)
+        if !dynamic_outputs::caller_may_receive_selector(program, caller_state, slot)
+            && let Some(relative) =
+                dynamic_outputs::relative_effects(program, slot, symbols, inference)
         {
             return transfer(parameters, relative);
         }

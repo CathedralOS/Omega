@@ -172,9 +172,14 @@ retired-syntax deletions to completion.
     projection or computed argument rather than a whole parameter; the
     whole-parameter case [runs in the parameter place](samples/cli/facts/nested_machine_invocation/joint_rank/parameter/bounded_distance/computed_length/README.md)
     and its other eight places are unwritten).
-  - Update Terminal production, codecs/checking, both interpreters, native
-    lowering, and WCSU together so runtime cycles remain constant-stack with all
-    live backing accounted for.
+  - Bring the composed state-graph planner
+    (`omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph`)
+    to parity with the ordinary call plan, starting with temporary cleanup
+    actions, so every statically known terminal call can lower as a transfer
+    in the caller's activation rather than only recursive components and
+    calls that move activation claims. Witness: fusing all terminal targets
+    refuses `LinuxArm64::plan` with "has no executable body: this compiler does
+    not lower a state of it yet (temporary cleanup actions)".
   - Complete the corresponding declaration-model migration in linked
     application repositories.
   Acceptance: source-to-Terminal/native execution agreement (`omega run --both`)
@@ -193,15 +198,16 @@ retired-syntax deletions to completion.
   and [generic inference rule](wiki/spec/language/generics.md) end to end and
   remove integer and float `T [lo..hi]` / `T [lo..=hi]` suffixes after their
   customers migrate.
-  - Carry field/case propositions through construction
-    (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
-    remaining case/aggregate writes, record-field and owned-array
-    predicate handback with current storage versions.
-  - Complete changed-source scalar-loan representation guarantees, common-field
-    case-predicate rosters, and recursive/reference predicate read inventories.
-    Carry the remaining propositions through reads, calls, state joins,
+  - Finish proving field and case requirements when constructing records
+    ([construction checks](omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/construction_predicates.rs)),
+    after the remaining case and aggregate writes, and when returning loans of
+    record fields or updating owned arrays. Use the contents after the write.
+  - Finish checking and lowering loans of scalar fields so their storage
+    restrictions remain enforced. Cover requirements on fields shared by all
+    cases, and track reads through recursive records and references.
+    Preserve the remaining requirements through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/validation/recasts.md), and
-    returns, preserving the audited inventories in
+    returns. Keep the audited coverage in
     [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md).
   - Qualify the applicable migrated filesystem customers' native/Terminal
     oracles with **FILESYSTEM-PLATFORM-SERVICES**.
@@ -321,6 +327,11 @@ retired-syntax deletions to completion.
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
     and Build companion to both engines without target-specific source rewriting.
+    Preserve caller-supplied requirement-local evidence under
+    [generic requirements](wiki/spec/language/generics.md#generic-machine-requirements),
+    distinct from trait-level captured evidence and target provider selection;
+    reject binder-kind/order substitutions, weakened public contracts and any
+    provider attempt to fill or replace a caller's evidence argument.
   - Carry the facts that still refuse behind a selected implementation: opaque
     write-only boundaries requiring an admitted claim for the selected implementation. Their
     `target_body` places keep the retired prefix until then. A requirement
@@ -400,20 +411,72 @@ retired-syntax deletions to completion.
   [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply),
   [call preconditions](wiki/spec/language/machines.md#call-preconditions), and
   [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
-  - Record zero/one identity law evidence on `OpenIndexOperationSelection`
-    (`omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/values/expression/index_authority.rs`),
-    normalize `N + 0` and `N * 1` under it, and carry it through
-    `monomorphization::finalize_domain_instance_identities`. The law shape
-    waits on [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) question 1; question 2
-    asks whether the landed distributivity expansion advances the normalizer
-    version.
+  - Implement [literal-linked index identities](wiki/spec/proofs/contracts.md#literal-linked-index-identities):
+    record identity and nullary-to-literal law evidence on
+    `OpenIndexOperationSelection`, collect the complete selected conformance's
+    inherited slots with exact requirement identities and substitutions, and
+    support qualified integer carriers without an unselected fallback.
+    Normalize `N + 0` and `N * 1` through signatures, conformance arguments,
+    value transfers, and `monomorphization::finalize_domain_instance_identities`.
+  - Preserve authored and newly introduced formation obligations, left/right
+    identity distinctions, and exact carrier/policy authority. Simplify operands
+    before budgeted expansion and normalize generated terms again; retain
+    rejection of unsafe Exact intermediates, conditional or foreign laws, and
+    unproved literal connections. Prove these cases through nine-place fact
+    witnesses, fact-sensitive reject twins, and their pinned corpus fixtures.
+  - Implement [bounded canonical index normalization](wiki/spec/proofs/contracts.md#bounded-canonical-index-normalization)
+    and its shared published encoding independently of storage representation.
+    Repair `(A * (B + C)) * D` against `A * ((B + C) * D)` under associative,
+    noncommutative multiplication and left distributivity: merge the full
+    same-authority chain before expansion, rather than normalizing its inner
+    product into a sum first. Preserve partial law sets and prohibit invented
+    numeral identities such as `N + N == 2 * N` without additional evidence.
+  - Decide the 64-summand measure from the canonical pre-expansion form, retain
+    coherent unexpanded fallback and cutoff evidence, and diagnose the measure
+    and limit only when compatibility remains unresolved. Cover 63/64/65-term
+    boundaries, regrouping and operand-order variants, identity removal, and
+    the `S * (X + Y)` budget edge when `S` has 65 summands. Establish fixed-law
+    determinism/idempotence and below-budget preservation of identifications
+    under added valid laws, with the named mutual-distributivity exception.
+    Supply a correctness argument and focused property tests, not only the
+    counterexample repair.
+  - Carry checked generic compatibility evidence through exact specialization
+    substitutions without repeating the proof, and evaluate fully closed
+    selected index operations to canonical values under ordinary admission.
+    Pin direct theorem guarantees as a compatibility escape route, preserve
+    independent call/formation/target checks, and compare canonical identity
+    encoding across producer implementations. Record internal provenance
+    updates and rebuild development artifacts as needed; add no local
+    canonical-budget override syntax or legacy-normalizer support requirement.
   - Migrate top-level library/corpus/embedded declarations off the `operator`
     introducer ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
     and remove legacy parser/IR consumers and undifferentiated
     `MachineSupplyMode::Boundary`.
+  - Restore the coverage `fail/float/guarded_range_requires_ieee_comparison`
+    lost when authored operators over bare primitive carriers became
+    declaration errors: a guard through a domain-homed `<` over
+    `f64 in <Domain>` must not supply the IEEE range fact, and a domain-homed
+    `+` in an index must not fold to element zero. Blocked because core's
+    bare-`f64` `Float::less` also matches domain-qualified operands
+    (`ambiguous operator spelling '<' has 2 viable candidates`), and a direct
+    guard over such a call fails Psi 04 with `cannot determine the dispatch
+    subject storage type`.
+  - Lower and prove the domain-qualified shapes that fixtures moved off bare
+    primitive operators had to avoid: `&mut` of a `mut` parameter whose type
+    is domain-qualified fails native selection (`SourceCustodyMismatch …
+    borrowed call argument does not match its retained source geometry and
+    ABI`); returning an `i32 in D` parameter as a bare `i32` result fails Psi 06
+    (`checked scalar return completion cannot erase unrelated membership`)
+    without an explicit `as`; `let mut value: i32 in D = start;` with a
+    predicate-free `D` fails with `primitive initializer lost its exact scalar
+    membership correspondence`; and builtin subtraction on a domain-qualified
+    saved local does not establish strict descent, so
+    `fail/termination/saved_rank_authored_operator_rejected` no longer has a
+    passing contrast without its authored `-`.
   Acceptance: `tests/omega/pass/expressions/declared_operator_match_result/`
   (exit 70), `samples/cli/facts/{body_bearing_comparison,generic_comparison_body,projection_call_premise,abstract_signature_call,static_evidence_premise}`,
-  and new fixtures for generic/stateful bodies, private helpers, qualifiers,
+  `samples/cli/facts/open_index_distributivity` and its necessary additional
+  productions, and new fixtures for generic/stateful bodies, private helpers, qualifiers,
   ordered operands, and receiver/result loans pass `omega run --both` on every
   host, while missing bodies, duplicate shapes, unproved laws, and missing
   premises reject.
@@ -487,6 +550,15 @@ narrows realization only.
     progress, intrinsic review and deferred array/const-generic recipes)
     from typed/checked records to canonical Terminal Psi
     plus target Build rows.
+  - Make selected provider binding take an owner-checked view, so
+    `bind_selected_provider_plan_facts` cannot run before
+    `require_prepared_owner`; no test covers that order now.
+  - Resolve a Build provider plan's schema text to the Terminal catalog's
+    schema identity handle once at the stage-00 join (provider-selection
+    boundary_review `requirement_binds`), so
+    `CheckedProviderRequirement::schema_identity` (checked-trees
+    `operators.rs`) becomes a handle and the checked-trees identity guard
+    reaches zero.
   - Move opaque selection and source-qualified review onto canonical Terminal
     Psi, so target planning drops its source-side signature preparation and
     passes source-discard/reload.
@@ -806,6 +878,16 @@ helper that passes does not close an item.
   as one reusable library-authoring path, not recognition of format names or
   attached data machines. Data remains layout-neutral; core/std and community
   policies use the same checked machinery.
+  - Implement [demand-driven layout formation](wiki/spec/layouts/plans.md#layout-demand-and-validation)
+    without an all-target pre-pass for unused bodies. Retain exact application
+    and target demand from entries, selected Build-row closures, transitive
+    helpers/callbacks and compile-time geometry consumers; validate a newly
+    demanded application before use while keeping all ordinary source checks.
+    Pin unused-layout non-evaluation and rejection when that same layout is
+    consumed, including newly selected closures and invalid source in unused
+    bodies. Keep `unselected_target_{helper,callback}_layout_underflow` and
+    `unselected_target_layout_contract` rejecting when another declared target
+    row demands the bad plan, regardless of `--target` output narrowing.
   - Implement transparent `data Alias<...> = TypeExpression;` with all existing
     binder kinds, partial application, computed const arguments, exact machine
     and conformance selection, lifetime/value-subject preservation, public
@@ -1080,14 +1162,27 @@ defines the complete product bar.
   Owners:
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization/dynamic_families.rs`
   and `omega-rust/psi/compilation/validation/src/machine_calls/calls/dynamic_requirement.rs`.
-  - Complete public slot-relative returned-loan origin contracts for borrowed
-    descriptor results, structural field reads rooted in entry content claims,
-    and target-ineligible/const-only bridge qualification.
+  - Complete structural field reads rooted in entry content claims and
+    target-ineligible/const-only bridge qualification.
   Acceptance: pass/fail/run finite-family fixtures execute via `omega run --both`
   preserving effects, index identity, and once-only moves/cleanup across
   selection, forwarding, and storage, while unproved membership, missing/wrong
   rows, and escaping variable-shaped results without an authored sum/descriptor
   reject.
+
+- **DOMAIN-CARRIER-FORMATION.** Finish
+  [carrier-exact membership](wiki/spec/language/domains.md#carrier-exact-membership)
+  for the forms the nine-place row
+  [`domain_carrier_identity`](samples/cli/facts/domain_carrier_identity/README.md)
+  does not cover.
+  - Let a caller discharge a precondition whose subject is an explicit exact
+    conversion: `converted(4u8)` with `requires (narrow as u16) in Small`
+    forms but reports `cannot prove requires contract`.
+  - Judge carrier-generic domain families whose carrier is a type parameter
+    at each applied carrier, and statement-position membership facts, with
+    wrong-carrier rejects.
+  Acceptance: those forms run with `omega run --both` and their wrong-carrier
+  twins reject, pinned in the corpus.
 
 - **NOMINAL-FIELD-FLOW.** Close the Dungeon Crawler's field-domain execution and
   [representation-erased domain qualification](wiki/spec/language/domains.md)
@@ -1147,6 +1242,18 @@ defines the complete product bar.
     [temporary qualified-view retirement](wiki/spec/language/domains.md#temporary-qualified-views)
     across loan cohorts, and scalar reads/results under
     [copy and publication rules](wiki/spec/language/domains.md#establishment-transport-and-helper-calls).
+    Enforce [lender-domain restoration](wiki/spec/language/dependent_values.md#lent-storage-retains-its-declared-domains)
+    for declared locals through mutable calls and qualification-erased views:
+    `fail/collections/fixed_array_write_rejects_element_domain` must reject,
+    while `pass/domains/qualified_mutable_scalar_input_domain_expires` and
+    `samples/cli/facts/additional_input_domain_mutation` retain entry-only fact
+    expiration over storage that owes no such domain. Preserve restored-call
+    positives and declared-field rejection controls; no encoding-specific check.
+  - Lower a borrow of a same-carrier cast: `observe(&(issued as Ticket in
+    Ticket::Held))` checks but has no executable body ("earlier whole local
+    correspondence"), and `look(&(issued as Ticket))` fails with "completed
+    projection has no exact consumer capture", so no erasure positive can
+    lend a cast at run time.
   - **DOMAIN-ISSUER-ROUTES:** extend same-project checked ordinary
     issuance/forwarding to cross-package private routes and selected structural
     payloads in
@@ -1186,6 +1293,19 @@ defines the complete product bar.
   `omega-rust/psi/compilation/validation/src/machine_calls/call_cycles/runtime_ranking/`,
   Psi 06 `src/unit/attached_unit/`, and
   `omega-rust/psi/interpreter/terminal-interpreter/src/engine/terminators/`.
+  - A termination promise that reaches a recursive component with no ranking
+    of its own is accepted unchecked; twelve `fail/termination` twins
+    (`rank_arrival_*`, `rank_range_declared_step_unbounded`,
+    `rank_range_record_stepped_copy_stale`, `rank_state_dependent_bound_prefix_write`,
+    `endpoint_folded_into_payload`, `stored_reference_endpoint_reseat`) compile.
+    The reach rule is implemented on `work/wave1-termination-reach` and lands
+    last, with its positive migrations, once component ranking accepts the
+    projected and arrival rank subjects those helpers need. Ranked probes of
+    opaque children, ranges and stored-reference endpoints already check; the
+    migration confirms them. The call-component judgment
+    (`ranking_range/calls.rs`) still evaluates a declared measure over a record
+    subject as a scalar and still builds the field-only
+    `RankingRangeMeasure::Field`; retire both there.
   - Re-run the external-result and `std`-loop execution controls
     (`external_result_ranked_arrival_compile` currently refuses with `provider
     candidate requires beyond its boundary's declared obligations`) once
@@ -1298,8 +1418,9 @@ defines the complete product bar.
     placement/allocator contracts with runtime observation, exact location
     validity across view replacement, offsets and moved backing, and admitted
     interpreted geometry for such locations; `ensures` clauses, trait
-    requirement contracts, and contract queries over a field path or a slice
-    (all currently rejected).
+    requirement contracts, contract queries over a slice, an element or a case
+    payload field, and body queries on a case payload field, which need the
+    active-case proof an ordinary read owes (all currently rejected).
   - Complete remaining flag-producing instructions, remaining AArch64 register
     views, and checked hardware-effect retirement of exact linear obligations on
     every normal exit (assembly body contracts and label `ensures` are proof goals, never
@@ -1729,6 +1850,20 @@ defines the complete product bar.
   assumption closure, and a refreshed
   [metatheory evidence ledger](wiki/spec/proofs/kernel_metatheory.md#evidence-ledger).
 
+- **UNREACHABLE-BRANCH-DIAGNOSTICS.** Report source branches that contradict
+  their machine's entry contract or established facts, under
+  [unreachable branches](wiki/spec/language/state_contracts.md#unreachable-branches).
+  - Report branches beyond transition arms and statement-level match arms:
+    matches nested inside other expressions, and the statements after an
+    exit-if transition whose guard always holds.
+  - Name each conflicting premise's source location and exact storage version,
+    and show the warning's location on a successful check (stderr currently
+    prints the message alone).
+  Acceptance: focused examples pin warnings for source contradictions and no
+  warning for ordinary specialization; warning emission and code pruning do not
+  change proof acceptance. Missing, stale or out-of-scope contradiction evidence
+  cannot justify a reachable obligation, and malformed source remains rejected.
+
 ## Build-level behavior exclusions
 
 - **BUILD-SEMANTIC-EXCLUSIONS.** (Also covers **`BUILD-EXCLUSION-REALIZATION`**.)
@@ -1898,6 +2033,11 @@ defines the complete product bar.
   - Replace the opaque `ExportSurface.identity` string with the export's
     requirement identity so a demanded import is checked against the offered
     export (needed by the [topology](wiki/spec/packages/topology.md) demand/supply join).
+  - Have provider settlement publish component export calling applications so
+    component completion (`compiler/src/product_execution/component.rs`
+    `prepare_exported_calling_applications`) stops re-deriving them; over every
+    selected provider that derivation refuses `FilesystemService::create` on
+    `tests/omega/pass/providers/phantom_local_calling_applications`.
   Acceptance: a two-package `Independent` build and an installed-image customer
   execute crossing calls, placement-independent invocation, new-era routing, and
   old-era drain on matching hosts, while omitted/duplicate assumptions,
@@ -1926,6 +2066,48 @@ defines the complete product bar.
   start/park/resume/finish, FIFO linear-payload queueing, and isolated
   hung-worker recovery via `omega run --both`, while foreign/stale tickets,
   dropped custody, early reclaim, and unbacked suspension borrows reject.
+
+- **CHECKED-REPRESENTATION-REUSE.** Checking a short program that uses `std`
+  takes about a minute and a half, because every compilation checks all of
+  `std` again. `omega --check tests/omega/pass/host/console_exit_process_exit`
+  checks about 3,184 supplied `std` machines and has a median of 96.7 s on a
+  4-core `linux_x86_64` host at `91b6625545`. On the hosted runner,
+  `tests/omega/pass/control_flow/borrowed_state_argument`,
+  `tests/omega/pass/control_flow/runtime_owned_state_parallel_swap_exit` and
+  `tests/omega/pass/write_only/state_forwarded_scalar_store_exit` still exceed
+  the 120 s per-fixture cap. That is Post-merge smoke run 41618901953 at
+  `39d196dd9`, after #1656. Local
+  optimization cannot close the gap. A sampled profile shows no frame above
+  7% of busy time and allocation at about 25% of leaf time, and the best
+  measured local repair (2%) was inside run-to-run noise. The remaining cost
+  is the checking each compilation repeats for unchanged dependencies, so it
+  needs reuse rather than tuning. The specification already allows reusing an
+  admitted dependency's checked representation once its applicability is
+  proved ([execution contexts and reuse](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse),
+  [products and reuse](wiki/spec/build/testing.md#products-reuse-and-native-harnesses)).
+  Today the compiler reuses checks only within one live session
+  ([orchestration](omega-rust/omega/build-system/orchestration/README.md)).
+  Reuse is never admission: a cached analysis is not an admission certificate
+  ([acceptance](wiki/spec/packages/acceptance.md)), and package review's
+  [review cache](omega-rust/omega/packages/package-manager/src/review/candidate/review_cache.rs)
+  is a different artifact. Layouts used only inside unselected library code
+  are a separate share of the cost, covered by the
+  [layout formation scope](wiki/spec/layouts/plans.md#compile-time-journey-and-build).
+  - Persist an admitted dependency's checked representation under its exact
+    identity. Bind it to an applicability proof over the premises the
+    specification lists: the target, the provider closure, root-sensitive
+    facts, the optimization premise and the accepted policy.
+  - Make the CLI `--check` and `run` routes consume a stored representation
+    whose applicability holds.
+  - Re-check instead of reusing when any premise changes.
+  - Keep admission and review independent of reuse, so a stored
+    representation never stands in for either.
+  Acceptance: with a warm store, `console_exit_process_exit` checks in under
+  half its cold time on the same host; cold, it checks with unchanged
+  semantics. The three smoke
+  fixtures pass under the 120 s cap on the hosted runner. Changing a premise
+  (another target or provider closure) re-checks instead of reusing, and
+  fixtures pin both reuse and re-checking.
 
 ## Connected scientific library
 
@@ -1995,7 +2177,7 @@ defines the complete product bar.
   - Pin dense qualified-float slice reads and domain-preserving mutable writes;
     non-copy relocation with exactly-once observable cleanup and none during move;
     distinct same-typed resource claims, zero-sized obligations, contained borrows,
-    split/rejoin, failed initialization and restored indexed removal. Reject twins
+    split/rejoin and restored indexed removal. Reject twins
     cover forged count/custody, swapped child geometry, non-adjacent merge, duplicate
     extraction, conflicting carry anchors, relocation while borrowed, predicate
     violation and backing return with live cells. Inspect emitted/interpreted run

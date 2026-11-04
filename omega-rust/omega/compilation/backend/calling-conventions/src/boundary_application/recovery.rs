@@ -5,6 +5,7 @@ use crate::{BoundaryEntryPlan, BoundaryValueGraph, CallSignature, ValueClass, Va
 
 pub struct BoundaryCallingApplicationCandidate {
     pub abi: semantic_vocabulary::CallingAbiIdentity,
+    pub calling_owner_application: Option<String>,
     pub requirement_identity: String,
     pub target: NativeTarget,
     pub report_fingerprint: u64,
@@ -21,6 +22,7 @@ impl BoundaryCallingApplicationCandidate {
     pub fn validate(self) -> Result<BoundaryCallingApplication, String> {
         let Self {
             abi,
+            calling_owner_application,
             requirement_identity,
             target,
             report_fingerprint,
@@ -120,6 +122,7 @@ impl BoundaryCallingApplicationCandidate {
         }
         let application = BoundaryCallingApplication {
             abi,
+            calling_owner_application,
             requirement_identity,
             target,
             report_fingerprint,

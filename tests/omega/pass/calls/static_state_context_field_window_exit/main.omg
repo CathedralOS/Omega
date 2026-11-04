@@ -57,7 +57,7 @@ machine largest(values: &[i32], current: i32) -> i32 {
 
 machine Main::main(context: &mut Main) reaches Console {
     context.values[1] = 11;
-    transition { _ -> lend(context) }
+    transition { _ -> block lend(context) }
 
     machine lend(context: &mut Main) {
         stamp(&mut context.pause);

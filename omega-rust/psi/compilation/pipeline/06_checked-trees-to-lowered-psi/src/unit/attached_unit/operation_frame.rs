@@ -97,6 +97,7 @@ mod dynamic_calls;
 mod structural_results;
 mod suspension_frontier;
 pub(super) use structural_results::{StructuralResults, dense_result_homes};
+mod descriptor_tables;
 mod loan_completions;
 mod locals;
 mod register_access;
@@ -507,7 +508,12 @@ impl OperationEnvironment<'_> {
             frame.emit(identities, operand)?;
             return Ok(None);
         }
-        if !operand.has_normal_continuation() {
+        if !operand.has_normal_continuation()
+            || matches!(
+                operand,
+                CheckedUnitEffectOperationPlan::GlobalDescriptorTable { .. }
+            )
+        {
             frame.emit_call(
                 identities,
                 operand,
@@ -580,9 +586,12 @@ impl StructuralTypeRoster<'_> {
 }
 
 impl OperationFrame<'_, '_> {
-    /// Whether `operation` emits through `emit`. Every other operation a
-    /// composed state carries is a call, which needs its completed operands
-    /// and emits through `emit_call`.
+    /// Calls and borrowed instructions consume operands prepared by the shared schedule.
+    pub(super) fn consumes_prepared_operands(operation: &CheckedUnitEffectOperationPlan) -> bool {
+        operation.structural_invocation().is_some()
+    }
+
+    /// Operations emitted directly, without the invocation operand schedule.
     pub(super) fn lowers(operation: &CheckedUnitEffectOperationPlan) -> bool {
         matches!(
             operation,

@@ -91,3 +91,21 @@ pub(in crate::lock) fn read(
         owned,
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Version 8 rows may encode builtin functions under the slot numbering
+    /// that version 9 replaced. Reading one must refuse with the update
+    /// guidance instead of decoding a possibly different builtin.
+    #[test]
+    fn superseded_policy_row_schema_rejects_with_recovery_guidance() {
+        let package = PackageKeyIdentity::from_digest([7; 32]).unwrap();
+        let text = "acceptance_schema 8\nrows 0\n";
+        let error = read(text, package, TargetProfile::LinuxX64, 16, 1 << 16)
+            .expect_err("a superseded policy row schema must not load");
+        assert!(matches!(error, Error::UnsupportedVersion));
+        assert!(error.to_string().contains("omega update"));
+    }
+}

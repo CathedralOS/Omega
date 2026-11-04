@@ -237,6 +237,14 @@ impl StructuralJudge<'_> {
         let type_bindings = self.data_application_type_bindings(subject_type);
         let definition = selected_definition;
         let variant = selected_variant;
+        // A successful case test identifies this observed value's case even
+        // when its declared constraints are unavailable. Record the tag
+        // separately; payload and domain facts still need their own checks.
+        self.intake_case_guarantee(&super::CaseGuarantee {
+            subject: admitted_subject.clone(),
+            data: definition.symbol,
+            case: variant.symbol,
+        });
         let Some(indices) =
             self.selected_case_indices(definition, subject_type, machine, state, environment)
         else {
@@ -300,15 +308,8 @@ impl StructuralJudge<'_> {
         let admitted =
             self.has_admitted_nominal_subject(subject_expression, admitted_subject, subject_type);
         if admitted {
-            // The successful guard selected this exact, independently admitted
-            // value. Establish its tag before projecting payload fields, and
-            // consume its complete predicate even when a descriptor cannot be
-            // projected into the fresh pattern view.
-            self.intake_case_guarantee(&super::CaseGuarantee {
-                subject: admitted_subject.clone(),
-                data: definition.symbol,
-                case: variant.symbol,
-            });
+            // Only the original admitted value supplies its default predicate;
+            // the guard's fresh pattern view does not establish a new value.
             self.intake_admitted_value_predicates(subject_type, admitted_subject.clone());
         }
         if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
@@ -1082,19 +1083,13 @@ impl StructuralJudge<'_> {
         else {
             return;
         };
-        // General default domains may have an open restoration window. Only
-        // the interval-only store rule guarantees these facts at every scalar
-        // read; a necessary consequence of a mixed predicate is insufficient.
+        // An enclosing record's default predicate may be temporarily unproved.
+        // Only the scalar's own declared storage restriction applies without a
+        // separate current-value proof; later restoration cannot refine this copy.
         let declared = crate::proof_contracts::arithmetic_domains::enforced_declared_range_interval(
             program, reference,
         );
-        let standing = crate::proof_contracts::default_domains::stored_field_where_interval(
-            program, machine, state, expression,
-        );
-        let bounds = declared
-            .into_iter()
-            .chain(standing)
-            .fold(carrier, |bounds, restriction| bounds.intersect(restriction));
+        let bounds = declared.map_or(carrier, |restriction| carrier.intersect(restriction));
         // The captured value already retains its physical carrier. Only a
         // declaration refinement supplies additional observation premises.
         if bounds == carrier {

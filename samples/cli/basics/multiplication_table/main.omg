@@ -35,64 +35,64 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("multiplication_table: the 9x9 times table, space-padded numeric text");
     main.line = "                            ";
     main.i = 1;
-    transition { _ -> row_loop(main) }
+    transition { _ -> block row_loop(main) }
 
     machine row_loop(main: &mut Main) {
-        transition main.i >= 1 && main.i <= 9 { true -> clear_init(main) _ -> finish(main) }
+        transition main.i >= 1 && main.i <= 9 { true -> block clear_init(main) _ -> block finish(main) }
     }
     // clear the row buffer to spaces
     machine clear_init(main: &mut Main) {
         main.k = 0;
-        transition { _ -> clear(main) }
+        transition { _ -> block clear(main) }
     }
     machine clear(main: &mut Main) {
-        transition main.k >= 0 && main.k < 28 { true -> clear_cell(main) _ -> col_init(main) }
+        transition main.k >= 0 && main.k < 28 { true -> block clear_cell(main) _ -> block col_init(main) }
     }
     machine clear_cell(main: &mut Main) {
         main.line[main.k] = 32; // ' '
         main.k = main.k + 1;
-        transition { _ -> clear(main) }
+        transition { _ -> block clear(main) }
     }
     machine col_init(main: &mut Main) {
         main.j = 1;
-        transition { _ -> col_loop(main) }
+        transition { _ -> block col_loop(main) }
     }
     machine col_loop(main: &mut Main) {
-        transition main.j >= 1 && main.j <= 9 { true -> cell(main) _ -> emit_row(main) }
+        transition main.j >= 1 && main.j <= 9 { true -> block cell(main) _ -> block emit_row(main) }
     }
     machine cell(main: &mut Main) {
         main.p = main.i * main.j;
         main.tens = main.p / 10;
         main.ones = main.p % 10;
         main.oc = narrow_i32_to_u8_trapping((main.ones + 48) as i32);
-        transition main.tens > 0 { true -> cell_tens(main) _ -> cell_space(main) }
+        transition main.tens > 0 { true -> block cell_tens(main) _ -> block cell_space(main) }
     }
     machine cell_tens(main: &mut Main) {
         main.tc = narrow_i32_to_u8_trapping((main.tens + 48) as i32);
-        transition { _ -> cell_write(main) }
+        transition { _ -> block cell_write(main) }
     }
     machine cell_space(main: &mut Main) {
         main.tc = 32; // leading space for single-digit products
-        transition { _ -> cell_write(main) }
+        transition { _ -> block cell_write(main) }
     }
     machine cell_write(main: &mut Main) {
         main.o0 = (main.j - 1) * 3;
         main.o1 = main.o0 + 1;
         transition main.o0 >= 0 && main.o0 < 28 && main.o1 >= 0 && main.o1 < 28 {
-            true -> cell_store(main)
-            _ -> bad(main)
+            true -> block cell_store(main)
+            _ -> block bad(main)
         }
     }
     machine cell_store(main: &mut Main) {
         main.line[main.o0] = main.tc;
         main.line[main.o1] = main.oc;
         main.j = main.j + 1;
-        transition { _ -> col_loop(main) }
+        transition { _ -> block col_loop(main) }
     }
     machine emit_row(main: &mut Main) {
         Console::write_line(main.line);
         main.i = main.i + 1;
-        transition { _ -> row_loop(main) }
+        transition { _ -> block row_loop(main) }
     }
 
     machine finish(main: &mut Main) {

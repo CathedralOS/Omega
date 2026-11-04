@@ -292,8 +292,68 @@ class CompilerPilotTests(unittest.TestCase):
                     pilot.execute(output, summary, positives=(), negatives=negatives, samples=samples)
                 build.assert_called_once_with(output, need_runner=bool(negatives))
                 self.assertEqual(run.call_count, bool(samples) + bool(negatives))
-                self.assertEqual(producer.verify.call_count, 2)
+                self.assertEqual(producer.verify.call_count, 2 + bool(samples) + bool(negatives))
                 self.assertEqual("runner_sha256" in summary, bool(negatives))
+
+    def test_failed_corpus_consumers_still_measure_cli_and_samples_and_keep_run_red(self):
+        fixture = "pass/example/normal_exit"
+        sample = "samples/cli/facts/layout/local"
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            producer = Mock(revision="a" * 40, target="linux_x86_64",
+                            runner_profile={"sha256": "b" * 64})
+
+            def consume(arguments, **kwargs):
+                if "--write-results" in arguments:
+                    Path(arguments[arguments.index("--write-results") + 1]).write_text(
+                        json.dumps([dict(sample=sample, state="pass")]))
+                else:
+                    Path(arguments[arguments.index("--json") + 1]).write_text("{}")
+                return Mock(returncode=0)
+
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                    patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                    patch.object(pilot.corpus_gate, "host_target", return_value=producer.target), \
+                    patch.object(pilot, "observation_golden", return_value=output / "golden"), \
+                    patch.object(pilot.subprocess, "run", side_effect=consume) as run, \
+                    patch.object(pilot, "validate_report", side_effect=[ValueError("checking timeout"), ValueError("runtime timeout")]), \
+                    patch.object(pilot.ordinary_cli_fixture, "observe", return_value={"passed": True}) as ordinary:
+                summary = {}
+                with self.assertRaisesRegex(ValueError, "checking timeout.*runtime timeout"):
+                    pilot.execute(output, summary, positives=(fixture,), negatives=(),
+                                  producer=producer, samples=(sample,), cli_fixtures=(fixture,))
+            self.assertEqual(run.call_count, 3)
+            ordinary.assert_called_once()
+            self.assertEqual([row["passed"] for row in summary["stages"]],
+                             [True, False, False, True, True])
+            self.assertEqual(summary["stages"][1]["error"], "checking timeout")
+            self.assertEqual(summary["stages"][2]["error"], "runtime timeout")
+            self.assertEqual(summary["sample_observations"], [dict(sample=sample, state="pass")])
+
+    def test_changed_producer_stops_before_another_consumer(self):
+        fixture = "pass/example/normal_exit"
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            producer = Mock(revision="a" * 40, target="linux_x86_64",
+                            runner_profile={"sha256": "b" * 64})
+            producer.verify.side_effect = [None, ValueError("compiler bytes changed")]
+
+            def consume(arguments, **kwargs):
+                Path(arguments[arguments.index("--json") + 1]).write_text("{}")
+                return Mock(returncode=0)
+
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                    patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                    patch.object(pilot.corpus_gate, "host_target", return_value=producer.target), \
+                    patch.object(pilot, "observation_golden", return_value=output / "golden"), \
+                    patch.object(pilot.subprocess, "run", side_effect=consume) as run, \
+                    patch.object(pilot, "validate_report", side_effect=ValueError("checking timeout")), \
+                    patch.object(pilot.ordinary_cli_fixture, "observe") as ordinary:
+                with self.assertRaisesRegex(ValueError, "compiler bytes changed"):
+                    pilot.execute(output, {}, positives=(fixture,), negatives=(), producer=producer,
+                                  cli_fixtures=(fixture,))
+            run.assert_called_once()
+            ordinary.assert_not_called()
 
     def test_ordinary_cli_checks_through_package_admission_without_corpus(self):
         fixture = "pass/filesystem/write_all_full_device_exit"
@@ -549,6 +609,28 @@ class CompilerPilotTests(unittest.TestCase):
     def test_complete_runtime_and_rejections_pass(self):
         self.validate(self.report())
         self.validate(self.report(True), True)
+
+    def test_target_publication_control_needs_its_real_reason_and_no_execution(self):
+        fixture = "pass/providers/missing_target_supply"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = root / "tests/omega" / fixture
+            directory.mkdir(parents=True)
+            for target in ("macos_arm64", "linux_x86_64"):
+                (directory / f"expected_native_rejection.{target}.txt").write_text(f"missing supply on {target}\n")
+            for both in (False, True):
+                target = "linux_x86_64" if both else "macos_arm64"
+                facts = {"interpreter": "unchecked"} if both else {"check-target": target}
+                row = dict(fixture=fixture, tier="pass", status="rejected", expected_satisfied=True,
+                           facts=dict(facts, **{"native-rejection": "match"}),
+                           diagnostics=[f"missing supply on {target}"])
+                report = self.report(both)
+                report["observations"] = [row]
+                with patch.object(pilot, "ROOT", root):
+                    pilot.validate_report(report, (fixture,), both=both, revision="a" * 40, target="linux_x86_64")
+                    row["diagnostics"] = ["unrelated refusal"]
+                    with self.assertRaises(ValueError):
+                        pilot.validate_report(report, (fixture,), both=both, revision="a" * 40, target="linux_x86_64")
 
     def test_golden_movement_is_not_a_failed_oracle(self):
         report = self.report()

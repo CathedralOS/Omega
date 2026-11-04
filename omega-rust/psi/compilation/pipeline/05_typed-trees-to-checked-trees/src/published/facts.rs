@@ -132,9 +132,25 @@ fn project_operational_rows(
     (suspensions, blocking)
 }
 
+/// Keep completed storage available when reporting a later failure too.
+/// Earlier failures still use the original checking input.
+pub(crate) struct CheckFactFailure<'program> {
+    pub(crate) program: Option<Box<validation::CheckingContext<'program>>>,
+    pub(crate) diagnostics: Vec<diagnostics::Diagnostic>,
+}
+
+impl<'program> From<Vec<diagnostics::Diagnostic>> for CheckFactFailure<'program> {
+    fn from(diagnostics: Vec<diagnostics::Diagnostic>) -> Self {
+        Self {
+            program: None,
+            diagnostics,
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn build_check_facts(
-    program_context: &::validation::CheckingContext<'_>,
+pub(crate) fn build_check_facts<'program>(
+    program_context: &::validation::CheckingContext<'program>,
     proof_plan: &ProofPlan<'_>,
     content: checked_trees::ContentProjectionFacts,
     integer_assignments: &[proof::checker::CheckedIntegerAssignment],
@@ -142,7 +158,14 @@ pub(crate) fn build_check_facts(
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
     mut validation_facts: validation::ProgramValidationFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
-) -> Result<(CheckFacts, validation::PreparedEffectPlans), Vec<diagnostics::Diagnostic>> {
+) -> Result<
+    (
+        CheckFacts,
+        validation::PreparedEffectPlans,
+        validation::CheckingContext<'program>,
+    ),
+    CheckFactFailure<'program>,
+> {
     // One resolver serves this immutable fact-construction window, including
     // stored-reference loans, flow classification, terminal ranking projections,
     // termination progress proofs, mutation frames, and crash-route refinement.
@@ -373,7 +396,36 @@ pub(crate) fn build_check_facts(
     // reads: the post-flow checks here and the deferred contract entailment.
     // Validation's machine loop ran before it existed, so its judgments
     // treated every write as opaque.
-    program_context.attach_storage_graph(std::sync::Arc::new(prepared.flow.clone()));
+    let completed =
+        program_context.clone_with_storage_graph(std::sync::Arc::new(prepared.flow.clone()));
+    match finish_check_facts(
+        &completed,
+        prepared,
+        operational,
+        service_reach_inference,
+        validation_facts,
+    ) {
+        Ok((facts, effects)) => Ok((facts, effects, completed)),
+        Err(diagnostics) => Err(CheckFactFailure {
+            program: Some(Box::new(completed)),
+            diagnostics,
+        }),
+    }
+}
+
+/// Consume the published storage history for proofs and execution plans.
+fn finish_check_facts(
+    program_context: &validation::CheckingContext<'_>,
+    mut prepared: CheckFacts,
+    operational: OperationalPlan,
+    service_reach_inference: flow_effects::ServiceReachInferencePlan,
+    mut validation_facts: validation::ProgramValidationFacts,
+) -> Result<(CheckFacts, validation::PreparedEffectPlans), Vec<diagnostics::Diagnostic>> {
+    let program: &dyn validation::CheckingInput = program_context;
+    // Pending arithmetic and record predicates use completed operands before
+    // their result exists. Discharge every obligation before publishing plans.
+    validation_facts.discharge_storage_formations(program)?;
+    prepared.operators.decided_formations = validation_facts.decided_formations.clone();
     phase_profile::checkpoint(
         "flow fixed-point iterations",
         "psi.05.build_check_facts.flow_fixed_point.outer_iterations",

@@ -6,15 +6,15 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(main: &mut Main) -> u64 {
+machine main(main: &mut Main) -> u64 {
     let view: &[Entry] = &main.entries[..];
 
     transition {
-        _ -> Main::walk(main, view)
+        _ -> walk(main, view)
     }
 }
 
-machine Main::walk(main: &Main, entries: &[Entry]) -> u64
+machine walk(main: &Main, entries: &[Entry]) -> u64
 terminates by entries
 {
     transition entries.len > 0 {

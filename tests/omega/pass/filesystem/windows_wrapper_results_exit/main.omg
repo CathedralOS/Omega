@@ -30,9 +30,9 @@ data Main {
     close_result: UnitResult;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     main.unit_result = block Filesystem::write_all(&mut main.fs, "omega_wrapper_probe.txt", "hello");
-    transition main.unit_result { UnitResult::Ok -> exists_check(main) _ -> bad(main, 71) }
+    transition main.unit_result { UnitResult::Ok -> block exists_check(main) _ -> bad(main, 71) }
 
     machine exists_check(main: &mut Main) {
         // AlreadyExists via mkdir (flag-FREE, so fully portable): create_new's
@@ -40,48 +40,48 @@ machine Main::main(main: &mut Main) reaches Console {
         // to msvcrt (0x200 = darwin O_CREAT = windows O_TRUNC!) -- the flag
         // portability question rides the portable-fs design (TASKS_FS #6).
         main.unit_result = block Filesystem::create_dir(&mut main.fs, "omega_wrapper_probe_dir");
-        transition main.unit_result { UnitResult::Ok -> exists_again(main) _ -> bad(main, 72) }
+        transition main.unit_result { UnitResult::Ok -> block exists_again(main) _ -> bad(main, 72) }
     }
     machine exists_again(main: &mut Main) {
         let result: UnitResult = block Filesystem::create_dir(&mut main.fs, "omega_wrapper_probe_dir");
         transition result {
-            UnitResult::Error { kind } -> exists_kind(main, kind)
+            UnitResult::Error { kind } -> block exists_kind(main, kind)
             _ -> bad(main, 81)
         }
     }
     machine exists_kind(main: &mut Main, kind: ErrorKind) {
         main.unit_result = block Filesystem::remove_dir(&mut main.fs, "omega_wrapper_probe_dir");
-        transition kind { ErrorKind::AlreadyExists -> open_it(main) _ -> bad(main, 73) }
+        transition kind { ErrorKind::AlreadyExists -> block open_it(main) _ -> bad(main, 73) }
     }
 
     machine open_it(main: &mut Main) {
         main.open_result = block Filesystem::open(&mut main.fs, "omega_wrapper_probe.txt");
         transition main.open_result {
-            OpenResult::Ok { file } -> read_it(main, file)
+            OpenResult::Ok { file } -> block read_it(main, file)
             _ -> bad(main, 74)
         }
     }
     machine read_it(main: &mut Main, file: File) {
         main.io_result = block Filesystem::read(&mut main.fs, file, &mut main.buffer, 32);
         main.close_result = block Filesystem::close(&mut main.fs, file);
-        transition main.close_result { UnitResult::Ok -> read_checked(main) _ -> bad(main, 82) }
+        transition main.close_result { UnitResult::Ok -> block read_checked(main) _ -> bad(main, 82) }
     }
     machine read_checked(main: &mut Main) {
         transition main.io_result {
-            IoResult::Ok { count } -> check_count(main, count)
+            IoResult::Ok { count } -> block check_count(main, count)
             _ -> bad(main, 75)
         }
     }
     machine check_count(main: &mut Main, count: u64) {
-        transition count == 5 { true -> check_byte(main) _ -> bad(main, 76) }
+        transition count == 5 { true -> block check_byte(main) _ -> bad(main, 76) }
     }
     machine check_byte(main: &mut Main) {
-        transition main.buffer[0] == 104 { true -> remove_it(main) _ -> bad(main, 77) }
+        transition main.buffer[0] == 104 { true -> block remove_it(main) _ -> bad(main, 77) }
     }
 
     machine remove_it(main: &mut Main) {
         main.unit_result = block Filesystem::remove(&mut main.fs, "omega_wrapper_probe.txt");
-        transition main.unit_result { UnitResult::Ok -> remove_missing(main) _ -> bad(main, 78) }
+        transition main.unit_result { UnitResult::Ok -> block remove_missing(main) _ -> bad(main, 78) }
     }
     machine remove_missing(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove(&mut main.fs, "omega_wrapper_probe.txt");
@@ -99,7 +99,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

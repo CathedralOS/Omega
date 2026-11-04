@@ -164,14 +164,14 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Verify the result is 70.
     transition main.stack.result == 70 {
-        true -> check_sp(main)
-        _ -> bad_result(main)
+        true -> block check_sp(main)
+        _ -> block bad_result(main)
     }
 
     machine check_sp(main: &mut Main) {
         transition main.stack.sp == 0 {
-            true -> good(main)
-            _ -> bad_sp(main)
+            true -> block good(main)
+            _ -> block bad_sp(main)
         }
     }
 

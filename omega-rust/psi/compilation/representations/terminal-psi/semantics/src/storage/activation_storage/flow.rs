@@ -361,6 +361,51 @@ fn field_segment(
         .ok_or("activation transport field is absent")
 }
 
+/// The place whose case a selection actually observes. A case dispatched
+/// through a plain reference's `Referent` reads the borrowed subject itself, so
+/// an admission pending on that subject is selected exactly as if the
+/// dispatch named it directly. A reference with a storage view reinterprets
+/// bytes and is not followed.
+fn referenced_subject(blocks: &[terminal_psi::Block], mut place: Place) -> Place {
+    // Each step follows one reference to the source it was formed from, so a
+    // chain is never longer than the number of operations that form references.
+    let formations = blocks
+        .iter()
+        .map(|block| block.operations.len())
+        .sum::<usize>();
+    for _ in 0..formations {
+        let Some((P::Referent, rest)) = place.path.split_first() else {
+            break;
+        };
+        let source = blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match &operation.kind {
+                O::EstablishReference {
+                    source,
+                    storage: None,
+                } if operation
+                    .result
+                    .structural()
+                    .is_some_and(|result| result.place == place.root) =>
+                {
+                    Some(source)
+                }
+                _ => None,
+            });
+        let Some(source) = source else {
+            break;
+        };
+        let mut path = source.path.clone();
+        path.extend_from_slice(rest);
+        place = Place {
+            root: source.place,
+            path,
+        };
+    }
+    place
+}
+
 fn call_arguments(kind: &O) -> Option<&[StructuralArgument]> {
     match kind {
         O::CallUnit {
@@ -570,10 +615,13 @@ pub fn validate_flow(
             Some((
                 op.result.scalar()?.id,
                 (
-                    Place {
-                        root: *source,
-                        path: path.clone(),
-                    },
+                    referenced_subject(
+                        blocks,
+                        Place {
+                            root: *source,
+                            path: path.clone(),
+                        },
+                    ),
                     *case,
                 ),
             ))
@@ -1134,10 +1182,13 @@ pub fn validate_flow(
                         .find(|case| case.edge == edge)
                         .ok_or("activation case edge is absent")?;
                     next.select(
-                        &Place {
-                            root: *source,
-                            path: path.clone(),
-                        },
+                        &referenced_subject(
+                            blocks,
+                            Place {
+                                root: *source,
+                                path: path.clone(),
+                            },
+                        ),
                         case.case,
                         true,
                     );

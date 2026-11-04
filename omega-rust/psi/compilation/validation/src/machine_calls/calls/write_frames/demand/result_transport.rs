@@ -45,10 +45,12 @@ impl CallFrameResolver<'_> {
                     ReferenceResultTransport::Reference(leaf) => &leaf.source,
                     ReferenceResultTransport::Value { source, .. } => source,
                 };
-                source
-                    .segments
-                    .iter()
-                    .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
+                source.segments.iter().any(|segment| {
+                    matches!(
+                        segment,
+                        facts::PlaceSegment::Index { .. } | facts::PlaceSegment::OpaqueRange
+                    )
+                })
             })
         {
             return Some(ordinary);
@@ -59,6 +61,18 @@ impl CallFrameResolver<'_> {
         })
     }
 
+    /// Retain whole-value moves and reference leaves under the same invocation
+    /// context. Consumers select stored descriptors from the completed actual.
+    pub fn reference_result_transports_for_arguments(
+        &self,
+        symbol: SymbolHandle,
+        arguments: &[typed_trees::expression::ExpressionHandle],
+    ) -> Option<Vec<ReferenceResultTransport>> {
+        let inference = FrameInference::default();
+        let indices = inference.argument_indices(self.program, arguments);
+        self.reference_result_transports_for_indices(symbol, &indices)
+    }
+
     /// The flat projection still cannot select payloads of a moved value.
     /// Apply invocation context to the full relation first, then retain that
     /// refusal rather than letting a state-only flat query preempt context.
@@ -67,9 +81,7 @@ impl CallFrameResolver<'_> {
         symbol: SymbolHandle,
         arguments: &[typed_trees::expression::ExpressionHandle],
     ) -> Option<Vec<ReferenceResultLeafOrigin>> {
-        let inference = FrameInference::default();
-        let indices = inference.argument_indices(self.program, arguments);
-        self.reference_result_transports_for_indices(symbol, &indices)?
+        self.reference_result_transports_for_arguments(symbol, arguments)?
             .into_iter()
             .map(|transport| match transport {
                 ReferenceResultTransport::Reference(leaf) => Some(leaf),
@@ -119,10 +131,15 @@ impl CallFrameResolver<'_> {
             // cannot mask a constructed or unresolved leaf on another.
             // Unknown reference origins therefore still refuse here;
             // the capture consumer independently checks case presence.
+            let mut origin = leaf.origin?.into_symbolic_place()?;
+            // A caller cannot interpret this callee's selector expression.
+            // Preserve its checked window dimension without treating it as an
+            // element index or inventing exact bounds in the caller's scope.
+            super::super::summary_windows::coarsen_origin(self.program, &mut origin);
             transports.push(ReferenceResultTransport::Reference(
                 ReferenceResultLeafOrigin {
                     result_path: leaf.local_segments,
-                    source: LocalWriteSource::from(leaf.origin?.into_symbolic_place()?),
+                    source: LocalWriteSource::from(origin),
                 },
             ));
         }

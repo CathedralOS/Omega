@@ -94,6 +94,7 @@ impl CallViewReturnContract<'_> {
                 owner_path: Vec::new(),
                 source_path: Vec::new(),
                 source_type: self.parameter_type_reference(program, parameter_index),
+                source_reference_hops: 0,
                 parameter_index,
                 kind: super::types::reference_borrow_access_kind(
                     program,
@@ -477,6 +478,33 @@ pub(super) fn retain_formation_parents(
         .collect()
 }
 
+/// A shared-reference parameter cannot be written through, so a statement
+/// loan it carries at its own root was installed by rebinding the parameter
+/// (`selected = &local`), not by a store into the caller's referent. Reading
+/// the parameter then reads that new descriptor; forwarding the formal would
+/// let a returned view of an invocation-local slot pass as the caller's
+/// referent. Entry leaves keep their incoming identity and are not rebinds.
+fn shared_parameter_rebound(
+    program: &dyn ::validation::CheckingInput,
+    root: facts::PlaceRoot,
+    loan_trackers: &[StateLoanTracker],
+) -> bool {
+    let Some(symbol) = root.as_symbol() else {
+        return false;
+    };
+    let shared = program
+        .state_by_symbol(program.symbols.get(symbol).parent)
+        .and_then(|state| program.state_parameter_by_symbol(state, symbol))
+        .and_then(|parameter| validation::reference_shell(program, parameter.type_reference))
+        .is_some_and(|shell| shell.access == language_semantics::ReferenceAccess::Shared);
+    shared
+        && loan_trackers.iter().any(|loan| {
+            loan.storage_owner == root
+                && loan.owner_path.is_empty()
+                && !loan.place.incoming_reference.is_valid()
+        })
+}
+
 fn rebase_borrow_places_following(
     program: &dyn ::validation::CheckingInput,
     geometry: accesses::BorrowAccessGeometry,
@@ -492,9 +520,13 @@ fn rebase_borrow_places_following(
     // Its own borrowed grant supplies this namespace; an entry leaf at owner[]
     // is the next pointer stored in that referent, not this pointer's supplier.
     // Keep every entry leaf in the roster for actual inner loads/restoration.
+    // Only the read itself sees today's binding. A carried place naming the
+    // formal was captured before any rebind (a capture after one already
+    // followed the rebind's loan), so it keeps meaning the caller's referent.
     let parameter_referent = !place.incoming_reference.is_valid()
         && place.segments.is_empty()
-        && accesses::is_borrowed_parameter_root(program, place.root);
+        && accesses::is_borrowed_parameter_root(program, place.root)
+        && !(active.is_empty() && shared_parameter_rebound(program, place.root, loan_trackers));
     let source_loans: Vec<&StateLoanTracker> = loan_trackers
         .iter()
         .rev()

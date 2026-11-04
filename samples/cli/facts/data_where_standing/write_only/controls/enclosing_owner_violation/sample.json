@@ -2,6 +2,7 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "data `Envelope`'s default domain is still FALSE"
+    "data `Envelope`",
+    "unproved; restore them first"
   ]
 }

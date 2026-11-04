@@ -41,30 +41,30 @@ machine Main::main(main: &mut Main) reaches Console {
     // After the press the balance should be spent and 75c of product
     // dispensed; encode "balance 0 and dispensed 75" as exit 70.
     transition main.register.balance == 0 {
-        true -> check_dispensed(main)
-        false -> bad_balance(main)
+        true -> block check_dispensed(main)
+        false -> block bad_balance(main)
     }
 
     machine check_dispensed(main: &mut Main) {
         transition main.register.dispensed == 75 {
-            true -> good_verdict(main)
-            false -> bad_dispensed(main)
+            true -> block good_verdict(main)
+            false -> block bad_dispensed(main)
         }
     }
 
     machine good_verdict(main: &mut Main) {
         Console::write_line("PASS: balance spent and 75c dispensed (exit 70)");
-        transition { _ -> report(main, 70) }
+        transition { _ -> block report(main, 70) }
     }
 
     machine bad_balance(main: &mut Main) {
         Console::write_line("FAIL: the balance was not fully spent (exit 71)");
-        transition { _ -> report(main, 71) }
+        transition { _ -> block report(main, 71) }
     }
 
     machine bad_dispensed(main: &mut Main) {
         Console::write_line("FAIL: dispensed total was not 75 cents (exit 72)");
-        transition { _ -> report(main, 72) }
+        transition { _ -> block report(main, 72) }
     }
 
     machine report(main: &mut Main, code: i32 in Saturating) {

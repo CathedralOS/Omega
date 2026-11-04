@@ -1,66 +1,96 @@
-# Checked predicate helper production
+# Pass a saved field reference to a helper
+
+These programs save a reference to `Counter.value`, pass it to a helper, and
+use the field's bound afterward. The helper temporarily writes 61 and then
+restores a value no greater than 60. The caller's addition needs no extra guard.
+The record states its bound through an ordinary Boolean helper, `bounded`.
 
 Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
 
-Owning task: **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. This is another production
-of the parent fact: the default domain calls an ordinary checked Boolean machine
-rather than spelling its comparison directly. The exclusive field write still
-establishes the same bound before the produced record crosses each place.
+Owning task: **CANONICALIZE-SCALAR-RANGE-CONTRACTS** in
+[TASKS.md](../../../../../TASKS.md). This is another way of producing the same
+fact in the [parent folder](../README.md).
 
-| Place | Positive | Reject twin |
-| --- | --- | --- |
-| Local | [program](local/main.omg) | [missing standing predicate](local/invalid/main.omg) |
-| Field | [program](field/main.omg) | [missing standing predicate](field/invalid/main.omg) |
-| Parameter | [program](parameter/main.omg) | [missing standing predicate](parameter/invalid/main.omg) |
-| Call result | [program](call_result/main.omg) | [missing standing predicate](call_result/invalid/main.omg) |
-| Match join | [program](match_join/main.omg) | [missing standing predicate](match_join/invalid/main.omg) |
-| Const name | [program](const_name/main.omg) | [missing standing predicate](const_name/invalid/main.omg) |
-| Nested machine | [program](other_state/main.omg) | [missing standing predicate](other_state/invalid/main.omg) |
-| Other machine | [program](other_machine/main.omg) | [missing standing predicate](other_machine/invalid/main.omg) |
-| Target body | [program](target_body/main.omg) | [missing standing predicate](target_body/invalid/main.omg) |
+| Place | Positive | Missing predicate | Unfinished restoration |
+| --- | --- | --- | --- |
+| Local | [program](local/main.omg) | [control](local/invalid/main.omg) | [control](local/invalid_window/main.omg) |
+| Field | [program](field/main.omg) | [control](field/invalid/main.omg) | [control](field/invalid_window/main.omg) |
+| Parameter | [program](parameter/main.omg) | [control](parameter/invalid/main.omg) | [control](parameter/invalid_window/main.omg) |
+| Call result | [program](call_result/main.omg) | [control](call_result/invalid/main.omg) | [control](call_result/invalid_window/main.omg) |
+| Match join | [program](match_join/main.omg) | [control](match_join/invalid/main.omg) | [control](match_join/invalid_window/main.omg) |
+| Const name | [program](const_name/main.omg) | [control](const_name/invalid/main.omg) | [control](const_name/invalid_window/main.omg) |
+| Nested machine | [program](other_state/main.omg) | [control](other_state/invalid/main.omg) | [control](other_state/invalid_window/main.omg) |
+| Other machine | [program](other_machine/main.omg) | [control](other_machine/invalid/main.omg) | [control](other_machine/invalid_window/main.omg) |
+| Selected body | [program](target_body/main.omg) | [control](target_body/invalid/main.omg) | [control](target_body/invalid_window/main.omg) |
 
-Each positive computes the addition before checking transported neighbor fields
-17 and 53. A lost field, stale value or incorrect match choice therefore traps;
-the neighbor checks never establish the arithmetic bound. Both match choices
-execute, and the lower signed value retains its distinct authored result.
-Every twin removes only the record's `where` clause.
+The first control removes only the record's predicate. The unfinished-restoration
+control keeps that predicate but lets the helper return 61 under a matching,
+weaker guarantee. The helper remains valid; its caller cannot hand 61 back to a
+field whose enclosing record still requires at most 60.
 
-The [alias](controls/alias/main.omg) and [literal](controls/literal/main.omg)
-controls exercise independent constant/index membership judgments. Their
+Every positive checks the updated field and nonzero neighbors 17 and 53. High
+and low inputs produce different results. Both match arms run with distinct
+values, and the selected implementations check different tags. Omitting the
+write, changing the selected path, or overwriting a neighbor must trap. Those
+runtime checks do not supply the earlier arithmetic proof.
+
+Construction proves the record's requirements before borrowing its field.
+The helper's checked return guarantee restores the field bound, and the receiving
+body uses that declared bound directly. Calls and joins must keep the same value
+and its justified requirements; a later result guard supplies no missing proof.
+
+Proof clauses disappear from executable output. Reference formation, writes,
+calls, matches and canary reads must remain. Comparing Terminal and native runs
+checks those effects through record layout, argument and return placement,
+instruction selection and image emission. The ordinary Build declarations select
+the target implementations; declaring another host does not establish execution
+on that host.
+
+The compiler may omit a local variable that only names borrowed storage. It
+must still record which storage and field it names, its read/write permission,
+and any index evaluated when the borrow was formed. Calls consume that record;
+they do not evaluate the initializer again. Real reference-value initializers
+retain their own evaluation and storage. The
+[loan rules](../../../../../wiki/spec/terminal-psi/loans.md) continue to decide
+when the parent may be used again.
+
+The extra [alias](controls/alias/main.omg) and [literal](controls/literal/main.omg)
+controls retain constant and index checks. Their
 [alias reject](controls/alias_invalid/main.omg) and
-[literal reject](controls/literal_invalid/main.omg) respectively remove the
-standing predicate and supply 61. The [stronger predicate](controls/stronger/main.omg)
-rejects a write guarantee that omits its nonconvex condition; a necessary bound
-cannot replace the full predicate. The [qualified formal](controls/qualified_formal/main.omg)
-rejects an invocation whose argument does not establish the helper's domain.
+[literal reject](controls/literal_invalid/main.omg) remove the predicate or
+supply 61. The [stronger predicate](controls/stronger/main.omg) requires the
+complete condition, including `value != 13`. The
+[qualified formal](controls/qualified_formal/main.omg) requires its argument to
+establish the helper's declared domain.
 
-Runtime handback uses a complete interval envelope only when the existing
-checked predicate owner proves both the consequence and the full carrier
-converse. Constant materialization instead retains its exact destination debt
-until an ordinary full-type constructor/return judgment completes. The receipt
-cannot be stamped while that exact checked probe owes a target proof condition.
-Index use independently proves every predicate from decoded own fields through
-the existing admitted predicate judgment; canonical bytes supply values, not
-membership or authority. False and unknown results refuse publication. The
-helper/index judgment currently covers complete positional calls over bare
-integer formals.
+When a Boolean helper defines a domain, an interval can replace its condition
+only after proving both directions. A necessary bound alone is insufficient.
+Constants and indices still owe every predicate of their receiving type;
+decoded bytes supply values, not domain membership or access permission. The
+current helper judgment covers complete positional calls over plain integer
+parameters. General relational and generic predicates remain open.
 
-Destination probes wait for their exact named type inputs to complete.
-Declaration-owned ranking terms retain their typed source ownership during
-deferred body preparation; the termination witness and proof remain body work.
+The [earlier direct-field version and qualification details](https://github.com/CathedralOS/Omega/blob/f42397bd26d8e3b0ec77c78abac15f26563c4560/samples/cli/facts/data_where_standing/predicate_helper/README.md)
+retain their actual sources and limitations. Some earlier endpoint controls
+reject before the later constant-publication check and do not establish that
+later check. Type arguments must be ready before constant publication;
+termination proofs still belong to the function body.
 
-The fixed discovery base is `0e81d85357829393c3382cea3d3382237a807dc0`.
-The ordinary helper spelling refused restricted-field handback on that base,
-while the equivalent direct comparison passed. Subsequent constant observations
-exposed destination qualification, authored-call custody and index-use proof
-boundaries on the same frozen fact. The qualification record preserves each
-producer and diagnostic separately. The four pure-endpoint destination controls
-close before the conditional receipt fence; they establish ordinary proof
-behavior and do not claim to exercise that fence. A focused source-model check
-covers the actual qualification publication boundary with demanded and unrelated
-retained conditions and a missing probe root.
+The frozen baseline uses optimized source
+`2713116252386e98ce5e87961aca764f8760b217`. Eight saved-reference places fail while
+producing executable compiler output with "computed borrow lost its established
+local"; the const-name place already checks. The first loan-record repair,
+`d6448cfae742e9142043bacd0a2be6a3891820b6`, still failed those eight places because
+constructing another reference skipped the saved loan.
 
-The parent's [requirements and limits](../README.md#establishment-and-preservation)
-apply. Actual native qualification is macOS ARM64 plus Terminal agreement;
-four authored entry bindings do not claim native execution on other hosts.
-General relational/default-domain and generic predicate support remains open.
+Optimized producer `cd5340c6d0348e868e34d68ee85f250c431f79ba` runs all nine current
+positives with native and Terminal exits of zero on macOS ARM64. Their eighteen
+controls reject for the intended missing-bound or unfinished-restoration reason.
+The [saved-reference report](../../../../../wiki/drafts/measurements/saved_field_reference_calls.md)
+records the source, producer and evidence, including the later removal of a
+redundant lowering check. The checked producer already records the reference
+crossing that lowering consumes.
+
+All programs declare the four hosted entry bindings; other-host execution is
+unverified. The parent migration remains open, and GUI qualification remains
+deferred as requested.

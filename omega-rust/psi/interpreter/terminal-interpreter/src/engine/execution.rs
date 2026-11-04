@@ -108,6 +108,8 @@ pub struct TerminalExecution<'artifact> {
         BTreeMap<BoundaryMachineId, crate::boundary::effects::AdmittedBoundarySupply>,
     /// Exact family catalog selection, never provider or boundary issuance.
     pub(crate) target_machines: Option<terminal_installation::AdmittedTargetMachineSelections>,
+    pub(crate) native_code_layouts:
+        Option<std::sync::Arc<crate::TerminalNativeCodeLayoutEnvironment>>,
     /// Root-authorized assumed binding contracts admitted with the provider
     /// installation. They are conditional evidence on this execution, not
     /// checked redirects: call custody keeps consulting only
@@ -661,6 +663,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             boundary_supplies: installation
                 .map(|installation| installation.supplies.clone())
                 .unwrap_or_default(),
+            native_code_layouts: installation
+                .and_then(|supplies| supplies.native_code_layouts.clone()),
             target_machines: installation
                 .and_then(|installation| installation.target_machines.clone()),
             assumed_bindings: installation
@@ -1169,7 +1173,8 @@ impl<'artifact> TerminalExecution<'artifact> {
                                         OperationFlow::Advance
                                     }
                                     OperationKind::EstablishNativeCodeLayout { machine } => {
-                                        return Err(TerminalInterpretError::UnsupportedCapability(crate::engine::capabilities::TerminalUnsupportedCapability::NativeCodeLayout { machine }));
+                                        self.execute_native_code_layout(operation, machine)?;
+                                        OperationFlow::Advance
                                     }
                                     OperationKind::StorageAddress { ref source } => {
                                         self.execute_storage_address(operation, source)?;
@@ -1241,7 +1246,36 @@ impl<'artifact> TerminalExecution<'artifact> {
                                         }
                                         OperationFlow::Advance
                                     }
-                                    OperationKind::RegisterAccess { event, .. } => {
+                                    OperationKind::ActivateTaskRegister { .. } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess {
+                                operation: terminal_psi::RegisterOperation::TaskRegisterActivate,
+                            },
+                        ));
+                    }
+                    OperationKind::ReadTaskRegister { .. } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess {
+                                operation: terminal_psi::RegisterOperation::TaskRegisterRead,
+                            },
+                        ));
+                    }
+                    OperationKind::ReloadSegmentDescriptors { kind, .. } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess { operation: terminal_psi::RegisterOperation::SegmentReload(kind) }));
+                    }
+                    OperationKind::ReadSegmentSelector { register, .. } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess { operation: terminal_psi::RegisterOperation::SegmentRead(register) }));
+                    }
+                    OperationKind::GlobalDescriptorTable { operation, .. } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess {
+                                operation: terminal_psi::RegisterOperation::GlobalDescriptorTable(operation),
+                            },
+                        ));
+                    }
+                    OperationKind::RegisterAccess { event, .. } => {
                                         return Err(TerminalInterpretError::UnsupportedCapability(
                                             crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess {
                                                 operation: event.operation(),

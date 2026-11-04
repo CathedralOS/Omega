@@ -1,1 +1,1 @@
-retained member `pace::macos_arm64` calls `darwin_poll`, which selects no declaration
+value call `darwin_poll(..)` does not resolve to a callable machine entry or requirement

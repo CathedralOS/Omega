@@ -378,6 +378,14 @@ pub enum CheckedUnitEffectOperationPlan {
         arguments: Vec<CheckedCallScalarArgument>,
         service_reach: ServiceReachSummary,
     },
+    /// Load or snapshot GDTR through the exact borrowed byte storage.
+    GlobalDescriptorTable {
+        coordinate: CheckedUnitCallCoordinate,
+        operation: language_core::inline_assembly::AsmGlobalDescriptorTableOperation,
+        storage: CheckedUnitStructuralArgumentPlan,
+        service: language_semantics::ServiceReachId,
+        service_reach: ServiceReachSummary,
+    },
     /// One store `place = value` over its exact destination place and value:
     /// an authored scalar, byte or sum-field assignment, the repair of an
     /// open borrowed window, or an owned local's rebind. The destination's
@@ -762,6 +770,33 @@ impl CheckedStructuralValueCall {
     }
 }
 
+/// Borrowed operands use the same evaluation and completion schedule for a
+/// callable and an instruction. The instruction owns one storage operand.
+#[derive(Clone, Copy)]
+pub enum CheckedStructuralInvocation<'a> {
+    Call(&'a CheckedUnitCallPlan),
+    BorrowedInstruction {
+        coordinate: CheckedUnitCallCoordinate,
+        storage: &'a CheckedUnitStructuralArgumentPlan,
+    },
+}
+
+impl<'a> CheckedStructuralInvocation<'a> {
+    pub fn coordinate(self) -> CheckedUnitCallCoordinate {
+        match self {
+            Self::Call(call) => call.coordinate,
+            Self::BorrowedInstruction { coordinate, .. } => coordinate,
+        }
+    }
+
+    pub fn structural_operands(self) -> &'a [CheckedUnitStructuralArgumentPlan] {
+        match self {
+            Self::Call(call) => &call.structural_arguments,
+            Self::BorrowedInstruction { storage, .. } => std::slice::from_ref(storage),
+        }
+    }
+}
+
 impl CheckedUnitEffectOperationPlan {
     /// Whether this operation permits the next sequential operation to execute.
     /// The value DAG and its invocation catalog, independently of whether
@@ -917,7 +952,8 @@ impl CheckedUnitEffectOperationPlan {
             Self::CaptureAssignmentDestination {
                 statement_index, ..
             } => Some(*statement_index),
-            Self::RegisterAccess { coordinate, .. } => Some(coordinate.statement_index),
+            Self::RegisterAccess { coordinate, .. }
+            | Self::GlobalDescriptorTable { coordinate, .. } => Some(coordinate.statement_index),
             Self::AtomicAccess(access) => Some(access.statement_index),
             Self::AtomicFence {
                 statement_index, ..
@@ -936,6 +972,7 @@ impl CheckedUnitEffectOperationPlan {
         match self {
             Self::Call(call) => &call.structural_arguments,
             Self::AtomicFence { argument, .. } => std::slice::from_ref(argument),
+            Self::GlobalDescriptorTable { storage, .. } => std::slice::from_ref(storage),
             Self::AtomicAccess(access) => std::slice::from_ref(&access.receiver),
             _ => &[],
         }
@@ -950,13 +987,28 @@ impl CheckedUnitEffectOperationPlan {
         }
     }
 
-    /// The authored invocation this operation performs: an ordinary or
-    /// boundary call, or a checked port write. Continuations after either
-    /// share one call boundary; every other operation answers `None`.
+    pub fn structural_invocation(&self) -> Option<CheckedStructuralInvocation<'_>> {
+        match self {
+            Self::Call(call) => Some(CheckedStructuralInvocation::Call(call)),
+            Self::GlobalDescriptorTable {
+                coordinate,
+                storage,
+                ..
+            } => Some(CheckedStructuralInvocation::BorrowedInstruction {
+                coordinate: *coordinate,
+                storage,
+            }),
+            _ => None,
+        }
+    }
+
+    /// Identify the source invocation so calls and checked instructions share
+    /// operand evaluation and normal-completion cleanup.
     pub fn invocation_coordinate(&self) -> Option<CheckedUnitCallCoordinate> {
         match self {
             Self::Call(call) => Some(call.coordinate),
-            Self::RegisterAccess { coordinate, .. } => Some(*coordinate),
+            Self::RegisterAccess { coordinate, .. }
+            | Self::GlobalDescriptorTable { coordinate, .. } => Some(*coordinate),
             _ => None,
         }
     }

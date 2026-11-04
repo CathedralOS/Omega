@@ -1,1 +1,3 @@
-data `Grid`'s default domain is still FALSE at a call
+cannot complete a call at statement 2 in machine `Main::main` state `main`
+the `requires` facts of `context.grid` (data `Grid`)
+unproved; restore them first

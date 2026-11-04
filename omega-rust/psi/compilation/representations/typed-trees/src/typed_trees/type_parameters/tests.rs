@@ -79,6 +79,8 @@ fn contract_index_preserves_generations_duplicates_and_kind_selection() {
             "unresolved",
             TypeParameterKind::Machine {
                 contract: MachineParameterContract::Nominal {
+                    receiving_trait: SymbolHandle::invalid(),
+                    receiving_arguments: vec![],
                     trait_definition: SymbolHandle::invalid(),
                     requirement: SymbolHandle::invalid(),
                     trait_arguments: vec![],

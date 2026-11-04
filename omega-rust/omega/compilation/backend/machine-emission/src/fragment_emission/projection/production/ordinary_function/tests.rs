@@ -14,7 +14,9 @@ use super::{ResolvedFragmentEmissionError, emit};
 
 // These are projection inputs, not an ISA encoding test: bytes have already
 // been chosen by layout. Descending, sparse identities rule out an accidental
-// dependency on instruction IDs being dense offsets or sorted keys.
+// dependency on instruction IDs being dense offsets or sorted keys. Block IDs,
+// by contrast, are positions (`SelectedFunction::ids_are_positions`), so the
+// single block is block 0.
 fn fixture(instruction_count: u32) -> (SelectedFunction, ResolvedSelectedFunctionLayout) {
     let mut selected = Vec::new();
     let mut rows = Vec::new();
@@ -64,7 +66,7 @@ fn fixture(instruction_count: u32) -> (SelectedFunction, ResolvedSelectedFunctio
         });
     }
     let machine = MachineId::new(1).unwrap();
-    let block = SelectedBlockId(7);
+    let block = SelectedBlockId(0);
     let terminal = selected.pop().unwrap();
     let byte_count = u64::from(instruction_count + 1) * 4;
     (

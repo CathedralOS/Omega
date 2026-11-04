@@ -1,2 +1,2 @@
-selected provider schema
-resolves to 2 exact top-level boundary requirements
+`Float::equal` binds the fixed operator token `==` over operands that name no declared type or domain
+joins a primitive operator family, which only the core semantic-home owner may publish

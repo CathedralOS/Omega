@@ -1,28 +1,16 @@
-//! Which sealed atomic operation an assignment carrier denotes, and the
-//! receiver polarity that operation demands of the target's root.
+//! Atomic operations may update a cell through a shared reference. This module
+//! tells ownership checking which access the selected operation needs.
 //!
-//! The parser spells `place.store(v, ordering)`, the fetch family, swap, and
-//! compare-exchange as an assignment whose value is an
-//! [`ExpressionNode::Atomic`] carrier (tokens-to-syntax-trees
-//! `atomic_lets.rs`). That spelling is a lowering convenience, not a custody
-//! fact: every sealed atomic requirement takes a shared receiver
-//! (`wiki/spec/language/concurrency.md`, "All receivers are shared"), so the
-//! ordinary "assignment target must be mutable" rule would wrongly reject
-//! `self.value.store(..)` through `&self`. This module recovers the operation
-//! the carrier denotes and asks the access-plan vocabulary for its receiver
-//! polarity, so the custody check demands exactly what the operation requires
-//! rather than deciding per type name.
+//! The parser represents store, fetch, swap and compare-exchange as assignments
+//! containing a typed atomic operation. Treating those as ordinary assignments
+//! would wrongly demand an exclusive reference. Decode the operation and use
+//! its declared access requirement instead.
 //!
-//! Two guards keep this from widening ordinary writes through shared borrows:
-//!
-//! - only a carrier whose target is atomic storage qualifies, classified by
-//!   builtin atom and never by spelling. `.store(..)` on a plain `u32` is not
-//!   an atomic operation on an atomic cell, so it keeps the exclusive demand;
-//! - a direct `self.value = v` on an atomic field is not a carrier and keeps
-//!   the exclusive demand; ordinary assignment never becomes atomic.
-//!
-//! Access atomic fields are the sibling case owned by `access_views`, whose
-//! per-operation permission rows already authorize the carrier.
+//! This permission belongs only to an actual atomic operation on dedicated
+//! atomic storage. Builtin identity establishes that storage kind; a user type
+//! called `AtomicSomething` does not. A plain integer store and an ordinary
+//! assignment to an atomic field retain their usual exclusive-access checks.
+//! Policy-governed atomic fields use the separate grants in `access_views`.
 
 use access_plans::{AccessOperation, AtomicAccessOperation, BorrowPolarity};
 use language_core::atomic::AtomicOrderingPlan;
@@ -68,6 +56,23 @@ pub(crate) fn target_atomic_operation(
         return None;
     };
     atomic_write_operands(program, atomic).map(|(operation, _)| operation)
+}
+
+/// Classify dedicated atomic carriers by their builtin identity. A user type
+/// named `AtomicSomething` must not acquire atomic arithmetic or access rules.
+pub fn is_atomic_type(
+    program: &dyn crate::CheckingInput,
+    handle: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Named { symbol, .. } => program
+            .symbols
+            .builtin_type_atom(*symbol)
+            .is_some_and(|atom| atom.is_atomic()),
+        TypeReferenceNode::Reference { referee, .. } => is_atomic_type(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => is_atomic_type(program, *base_type),
+        _ => false,
+    }
 }
 
 /// Whether a place's declared type is one of the dedicated atomic core types.

@@ -71,23 +71,36 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let mut identity_cursor = self.local_structural_identities.cursor();
-        let mut extent = self.stage_owned_value(
+        let owner = self.stage_owned_value(
             source,
-            plan.storage.carrier,
+            plan.storage.owner_carrier(),
             parameter.multiplicity,
             &mut identity_cursor,
         )?;
-        if extent.claim_paths.as_slice() != [Vec::<StructuralPathSegment>::new()]
-            || !extent.value.qualifications.contains(&plan.storage.granted)
-            || !extent.value.qualifications.contains(&resident_domain)
-            || extent.value.qualifications.contains(&vacant)
+        if owner.claim_paths.as_slice() != [Vec::<StructuralPathSegment>::new()]
+            || !owner.value.qualifications.contains(&resident_domain)
         {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
-        let child = ConstructorValue::resolve(self, source)?;
+        // Consume the whole owner once. Resolving its backing is a projection,
+        // not another independently owned claim or a fresh backing grant.
+        let mut backing_source = source.clone();
+        backing_source.path.extend(
+            plan.storage
+                .owner_storage_path(&program.catalogs.structural_types)
+                .ok_or_else(malformed)?,
+        );
+        let child = ConstructorValue::resolve(self, &backing_source)?;
         let ConstructorValue::Access(original_extent) = &child else {
             return Err(malformed());
         };
+        if !original_extent
+            .qualifications
+            .contains(&plan.storage.granted)
+            || original_extent.qualifications.contains(&vacant)
+        {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
+        }
         let observed = self.resolve_live_projection(
             profile_argument.place,
             &profile_argument.path,
@@ -118,7 +131,7 @@ impl TerminalExecution<'_> {
             || initialized.schema_identity != plan.schema_identity
             || initialized.policy_identity != plan.policy_identity
             || initialized.policy_plan_machine_identity != plan.policy_plan_machine_identity
-            || initialized.storage != plan.storage
+            || !initialized.storage.same_custody(&plan.storage)
             || initialized.placement != plan.placement
             || initialized.image_fields != plan.image_fields
         {
@@ -215,18 +228,16 @@ impl TerminalExecution<'_> {
             result.structural_type,
             moved.id,
         )?;
-        storage.stage(self, source, &child, &extent_home, true)?;
+        storage.stage(self, &backing_source, &child, &extent_home, true)?;
         storage.take_provider_descriptor(&extent_home, binding)?;
         storage.stage_resident_image(self, custody, &value_home, decoded)?;
-        extent
-            .value
-            .qualifications
-            .retain(|domain| *domain != resident_domain);
-        extent.value.qualifications.push(vacant);
-        extent.value.qualifications.sort();
+        let mut qualifications = original_extent.qualifications.clone();
+        qualifications.retain(|domain| *domain != resident_domain);
+        qualifications.push(vacant);
+        qualifications.sort();
         StructuralPathQualification::append_under(
-            &extent.value.qualifications,
-            &extent.value.projected_qualifications,
+            &qualifications,
+            &original_extent.projected_qualifications,
             &extent_path,
             &mut value.projected_qualifications,
         );

@@ -109,6 +109,28 @@ fn non_true_operand(
     is_true(binary.left).then_some(binary.right)
 }
 
+/// `X == false` (either side): the guard holds exactly when `X` is refuted.
+/// A `false ->` arm of a Boolean dispatch lowers to this comparison.
+pub(crate) fn false_comparison_operand(
+    proof_plan: &ProofPlan,
+    condition: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let binary = proof_plan.program.expression_table.binary_node(condition)?;
+    if binary.operator != BinaryOperator::Equal {
+        return None;
+    }
+    let is_false = |handle| {
+        matches!(
+            proof_plan.program.expression_table.expression(handle),
+            ExpressionNode::Boolean(false)
+        )
+    };
+    if is_false(binary.right) {
+        return Some(binary.left);
+    }
+    is_false(binary.left).then_some(binary.right)
+}
+
 pub(crate) fn unwrap_true_guard_condition(
     proof_plan: &ProofPlan,
     condition: ExpressionHandle,

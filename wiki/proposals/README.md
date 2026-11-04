@@ -9,7 +9,7 @@ Acceptance updates the specification; this directory does not define current rul
 Use `NNNN_short_descriptive_name.md`, beginning with `0000`. The number is a stable
 proposal ID, not priority or acceptance order. Do not routinely renumber or reuse
 IDs; an explicit owner-directed reassignment updates every reference in the same sweep.
-The next available ID is **0008**; advance this counter when adding a proposal,
+The next available ID is **0009**; advance this counter when adding a proposal,
 including after accepted or withdrawn files have been removed.
 
 Each proposal names its status, affected spec owners, concrete problem, proposed
@@ -37,5 +37,9 @@ separate review system or historical decision ledger.
 - [0006: Initializer-based local type inference](0006_initializer_local_type_inference.md):
   infer a local's already-determined initializer type without numeric defaults,
   later-use inference or implicit mutable borrowing; draft, not accepted.
+- [0008: Arbitrary-width integer carriers](0008_arbitrary_width_integers.md):
+  explore width-indexed carriers and integer/signed/unsigned domain families;
+  retain exact domain-carrier identity and require a concrete customer before
+  accepting a new type surface or implementation campaign.
 
 Temporary working notes belong in [drafts/](../drafts/README.md).

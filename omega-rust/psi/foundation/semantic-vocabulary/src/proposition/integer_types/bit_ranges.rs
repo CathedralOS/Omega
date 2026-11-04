@@ -18,10 +18,21 @@ impl IntegerType {
         left: (IntegerValue, IntegerValue),
         right: (IntegerValue, IntegerValue),
     ) -> Option<(IntegerValue, IntegerValue)> {
-        self.bitwise_bounds(left, right, |left, right| KnownBits {
+        let (low, mut high) = self.bitwise_bounds(left, right, |left, right| KnownBits {
             ones: left.ones & right.ones,
             zeros: left.zeros | right.zeros,
-        })
+        })?;
+        // An unsigned AND cannot exceed either operand. Common-prefix bits
+        // alone can round a numeric ceiling such as 100 up to 127; retain
+        // the original admitted ceilings alongside that bit information.
+        if self.sign == IntegerSign::Unsigned {
+            for (_, ceiling) in [left, right] {
+                if self.compare(ceiling, high)? == Ordering::Less {
+                    high = ceiling;
+                }
+            }
+        }
+        Some((low, high))
     }
 
     pub fn bitwise_or_bounds(
@@ -168,7 +179,12 @@ mod tests {
         let value = IntegerValue::Unsigned;
         assert_eq!(
             integer.bitwise_and_bounds((value(48), value(57)), (value(255), value(255))),
-            Some((value(48), value(63)))
+            Some((value(48), value(57)))
+        );
+        let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        assert_eq!(
+            integer.bitwise_and_bounds((value(0), value(100)), (value(0), value(u32::MAX as u128))),
+            Some((value(0), value(100)))
         );
         let integer = IntegerType::new(IntegerSign::Unsigned, 128).unwrap();
         assert_eq!(

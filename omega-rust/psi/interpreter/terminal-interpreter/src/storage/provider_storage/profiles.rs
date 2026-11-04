@@ -65,12 +65,19 @@ impl TerminalExecution<'_> {
                     .map_err(TerminalInterpretError::ContentTransformationMismatch)?
                     .0,
             ),
-            terminal_psi::TerminalAccessLifecycleOperation::MoveOut => Some(
-                plan.storage
-                    .owned_content()
-                    .map_err(TerminalInterpretError::ContentTransformationMismatch)?
-                    .1,
-            ),
+            terminal_psi::TerminalAccessLifecycleOperation::MoveOut => {
+                // Extraction checks Live on the whole Run before projecting
+                // its backing. Resident instead qualifies the Extent itself.
+                match plan.storage.owner {
+                    terminal_psi::TerminalAccessOwner::Extent => Some(
+                        plan.storage
+                            .owned_content()
+                            .map_err(TerminalInterpretError::ContentTransformationMismatch)?
+                            .1,
+                    ),
+                    terminal_psi::TerminalAccessOwner::Run { .. } => None,
+                }
+            }
             terminal_psi::TerminalAccessLifecycleOperation::View => None,
         };
         if profile.structural_type != *profile_type

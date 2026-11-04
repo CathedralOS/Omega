@@ -304,18 +304,22 @@ impl PreparedBoundaryCallingPlans {
             let signature = review
                 .attach(canonical, module, &code.source_records, self.target)
                 .map_err(&diagnostic)?;
-            let (report_fingerprint, commitment) =
-                boundary_plan_application_identity(&signature, &validated).map_err(&diagnostic)?;
+            let calling_owner_application = module
+                .identities
+                .text(instance.declaring_application)
+                .filter(|identity| !identity.is_empty())
+                .ok_or_else(|| {
+                    diagnostic("calling instance lost its complete owner application".into())
+                })?;
+            let (report_fingerprint, commitment) = boundary_plan_application_identity(
+                &signature,
+                &validated,
+                calling_owner_application,
+            )
+            .map_err(&diagnostic)?;
             evaluated.push(BoundaryCallingPlanRealization {
                 declaration: policy.signature,
-                calling_owner_application: module
-                    .identities
-                    .text(instance.declaring_application)
-                    .filter(|identity| !identity.is_empty())
-                    .ok_or_else(|| {
-                        diagnostic("calling instance lost its complete owner application".into())
-                    })?
-                    .to_owned(),
+                calling_owner_application: calling_owner_application.to_owned(),
                 boundary_trait: policy.boundary_trait,
                 boundary_arguments: policy.boundary_arguments,
                 argument_owner: policy.argument_owner,
@@ -346,8 +350,10 @@ impl PreparedBoundaryCallingPlans {
 pub(crate) fn boundary_plan_application_identity(
     signature: &MaterializedBoundarySignature,
     validated: &ValidatedBoundaryEntryPlan,
+    calling_owner_application: &str,
 ) -> Result<(u64, [u8; 32]), String> {
-    let application = publish_materialized_application(signature, validated)?;
+    let application =
+        publish_materialized_application(signature, validated, calling_owner_application)?;
     Ok((application.report_fingerprint, application.commitment))
 }
 
@@ -357,8 +363,13 @@ pub(crate) fn boundary_plan_application_identity(
 fn publish_materialized_application(
     signature: &MaterializedBoundarySignature,
     validated: &ValidatedBoundaryEntryPlan,
+    calling_owner_application: &str,
 ) -> Result<calling_conventions::BoundaryCallingApplication, String> {
-    let mut application = super::callback_bindings::source_free_application(signature, validated)?;
+    let mut application = super::callback_bindings::source_free_application(
+        signature,
+        validated,
+        calling_owner_application,
+    )?;
     application.commitment = application.recomputed_commitment()?;
     application.report_fingerprint = callback_nominal_report_fingerprint(
         b"omega.boundary-plan-application-report.v3",

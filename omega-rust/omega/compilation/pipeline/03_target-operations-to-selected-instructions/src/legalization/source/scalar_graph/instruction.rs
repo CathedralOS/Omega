@@ -418,6 +418,92 @@ where
                 place: *place,
                 structural_type: structural_type.clone(),
             },
+            AbstractOperation::ActivateTaskRegister {
+                psi_operation,
+                service,
+                entries,
+                gdt,
+                task_state,
+                selector,
+                scratch,
+                ..
+            } => {
+                let mut indices = [Vec::new(), Vec::new(), Vec::new()];
+                for (argument, collected) in
+                    [gdt, task_state, scratch].into_iter().zip(&mut indices)
+                {
+                    let root = scalar_graph_input::primitive_locals::read_root_type(
+                        optimized,
+                        argument.place,
+                    )
+                    .ok_or(Error::custody())?;
+                    *collected = projection(
+                        optimized,
+                        unit,
+                        *psi_operation,
+                        root,
+                        &argument.path,
+                        &unit.structural_types,
+                    )?;
+                }
+                LegalizedScalarInstructionKind::ActivateTaskRegister {
+                    service: *service,
+                    entries: *entries,
+                    gdt: gdt.clone(),
+                    task_state: task_state.clone(),
+                    selector: *selector,
+                    scratch: scratch.clone(),
+                    indices,
+                }
+            }
+            AbstractOperation::ReadTaskRegister { service, .. } => {
+                LegalizedScalarInstructionKind::ReadTaskRegister { service: *service }
+            }
+            AbstractOperation::ReloadSegmentDescriptors {
+                psi_operation,
+                service,
+                entries,
+                gdt,
+                kind,
+                selector,
+                scratch,
+                ..
+            } => {
+                let mut indices = [Vec::new(), Vec::new()];
+                for (argument, collected) in [gdt, scratch].into_iter().zip(&mut indices) {
+                    let root = scalar_graph_input::primitive_locals::read_root_type(
+                        optimized,
+                        argument.place,
+                    )
+                    .ok_or(Error::custody())?;
+                    *collected = projection(
+                        optimized,
+                        unit,
+                        *psi_operation,
+                        root,
+                        &argument.path,
+                        &unit.structural_types,
+                    )?;
+                }
+                LegalizedScalarInstructionKind::ReloadSegmentDescriptors {
+                    service: *service,
+                    entries: *entries,
+                    gdt: gdt.clone(),
+                    kind: *kind,
+                    selector: *selector,
+                    scratch: scratch.clone(),
+                    indices,
+                }
+            }
+            AbstractOperation::ReadSegmentSelector {
+                service, register, ..
+            } => LegalizedScalarInstructionKind::ReadSegmentSelector {
+                service: *service,
+                register: *register,
+            },
+            AbstractOperation::GlobalDescriptorTable { .. } => {
+                storage_instructions::project_global_descriptor_table(node, optimized, unit)?
+            }
             AbstractOperation::StorageAddress { .. } => {
                 storage_instructions::project_storage_address(node, optimized, unit)?
             }

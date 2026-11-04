@@ -54,8 +54,8 @@ machine Main::main(main: &mut Main) reaches Console {
     let t: i32 = walk(s, 0);
 
     transition t == 70 {
-        true -> good(main)
-        _ -> bad(main)
+        true -> block good(main)
+        _ -> block bad(main)
     }
 
     machine good(main: &mut Main) {

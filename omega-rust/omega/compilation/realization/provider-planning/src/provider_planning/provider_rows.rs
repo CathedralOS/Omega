@@ -247,13 +247,30 @@ fn capture_direct_declarations(
         ) {
             continue;
         }
-        let Some(machine) = source
-            .provenance
-            .row_realizations
-            .get(row_index)
-            .and_then(crate::ProviderRowRealization::authored)
-            .and_then(|symbol| typed.machine_by_symbol(symbol))
-        else {
+        // The leaf machine is the row's realized declaration: an authored row
+        // names it directly; a build-owned native binding names it through
+        // the bodyless declaration satisfying the bound requirement.
+        let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+        let Some(machine) = (match source.provenance.row_realizations.get(row_index) {
+            Some(crate::ProviderRowRealization::Authored(symbol)) => {
+                typed.machine_by_symbol(*symbol)
+            }
+            Some(crate::ProviderRowRealization::BuildNative(origin)) => {
+                typed.machines().iter().find(|machine| {
+                    !machine.body_is_present
+                        && typed
+                            .machine_trait_conformances(machine)
+                            .iter()
+                            .any(|edge| edge.requirement_symbol == origin.requirement)
+                        && crate::target_machines::realizes_machine(
+                            context,
+                            machine,
+                            Some(source.plan.target.as_str()),
+                        )
+                })
+            }
+            _ => None,
+        }) else {
             continue;
         };
         if machine.body_is_present {

@@ -540,3 +540,92 @@ pub fn activation_accessor_has_empty_write_frame(
         && exact_toolchain_activation_storage_contract(program, machine)
             .is_some_and(|contract| contract.operation == ActivationStorageOperation::BorrowBytes)
 }
+
+/// Whether owning a value of this type owns activation-scoped custody: the
+/// sealed activation claim itself, or a record, case payload or fixed array
+/// that contains one by value. A claim's backing is committed storage of the
+/// activation that established it, so such a value can move only within that
+/// activation. A borrow of a claim moves no custody; a generic application
+/// carries a claim when one of its type arguments does, and an unresolved
+/// type parameter or opaque carrier names no sealed claim.
+pub fn type_carries_activation_claim(
+    program: &dyn CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    let mut visiting = Vec::new();
+    carries_activation_claim(program, type_reference, &mut visiting)
+}
+
+fn carries_activation_claim(
+    program: &dyn CheckingInput,
+    type_reference: TypeReferenceHandle,
+    visiting: &mut Vec<SymbolHandle>,
+) -> bool {
+    if !type_reference.is_valid() {
+        return false;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { symbol, .. } => {
+            if activation_claim_byte_carrier(program, *symbol).is_some() {
+                return true;
+            }
+            if visiting.contains(symbol) {
+                return false;
+            }
+            let Some(record) =
+                crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
+            else {
+                return false;
+            };
+            visiting.push(*symbol);
+            let carries = program
+                .data_member_fields(program.data_members(record))
+                .any(|field| carries_activation_claim(program, field.type_reference, visiting));
+            visiting.pop();
+            carries
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            carries_activation_claim(program, *element_type, visiting)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            carries_activation_claim(program, *base_type, visiting)
+        }
+        // A generic application owns what its own fields store and whatever
+        // its arguments supply, so `Holder<ActivationClaim>`,
+        // `Holder<Holder<ActivationClaim>>` and `Tagged<u8>` over a claim
+        // field all carry a claim. The argument tree is finite and needs no
+        // cycle guard; the definition's fields take the same guard as a
+        // named record. Counting a claim argument the generic does not
+        // store by value keeps one more call in the caller's activation,
+        // which a terminal call already runs in.
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } => {
+            if program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .iter()
+                .any(|argument| carries_activation_claim(program, *argument, visiting))
+            {
+                return true;
+            }
+            if visiting.contains(base_symbol) {
+                return false;
+            }
+            let Some(record) =
+                crate::declarations::data_queries::data_definition_by_symbol(program, *base_symbol)
+            else {
+                return false;
+            };
+            visiting.push(*base_symbol);
+            let carries = program
+                .data_member_fields(program.data_members(record))
+                .any(|field| carries_activation_claim(program, field.type_reference, visiting));
+            visiting.pop();
+            carries
+        }
+        _ => false,
+    }
+}

@@ -1,26 +1,28 @@
-//! Default-domain writes, cross-state facts, and invariant windows.
+//! Let a helper update a record's fields in several steps, while requiring the
+//! record to be valid before a call or return exposes it. A temporary violation
+//! opens an invariant window: writes can restore it, but the record's own
+//! requirements cannot justify a read while they remain unproved.
 //!
-//! A store may open a window, but consumption requires its `where` facts to
-//! hold again; explicit crashes retain the open data identities as damage
-//! evidence. State walks transport three distinct facts: definite establishment
-//! by intersection, literal field valuations by agreement over reached exits,
-//! and open windows by union. Reachability and semantic map equality must stay
-//! stable across fixed-point publication; see `StateExit` and the valuation meet.
+//! Track each requirement separately from known field values. Updating one
+//! field invalidates overlapping requirements; it does not erase a proof about
+//! an untouched sibling. This matters for borrowed records whose callers may
+//! supply arbitrary values that satisfy the declared requirements.
 //!
-//! Machine-owned fields are born zero only at a non-reentrant boot entry.
-//! Other entries use transported values, never an invented zero. Whole-place
-//! literals reseed fields; resolved calls invalidate valuations overlapping
-//! their may-write paths, while opaque calls retain the whole-state fence.
+//! State walks also retain established storage by intersection, literal values
+//! by agreement, and open windows by union. Machine-owned storage begins at
+//! zero only on a non-reentrant entry; parameters and initialized locals arrive
+//! with established values, whose actual contents may be unknown. Known
+//! statement-call write sets preserve unrelated field values. Calls in
+//! expressions may conservatively clear those values; checked record validity
+//! is carried separately.
 //!
-//! Reserved local storage also starts with zero bits, without acquiring a
-//! semantic value. Accepted stores establish exact children; a containing value
-//! additionally owes every sibling's domain and its own coupled predicates.
-//! Reads traverse storage without consuming intermediate parents, while each
-//! selected declared qualification remains an independent observation gate.
+//! Reserved storage has zero bits but may still lack a valid value. Establish
+//! its children and containing predicates before consuming it. Projecting an
+//! address does not consume each parent record, but reading a qualified field
+//! must still establish that field's own requirements.
 //!
-//! This file owns the write analysis and the state walk.
-//! `assignment_windows.rs` handles assignments and open windows and
-//! `data_reads.rs` validates data reads.
+//! This module owns the state walk. `assignment_windows.rs` updates the tracked
+//! requirements after stores; `data_reads.rs` checks reads of those places.
 
 mod assignment_windows;
 pub(crate) mod call_summaries;
@@ -42,10 +44,12 @@ pub(crate) use float_predicates::float_field_literal_bound_meaning;
 pub(crate) use place_queries::completed_case_occurrences;
 pub(crate) use place_queries::data_predicate_fields;
 pub(crate) use place_queries::membership_field;
+pub(crate) use place_queries::predicate_projection;
 pub use standing_requirements::standing_facts_prove_requirement;
 pub(crate) use symbolic_values::applied_const_integer;
 pub(crate) use where_fact_intervals::{
-    FieldRepresentationBound, data_where_field_representation_bounds, stored_field_where_interval,
+    FieldRepresentationBound, atomic_field_interval, data_where_field_representation_bounds,
+    stored_field_where_interval,
 };
 pub use where_fact_intervals::{
     case_where_field_intervals, data_where_field_intervals, impossible_variant,
@@ -70,6 +74,10 @@ use state_flow::{PlaceValuation, canonicalize_valuations, meet_valuations, state
 use symbolic_values::{SymbolicValue, expression_contains_call};
 
 type InvariantWindow = (String, String, symbols::SymbolHandle);
+
+/// Parallel walks share results only within this validation invocation. A
+/// different compilation must not clear or contribute to these decisions.
+type ParameterCallAttempts = std::sync::Mutex<Vec<(symbols::SymbolHandle, bool)>>;
 
 /// Reachability belongs to the entry that produced this exit, not to the
 /// entries being updated during the following meet. Otherwise a newly reached
@@ -131,7 +139,7 @@ impl OpenInvariantCrashSite {
 
 pub(crate) fn validate_default_domain_writes(
     program: &dyn crate::CheckingInput,
-    call_frames: Option<&crate::machine_calls::calls::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     analyze_default_domain_writes_with_frames(program, call_frames, diagnostics, &mut Vec::new());
@@ -139,14 +147,11 @@ pub(crate) fn validate_default_domain_writes(
 
 fn analyze_default_domain_writes_with_frames(
     program: &dyn crate::CheckingInput,
-    call_frames: Option<&crate::machine_calls::calls::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
     crash_sites: &mut Vec<OpenInvariantCrashSite>,
 ) {
-    proved_parameter_calls()
-        .lock()
-        .expect("parameter call proofs")
-        .clear();
+    let parameter_call_attempts = ParameterCallAttempts::default();
     // Every call site resolves its target machine through this index; the
     // program is frozen for the pass so one build covers all lookups.
     let state_to_machine = state_to_machine_index(program);
@@ -191,6 +196,7 @@ fn analyze_default_domain_writes_with_frames(
                                 walk_state(
                                     program,
                                     call_frames,
+                                    &parameter_call_attempts,
                                     machine,
                                     &states[0],
                                     &[],
@@ -225,6 +231,7 @@ fn analyze_default_domain_writes_with_frames(
                                 exits[index] = walk_state(
                                     program,
                                     call_frames,
+                                    &parameter_call_attempts,
                                     machine,
                                     state,
                                     &entry[index],
@@ -364,6 +371,7 @@ fn analyze_default_domain_writes_with_frames(
                         let (established, valuations, windows) = walk_state(
                             program,
                             call_frames,
+                            &parameter_call_attempts,
                             machine,
                             state,
                             &entry_established[index],
@@ -487,10 +495,9 @@ fn analyze_default_domain_writes_with_frames(
             })
             .collect()
     });
-    let proofs = proved_parameter_calls()
-        .lock()
-        .expect("parameter call proofs")
-        .clone();
+    let proofs = parameter_call_attempts
+        .into_inner()
+        .expect("parameter call proofs");
     for (symbol, machine_diagnostics, machine_crash_sites) in machine_results {
         let attempts = proofs
             .iter()
@@ -505,10 +512,12 @@ fn analyze_default_domain_writes_with_frames(
     }
 }
 
-fn proved_parameter_calls() -> &'static std::sync::Mutex<Vec<(symbols::SymbolHandle, bool)>> {
-    static PROOFS: std::sync::Mutex<Vec<(symbols::SymbolHandle, bool)>> =
-        std::sync::Mutex::new(Vec::new());
-    &PROOFS
+/// A declaration requirement applies to the common fields or one selected case.
+/// Keep its identity when another requirement opens an invariant window.
+#[derive(Clone, PartialEq, Eq)]
+struct DomainRequirement {
+    case: symbols::SymbolHandle,
+    fact: typed_trees::domain::ProofFact,
 }
 
 /// One tracked place: its rendered spelling, its data definition, and the
@@ -517,27 +526,26 @@ struct TrackedPlace<'program> {
     spelling: String,
     definition: &'program DataDefinition,
     fields: Vec<(String, Option<symbolic_values::LiteralValue>)>,
-    /// Exact declared fields whose current whole values passed assignment
-    /// checking. This proves their type gates, never a containing predicate.
+    /// Children established by an incoming valid record or a checked whole
+    /// replacement. This proves their own types, never a containing predicate.
     established_fields: Vec<symbols::SymbolHandle>,
+    /// Requirements invalidated by performed writes to this storage. Untouched
+    /// requirements remain proved even while another field needs restoration.
+    pending_requirements: Vec<DomainRequirement>,
     symbols: Vec<(String, SymbolicValue)>,
     measures: Vec<(String, Option<i128>, Option<i128>)>,
-    /// R2 rung 3 slice 2: the ACCESS GATE. A `zero_gated` place starts
-    /// UNESTABLISHED (its zero violates the domain); a proven whole-place
-    /// literal or an accepted constrained write establishes it (every
-    /// accepted write leaves the facts true). Reads before establishment
-    /// refuse. Zero-satisfying places are born established.
+    /// Whether this storage has held an established value. Later writes may
+    /// still owe restoration; failed initial establishment creates no value.
     established: bool,
-    /// R2 rung 3 slice 6: whether THIS place's untracked fields read the
-    /// born zero -- true only for self-rooted machine-owned places in the
-    /// never-re-entered boot state. Parameter/local-rooted places arrive
-    /// with UNKNOWN valuations (poison until a whole-place literal
-    /// reseeds).
+    /// Unwritten fields may use their zero representation at initial machine
+    /// entry or in untouched reserved local storage. Incoming parameters and
+    /// re-entered states supply no such premise.
     born_zero: bool,
-    /// R2 rung 3 slice 8 (ch11): an INVARIANT WINDOW -- a checkable write
-    /// left the facts FALSE; every consumption point (a read of the place,
-    /// a call, state exit) refuses until a later write folds them true.
+    /// A write left requirements unproved. They must be restored before a
+    /// read that relies on them, a call or a return exposes the record.
     window_open: bool,
+    /// The first write still awaiting restoration, used to locate a refusal.
+    opening_write: Option<source::SourceSpan>,
     /// Element knowledge of fixed integer array fields that element stores
     /// in this state wrote, one set per element.
     elements: Vec<(
@@ -548,22 +556,35 @@ struct TrackedPlace<'program> {
     /// unproved. Each keeps the place's window open until a later store to
     /// that field re-proves it; field stores cannot close it.
     element_windows: Vec<symbols::SymbolHandle>,
-    /// CASE-CONSTRAINTS (ch12): the place's currently established case, when
-    /// a case literal (or a transported valuation) proves it. Case-local
-    /// `where` facts fold on payload writes exactly as type-wide facts fold
-    /// on common-field writes; `None` means the case is unknown and a
-    /// fact-mentioned payload write joins every candidate case's facts.
+    /// The selected case, when construction or incoming values establish it.
+    /// An unknown tag cannot borrow another case's predicate.
     active_case: Option<symbols::SymbolHandle>,
     /// Each arm of a joined initializer. A later field write preserves the
     /// domain only when every arm still proves it.
     alternatives: Vec<Vec<(String, Option<symbolic_values::LiteralValue>)>>,
 }
 
+/// A complete checked value establishes each common child's own type. Preserve
+/// that fact when tracking the value, even if its child contents are unknown.
+/// Fresh reserved storage must instead establish its fields individually.
+fn established_common_fields(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+) -> Vec<symbols::SymbolHandle> {
+    program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_field().map(|field| field.symbol))
+        .collect()
+}
+
 impl TrackedPlace<'_> {
     /// Whether any invariant window is open on this place: one a field write
     /// opened, or one an element store opened.
     fn any_window_open(&self) -> bool {
-        self.window_open || !self.element_windows.is_empty()
+        self.window_open
+            || !self.element_windows.is_empty()
+            || (self.established && !self.pending_requirements.is_empty())
     }
 }
 
@@ -628,12 +649,14 @@ fn seed_transported_initializer<'program>(
                     spelling,
                     definition,
                     fields,
-                    established_fields: Vec::new(),
+                    established_fields: established_common_fields(program, definition),
+                    pending_requirements: Vec::new(),
                     symbols,
                     measures: Vec::new(),
                     established: true,
                     born_zero: false,
                     window_open: false,
+                    opening_write: None,
                     elements: Vec::new(),
                     element_windows: Vec::new(),
                     active_case: Some(case),
@@ -669,12 +692,14 @@ fn seed_transported_initializer<'program>(
                 spelling: local.name.to_string(),
                 definition,
                 fields: Vec::new(),
-                established_fields: Vec::new(),
+                established_fields: established_common_fields(program, definition),
+                pending_requirements: Vec::new(),
                 symbols: Vec::new(),
                 measures: Vec::new(),
                 established: true,
                 born_zero: false,
                 window_open: false,
+                opening_write: None,
                 elements: Vec::new(),
                 element_windows: Vec::new(),
                 active_case: Some(case),
@@ -702,12 +727,14 @@ fn seed_transported_initializer<'program>(
                 spelling: local.name.to_string(),
                 definition,
                 fields,
-                established_fields: Vec::new(),
+                established_fields: established_common_fields(program, definition),
+                pending_requirements: Vec::new(),
                 symbols,
                 measures: Vec::new(),
                 established: true,
                 born_zero: false,
                 window_open: false,
+                opening_write: None,
                 elements: Vec::new(),
                 element_windows: Vec::new(),
                 active_case: Some(case),
@@ -789,6 +816,8 @@ fn visit_calls(
 
 fn restore_parameter_write<'program>(
     program: &'program dyn crate::CheckingInput,
+    call_frames: Option<&crate::CallFrameResolver<'_>>,
+    parameter_call_attempts: &ParameterCallAttempts,
     target: symbols::SymbolHandle,
     arguments: &[typed_trees::expression::ExpressionHandle],
     state_to_machine: &StateToMachine,
@@ -816,7 +845,7 @@ fn restore_parameter_write<'program>(
     // walk did not prove, so the callee's own unspecialized walk keeps every
     // diagnostic instead of being excused by its other proved attempts.
     if active_callees.contains(&machine.symbol) {
-        proved_parameter_calls()
+        parameter_call_attempts
             .lock()
             .expect("parameter call proofs")
             .push((machine.symbol, false));
@@ -845,13 +874,24 @@ fn restore_parameter_write<'program>(
     if entry_valuations.is_empty() {
         return;
     }
+    // This specialized check can replace the callee's ordinary diagnostics.
+    // It must inspect the same performed writes and reads. Missing write
+    // analysis is an unproved attempt, never evidence that the body is safe.
+    let Some(call_frames) = call_frames else {
+        parameter_call_attempts
+            .lock()
+            .expect("parameter call proofs")
+            .push((machine.symbol, false));
+        return;
+    };
     let mut callee_diagnostics = Vec::new();
     let mut crash_sites = Vec::new();
     let mut chain = active_callees.to_vec();
     chain.push(machine.symbol);
     walk_state(
         program,
-        None,
+        Some(call_frames),
+        parameter_call_attempts,
         machine,
         state,
         &[],
@@ -867,7 +907,7 @@ fn restore_parameter_write<'program>(
         &chain,
     );
     let proved = callee_diagnostics.is_empty();
-    proved_parameter_calls()
+    parameter_call_attempts
         .lock()
         .expect("parameter call proofs")
         .push((machine.symbol, proved));
@@ -894,7 +934,10 @@ fn restore_parameter_write<'program>(
                 } else {
                     place.fields.push((field.to_string(), written));
                 }
+                place.established_fields = established_common_fields(program, place.definition);
                 place.window_open = false;
+                place.opening_write = None;
+                place.pending_requirements.clear();
                 place.established = true;
             } else if let Some(saved) = saved_places.iter().find(|place| place.0 == *actual) {
                 let mut fields = saved.1.clone();
@@ -907,12 +950,14 @@ fn restore_parameter_write<'program>(
                     spelling: actual.clone(),
                     definition: saved.3,
                     fields,
-                    established_fields: Vec::new(),
+                    established_fields: established_common_fields(program, saved.3),
+                    pending_requirements: Vec::new(),
                     symbols: Vec::new(),
                     measures: Vec::new(),
                     established: true,
                     born_zero: false,
                     window_open: false,
+                    opening_write: None,
                     elements: Vec::new(),
                     element_windows: Vec::new(),
                     active_case: saved.2,
@@ -929,7 +974,8 @@ fn restore_parameter_write<'program>(
 /// monotone).
 fn walk_state(
     program: &dyn crate::CheckingInput,
-    call_frames: Option<&crate::machine_calls::calls::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::CallFrameResolver<'_>>,
+    parameter_call_attempts: &ParameterCallAttempts,
     machine: &Machine,
     state: &State,
     entry_established: &[String],
@@ -974,22 +1020,21 @@ fn walk_state(
         .statement_table
         .indexed_statements(state.statement_nodes)
     {
-        // R2 rung 3 slice 2: reads of an unestablished GATED place refuse
-        // BEFORE this statement's own write effect is applied.
-        if record_crash_sites {
-            scan_statement_reads(
-                program,
-                machine,
-                state,
-                statement,
-                statement_ordinal,
-                &tracked,
-                entry_established,
-                &call_established,
-                &inherited_windows,
-                diagnostics,
-            );
-        }
+        // Check reads before this statement changes storage. Specialized
+        // callee checks may suppress ordinary diagnostics, so they need these
+        // checks even when they do not collect additional crash records.
+        scan_statement_reads(
+            program,
+            machine,
+            state,
+            statement,
+            statement_ordinal,
+            &tracked,
+            entry_established,
+            &call_established,
+            &inherited_windows,
+            diagnostics,
+        );
         match statement {
             StatementNode::Assignment(assignment) => {
                 // Calls hidden in the written value or in the target's index
@@ -1001,7 +1046,15 @@ fn walk_state(
                         .iter()
                         .any(|index| expression_contains_call(program, *index))
                 {
-                    refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
+                    refuse_open_windows(
+                        &tracked,
+                        &inherited_windows,
+                        machine,
+                        state,
+                        Some(statement_ordinal),
+                        "a call",
+                        diagnostics,
+                    );
                     preserve_proven_establishment(&tracked, &mut call_established);
                     tracked.clear();
                     poisoned_all = true;
@@ -1062,7 +1115,15 @@ fn walk_state(
             // R5 summaries preserve exact valuations outside known writes.
             StatementNode::Call(call) => {
                 let saved_places = place_snapshots(&tracked);
-                refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
+                refuse_open_windows(
+                    &tracked,
+                    &inherited_windows,
+                    machine,
+                    state,
+                    Some(statement_ordinal),
+                    "a call",
+                    diagnostics,
+                );
                 preserve_proven_establishment(&tracked, &mut call_established);
                 let written = call_frames.and_then(|frames| frames.may_write_paths(machine, call));
                 if let Some(written) = written {
@@ -1095,6 +1156,8 @@ fn walk_state(
                 }
                 restore_parameter_write(
                     program,
+                    call_frames,
+                    parameter_call_attempts,
                     call.target_symbol,
                     program.expression_table.expression_handles(call.arguments),
                     state_to_machine,
@@ -1107,7 +1170,15 @@ fn walk_state(
             StatementNode::Expression(expression) => {
                 let saved_places = place_snapshots(&tracked);
                 if expression_contains_call(program, *expression) {
-                    refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
+                    refuse_open_windows(
+                        &tracked,
+                        &inherited_windows,
+                        machine,
+                        state,
+                        Some(statement_ordinal),
+                        "a call",
+                        diagnostics,
+                    );
                     preserve_proven_establishment(&tracked, &mut call_established);
                     tracked.clear();
                     poisoned_all = true;
@@ -1124,6 +1195,8 @@ fn walk_state(
                 {
                     restore_parameter_write(
                         program,
+                        call_frames,
+                        parameter_call_attempts,
                         call.target_symbol,
                         program.expression_table.expression_handles(call.arguments),
                         state_to_machine,
@@ -1139,7 +1212,15 @@ fn walk_state(
                 if local.initial_value.is_valid()
                     && expression_contains_call(program, local.initial_value)
                 {
-                    refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
+                    refuse_open_windows(
+                        &tracked,
+                        &inherited_windows,
+                        machine,
+                        state,
+                        Some(statement_ordinal),
+                        "a call",
+                        diagnostics,
+                    );
                     preserve_proven_establishment(&tracked, &mut call_established);
                     tracked.clear();
                     poisoned_all = true;
@@ -1155,6 +1236,8 @@ fn walk_state(
                     for call in calls {
                         restore_parameter_write(
                             program,
+                            call_frames,
+                            parameter_call_attempts,
                             call.target_symbol,
                             program.expression_table.expression_handles(call.arguments),
                             state_to_machine,
@@ -1197,8 +1280,8 @@ fn walk_state(
                     );
                 tracked.push(TrackedPlace {
                         spelling: local.name.to_string(), definition,
-                        fields, established_fields: Vec::new(), symbols, measures: Vec::new(),
-                        established: true, born_zero: false, window_open: false,
+                        fields, established_fields: established_common_fields(program, definition), pending_requirements: Vec::new(), symbols, measures: Vec::new(),
+                        established: true, born_zero: false, window_open: false, opening_write: None,
                         elements: Vec::new(), element_windows: Vec::new(), active_case: Some(active_case),
                         alternatives: Vec::new(),
                     });
@@ -1247,7 +1330,15 @@ fn walk_state(
                     .iter()
                     .any(|expression| expression_contains_call(program, *expression))
                 {
-                    refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
+                    refuse_open_windows(
+                        &tracked,
+                        &inherited_windows,
+                        machine,
+                        state,
+                        Some(statement_ordinal),
+                        "a call",
+                        diagnostics,
+                    );
                     preserve_proven_establishment(&tracked, &mut call_established);
                     tracked.clear();
                     poisoned_all = true;
@@ -1268,6 +1359,8 @@ fn walk_state(
                 for call in calls {
                     restore_parameter_write(
                         program,
+                        call_frames,
+                        parameter_call_attempts,
                         call.target_symbol,
                         program.expression_table.expression_handles(call.arguments),
                         state_to_machine,
@@ -1287,7 +1380,15 @@ fn walk_state(
     // exit passes its open windows to the successors (the fixpoint
     // MAY-unions them), whose own consumption points police closure.
     if exit_is_terminal && !has_explicit_crash {
-        refuse_open_windows(&tracked, &inherited_windows, "state exit", diagnostics);
+        refuse_open_windows(
+            &tracked,
+            &inherited_windows,
+            machine,
+            state,
+            None,
+            "return",
+            diagnostics,
+        );
     }
 
     let mut exit_established: Vec<String> = entry_established.to_vec();

@@ -1250,11 +1250,12 @@ impl Evaluation {
         calls: &mut CallEmissionContext<'_>,
         environment: &mut OperationEnvironment<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
-        let call = operation
-            .call()
-            .ok_or(LoweringError::Unsupported("selector has no call"))?;
+        let coordinate = operation
+            .invocation_coordinate()
+            .ok_or(LoweringError::Unsupported("selector has no invocation"))?;
         let argument =
-            call.structural_arguments
+            operation
+                .structural_operands()
                 .get(argument)
                 .ok_or(LoweringError::Unsupported(
                     "selector has no structural actual",
@@ -1281,7 +1282,7 @@ impl Evaluation {
                     .find(|source| {
                         source.root == *root
                             && source.state == state
-                            && source.statement_ordinal == call.coordinate.statement_index
+                            && source.statement_ordinal == coordinate.statement_index
                     })
                     .ok_or(LoweringError::Unsupported(
                         "call selector lost its source computation",
@@ -1502,11 +1503,11 @@ impl Evaluation {
                 }
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
-        // A checked module callee's scalar formals decide the type each actual
-        // arrives as. An actual that lacks a formal's tag crosses a
-        // qualification edge, so that operand takes the ordered control path.
+        // A checked module or boundary callee's scalar formals decide the type
+        // each actual arrives as. An actual that lacks a formal's tag crosses
+        // a qualification edge, so that operand takes the ordered control path.
         let formals =
-            self.module_scalar_formals(checked, call, argument_ordinal_start, arguments.len());
+            self.callee_scalar_formals(checked, call, argument_ordinal_start, arguments.len());
         let arrival_types = argument_types
             .iter()
             .enumerate()
@@ -1587,25 +1588,31 @@ impl Evaluation {
         .map(Some)
     }
 
-    /// The scalar formals of the checked module body `call` enters, for the
-    /// `count` operands that start at dense scalar ordinal `first`. Boundary,
-    /// dynamic and activation-storage routes hand their operands to a contract
-    /// of their own. A signature the shared namespace cannot name leaves every
-    /// actual unchanged, so the call binding still refuses any disagreement.
-    fn module_scalar_formals(
+    /// The scalar formals of the checked module body or boundary declaration
+    /// `call` names, for the `count` operands that start at dense scalar
+    /// ordinal `first`. Dynamic and activation-storage routes hand their
+    /// operands to a contract of their own. A signature the shared namespace
+    /// cannot name leaves every actual unchanged, so the call binding still
+    /// refuses any disagreement.
+    fn callee_scalar_formals(
         &self,
         checked: &CheckedTrees,
         call: &checked_trees::CheckedUnitCallPlan,
         first: usize,
         count: usize,
     ) -> Option<Vec<QualifiedScalarType>> {
-        if !call.is_module() {
-            return None;
-        }
-        let (formals, _) = self
-            .shared_qualifications
-            .scalar_state_types(checked, call.target.state)
-            .ok()?;
+        let formals = match call.route() {
+            checked_trees::CheckedUnitCallRoute::Module { .. } => {
+                self.shared_qualifications
+                    .scalar_state_types(checked, call.target.state)
+                    .ok()?
+                    .0
+            }
+            checked_trees::CheckedUnitCallRoute::Boundary => self
+                .shared_qualifications
+                .boundary_scalar_formals(checked, call.target.machine)?,
+            _ => return None,
+        };
         formals
             .get(first..first.checked_add(count)?)
             .map(<[QualifiedScalarType]>::to_vec)

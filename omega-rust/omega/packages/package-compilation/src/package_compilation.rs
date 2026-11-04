@@ -574,28 +574,6 @@ fn display_identity(identity: PackageKeyIdentity) -> String {
     crate::digest_encoder::hex(&identity.digest())
 }
 
-impl PackageCompilationSourceInputs {
-    /// Captured namespaces are immutable values. A metadata-only physical
-    /// package must reproduce its committed bytes now; location and old index
-    /// equality alone cannot attest unchanged source across invocations.
-    pub fn matches_current_source_identity(&self) -> Result<bool, String> {
-        for package in self.packages.values() {
-            if package.captured_source.is_some()
-                || self.filesystem.has_captured_namespace(&package.source_root)
-            {
-                continue;
-            }
-            let Some(expected) = &package.canonical_source_metadata else {
-                return Ok(false);
-            };
-            if crate::source::source_snapshot::capture(&package.source_root)? != *expected {
-                return Ok(false);
-            }
-        }
-        Ok(true)
-    }
-}
-
 #[cfg(test)]
 mod acquisition_tests {
     use super::*;

@@ -117,11 +117,26 @@ pub(in crate::proof_contracts::contract_entailment) fn term_is_unobserved_descri
         StructuralTerm::ObservedValue {
             observed_type,
             value,
-            ..
+            descriptor,
         } => {
+            // A shared slice argument can carry a checked observation of its
+            // elements alongside the descriptor. A predicate may use those
+            // contents without making the reference itself a proof value.
+            // Metadata-only wrappers and returned pointers supply no contents.
+            let observed_slice_contents = crate::slice_view_shell(program, *observed_type, &[])
+                .is_some_and(|slice| slice.access == language_semantics::ReferenceAccess::Shared)
+                && !crate::proof_contracts::carrier_contents::type_has_forbidden_argument_observation_content(
+                    program,
+                    *observed_type,
+                )
+                && descriptor
+                    .as_ref()
+                    .is_some_and(|descriptor| descriptor.observation_identity_key().is_some())
+                && value.observation_identity_key().is_some();
             (program.primitive_type_reference(*observed_type).is_none()
                 && super::shared_inline_observation_type(program, term).is_none()
-                && super::owned_observation_type(program, term).is_none())
+                && super::owned_observation_type(program, term).is_none()
+                && !observed_slice_contents)
                 || term_is_unobserved_descriptor(program, value)
         }
         StructuralTerm::Application {

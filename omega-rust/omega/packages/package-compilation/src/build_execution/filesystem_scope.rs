@@ -1,5 +1,6 @@
 //! Scoped Source/Output authority, staging custody, and sponsored host access.
 
+mod live_source;
 pub mod preparation;
 pub mod runtime;
 
@@ -42,6 +43,7 @@ pub const BUILD_OUTPUT_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildMachineFilesystemScope {
     source_root: PathBuf,
+    live_source: Option<live_source::LiveBuildSource>,
     canonical_source_metadata: Option<filesystem_authority::CanonicalFilesystemMetadataIndex>,
     canonical_source_metadata_required: bool,
     build_dir: PathBuf,
@@ -137,10 +139,19 @@ fn resolved_write_fence(path: &Path) -> PathBuf {
 impl BuildMachineFilesystemScope {
     /// Establish the physical write fence before granting captured or host access.
     pub(crate) fn establish_filesystem_access(
-        &self,
+        &mut self,
     ) -> Result<BuildMachineFilesystemAccess, Vec<Diagnostic>> {
         self.ensure_write_roots()?;
         self.ensure_canonical_source_metadata()?;
+        if self.captured_source_view.is_none() && self.live_source.is_none() {
+            self.live_source = Some(
+                live_source::LiveBuildSource::bind(&self.source_root).map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "could not bind admitted live Build Source: {error}"
+                    ))]
+                })?,
+            );
+        }
         Ok(self.filesystem_access())
     }
 
@@ -157,6 +168,7 @@ impl BuildMachineFilesystemScope {
         let admitted_build_dir_key = overlap_key(&build_dir);
         Self {
             source_root,
+            live_source: None,
             canonical_source_metadata: None,
             canonical_source_metadata_required: false,
             admitted_build_dir_key,
@@ -182,6 +194,7 @@ impl BuildMachineFilesystemScope {
         let admitted_build_dir_key = overlap_key(&build_dir);
         Self {
             source_root,
+            live_source: None,
             canonical_source_metadata: metadata,
             canonical_source_metadata_required: true,
             admitted_build_dir_key,
@@ -264,6 +277,7 @@ impl BuildMachineFilesystemScope {
         self.captured_source_view =
             Some(crate::source::source_snapshot::captured_source_view(&input));
         self.captured_source_input = Some(input);
+        self.live_source = None;
         self
     }
 

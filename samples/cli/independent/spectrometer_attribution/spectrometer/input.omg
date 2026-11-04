@@ -13,37 +13,37 @@ invokes Console
 blocks
 crashes Trap
 {
-    transition { _ -> begin(application) }
+    transition { _ -> block begin(application) }
     machine begin(application: &mut Spectrometer) -> IntegerRead {
         transition block Console::read_byte() {
             ByteRead::Eof -> (IntegerRead::End)
-            ByteRead::Byte { value } -> first(application, value)
+            ByteRead::Byte { value } -> block first(application, value)
         }
     }
     machine first(application: &mut Spectrometer, byte: i32) -> IntegerRead {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
-            true -> begin(application)
-            false -> sign(application, byte)
+            true -> block begin(application)
+            false -> block sign(application, byte)
         }
     }
     machine sign(application: &mut Spectrometer, byte: i32) -> IntegerRead {
         transition byte == 45 {
-            true -> following(application, 0, -1, false)
-            false -> digit(application, byte, 0, 1, false)
+            true -> block following(application, 0, -1, false)
+            false -> block digit(application, byte, 0, 1, false)
         }
     }
     machine digit(application: &mut Spectrometer, byte: i32,
                 magnitude: i32 in Wrapping, sign: i32 in Wrapping,
                 seen: bool) -> IntegerRead {
         transition byte >= 48 && byte <= 57 {
-            true -> accumulate(application, byte, magnitude, sign)
+            true -> block accumulate(application, byte, magnitude, sign)
             false -> delimiter(application, byte, magnitude, sign, seen)
         }
     }
     machine accumulate(application: &mut Spectrometer, byte: i32,
                      magnitude: i32 in Wrapping, sign: i32 in Wrapping) -> IntegerRead {
         transition magnitude <= 100000 {
-            true -> append(application, byte, magnitude, sign)
+            true -> block append(application, byte, magnitude, sign)
             false -> (IntegerRead::Invalid)
         }
     }
@@ -51,7 +51,7 @@ crashes Trap
                  magnitude: i32 in Wrapping, sign: i32 in Wrapping) -> IntegerRead {
         let value: i32 in Wrapping = magnitude * 10 + (byte as i32 in Wrapping) - 48;
         transition value <= 1000000 {
-            true -> following(application, value, sign, true)
+            true -> block following(application, value, sign, true)
             false -> (IntegerRead::Invalid)
         }
     }
@@ -59,7 +59,7 @@ crashes Trap
                     sign: i32 in Wrapping, seen: bool) -> IntegerRead {
         transition block Console::read_byte() {
             ByteRead::Eof -> finish(magnitude, sign, seen)
-            ByteRead::Byte { value } -> digit(application, value, magnitude, sign, seen)
+            ByteRead::Byte { value } -> block digit(application, value, magnitude, sign, seen)
         }
     }
     machine delimiter(application: &mut Spectrometer, byte: i32,

@@ -105,6 +105,14 @@ neither substitutes contextual SSA definitions nor grants an unproved
 proposition merely because it has a normal form. Resource exhaustion rejects the
 conversion.
 
+Constructive [contradiction elimination](../proofs/classicality.md#contradiction-elimination)
+may convert an already checked `Falsehood` to `Falsehood AND goal` and eliminate
+the conjunction to establish a well-formed goal under those same premises.
+The false premise must be proved, not inferred from search failure, and its
+dependency and branch scope remain attached to the conclusion. This closes an
+impossible arrival without manufacturing facts for another reachable path or
+waiving operand formation and access obligations.
+
 Besides Boolean structure, this conversion decides equality and order between
 two literal fixed integers of exactly the same carrier using the primitive
 judgment's signed, full-width comparison. True and false relations normalize to

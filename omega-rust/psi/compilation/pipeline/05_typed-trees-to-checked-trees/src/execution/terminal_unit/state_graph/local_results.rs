@@ -137,7 +137,7 @@ fn validate(
         .dispositions
         .iter()
         .any(|(_, disposition)| {
-            disposition.machine == machine
+            disposition.machine == super::super::cleanup::owning_cleanup_machine(program, state.symbol)
                 && disposition.state == state.symbol
                 && disposition.root == root
                 && disposition.source == PermissionEventSource::StateExit

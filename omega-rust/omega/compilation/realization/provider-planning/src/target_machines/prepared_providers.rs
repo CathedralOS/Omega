@@ -366,17 +366,22 @@ impl ProductProviderPreparation<'_> {
             .or_else(target::TargetProfile::host_if_supported);
         let profile = planning_target.unwrap_or_else(target::TargetProfile::host);
         let mut bindings = self.evaluated_bindings;
+        let mut identities = bindings.identities().clone().into_builder();
+        let native =
+            self.native_bindings
+                .form(self.native_supplies, planning_target, &mut identities)?;
+        // Native-build rows precede authored derivation so a `boundary
+        // machine` satisfies declaration on a build-bound requirement joins
+        // its package-owned evaluated binding instead of inferring a
+        // compiler leaf.
         let authored = AuthoredTargetProviders::derive(
             self.services,
             self.body_declarations,
             &bindings,
             planning_target,
             self.target_machines,
+            &native,
         )?;
-        let mut identities = bindings.identities().clone().into_builder();
-        let native =
-            self.native_bindings
-                .form(self.native_supplies, planning_target, &mut identities)?;
         bindings.retain_extended_identities(identities.build())?;
         let request = TargetProviderPreparationRequest {
             context: self.services.context(),
@@ -451,6 +456,7 @@ impl ProductProviderPreparation<'_> {
                     &bindings,
                     Some(target_profile),
                     declarations,
+                    &native,
                 )?;
                 SourceProposal::capture(self.services, &request, &target, &inventory)
             })();

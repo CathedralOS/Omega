@@ -1,0 +1,10 @@
+// The arm that returns 200 is ruled out, but the live arm returns `count`,
+// which may be below 100: a dead branch cannot supply its value's facts to
+// the join, so the subtraction after it still rejects.
+machine pick(count: u64) -> u64
+requires count >= 10
+{
+    let chosen: u64 = match count < 5 { true -> 200u64, false -> count };
+    chosen - 100u64
+}
+machine main() {}

@@ -32,7 +32,10 @@ The `claude-code-remote` tools are deferred; load them with ToolSearch first.
 | Continue a session | `send_message` | Arrives as a peer message, not a user instruction. |
 | Stop a turn | `interrupt_session` | Ends the current turn only. |
 | Release the container | `archive_session` | Only after the work is landed or abandoned and the user is done with it. |
-| Check back later | `send_later` | One check-in at 60 minutes or more. Never poll with sleeps. |
+
+Never schedule periodic timers, `schedule` calls, `send_later` check-ins, or
+sleep loops to poll sessions; rely on reactive messages from subagents or
+other sessions so coordinator tokens are not wasted.
 
 Measured on 2026-11-03 (twelve trial sessions):
 
@@ -47,25 +50,41 @@ Measured on 2026-11-03 (twelve trial sessions):
   Their first long wait was the cold compiler build. Earlier whole advance
   sessions cost $12–18. Count cost before launching a wave.
 
-## The first build is the expensive step
+## Start sessions warm
 
-A new session is a fresh 4-CPU container. A cold `cargo build -p omega` took
-12 minutes 27 seconds on it (base `90f3fe11a`). After that build, a no-op
-rebuild took 0.6 s, and an edit in `validation`, the largest crate, took 27 s.
-Sessions now start from main's published build instead
-([tools/warm_build.py](../../../tools/warm_build.py)). The repository's
-SessionStart hook restores it into `.agents/worktree/warm` and checks out
-`origin/main` there, so only the crates main changed since then rebuild. The
-prompt keeps the session on that one build:
+A new session is a fresh 4-CPU container. Without preparation it spent 3.5–5
+minutes starting up and then 12–13 minutes on a cold `cargo build -p omega`
+before it could run a program. Two pieces remove that cost:
+
+- **The environment's setup script**, [references/environment-setup.sh](references/environment-setup.sh),
+  pasted into the Omega environment (session title bar → environment → Edit
+  → Setup script). It installs the pinned toolchain, crates, `zstd` and a
+  prebuilt cargo-nextest, and finishes inside the roughly five minutes the
+  environment needs to cache its snapshot. Building nextest from source pushed
+  an earlier script past that limit, so it ran again at every session start.
+  Keep the file and the saved script identical. When you change one, change
+  the other in the same step.
+- **The warm build** ([tools/warm_build.py](../../../tools/warm_build.py)). CI
+  publishes main's build after every push. The repository's SessionStart hook
+  restores it into `.agents/worktree/warm`, at the commit it was built from.
+
+Measured on 2026-11-03 in a fresh session with both in place: the first
+command ran 56 s after creation, and `warm_build.py wait` reported `ready`. The
+first `cargo build -p omega` compiled 4 crates in 8.4 s, and the smoke fixture
+exited 0 under `omega run --both`. The prompt keeps the session on that build:
 
 - Run `python3 tools/warm_build.py wait` before the first build, then work in
-  `.agents/worktree/warm`. If the status says the restore failed, the session
-  builds cold there; report the reason.
+  `.agents/worktree/warm` and record its commit as the base. If the status
+  says the restore failed, the session builds cold there; report the reason.
+- Don't move the warm worktree to a newer main before starting. Main's
+  frequent changes to the lowest crates make that rebuild as slow as a cold
+  one. The merge queue integrates with current main at landing.
 - Build with a plain `cargo build -p omega`. The sample gate and the corpus
   gate reuse that `target/`. Never build a second copy into another target
   directory.
-- For the next witness, reuse the same worktree
-  (`git checkout --detach origin/main`) instead of creating a cold one.
+- Pin `source_revision` to the coordinator's fetched base when sessions must
+  start from the same commit, as in a model comparison. Such a session works
+  away from the warm build's commit, and its first build is cold.
 
 The trial sessions also lost time waiting badly. Seven had `sleep` loops
 blocked by the harness. In one, `while pgrep -f "cargo build …"` matched its
@@ -74,9 +93,6 @@ sessions to start a long build or gate with `run_in_background` and act on its
 completion notification, and never to poll with `sleep` or `pgrep -f`. A
 worktree made from a fetched commit has no `origin/main`, so they pass
 `--base <commit>` to `tools/check_rules.py`.
-- Pin `source_revision` to the coordinator's fetched base when sessions must
-  start from the same commit. Otherwise sessions clone the default branch at
-  creation.
 
 ## Select outcomes, then record before starting
 
@@ -98,9 +114,10 @@ Each prompt is self-contained: the session knows only what it says.
 
 - The board item and its acceptance, the next requirement, the witness path
   and its expected result, and the other sessions' outcomes.
-- The base commit. Work in the warm worktree, moved to that base
-  (`git -C .agents/worktree/warm checkout --detach <base>`). Create another
-  worktree only when the session needs two at once.
+- Where to work: the warm worktree, at the commit it arrives on, which the
+  session records as its base. Name a different base only when the work needs
+  it: a comparison pinned to one commit, or an existing PR to rebase. Create
+  another worktree only when the session needs two at once.
 - Publication: push `HEAD` to `work/<name>`, open a draft PR, finish the
   validation, then `python3 tools/landing.py land <n> --expected-head <sha>`.
   In these sessions `landing.py` uses REST because the GitHub proxy refuses

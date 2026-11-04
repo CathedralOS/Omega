@@ -11,84 +11,84 @@ machine Main::main(main: &mut Main)
 reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery {
     let removed: i32 = block cleanup_names();
     let created: i32 = block WindowsFilesystemHost::create_directory("omega_raw_nth");
-    transition created == 0 { true -> empty(main) false -> finish(main, 71) }
+    transition created == 0 { true -> block empty(main) false -> block finish(main, 71) }
     machine empty(main: &mut Main) {
         let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth("omega_raw_nth", 0);
         transition result {
-            WindowsDirectoryEntryResult::End -> create_file(main)
-            _ -> finish(main, 72)
+            WindowsDirectoryEntryResult::End -> block create_file(main)
+            _ -> block finish(main, 72)
         }
     }
     machine create_file(main: &mut Main) {
         main.handle = block WindowsFilesystemHost::create_file("omega_raw_nth/𝄞", 3221225472, 7, 2, 128);
-        transition main.handle != 0 { true -> close_file(main) false -> finish(main, 73) }
+        transition main.handle != 0 { true -> block close_file(main) false -> block finish(main, 73) }
     }
     machine close_file(main: &mut Main) {
         let closed: i32 = block WindowsFilesystemHost::close_handle(main.handle);
-        transition closed == 0 { true -> file(main) false -> finish(main, 74) }
+        transition closed == 0 { true -> block file(main) false -> block finish(main, 74) }
     }
     machine file(main: &mut Main) {
         main.handle = 0;
         let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth("omega_raw_nth", 0);
         transition result {
-            WindowsDirectoryEntryResult::Entry { entry } -> inspect_file(main, entry)
-            _ -> finish(main, 75)
+            WindowsDirectoryEntryResult::Entry { entry } -> block inspect_file(main, entry)
+            _ -> block finish(main, 75)
         }
     }
     machine inspect_file(main: &mut Main, selected: WindowsDirectoryEntry) {
         transition selected.name_len == 4 && (selected.attributes & 1040) == 0
             && selected.name[0] == 240 && selected.name[1] == 157
             && selected.name[2] == 132 && selected.name[3] == 158 {
-            true -> exhausted(main)
-            false -> finish(main, 76)
+            true -> block exhausted(main)
+            false -> block finish(main, 76)
         }
     }
     machine exhausted(main: &mut Main) {
         let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth("omega_raw_nth", 1);
         transition result {
-            WindowsDirectoryEntryResult::End -> refuse_file(main)
-            _ -> finish(main, 77)
+            WindowsDirectoryEntryResult::End -> block refuse_file(main)
+            _ -> block finish(main, 77)
         }
     }
     machine refuse_file(main: &mut Main) {
         let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth("omega_raw_nth/𝄞", 0);
         transition result {
-            WindowsDirectoryEntryResult::Error { code } -> remove_file(main, code)
-            _ -> finish(main, 78)
+            WindowsDirectoryEntryResult::Error { code } -> block remove_file(main, code)
+            _ -> block finish(main, 78)
         }
     }
     machine remove_file(main: &mut Main, code: u32) {
         let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_nth/𝄞");
-        transition code != 0 && removed == 0 { true -> child(main) false -> finish(main, 79) }
+        transition code != 0 && removed == 0 { true -> block child(main) false -> block finish(main, 79) }
     }
     machine child(main: &mut Main) {
         let created: i32 = block WindowsFilesystemHost::create_directory("omega_raw_nth/child");
-        transition created == 0 { true -> directory(main) false -> finish(main, 80) }
+        transition created == 0 { true -> block directory(main) false -> block finish(main, 80) }
     }
     machine directory(main: &mut Main) {
         let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth("omega_raw_nth", 0);
         transition result {
-            WindowsDirectoryEntryResult::Entry { entry } -> inspect_directory(main, entry)
-            _ -> finish(main, 81)
+            WindowsDirectoryEntryResult::Entry { entry } -> block inspect_directory(main, entry)
+            _ -> block finish(main, 81)
         }
     }
     machine inspect_directory(main: &mut Main, selected: WindowsDirectoryEntry) {
         transition selected.name_len == 5 && (selected.attributes & 1040) == 16
             && selected.name[0] == 99 && selected.name[1] == 104
             && selected.name[2] == 105 && selected.name[3] == 108 && selected.name[4] == 100 {
-            true -> missing(main)
-            false -> finish(main, 82)
+            true -> block missing(main)
+            false -> block finish(main, 82)
         }
     }
     machine missing(main: &mut Main) {
         let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth("omega_raw_nth/missing", 0);
         transition result {
-            WindowsDirectoryEntryResult::Error { code } -> failed_query(main, code)
-            _ -> finish(main, 83)
+            WindowsDirectoryEntryResult::Error { code } -> block failed_query(main, code)
+            _ -> block finish(main, 83)
         }
     }
     machine failed_query(main: &mut Main, code: u32) {
-        transition code != 0 { true -> finish(main, 70) false -> finish(main, 84) }
+        transition code != 0 { true -> block finish(main, 70) false -> block finish(main, 84) }
     }
     machine finish(main: &mut Main, code: i32) {
         let closed: i32 = block close_if_present(main.handle);
@@ -102,7 +102,7 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
 }
 
 machine close_if_present(handle: u64) -> i32 {
-    transition handle != 0 { true -> close(handle) false -> 0 }
+    transition handle != 0 { true -> block close(handle) false -> 0 }
     machine close(handle: u64) -> i32 { block WindowsFilesystemHost::close_handle(handle) }
 }
 

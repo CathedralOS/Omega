@@ -14,12 +14,13 @@ mod call_bindings;
 mod call_completion;
 mod call_preparation;
 mod collection_extents;
+mod completed_equations;
 mod completed_scalar_calls;
 mod completed_values;
 mod expression_completion;
 mod statement_completion;
 mod statements;
-pub(super) use completed_scalar_calls::CapturedResultEquation;
+pub(super) use completed_equations::CapturedResultEquation;
 pub(in crate::proof_contracts::contract_entailment) use statement_completion::CompletedStatement;
 mod match_captures;
 mod match_composition;
@@ -50,7 +51,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
 
-impl StructuralJudge<'_> {
+impl<'program> StructuralJudge<'program> {
     /// A postcondition's `result` names the value this path actually returns.
     /// Bind it in both proof stores: case facts deliberately do not follow
     /// general value substitutions. Callers have checked that an input
@@ -58,7 +59,9 @@ impl StructuralJudge<'_> {
     pub(in crate::proof_contracts::contract_entailment) fn bind_returned_value(
         &mut self,
         value: &StructuralTerm,
+        source: Option<CompletedValueSource<'program>>,
     ) {
+        self.returned_value_source = source;
         self.intake_case_equation(
             StructuralTerm::Variable(super::super::RESULT_BINDER.to_owned()),
             value.clone(),
@@ -72,8 +75,32 @@ impl StructuralJudge<'_> {
 pub(in crate::proof_contracts::contract_entailment) struct NormalReturnPath<'program> {
     pub value: StructuralTerm,
     pub judge: StructuralJudge<'program>,
+    pub source: Option<CompletedValueSource<'program>>,
     observation: NormalValueObservation,
     value_requested: bool,
+}
+
+/// A return promise observes bytes after the function's last writes. Keep that
+/// actual completion and its observations; the view may have been built earlier.
+#[derive(Clone)]
+pub(in crate::proof_contracts::contract_entailment) struct CompletedValueSource<'program> {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub expression: ExpressionHandle,
+    pub type_reference: TypeReferenceHandle,
+    pub storage_version: Option<super::storage_effects::StorageVersion>,
+    pub context: Arc<StructuralJudge<'program>>,
+}
+
+impl CompletedValueSource<'_> {
+    pub(super) fn same_observation(&self, other: &Self) -> bool {
+        self.machine == other.machine
+            && self.state == other.state
+            && self.expression == other.expression
+            && self.type_reference == other.type_reference
+            && self.storage_version == other.storage_version
+            && Arc::ptr_eq(&self.context, &other.context)
+    }
 }
 
 /// Fresh normal-exit storage is installed only after the invocation retires
@@ -356,7 +383,11 @@ impl<'program> StructuralJudge<'program> {
             _ => (value, None),
         };
         let mut paths = Vec::new();
-        for equation in self.captured_result_equations.iter() {
+        for equation in self
+            .captured_result_equations
+            .iter()
+            .filter(|equation| !equation.is_data_identity())
+        {
             let (left, right) = (&equation.left, &equation.right);
             for term in [left, right] {
                 let StructuralTerm::Projection { subject, path } = term else {
@@ -384,7 +415,7 @@ impl<'program> StructuralJudge<'program> {
         paths
     }
 
-    fn term_max_captured_occurrence(term: &StructuralTerm) -> Option<usize> {
+    pub(super) fn term_max_captured_occurrence(term: &StructuralTerm) -> Option<usize> {
         match term.semantic_value() {
             StructuralTerm::CapturedValue { occurrence, .. } => Some(*occurrence),
             _ => {
@@ -409,7 +440,13 @@ impl<'program> StructuralJudge<'program> {
         if self.captured_result_equations.is_empty() {
             return value;
         }
-        self.completed_value_identity_at(value, 0, self.captured_result_equations.iter())
+        self.completed_value_identity_at(
+            value,
+            0,
+            self.captured_result_equations
+                .iter()
+                .filter(|equation| !equation.is_data_identity()),
+        )
     }
 
     /// Both views borrow the same ordered facts; numeric projection excludes
@@ -2119,8 +2156,27 @@ impl<'program> StructuralJudge<'program> {
         scope: ValueScope<'_>,
     ) -> Option<TypeReferenceHandle> {
         let program = self.program;
-        crate::expression_result_type_reference(program, scope.0, scope.1, expression).or_else(
-            || {
+        crate::expression_result_type_reference(program, scope.0, scope.1, expression)
+            .or_else(|| {
+                let literal = expression_table(program).struct_literal_node(expression)?;
+                // A completed constructor keeps the application used to check
+                // its fields. Unused case parameters need that context, while
+                // its resolved owner and case still have to match exactly.
+                let definition =
+                    crate::value_custody::struct_literals::selected_construction_definition(
+                        program, expression, literal,
+                    )?;
+                if literal.case_symbol.is_some() {
+                    crate::value_custody::struct_literals::selected_construction_case(
+                        program, expression, literal, definition,
+                    )?;
+                }
+                let reference = crate::value_custody::struct_literals::construction_application(
+                    program, expression,
+                );
+                reference.is_valid().then_some(reference)
+            })
+            .or_else(|| {
                 let indexed = expression_table(program).indexed_node(expression)?;
                 expression_table(program).range_node(indexed.index)?;
                 crate::slice_view_shell(program, scope.2, &[])?;
@@ -2139,8 +2195,7 @@ impl<'program> StructuralJudge<'program> {
                 (program.normalized_type_identity(source_element)
                     == program.normalized_type_identity(receiving_element))
                 .then_some(scope.2)
-            },
-        )
+            })
     }
 
     fn capture_unknown_value(
@@ -2244,10 +2299,32 @@ impl<'program> StructuralJudge<'program> {
         scope: ValueScope<'_>,
     ) -> Option<StructuralTerm> {
         let program = self.program;
-        crate::reference_shell(program, subject.parameter_type)?
-            .access
-            .is_readable()
-            .then_some(())?;
+        // Reference arguments observe source storage after operand effects.
+        // Its graph must supply the actual cut in that source state.
+        if self.storage_graph().is_some()
+            && !self
+                .storage_version
+                .is_some_and(|version| version.state == scope.1.symbol)
+        {
+            return None;
+        }
+        let parameter = crate::reference_shell(program, subject.parameter_type)?;
+        parameter.access.is_readable().then_some(())?;
+        // Replacing a pointer's former home does not change the scalar behind
+        // its saved shared copy. Its completed read carries those frozen
+        // contents; the active shared loan forbids a write until its last use.
+        if parameter.access == language_semantics::ReferenceAccess::Shared
+            && !subject.sources.is_empty()
+            && program
+                .primitive_type_reference(subject.type_reference)
+                .is_some()
+            && super::super::structural_terms::shared_inline_observation_type(program, actual)
+                .is_some_and(|observed| {
+                    crate::declared_carriers_match(program, subject.parameter_type, observed)
+                })
+        {
+            return Some(actual.clone());
+        }
         if subject.has_aggregate_view(program) {
             let observation = self.capture_view_argument_fields(subject, actual, scope.0, scope.1);
             if let Err(reason) = &observation
@@ -2649,10 +2726,36 @@ fn discarded_value_has_no_own_effects(
 }
 
 impl<'program> NormalReturnPath<'program> {
+    fn at_return(mut self, expression: ExpressionHandle, scope: ValueScope<'_>) -> Self {
+        if !self.judge.requires_value_preservation() || self.observed_value().is_none() {
+            return self;
+        }
+        let Some(type_reference) = self.judge.normal_value_type_reference(expression, scope) else {
+            self.source = None;
+            return self;
+        };
+        // Preserve the observations made when this result completes, even
+        // after its local scope ends. Their old storage cells do not become
+        // current caller storage.
+        let mut context = self.judge.clone();
+        context.returned_value_source = None;
+        context.completed_resolutions = None;
+        self.source = Some(CompletedValueSource {
+            machine: scope.0.symbol,
+            state: scope.1.symbol,
+            expression,
+            type_reference,
+            storage_version: self.judge.storage_version,
+            context: Arc::new(context),
+        });
+        self
+    }
+
     fn observed(value: StructuralTerm, judge: StructuralJudge<'program>) -> Self {
         Self {
             value,
             judge,
+            source: None,
             observation: NormalValueObservation::Observed,
             value_requested: false,
         }
@@ -2664,6 +2767,7 @@ impl<'program> NormalReturnPath<'program> {
             // Operation entries carry its absence explicitly as None.
             value: StructuralTerm::Opaque("unobserved traversal".to_owned()),
             judge,
+            source: None,
             observation: NormalValueObservation::NotObserved,
             value_requested: false,
         }

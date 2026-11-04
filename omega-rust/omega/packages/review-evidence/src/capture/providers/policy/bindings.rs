@@ -224,14 +224,14 @@ pub(super) fn native_producer(
                 .trait_requirement_callable_identity_text(owner, signature)
         })
         .ok_or_else(|| rejected("native Build producer lost its exact requirement"))?;
-    if origin.requirement_identity != requirement
+    let identities = compilation
+        .custody
+        .providers()
+        .evaluated_via_bindings
+        .identities();
+    if identities.text(origin.requirement_identity) != Some(requirement.as_str())
         || receipt.producer_package() != Some(production.producer.package)
-        || compilation
-            .custody
-            .providers()
-            .evaluated_via_bindings
-            .identities()
-            .text(receipt.producer_callable_identity())
+        || identities.text(receipt.producer_callable_identity())
             != Some(production.producer.callable_identity.as_str())
     {
         return Err(rejected(

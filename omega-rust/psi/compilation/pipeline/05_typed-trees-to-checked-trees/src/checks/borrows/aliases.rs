@@ -9,6 +9,10 @@ use checked_trees::{CapturedPlace, CheckFacts, FlowStateFact};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
 
+mod lineage;
+pub(in crate::checks) use lineage::transport_suppliers;
+pub(in crate::checks::borrows) use lineage::{formation_lineage, retained_lineage};
+
 pub(in crate::checks::borrows) struct ResolvedAlias {
     pub(in crate::checks::borrows) place: CapturedPlace,
     pub(in crate::checks::borrows) lineage: Vec<Handle<BorrowLoanFact>>,
@@ -91,14 +95,87 @@ fn same_carrier_occurrence(
     right: &BorrowLoanFact,
 ) -> bool {
     let path = borrow.loan_owner_path(right);
+    same_carrier_generation(left, right)
+        && borrow.loan_owner_path(left) == path
+        && !path.contains(&checked_trees::BorrowLoanOwnerSegment::DynamicIndex)
+}
+
+fn same_carrier_generation(left: &BorrowLoanFact, right: &BorrowLoanFact) -> bool {
     right.owner_symbol.is_valid()
         && right.storage_owner.is_valid()
         && left.owner_symbol == right.owner_symbol
         && left.storage_owner == right.storage_owner
         && left.statement_index == right.statement_index
         && left.established_by_call == right.established_by_call
-        && borrow.loan_owner_path(left) == path
-        && !path.contains(&checked_trees::BorrowLoanOwnerSegment::DynamicIndex)
+}
+
+/// Formation may retain a descriptor together with its existing lifetime
+/// obligations. Distinct cases of that same saved carrier cannot be present
+/// together. Neither judgment supplies an address or permits a later read.
+pub(in crate::checks::borrows) fn formation_preserves_loan(
+    program: &dyn validation::CheckingInput,
+    borrow: &BorrowFacts,
+    state: &StateBorrowFact,
+    lineage: &[Handle<BorrowLoanFact>],
+    active: Handle<BorrowLoanFact>,
+) -> bool {
+    lineage.iter().any(|ancestor| {
+        same_descriptor(borrow, *ancestor, active)
+            || retains_lifetime_dependency(borrow, *ancestor, active)
+            || retains_lifetime_dependency(borrow, active, *ancestor)
+            || exclusive_carrier_cases(program, borrow, state, *ancestor, active)
+    })
+}
+
+fn exclusive_carrier_cases(
+    program: &dyn validation::CheckingInput,
+    borrow: &BorrowFacts,
+    state: &StateBorrowFact,
+    left: Handle<BorrowLoanFact>,
+    right: Handle<BorrowLoanFact>,
+) -> bool {
+    let exclusive = (|| {
+        if !borrow.state_owns_loan(state, left) || !borrow.state_owns_loan(state, right) {
+            return None;
+        }
+        let left = borrow.loans.get(left);
+        let right = borrow.loans.get(right);
+        if !same_carrier_generation(left, right) {
+            return None;
+        }
+        let owner = left.storage_owner.as_symbol()?;
+        let state = program.state_by_symbol(state.state_symbol)?;
+        let reference = validation::state_root_type(program, state, owner)?;
+        let left = crate::borrow::named_carrier_path(
+            program,
+            state,
+            owner,
+            reference,
+            borrow.owner_segments.span(left.owner_path)?,
+        )?;
+        let right = crate::borrow::named_carrier_path(
+            program,
+            state,
+            owner,
+            reference,
+            borrow.owner_segments.span(right.owner_path)?,
+        )?;
+        // The complete typed paths authenticate both cases under this one
+        // applied carrier. A different field or index supplies no exclusion.
+        for (left, right) in left.iter().zip(&right) {
+            if left != right {
+                return Some(matches!(
+                    (left, right),
+                    (
+                        checked_trees::CheckedUnitStructuralPathSegment::Case(_),
+                        checked_trees::CheckedUnitStructuralPathSegment::Case(_)
+                    )
+                ));
+            }
+        }
+        None
+    })();
+    exclusive == Some(true)
 }
 
 pub(in crate::checks::borrows) struct ResolvedPlace {
@@ -336,206 +413,6 @@ fn resolve_descriptor_places_with_loans(
         }
     }
     (!places.is_empty()).then_some(places)
-}
-
-/// Forming a lifetime debt retains an already supplied input; it does not
-/// borrow that input again. Authenticate every supplier before admitting its
-/// formation alongside a common ancestor. This query is only for formation:
-/// ordinary descriptor access still rejects LifetimeDependency as a source.
-pub(in crate::checks::borrows) fn formation_lineage(
-    borrow: &BorrowFacts,
-    state: &StateBorrowFact,
-    handle: Handle<BorrowLoanFact>,
-) -> Option<Vec<Handle<BorrowLoanFact>>> {
-    let debt = borrow.state_owns_loan(state, handle)
-        && borrow.loans.get(handle).lineage == BorrowLoanLineage::LifetimeDependency;
-    loan_lineage(borrow, state, handle, debt)
-}
-
-/// The exact occurrences a descriptor transfer transports. Each supplier is
-/// owned by this state, is read through the transfer's source owner and
-/// grants at least the transported access, so the transfer adds no borrow,
-/// owner or access of its own. A transfer naming no supplier has no lineage.
-pub(in crate::checks) fn transport_suppliers<'borrow>(
-    borrow: &'borrow BorrowFacts,
-    state: &StateBorrowFact,
-    handle: Handle<BorrowLoanFact>,
-) -> Option<&'borrow [Handle<BorrowLoanFact>]> {
-    let loan = borrow.loans.get(handle);
-    if loan.lineage != BorrowLoanLineage::UnretainedDerived {
-        return None;
-    }
-    let suppliers = borrow.loan_suppliers.span(loan.supplying_loans)?;
-    let exact = !suppliers.is_empty()
-        && suppliers.iter().all(|supplier| {
-            let source = borrow.loans.get(*supplier);
-            borrow.state_owns_loan(state, *supplier)
-                && source.owner_symbol == loan.source_owner_symbol
-                && source.kind.direct_reborrow_effect(&loan.kind).is_some()
-        });
-    exact.then_some(suppliers)
-}
-
-pub(in crate::checks::borrows) fn retained_lineage(
-    borrow: &BorrowFacts,
-    state: &StateBorrowFact,
-    handle: Handle<BorrowLoanFact>,
-) -> Option<Vec<Handle<BorrowLoanFact>>> {
-    loan_lineage(borrow, state, handle, false)
-}
-
-fn loan_lineage(
-    borrow: &BorrowFacts,
-    state: &StateBorrowFact,
-    handle: Handle<BorrowLoanFact>,
-    include_debts: bool,
-) -> Option<Vec<Handle<BorrowLoanFact>>> {
-    // A descriptor transfer transports its suppliers' established lineage,
-    // without turning the copied carrier into a new reborrow parent. Traverse
-    // exact historical identities only: backing coincidence grants nothing.
-    // Every alternative must be complete; a partial supplier graph is unknown.
-    // Equal-place alternatives may have different histories. Only ancestors
-    // common to every supplier justify an access exemption after their join.
-    let mut completed: Vec<(Handle<BorrowLoanFact>, Vec<Handle<BorrowLoanFact>>)> = Vec::new();
-    let mut active = Vec::new();
-    let mut pending = vec![(handle, false)];
-    while let Some((handle, closing)) = pending.pop() {
-        if closing {
-            if active.pop() != Some(handle) {
-                return None;
-            }
-            let loan = borrow.loans.get(handle);
-            let parents = match &loan.lineage {
-                BorrowLoanLineage::DirectRoot => &[][..],
-                BorrowLoanLineage::SuppliedOutput => {
-                    borrow.supplied_output_call(handle)?;
-                    &[][..]
-                }
-                BorrowLoanLineage::Reborrow { parent_loan } => std::slice::from_ref(parent_loan),
-                BorrowLoanLineage::UnretainedDerived => {
-                    borrow.loan_suppliers.span(loan.supplying_loans)?
-                }
-                BorrowLoanLineage::LifetimeDependency if include_debts => {
-                    borrow.loan_suppliers.span(loan.supplying_loans)?
-                }
-                BorrowLoanLineage::LifetimeDependency => return None,
-            };
-            let mut common = Vec::new();
-            for (position, parent) in parents.iter().enumerate() {
-                let (_, ancestors) = completed
-                    .iter()
-                    .find(|(candidate, _)| candidate == parent)?;
-                if position == 0 {
-                    common.clone_from(ancestors);
-                } else {
-                    // Alternative origins have distinct loan rows but may
-                    // belong to the same exact descriptor occurrence. Keep
-                    // only occurrences present on every supplier path, not
-                    // merely identical row handles or equal backing places.
-                    common.retain(|ancestor| {
-                        ancestors
-                            .iter()
-                            .any(|candidate| same_descriptor(borrow, *ancestor, *candidate))
-                    });
-                }
-            }
-            if matches!(loan.lineage, BorrowLoanLineage::Reborrow { .. }) {
-                // A real borrow can be reached through saved descriptors.
-                // Retain those exact forwarding occurrences as well as its
-                // borrowing parent; call-input debts belong to that route even
-                // when the new view selects a smaller physical projection.
-                let suppliers = borrow.loan_suppliers.span(loan.supplying_loans)?;
-                let mut forwarded = Vec::new();
-                for (position, supplier) in suppliers.iter().enumerate() {
-                    let (_, ancestors) = completed
-                        .iter()
-                        .find(|(candidate, _)| candidate == supplier)?;
-                    if position == 0 {
-                        forwarded.clone_from(ancestors);
-                    } else {
-                        forwarded.retain(|ancestor| {
-                            ancestors
-                                .iter()
-                                .any(|candidate| same_descriptor(borrow, *ancestor, *candidate))
-                        });
-                    }
-                }
-                for ancestor in forwarded {
-                    crate::shared::collections::push_unique(&mut common, ancestor);
-                }
-            }
-            common.push(handle);
-            completed.push((handle, common));
-            continue;
-        }
-        if completed.iter().any(|(candidate, _)| *candidate == handle) {
-            continue;
-        }
-        if !borrow.state_owns_loan(state, handle) || active.contains(&handle) {
-            return None;
-        }
-        active.push(handle);
-        pending.push((handle, true));
-        let loan = borrow.loans.get(handle);
-        match loan.lineage {
-            BorrowLoanLineage::DirectRoot => {}
-            BorrowLoanLineage::SuppliedOutput => {
-                borrow.supplied_output_call(handle)?;
-            }
-            BorrowLoanLineage::Reborrow { parent_loan } => {
-                if !borrow.state_owns_loan(state, parent_loan) {
-                    return None;
-                }
-                let parent = borrow.loans.get(parent_loan);
-                if loan.source_owner_symbol != parent.owner_symbol
-                    || parent.kind.direct_reborrow_effect(&loan.kind).is_none()
-                {
-                    return None;
-                }
-                pending.push((parent_loan, false));
-                for supplier in borrow.loan_suppliers.span(loan.supplying_loans)? {
-                    if !borrow.state_owns_loan(state, *supplier)
-                        || borrow
-                            .loans
-                            .get(*supplier)
-                            .kind
-                            .direct_reborrow_effect(&loan.kind)
-                            .is_none()
-                    {
-                        return None;
-                    }
-                    pending.push((*supplier, false));
-                }
-            }
-            BorrowLoanLineage::UnretainedDerived => {
-                for supplier in transport_suppliers(borrow, state, handle)? {
-                    pending.push((*supplier, false));
-                }
-            }
-            BorrowLoanLineage::LifetimeDependency if include_debts => {
-                let suppliers = borrow.loan_suppliers.span(loan.supplying_loans)?;
-                if suppliers.is_empty() || !loan.source_owner_symbol.is_valid() {
-                    return None;
-                }
-                for supplier in suppliers {
-                    if !borrow.state_owns_loan(state, *supplier) {
-                        return None;
-                    }
-                    let source = borrow.loans.get(*supplier);
-                    if source.owner_symbol != loan.source_owner_symbol
-                        || source.kind.direct_reborrow_effect(&loan.kind).is_none()
-                    {
-                        return None;
-                    }
-                    pending.push((*supplier, false));
-                }
-            }
-            BorrowLoanLineage::LifetimeDependency => return None,
-        }
-    }
-    completed
-        .into_iter()
-        .find_map(|(candidate, lineage)| (candidate == handle).then_some(lineage))
 }
 
 /// Join an unchanged selected slot from the completed-storage owner to its

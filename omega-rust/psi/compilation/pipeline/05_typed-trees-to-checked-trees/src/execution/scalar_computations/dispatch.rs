@@ -103,10 +103,33 @@ impl Builder<'_, '_> {
                 result_type,
             );
         }
-        let checked_trees::CheckedDispatchSubject::Scalar(subject) = subject else {
+        let checked_trees::CheckedDispatchSubject::Scalar(subject_handle) = subject else {
             return None;
         };
-        let subject_type = self.plans.nodes.get(subject).primitive_type;
+        let subject_type = self.plans.nodes.get(subject_handle).primitive_type;
+        // An arm whose value no path reaches, such as `_` after `true` in
+        // `match true { ... }`, has no call or value occurrence to plan: the
+        // occurrence collectors skip it. Plan only the reachable arms; the
+        // last of them covers every input that reaches it.
+        let reachable = dispatch
+            .arms
+            .handles()
+            .zip(self.program.expression_table.match_arms(dispatch.arms))
+            .filter(|(_, arm)| !self.program.static_type_context_is_unreachable(arm.value))
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        if reachable.len() < dispatch.arms.len()
+            && !matches!(subject_type, PrimitiveType::F32 | PrimitiveType::F64)
+        {
+            return self.declaration_dispatch(
+                source_expression,
+                dispatch,
+                subject,
+                result_type,
+                &reachable,
+            );
+        }
+        let subject = subject_handle;
         let authored = self.program.expression_table.match_arms(dispatch.arms);
         let mut arms = Vec::new();
         let mut boolean_coverage = [false; 2];

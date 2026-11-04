@@ -178,10 +178,54 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                 }
                 // Pointer geometry closes later with the selected target, not
                 // with the host that receives an invariant report.
-                if slot.offset > physical.byte_size {
+                if slot.placements.is_empty()
+                    || slot.placements.windows(2).any(|pair| {
+                        layout_plans::layout_placement_sort_key(&pair[0])
+                            >= layout_plans::layout_placement_sort_key(&pair[1])
+                    })
+                {
                     return Err(fail(
-                        "native layout slot starts outside its containing storage",
+                        "native layout slot placements are empty, duplicated or unordered",
                     ));
+                }
+                for placement in &slot.placements {
+                    match *placement {
+                        layout_plans::LayoutPlacementReport::At { offset } => {
+                            if slot.placements.len() != 1 || offset > physical.byte_size {
+                                return Err(fail(
+                                    "native layout whole-slot placement is repeated or outside storage",
+                                ));
+                            }
+                        }
+                        layout_plans::LayoutPlacementReport::Bits {
+                            container,
+                            container_width,
+                            destination_lsb,
+                            source_lsb,
+                            width,
+                        } => {
+                            let narrow = |value| {
+                                u16::try_from(value).map_err(|_| fail("private callback fragment width exceeds its representation"))
+                            };
+                            layout_plans::validate_fragment(
+                                usize::try_from(physical.byte_size).map_err(|_| {
+                                    fail("private callback storage exceeds host range")
+                                })?,
+                                "private callback",
+                                container,
+                                narrow(container_width)?,
+                                narrow(destination_lsb)?,
+                                narrow(source_lsb)?,
+                                narrow(width)?,
+                            )
+                            .map_err(|error| fail(&error.to_string()))?;
+                        }
+                        layout_plans::LayoutPlacementReport::IntegerAt { .. } => {
+                            return Err(fail(
+                                "private callback narrowed storage has no retained address-fit contract",
+                            ));
+                        }
+                    }
                 }
             }
         }

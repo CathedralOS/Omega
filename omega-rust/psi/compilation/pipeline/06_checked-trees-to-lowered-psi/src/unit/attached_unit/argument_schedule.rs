@@ -110,9 +110,9 @@ pub(super) fn build_operations(
         let statement = match operations[index].structural_result_binding() {
             Some(result)
                 if operations[index + 1..].iter().any(|operation| {
-                    operation.call().is_some_and(|call| {
-                        call.coordinate.statement_index == result.statement_index
-                            && call.structural_arguments.iter().any(|argument| {
+                    operation.invocation_coordinate().is_some_and(|coordinate| {
+                        coordinate.statement_index == result.statement_index
+                            && operation.structural_operands().iter().any(|argument| {
                                 argument.source_structural_result_binding_ordinal()
                                     == Some(result.binding_ordinal)
                             })
@@ -122,9 +122,8 @@ pub(super) fn build_operations(
                 result.statement_index
             }
             _ => {
-                if operations[index]
-                    .call()
-                    .is_some_and(|call| !call.structural_arguments.is_empty())
+                if operations[index].invocation_coordinate().is_some()
+                    && !operations[index].structural_operands().is_empty()
                 {
                     steps.push(Step::Begin);
                     append(
@@ -186,13 +185,18 @@ fn call_group_root(
             return Ok(root);
         };
         let mut consumers = (root + 1..operations.len()).filter(|index| {
-            operations[*index].call().is_some_and(|consumer| {
-                consumer.coordinate.statement_index == statement
-                    && consumer.structural_arguments.iter().any(|argument| {
-                        argument.source_structural_result_binding_ordinal()
-                            == Some(result.binding_ordinal)
-                    })
-            })
+            operations[*index]
+                .invocation_coordinate()
+                .is_some_and(|coordinate| {
+                    coordinate.statement_index == statement
+                        && operations[*index]
+                            .structural_operands()
+                            .iter()
+                            .any(|argument| {
+                                argument.source_structural_result_binding_ordinal()
+                                    == Some(result.binding_ordinal)
+                            })
+                })
         });
         let Some(consumer) = consumers.next() else {
             return Ok(root);
@@ -226,34 +230,47 @@ fn append(
         append_completions(operations, group, index, emitted, steps)?;
         return Ok(());
     }
-    let Some(call) = operations[index].call() else {
-        return unsupported("nested argument schedule requires an ordinary or boundary call");
+    let operation = &operations[index];
+    let invocation = operation
+        .structural_invocation()
+        .ok_or(LoweringError::Unsupported(
+            "argument schedule requires a retained invocation coordinate",
+        ))?;
+    let coordinate = invocation.coordinate();
+    let structural_arguments = invocation.structural_operands();
+    let (evaluation_order, scalar_positions, structural_positions) = match invocation {
+        checked_trees::CheckedStructuralInvocation::Call(call) => {
+            let authored = crate::shared::call_sites::locate(checked, state, coordinate)?;
+            let target = crate::shared::declarations::target_signature(
+                checked,
+                machine,
+                authored.source_target,
+            )?;
+            let structural_positions =
+                super::call_parameters::structural_positions(checked, call, &target)?;
+            let scalar_positions =
+                super::call_parameters::scalar_positions(checked, call, &target)?;
+            if target.parameters.len()
+                != authored.scalar_arguments.len() + authored.structural_arguments.len()
+                || call.scalar_operands().len() != scalar_positions.len()
+                || structural_arguments.len() != structural_positions.len()
+            {
+                return unsupported("nested argument schedule has no exact positional signature");
+            }
+            (
+                authored.evaluation_order,
+                scalar_positions,
+                structural_positions,
+            )
+        }
+        checked_trees::CheckedStructuralInvocation::BorrowedInstruction { .. } => {
+            (vec![0], Vec::new(), vec![0])
+        }
     };
-    let (coordinate, scalar_arguments, structural_arguments) = (
-        call.coordinate,
-        call.scalar_operands(),
-        call.structural_arguments.as_slice(),
-    );
-    let authored = crate::shared::call_sites::locate(checked, state, coordinate)?;
-    let target =
-        crate::shared::declarations::target_signature(checked, machine, authored.source_target)?;
-    let parameters = target.parameters;
-    // Authored positions and retained argument slots are different namespaces.
-    // The callee's checked signature decides which structural formals survive;
-    // neither attachment syntax nor the number of supplied arguments can do so.
-    let structural_positions =
-        super::call_parameters::structural_positions(checked, call, &target)?;
-    let scalar_positions = super::call_parameters::scalar_positions(checked, call, &target)?;
-    if parameters.len() != authored.scalar_arguments.len() + authored.structural_arguments.len()
-        || scalar_arguments.len() != scalar_positions.len()
-        || structural_arguments.len() != structural_positions.len()
-    {
-        return unsupported("nested argument schedule has no exact positional signature");
-    }
     active.push(index);
     // The retained source permutation chooses evaluation, while each dense
     // lane ordinal still identifies its callee parameter and completed value.
-    for position in authored.evaluation_order.iter().copied() {
+    for position in evaluation_order.iter().copied() {
         if let Some(scalar_ordinal) = scalar_positions
             .iter()
             .position(|scalar| *scalar == position)
@@ -281,7 +298,7 @@ fn append(
             continue;
         }
         let has_recorded_endpoints =
-            !recorded_window_endpoint_roots(checked, state, call.coordinate, argument_ordinal)
+            !recorded_window_endpoint_roots(checked, state, coordinate, argument_ordinal)
                 .is_empty();
         // The plan names the produced value this argument consumes; a producer
         // in this group is scheduled first, and a result bound earlier in the

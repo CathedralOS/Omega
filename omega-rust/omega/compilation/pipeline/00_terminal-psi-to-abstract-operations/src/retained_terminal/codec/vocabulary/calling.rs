@@ -114,7 +114,7 @@ record_fields!(calling_conventions::CallbackSlotGeometry {
     slot,
     requirement,
     conformance_commitment,
-    offset,
+    placements,
     size,
     alignment
 });
@@ -255,4 +255,15 @@ record_fields!(calling_conventions::ValueShape {
     class,
     byte_size,
     alignment
+});
+
+record_variants!(layout_plans::LayoutPlacementReport {
+    0 => At { offset },
+    1 => IntegerAt { offset, stored_width, interpretation },
+    2 => Bits { container, container_width, destination_lsb, source_lsb, width },
+});
+
+record_variants!(layout_plans::IntegerInterpretation {
+    0 => Signed,
+    1 => Unsigned,
 });

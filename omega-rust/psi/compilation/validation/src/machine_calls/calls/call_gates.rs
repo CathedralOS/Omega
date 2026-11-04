@@ -217,6 +217,32 @@ pub(super) fn validate_asm_statement_call(
         current_state,
         ..
     } = *scope;
+    if let Some(operation) =
+        language_core::inline_assembly::AsmGlobalDescriptorTableOperation::from_intrinsic_name(
+            call.target.as_str(),
+        )
+    {
+        let [operand] = arguments else {
+            diagnostics.push(Diagnostic::error(format!(
+                "asm instruction `{}` requires one borrowed ten-byte array",
+                operation.mnemonic()
+            )));
+            return;
+        };
+        if let Err(reason) = crate::compiler_operations::global_descriptor_table_operand(
+            program,
+            current_machine,
+            current_state,
+            *operand,
+            operation,
+        ) {
+            diagnostics.push(Diagnostic::error(format!(
+                "asm instruction `{}`: {reason}",
+                operation.mnemonic()
+            )));
+        }
+        return;
+    }
     let register_write = AsmControlRegister::from_write_intrinsic_name(call.target.as_str())
         .and_then(|register| register.write_mnemonic())
         .or_else(|| {

@@ -610,8 +610,9 @@ pub(super) fn validate_establish_structural_array(
     Ok(())
 }
 
-/// Late native metadata is a custody-free ordinary record, never a source of
-/// semantic propositions or ownership of the code it describes.
+/// Each metadata record owns its region-view descriptor, which must retire
+/// once even though the source record is copyable. That descriptor grants no
+/// ownership of the code or semantic propositions about the program.
 pub(super) fn validate_native_code_layout(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -624,7 +625,7 @@ pub(super) fn validate_native_code_layout(
         return malformed("native code layout has no structural result");
     };
     if module.machine(selected).is_none()
-        || result.multiplicity != StructuralMultiplicity::Unrestricted
+        || result.multiplicity != StructuralMultiplicity::Affine
         || !result.claims.is_empty()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()

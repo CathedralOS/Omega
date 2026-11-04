@@ -204,12 +204,12 @@ pub(crate) fn validate(
         let destination_admitted = match &callback.destination {
             calling_conventions::NativePlace::Parameter(parameter) => {
                 *parameter == callback.application.parameter
-                    && callback.field_byte_offset.is_none()
+                    && callback.field_placements.is_none()
                     && placed
             }
             calling_conventions::NativePlace::Field { parameter, .. } => {
                 *parameter == callback.application.parameter
-                    && callback.field_byte_offset.is_some()
+                    && callback.field_placements.is_some()
                     && placed
                     && matches!(
                         callback.application.placement.locations.as_slice(),

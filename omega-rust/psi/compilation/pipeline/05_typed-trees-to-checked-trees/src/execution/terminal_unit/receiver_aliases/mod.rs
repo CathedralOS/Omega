@@ -1,13 +1,11 @@
 //! Erase nonescaping reference carriers, not their captured referent or access.
 use super::{
-    CheckFacts, CheckedStructuralAccess, ExpressionNode, StatementNode, SymbolHandle,
-    TypeReferenceHandle,
+    CheckFacts, CheckedStructuralAccess, ExpressionNode, SymbolHandle, TypeReferenceHandle,
 };
 use crate::execution::terminal_unit::types::{
     lent_storage_identity, state_flow, structural_access_for_type_reference,
 };
 use crate::flow::{expressions, state_statements};
-use crate::published::places::place_at;
 
 use crate::execution::terminal_unit::calls;
 
@@ -212,149 +210,4 @@ pub(super) fn resolve(
         };
     }
     (resolved != *place).then_some(resolved)
-}
-
-/// The erased parent alias and its one-, two-, or three-child roster named by
-/// the checked post-restoration call join on the disposition event. These source bindings carry
-/// borrow lifetimes, not independent Terminal runtime places, so the statement
-/// sequence advances past their declarations; every other reference local
-/// continues to reject through the ordinary local-data path.
-pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-) -> Option<Vec<SymbolHandle>> {
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let parent_local = statements.first()?.as_local_data()?;
-    if parent_local.is_mutable || facts.borrow.reborrow_disposition_events.is_empty() {
-        return None;
-    }
-    let ExpressionNode::Borrow(parent_borrow) =
-        expressions(program).expression(parent_local.initial_value)
-    else {
-        return None;
-    };
-    if parent_borrow.access != language_semantics::ReferenceAccess::Mutable {
-        return None;
-    }
-    let child_count = facts
-        .borrow
-        .reborrow_disposition_events
-        .iter()
-        .filter(|&(_, event)| {
-            event.machine_symbol == machine.symbol
-                && event.state_symbol == state.symbol
-                && event.restored_call.is_valid()
-        })
-        .map(|(_, event)| event.shared_cohort.len().max(1))
-        .find(|count| matches!(count, 1..=3))?;
-    let child_locals = statements
-        .get(1..=child_count)?
-        .iter()
-        .map(|statement| match statement {
-            StatementNode::LocalData(local) if !local.is_mutable => Some(local),
-            _ => None,
-        })
-        .collect::<Option<Vec<_>>>()?;
-    let child_borrows = child_locals
-        .iter()
-        .map(
-            |local| match program.expression_table.expression(local.initial_value) {
-                ExpressionNode::Borrow(borrow) => Some(borrow),
-                _ => None,
-            },
-        )
-        .collect::<Option<Vec<_>>>()?;
-
-    let parent_source = place_at(program, state.symbol, 0, parent_borrow.target)?;
-    let child_sources = child_borrows
-        .iter()
-        .enumerate()
-        .map(|(offset, borrow)| place_at(program, state.symbol, offset + 1, borrow.target))
-        .collect::<Option<Vec<_>>>()?;
-    let candidates = facts
-        .borrow
-        .reborrow_disposition_events
-        .iter()
-        .filter(|(_, event)| {
-            if event.machine_symbol != machine.symbol
-                || event.state_symbol != state.symbol
-                || !event.restored_call.is_valid()
-                || !facts
-                    .borrow
-                    .reborrow_loan_resources
-                    .is_valid(event.child_resource)
-                || !facts.flow.control.calls.is_valid(event.restored_call)
-                || child_sources.iter().any(|source| {
-                    source.root != facts::PlaceRoot::Symbol(parent_local.symbol)
-                        || !source.segments.is_empty()
-                })
-            {
-                return false;
-            }
-            let checked_trees::CheckedParentBorrowResource::DirectRoot {
-                resource: parent_resource,
-            } = event.parent_resource
-            else {
-                return false;
-            };
-            if !facts.borrow.direct_loan_resources.is_valid(parent_resource) {
-                return false;
-            }
-            let parent = facts.borrow.direct_loan_resources.get(parent_resource);
-            if parent.owner_symbol != parent_local.symbol
-                || parent_source.root != parent.captured_place.root
-                || parent_source.segments != parent.captured_place.segments
-            {
-                return false;
-            }
-            let child = facts
-                .borrow
-                .reborrow_loan_resources
-                .get(event.child_resource);
-            let call = facts.flow.control.calls.get(event.restored_call);
-            let roster = if event.shared_cohort.is_empty() {
-                vec![event.child_resource]
-            } else {
-                event.shared_cohort.clone()
-            };
-            roster.len() == child_count
-                && child_locals
-                    .iter()
-                    .zip(&child_borrows)
-                    .all(|(local, borrow)| {
-                        roster.iter().any(|resource| {
-                            if !facts.borrow.reborrow_loan_resources.is_valid(*resource) {
-                                return false;
-                            }
-                            let member = facts.borrow.reborrow_loan_resources.get(*resource);
-                            member.owner_symbol == local.symbol
-                                && borrow.access
-                                    == match member.access {
-                                        checked_trees::BorrowAccessKind::Mutable => {
-                                            language_semantics::ReferenceAccess::Mutable
-                                        }
-                                        checked_trees::BorrowAccessKind::WriteOnly => {
-                                            language_semantics::ReferenceAccess::WriteOnly
-                                        }
-                                        checked_trees::BorrowAccessKind::Read => {
-                                            language_semantics::ReferenceAccess::Shared
-                                        }
-                                    }
-                        })
-                    })
-                && roster.contains(&event.child_resource)
-                && child_locals
-                    .iter()
-                    .any(|local| local.symbol == child.owner_symbol)
-                && call.statement_index == child_count + usize::from(child_count > 1) + 1
-                && call.call_ordinal == 0
-        })
-        .count();
-    (candidates == 1).then(|| {
-        std::iter::once(parent_local.symbol)
-            .chain(child_locals.iter().map(|local| local.symbol))
-            .collect()
-    })
 }

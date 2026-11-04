@@ -36,6 +36,17 @@ struct StaticDeclaration<'program> {
     conformance_bounds: &'program [GenericConformanceBound],
 }
 
+/// A call executes its implementation while its saved operands belong to the
+/// public contract. Keep both identities so checking either cannot replace the
+/// other. Closed dispatch admission authenticates their selected-map relation.
+struct RetainedCallTarget<'program> {
+    application: StaticMachineApplicationHandle,
+    executable: SymbolHandle,
+    contract: SymbolHandle,
+    requirement_application: TypeReferenceHandle,
+    dispatch: Option<&'program typed_trees::typed_trees::StaticRequirementDispatch>,
+}
+
 impl<'program> StaticDeclaration<'program> {
     fn find(program: &'program dyn crate::CheckingInput, symbol: SymbolHandle) -> Option<Self> {
         if let Some(application) = program.closed_requirement_application(symbol) {
@@ -103,9 +114,9 @@ fn is_declared_source_tuple(
     program: &dyn crate::CheckingInput,
     application: &StaticMachineApplication,
     bindings: &[StaticMachineBinding],
-    requirement_application: TypeReferenceHandle,
-    target: SymbolHandle,
+    call: &RetainedCallTarget<'_>,
 ) -> bool {
+    let target = call.contract;
     let Some((declaring_trait, signature)) =
         program.trait_machine_signature(application.binding_declaration)
     else {
@@ -137,40 +148,55 @@ fn is_declared_source_tuple(
                     .typed_program()
                     .callable_body_has_open_parameters(owner)
             });
-    if requirement_application.is_valid() {
-        let Some(scope) = program
-            .applied_requirement_scope(application.lexical_owner, requirement_application)
+    let scope = if call.requirement_application.is_valid() {
+        program
+            .applied_requirement_scope(application.lexical_owner, call.requirement_application)
             .and_then(|scope| scope.declaring_scope(program, declaring_trait.symbol))
-        else {
+    } else if let Some(dispatch) = call.dispatch {
+        // Selecting an implementation consumes the authored qualifier, but
+        // its saved map still owns the public arguments. A generic body reads
+        // that exact environment even before it has a closed executable call.
+        let selected = program.selected_conformance_applications(
+            application.lexical_owner,
+            dispatch.selection_application,
+            dispatch.evidence_parameter,
+            dispatch.requirement,
+            dispatch.application_report_fingerprint,
+            dispatch.application_commitment,
+        );
+        let [selected] = selected.as_slice() else {
             return false;
         };
-        if let Some(bound) = &bound
-            && bound
-                .application
-                .declaring_scope(program, declaring_trait.symbol)
-                .is_none_or(|declared| !declared.same_application(program, &scope))
-        {
-            return false;
-        }
-        if program.require_declared_trait_operands(&scope).is_err() {
-            return false;
-        }
-        open |= program.require_receiving_trait_operands(&scope).is_err();
+        selected
+            .trait_scope
+            .scope(program)
+            .and_then(|scope| scope.declaring_scope(program, declaring_trait.symbol))
     } else if let Some(bound) = &bound {
-        let Some(scope) = bound
+        bound
             .application
             .declaring_scope(program, declaring_trait.symbol)
-        else {
-            return false;
-        };
-        if program.require_declared_trait_operands(&scope).is_err() {
-            return false;
-        }
-    } else if !program.trait_type_parameters(declaring_trait).is_empty()
-        || !declaring_trait.lifetime_parameters.is_empty()
+    } else if program.trait_type_parameters(declaring_trait).is_empty()
+        && declaring_trait.lifetime_parameters.is_empty()
+    {
+        Some(typed_trees::trait_definition::AppliedTraitScope::abstract_scope(declaring_trait))
+    } else {
+        None
+    };
+    let Some(scope) = scope else {
+        return false;
+    };
+    if let Some(bound) = &bound
+        && bound
+            .application
+            .declaring_scope(program, declaring_trait.symbol)
+            .is_none_or(|declared| !declared.same_application(program, &scope))
     {
         return false;
     }
+    if program.require_declared_trait_operands(&scope).is_err() {
+        return false;
+    }
+    open |= program.require_receiving_trait_operands(&scope).is_err();
     let operands = bindings
         .iter()
         .filter_map(|binding| match binding.value {
@@ -265,11 +291,16 @@ pub fn validate_static_machine_bindings(
         .filter_map(
             |expression| match expression_table(program).expression(*expression) {
                 ExpressionNode::Call(call) => {
-                    call_targets.push((
-                        call.authored_machine_application,
-                        call.target_symbol,
-                        call.requirement_application,
-                    ));
+                    call_targets.push(RetainedCallTarget {
+                        application: call.authored_machine_application,
+                        executable: call.target_symbol,
+                        contract: call
+                            .static_requirement_dispatch
+                            .as_ref()
+                            .map_or(call.target_symbol, |dispatch| dispatch.contract_symbol()),
+                        requirement_application: call.requirement_application,
+                        dispatch: call.static_requirement_dispatch.as_ref(),
+                    });
                     Some(call.authored_machine_application)
                 }
                 _ => None,
@@ -285,11 +316,18 @@ pub fn validate_static_machine_bindings(
                     .iter()
                     .filter_map(|statement| match statement {
                         StatementNode::Call(call) => {
-                            call_targets.push((
-                                call.authored_machine_application,
-                                call.target_symbol,
-                                TypeReferenceHandle::invalid(),
-                            ));
+                            call_targets.push(RetainedCallTarget {
+                                application: call.authored_machine_application,
+                                executable: call.target_symbol,
+                                contract: call
+                                    .static_requirement_dispatch
+                                    .as_ref()
+                                    .map_or(call.target_symbol, |dispatch| {
+                                        dispatch.contract_symbol()
+                                    }),
+                                requirement_application: TypeReferenceHandle::invalid(),
+                                dispatch: call.static_requirement_dispatch.as_ref(),
+                            });
                             Some(call.authored_machine_application)
                         }
                         _ => None,
@@ -334,7 +372,13 @@ pub fn validate_static_machine_bindings(
     call_targets.extend(
         providers
             .iter()
-            .map(|(application, target)| (*application, *target, TypeReferenceHandle::invalid())),
+            .map(|(application, target)| RetainedCallTarget {
+                application: *application,
+                executable: *target,
+                contract: *target,
+                requirement_application: TypeReferenceHandle::invalid(),
+                dispatch: None,
+            }),
     );
     applications.extend(providers.into_iter().map(|(provider, _)| provider));
     for handle in applications {
@@ -347,7 +391,7 @@ pub fn validate_static_machine_bindings(
             bindings,
             call_targets
                 .iter()
-                .filter_map(|(source, target, _)| (*source == handle).then_some(*target)),
+                .filter_map(|call| (call.application == handle).then_some(call.executable)),
         ) {
             diagnostics.push(diagnostic);
         }
@@ -365,10 +409,11 @@ pub fn validate_static_machine_bindings(
             // trait application, not another equal tuple in an outer scope.
             let mut selected = None;
             let mut valid = true;
-            for (_, target, requirement_application) in call_targets
+            for call in call_targets
                 .iter()
-                .filter(|(source, _, _)| *source == handle)
+                .filter(|call| call.application == handle)
             {
+                let target = call.contract;
                 // Psi 05 retargets a selector call to its instantiated slot.
                 // That slot is this occurrence's exact applied requirement and
                 // names the declaration the authored tuple was written
@@ -376,7 +421,7 @@ pub fn validate_static_machine_bindings(
                 // the same rejoin the call graph, receiver topology and
                 // dynamic selector checks already perform. A slot of another
                 // requirement is not this tuple's application.
-                if let Some(slot) = program.dynamic_slot_by_symbol(*target) {
+                if let Some(slot) = program.dynamic_slot_by_symbol(target) {
                     // A closed call publishes its instantiated requirement on
                     // the slot, and a closed requirement instance retains its
                     // authored template -- the declaration the tuple was
@@ -396,18 +441,12 @@ pub fn validate_static_machine_bindings(
                     selected = Some(slot.requirement);
                     continue;
                 }
-                let Some(closed) = program.closed_requirement_application(*target) else {
+                let Some(closed) = program.closed_requirement_application(target) else {
                     // This generic call still names its source declaration.
                     // The checks below must still prove its lifetime, constant,
                     // bound and caller-supplied proof requirements.
                     if !selected.is_some_and(|previous| previous != application.binding_declaration)
-                        && is_declared_source_tuple(
-                            program,
-                            application,
-                            bindings,
-                            *requirement_application,
-                            *target,
-                        )
+                        && is_declared_source_tuple(program, application, bindings, call)
                     {
                         selected = Some(application.binding_declaration);
                         continue;
@@ -416,18 +455,18 @@ pub fn validate_static_machine_bindings(
                     break;
                 };
                 if closed.template != application.binding_declaration
-                    || selected.is_some_and(|previous| previous != *target)
+                    || selected.is_some_and(|previous| previous != target)
                 {
                     valid = false;
                     break;
                 }
-                selected = Some(*target);
+                selected = Some(target);
             }
             let Some(selected) = selected.filter(|_| valid) else {
                 diagnostics.push(Diagnostic::error(
                     format!("retained requirement tuple lost its exact source call application: call `{}` in `{}` binds declaration {:?}, but its retained targets are {:?}", application.target,
                         program.symbols.name(application.lexical_owner), application.binding_declaration,
-                        call_targets.iter().filter(|(source, _, _)| *source == handle).map(|(_, target, requirement)| (*target, *requirement)).collect::<Vec<_>>()),
+                        call_targets.iter().filter(|call| call.application == handle).map(|call| (call.executable, call.contract, call.requirement_application)).collect::<Vec<_>>()),
                 ));
                 continue;
             };
@@ -608,9 +647,16 @@ pub fn validate_static_machine_bindings(
         })) && bindings.iter().all(|binding| match &binding.value {
             StaticMachineBindingValue::Machine(argument) => !argument.symbol.is_valid()
                 || program.symbols.get(argument.symbol).kind != symbols::SymbolKind::MachineParameter,
-            StaticMachineBindingValue::Const(actual) =>
-                typed_trees::domain::index_argument_is_closed(program, *actual),
             _ => true,
+        });
+        // An unspecialized body checks every admitted value of its open const
+        // binders, so a selection like `Selected<7>` for `Reading<Base + 4>`
+        // cannot wait for the one specialization where the two happen to
+        // agree. Open recipes compare by their normalized symbolic identity
+        // (generics.md, canonical domain-index matching): no theorem search.
+        let open = bindings.iter().any(|binding| {
+            matches!(&binding.value, StaticMachineBindingValue::Const(actual)
+                if !typed_trees::domain::index_argument_is_closed(program, *actual))
         });
         forwarded_evidence::validate(
             program,
@@ -627,6 +673,7 @@ pub fn validate_static_machine_bindings(
                 application,
                 bindings,
                 &lifetimes,
+                open,
                 &mut diagnostics,
             );
         }
@@ -763,6 +810,7 @@ fn validate_conformance_bindings(
     call: &StaticMachineApplication,
     bindings: &[StaticMachineBinding],
     lifetimes: &[typed_trees::static_applications::StaticMachineLifetimeBinding],
+    open: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for bound in machine.conformance_bounds {
@@ -786,13 +834,16 @@ fn validate_conformance_bindings(
             match crate::conformance_applications::close_conformance_application(program, argument)
             {
                 Ok(application) => application,
+                // An open recipe without a closed application keeps its
+                // existing per-specialization check.
+                Err(_) if open => continue,
                 Err(diagnostic) => {
                     diagnostics.push(diagnostic);
                     continue;
                 }
             };
         let carrier = crate::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
-        if !conformance_arguments_match(
+        let matched = conformance_arguments_match(
             program,
             machine,
             call.lexical_owner,
@@ -800,7 +851,13 @@ fn validate_conformance_bindings(
             lifetimes,
             bound,
             &application,
-        ) {
+        );
+        // Open recipes whose symbolic identity cannot be normalized keep
+        // their per-specialization check; a computed mismatch rejects here.
+        if open && matched.is_none() {
+            continue;
+        }
+        if matched != Some(true) {
             diagnostics.push(Diagnostic::error(format!(
                 "generic machine `{}` cannot bind `{}` to conformance `{}`: expected a complete `{}` implementation with the instantiated trait arguments",
                 machine.name, bound.binder_name,
@@ -878,7 +935,7 @@ fn conformance_arguments_match(
     lifetimes: &[typed_trees::static_applications::StaticMachineLifetimeBinding],
     bound: &GenericConformanceBound,
     application: &typed_trees::typed_trees::ClosedConformanceApplication,
-) -> bool {
+) -> Option<bool> {
     use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
 
     let substitutions = index_identity_arguments(bindings);
@@ -890,11 +947,11 @@ fn conformance_arguments_match(
     };
 
     let Some(conformance) = program.conformance_by_symbol(application.declaration) else {
-        return false;
+        return Some(false);
     };
     let parameters = program.conformance_type_parameters(conformance);
     if parameters.len() != application.arguments.len() {
-        return false;
+        return Some(false);
     }
     let actual_arguments = parameters
         .iter()
@@ -943,5 +1000,5 @@ fn conformance_arguments_match(
     })();
     required
         .zip(actual)
-        .is_some_and(|(required, actual)| required == actual)
+        .map(|(required, actual)| required == actual)
 }

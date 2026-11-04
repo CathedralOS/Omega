@@ -229,6 +229,9 @@ pub const X86_64_ATOMIC_BITWISE_UPDATE: Key = Key::instruction(747);
 /// ordinary allocatable input. RFLAGS is clobbered.
 pub const X86_64_ATOMIC_COMPARE_EXCHANGE: Key = Key::instruction(74);
 
+/// One compare/exchange attempt with separate observed-value and outcome outputs.
+pub const X86_64_ATOMIC_COMPARE_EXCHANGE_ONCE: Key = Key::instruction(810);
+
 /// Exact `result = left * right` three-address pseudo. Its realization must be
 /// alias-safe for every allocator result: `IMUL result, right` when the result
 /// aliases the left input, `IMUL result, left` when it aliases only the right
@@ -285,7 +288,7 @@ pub const X86_64_JUMP: Key = Key::instruction(9);
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 91] = [
+pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 98] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_RETURN,
@@ -326,6 +329,7 @@ pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 91] = [
     X86_64_ATOMIC_STORE,
     X86_64_ATOMIC_UPDATE,
     X86_64_ATOMIC_COMPARE_EXCHANGE,
+    X86_64_ATOMIC_COMPARE_EXCHANGE_ONCE,
     X86_64_LOAD64,
     X86_64_STORE64,
     X86_64_FRAME_ADDRESS,
@@ -374,6 +378,12 @@ pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 91] = [
     X86_64_ACCESSOR_READ,
     X86_64_ACCESSOR_WRITE,
     X86_64_FLAGS_SNAPSHOT,
+    X86_64_GLOBAL_DESCRIPTOR_TABLE,
+    X86_64_TASK_REGISTER_ACTIVATE,
+    X86_64_TASK_REGISTER_READ,
+    X86_64_CODE_SEGMENT_RELOAD,
+    X86_64_DATA_SEGMENT_RELOAD,
+    X86_64_SEGMENT_SELECTOR_READ,
     X86_64_CONTROL_REGISTER_READ,
     X86_64_CONTROL_REGISTER_WRITE,
     X86_64_FLAGS_RESTORE,
@@ -422,3 +432,12 @@ pub const X86_64_FLAGS_RESTORE: Key = Key::instruction(905);
 pub const X86_64_CONTROL_REGISTER_READ: Key = Key::instruction(903);
 
 pub const X86_64_CONTROL_REGISTER_WRITE: Key = Key::instruction(904);
+
+pub const X86_64_GLOBAL_DESCRIPTOR_TABLE: Key = Key::instruction(906);
+
+pub const X86_64_TASK_REGISTER_ACTIVATE: Key = Key::instruction(907);
+pub const X86_64_TASK_REGISTER_READ: Key = Key::instruction(908);
+
+pub const X86_64_CODE_SEGMENT_RELOAD: Key = Key::instruction(909);
+pub const X86_64_DATA_SEGMENT_RELOAD: Key = Key::instruction(910);
+pub const X86_64_SEGMENT_SELECTOR_READ: Key = Key::instruction(911);

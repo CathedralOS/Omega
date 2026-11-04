@@ -203,7 +203,7 @@ pub enum PlacedCallbackAddressEncoding {
 /// Placement evidence for the private-function-address materialization
 /// emitted inside one callback-bearing normalized foreign call, ahead of the
 /// call bytes in the same instruction's span.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlacedCallbackAddressMaterialization {
     /// Where the materialized address lands — the exact register or outgoing
     /// stack slot the evaluated callback application names.

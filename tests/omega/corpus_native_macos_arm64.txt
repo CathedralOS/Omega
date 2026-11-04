@@ -17,6 +17,8 @@ pass/borrows/runtime_stored_reference_scalar_assignment_exit built 1428ms exit:0
 pass/build/terminal_calling_policy_execution built 86920ms exit:0 terminal-runtime.retained_plan:match terminal-inspections:match @5599dba65fa9
 pass/build/terminal_native_layout_catalog built 12257ms exit:0 native-layout-controls:match terminal-inspections:match @e2e21da6e1d9
 pass/build/terminal_private_callback_calling built 45543ms exit:0 @5599dba65fa9
+pass/calls/attached_parameter_overload_bound built 3260ms exit:0 @72079e22578e+wt
+pass/calls/attached_parameter_overload_exit built 3260ms exit:0 @72079e22578e+wt
 pass/calls/runtime_mutable_owned_computation_arguments_exit built 1107ms exit:0 @66bc5becc69e
 pass/collections/runtime_stored_reference_array_owned_record_contract_exit built 1343ms exit:0 @4ce70cb5f8a0
 pass/collections/runtime_stored_reference_array_replacement_contract_exit built 1176ms exit:0 @4ce70cb5f8a0
@@ -3902,6 +3904,7 @@ pass/generics/applied_data_argument_store_receipt checked 4511ms @7c0518fd7afd+w
 pass/generics/borrowed_applied_field_static_selection_exit built 5548ms exit:0 @d1fa4738e67a+wt
 pass/generics/closed_generic_local_field_observation_exit built 1759ms exit:0 @c9b4ecc7551a
 pass/generics/closed_indexed_quantity built 12715ms @4ffed225fc45+wt
+pass/generics/closed_requirement_const_callback_exit built 3434ms exit:0 @734fbbb78c51+wt
 pass/generics/closed_sum_case_membership checked 191ms
 pass/generics/const_data_param checked 166ms
 pass/generics/core_slice_for_each built 1151ms exit:0 @114906953e11+wt
@@ -3959,6 +3962,7 @@ pass/generics/runtime_nested_generic_instantiations_exit built 628ms exit:30
 pass/generics/runtime_qualified_closed_equation_exit built 19642ms exit:0 @589aedee8ebc+wt
 pass/generics/runtime_selected_operator_body_exit built 10636ms exit:3 @b7c2d2975497
 pass/generics/runtime_value_generic_subject_exit built 636ms exit:17
+pass/generics/selected_boolean_policy_applied_contract_exit built 3244ms exit:0 @e7ad8aab1953+wt
 pass/generics/seq_map_filter checked 9988ms @fcc053dc7014+wt
 pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 2650ms @fcc053dc7014+wt
 pass/generics/swapped_type_parameter_result checked 1822ms @c083b963e5ba
@@ -4032,6 +4036,8 @@ pass/layouts/authored_layout_query_names_exit built 5946ms exit:0 @b016b7e0a226
 pass/layouts/byte_view_borrow_with_encoded_sibling checked 702ms @693920652f41
 pass/layouts/integer_at_owned_local_borrow_call_exit built 1459ms exit:0 @313322813ba5+wt
 pass/layouts/layout_queries checked 9935ms @5041ef1af684+wt
+pass/layouts/private_callback_descriptor_fragments_exit built 49157ms exit:0 @72079e22578e+wt
+pass/layouts/private_callback_inherited_policy_exit built 52786ms exit:0 @26231d1dbd74+wt
 pass/layouts/private_callback_slot_demand_compile checked 2650ms @693920652f41+wt
 pass/layouts/private_callback_slot_untaken_compile checked 214ms
 pass/layouts/runtime_callee_integer_at_fitting_write_exit built 1689ms exit:0 @acdf102c21ea+wt
@@ -4264,6 +4270,7 @@ pass/progress/provider_receiver_progress_installation built 5451ms @4ffed225fc45
 pass/proofs/accepted_axiom_cited_exit built 528ms exit:70
 pass/proofs/accumulator_guarantee_exit built 588ms exit:70
 pass/proofs/axiom_citation checked 9691ms @5041ef1af684+wt
+pass/proofs/borrowed_boolean_policy_exit built 2469ms exit:0 @2fc6c92b94ac+wt
 pass/proofs/captured_scalar_field_observations built 13279ms exit:0 @f22c0e54a812
 pass/proofs/case_call_premises checked 190ms
 pass/proofs/cauchy_predicates_compile rejected 376ms @6c75d91f0312
@@ -4388,6 +4395,8 @@ pass/proofs/runtime_sequential_relational_accumulator_exit built 888ms exit:70 @
 pass/proofs/runtime_two_state_accumulator_exit built 5797ms exit:70 @1727c70d2f7e+wt
 pass/proofs/scalar_field_snapshot_captures_replaced_collection built 4044ms exit:0 @372006f89256
 pass/proofs/scalar_field_snapshot_selector_writes_payload built 4137ms exit:0 @372006f89256
+pass/proofs/selected_boolean_policy_attached_exit built 3269ms exit:0 @e7ad8aab1953+wt
+pass/proofs/selected_boolean_policy_exit built 3280ms exit:0 @e7ad8aab1953+wt
 pass/proofs/stride_pair_telescope checked 9920ms @5041ef1af684+wt
 pass/providers/applied_entry_nested_binding_context_exit built 1178ms exit:0 @ff11b3a0f8c7
 pass/providers/bare_byte_array_boundary_argument built 1411ms exit:0 @bed5f45e9185+wt
@@ -4963,6 +4972,7 @@ pass/traits/equatable_synthesis checked 9423ms @5041ef1af684+wt
 pass/traits/exact_edge_application_and_invocation_parameters built 1585ms exit:70 @774eaac263cb+wt
 pass/traits/generic_reference_forwarding_exit built 2288ms exit:1 @9beb2be72f2d+wt
 pass/traits/generic_trait_parent_binds_requirement checked 173ms
+pass/traits/inherited_nominal_requirement_application_exit built 2859ms exit:0 @26231d1dbd74+wt
 pass/traits/nominal_generic_reference_forwarding_exit built 2081ms exit:1 @9beb2be72f2d+wt
 pass/traits/nominal_machine_binder_static_dispatch built 829ms exit:1 @a719149128ff+wt
 pass/traits/operator_machine_add checked 9070ms @5041ef1af684+wt

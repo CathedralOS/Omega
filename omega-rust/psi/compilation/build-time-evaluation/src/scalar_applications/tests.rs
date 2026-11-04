@@ -308,32 +308,23 @@ fn graph(expected: u64, cyclic: bool, signed_extent: bool) -> CanonicalTerminalA
 }
 
 fn canonical(mut module: TerminalModule) -> CanonicalTerminalArtifact {
-    retain_graph_prerequisite_scope(&mut module);
+    retain_graph_proof_scope(&mut module);
     let optimization = build_identity_optimization_execution_record(&module).unwrap();
     let artifact = CanonicalTerminalArtifact::from_parts(module, optimization, None).unwrap();
     CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap()
 }
 
-/// Give prerequisite tests the same declaration and call associations their
-/// hand-built executable graph describes. Existing scope fixtures keep their
-/// authored identities and edges; completion-only graphs need no admission rows.
-fn retain_graph_prerequisite_scope(module: &mut TerminalModule) {
-    use semantic_vocabulary::ScalarConditionRole::Prerequisite;
-    use terminal_psi::{ProofCallableAssociation, ProofDeclarationId, ProofScopeDeclaration};
-
-    let conditions = &module.scalar_applications.conditions;
-    let owned = |subject| !matches!(subject, ScalarConditionSubject::Module);
-    if !conditions.ranges().iter().any(|condition| {
-        matches!(condition, terminal_psi::ScalarRangeCondition::Range {
-            subject, role: Prerequisite, ..
-        } if owned(*subject))
-    }) && !conditions
-        .predicates()
-        .iter()
-        .any(|condition| condition.role == Prerequisite && owned(condition.subject))
-    {
-        return;
-    }
+/// Give each hand-built graph the declaration, call and checked-header rows
+/// that lowering emits for its executable bodies. Completing an evaluated
+/// entry admits its root's checked crash summary before execution, so every
+/// entry needs an exact declaration with compiler-evaluation facts even when
+/// it has no prerequisite. Existing scope fixtures keep their authored
+/// identities and edges.
+fn retain_graph_proof_scope(module: &mut TerminalModule) {
+    use semantic_vocabulary::compiler_evaluation::{
+        CompilerEvaluationDeclaration, CompilerEvaluationEffects, DeclarationCustody,
+    };
+    use terminal_psi::{ProofCallableAssociation, ProofCallableHeader, ProofScopeDeclaration};
 
     let mut identities = std::mem::take(&mut module.identities).into_builder();
     let scope = &mut module.scalar_applications.proof_scope;
@@ -342,8 +333,8 @@ fn retain_graph_prerequisite_scope(module: &mut TerminalModule) {
         if scope.callable_declaration(callable).is_some() {
             continue;
         }
-        let declaration = ProofDeclarationId(u32::try_from(scope.declarations.len() + 1).unwrap());
-        let identity = identities.intern(&format!("scalar-graph::machine{}", machine.id.get()));
+        let declaration = next_declaration(scope);
+        let identity = identities.intern(&graph_machine_name(machine.id));
         scope
             .declarations
             .insert(ProofScopeDeclaration::Nominal(identity));
@@ -357,10 +348,33 @@ fn retain_graph_prerequisite_scope(module: &mut TerminalModule) {
             ..Default::default()
         });
     }
+    // Codec validation wants headers in increasing declaration order. Every
+    // fixture authors a header for each declaration it authors, so only the
+    // declarations appended above in machine order receive one here.
     for machine in &module.machines {
         let declaration = scope
             .callable_declaration(TargetMachineCallable::Machine(machine.id))
             .unwrap();
+        if !scope
+            .callable_headers
+            .iter()
+            .any(|(_, header)| header.declaration == declaration)
+        {
+            scope.callable_headers.insert(ProofCallableHeader {
+                declaration,
+                compiler_evaluation: Ok(CompilerEvaluationDeclaration {
+                    name: graph_machine_name(machine.id),
+                    custody: DeclarationCustody::Toolchain,
+                    effects: CompilerEvaluationEffects::default(),
+                    local_terminates: true,
+                    entry_requires: false,
+                    linear_carrier: None,
+                    static_application: None,
+                    selections: Ok(Vec::new()),
+                }),
+                ..ProofCallableHeader::default()
+            });
+        }
         if scope
             .calls
             .machines
@@ -395,17 +409,30 @@ fn retain_graph_prerequisite_scope(module: &mut TerminalModule) {
     module.identities = identities.build();
 }
 
+fn graph_machine_name(machine: MachineId) -> String {
+    format!("scalar-graph::machine{}", machine.get())
+}
+
+/// The next declaration ID; scope declarations are numbered from 1 in
+/// insertion order.
+fn next_declaration(
+    scope: &terminal_psi::ProofApplicationScope,
+) -> terminal_psi::ProofDeclarationId {
+    terminal_psi::ProofDeclarationId(u32::try_from(scope.declarations.len() + 1).unwrap())
+}
+
 #[test]
 fn canonical_scalar_jobs_do_not_capture_an_unselected_declarations_result() {
     let mut module = graph(24, false, false).view().module().clone();
     let scope = &mut module.scalar_applications.proof_scope;
+    let dormant = next_declaration(scope);
     scope
         .declarations
         .insert(terminal_psi::ProofScopeDeclaration::Unavailable(
             "dormant declaration".into(),
         ));
     scope.plan.machines.insert(ProofApplicationMachine {
-        machine: terminal_psi::ProofDeclarationId(1),
+        machine: dormant,
         authored_target: Some("windows_x86_64".into()),
         source_target: Some("windows_x86_64".into()),
         product_selected: true,
@@ -439,7 +466,7 @@ fn canonical_scalar_jobs_do_not_capture_an_unselected_declarations_result() {
         .scalar_applications
         .conditions
         .retain_range(
-            ScalarConditionSubject::Declaration(terminal_psi::ProofDeclarationId(1)),
+            ScalarConditionSubject::Declaration(dormant),
             semantic_vocabulary::ScalarConditionRole::Result,
             ScalarRangeRequirement::Fixed {
                 minimum: BigInt::from_u64(0),
@@ -937,6 +964,7 @@ fn canonical_scalar_jobs_bind_provisional_inputs_to_the_target_and_entry() {
         .unwrap();
         let installation = program
             .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+                native_code_layouts: None,
                 entry: Some(TargetMachineCallable::Machine(entry)),
                 installation: Some(&providers),
                 target_machines: Some(selected),

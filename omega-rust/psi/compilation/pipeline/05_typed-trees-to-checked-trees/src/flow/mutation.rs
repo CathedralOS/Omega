@@ -265,6 +265,37 @@ fn call_write_places(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     loan: Option<&CanonicalPlace>,
 ) -> Option<Vec<CallMutationWrite>> {
+    if let Some(operation) = validation::compiler_operations::global_descriptor_table_operation(
+        program,
+        borrow_call.target_symbol,
+    ) {
+        if matches!(
+            operation,
+            language_core::inline_assembly::AsmGlobalDescriptorTableOperation::Load
+        ) {
+            return Some(Vec::new());
+        }
+        let regions = match namespace {
+            WritePlaceNamespace::Storage => descriptor_table_written_regions(
+                program,
+                caller_machine_symbol,
+                caller_state_symbol,
+                borrow_call,
+                call_frames,
+            )?,
+            WritePlaceNamespace::AccessRoute => exclusive_loan_places(
+                program,
+                caller_machine_symbol,
+                caller_state_symbol,
+                borrow,
+                borrow_call,
+            )
+            .into_iter()
+            .map(StorageRegion::Declared)
+            .collect(),
+        };
+        return Some(unattributed_writes(regions));
+    }
     // Reuse the sealed operation's effect judgment. Borrowing its backing does
     // not overwrite the linear claim descriptor or establish a replacement
     // ownership identity when this call completes.
@@ -443,6 +474,25 @@ fn shared_call_storage_regions(
         || validation::access_borrow_has_empty_write_frame(program, borrow_call.target_symbol)
     {
         return Some(Vec::new());
+    }
+    if let Some(operation) = validation::compiler_operations::global_descriptor_table_operation(
+        program,
+        borrow_call.target_symbol,
+    ) {
+        return match operation {
+            language_core::inline_assembly::AsmGlobalDescriptorTableOperation::Load => {
+                Some(Vec::new())
+            }
+            language_core::inline_assembly::AsmGlobalDescriptorTableOperation::Store => {
+                descriptor_table_written_regions(
+                    program,
+                    caller_machine_symbol,
+                    caller_state_symbol,
+                    borrow_call,
+                    call_frames,
+                )
+            }
+        };
     }
     let machine = program.machine_by_symbol(caller_machine_symbol)?;
     let state = program.state_by_symbol(caller_state_symbol)?;
@@ -957,4 +1007,48 @@ fn normalize_write_only_range_place(
             *segment = facts::PlaceSegment::FixedRange { start, end };
         }
     }
+}
+
+/// A completed SGDT changes the lent ten bytes; its pointer binding remains intact.
+fn descriptor_table_written_regions(
+    program: &dyn validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    call: &BorrowCallFact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<StorageRegion>> {
+    let machine = program.machine_by_symbol(machine_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
+    let site = find_call_site(
+        program,
+        machine_symbol,
+        state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    )?;
+    let arguments = call_site_argument_expressions(program, &site);
+    let [operand] = arguments else {
+        return None;
+    };
+    let reference = validation::compiler_operations::global_descriptor_table_operand(
+        program,
+        machine,
+        Some(state),
+        *operand,
+        language_core::inline_assembly::AsmGlobalDescriptorTableOperation::Store,
+    )
+    .ok()?;
+    summary::captured_argument_write_regions(
+        program,
+        machine_symbol,
+        state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+        &site,
+        0,
+        reference,
+        &[],
+        summary::WriteDestination::Referent,
+        call_frames,
+    )
 }

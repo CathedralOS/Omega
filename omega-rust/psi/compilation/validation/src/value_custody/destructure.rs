@@ -184,14 +184,6 @@ fn validate_arm_pattern_marker(
     else {
         return;
     };
-    if data.quotient.is_some() {
-        diagnostics.push(Diagnostic::error(format!(
-            "destructure arm in machine `{}` state `{}` cannot pattern-match quotient `{}`: retained representatives are opaque and pattern matching requires a named lifted operation",
-            machine.name, state.name, data.name,
-        )));
-        return;
-    }
-
     // A saved computed subject is an ordinary owned local. Pattern metadata
     // observes it; actual field uses transfer or borrow through the shared
     // ownership checker, which retains omitted linear siblings and rejects

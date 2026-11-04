@@ -63,7 +63,7 @@ fn private_callback_layout(offset: u64, size: usize) -> PlanLaidLayout {
                     layout_subject_identity: "package::Spread".to_owned(),
                     callback_requirement_identity: "package::WindowProcedure::call#exact"
                         .to_owned(),
-                    offset,
+                    placements: vec![layout_plans::LayoutPlacementReport::At { offset }],
                 }],
                 offsets: vec![0],
                 bit_fields: Vec::new(),
@@ -154,9 +154,10 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
         .try_into()
         .expect("one private callback demand");
     assert_eq!(
-        (closed.offset, closed.byte_size, closed.alignment),
-        (8, 8, 8)
+        closed.placements.as_slice(),
+        &[layout_plans::LayoutPlacementReport::At { offset: 8 }]
     );
+    assert_eq!((closed.byte_size, closed.alignment), (8, 8));
     assert_eq!(
         closed.slot_application,
         valid
@@ -224,7 +225,11 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
         "package::Spread",
     )
     .expect_err("out-of-bounds callback slot must reject");
-    assert!(outside.message.contains("lies outside its 16-byte layout"));
+    assert!(
+        outside
+            .message
+            .contains("private callback whole-pointer placement exceeds its storage")
+    );
 
     let semantic_overlap = close_private_callback_demands(
         &private_callback_layout(0, 16),
@@ -268,7 +273,7 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
     conflicting
         .callback_requirement_identity
         .push_str("::Other");
-    conflicting.offset = 16;
+    conflicting.placements = vec![layout_plans::LayoutPlacementReport::At { offset: 16 }];
     fixture_geometry_mut(&mut duplicate_slot)
         .private_callback_demands
         .push(conflicting);

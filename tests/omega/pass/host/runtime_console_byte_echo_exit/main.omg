@@ -18,12 +18,12 @@ machine Main::main(main: &mut Main)
 reaches Console
 {
     main.sum = 70 as i32 in Wrapping;
-    transition { _ -> rd(main) }
+    transition { _ -> block rd(main) }
 
     machine rd(main: &mut Main) {
         let r: ByteRead = block Console::read_byte();
         transition r {
-            ByteRead::Byte { value } -> acc(main, value)
+            ByteRead::Byte { value } -> block acc(main, value)
             _ -> fin(main)
         }
     }
@@ -32,7 +32,7 @@ reaches Console
         let b: i32 in Wrapping = value as i32 in Wrapping;
         main.sum = main.sum + b;
         Console::write_byte(value);
-        transition { _ -> rd(main) }
+        transition { _ -> block rd(main) }
     }
 
     machine fin(main: &mut Main) {

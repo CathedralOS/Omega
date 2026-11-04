@@ -60,6 +60,57 @@ impl FloatInterval {
     }
 }
 
+/// One element of a collection place. Display paths cannot name an element
+/// soundly: a write to the index variable would not overlap a rendered
+/// `values[index]`. The collection keeps its display path, so a write to it or
+/// to any of its elements withdraws the fact by the ordinary overlap rule; the
+/// index is an operand, so a write to the index's own storage withdraws it by
+/// the same operand survival that ordered relations use.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct ElementPlace {
+    pub(super) collection: String,
+    pub(super) index: Operand,
+}
+
+/// The IEEE facts proved about one element place.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct FloatElementFact {
+    pub(super) place: ElementPlace,
+    pub(super) interval: FloatInterval,
+    pub(super) non_nan: bool,
+}
+
+impl FloatElementFact {
+    fn narrow(facts: &mut Vec<Self>, place: ElementPlace, interval: FloatInterval, non_nan: bool) {
+        match facts.iter_mut().find(|fact| fact.place == place) {
+            Some(fact) => {
+                fact.interval = fact.interval.intersect(interval);
+                fact.non_nan |= non_nan;
+            }
+            None => facts.push(Self {
+                place,
+                interval,
+                non_nan,
+            }),
+        }
+    }
+
+    /// The facts both sides hold for the same element: the union of the
+    /// enclosures, and non-NaN only when both proved it.
+    fn intersect(left: &[Self], right: &[Self]) -> Vec<Self> {
+        left.iter()
+            .filter_map(|fact| {
+                let other = right.iter().find(|other| other.place == fact.place)?;
+                Some(Self {
+                    place: fact.place.clone(),
+                    interval: fact.interval.union(other.interval),
+                    non_nan: fact.non_nan && other.non_nan,
+                })
+            })
+            .collect()
+    }
+}
+
 /// Translate a storage label only through explicitly bound source roots.
 pub(super) fn rebound_paths(path: &str, bindings: &[(String, String)]) -> Vec<String> {
     bindings
@@ -87,6 +138,7 @@ pub(crate) struct ValueEnvironment {
     pub(super) float_intervals: BTreeMap<String, FloatInterval>,
     pub(super) non_nan: BTreeSet<String>,
     pub(super) float_aliases: BTreeSet<(String, String)>,
+    pub(super) float_elements: Vec<FloatElementFact>,
     pub(super) joint_subtract_bounds: BTreeSet<(String, String)>,
     pub(super) signed_joint_subtract_lower_bounds: BTreeSet<(String, String)>,
     pub(super) signed_joint_subtract_upper_bounds: BTreeSet<(String, String)>,
@@ -122,11 +174,15 @@ pub(in crate::proof_contracts::arithmetic_domains) struct IeeeConditionalFacts {
     pub(in crate::proof_contracts::arithmetic_domains) intervals: BTreeMap<String, FloatInterval>,
     pub(in crate::proof_contracts::arithmetic_domains) non_nan: BTreeSet<String>,
     pub(in crate::proof_contracts::arithmetic_domains) aliases: BTreeSet<(String, String)>,
+    pub(in crate::proof_contracts::arithmetic_domains) elements: Vec<FloatElementFact>,
 }
 
 impl IeeeConditionalFacts {
     pub(in crate::proof_contracts::arithmetic_domains) fn is_empty(&self) -> bool {
-        self.intervals.is_empty() && self.non_nan.is_empty() && self.aliases.is_empty()
+        self.intervals.is_empty()
+            && self.non_nan.is_empty()
+            && self.aliases.is_empty()
+            && self.elements.is_empty()
     }
 
     /// A completed scalar copy records the same current value on both sides.
@@ -170,6 +226,14 @@ impl IeeeConditionalFacts {
         for path in &self.non_nan {
             environment.mark_non_nan(path.clone());
         }
+        for fact in &self.elements {
+            FloatElementFact::narrow(
+                &mut environment.float_elements,
+                fact.place.clone(),
+                fact.interval,
+                fact.non_nan,
+            );
+        }
     }
 
     /// Withdraw every fact about a path a later write may change: its
@@ -182,6 +246,14 @@ impl IeeeConditionalFacts {
         self.non_nan.retain(|path| keep_path(path));
         self.aliases
             .retain(|(left, right)| keep_path(left) && keep_path(right));
+    }
+
+    /// Withdraw every element fact a later write may change.
+    pub(in crate::proof_contracts::arithmetic_domains) fn retain_elements(
+        &mut self,
+        keep: impl Fn(&ElementPlace) -> bool,
+    ) {
+        self.elements.retain(|fact| keep(&fact.place));
     }
 
     /// The facts two polarities share at a join: an enclosure survives only
@@ -198,6 +270,7 @@ impl IeeeConditionalFacts {
         }
         joined.non_nan = self.non_nan.intersection(&other.non_nan).cloned().collect();
         joined.aliases = self.aliases.intersection(&other.aliases).cloned().collect();
+        joined.elements = FloatElementFact::intersect(&self.elements, &other.elements);
         joined
     }
 
@@ -408,6 +481,7 @@ impl ValueEnvironment {
         self.float_intervals.clear();
         self.non_nan.clear();
         self.float_aliases.clear();
+        self.float_elements.clear();
         self.ordered_values.clear();
         self.clear_joint_relations();
     }
@@ -491,6 +565,9 @@ impl ValueEnvironment {
         self.non_nan.retain(|path| retained(path));
         self.float_aliases
             .retain(|(left, right)| retained(left) && retained(right));
+        // Element facts describe aggregate contents, which an unknown write
+        // may change whatever the index's binding.
+        self.float_elements.clear();
         self.ordered_values.retain(|relation| {
             relation.left.is_immutable_snapshot(program, state)
                 && relation.right.is_immutable_snapshot(program, state)
@@ -505,6 +582,7 @@ impl ValueEnvironment {
                         && relation.right.is_immutable_snapshot(program, state)
                 });
                 alternative.ieee.retain(|path| retained(path));
+                alternative.ieee.retain_elements(|_| false);
             }
             true
         });
@@ -562,6 +640,9 @@ impl ValueEnvironment {
                     .relations
                     .retain(|relation| survives(&relation.left) && survives(&relation.right));
                 alternative.ieee.retain(|path| !overlaps(path));
+                alternative.ieee.retain_elements(|place| {
+                    !overlaps(&place.collection) && survives(&place.index)
+                });
             }
             true
         });
@@ -574,6 +655,8 @@ impl ValueEnvironment {
         self.float_intervals.retain(|path, _| !overlaps(path));
         self.non_nan.retain(|path| !overlaps(path));
         self.float_aliases.retain(keep_pair);
+        self.float_elements
+            .retain(|fact| !overlaps(&fact.place.collection) && survives(&fact.place.index));
         self.joint_subtract_bounds.retain(keep_pair);
         self.signed_joint_subtract_lower_bounds.retain(keep_pair);
         self.signed_joint_subtract_upper_bounds.retain(keep_pair);
@@ -594,6 +677,11 @@ impl ValueEnvironment {
         frames: Option<&crate::CallFrameResolver<'_>>,
         written: &[String],
     ) {
+        let prepared_frames = (frames.is_none()
+            && (!self.ordered_values.is_empty() || !self.boolean_values.is_empty()))
+        .then(|| crate::CallFrameResolver::new(program))
+        .flatten();
+        let frames = frames.or(prepared_frames.as_ref());
         let storage = (!self.ordered_values.is_empty() || !self.boolean_values.is_empty())
             .then(|| {
                 let target = statement.as_assignment()?.target;
@@ -602,8 +690,18 @@ impl ValueEnvironment {
                 frames?.assignment_storage_origins(machine, statement).ok()
             })
             .flatten();
+        let reference_read = |operand: &Operand| {
+            operand.assignment_reference_read_preserved(
+                program,
+                machine,
+                state,
+                statement,
+                frames,
+                storage.as_ref(),
+            )
+        };
         self.invalidate_storage(written, |operand| {
-            operand.survives_assignment(written, storage.as_ref())
+            operand.survives_assignment(written, storage.as_ref(), &reference_read)
         });
     }
 
@@ -840,6 +938,28 @@ impl ValueEnvironment {
         )
     }
 
+    pub(super) fn float_element_fact(&self, place: &ElementPlace) -> (FloatInterval, bool) {
+        self.float_elements
+            .iter()
+            .find(|fact| fact.place == *place)
+            .map_or((FloatInterval::UNBOUNDED, false), |fact| {
+                (fact.interval, fact.non_nan)
+            })
+    }
+
+    pub(super) fn narrow_float_element(&mut self, place: ElementPlace, interval: FloatInterval) {
+        FloatElementFact::narrow(&mut self.float_elements, place, interval, false);
+    }
+
+    pub(super) fn mark_non_nan_element(&mut self, place: ElementPlace) {
+        FloatElementFact::narrow(
+            &mut self.float_elements,
+            place,
+            FloatInterval::UNBOUNDED,
+            true,
+        );
+    }
+
     /// Snapshot the IEEE facts this environment currently holds, for a Boolean
     /// snapshot that must re-establish them under one polarity later.
     pub(super) fn ieee_conditional_facts(&self) -> IeeeConditionalFacts {
@@ -847,6 +967,7 @@ impl ValueEnvironment {
             intervals: self.float_intervals.clone(),
             non_nan: self.non_nan.clone(),
             aliases: self.float_aliases.clone(),
+            elements: self.float_elements.clone(),
         }
     }
 
@@ -929,6 +1050,8 @@ impl ValueEnvironment {
                 .intersection(&other.float_aliases)
                 .cloned(),
         );
+        joined.float_elements =
+            FloatElementFact::intersect(&self.float_elements, &other.float_elements);
         joined.joint_subtract_bounds.extend(
             self.joint_subtract_bounds
                 .intersection(&other.joint_subtract_bounds)

@@ -57,7 +57,7 @@ pub enum SelectedFormCallbackMaterializationEncoding {
 /// bearing normalized foreign call row, ahead of the call bytes. Its fields
 /// stay unresolved through placement; object construction binds them to the
 /// thunk's private symbol, never to an import.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedFormCallbackMaterialization {
     /// Where the materialized address lands — the exact register or outgoing
     /// stack slot the evaluated callback application names.

@@ -924,13 +924,22 @@ impl TerminalExecution<'_> {
         // lifetimes without granting ownership or widening the source loan.
         let storage_ceiling =
             borrowed_storage_reference_ceiling(parameter, self.structural_types().values());
+        // A claimed place lends nothing: its custody belongs to the claim.
+        // The one exception is an activation claim's own descriptor while
+        // this frame holds its grant. Borrowing it is how the claim's owner
+        // reaches the committed bytes; the claim itself stays put.
+        let claimed_elsewhere =
+            crate::engine::custody::place_is_claimed(&self.live_claims, argument.place)
+                && !self
+                    .byte_descriptor_binding(argument, &value)
+                    .is_ok_and(|binding| self.is_live_activation_descriptor(&binding, &value));
         if !(terminal_semantics::view_descriptor_parameter(
             parameter,
             self.structural_types().values(),
         ) || storage_ceiling.is_some())
             || argument.access != parameter.access
             || !parameter.projected_qualifications.is_empty()
-            || crate::engine::custody::place_is_claimed(&self.live_claims, argument.place)
+            || claimed_elsewhere
         {
             return Err(malformed());
         }

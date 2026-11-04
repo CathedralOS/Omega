@@ -1,0 +1,2 @@
+bounded return type in `early.entry`
+bounded return type in `late.entry`

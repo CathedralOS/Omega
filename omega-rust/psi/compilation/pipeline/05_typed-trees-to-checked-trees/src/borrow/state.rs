@@ -144,7 +144,6 @@ pub(super) fn append_state_borrow_facts(
                 &mut returned_loans_span,
                 BorrowReturnedLoanFact {
                     lineage: returned.lineage,
-                    retained_operand: returned.retained_operand,
                     statement_index,
                     transition_target,
                     formation_expression: returned.formation_expression,
@@ -182,7 +181,7 @@ pub(super) fn append_state_borrow_facts(
             arenas.calls,
             &mut calls_span,
         );
-        let completed_call_loans = super::calls::append_reference_custody(
+        let completed_references = super::calls::append_reference_custody(
             program,
             machine,
             state,
@@ -203,7 +202,7 @@ pub(super) fn append_state_borrow_facts(
             &current_loans,
             call_frames,
             replacement.as_ref(),
-            completed_call_loans.as_deref(),
+            completed_references.as_deref(),
         )
         .map_err(|reason| {
             Diagnostic::error(format!(
@@ -397,20 +396,12 @@ pub(super) fn append_carrier_loans(
                 ReferenceOrigin::Invocation { expression, .. }
                     if expression == pending.formation_expression
                         && pending.place.root == PlaceRoot::Expression(expression));
-        let supplied_output = pending.lineage == checked_trees::BorrowLoanLineage::SuppliedOutput
-            && established_by_call.is_valid()
-            && arenas
-                .incoming_references
-                .is_valid(pending.place.incoming_reference)
-            && matches!(arenas.incoming_references.get(pending.place.incoming_reference).origin,
-                ReferenceOrigin::Output { identity } if pending.place.root == PlaceRoot::InvocationOutput(identity));
-        if supplied_output
-            || (matches!(
-                pending.lineage,
-                checked_trees::BorrowLoanLineage::DirectRoot
-                    | checked_trees::BorrowLoanLineage::Reborrow { .. }
-            ) && (pending.formation != super::loans::BorrowFormation::ReturnedDescriptor
-                || independent_return))
+        if matches!(
+            pending.lineage,
+            checked_trees::BorrowLoanLineage::DirectRoot
+                | checked_trees::BorrowLoanLineage::Reborrow { .. }
+        ) && (pending.formation != super::loans::BorrowFormation::ReturnedDescriptor
+            || independent_return)
         {
             permission_sources.push(super::tracker::RetainedBorrowSource {
                 loan: handle,

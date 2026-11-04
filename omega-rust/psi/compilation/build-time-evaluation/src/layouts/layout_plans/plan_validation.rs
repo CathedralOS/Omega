@@ -95,14 +95,6 @@ pub(crate) fn validate_plan(
             .ok_or_else(|| fail(format!("entry {entry_index} carries no `representation`")))?;
         Ok((field_index, placement))
     };
-    let payload_uint = |payload: &[(String, BuildTimeValue)], name: &str| -> Result<u64, String> {
-        match payload.iter().find(|(field, _)| field == name) {
-            Some((_, BuildTimeValue::Int(value))) => Ok(*value as u64),
-            other => Err(fail(format!(
-                "representation carries no integer `{name}`: {other:?}"
-            ))),
-        }
-    };
 
     // A repeated `At` changes the extent represented by each entry, so count
     // those entries before validating destination intervals. Only a reflected
@@ -127,14 +119,8 @@ pub(crate) fn validate_plan(
     for entry_index in 0..entry_count {
         let (field_index, placement) = field_entry(entry_index)?;
         let schema_field = &schema_fields[field_index];
-        let BuildTimeValue::Case { variant, payload } = placement else {
-            return Err(fail(format!(
-                "entry {entry_index} placement is not a FieldPlan case"
-            )));
-        };
-
-        match case_name(variant).as_str() {
-            "At" => {
+        match decode_placement(placement).map_err(&fail)? {
+            LayoutPlacementReport::At { offset } => {
                 let tiled = at_counts[field_index] > 1;
                 let placement_size = if tiled {
                     let Some(repeated) = schema_field.repeated else {
@@ -168,7 +154,6 @@ pub(crate) fn validate_plan(
                     }
                     schema_field.size
                 };
-                let offset = payload_uint(payload, "offset")?;
                 if offset % schema_field.align != 0 {
                     return Err(fail(format!(
                         "field `{}` at offset {offset} violates its alignment {}",
@@ -196,15 +181,17 @@ pub(crate) fn validate_plan(
                     placement: LayoutPlacementReport::At { offset },
                 });
             }
-            "IntegerAt" => {
+            LayoutPlacementReport::IntegerAt {
+                offset,
+                stored_width,
+                interpretation,
+            } => {
                 if kinds_by_field[field_index].replace("IntegerAt").is_some() {
                     return Err(fail(format!(
                         "field `{}` has more than one placement",
                         schema_field.name
                     )));
                 }
-                let offset = payload_uint(payload, "offset")?;
-                let stored_width = payload_uint(payload, "stored_width")?;
                 if stored_width == 0 || stored_width > 64 || !stored_width.is_multiple_of(8) {
                     return Err(fail(format!(
                         "field `{}` stored integer width {stored_width} is not a supported whole-byte width in 8..=64",
@@ -224,29 +211,6 @@ pub(crate) fn validate_plan(
                         primitive.name()
                     )));
                 }
-                let interpretation = match payload
-                    .iter()
-                    .find(|(field, _)| field == "interpretation")
-                {
-                    Some((_, BuildTimeValue::Case { variant, payload })) if payload.is_empty() => {
-                        match case_name(variant).as_str() {
-                            "Signed" => layout_plans::IntegerInterpretation::Signed,
-                            "Unsigned" => layout_plans::IntegerInterpretation::Unsigned,
-                            other => {
-                                return Err(fail(format!(
-                                    "field `{}` has unknown integer interpretation `{other}`",
-                                    schema_field.name
-                                )));
-                            }
-                        }
-                    }
-                    other => {
-                        return Err(fail(format!(
-                            "field `{}` carries no signed/unsigned integer interpretation: {other:?}",
-                            schema_field.name
-                        )));
-                    }
-                };
                 validate_integer_decode_range(schema_field, stored_width, interpretation)?;
                 let end = offset.checked_add(stored_width / 8).ok_or_else(|| {
                     fail(format!("field `{}` placement overflows", schema_field.name))
@@ -268,7 +232,13 @@ pub(crate) fn validate_plan(
                     },
                 });
             }
-            "Bits" => {
+            LayoutPlacementReport::Bits {
+                container,
+                container_width,
+                destination_lsb,
+                source_lsb,
+                width,
+            } => {
                 if schema_field.primitive.is_none() {
                     return Err(fail(format!(
                         "field `{}` uses `Bits`, but aggregate fields support only `At` placement",
@@ -285,11 +255,6 @@ pub(crate) fn validate_plan(
                     )));
                 }
                 kinds_by_field[field_index] = Some("Bits");
-                let container = payload_uint(payload, "container")?;
-                let container_width = payload_uint(payload, "container_width")?;
-                let destination_lsb = payload_uint(payload, "destination_lsb")?;
-                let source_lsb = payload_uint(payload, "source_lsb")?;
-                let width = payload_uint(payload, "width")?;
                 if container_width == 0 || width == 0 {
                     return Err(fail(format!(
                         "field `{}` has a non-positive or negative bit-fragment component",
@@ -334,11 +299,6 @@ pub(crate) fn validate_plan(
                         width,
                     },
                 });
-            }
-            other => {
-                return Err(fail(format!(
-                    "entry {entry_index} uses `{other}`; this fixed-layout validator supports `At` and `Bits`"
-                )));
             }
         }
     }
@@ -505,4 +465,55 @@ fn validate_integer_decode_range(
         }
     }
     Ok(())
+}
+
+/// Decode the shared placement vocabulary before a consumer checks its geometry.
+/// Private slots and semantic fields receive the same evaluated FieldPlan value.
+pub(super) fn decode_placement(value: &BuildTimeValue) -> Result<LayoutPlacementReport, String> {
+    let BuildTimeValue::Case { variant, payload } = value else {
+        return Err("placement is not a FieldPlan case".to_owned());
+    };
+    let case_name = |name: &str| name.rsplit("::").next().unwrap_or(name).to_owned();
+    let uint = |name: &str| -> Result<u64, String> {
+        match payload.iter().find(|(field, _)| field == name) {
+            Some((_, BuildTimeValue::Int(value))) => Ok(*value as u64),
+            other => Err(format!(
+                "representation carries no integer `{name}`: {other:?}"
+            )),
+        }
+    };
+    match case_name(variant).as_str() {
+        "At" => Ok(LayoutPlacementReport::At {
+            offset: uint("offset")?,
+        }),
+        "Bits" => Ok(LayoutPlacementReport::Bits {
+            container: uint("container")?,
+            container_width: uint("container_width")?,
+            destination_lsb: uint("destination_lsb")?,
+            source_lsb: uint("source_lsb")?,
+            width: uint("width")?,
+        }),
+        "IntegerAt" => {
+            let interpretation = match payload.iter().find(|(field, _)| field == "interpretation") {
+                Some((_, BuildTimeValue::Case { variant, payload })) if payload.is_empty() => {
+                    match case_name(variant).as_str() {
+                        "Signed" => layout_plans::IntegerInterpretation::Signed,
+                        "Unsigned" => layout_plans::IntegerInterpretation::Unsigned,
+                        other => return Err(format!("unknown integer interpretation `{other}`")),
+                    }
+                }
+                other => {
+                    return Err(format!(
+                        "representation carries no signed/unsigned integer interpretation: {other:?}"
+                    ));
+                }
+            };
+            Ok(LayoutPlacementReport::IntegerAt {
+                offset: uint("offset")?,
+                stored_width: uint("stored_width")?,
+                interpretation,
+            })
+        }
+        other => Err(format!("fixed-layout placement `{other}` is not supported")),
+    }
 }

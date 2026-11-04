@@ -11,13 +11,14 @@ use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
 use crate::proof_contracts::arithmetic_domains::place_paths::place_path;
 use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnvironment;
+pub(crate) use crate::value_custody::atomic_operations::is_atomic_type;
 use crate::value_custody::places::declared_place_type_raw;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 /// Whether a wider fixed-integer carrier contains every source value.
 /// Identity conversions and the distinct address carrier are not widenings.
@@ -607,18 +608,6 @@ pub(crate) fn integer_source_bounds_from_interval(
         .map(i128::from)
         .or_else(|| (primitive == PrimitiveType::U64).then_some(i128::from(u64::MAX)))?;
     (minimum <= maximum).then_some((minimum, maximum))
-}
-
-/// Whether a place's declared type is an atomic integer (`AtomicU32`, ...),
-/// whose arithmetic wraps by hardware semantics, through reference/constraint
-/// shells.
-pub(crate) fn is_atomic_type(program: &dyn CheckingInput, handle: TypeReferenceHandle) -> bool {
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Named { name, .. } => name.as_str().starts_with("Atomic"),
-        TypeReferenceNode::Reference { referee, .. } => is_atomic_type(program, *referee),
-        TypeReferenceNode::Constrained { base_type, .. } => is_atomic_type(program, *base_type),
-        _ => false,
-    }
 }
 
 pub(crate) fn primitive_name(primitive: PrimitiveType) -> &'static str {

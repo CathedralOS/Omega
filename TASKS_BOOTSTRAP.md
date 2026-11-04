@@ -144,6 +144,18 @@ prerequisite to every lower-rung milestone.
   `bootstrap/5_omega/omega_compiler.epsilon.sources` as the first full Omega
   compiler. Work against settled product semantics and actual C requirements;
   conservative, slow interpreted execution is acceptable when feasible.
+
+  - Migrate the evaluator, independent refinement model, fixtures and full D
+    source closure to `epsilon-expression-arm-results` in
+    [the Epsilon contract](bootstrap/4_epsilon/LANGUAGE.md#8-machines-states-and-transitions):
+    direct value results, forwarded machine-call results, explicit `{}` resultless
+    completion, unchanged state transfers and ordinary `return expression?;`.
+    Remove optional arm-return parsing and its pattern-arrow probe. Re-admit
+    changed source/artifact identities and validate the actual D closure plus
+    focused value/resultless/never/state-transfer and malformed-legacy controls
+    before claiming the migrated edge. Existing receipts are not evidence for
+    changed bytes; this migration stays in the deferred bootstrap work.
+
   Complete the [standalone request](wiki/spec/build/compiler_request.md) field/tag,
   outcome/phase, and scalar-resource tables with C; exact/adjacent vectors,
   malformed-input rejection, bounded arithmetic, and Complete-only publication

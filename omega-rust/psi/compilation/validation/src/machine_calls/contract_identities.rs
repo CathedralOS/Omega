@@ -234,7 +234,7 @@ fn fnv1a_report_fingerprint(bytes: &[u8]) -> u64 {
 pub fn machine_template_commitment(
     canonical_template_contract_bytes: &[u8],
 ) -> MachineTemplateCommitment {
-    let mut strong = DomainDigestEncoder::new(b"omega.machine-template.v2\0");
+    let mut strong = DomainDigestEncoder::new(b"omega.machine-template.v3\0");
     strong.raw(canonical_template_contract_bytes);
     MachineTemplateCommitment::from_digest(strong.finish())
 }
@@ -773,13 +773,32 @@ fn encode_generic_parameter_contract(
                     program.trait_requirement_callable_identity_text(trait_definition, requirement);
                 encode_identity_text(&identity, bytes);
                 let typed_trees::data::MachineParameterContract::Nominal {
-                    trait_arguments, ..
+                    receiving_trait,
+                    receiving_arguments,
+                    trait_arguments,
+                    ..
                 } = contract
                 else {
                     return Err(Diagnostic::error(
                         "nominal machine-parameter view lost its authored trait application",
                     ));
                 };
+                // A binder naming a child selects that child's calling promise.
+                // Equal inherited signatures cannot erase this public choice.
+                encode_identity_text(
+                    &conformance_symbol_identity(program, *receiving_trait),
+                    bytes,
+                );
+                bytes.extend((receiving_arguments.len() as u64).to_le_bytes());
+                for argument in receiving_arguments {
+                    encode_identity_text(
+                        &program.type_identity_request_text(TypeIdentityRequest {
+                            binders,
+                            ..TypeIdentityRequest::ordinary(*argument)
+                        }),
+                        bytes,
+                    );
+                }
                 // The declaration does not identify its application: even a
                 // phantom trait argument carries exact nominal authority.
                 bytes.extend((trait_arguments.len() as u64).to_le_bytes());
@@ -1059,7 +1078,7 @@ pub fn canonical_requirement_schema_bytes(
 ) -> Result<Vec<u8>, Diagnostic> {
     let binders = crate::contract_structure::signature_generic_binders(program, signature);
     let content = crate::content_conservation_plans(program);
-    let mut bytes = b"omega.requirement-schema.v2\0".to_vec();
+    let mut bytes = b"omega.requirement-schema.v3\0".to_vec();
     let signature_bytes = canonical_state_signature_bytes(program, signature)?;
     bytes.extend((signature_bytes.len() as u64).to_le_bytes());
     bytes.extend(signature_bytes);

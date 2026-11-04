@@ -11,69 +11,69 @@ machine Main::main(main: &mut Main)
 reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_positioned.bin");
     main.original = block WindowsFilesystemHost::create_file("omega_raw_positioned.bin", 3221225472, 7, 2, 128);
-    transition main.original != 0 { true -> seed(main) false -> finish(main, 71) }
+    transition main.original != 0 { true -> block seed(main) false -> block finish(main, 71) }
     machine seed(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::write_file(main.original, "abcdef");
-        transition count == 6 { true -> duplicate(main) false -> finish(main, 72) }
+        transition count == 6 { true -> block duplicate(main) false -> block finish(main, 72) }
     }
     machine duplicate(main: &mut Main) {
         main.alias = WindowsFilesystemHost::duplicate_handle(main.original);
-        transition main.alias != 0 { true -> read_offset(main) false -> finish(main, 73) }
+        transition main.alias != 0 { true -> block read_offset(main) false -> block finish(main, 73) }
     }
     machine read_offset(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::read_at(main.alias, &mut main.buffer, 2, 1);
         transition count == 2 && main.buffer[0] == 98 && main.buffer[1] == 99 {
-            true -> read_cursor(main)
-            false -> finish(main, 74)
+            true -> block read_cursor(main)
+            false -> block finish(main, 74)
         }
     }
     machine read_cursor(main: &mut Main) {
         let original: i64 = block WindowsFilesystemHost::set_file_pointer(main.original, 0, 1);
         let alias: i64 = block WindowsFilesystemHost::set_file_pointer(main.alias, 0, 1);
-        transition original == 6 && alias == 6 { true -> write_offset(main) false -> finish(main, 75) }
+        transition original == 6 && alias == 6 { true -> block write_offset(main) false -> block finish(main, 75) }
     }
     machine write_offset(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::write_at(main.alias, "XY", 2);
-        transition count == 2 { true -> write_cursor(main) false -> finish(main, 76) }
+        transition count == 2 { true -> block write_cursor(main) false -> block finish(main, 76) }
     }
     machine write_cursor(main: &mut Main) {
         let original: i64 = block WindowsFilesystemHost::set_file_pointer(main.original, 0, 1);
         let alias: i64 = block WindowsFilesystemHost::set_file_pointer(main.alias, 0, 1);
-        transition original == 6 && alias == 6 { true -> inspect(main) false -> finish(main, 77) }
+        transition original == 6 && alias == 6 { true -> block inspect(main) false -> block finish(main, 77) }
     }
     machine inspect(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::read_at(main.original, &mut main.buffer, 6, 0);
         transition count == 6 && main.buffer[0] == 97 && main.buffer[1] == 98
             && main.buffer[2] == 88 && main.buffer[3] == 89
             && main.buffer[4] == 101 && main.buffer[5] == 102 {
-            true -> append_open(main)
-            false -> finish(main, 78)
+            true -> block append_open(main)
+            false -> block finish(main, 78)
         }
     }
     machine append_open(main: &mut Main) {
         // FILE_GENERIC_WRITE without FILE_WRITE_DATA; this is not a one-time
         // seek to EOF and cannot authorize positioned overwrite.
         main.appending = block WindowsFilesystemHost::create_file("omega_raw_positioned.bin", 1179924, 7, 3, 128);
-        transition main.appending != 0 { true -> deny_write(main) false -> finish(main, 79) }
+        transition main.appending != 0 { true -> block deny_write(main) false -> block finish(main, 79) }
     }
     machine deny_write(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::write_at(main.appending, "Q", 0);
-        transition count == -5 { true -> deny_read(main) false -> finish(main, 80) }
+        transition count == -5 { true -> block deny_read(main) false -> block finish(main, 80) }
     }
     machine deny_read(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::read_at(main.appending, &mut main.buffer, 1, 0);
-        transition count == -5 { true -> append(main) false -> finish(main, 81) }
+        transition count == -5 { true -> block append(main) false -> block finish(main, 81) }
     }
     machine append(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::write_file(main.appending, "!");
-        transition count == 1 { true -> appended(main) false -> finish(main, 82) }
+        transition count == 1 { true -> block appended(main) false -> block finish(main, 82) }
     }
     machine appended(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::read_at(main.original, &mut main.buffer, 7, 0);
         transition count == 7 && main.buffer[0] == 97 && main.buffer[2] == 88
             && main.buffer[3] == 89 && main.buffer[6] == 33 {
-            true -> bounds(main)
-            false -> finish(main, 83)
+            true -> block bounds(main)
+            false -> block finish(main, 83)
         }
     }
     machine bounds(main: &mut Main) {
@@ -81,8 +81,8 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
         let negative_read: i64 = block WindowsFilesystemHost::read_at(main.original, &mut main.buffer, 1, -1);
         let negative_write: i64 = block WindowsFilesystemHost::write_at(main.original, "Q", -1);
         transition too_large == -87 && negative_read == -87 && negative_write == -87 {
-            true -> finish(main, 70)
-            false -> finish(main, 84)
+            true -> block finish(main, 70)
+            false -> block finish(main, 84)
         }
     }
     machine finish(main: &mut Main, code: i32) {
@@ -105,7 +105,7 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
 }
 
 machine close_if_present(handle: u64) -> i32 {
-    transition handle != 0 { true -> release(handle) false -> 0 }
+    transition handle != 0 { true -> block release(handle) false -> 0 }
     machine release(handle: u64) -> i32 { block WindowsFilesystemHost::close_handle(handle) }
 }
 

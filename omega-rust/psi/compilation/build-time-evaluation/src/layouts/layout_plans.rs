@@ -236,17 +236,6 @@ pub(crate) fn normalize_private_callback_demands(
             typed.normalized_hermetic_symbol_identity(selected.symbol)?,
             closed_application.report_fingerprint,
         );
-        if normalized
-            .iter()
-            .any(|existing: &PrivateCallbackLayoutDemandReport| {
-                existing.slot_identity == slot_identity
-            })
-        {
-            return Err(format!(
-                "policy `{policy_name}` places private callback slot `{}` more than once",
-                selected.display_name()
-            ));
-        }
         let semantic_identity = closed_trait_argument_identity(
             typed,
             &closed_application,
@@ -267,6 +256,30 @@ pub(crate) fn normalize_private_callback_demands(
             application_commitment: closed_application.commitment.as_bytes(),
             application_encoding: closed_application.identity_encoding.clone(),
         };
+        let placement = match &receipt.placement {
+            build_time_values::BuildTimeValue::Int(offset) => {
+                layout_plans::LayoutPlacementReport::At {
+                    offset: u64::try_from(*offset)
+                        .map_err(|_| "private callback offset must be a nonnegative u64")?,
+                }
+            }
+            value => plan_validation::decode_placement(value)?,
+        };
+        if let Some(existing) =
+            normalized
+                .iter_mut()
+                .find(|existing: &&mut PrivateCallbackLayoutDemandReport| {
+                    existing.slot_identity == slot_identity
+                })
+        {
+            if existing.slot_application.selection != slot_application {
+                return Err(format!(
+                    "policy `{policy_name}` changes the exact application of a repeated private slot"
+                ));
+            }
+            existing.placements.push(placement);
+            continue;
+        }
         normalized.push(PrivateCallbackLayoutDemandReport {
             slot_application: typed_trees::PrivateCallbackSlotApplication {
                 application: closed_application,
@@ -275,8 +288,22 @@ pub(crate) fn normalize_private_callback_demands(
             slot_identity,
             layout_subject_identity,
             callback_requirement_identity,
-            offset: receipt.offset,
+            placements: vec![placement],
         });
+    }
+    for demand in &mut normalized {
+        demand
+            .placements
+            .sort_unstable_by_key(layout_plans::layout_placement_sort_key);
+        if demand.placements.len() > 1
+            && demand.placements.iter().any(|placement| {
+                !matches!(placement, layout_plans::LayoutPlacementReport::Bits { .. })
+            })
+        {
+            return Err(format!(
+                "policy `{policy_name}` mixes or repeats whole-slot private callback placements"
+            ));
+        }
     }
     normalized.sort_unstable_by(|left, right| left.slot_identity.cmp(&right.slot_identity));
     Ok(normalized)

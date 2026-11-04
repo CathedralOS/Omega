@@ -13,7 +13,9 @@ use selected_instructions::{
 };
 
 /// Every selected register-call rule key with the semantic family the effect
-/// catalog must declare for it. The sweep is keyed off the validated
+/// catalog must declare for it. A key appears once per semantic: the
+/// nonreturning-invocation roster aliases the ordinary Unit, scalar, and
+/// aggregate call rows under its own `InvokeNoNormal` declaration. The sweep is keyed off the validated
 /// environment's selection, never off the effect producer's own roster.
 fn selected_call_rules(
     environment: &crate::ValidatedTargetRegisterEnvironment,
@@ -37,6 +39,12 @@ fn selected_call_rules(
             keys.call_normalized_foreign
                 .iter()
                 .map(|key| (*key, MachineSemanticKind::NormalizedForeignCall)),
+        )
+        // Nonreturning completion reuses the ordinary declared call rows.
+        .chain(
+            keys.invoke_no_normal
+                .iter()
+                .map(|key| (*key, MachineSemanticKind::InvokeNoNormal)),
         )
         .collect()
 }
@@ -74,7 +82,7 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
 
         for (key, semantic) in &call_rules {
             let supervisor = key.family == register_model::RegisterConstraintFamily::SystemCall;
-            let (row, declaration) = row_and_declaration(&environment, &catalog, *key);
+            let (row, declaration) = row_and_declaration(&environment, &catalog, *key, *semantic);
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::Call, "{key:?}");
             // The call contract is bound to the declared preservation
@@ -85,6 +93,12 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
                 MachineCallEffect::SupervisorNormalReturnV1
             } else if *semantic == MachineSemanticKind::NormalizedForeignCall {
                 MachineCallEffect::ExternalNormalReturnV1 {
+                    pre_call_stack_alignment: convention.stack_alignment,
+                }
+            } else if *semantic == MachineSemanticKind::InvokeNoNormal {
+                // The physical call enters the same ABI; only the normal
+                // return, its result and the caller's resumption are absent.
+                MachineCallEffect::InternalNoNormalV1 {
                     pre_call_stack_alignment: convention.stack_alignment,
                 }
             } else {
@@ -117,7 +131,9 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
                 MachineSemanticKind::CallScalar => {
                     assert_eq!(results.len(), 1, "{key:?}")
                 }
-                MachineSemanticKind::CallAggregate => {
+                // A nonreturning invocation keeps every physical result
+                // definition of the Unit, scalar, or aggregate row it aliases.
+                MachineSemanticKind::CallAggregate | MachineSemanticKind::InvokeNoNormal => {
                     assert!(results.len() <= 2, "{key:?}")
                 }
                 MachineSemanticKind::NormalizedForeignCall => {

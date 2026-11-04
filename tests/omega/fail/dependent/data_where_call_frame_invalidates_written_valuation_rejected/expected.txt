@@ -1,1 +1,3 @@
-default domain is still FALSE at state exit
+cannot complete return from machine `update` state `entry`
+the `requires` facts of `main.pair` (data `Pair`)
+unproved; restore them first

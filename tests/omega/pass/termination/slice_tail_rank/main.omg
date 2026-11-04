@@ -6,17 +6,17 @@ data Entry {
 data Main {
     entries: [Entry; 4];
 }
-machine Main::walk(main: &Main, entries: &[Entry]) -> u64
+machine walk(main: &Main, entries: &[Entry]) -> u64
     terminates by entries {
     transition entries.len > 0 {
         true -> walk(main, entries[1..])
         false -> 0
     }
 }
-machine Main::main(main: &mut Main) {
+machine main(main: &mut Main) {
     main.entries[0].value = 5;
     let view: &[Entry] = &main.entries[..];
-    let seen: u64 = Main::walk(&main, view);
+    let seen: u64 = walk(&main, view);
     transition seen == 0 {
         true -> done()
         _ -> bad()

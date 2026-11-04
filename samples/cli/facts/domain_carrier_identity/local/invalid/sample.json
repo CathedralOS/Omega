@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "executable domain test `u16::Small` expects subject carrier `u16`, got `u8`"
+  ]
+}

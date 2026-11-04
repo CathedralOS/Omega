@@ -29,6 +29,26 @@ pub struct StructuralStorageDeclaration {
     pub multiplicity: terminal_psi::StructuralMultiplicity,
 }
 
+/// What a structural result establishes. Its carrier role does not grant
+/// access to borrowed backing or settle any contained claim.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructuralResultRole {
+    /// A completed value owns its carrier; contained loans remain separate.
+    OwnedValue,
+    /// Activation-local primitive storage supplies loans, never owned escape.
+    PrimitiveLocalStorage,
+    /// A view retains a checked source recipe, not initialized descriptor words.
+    ViewRecipe,
+}
+
+/// One result's producer and role, borrowed from the operation that owns it.
+#[derive(Debug, Clone, Copy)]
+pub struct StructuralResultMetadata<'operation> {
+    pub operation: OperationId,
+    pub result: &'operation OperationResult,
+    pub role: StructuralResultRole,
+}
+
 /// Input-only projection shared by returning and no-normal module calls.
 /// The real operation or edge retains identity; no result shape is invented
 /// merely to reuse entry, transfer or proof correspondence.
@@ -85,6 +105,43 @@ pub enum AbstractOperation {
         psi_operation: OperationId,
         result: OperationResult,
         machine: semantic_vocabulary::MachineId,
+    },
+    ActivateTaskRegister {
+        psi_operation: OperationId,
+        service: ServiceId,
+        result: AbstractResult,
+        entries: u16,
+        gdt: StructuralArgument,
+        task_state: StructuralArgument,
+        selector: ValueId,
+        scratch: StructuralArgument,
+    },
+    ReloadSegmentDescriptors {
+        psi_operation: OperationId,
+        service: ServiceId,
+        result: AbstractResult,
+        entries: u16,
+        kind: terminal_psi::SegmentReload,
+        gdt: StructuralArgument,
+        selector: ValueId,
+        scratch: StructuralArgument,
+    },
+    ReadSegmentSelector {
+        psi_operation: OperationId,
+        service: ServiceId,
+        register: terminal_psi::SegmentRegister,
+        result: AbstractResult,
+    },
+    ReadTaskRegister {
+        psi_operation: OperationId,
+        service: ServiceId,
+        result: AbstractResult,
+    },
+    GlobalDescriptorTable {
+        psi_operation: OperationId,
+        service: ServiceId,
+        operation: terminal_psi::GlobalDescriptorTableOperation,
+        source: StructuralArgument,
     },
     StorageAddress {
         psi_operation: OperationId,
@@ -1029,15 +1086,13 @@ impl AbstractOperation {
     /// for their eventual transport does not initialize descriptor words.
     /// This distinction describes storage, not authority over the backing.
     pub fn materialized_structural_result(&self) -> Option<(OperationId, &OperationResult)> {
-        if matches!(
-            self,
-            Self::EstablishElementView { .. }
-                | Self::ByteSequenceSubslice { .. }
-                | Self::ElementViewSubslice { .. }
-        ) {
-            return None;
+        let metadata = self.structural_result_metadata()?;
+        match metadata.role {
+            StructuralResultRole::OwnedValue | StructuralResultRole::PrimitiveLocalStorage => {
+                Some((metadata.operation, metadata.result))
+            }
+            StructuralResultRole::ViewRecipe => None,
         }
-        self.structural_result()
     }
 
     /// The storage this operation publishes, independently of whether it also
@@ -1071,7 +1126,22 @@ impl AbstractOperation {
     /// produce structural declarations, and receiving storage owners decide
     /// which results need a physical home.
     pub fn structural_result(&self) -> Option<(OperationId, &OperationResult)> {
-        let result = match self {
+        let metadata = self.structural_result_metadata()?;
+        Some((metadata.operation, metadata.result))
+    }
+
+    /// Every result producer declares its carrier role here. Consumers share
+    /// this roster instead of reconstructing ownership from constructor names.
+    pub fn structural_result_metadata(&self) -> Option<StructuralResultMetadata<'_>> {
+        let (result, role) = match self {
+            Self::EstablishPrimitiveLocal { result, .. } => {
+                (result, StructuralResultRole::PrimitiveLocalStorage)
+            }
+            Self::ByteSequenceSubslice { result, .. }
+            | Self::EstablishElementView { result, .. }
+            | Self::ElementViewSubslice { result, .. } => {
+                (result, StructuralResultRole::ViewRecipe)
+            }
             Self::AtomicEvent {
                 event:
                     crate::AbstractAtomicEvent::CompareExchangeOnce {
@@ -1084,10 +1154,6 @@ impl AbstractOperation {
             | Self::MergeActivationClaim { result, .. }
             | Self::EstablishScalarArray { result, .. }
             | Self::EstablishStructuralArray { result, .. }
-            | Self::EstablishPrimitiveLocal { result, .. }
-            | Self::ByteSequenceSubslice { result, .. }
-            | Self::EstablishElementView { result, .. }
-            | Self::ElementViewSubslice { result, .. }
             | Self::MoveStructuralField { result, .. }
             | Self::StructuralLeafCopy { result, .. }
             | Self::MoveStructuralValue { result, .. }
@@ -1107,10 +1173,14 @@ impl AbstractOperation {
             | Self::BoundaryCall {
                 result: AbstractBoundaryResult::Structural(result),
                 ..
-            } => result,
+            } => (result, StructuralResultRole::OwnedValue),
             _ => return None,
         };
-        Some((self.psi_operation()?, result))
+        Some(StructuralResultMetadata {
+            operation: self.psi_operation()?,
+            result,
+            role,
+        })
     }
 
     /// Every runtime-selected element (`RuntimeIndex { index, obligation }`)
@@ -1140,6 +1210,21 @@ impl AbstractOperation {
                 .location()
                 .map(|location| vec![location.path.as_slice()])
                 .unwrap_or_default(),
+            Self::ActivateTaskRegister {
+                gdt,
+                task_state,
+                scratch,
+                ..
+            } => vec![
+                gdt.path.as_slice(),
+                task_state.path.as_slice(),
+                scratch.path.as_slice(),
+            ],
+            Self::ReloadSegmentDescriptors { gdt, scratch, .. } => {
+                vec![gdt.path.as_slice(), scratch.path.as_slice()]
+            }
+            Self::ReadTaskRegister { .. } | Self::ReadSegmentSelector { .. } => vec![],
+            Self::GlobalDescriptorTable { source, .. } => vec![source.path.as_slice()],
             Self::StorageAddress { path, .. }
             | Self::PrimitiveScalarRead { path, .. }
             | Self::ElementViewRead { path, .. }
@@ -1267,6 +1352,11 @@ impl AbstractOperation {
             | Self::EstablishPrimitiveLocal { psi_operation, .. }
             | Self::PrimitiveLocalStore { psi_operation, .. }
             | Self::StorageAddress { psi_operation, .. }
+            | Self::GlobalDescriptorTable { psi_operation, .. }
+            | Self::ActivateTaskRegister { psi_operation, .. }
+            | Self::ReadTaskRegister { psi_operation, .. }
+            | Self::ReloadSegmentDescriptors { psi_operation, .. }
+            | Self::ReadSegmentSelector { psi_operation, .. }
             | Self::PrimitiveScalarRead { psi_operation, .. }
             | Self::StructuralCaseMembership { psi_operation, .. }
             | Self::StructuralByteSequenceFieldLength { psi_operation, .. }

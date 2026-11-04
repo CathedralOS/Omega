@@ -321,8 +321,7 @@ the ordinary entry, calling-plan and provider producers against the embedded
 canonical artifact; it never deserializes a validated wrapper. Receiving policy,
 live backing, host bindings and resource charges remain current invocation
 inputs. Same-invocation consumers borrow the produced object directly; encoding
-happens only when component persistence was requested. Source/check retention
-uses the separate coupled graph described below.
+happens only when component persistence was requested.
 Package preparation advances dependency-first rounds across target rosters;
 demanded component continuations enter the same source batch as their siblings,
 rather than completing one target's entire dependency chain first.
@@ -336,27 +335,14 @@ exact correspondence; executed descriptions keep their original records and
 Product lookup consumes that correspondence. The correspondence alone transfers
 no checking judgment, executed Build return or evaluation charge.
 
-Compiler-private source retention stores the complete coupled source/check graph:
-source preparation and parsed frontiers, declaration/state/expression coordinates,
-pending source completions, their original accounting, and exact-program checking
-judgments. The application requests disk retention for a compiler invocation;
-short-lived in-memory sessions use the same pipeline without publishing records.
-The compiler/library identity selects a private format namespace. Fresh source
-and dependency observations, full preparation admission, and fresh declaration
-selection authority must match before a retained judgment is used. Recorded
-authority is comparison data, never a restored grant; invocation resources and
-Build admission are reacquired. Invalid, truncated or obsolete records are
-optional misses. Terminal values inside the graph use the canonical Terminal
-codec and rejoin companion receipts through their original producers.
-
-This implements cross-invocation exact-program reuse. A dependency judgment
-enters another consumer only when the producer dependency context matches:
-package identity, dependency scope, and callee body hashes. A body hash alone
-does not admit it. Persisted source/check graphs and native Terminal products
-still require fresh source, dependency, compiler, and invocation admission
-before a recorded judgment is used. In-memory shared declaration pages, local
-flow facts and conservative unknown-input fallback retain their existing
-ownership.
+Source preparation, parsed frontiers and checking judgments live only as long as
+the compiler invocation; no source or checking record is written to disk. A later
+invocation prepares and checks its source again. Within an invocation, a
+dependency judgment enters another consumer only when the producer dependency
+context matches: package identity, dependency scope, and callee body hashes. A
+body hash alone does not admit it. Persisted native Terminal products still
+require fresh source, dependency, compiler, and invocation admission before a
+recorded judgment is used.
 
 | Input → output | Owner |
 | --- | --- |

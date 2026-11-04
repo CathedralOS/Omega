@@ -171,15 +171,29 @@ impl CopiedIntegerValue {
     /// Stores capture the same scalar value as local bindings. Other operands
     /// retain identity only when the complete write footprint preserves them;
     /// the new destination must never revive facts about its old contents.
+    /// Replacing a reference binding stores no scalar: relating the new
+    /// referent to the old one would claim `a == b` after `s = b`.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn capture_assignment_relations(
         &mut self,
         program: &dyn crate::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
-        assignment: &typed_trees::statement::TableAssignment,
+        statement: &typed_trees::statement::StatementNode,
+        frames: Option<&crate::CallFrameResolver<'_>>,
         written: &[String],
         environment: &ValueEnvironment,
     ) {
+        let Some(assignment) = statement.as_assignment() else {
+            return;
+        };
+        if frames.is_some_and(|frames| {
+            frames
+                .assignment_replaced_binding(machine, statement)
+                .is_some()
+        }) {
+            return;
+        }
         let primitive =
             super::declared_place_type_raw(program, machine, Some(state), assignment.target)
                 .map(|reference| {

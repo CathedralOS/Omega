@@ -54,7 +54,7 @@ mod terminal_calls;
 mod terminator;
 
 use fused::fused_states;
-pub(super) use fused::{FusedStates, fused_target_index, terminator_statement_index};
+pub(super) use fused::{FusedStates, fused_target_index};
 use guards::checked_qualified_arrivals;
 pub(super) use guards::{guard_is_boolean, retained_guard};
 pub(super) use result_custody::retained_structural_result;
@@ -321,7 +321,8 @@ pub(super) fn build_traced(
         trace.state(Some(state.symbol));
         let (structural, scalar) = &signatures[state_index];
         let statements = program.statement_table.statements(state.statement_nodes);
-        let terminator_index = terminator_statement_index(statements, &result);
+        let terminator_index =
+            control::statement_sequence::terminator_statement_index(program, state);
         let terminator_statement_ordinal = u32::try_from(terminator_index).ok()?;
         trace.phase("state graph: state flow");
         let flow = state_flow(facts, owner.symbol, state.symbol)?;
@@ -494,7 +495,10 @@ pub(super) fn build_traced(
             owner.symbol,
             state.symbol,
             &mut operations,
-            prepared_calls.state_schedules(owner.symbol, state.symbol),
+            prepared_calls.state_schedules(
+                super::cleanup::owning_cleanup_machine(program, state.symbol),
+                state.symbol,
+            ),
         )?;
         let call_schedules = |value| prepared_calls.schedule(value);
         let completion = super::cleanup::normal_edges::completed_body_outcome(

@@ -293,7 +293,7 @@ fn fragment_callback_materialization_rejoin(
                     .filter(|row| row.destination == callback.destination)
                     .count()
                     == 1
-                && match materialization.destination {
+                && match materialization.destination.clone() {
                     machine_code::CallbackAddressDestination::Register(register) => {
                         callback.application.placement.locations.as_slice()
                             == [ValueLocation::Register {
@@ -313,11 +313,10 @@ fn fragment_callback_materialization_rejoin(
                     }
                     machine_code::CallbackAddressDestination::RecordField {
                         root_register,
-                        byte_offset,
+                        placements,
                     } => {
                         matches!(callback.destination, NativePlace::Field { .. })
-                            && callback.field_byte_offset
-                                == Some(usize::try_from(byte_offset).unwrap_or(usize::MAX))
+                            && callback.field_placements.as_ref() == Some(&placements)
                             && callback.application.placement.locations.as_slice()
                                 == [ValueLocation::Register {
                                     register: root_register,

@@ -18,7 +18,7 @@ use selected_instructions::SelectedInstructionProvenance;
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 use target_operations::TerminalPsiProvenance;
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v19";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v23";
 
 pub(crate) fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
@@ -144,7 +144,7 @@ fn encode_optional_normalized_foreign_call_fixup(
             for callback in &fixup.callbacks {
                 crate::machine_code::calls::callbacks::encode_callback_destination_identity(
                     hasher,
-                    callback.destination,
+                    &callback.destination,
                 );
                 hasher.raw(&callback.code_function_offset.to_le_bytes());
                 hasher.raw(&callback.code_byte_count.to_le_bytes());

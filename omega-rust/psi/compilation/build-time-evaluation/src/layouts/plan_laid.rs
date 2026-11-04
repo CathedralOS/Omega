@@ -12,11 +12,23 @@ use layout_installation::compute_prepared_plan_laid_layouts_in;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
+/// Whether any type in `typed` names fixed-layout storage. Without one,
+/// [`evaluate_fixed_layout_applications`] has nothing to evaluate.
+pub fn has_fixed_layout_applications(typed: &TypedTrees) -> bool {
+    typed_trees::references::collect_program_type_occurrences(typed)
+        .into_iter()
+        .any(|occurrence| {
+            typed
+                .layout_storage_arguments(occurrence.reference)
+                .is_some()
+        })
+}
+
 /// An explicit Source checking scope, independent of Native settlement.
 /// Every supplied declaration and member is checked, including defaults and
 /// overrides. None retains the reusable Source surface; Some(empty) carries
 /// provider declarations or authored target bodies without inventing an entry.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedLayoutTargetScope {
     pub target: String,
     pub facts: Option<layout_plans::LayoutTargetFacts>,
@@ -27,19 +39,13 @@ pub struct FixedLayoutTargetScope {
 /// Close Source representation applications before the settled judgment.
 /// Each supplied application contributes its complete checking context, without
 /// choosing a Native provider or supplying installation authority.
+/// A program without fixed-layout storage is returned unchanged.
 pub fn evaluate_fixed_layout_applications(
     typed: &mut TypedTrees,
     scopes: &[FixedLayoutTargetScope],
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<(), Vec<Diagnostic>> {
-    if !typed_trees::references::collect_program_type_occurrences(typed)
-        .into_iter()
-        .any(|occurrence| {
-            typed
-                .layout_storage_arguments(occurrence.reference)
-                .is_some()
-        })
-    {
+    if !has_fixed_layout_applications(typed) {
         return Ok(());
     }
     typed_trees_to_typed_trees::prepare_execution_applications(typed)?;

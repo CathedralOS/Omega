@@ -47,30 +47,30 @@ invokes Console
 blocks
 crashes Trap
 {
-    transition { _ -> skip(reader) }
+    transition { _ -> block skip(reader) }
     machine skip(reader: &mut InputReader) -> Token {
         let byte: ByteRead = block next_byte(reader);
         transition byte {
             ByteRead::Eof -> Token::End
-            ByteRead::Byte { value } -> first(reader, value)
+            ByteRead::Byte { value } -> block first(reader, value)
         }
     }
     machine first(reader: &mut InputReader, byte: i32) -> Token {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
-            true -> skip(reader)
-            _ -> sign(reader, byte)
+            true -> block skip(reader)
+            _ -> block sign(reader, byte)
         }
     }
     machine sign(reader: &mut InputReader, byte: i32) -> Token {
         transition byte == 45 {
-            true -> next(reader, 0, 0, true)
-            _ -> digit(reader, byte, 0, 0, false)
+            true -> block next(reader, 0, 0, true)
+            _ -> block digit(reader, byte, 0, 0, false)
         }
     }
     machine digit(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                 digits: i32 in Wrapping, negative: bool) -> Token {
         transition byte >= 48 && byte <= 57 && digits < 4 {
-            true -> accumulate(reader, byte, magnitude, digits, negative)
+            true -> block accumulate(reader, byte, magnitude, digits, negative)
             _ -> Token::Invalid
         }
     }
@@ -78,7 +78,7 @@ crashes Trap
                      digits: i32 in Wrapping, negative: bool) -> Token {
         let updated: i32 in Wrapping = magnitude * 10 + (byte as i32 in Wrapping) - 48;
         transition updated <= 1000 {
-            true -> next(reader, updated, digits + 1, negative)
+            true -> block next(reader, updated, digits + 1, negative)
             _ -> Token::Invalid
         }
     }
@@ -87,14 +87,14 @@ crashes Trap
         let byte: ByteRead = block next_byte(reader);
         transition byte {
             ByteRead::Eof -> finish(magnitude, digits, negative)
-            ByteRead::Byte { value } -> delimiter(reader, value, magnitude, digits, negative)
+            ByteRead::Byte { value } -> block delimiter(reader, value, magnitude, digits, negative)
         }
     }
     machine delimiter(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                     digits: i32 in Wrapping, negative: bool) -> Token {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
             true -> finish(magnitude, digits, negative)
-            _ -> digit(reader, byte, magnitude, digits, negative)
+            _ -> block digit(reader, byte, magnitude, digits, negative)
         }
     }
     machine finish(magnitude: i32 in Wrapping, digits: i32 in Wrapping, negative: bool) -> Token {
@@ -115,12 +115,12 @@ invokes Console
 blocks
 crashes Trap
 {
-    transition { _ -> scan(reader, chromatogram, 0) }
+    transition { _ -> block scan(reader, chromatogram, 0) }
     machine scan(reader: &mut InputReader, chromatogram: &mut Chromatogram,
                position: i32 in Wrapping) -> bool {
         let item: Token = block token(reader);
         transition item {
-            Token::Number { value } -> validate(reader, chromatogram, position, value)
+            Token::Number { value } -> block validate(reader, chromatogram, position, value)
             Token::End -> (position == 15 && !reader.exhausted)
             _ -> false
         }
@@ -128,44 +128,44 @@ crashes Trap
     machine validate(reader: &mut InputReader, chromatogram: &mut Chromatogram,
                    position: i32 in Wrapping, value: i32) -> bool {
         transition position >= 0 && position < 15 && (position >= 10 || value >= 0) {
-            true -> select(reader, chromatogram, position, F64::from_i32(value))
+            true -> block select(reader, chromatogram, position, F64::from_i32(value))
             _ -> false
         }
     }
     machine select(reader: &mut InputReader, chromatogram: &mut Chromatogram,
                  position: i32 in Wrapping, value: f64) -> bool {
         transition position >= 0 && position < 5 {
-            true -> a(reader, chromatogram, position, value)
-            _ -> select_b(reader, chromatogram, position, value, position - 5)
+            true -> block a(reader, chromatogram, position, value)
+            _ -> block select_b(reader, chromatogram, position, value, position - 5)
         }
     }
     machine a(reader: &mut InputReader, chromatogram: &mut Chromatogram,
             position: i32 in Wrapping, value: f64) -> bool {
         chromatogram.profile_a[position] = value;
-        transition { _ -> scan(reader, chromatogram, position + 1) }
+        transition { _ -> block scan(reader, chromatogram, position + 1) }
     }
     machine select_b(reader: &mut InputReader, chromatogram: &mut Chromatogram,
                    position: i32 in Wrapping, value: f64, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 5 {
-            true -> b(reader, chromatogram, position, value, index)
-            _ -> select_y(reader, chromatogram, position, value, position - 10)
+            true -> block b(reader, chromatogram, position, value, index)
+            _ -> block select_y(reader, chromatogram, position, value, position - 10)
         }
     }
     machine b(reader: &mut InputReader, chromatogram: &mut Chromatogram,
             position: i32 in Wrapping, value: f64, index: i32 in Wrapping) -> bool {
         chromatogram.profile_b[index] = value;
-        transition { _ -> scan(reader, chromatogram, position + 1) }
+        transition { _ -> block scan(reader, chromatogram, position + 1) }
     }
     machine select_y(reader: &mut InputReader, chromatogram: &mut Chromatogram,
                    position: i32 in Wrapping, value: f64, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 5 {
-            true -> y(reader, chromatogram, position, value, index)
+            true -> block y(reader, chromatogram, position, value, index)
             _ -> false
         }
     }
     machine y(reader: &mut InputReader, chromatogram: &mut Chromatogram,
             position: i32 in Wrapping, value: f64, index: i32 in Wrapping) -> bool {
         chromatogram.observed[index] = value;
-        transition { _ -> scan(reader, chromatogram, position + 1) }
+        transition { _ -> block scan(reader, chromatogram, position + 1) }
     }
 }

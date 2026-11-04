@@ -78,6 +78,15 @@ pub(crate) fn validate_structural_place_availability(
 /// has a cleanup obligation.
 pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
     match operation {
+        O::ActivateTaskRegister {
+            gdt,
+            task_state,
+            scratch,
+            ..
+        } => vec![gdt.place, task_state.place, scratch.place],
+        O::ReloadSegmentDescriptors { gdt, scratch, .. } => vec![gdt.place, scratch.place],
+        O::ReadTaskRegister { .. } | O::ReadSegmentSelector { .. } => vec![],
+        O::GlobalDescriptorTable { source, .. } => vec![source.place],
         O::AtomicEvent { event, .. } => event.place().into_iter().collect(),
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             vec![left.source(), right.source()]

@@ -38,12 +38,14 @@ use typed_trees_to_typed_trees::TypedPreparation;
 #[derive(Clone, Copy, Default)]
 pub struct CheckingRequest<'request> {
     declaration_authority: Option<&'request dyn validation::DeclarationSelectionAuthority>,
+    external_roots: &'request [symbols::SymbolHandle],
 }
 
 impl<'request> CheckingRequest<'request> {
     pub const fn new() -> Self {
         Self {
             declaration_authority: None,
+            external_roots: &[],
         }
     }
 
@@ -53,6 +55,13 @@ impl<'request> CheckingRequest<'request> {
         authority: Option<&'request dyn validation::DeclarationSelectionAuthority>,
     ) -> Self {
         self.declaration_authority = authority;
+        self
+    }
+
+    /// Ordinary callers cannot establish input compatibility for an external
+    /// entry. Check the selected entries on every request, including reuse.
+    pub const fn with_external_roots(mut self, roots: &'request [symbols::SymbolHandle]) -> Self {
+        self.external_roots = roots;
         self
     }
 }
@@ -73,13 +82,8 @@ pub fn lower_typed_trees(
 /// One language judgment kept with the exact input it judged. Only this module
 /// constructs one, from a check it ran, so a judgment taken from it is a
 /// judgment this function computed for an equal input.
-#[derive(Debug, Clone, compiler_storage::Record)]
+#[derive(Debug, Clone)]
 pub struct RetainedCheck {
-    /// Disk rows cannot supply partial body judgments to a different program.
-    /// Exact whole-input reuse and fresh authority admission reestablish this
-    /// invocation's provenance before ordinary in-session partial reuse resumes.
-    #[record(skip)]
-    dependency_judgments_admitted: bool,
     /// The typed program before preparation and the admission inputs it was
     /// prepared under. Preparation is a pure function of that pair, so an
     /// equal request can take this judgment without preparing or checking.
@@ -97,10 +101,6 @@ pub struct RetainedCheck {
 }
 
 impl RetainedCheck {
-    pub fn is_current_strict_judgment(&self) -> bool {
-        !self.admits_pending_inputs && self.dependency_judgments_admitted
-    }
-
     /// Identity of an already-issued language judgment, not semantic equality
     /// or permission to skip admission. Invocation owners use it only to avoid
     /// retaining the same immutable result twice.
@@ -120,10 +120,19 @@ impl RetainedCheck {
         self.preparation_admission == *admission && *self.preparation_input == *program
     }
 
+    /// Whether this judgment's preparation ran under `admission`. With an
+    /// equal typed program this is [`Self::judges_preparation_input`].
+    pub fn judges_preparation_admission(
+        &self,
+        admission: &typed_trees_to_typed_trees::PreparationAdmission,
+    ) -> bool {
+        self.preparation_admission == *admission
+    }
+
     /// Dependency-body entailment judgments a strict consumer may reuse.
     /// A pending admission does not supply a judgment to anyone.
     pub fn strict_dependency_bodies(&self) -> &[validation::DependencyBodyJudgment] {
-        if self.admits_pending_inputs || !self.dependency_judgments_admitted {
+        if self.admits_pending_inputs {
             &[]
         } else {
             &self.dependency_bodies
@@ -132,7 +141,7 @@ impl RetainedCheck {
 
     /// Frozen bodies a strict consumer may read through the same correspondence.
     pub fn strict_frozen_dependency_bodies(&self) -> &[validation::FrozenDependencyBody] {
-        if self.admits_pending_inputs || !self.dependency_judgments_admitted {
+        if self.admits_pending_inputs {
             &[]
         } else {
             &self.frozen_dependency_bodies
@@ -160,13 +169,9 @@ pub fn reuse_retained_check(
     retain: bool,
 ) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
     let checked = prior.checked.clone();
-    let retained = retain.then(|| {
-        let mut retained = prior.clone();
-        retained.dependency_judgments_admitted = true;
-        retained
-    });
-    phase_profile::scope("psi.05.declaration_authority", || {
-        admit_declaration_authority(&checked, request)
+    let retained = retain.then(|| prior.clone());
+    phase_profile::scope("psi.05.request_admission", || {
+        admit_request(&checked, request)
     })?;
     Ok(CheckingOutcome {
         checked,
@@ -212,7 +217,6 @@ pub fn lower_typed_trees_reusing(
     )?;
     let checked = std::sync::Arc::new(checked);
     let retained = retained_input.map(|(preparation_input, preparation_admission)| RetainedCheck {
-        dependency_judgments_admitted: true,
         preparation_input,
         preparation_admission,
         admits_pending_inputs: admits_pending_inputs || !deferred_layout_applications.is_empty(),
@@ -220,8 +224,8 @@ pub fn lower_typed_trees_reusing(
         frozen_dependency_bodies,
         dependency_bodies,
     });
-    phase_profile::scope("psi.05.declaration_authority", || {
-        admit_declaration_authority(&checked, request)
+    phase_profile::scope("psi.05.request_admission", || {
+        admit_request(&checked, request)
     })?;
     Ok(CheckingOutcome {
         checked,
@@ -230,15 +234,16 @@ pub fn lower_typed_trees_reusing(
     })
 }
 
-/// Package authority is invocation-owned, not part of the language judgment:
-/// admit the returned selections under the caller's authority on every path.
-fn admit_declaration_authority(
+/// Package authority and selected entry admission belong to this request.
+/// Neither can be supplied by a preceding request's ordinary source judgment.
+fn admit_request(
     checked: &CheckedTrees,
     request: &CheckingRequest<'_>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     if let Some(authority) = request.declaration_authority {
         validation::validate_authored_declaration_selections(checked, authority)?;
     }
+    checks::check_external_root_borrows(checked, request.external_roots)?;
     Ok(())
 }
 
@@ -326,14 +331,14 @@ fn check_program(
             &mutation_summaries,
         )
     });
-    let (mut facts, prepared_effects) = match built {
+    let (mut facts, prepared_effects, program) = match built {
         Ok(built) => built,
-        Err(errors) => {
+        Err(failure) => {
             return Err(
                 crate::checking::program_validation::entailment_errors_first(
-                    &program,
+                    failure.program.as_deref().unwrap_or(&program),
                     deferred_entailment,
-                    errors,
+                    failure.diagnostics,
                 ),
             );
         }

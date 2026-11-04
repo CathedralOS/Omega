@@ -2,7 +2,9 @@ mod domain_selections;
 use crate::type_reference::lower_type_reference_into_table;
 pub(crate) use domain_selections::normalize as normalize_membership_selections;
 
-use crate::expressions::expression::{lower_expression_handle_from_table, lower_fact_expression};
+use crate::expressions::expression::{
+    lower_expression_handle_from_table_with_symbol_substitution, lower_fact_expression,
+};
 use crate::expressions::proposition::is_proposition_call_target;
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::lower_name;
@@ -38,10 +40,14 @@ pub(crate) fn lower_proof_facts(
                 }
             }
             resolved::domain::ProofFact::Membership(membership) => {
-                let value = lower_expression_handle_from_table(
+                // An explicit conversion such as `(narrow as u16) in Small`
+                // types its target through the resolved program.
+                let value = lower_expression_handle_from_table_with_symbol_substitution(
+                    Some(lowerer.source_trees),
                     &lowerer.source_trees.tables.bodies.expressions,
                     &mut lowerer.typed_trees,
                     membership.value,
+                    None,
                 )?;
                 let authored_path = lowerer
                     .source_trees

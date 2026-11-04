@@ -504,6 +504,8 @@ pub struct CheckedDirectBorrowRestorationObligation {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBorrowResourceRetention {
     pub lexical_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    /// Includes descriptors a completed call installed; those carry custody
+    /// without a local loan and have no activation or weakening rows.
     pub holders: HandleSpan<Handle<BorrowLoanFact>>,
     pub final_weakening: Handle<crate::FlowBorrowWeakeningFact>,
 }
@@ -881,6 +883,26 @@ pub enum BorrowLoanOwnerSegment {
     DynamicIndex,
 }
 
+/// The body needs proof that a write cannot conflict with its saved pointer.
+/// Ordinary callers must prove this from their actual arguments or pass the
+/// requirement to their own callers. A selected external entry must establish
+/// it without caller arguments. Recording the requirement leaves that proof due.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct BorrowIncomingCompatibilityRequirement {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub loan: Handle<BorrowLoanFact>,
+    pub load: Handle<crate::FlowOperandFact>,
+    pub read: Handle<crate::FlowValueObservationFact>,
+    pub store_target: Handle<crate::FlowOperandFact>,
+    pub backing_input: SymbolHandle,
+    pub backing_path: HandleSpan<facts::PlaceSegment>,
+    pub backing_suffix: HandleSpan<facts::PlaceSegment>,
+    pub storage_input: SymbolHandle,
+    pub storage_path: HandleSpan<facts::PlaceSegment>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowFacts {
     pub incoming_references: Arena<IncomingReferenceIdentity>,
@@ -895,6 +917,7 @@ pub struct BorrowFacts {
     pub resource_holders: Arena<Handle<BorrowLoanFact>>,
     pub returned_loans: Arena<BorrowReturnedLoanFact>,
     pub states: Arena<StateBorrowFact>,
+    pub incoming_compatibility: Arena<BorrowIncomingCompatibilityRequirement>,
     /// `(machine, state) -> state rows` grouping owned by this ledger. The
     /// grouping carries the `states` arena's exact revision, so a mutation
     /// rebuilds it on the next query; the ledger's lifetime bounds it.
@@ -993,6 +1016,7 @@ impl BorrowFacts {
             resource_holders: Arena::new(),
             returned_loans,
             states,
+            incoming_compatibility: Arena::new(),
             state_index: KeyedRows::default(),
             direct_loan_resources: Arena::new(),
             reborrow_loan_resources: Arena::new(),

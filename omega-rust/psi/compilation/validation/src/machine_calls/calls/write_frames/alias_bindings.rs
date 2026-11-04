@@ -35,7 +35,10 @@ pub fn state_reference_parameter_binding_is_stable(
         .and_then(|shell| program.primitive_type_reference(shell.referee));
     let is_binding = |expression| {
         let source = super::FrameSourcePlace::from_expression(program, expression);
-        source.root == parameter && source.segments.is_empty()
+        (source.root == parameter
+            || (source.root.is_valid()
+                && program.symbols.authored_origin(source.root) == parameter))
+            && source.segments.is_empty()
     };
     program
         .statement_table

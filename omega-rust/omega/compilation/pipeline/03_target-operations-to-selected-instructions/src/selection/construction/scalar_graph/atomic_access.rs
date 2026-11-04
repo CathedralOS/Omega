@@ -40,7 +40,13 @@ pub(super) fn emit(
         .constraints
         .keys
         .for_semantic(MachineSemanticKind::AtomicAccess(form))
-        .ok_or_else(|| SelectedInstructionError::unsupported_shape(function))?;
+        .ok_or(SelectedInstructionError::AtomicFormUnavailable {
+            target: builder.environment.target(),
+            form,
+            function,
+            machine: source.machine,
+            operation: row.operation,
+        })?;
     let base = place_pointer(builder, row, location.place, 0)?;
     let (referent, _) = super::structural::runtime_address::cross_references(
         builder,
@@ -81,6 +87,16 @@ pub(super) fn emit(
             transport_register(builder, result.place, layout.cases[0].fields[0].byte_offset)?;
         registers.push(register);
         Some(register)
+    } else {
+        None
+    };
+    let outcome_tag = if let Some((result, layout)) = outcome {
+        if form.outcome_operand().is_none() {
+            return Err(SelectedInstructionError::custody());
+        }
+        let tag = transport_register(builder, result.place, layout.tag_byte_offset)?;
+        registers.push(tag);
+        Some(tag)
     } else {
         None
     };
@@ -140,19 +156,8 @@ pub(super) fn emit(
     }
     if outcome.is_some() {
         let raw = raw.ok_or(SelectedInstructionError::custody())?;
-        let (_, expected, _, _) = builder
-            .resolve(values_for_outcome(event)?)
-            .ok_or(SelectedInstructionError::custody())?;
-        establish_atomic_outcome(source, row, builder, raw, expected, scalar_type)?;
+        let tag = outcome_tag.ok_or(SelectedInstructionError::custody())?;
+        establish_atomic_outcome(source, row, builder, raw, tag, scalar_type)?;
     }
     Ok(true)
-}
-
-fn values_for_outcome(
-    event: &terminal_psi::AtomicAccessEvent,
-) -> Result<semantic_vocabulary::ValueId, SelectedInstructionError> {
-    match event {
-        terminal_psi::AtomicAccessEvent::CompareExchangeOnce { expected, .. } => Ok(*expected),
-        _ => Err(SelectedInstructionError::custody()),
-    }
 }

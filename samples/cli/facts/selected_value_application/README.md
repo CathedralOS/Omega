@@ -158,7 +158,8 @@ The target place declares four ordinary named implementations and selects one
 per hosted target in `build.omg`. Each has the same public runtime Value and
 explicit implementation telescope. This removes the target prefixes without
 changing the fact or replacing caller-supplied evidence with a provider choice.
-The language permits this evidence binder; the remaining work is compiler
+The [generic requirement contract](../../../../wiki/spec/language/generics.md#generic-machine-requirements)
+permits this evidence binder; the remaining work is compiler
 admission, contract preservation and runtime realization. This migration closes
 only after the nine positive places run in both engines and their bound-sensitive
 reject twins still refuse.

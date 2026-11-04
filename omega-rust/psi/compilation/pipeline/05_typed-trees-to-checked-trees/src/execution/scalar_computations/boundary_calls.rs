@@ -195,16 +195,62 @@ impl Builder<'_, '_> {
             });
             temporary_cleanups = self.plans.temporary_cleanups.insert_many(cleanups);
         }
+        // CPU instructions keep the same argument evaluation and borrow cleanup,
+        // but do not ask provider settlement to supply an executable body.
+        let instruction = self
+            .program
+            .machine(target_machine)
+            .map(|machine| {
+                validation::compiler_operations::descriptor_table_operation(self.program, machine)
+            })
+            .transpose()
+            .ok()?
+            .flatten();
+        let callee = match instruction {
+            Some((operation, service)) => {
+                if authority_value.is_valid() || !claim_transfers.is_empty() {
+                    return None;
+                }
+                let shape_matches = match operation {
+                    language_core::descriptor_tables::DescriptorTableOperation::ActivateTask { .. } => {
+                        expected_type == PrimitiveType::U8
+                            && arguments.len() == 1
+                            && structural_arguments.len() == 3
+                    }
+                    language_core::descriptor_tables::DescriptorTableOperation::ReloadSegments { .. } => {
+                        expected_type == PrimitiveType::U8
+                            && arguments.len() == 1
+                            && structural_arguments.len() == 2
+                    }
+                    language_core::descriptor_tables::DescriptorTableOperation::ReadTask
+                    | language_core::descriptor_tables::DescriptorTableOperation::ReadSegment { .. } => {
+                        expected_type == PrimitiveType::U16
+                            && arguments.is_empty()
+                            && structural_arguments.is_empty()
+                    }
+                };
+                if !shape_matches {
+                    return None;
+                }
+                checked_trees::CheckedScalarCallee::DescriptorTable {
+                    machine: target_machine,
+                    state: target_state,
+                    operation,
+                    service,
+                }
+            }
+            None => checked_trees::CheckedScalarCallee::Boundary {
+                machine: target_machine,
+                state: target_state,
+                authority_value,
+            },
+        };
         Some(self.insert(
             expected_type,
             CheckedScalarComputationKind::Call {
                 source_expression: expression,
                 source_call: source_call.into(),
-                callee: checked_trees::CheckedScalarCallee::Boundary {
-                    machine: target_machine,
-                    state: target_state,
-                    authority_value,
-                },
+                callee,
                 call_ordinal,
                 arguments,
                 structural_arguments,

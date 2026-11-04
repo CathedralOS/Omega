@@ -199,7 +199,7 @@ fn normalize_checked_selection(
 
 /// Comparison data from a source checkpoint. It deliberately implements no
 /// authority trait: decoded scope can reject reuse, never authorize execution.
-#[derive(Clone, compiler_storage::Record)]
+#[derive(Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum RecordedDeclarationAuthority {
     Absent,
     Packages(std::collections::BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>),

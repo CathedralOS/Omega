@@ -28,15 +28,13 @@ use crate::machine_effects::x86_64_selected_abi;
 /// [rip+disp32]` + `mov [root+offset], r11` pair for a record-field
 /// destination — then the canonical 5-byte call.
 pub(crate) const X86_64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH: u8 = 4;
-pub(crate) const X86_64_CALLBACK_MATERIALIZATION_BYTE_COUNT: u16 = 7;
-pub(crate) const X86_64_CALLBACK_FIELD_MATERIALIZATION_BYTE_COUNT: u16 = 14;
 pub(crate) const X86_64_CALLBACK_MATERIALIZATION_RELOCATION_OFFSET: u16 = 3;
 
 /// Where one callback materialization's resolved private-function address
 /// lands: an ABI parameter register, an outgoing stack slot at pre-call RSP,
 /// or a private field inside a register-resident record. Memory destinations
 /// use scratch `r11`; the retained call row excludes its overlap with inputs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum X86_64CallbackMaterializationDestination {
     Register(calling_conventions::MachineRegister),
     OutgoingStack {
@@ -44,7 +42,7 @@ pub enum X86_64CallbackMaterializationDestination {
     },
     RecordField {
         root_register: calling_conventions::MachineRegister,
-        byte_offset: u32,
+        placements: calling_conventions::PrivateCallbackPlacements,
     },
 }
 
@@ -62,7 +60,7 @@ pub enum X86_64NormalizedForeignCallFixupState {
 /// <destination>, [rip+disp32]` prefix (optionally followed by the
 /// record-field slot store) whose displacement field binds the selected
 /// private function symbol at object construction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct X86_64CallbackAddressMaterialization {
     pub destination: X86_64CallbackMaterializationDestination,
     pub materialization_byte_offset: u16,
@@ -115,7 +113,7 @@ pub fn encode_x86_64_selected_normalized_foreign_call_template(
     let mut bytes = Vec::new();
     for destination in callback_destinations {
         bytes.extend_from_slice(
-            &callback_group_bytes(*destination)
+            &callback_group_bytes(destination.clone())
                 .ok_or(X86_64NormalizedForeignCallTemplateError::MalformedTemplate)?,
         );
     }
@@ -199,7 +197,7 @@ pub fn validate_x86_64_selected_normalized_foreign_call_template(
                     [calling_conventions::ValueLocation::Register { register, .. }],
                 ) => Some(X86_64CallbackMaterializationDestination::RecordField {
                     root_register: *register,
-                    byte_offset: u32::try_from(callback.field_byte_offset?).ok()?,
+                    placements: callback.field_placements.clone()?,
                 }),
                 _ => None,
             }
@@ -212,7 +210,7 @@ pub fn validate_x86_64_selected_normalized_foreign_call_template(
     let mut expected_bytes = Vec::new();
     for destination in callback_destinations {
         expected_bytes.extend_from_slice(
-            &callback_group_bytes(*destination)
+            &callback_group_bytes(destination.clone())
                 .ok_or(X86_64NormalizedForeignCallTemplateError::MalformedTemplate)?,
         );
     }
@@ -239,7 +237,9 @@ pub fn validate_x86_64_selected_normalized_foreign_call_template(
 /// [rip+disp32]` followed by `mov [root+disp32], r11` for a record-field
 /// destination. The lea's zero disp32 is the relocation field; the field
 /// store's displacement is the literal private-slot offset.
-fn callback_group_bytes(destination: X86_64CallbackMaterializationDestination) -> Option<Vec<u8>> {
+pub fn callback_group_bytes(
+    destination: X86_64CallbackMaterializationDestination,
+) -> Option<Vec<u8>> {
     match destination {
         X86_64CallbackMaterializationDestination::Register(register) => {
             let index = x86_64_machine_register_encoding(register)?;
@@ -264,25 +264,20 @@ fn callback_group_bytes(destination: X86_64CallbackMaterializationDestination) -
         }
         X86_64CallbackMaterializationDestination::RecordField {
             root_register,
-            byte_offset,
+            placements,
         } => {
-            let root = x86_64_machine_register_encoding(root_register)?;
-            // The scratch is overwritten by LEA before the root is observed.
-            if root == 11 || byte_offset > i32::MAX as u32 {
-                return None;
-            }
-            // `4C 8D 1D` — lea r11, [rip+disp32] — then `4C|B 89 /r` storing
-            // r11 at [root + byte_offset] with a mod=10 disp32 form, which
-            // R12 additionally needs the no-index SIB byte.
             let mut group = vec![0x4c, 0x8d, 0x1d, 0, 0, 0, 0];
-            let rex = 0x4c | u8::from(root >= 8);
-            let modrm = 0x98 | (root & 7);
-            group.extend_from_slice(&[rex, 0x89, modrm]);
-            if root & 7 == 4 {
-                group.push(0x24);
+            for placement in placements.as_slice() {
+                crate::post_handoff_writer::append_fragment(
+                    &mut group,
+                    calling_conventions::MachineRegister::X86R11,
+                    root_register,
+                    calling_conventions::MachineRegister::X86R10,
+                    calling_conventions::MachineRegister::X86Rax,
+                    *placement,
+                )?;
             }
-            crate::codec_bytes::push_encoded(&mut group, byte_offset.to_le_bytes());
-            Some(group)
+            (!placements.as_slice().is_empty()).then_some(group)
         }
     }
 }
@@ -317,24 +312,14 @@ fn callback_fixup(
     let mut callbacks = Vec::with_capacity(destinations.len());
     let mut offset = 0_u16;
     for destination in destinations {
-        let byte_count = match destination {
-            X86_64CallbackMaterializationDestination::Register(_) => {
-                X86_64_CALLBACK_MATERIALIZATION_BYTE_COUNT
-            }
-            X86_64CallbackMaterializationDestination::OutgoingStack { byte_offset } => {
-                if *byte_offset <= i8::MAX as u32 {
-                    12
-                } else {
-                    15
-                }
-            }
-            X86_64CallbackMaterializationDestination::RecordField { root_register, .. } => {
-                X86_64_CALLBACK_FIELD_MATERIALIZATION_BYTE_COUNT
-                    + u16::from(*root_register == calling_conventions::MachineRegister::X86R12)
-            }
-        };
+        let byte_count = u16::try_from(
+            callback_group_bytes(destination.clone())
+                .ok_or(X86_64NormalizedForeignCallTemplateError::MalformedTemplate)?
+                .len(),
+        )
+        .map_err(|_| X86_64NormalizedForeignCallTemplateError::MalformedTemplate)?;
         callbacks.push(X86_64CallbackAddressMaterialization {
-            destination: *destination,
+            destination: destination.clone(),
             materialization_byte_offset: offset,
             materialization_byte_count: byte_count,
             relocation_byte_offset: offset
@@ -388,14 +373,19 @@ mod tests {
             None => super::X86_64CallbackMaterializationDestination::Register(placement.register),
             Some(byte_offset) => super::X86_64CallbackMaterializationDestination::RecordField {
                 root_register: placement.register,
-                byte_offset: u32::try_from(byte_offset).unwrap(),
+                placements: calling_conventions::PrivateCallbackPlacements::new(&[
+                    layout_plans::LayoutPlacementReport::At {
+                        offset: u64::try_from(byte_offset).unwrap(),
+                    },
+                ]),
             },
         }
     }
 
     const CALLBACK_BYTE_COUNTS: fixture::CallbackByteCounts = fixture::CallbackByteCounts {
         register: 7,
-        field: 14,
+        // Address resolution, a source-preserving copy/extraction, and the store.
+        field: 17,
     };
 
     fn inputs(windows: bool, input_layout: usize, result: usize) -> fixture::Case {
@@ -474,7 +464,7 @@ mod tests {
             },
             fixup_row: |callback| {
                 (
-                    callback.destination,
+                    callback.destination.clone(),
                     callback.materialization_byte_offset,
                     callback.materialization_byte_count,
                 )
@@ -653,7 +643,7 @@ mod tests {
             let destination = X86_64CallbackMaterializationDestination::OutgoingStack {
                 byte_offset: offset,
             };
-            let bytes = callback_group_bytes(destination).unwrap();
+            let bytes = callback_group_bytes(destination.clone()).unwrap();
             assert_eq!(&bytes[..7], &[0x4c, 0x8d, 0x1d, 0, 0, 0, 0]);
             assert_eq!(&bytes[7..], store);
             let fixup =
@@ -677,18 +667,27 @@ mod tests {
     fn callback_field_bytes_preserve_root_addressing_and_fixup_extent() {
         use super::{X86_64CallbackMaterializationDestination, callback_group_bytes};
         use calling_conventions::MachineRegister;
-        for (root, length) in [(MachineRegister::X86Rdi, 14), (MachineRegister::X86R12, 15)] {
+        // LEA resolves the address once; MOV preserves it in R11 while R10
+        // supplies the store. R12 addressing needs an additional SIB byte.
+        for (root, store) in [
+            (MachineRegister::X86Rdi, vec![0x4c, 0x89, 0x97, 24, 0, 0, 0]),
+            (
+                MachineRegister::X86R12,
+                vec![0x4d, 0x89, 0x94, 0x24, 24, 0, 0, 0],
+            ),
+        ] {
             let destination = X86_64CallbackMaterializationDestination::RecordField {
                 root_register: root,
-                byte_offset: 24,
+                placements: calling_conventions::PrivateCallbackPlacements::new(&[
+                    layout_plans::LayoutPlacementReport::At { offset: 24 },
+                ]),
             };
-            let bytes = callback_group_bytes(destination).unwrap();
+            let bytes = callback_group_bytes(destination.clone()).unwrap();
+            let length = 7 + 3 + store.len();
             assert_eq!(bytes.len(), length);
             assert_eq!(&bytes[..7], &[0x4c, 0x8d, 0x1d, 0, 0, 0, 0]);
-            assert_eq!(&bytes[length - 4..], &24_u32.to_le_bytes());
-            if root == MachineRegister::X86R12 {
-                assert_eq!(&bytes[7..11], &[0x4d, 0x89, 0x9c, 0x24]);
-            }
+            assert_eq!(&bytes[7..10], &[0x4d, 0x89, 0xda]); // mov r10, r11
+            assert_eq!(&bytes[10..], store.as_slice());
             let fixup =
                 callback_fixup(BoundaryMachineId::new(3).unwrap(), 0, &[destination]).unwrap();
             assert_eq!(usize::from(fixup.opcode_byte_offset), length);
@@ -699,12 +698,18 @@ mod tests {
         }
         for (root, byte_offset) in [
             (MachineRegister::X86R11, 0),
+            (MachineRegister::X86R10, 0),
+            (MachineRegister::X86Rax, 0),
             (MachineRegister::X86Rdi, u32::MAX),
         ] {
             assert!(
                 callback_group_bytes(X86_64CallbackMaterializationDestination::RecordField {
                     root_register: root,
-                    byte_offset
+                    placements: calling_conventions::PrivateCallbackPlacements::new(&[
+                        layout_plans::LayoutPlacementReport::At {
+                            offset: u64::from(byte_offset)
+                        },
+                    ]),
                 })
                 .is_none()
             );

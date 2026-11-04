@@ -43,21 +43,21 @@ machine Main::main(main: &mut Main) reaches Console {
     main.text[0] = 3;
     main.text[1] = 7;
     transition find(&main.text, 7) {
-        Scan::Marked { position } -> local(position)
+        Scan::Marked { position } -> block local(position)
         _ -> refused(71)
     }
 
     machine local(found: u64) {
         let mut scratch: [u8; 4];
         transition mark(&mut scratch) {
-            Scan::Marked { position } -> verify(found, position, scratch[2])
+            Scan::Marked { position } -> block verify(found, position, scratch[2])
             _ -> refused(72)
         }
     }
 
     machine verify(found: u64, marked: u64, written: u8) {
         transition found == 1 && marked == 2 && written == 9 {
-            true -> read()
+            true -> block read()
             _ -> refused(73)
         }
     }

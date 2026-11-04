@@ -101,6 +101,12 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub port_write: Option<RegisterConstraintKey>,
     pub system_register_read: Option<RegisterConstraintKey>,
     pub system_register_write: Option<RegisterConstraintKey>,
+    pub global_descriptor_table: Option<RegisterConstraintKey>,
+    pub task_register_activate: Option<RegisterConstraintKey>,
+    pub task_register_read: Option<RegisterConstraintKey>,
+    pub code_segment_reload: Option<RegisterConstraintKey>,
+    pub data_segment_reload: Option<RegisterConstraintKey>,
+    pub segment_selector_read: Option<RegisterConstraintKey>,
     pub control_register_read: Option<RegisterConstraintKey>,
     pub control_register_write: Option<RegisterConstraintKey>,
     pub port_register_read: Option<RegisterConstraintKey>,
@@ -115,6 +121,8 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub atomic_store: Option<RegisterConstraintKey>,
     pub atomic_update: Option<RegisterConstraintKey>,
     pub atomic_compare_exchange: Option<RegisterConstraintKey>,
+    /// Single-attempt exchange returns the observed resident and outcome tag.
+    pub atomic_compare_exchange_once: Option<RegisterConstraintKey>,
     /// Bitwise RMW may need a retry sequence with a different register contract.
     pub atomic_bitwise_update: Option<RegisterConstraintKey>,
     pub crash: RegisterConstraintKey,

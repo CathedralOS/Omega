@@ -46,24 +46,30 @@ pub(super) fn validate(entry: &PrivateCallbackLayout, target: NativeTarget) -> R
     if parent.data_symbol != terminal.data_symbol
         || parent.layout_subject_identity.as_deref()
             != Some(terminal.layout_subject_identity.as_ref())
-        || !contained(
-            parent,
-            terminal.offset,
-            terminal.byte_size,
-            terminal.alignment,
-        )
-        || offset.checked_add(terminal.offset) != Some(entry.composed_offset)
-        || !contained(
-            root,
-            entry.composed_offset,
-            terminal.byte_size,
-            terminal.alignment,
-        )
     {
-        return Err(
-            "callback layout catalog changed its terminal owner or composed extent".to_owned(),
-        );
+        return Err("callback layout catalog changed its terminal owner".to_owned());
     }
+    layout_plans::validate_private_callback_placements(
+        terminal.placements.as_slice(),
+        terminal.byte_size as u64,
+        terminal.alignment as u64,
+        parent.physical.size as u64,
+        parent.physical.alignment as u64,
+    )?;
+    let placements = layout_plans::compose_private_callback_placements(
+        terminal.placements.as_slice(),
+        offset as u64,
+    )?;
+    if placements.as_slice() != entry.composed_placements.as_slice() {
+        return Err("callback layout catalog changed its composed placements".to_owned());
+    }
+    layout_plans::validate_private_callback_placements(
+        &placements,
+        terminal.byte_size as u64,
+        terminal.alignment as u64,
+        root.physical.size as u64,
+        root.physical.alignment as u64,
+    )?;
     Ok(())
 }
 fn valid_layout(layout: &TargetClosedDataLayoutIdentity) -> bool {

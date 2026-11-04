@@ -19,10 +19,12 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-// Provider plans retain complete applications, exact numeric realizations and
-// checked table-field storage correspondence.
-// Reject older private records before reading their differently shaped payload.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI11";
+// Saved native inputs now recognize typed descriptor-table operations.
+// Older records must be rebuilt before decoding.
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI17";
+const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
+const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
+    schema; rebuild the component to retain them again";
 
 #[cfg(test)]
 mod tests {
@@ -30,14 +32,54 @@ mod tests {
 
     #[test]
     fn retired_entry_field_record_schema_is_rejected() {
-        for bytes in [b"OMGNTI01", b"OMGNTI09", b"OMGNTI10"] {
+        for bytes in [
+            b"OMGNTI01",
+            b"OMGNTI09",
+            b"OMGNTI10",
+            b"OMGNTI11",
+            b"OMGNTI12",
+            b"OMGNTI13",
+            b"OMGNTI14",
+            b"OMGNTI15",
+            b"OMGNTI16",
+        ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
             let Err(error) = DerivationInputs::read(&mut input) else {
                 panic!("retired record schema accepted");
             };
-            assert_eq!(error.reason, "foreign native derivation record schema");
+            assert_eq!(error.reason, SUPERSEDED_RECORD_SCHEMA);
         }
+    }
+
+    #[test]
+    fn superseded_text_requirement_schema_rejects_with_recovery_guidance() {
+        let mut input =
+            RecordReader::new(b"OMGNTI11", RecordLimits::default()).expect("bounded old schema");
+        let Err(error) = DerivationInputs::read(&mut input) else {
+            panic!("text-requirement record schema accepted");
+        };
+        assert!(error.reason.contains("rebuild the component"), "{error}");
+    }
+
+    #[test]
+    fn newer_record_schema_is_not_called_superseded() {
+        let mut input =
+            RecordReader::new(b"OMGNTI18", RecordLimits::default()).expect("bounded new schema");
+        let Err(error) = DerivationInputs::read(&mut input) else {
+            panic!("newer record schema accepted");
+        };
+        assert_ne!(error.reason, SUPERSEDED_RECORD_SCHEMA);
+    }
+
+    #[test]
+    fn unrelated_record_schema_is_foreign() {
+        let mut input =
+            RecordReader::new(b"OTHERREC", RecordLimits::default()).expect("bounded bytes");
+        let Err(error) = DerivationInputs::read(&mut input) else {
+            panic!("foreign record schema accepted");
+        };
+        assert_eq!(error.reason, "foreign native derivation record schema");
     }
 }
 
@@ -184,8 +226,17 @@ struct DerivationInputs {
 }
 impl DerivationInputs {
     fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
-        if input.take(RECORD_SCHEMA.len())? != RECORD_SCHEMA {
-            return Err(input.error("foreign native derivation record schema"));
+        let schema = input.take(RECORD_SCHEMA.len())?;
+        if schema != RECORD_SCHEMA {
+            // Same-length ASCII markers order by version, so only an older
+            // record of this family gets the rebuild guidance.
+            let superseded =
+                schema.starts_with(RECORD_SCHEMA_FAMILY) && schema < RECORD_SCHEMA.as_slice();
+            return Err(input.error(if superseded {
+                SUPERSEDED_RECORD_SCHEMA
+            } else {
+                "foreign native derivation record schema"
+            }));
         }
         let evaluated_binding_identities =
             Arc::new(terminal_psi::TerminalIdentityTable::read(input)?);

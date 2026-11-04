@@ -20,10 +20,10 @@ data Main {
     res: UnitResult;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     // Bad path: the parent directory does not exist -> create fails -> Error.
     main.res = block Filesystem::write_all(&mut main.fs, "/no_such_dir_xyz_999/f.txt", "hi");
-    transition main.res { UnitResult::Ok -> bad_err(main) _ -> after_err(main) }
+    transition main.res { UnitResult::Ok -> bad_err(main) _ -> block after_err(main) }
 
     machine after_err(main: &mut Main) {
         // Good path: write succeeds -> Ok.
@@ -36,7 +36,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -28,6 +28,10 @@ on:
         description: Optional exact pass/... or samples/cli/... normal-exit projects through ordinary CLI package review and both engines
         type: string
         default: ''
+      build_consent:
+        description: Run public source-produced Build consent and filesystem isolation controls
+        type: boolean
+        default: false
       native_host:
         description: Matching native host for manual executable observations
         type: choice
@@ -56,7 +60,9 @@ jobs:
       CARGO_INCREMENTAL: '0'
       CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
       CARGO_BUILD_FINGERPRINT: content
-      OMEGA_CORPUS_JOBS: '2'
+      # Large calling-policy checks use about 2.8 GiB each. Run one fixture
+      # at a time to reduce concurrent memory pressure.
+      OMEGA_CORPUS_JOBS: '1'
       RUST_MIN_STACK: '67108864'
       # Match Linux/macOS post-merge storage; Windows keeps its short target path.
       CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
@@ -69,6 +75,8 @@ jobs:
           python-version: '3.12'
       - name: Test the gate's refusal paths
         run: python tools/tests/test_compiler_pilot.py -v
+      - name: Test Build control evidence refusal paths
+        run: python tools/tests/test_build_consent_controls.py -v
       - name: Validate exact fixture selection before building
         if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
         env:
@@ -101,6 +109,9 @@ jobs:
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
+      - name: Observe public Build consent and filesystem isolation
+        if: github.event_name == 'workflow_dispatch' && inputs.build_consent
+        run: python tools/ci/build_consent_controls.py
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
@@ -110,10 +121,10 @@ jobs:
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
         run: python tools/ci/compiler_pilot.py
       - name: Report actual producer and fixture observations
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json') if (root / name).is_file()]"
+        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
+        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
+        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         with:
           name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
           path: build/compiler-pilot/
@@ -123,7 +134,7 @@ jobs:
       # The corpus reports alone, so `corpus_gate.py --compare --remote` reads
       # rows without downloading the retained producer (350-520 MB).
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
+        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         with:
           name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
           path: build/compiler-pilot/*.json

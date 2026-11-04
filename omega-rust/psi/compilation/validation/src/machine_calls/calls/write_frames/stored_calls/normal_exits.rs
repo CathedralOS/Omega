@@ -457,7 +457,7 @@ fn collect_exit(
             }
         }
         for mut supplied in sources {
-            super::summary_windows::coarsen(program, &mut supplied);
+            super::super::summary_windows::coarsen(program, &mut supplied);
             let source = &supplied.origin;
             if !source.source.builtin_coordinates {
                 return None;

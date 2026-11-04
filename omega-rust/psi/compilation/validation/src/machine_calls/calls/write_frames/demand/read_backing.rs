@@ -1,8 +1,8 @@
 //! Frozen dependencies of one admitted storage read.
 //!
-//! Typed coordinate resolution establishes identity. These presentation paths
-//! only retire an already captured value after overlapping effects; they never
-//! establish a new value, lifetime, loan or reference origin.
+//! Typed suppliers and descriptor slots retain their storage namespaces.
+//! Presentation paths only retire existing observations; they never establish
+//! a new value, lifetime, loan or reference origin.
 
 use super::super::{caller_aliases, reference_subjects, state_write_walk, stored_calls};
 use super::{
@@ -14,7 +14,7 @@ use symbols::SymbolHandle;
 pub(crate) struct CapturedStorageReadBacking {
     pub(crate) sources: Vec<super::super::LocalWriteSource>,
     pub(crate) values: Vec<String>,
-    pub(crate) bindings: Vec<String>,
+    pub(crate) bindings: Vec<super::super::LocalWriteSource>,
 }
 
 impl CallFrameResolver<'_> {
@@ -26,10 +26,19 @@ impl CallFrameResolver<'_> {
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
+        reference: typed_trees::types::TypeReferenceHandle,
         path: &[facts::PlaceSegment],
     ) -> Option<CapturedStorageReadBacking> {
-        let (owner, completed) = self.completed_read_value(machine, expression)?;
-        (owner == state.symbol).then_some(())?;
+        let (owner, statement, index) = caller_aliases::caller_statement_owner(
+            self.program,
+            machine,
+            caller_aliases::CallerWriteSite::Expression(expression),
+        )?;
+        (owner.symbol == state.symbol).then_some(())?;
+        // Contextual constructors already completed under this carrier. Their
+        // unused parameters cannot be recovered from the payload alone.
+        let (_, completed) =
+            self.completed_read_value_at(machine, owner, statement, index, expression, reference)?;
         completed.read_backing(self.program, path)
     }
 
@@ -58,7 +67,15 @@ impl CallFrameResolver<'_> {
                         .statement_table
                         .statements(state.statement_nodes)
                         .get(index)?;
-                    self.completed_read_value_at(machine, state, statement, index, initial)?
+                    let reference = crate::expression_result_type_reference(
+                        self.program,
+                        machine,
+                        state,
+                        initial,
+                    )?;
+                    self.completed_read_value_at(
+                        machine, state, statement, index, initial, reference,
+                    )?
                 } else {
                     self.completed_read_value(machine, expression)?
                 }
@@ -110,7 +127,9 @@ impl CallFrameResolver<'_> {
             machine,
             caller_aliases::CallerWriteSite::Expression(expression),
         )?;
-        self.completed_read_value_at(machine, state, statement, index, expression)
+        let reference =
+            crate::expression_result_type_reference(self.program, machine, state, expression)?;
+        self.completed_read_value_at(machine, state, statement, index, expression, reference)
     }
 
     fn completed_read_value_at(
@@ -120,9 +139,8 @@ impl CallFrameResolver<'_> {
         statement: &typed_trees::statement::StatementNode,
         index: usize,
         expression: ExpressionHandle,
+        reference: typed_trees::types::TypeReferenceHandle,
     ) -> Option<(SymbolHandle, stored_calls::value_reads::CompletedValueReads)> {
-        let reference =
-            crate::expression_result_type_reference(self.program, machine, state, expression)?;
         let prefix = state_write_walk::collected_prefix_at(
             &self.caches.state_write_shared_collections,
             self.program,

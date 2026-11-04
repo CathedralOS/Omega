@@ -208,6 +208,7 @@ import threading
 
 import build_slot
 import corpus_records
+from native_oracles import native_exit_oracle, native_rejection_oracle
 from compiler_profile import CompilerProfileError, optimized_environment, record_cargo_build, require_optimized
 
 try:
@@ -232,22 +233,6 @@ HOST_TARGETS = {
 
 def host_target() -> str | None:
     return HOST_TARGETS.get((platform.system().lower(), platform.machine().lower()))
-
-
-NATIVE_EXIT_ORACLE = "expected_native_exit.txt"
-
-
-def native_exit_oracle(fixture: Path, target: str) -> Path:
-    """The fixture's authored exit promise for `target`.
-
-    `expected_native_exit.<target>.txt` overrides the portable
-    `expected_native_exit.txt`: a status's physical presentation belongs to
-    the target contract (wiki/spec/language/process_exit.md), so one program
-    may promise 212 on a Unix host for the semantic status -44 while another
-    target keeps no promise at all.
-    """
-    specific = fixture / f"expected_native_exit.{target}.txt"
-    return specific if specific.is_file() else fixture / NATIVE_EXIT_ORACLE
 
 
 def oracle_failure(record: dict, detail: str, recordable: bool = None) -> dict:
@@ -301,7 +286,8 @@ def native_rejection_failures(records: list[dict], corpus: Path, target: str,
         facts = record["facts"]
         facts.pop("native-rejection", None)
         fixture = corpus / record["fixture"]
-        path = fixture / "expected_native_rejection.txt"
+        realized_target = target if native_leg else facts.get("check-target", target)
+        path = native_rejection_oracle(fixture, realized_target)
         if not path.exists() or not publication_observed(record, native_leg):
             continue
         try:
@@ -310,7 +296,7 @@ def native_rejection_failures(records: list[dict], corpus: Path, target: str,
             if not fragments:
                 raise ValueError("no diagnostic fragments")
             if (record["tier"] != "pass" or fixture.name.endswith("_exit")
-                    or native_exit_oracle(fixture, target).exists()
+                    or native_exit_oracle(fixture, realized_target).exists()
                     or any((fixture / f"expected_{stream}.txt").exists()
                            for stream in ("stdout", "stderr"))
                     or (fixture / "expected_terminal_targets.txt").exists()):
@@ -322,7 +308,9 @@ def native_rejection_failures(records: list[dict], corpus: Path, target: str,
             continue
         diagnostics = "\n".join(record["diagnostics"])
         matched = (record["status"] == "rejected"
-                   and not any(key in facts for key in ("exit", "signal", "stdout", "stderr"))
+                   and not any(key in facts for key in (
+                       "exit", "signal", "stdout", "stderr", "interpreter-exit", "interpreter-signal"))
+                   and facts.get("interpreter") in (None, "unchecked")
                    and all(fragment in diagnostics for fragment in fragments))
         facts["native-rejection"] = "match" if matched else "mismatch"
         record["expected_satisfied"] = matched

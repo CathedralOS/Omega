@@ -25,6 +25,7 @@ use typed_trees::name::Identifier;
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
+use typed_trees::statement::TransitionGuardNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 struct ReturnProgram {
@@ -177,6 +178,8 @@ fn return_obligation(
         base_type: fixture.carrier,
         constraints: HandleSpan::empty(),
         binary_operands: None,
+        guard: TransitionGuardNode::Always,
+        refuted_exit_guards: Vec::new(),
     }
 }
 

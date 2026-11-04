@@ -11,6 +11,7 @@ pub(crate) mod capabilities;
 pub(crate) mod content_transformations;
 pub(crate) mod custody;
 pub(crate) mod execution;
+pub(crate) mod native_code_layouts;
 pub(crate) mod scalar_operations;
 pub(crate) mod structural_operations;
 pub(crate) mod terminators;

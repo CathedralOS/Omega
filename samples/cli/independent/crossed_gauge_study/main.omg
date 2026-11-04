@@ -47,64 +47,64 @@ machine Main::number(main: &mut Main, value: i32 in Wrapping) reaches Console {
 
 machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("crossed_gauge_study: exact crossed random-effects sample; all numbers /32");
-    transition { _ -> header(main) }
+    transition { _ -> block header(main) }
     machine header(main: &mut Main) {
         let byte: ByteRead = block Console::read_byte();
         transition byte {
-            ByteRead::Byte { value } -> header_byte(main, value)
+            ByteRead::Byte { value } -> block header_byte(main, value)
             _ -> invalid(main)
         }
     }
     machine header_byte(main: &mut Main, value: i32) {
         transition value {
-            50 -> read(main, 0)
+            50 -> block read(main, 0)
             49 -> insufficient(main)
-            32 -> header(main)
-            10 -> header(main)
-            13 -> header(main)
+            32 -> block header(main)
+            10 -> block header(main)
+            13 -> block header(main)
             _ -> invalid(main)
         }
     }
     machine read(main: &mut Main, index: i32 in Wrapping) {
         let byte: ByteRead = block Console::read_byte();
         transition byte {
-            ByteRead::Byte { value } -> token(main, index, value)
+            ByteRead::Byte { value } -> block token(main, index, value)
             ByteRead::Eof -> finish(main, index)
         }
     }
     machine token(main: &mut Main, index: i32 in Wrapping, value: i32) {
         transition value == 32 || value == 10 || value == 13 {
-            true -> read(main, index)
-            _ -> extent(main, index, value)
+            true -> block read(main, index)
+            _ -> block extent(main, index, value)
         }
     }
     machine extent(main: &mut Main, index: i32 in Wrapping, value: i32) {
         transition index >= 0 && index < 8 {
-            true -> measurement(main, index, value)
+            true -> block measurement(main, index, value)
             _ -> invalid(main)
         }
     }
     machine measurement(main: &mut Main, index: i32 in Wrapping, value: i32) {
         transition value >= 48 && value <= 57 {
-            true -> store(main, index, value)
-            _ -> missing(main, index, value)
+            true -> block store(main, index, value)
+            _ -> block missing(main, index, value)
         }
     }
     machine store(main: &mut Main, index: i32 in Wrapping, value: i32) {
         main.study.values[index] = (value as i32 in Wrapping) - 48;
         main.study.present[index] = 1;
-        transition { _ -> read(main, index + 1) }
+        transition { _ -> block read(main, index + 1) }
     }
     machine missing(main: &mut Main, index: i32 in Wrapping, value: i32) {
         transition value == 109 {
-            true -> absent(main, index)
+            true -> block absent(main, index)
             _ -> invalid(main)
         }
     }
     machine absent(main: &mut Main, index: i32 in Wrapping) {
         main.study.values[index] = 0;
         main.study.present[index] = 0;
-        transition { _ -> read(main, index + 1) }
+        transition { _ -> block read(main, index + 1) }
     }
     machine finish(main: &mut Main, index: i32 in Wrapping) {
         transition index == 8 { true -> analyze(main) _ -> invalid(main) }

@@ -118,6 +118,11 @@ For example, checked transitivity of `3 <= counter` and `counter < 3` yields
 then closes an impossible arrival without pruning that arrival or adding an
 integer-contradiction rule. Both bound citations remain dependencies, and a
 conditional bound is available only within its checked implication/case scope.
+This is the constructive rule ratified by
+[scoped contradiction elimination](../proofs/classicality.md#contradiction-elimination),
+not classical proof by contradiction. Code pruning and
+[unreachable-branch warnings](../language/state_contracts.md#unreachable-branches)
+are independent of accepting that derivation.
 
 ## Ordered endpoint certificates
 

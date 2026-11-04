@@ -595,7 +595,7 @@ fn callback_address_custody(
         {
             return Err(invalid());
         }
-        let destination = match placed.destination {
+        let destination = match placed.destination.clone() {
             machine_code::CallbackAddressDestination::Register(register) => {
                 machine_code::CallbackAddressDestination::Register(register)
             }
@@ -604,16 +604,14 @@ fn callback_address_custody(
             }
             machine_code::CallbackAddressDestination::RecordField {
                 root_register,
-                byte_offset,
+                placements,
             } => {
-                if callback.field_byte_offset
-                    != Some(usize::try_from(byte_offset).map_err(|_| invalid())?)
-                {
+                if callback.field_placements.as_ref() != Some(&placements) {
                     return Err(invalid());
                 }
                 machine_code::CallbackAddressDestination::RecordField {
                     root_register,
-                    byte_offset,
+                    placements,
                 }
             }
         };

@@ -680,3 +680,32 @@ pub(super) fn project_storage_address(
         indices,
     })
 }
+
+/// Keep the borrowed descriptor's address and selectors; no integer address is accepted.
+pub(super) fn project_global_descriptor_table(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let AbstractOperation::GlobalDescriptorTable {
+        psi_operation,
+        service,
+        operation,
+        source,
+    } = &node.operation
+    else {
+        unreachable!("dispatched descriptor-table operation")
+    };
+    let root = scalar_graph_input::primitive_locals::read_root_type(optimized, source.place)
+        .ok_or(Error::custody())?;
+    let geometry = storage_address_geometry(root, &source.path, &unit.structural_types)
+        .ok_or(Error::custody())?;
+    let indices = o!(optimized => unit => *psi_operation => &geometry.elements)?;
+    Ok(LegalizedScalarInstructionKind::GlobalDescriptorTable {
+        service: *service,
+        operation: *operation,
+        source: source.place,
+        path: source.path.clone(),
+        indices,
+    })
+}

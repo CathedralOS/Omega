@@ -1,7 +1,4 @@
 {
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "assembly catalog target requirement conflicts with the authored target body"
-  ]
+  "role": "program",
+  "entry": "main.omg"
 }

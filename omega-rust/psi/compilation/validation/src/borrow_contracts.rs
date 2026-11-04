@@ -69,6 +69,9 @@ pub struct ViewReturnFieldSource {
     pub source_path: Vec<BorrowOwnerSegment>,
     pub source: ViewReturnInputSource,
     pub source_type: TypeReferenceHandle,
+    /// Stored pointer crossings before that descriptor; the outer input
+    /// borrow is supplied separately by the invocation's access mode.
+    pub source_reference_hops: usize,
     pub parameter_index: usize,
     pub kind: BorrowAccessKind,
 }
@@ -207,6 +210,7 @@ pub fn resolve_applied_signature_view_return_source(
                 source_path: Vec::new(),
                 source: ViewReturnInputSource::Referent,
                 source_type: parameter.type_reference,
+                source_reference_hops: 0,
                 parameter_index: *position as usize,
                 kind: BorrowAccessKind::from(custody.access),
             }],
@@ -371,6 +375,7 @@ fn structural_frontier_return_source(
                 source_path: input.owner_path.clone(),
                 source: input.source,
                 source_type: parameter.type_reference,
+                source_reference_hops: input.reference_hops,
                 parameter_index: *index,
                 kind: match output.access {
                     language_semantics::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,

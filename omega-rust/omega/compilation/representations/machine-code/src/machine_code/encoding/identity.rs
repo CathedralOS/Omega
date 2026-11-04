@@ -16,7 +16,7 @@ use super::{
     SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v24";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v28";
 
 pub(super) fn encoding_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,
@@ -284,7 +284,7 @@ pub(super) fn encode_normalized_foreign_fixup(
     for callback in &fixup.callbacks {
         crate::machine_code::calls::callbacks::encode_callback_destination_identity(
             hasher,
-            callback.destination,
+            &callback.destination,
         );
         hasher.raw(&callback.code_row_offset.to_le_bytes());
         hasher.raw(&callback.code_byte_count.to_le_bytes());

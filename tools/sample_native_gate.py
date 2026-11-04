@@ -91,11 +91,13 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from dataclasses import replace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from corpus_gate import host_target, windows_safe_target_dir
 from sample_projects import ROOT, discover as discover_projects, project_at, rejection_verdict, work_kind
 from compiler_profile import CompilerProfileError, optimized_environment, require_optimized
+from native_oracles import native_exit_oracle, native_rejection_oracle
 
 # Freestanding targets have no host oracle: a UEFI image cannot run on the
 # development host, so scoring it against `Expected exit` would report a
@@ -307,12 +309,8 @@ def fixture_oracles(sample, target):
     `expected_native_exit.txt`, matching the corpus gate's target-specific
     oracle spelling. Returns the authored file per channel, or None.
     """
-    exit_path = None
-    for name in (f"expected_native_exit.{target}.txt", "expected_native_exit.txt"):
-        candidate = os.path.join(sample, name)
-        if os.path.isfile(candidate):
-            exit_path = candidate
-            break
+    selected_exit = native_exit_oracle(Path(sample), target)
+    exit_path = str(selected_exit) if selected_exit.is_file() else None
     return {
         "exit": exit_path,
         "stdout": os.path.join(sample, "expected_stdout.txt")
@@ -518,6 +516,8 @@ def measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_
     if project.entry is None:
         return {"sample": sample, "state": "discovery-error", "detail": "missing unambiguous entry; declare sample.json entry"}
     if project.role == "intended-invalid":
+        if native_rejection_oracle(Path(sample), target).is_file():
+            return {"sample": sample, "state": "error", "detail": "native refusal requires a source-valid program role"}
         # Source controls stop at checking. An explicit invocation-input file
         # instead requests native admission; the intended refusal must still
         # match its own diagnostic, never a crash or missing package consent.
@@ -588,6 +588,35 @@ def measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_
         if completed.returncode != 0:
             return failure(sample, "check-fail", completed.stdout + completed.stderr)
         return {"sample": sample, "state": "checked", "detail": "check-only: binds no program entry"}
+    publication_refusal = native_rejection_oracle(Path(sample), target)
+    if publication_refusal.is_file():
+        # First establish that the ordinary source and package check succeeds.
+        # Then compile without launching: only the authored target refusal counts.
+        if any(fixture_oracles(sample, target).values()):
+            return {"sample": sample, "state": "error", "detail": "native refusal conflicts with an execution oracle"}
+        try:
+            fragments = tuple(line.strip() for line in publication_refusal.read_text(encoding="utf-8").splitlines() if line.strip())
+        except (OSError, UnicodeError) as error:
+            return {"sample": sample, "state": "error", "detail": str(error)}
+        if not fragments:
+            return {"sample": sample, "state": "error", "detail": "native refusal has no diagnostic fragments"}
+        checked = run([cli, "--check", "--target", target, str(project.entry)], timeout)
+        if checked is None:
+            return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
+        if checked.returncode != 0:
+            return failure(sample, "check-fail", checked.stdout + checked.stderr)
+        compiled = run([cli, "--target", target, str(project.entry)], timeout)
+        if compiled is None:
+            return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
+        expected = replace(project, rejection=fragments, rejection_any=(), rejection_casefold=False)
+        matched, detail = rejection_verdict(expected, compiled.returncode, compiled.stderr)
+        observed = both_execution_observation(compiled.stderr)
+        matched = matched and observed is None
+        return {"sample": sample, "state": "rejected" if matched else "rejection-failed",
+                "oracle": "native-rejection", "native-rejection": "match" if matched else "mismatch",
+                "source_checked": True, "publication_exit": compiled.returncode,
+                "detail": detail if observed is None else "publication refusal cannot include execution",
+                "diagnostic": compiled.stderr}
     # A project carrying `input.txt` runs under the corpus-runner fixture
     # contract: the file is the launched program's stdin. Its authored
     # `expected_*` files then score their channels exactly; a channel without
@@ -840,10 +869,12 @@ def main():
 
     check_only = ("checked", "check-fail")
     negatives = [result for result in results if result.get("role") == "intended-invalid"]
+    publication_controls = [result for result in results if result.get("oracle") == "native-rejection"]
     scored = [
         r
         for r in results
         if r.get("role") != "intended-invalid"
+        and r.get("oracle") != "native-rejection"
         and r["state"] not in ("no-oracle", "not-host-runnable", *check_only)
     ]
     passed = len(buckets.get("pass", []))
@@ -851,7 +882,7 @@ def main():
     print(
         f"\nsample_native_gate: {passed}/{len(scored)} samples meet their documented "
         f"oracle on {arguments.target} "
-        f"({len(results) - len(scored) - probes - len(negatives)} unscored: no oracle or not host-runnable)"
+        f"({len(results) - len(scored) - probes - len(negatives) - len(publication_controls)} unscored: no oracle or not host-runnable)"
     )
     if probes:
         print(
@@ -860,7 +891,11 @@ def main():
             f"{len(buckets.get('check-fail', []))} refused"
         )
     if negatives:
-        print(f"sample_native_gate: {len(buckets.get('rejected', []))}/{len(negatives)} intended-invalid controls match their authored rejection")
+        matched = sum(row["state"] == "rejected" for row in negatives)
+        print(f"sample_native_gate: {matched}/{len(negatives)} intended-invalid controls match their authored rejection")
+    if publication_controls:
+        matched = sum(row.get("native-rejection") == "match" for row in publication_controls)
+        print(f"sample_native_gate: {matched}/{len(publication_controls)} native publication refusals match; these are not executions")
     timing = timing_summary(results, wall_seconds)
     print(
         f"sample_native_gate: {timing['wall_seconds']:.0f}s wall with {arguments.jobs} jobs, "

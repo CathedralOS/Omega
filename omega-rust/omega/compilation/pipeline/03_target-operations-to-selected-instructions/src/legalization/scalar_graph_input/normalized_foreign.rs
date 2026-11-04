@@ -214,12 +214,12 @@ pub(in crate::legalization) fn native_callbacks_at<'a>(
         let destination_admitted = match &callback.destination {
             calling_conventions::NativePlace::Parameter(parameter) => {
                 *parameter == callback.application.parameter
-                    && callback.field_byte_offset.is_none()
+                    && callback.field_placements.is_none()
                     && access_root
             }
             calling_conventions::NativePlace::Field { parameter, .. } => {
                 *parameter == callback.application.parameter
-                    && callback.field_byte_offset.is_some()
+                    && callback.field_placements.is_some()
                     && access_root
             }
         };

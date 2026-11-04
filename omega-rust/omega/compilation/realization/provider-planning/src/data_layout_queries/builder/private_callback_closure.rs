@@ -328,15 +328,8 @@ pub(crate) fn close_private_callback_demands(
             plan.data_name, pointer.size, pointer.alignment
         )));
     }
-    if geometry.align < pointer.alignment || !geometry.align.is_multiple_of(pointer.alignment) {
-        return Err(Diagnostic::error(format!(
-            "plan-laid data `{}` has alignment {}, which cannot align a {}-byte private callback slot",
-            plan.data_name, geometry.align, pointer.alignment
-        )));
-    }
-
     let semantic_ranges = plan_laid_semantic_ranges(plan, geometry, fields)?;
-    let mut occupied_private = Vec::<(usize, usize, &str)>::new();
+    let mut occupied_private = Vec::<(u64, u64, &str)>::new();
     let mut closed = Vec::with_capacity(geometry.private_callback_demands.len());
     for demand in &geometry.private_callback_demands {
         if demand.layout_subject_identity != canonical_layout_subject {
@@ -356,49 +349,33 @@ pub(crate) fn close_private_callback_demands(
                 plan.data_name, demand.slot_identity
             )));
         }
-        let offset = usize::try_from(demand.offset).map_err(|_| {
-            Diagnostic::error(format!(
-                "plan-laid data `{}` private callback slot `{}` offset {} cannot be represented for the selected target",
-                plan.data_name, demand.slot_identity, demand.offset
-            ))
-        })?;
-        if !offset.is_multiple_of(pointer.alignment) {
-            return Err(Diagnostic::error(format!(
-                "plan-laid data `{}` private callback slot `{}` offset {} is not aligned to the selected target's {}-byte function-pointer alignment",
-                plan.data_name, demand.slot_identity, offset, pointer.alignment
-            )));
+        let ranges = layout_plans::validate_private_callback_placements(
+            &demand.placements,
+            pointer.size as u64,
+            pointer.alignment as u64,
+            geometry.size as u64,
+            geometry.align as u64,
+        )
+        .map_err(Diagnostic::error)?;
+        for &(start, end) in &ranges {
+            if semantic_ranges
+                .iter()
+                .any(|&(semantic_start, semantic_end)| {
+                    ranges_overlap(start, end, semantic_start, semantic_end)
+                })
+            {
+                return Err(Diagnostic::error(
+                    "private callback slot overlaps semantic field storage",
+                ));
+            }
+            if occupied_private.iter().any(|&(prior_start, prior_end, _)| {
+                ranges_overlap(start, end, prior_start, prior_end)
+            }) {
+                return Err(Diagnostic::error(
+                    "private callback slots overlap in destination storage",
+                ));
+            }
         }
-        let end = offset.checked_add(pointer.size).ok_or_else(|| {
-            Diagnostic::error(format!(
-                "plan-laid data `{}` private callback slot `{}` extent overflows",
-                plan.data_name, demand.slot_identity
-            ))
-        })?;
-        if end > geometry.size {
-            return Err(Diagnostic::error(format!(
-                "plan-laid data `{}` private callback slot `{}` range {}..{} lies outside its {}-byte layout",
-                plan.data_name, demand.slot_identity, offset, end, geometry.size
-            )));
-        }
-        if semantic_ranges
-            .iter()
-            .any(|&(start, semantic_end)| ranges_overlap(offset, end, start, semantic_end))
-        {
-            return Err(Diagnostic::error(format!(
-                "plan-laid data `{}` private callback slot `{}` range {}..{} overlaps semantic field storage",
-                plan.data_name, demand.slot_identity, offset, end
-            )));
-        }
-        if let Some((_, _, prior)) = occupied_private
-            .iter()
-            .find(|&&(start, prior_end, _)| ranges_overlap(offset, end, start, prior_end))
-        {
-            return Err(Diagnostic::error(format!(
-                "plan-laid data `{}` private callback slots `{prior}` and `{}` overlap",
-                plan.data_name, demand.slot_identity
-            )));
-        }
-
         let slot = callback_layout_slot_id(layout, &demand.slot_identity);
         let requirement = callback_requirement_id(&demand.callback_requirement_identity);
         if let Some(prior) = closed
@@ -428,7 +405,11 @@ pub(crate) fn close_private_callback_demands(
             )));
         }
 
-        occupied_private.push((offset, end, demand.slot_identity.as_str()));
+        occupied_private.extend(
+            ranges
+                .into_iter()
+                .map(|(start, end)| (start, end, demand.slot_identity.as_str())),
+        );
         closed.push(TargetClosedPrivateCallbackDemand {
             data_symbol: plan.data_symbol,
             slot_application: demand.slot_application.selection.clone(),
@@ -438,7 +419,7 @@ pub(crate) fn close_private_callback_demands(
             layout,
             slot,
             requirement,
-            offset,
+            placements: calling_conventions::PrivateCallbackPlacements::new(&demand.placements),
             byte_size: pointer.size,
             alignment: pointer.alignment,
         });

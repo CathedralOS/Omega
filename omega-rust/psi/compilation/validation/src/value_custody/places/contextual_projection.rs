@@ -26,11 +26,13 @@ pub fn contextual_canonical_place_from_expression(
         ExpressionNode::SavedSubject(_) => {
             super::canonical_projection::canonical_place_from_expression(program, expression)
         }
+        // A borrow lends storage, so it looks through a cast that keeps the
+        // bytes in place even when the cast erases a domain meaning.
         ExpressionNode::Borrow(inner) => contextual_canonical_place_from_expression(
             program,
             state_symbol,
             statement_index,
-            inner.target,
+            super::canonical_projection::storage_operand(program, inner.target),
         ),
         // A borrow recast denotes the operand's storage, not a fresh rvalue.
         // Same-carrier qualification and erasure casts preserve the operand's
@@ -88,12 +90,13 @@ pub fn contextual_canonical_place_from_expression(
             }
             Some(place)
         }
+        // A projection reads storage, through any storage-sharing cast.
         ExpressionNode::Member(member) => {
             let mut place = contextual_canonical_place_from_expression(
                 program,
                 state_symbol,
                 statement_index,
-                member.receiver,
+                super::canonical_projection::storage_operand(program, member.receiver),
             )?;
             let symbol = {
                 let symbol = member_resolution::effective_member_symbol_from_position(
@@ -123,7 +126,7 @@ pub fn contextual_canonical_place_from_expression(
                 program,
                 state_symbol,
                 statement_index,
-                indexed.collection,
+                super::canonical_projection::storage_operand(program, indexed.collection),
             )?;
             // A whole builtin window preserves every element's coordinate.
             // Keeping a range selector here would instead put facts below a
@@ -172,7 +175,7 @@ fn resolve_contextual_name_path_root(
 /// one: payload spellings repeat across cases, so a qualified demand is
 /// answered only by the field that exact variant declares — an unqualified
 /// name search would mint a sibling case's same-named field for it.
-pub(super) fn resolve_member_symbol_from_place(
+pub fn resolve_member_symbol_from_place(
     program: &dyn crate::CheckingInput,
     place: &CanonicalPlace,
     member_name: &str,

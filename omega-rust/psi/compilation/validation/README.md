@@ -435,20 +435,32 @@ requires both operations' associativity/commutativity and a conformed
 distributivity law. Natural-coefficient polynomial expansion is bounded;
 failure to normalize or different normal forms are not refutations.
 
-Open index expressions read the same law shapes through
-`declared_index_algebra_laws`: each selected index operation records its
-trait's commutativity, associativity and left-distributivity evidence on
-`OpenIndexOperationSelection`, and type identity
+Open index identity follows the ratified
+[bounded canonical policy](../../../../wiki/spec/proofs/contracts.md#bounded-canonical-index-normalization).
+The selection emitted for an operation must carry its complete exact applied
+conformance's law evidence, including inherited requirements and literal
+connections, through `OpenIndexOperationSelection`. The identity consumer
 ([open_index_identity.rs](../representations/typed-trees/src/typed_trees/type_system/type_identity/open_index_identity.rs))
-applies only the laws recorded. A law slot that states a `requires` premise
-licenses nothing there, since an index rewrite has none to discharge.
+uses only that recorded authority. No law name or operator glyph substitutes
+for it, and an unconditional rewrite cannot borrow an undischarged law premise.
 
-Zero/one constructor bridging uses checked unfolding and citation, not an
-unlicensed identity rewrite. Broader polynomial/index normalization, additional
-Int/Rat structures, and additive/multiplicative group licenses need their own
-checked contracts. Unit dimensions need additive group reasoning; positive
-rational scales need multiplicative group reasoning, not integer linear
-arithmetic alone.
+Collect complete associative chains before expansion, decide the 64-summand
+cutoff from the canonical pre-expansion structure, and retain cutoff evidence
+for an unresolved compatibility diagnostic. Different law sets do not grant
+unconditional monotonicity; mutual distributivity is a named no-expansion
+exception. Storage can be compact, but all identity producers share the same
+canonical encoding. Specialization transports generic compatibility evidence
+instead of re-proving the same equality; concrete closed indices use admitted
+evaluation. Remaining implementation and qualification belong to
+**OPERATOR-MACHINE-SUPPLY** in [TASKS.md](../../../../TASKS.md).
+
+Concrete zero/one connection proofs may use checked unfolding and citation;
+generic index identity consumes their published laws without unfolding an
+abstract body. Internal repetition counts do not grant numeral identities.
+Additional Int/Rat structures and additive/multiplicative group licenses need
+their own checked contracts. Unit dimensions need additive group reasoning;
+positive rational scales need multiplicative group reasoning, not integer
+linear arithmetic alone.
 
 The specialized entailment engine does not establish that arbitrary mathematical
 function/predicate binders, nonconstructive values, or full foundation semantics

@@ -12,11 +12,11 @@
 data Main {
 }
 
-machine Main::main(main: &mut Main) {
-    let total: u64 in Wrapping = Main::gauss_sum(main, 4, 0);
+machine main(main: &mut Main) {
+    let total: u64 in Wrapping = gauss_sum(main, 4, 0);
 }
 
-machine Main::gauss_sum(main: &mut Main, n: u64 in Wrapping, acc: u64 in Wrapping) -> u64 in Wrapping
+machine gauss_sum(main: &mut Main, n: u64 in Wrapping, acc: u64 in Wrapping) -> u64 in Wrapping
 terminates by n
 ensures
     result * 2 == acc * 2 + n * (n + 1)

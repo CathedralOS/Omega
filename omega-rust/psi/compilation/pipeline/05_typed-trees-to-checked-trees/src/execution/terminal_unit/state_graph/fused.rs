@@ -108,6 +108,38 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
             }
         }
     }
+    // A terminal call runs in the current activation. When it moves an
+    // activation claim, the callee must therefore join this graph even
+    // though no cycle requires it: an ordinary call would carry the claim
+    // into a separate machine, which is another activation. Calls that move
+    // no such custody keep the ordinary call plan. Retention spreads from
+    // every retained owner, so a claim moved again by the callee follows it.
+    let mut cursor = 0;
+    while let Some(&source) = ready.get(cursor) {
+        cursor += 1;
+        let source_states = fused
+            .iter()
+            .filter(|(owner, _)| owner.symbol == owners[source])
+            .map(|(_, state)| *state);
+        for state in source_states {
+            for target_symbol in completing_transition_targets(program, state) {
+                let Some(target_index) = fused_target_index(program, &fused, target_symbol) else {
+                    continue;
+                };
+                let (target_owner, target_state) = fused[target_index];
+                let Some(target) = owners
+                    .iter()
+                    .position(|symbol| *symbol == target_owner.symbol)
+                else {
+                    continue;
+                };
+                if !retained[target] && moves_activation_claim(program, target_state) {
+                    retained[target] = true;
+                    ready.push(target);
+                }
+            }
+        }
+    }
     fused.retain(|(owner, _)| {
         owners
             .iter()
@@ -115,6 +147,17 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
             .is_some_and(|owner_index| retained[owner_index])
     });
     fused
+}
+
+/// Whether arriving at `entry` moves activation-scoped custody: one of its
+/// owned (by-value) parameters carries an activation claim.
+fn moves_activation_claim(
+    program: &dyn ::validation::CheckingInput,
+    entry: &typed_trees::state::State,
+) -> bool {
+    program.state_parameters(entry).iter().any(|parameter| {
+        ::validation::type_carries_activation_claim(program, parameter.type_reference)
+    })
 }
 
 /// Every complete transition invocation in authored order. Applied calls
@@ -151,26 +194,4 @@ pub(in crate::execution::terminal_unit) fn fused_target_index(
     fused
         .iter()
         .position(|(_, state)| state.symbol == entry.symbol)
-}
-
-/// The authored statement where a state's terminator begins: its first
-/// transition, or the final expression that completes a value-returning
-/// state. Only that final expression completes the state; earlier Unit calls
-/// are ordinary operations even when their source nodes are expressions, so
-/// they stay in the statement sequence with their call occurrences in order.
-/// A body with neither completes after its last statement.
-pub(in crate::execution::terminal_unit) fn terminator_statement_index(
-    statements: &[StatementNode],
-    result: &checked_trees::CheckedControlResultPlan,
-) -> usize {
-    statements
-        .iter()
-        .enumerate()
-        .position(|(statement_index, statement)| {
-            matches!(statement, StatementNode::Transition(_))
-                || (*result != checked_trees::CheckedControlResultPlan::Unit
-                    && statement_index + 1 == statements.len()
-                    && matches!(statement, StatementNode::Expression(_)))
-        })
-        .unwrap_or(statements.len())
 }

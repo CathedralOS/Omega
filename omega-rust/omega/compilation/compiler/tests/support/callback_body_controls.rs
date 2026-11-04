@@ -93,8 +93,12 @@ pub(super) fn prepare(
             .providers()
             .boundary_calling_plan_realizations
             .iter()
-            .filter(|realization| realization.boundary_arguments.is_empty())
-            .map(|realization| (realization.boundary_trait, realization.requirement_machine)),
+            .map(|realization| {
+                (
+                    realization.calling_owner_application(),
+                    realization.requirement_machine,
+                )
+            }),
     );
     let selected = execution.plans().clone();
     let roots = if declarations.uses.is_empty() {

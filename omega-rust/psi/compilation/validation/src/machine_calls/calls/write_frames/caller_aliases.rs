@@ -410,7 +410,7 @@ pub(super) fn assignment_write_paths(
     {
         return Some(vec![path]);
     }
-    assignment_storage_origins(
+    let origins = assignment_storage_origins(
         program,
         machine,
         symbols,
@@ -419,11 +419,27 @@ pub(super) fn assignment_write_paths(
         state_assignments,
         state_prefix,
     )
-    .ok()?
-    .destinations
-    .iter()
-    .map(|destination| destination.write_path(program))
-    .collect()
+    .ok()?;
+    let destinations = origins
+        .destinations
+        .iter()
+        .map(|destination| destination.write_path(program))
+        .collect::<Option<Vec<_>>>()?;
+    // A store through one reference changes what every other binding to that
+    // storage reads, and those bindings keep their own names. Close the frame
+    // over the incoming alias inventory exactly as call frames are closed:
+    // unknown, recast and stored-leaf references are named whole. Without
+    // that inventory nothing proves the store private, so the frame is opaque.
+    let (state, _, index) =
+        caller_statement_owner(program, machine, CallerWriteSite::Statement(statement))?;
+    let prefix = state_prefix(state, index)?;
+    close_over_origins(
+        program,
+        destinations,
+        &prefix.aliases,
+        &prefix.divergent,
+        &prefix.stored,
+    )
 }
 
 /// Address provenance of the performed store, not the contents before it.
@@ -689,12 +705,17 @@ fn assignment_evidence(
         symbols,
         CallerWriteSite::Statement(statement),
     )?;
+    // A site without a tracked prefix has no aliases to close over, but a
+    // whole reference binding is still replaced rather than written through.
     if matches!(site, CallerPrefixSite::Untracked)
         && let Some(path) = super::coarse_place_path(program, assignment.target)
     {
-        return Some(AssignmentEvidence {
-            target: AssignmentWriteTarget::Storage { paths: vec![path] },
-        });
+        let target = if super::reference_subjects::replaces_binding(program, machine, statement)? {
+            AssignmentWriteTarget::LocalBindingReplacement { path }
+        } else {
+            AssignmentWriteTarget::Storage { paths: vec![path] }
+        };
+        return Some(AssignmentEvidence { target });
     }
     let state = match site {
         CallerPrefixSite::Tracked { state, .. } => state,
@@ -1134,9 +1155,16 @@ fn close_over_origins(
         if !closed.contains(&path) {
             closed.push(path.clone());
         }
+        // A divergent binding may read any of its candidates, so a write to
+        // one candidate changes what that binding reads, just as for an alias.
         for (alias, origin, local_coarse) in aliases
             .iter()
             .map(|(alias, origin)| (alias, Some(origin), false))
+            .chain(divergent.iter().flat_map(|(name, candidates)| {
+                candidates
+                    .iter()
+                    .map(move |candidate| (name, Some(candidate), false))
+            }))
             .chain(
                 stored
                     .iter()

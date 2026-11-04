@@ -17,7 +17,7 @@
 //! effects and crossed writes must preserve the argument being constrained.
 
 use super::assignment_stability::{collect_read_place_paths, resolved_writes_overlap_reads};
-use crate::checker::guards::unwrap_true_guard_condition;
+use crate::checker::guards::{false_comparison_operand, unwrap_true_guard_condition};
 use crate::checker::integer_ranges::type_constraints;
 use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
@@ -267,7 +267,57 @@ pub(crate) fn guarded_float_range_for_transition_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
 ) -> Option<FloatRange> {
-    let base = float_range_for_transition_argument(proof_plan, obligation);
+    guarded_float_range(
+        proof_plan,
+        float_range_for_transition_argument(proof_plan, obligation),
+        &GuardedOperand {
+            machine_symbol: obligation.machine_symbol,
+            state_symbol: obligation.state_symbol,
+            statement_index: obligation.statement_index,
+            argument: obligation.argument,
+            argument_constraints: obligation.argument_constraints,
+            guard: obligation.guard,
+            refuted_exit_guards: &obligation.refuted_exit_guards,
+        },
+    )
+}
+
+/// The same co-located guard narrowing for a transition arm's returned value.
+pub(crate) fn guarded_float_range_for_return_value(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedStateReturnObligation,
+) -> Option<FloatRange> {
+    guarded_float_range(
+        proof_plan,
+        float_range_for_return_value(proof_plan, obligation),
+        &GuardedOperand {
+            machine_symbol: obligation.machine_symbol,
+            state_symbol: obligation.state_symbol,
+            statement_index: obligation.statement_index,
+            argument: obligation.value,
+            argument_constraints: obligation.value_constraints,
+            guard: obligation.guard,
+            refuted_exit_guards: &obligation.refuted_exit_guards,
+        },
+    )
+}
+
+/// One operand consumed by a guarded transition arm.
+struct GuardedOperand<'obligation> {
+    machine_symbol: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
+    statement_index: usize,
+    argument: ExpressionHandle,
+    argument_constraints: HandleSpan<ProofConstraint>,
+    guard: TransitionGuardNode,
+    refuted_exit_guards: &'obligation [ExpressionHandle],
+}
+
+fn guarded_float_range(
+    proof_plan: &ProofPlan,
+    base: Option<FloatRange>,
+    obligation: &GuardedOperand<'_>,
+) -> Option<FloatRange> {
     let program = proof_plan.program;
     let (machine, state) =
         program.machine_state(obligation.machine_symbol, obligation.state_symbol)?;
@@ -414,6 +464,23 @@ fn apply_float_condition(
             range,
             argument,
             unary.operand,
+            machine_symbol,
+            source_state,
+            statement_index,
+            !refute,
+        );
+    }
+    if let Some(operand) = false_comparison_operand(proof_plan, condition)
+        && let Some((machine, state)) = proof_plan
+            .program
+            .machine_state(machine_symbol, source_state)
+        && has_builtin_decomposed_guard_meaning(proof_plan.program, machine, Some(state), condition)
+    {
+        return apply_float_condition(
+            proof_plan,
+            range,
+            argument,
+            operand,
             machine_symbol,
             source_state,
             statement_index,

@@ -123,7 +123,7 @@ pub(super) fn lower_return_claims(
             None
         };
     let completed_claims = current_claims.source(source)?;
-    if validation::canonical_place_from_expression_in_state(
+    if validation::storage_place_from_expression_in_state(
         &checked.typed,
         state,
         statement_index as usize,

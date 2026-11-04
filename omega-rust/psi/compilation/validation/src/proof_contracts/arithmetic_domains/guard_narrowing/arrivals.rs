@@ -1385,7 +1385,8 @@ impl ArrivalWalk<'_, '_> {
                             self.program,
                             self.machine,
                             source,
-                            assignment,
+                            statement,
+                            self.frames,
                             &written,
                             environment,
                         );

@@ -1,0 +1,53 @@
+// A condition arm on a quotient subject never observes its representative, so it checks.
+use omega::language::core::relation;
+
+data Representative {
+    case Zero;
+    case Next(previous: Representative);
+}
+
+proposition equivalent(a: Representative, b: Representative) = a == b;
+
+machine equivalent_reflexive(a: Representative)
+ensures a == a
+{
+}
+
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires a == b
+ensures b == a
+{
+}
+
+machine equivalent_transitive(
+    a: Representative,
+    b: Representative,
+    c: Representative
+)
+requires
+    a == b
+    b == c
+ensures a == c
+{
+}
+
+RepresentativeEquivalence satisfies Equivalence<Representative, equivalent> {
+    machine reflexive(value: Representative) ensures equivalent(value, value) { equivalent_reflexive(value) }
+    machine symmetric(left: Representative, right: Representative) requires equivalent(left, right) ensures equivalent(right, left) { equivalent_symmetric(left, right) }
+    machine transitive(left: Representative, middle: Representative, right: Representative) requires equivalent(left, middle), equivalent(middle, right) ensures equivalent(left, right) { equivalent_transitive(left, middle, right) }
+}
+
+data EquivalenceClass = Representative % equivalent
+requires equivalent satisfies
+    Equivalence<Representative, equivalent>
+    as RepresentativeEquivalence;
+
+machine choose(value: EquivalenceClass, count: u8) {
+    transition value {
+        count > 3u8 -> done()
+        _ -> done()
+    }
+
+    machine done() {
+    }
+}

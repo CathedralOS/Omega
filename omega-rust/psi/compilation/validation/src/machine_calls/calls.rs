@@ -42,7 +42,7 @@ mod generic_requirement;
 pub(crate) use generic_requirement::requirement_namespace_member;
 pub use generic_requirement::{
     named_conformance_target_requirement, requirement_contract_signature,
-    selected_requirement_signature,
+    resolve_requirement_contract, selected_requirement_signature,
 };
 mod inline_assembly;
 mod machine_parameter_arguments;
@@ -93,8 +93,8 @@ pub use write_frames::{
     InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource,
     ReferenceResultLeafOrigin, ReferenceResultTransport, ReferenceSlotContract,
     ReferenceViewFormation, ScalarStorageCoordinate, StoredReferenceCallContext,
-    StoredReferenceCallSchedule, StoredReferenceDestinationKind, StoredReferenceEffect,
-    StoredReferenceRelationRefusal, assignment_stored_value_type, frame_coordinate_path,
+    StoredReferenceDestinationKind, StoredReferenceEffect, StoredReferenceRelationRefusal,
+    assignment_rebinds_parameter, assignment_stored_value_type, frame_coordinate_path,
     frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
     state_reference_parameter_binding_is_stable, storage_origin_types_match,
 };
@@ -292,7 +292,6 @@ fn report_argument_reference_access(
     prior_statements: &[typed_trees::statement::StatementNode],
     argument: ExpressionHandle,
     parameter: &StateParameter,
-    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
     target_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
@@ -308,7 +307,6 @@ fn report_argument_reference_access(
         prior_statements,
         argument,
         parameter.type_reference,
-        required_substitutions,
     ) else {
         return false;
     };
@@ -595,7 +593,6 @@ pub(crate) fn validate_call_arguments(
     prior_statements: &[typed_trees::statement::StatementNode],
     retains_float_result_policy: bool,
     argument_environments: &[ValueEnvironment],
-    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
     type_matches: impl Fn(ExpressionHandle, TypeReferenceHandle) -> bool,
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
@@ -637,7 +634,6 @@ pub(crate) fn validate_call_arguments(
             prior_statements,
             *argument,
             parameter,
-            required_substitutions,
             target_name,
             diagnostics,
         ) {
@@ -937,7 +933,6 @@ fn validate_value_call_arguments(
         prior_statements,
         selected_float_operation_retains_argument_policy(program, callee_machine.symbol),
         &[],
-        &type_bindings,
         call_carrier_matcher(program, current_machine.symbol, &type_bindings),
         diagnostics,
         formation_obligations,

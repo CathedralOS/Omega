@@ -214,6 +214,14 @@ pub(super) fn check_call_requires(
                                         &facts.semantic,
                                         fact.payload,
                                         fact.place,
+                                    ) || qualified_argument_grants_domain(
+                                        program,
+                                        facts,
+                                        requirement_contexts,
+                                        fact,
+                                        membership
+                                            .as_ref()
+                                            .and_then(|evidence| evidence.whole_argument),
                                     ) || subslice_grants_domain(
                                         program,
                                         facts,
@@ -385,7 +393,7 @@ pub(super) fn check_call_requires(
                     }
                     _ => None,
                 };
-                diagnostics.push(Diagnostic::error(format!(
+                let diagnostic = Diagnostic::error(format!(
                     "cannot prove requires contract for call {} from {}: {}{} in state `{}`{}",
                     call_target_label(program, call_flow.target_symbol),
                     machine_name(program, state_flow.machine_symbol),
@@ -397,10 +405,38 @@ pub(super) fn check_call_requires(
                     authored_requirement
                         .map(|authored| format!("; authored requirement `{authored}`"))
                         .unwrap_or_default()
-                )));
+                ));
+                diagnostics.push(match call_source_span(program, state_flow, call_flow) {
+                    Some(span) => diagnostic.with_source_span(span),
+                    None => diagnostic,
+                });
             }
         }
     }
+}
+
+/// The authored invocation a requires diagnostic should point at: the call
+/// expression the traversal captured, else the authored span of the statement
+/// at the call's coordinate (a call statement or named transition, which have
+/// no expression handle). Compiler-generated occurrences keep the default
+/// span, so they yield `None` rather than an invented location.
+fn call_source_span(
+    program: &dyn ::validation::CheckingInput,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+) -> Option<source::SourceSpan> {
+    if call_flow.authored_expression.is_valid() {
+        return program
+            .expression_table
+            .try_source_span(call_flow.authored_expression)
+            .filter(|span| *span != source::SourceSpan::default());
+    }
+    let (_, state) = validation::find_state(program, state_flow.state_symbol)?;
+    let statement = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(call_flow.statement_index)?;
+    validation::statement_source_span(program, statement)
 }
 
 /// A transparent proposition requirement holds when the calling state's own
@@ -996,4 +1032,39 @@ fn selected_evidence_proves_requirement(
                         })
                 })
     })
+}
+
+/// An argument written `x as T in D` names its operand's storage place, while
+/// flow publishes the checked qualification's membership on the cast itself.
+/// That membership establishes the formal's requirement for this exact value.
+fn qualified_argument_grants_domain(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    contexts: &[facts::FactContextHandle],
+    requirement: &facts::Fact,
+    argument: Option<typed_trees::expression::ExpressionHandle>,
+) -> bool {
+    let Some(argument) = argument else {
+        return false;
+    };
+    let Some((_, _, domain_symbol, semantic_domain)) = requirement.payload.domain_membership()
+    else {
+        return false;
+    };
+    let qualified = matches!(
+        program.expression_table.expression(argument),
+        typed_trees::expression::ExpressionNode::Cast(cast) if !cast.semantic_domain.is_empty()
+    );
+    qualified
+        && super::exact_scalar_membership(
+            program,
+            facts,
+            contexts,
+            &validation::CanonicalPlace {
+                root: facts::PlaceRoot::Expression(argument),
+                segments: Vec::new(),
+            },
+            domain_symbol,
+            semantic_domain,
+        )
 }

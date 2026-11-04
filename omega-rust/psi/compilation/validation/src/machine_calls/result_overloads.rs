@@ -883,16 +883,15 @@ fn named_call_path<'name>(
     )))
 }
 
-/// The named-callable admission shared by statement and expression calls:
-/// an unnamed call whose path names machine declarations resolves through the
-/// machine overload family; a provisional target naming a non-operator
-/// callable resolves directly. A path is not evidence of a machine namespace
-/// by itself: `I32::from_f64` has a static receiver but names a boundary
-/// operator family, which declares no machines at all. The machine family
-/// therefore answers only for a path that actually names one, so every other
-/// call falls through to the operator path. The admitted branch's own verdict
-/// rides the inner `Option` so a declining family lookup still ends the caller
-/// early.
+/// Resolve a named call from its visible declarations and typed operands.
+/// Attached name lookup can provisionally bind the first declaration before
+/// the arguments have types. When the visible declarations take different
+/// parameter types, select that family first, then use the expected result.
+/// A call already bound within one parameter family needs only result selection.
+///
+/// A path alone does not establish a machine call: `I32::from_f64` names a
+/// boundary operator. Return `None` for those other callable kinds; return
+/// `Some(None)` when this machine family was found but selection failed.
 fn named_callable_resolution(
     program: &dyn crate::CheckingInput,
     machine_overloads: &MachineOverloadIndex,
@@ -903,21 +902,39 @@ fn named_callable_resolution(
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<Option<SymbolHandle>> {
-    if !target_symbol.is_valid()
-        && let Some(path) = path
-        && !program
-            .symbols
-            .top_level_candidates_from_source(path, &[SymbolKind::Machine], source_span)
-            .is_empty()
-    {
-        return Some(named_machine_overload_family_symbol(
-            program,
+    if let Some(path) = path {
+        let candidates = program.symbols.top_level_candidates_from_source(
             path,
-            operands,
+            &[SymbolKind::Machine],
             source_span,
-            expected_result,
-            diagnostics,
-        ));
+        );
+        // Attached lookup may retain the first visible declaration before
+        // operand types are available. That declaration identifies the scoped
+        // family; it cannot choose a parameter signature by source order.
+        let provisional_parameters = candidates.iter().find_map(|symbol| {
+            let machine = program.machine(*symbol)?;
+            (program.machine_states(machine).first()?.symbol == target_symbol).then(|| {
+                program.callable_identity_parameters(program.machine_callable_identity(machine))
+            })
+        });
+        let needs_parameter_selection = provisional_parameters.is_some_and(|parameters| {
+            candidates.iter().any(|symbol| {
+                program.machine(*symbol).is_some_and(|machine| {
+                    program.callable_identity_parameters(program.machine_callable_identity(machine))
+                        != parameters
+                })
+            })
+        });
+        if !candidates.is_empty() && (!target_symbol.is_valid() || needs_parameter_selection) {
+            return Some(named_machine_overload_family_symbol(
+                program,
+                path,
+                operands,
+                source_span,
+                expected_result,
+                diagnostics,
+            ));
+        }
     }
     if provisional_target_is_named_non_operator_callable(program, machine_overloads, target_symbol)
     {
@@ -1082,12 +1099,9 @@ fn select_overload_symbol(
     }
 }
 
-/// The callable symbol for a receiverless call whose authored name spells a
-/// result-overload family. Every member owns the declared path, so upstream
-/// name binding leaves no provisional symbol to disambiguate from; this pass
-/// selects the member by the destination's result dispatch set instead. As in
-/// the free-machine entry rule, a member's state named exactly like the call
-/// is preferred over its first state.
+/// Select a visible machine overload using the argument types, then the
+/// destination's result requirements. This serves both unresolved free calls
+/// and attached calls that were provisionally bound before argument checking.
 fn named_machine_overload_family_symbol(
     program: &dyn crate::CheckingInput,
     target_name: &str,

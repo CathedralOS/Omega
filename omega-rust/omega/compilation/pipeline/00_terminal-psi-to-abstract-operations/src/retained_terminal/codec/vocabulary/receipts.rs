@@ -1,4 +1,5 @@
 //! Evaluated binding receipts retain their exact producer-table coordinates.
+//! A Build origin's requirement is an index into that same producer table.
 
 use super::super::value::{RecordError, RecordReader, RecordValue, RecordWriter};
 use super::record_fields;
@@ -103,7 +104,7 @@ impl RecordValue for effects::provider_plan::EvaluatedBindingReceipt {
             .map_err(|reason| input.error(reason))?;
             let recovered = match build_origin {
                 Some(origin) => recovered
-                    .with_build_origin(origin)
+                    .with_build_origin(origin, builder.as_table())
                     .map_err(|reason| input.error(reason))?,
                 None => recovered,
             };
@@ -161,5 +162,123 @@ impl RecordValue for effects::provider_plan::BuildNativeBindingOrigin {
                 observation_digest: RecordValue::read(input)?,
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::super::value::{RecordLimits, RecordReader, RecordValue, RecordWriter};
+    use effects::provider_plan::{
+        BuildNativeBindingOrigin, EvaluatedBindingEvaluationDigest,
+        EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
+        EvaluatedBindingReceipt, EvaluatedBindingUsage,
+    };
+    use std::sync::Arc;
+
+    const REQUIREMENT: &str = "package::Console::write";
+    const PRODUCER: &str = "package::build::console_binding";
+
+    fn build_receipt(
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    ) -> EvaluatedBindingReceipt {
+        let requirement_identity = identities.intern(REQUIREMENT);
+        EvaluatedBindingReceipt::from_evaluation(
+            semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]),
+            PRODUCER,
+            identities,
+            EvaluatedBindingProducerClosureDigest::from_bytes([1; 32]).unwrap(),
+            3,
+            EvaluatedBindingUsage::from_evaluator(1, 1, 10, 100, 0, 0, 4, 8, 1, 2).unwrap(),
+            EvaluatedBindingEvaluationDigest::from_bytes([2; 32]).unwrap(),
+            2,
+            EvaluatedBindingMaterializationDigest::from_bytes([3; 32]).unwrap(),
+            target::ForeignLocatorIdentityDigest::from_digest([4; 32]),
+        )
+        .unwrap()
+        .with_build_origin(
+            BuildNativeBindingOrigin {
+                requirement_identity,
+                source_occurrence_digest: [5; 32],
+                terminal_code: terminal_psi::TerminalPsiIdentity {
+                    vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                    program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([6; 32]),
+                },
+                fuel_schedule: 1,
+                storage_schedule: 1,
+                observation_digest: [8; 32],
+            },
+            identities.as_table(),
+        )
+        .unwrap()
+    }
+
+    fn round_trip(
+        receipt: &EvaluatedBindingReceipt,
+        identities: terminal_psi::TerminalIdentityTable,
+    ) -> Result<EvaluatedBindingReceipt, String> {
+        let mut output = RecordWriter::new(RecordLimits::default());
+        receipt.write(&mut output).unwrap();
+        let bytes = output.finish();
+        let mut input = RecordReader::new(&bytes, RecordLimits::default()).unwrap();
+        input.context.binding_identities = Some(Arc::new(identities));
+        let recovered = EvaluatedBindingReceipt::read(&mut input).map_err(|e| e.to_string())?;
+        input.finish().unwrap();
+        Ok(recovered)
+    }
+
+    #[test]
+    fn build_origin_receipt_round_trips_through_its_identity_table() {
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let receipt = build_receipt(&mut identities);
+        let table = identities.build();
+        let recovered = round_trip(&receipt, table.clone()).unwrap();
+        assert_eq!(recovered, receipt);
+        let origin = recovered.build_origin().unwrap();
+        assert_eq!(table.text(origin.requirement_identity), Some(REQUIREMENT));
+    }
+
+    #[test]
+    fn build_origin_requirement_absent_from_its_table_is_refused() {
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        identities.intern(PRODUCER);
+        let receipt = build_receipt(&mut identities);
+        // The producer still resolves, but the origin's requirement index
+        // lies past the end of this table.
+        let mut producer_only = terminal_psi::TerminalIdentityTableBuilder::default();
+        producer_only.intern(PRODUCER);
+        let error = round_trip(&receipt, producer_only.build()).unwrap_err();
+        assert!(error.contains("no exact requirement identity"), "{error}");
+    }
+
+    #[test]
+    fn build_origin_requirement_with_substituted_text_is_refused() {
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let receipt = build_receipt(&mut identities);
+        // Same ordinals, different requirement text: the commitment covers
+        // the resolved text, so the substitution cannot pass as the original.
+        let mut substituted = terminal_psi::TerminalIdentityTableBuilder::default();
+        substituted.intern("package::Console::read");
+        substituted.intern(PRODUCER);
+        let error = round_trip(&receipt, substituted.build()).unwrap_err();
+        assert!(error.contains("commitment"), "{error}");
+    }
+
+    #[test]
+    fn reinterned_build_origin_keeps_its_commitment() {
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let receipt = build_receipt(&mut identities);
+        let source = identities.build();
+        let mut destination = terminal_psi::TerminalIdentityTableBuilder::default();
+        destination.intern("padding shifts every ordinal");
+        let moved = receipt
+            .reintern_producer(&source, &mut destination)
+            .unwrap();
+        let destination = destination.build();
+        assert_eq!(moved.identity_digest(), receipt.identity_digest());
+        assert_eq!(
+            destination.text(moved.build_origin().unwrap().requirement_identity),
+            Some(REQUIREMENT)
+        );
+        assert_eq!(round_trip(&moved, destination).unwrap(), moved);
     }
 }

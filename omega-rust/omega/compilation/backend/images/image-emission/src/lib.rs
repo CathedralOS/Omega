@@ -87,6 +87,9 @@ pub use object::function_fragments::{
 pub(crate) use entries::hosted_receiver::HostedReceiverBinding;
 pub use entries::hosted_receiver::bind_hosted_receiver;
 pub use image::dynamic_elf::{RequestedDynamicElfImage, validate_requested_dynamic_elf_image};
+pub use image::final_image_validation::native_code_layouts::{
+    LinkedNativeCodeLayout, LinkedNativeCodeRegion, inspect_native_code_layouts,
+};
 pub use image::image_output::{
     ExecutableImage, ExecutableImageEmissionRequest, ImageApplicationMetadataError,
     ObjectContainer, RequestedExecutableImage, can_emit_executable_image, emit_executable_image,

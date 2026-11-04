@@ -24,8 +24,6 @@ use super::super::super::atomic_operations::result_placeholder;
 use super::super::super::cleanup::anonymous::insert_continuation;
 use super::super::super::reference_results::local_owes_record_loans;
 use super::super::super::reference_results::local_record_loans;
-use super::super::super::reference_results::mutable_borrowed_parts;
-use super::super::super::reference_results::shared_place_borrowed_parts;
 use super::bounded_byte_values::value_plan;
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
@@ -55,7 +53,6 @@ use crate::published::places::place_at;
 pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) construction: Construction<'a, 'program, 'shapes>,
     pub(super) binders: &'a [(SymbolHandle, String)],
-    pub(super) erased_locals: &'a [SymbolHandle],
     pub(super) operations: &'a mut Vec<CheckedUnitEffectOperationPlan>,
     pub(super) place_loans: &'a mut Vec<checked_trees::CheckedPlaceLoanPlan>,
     pub(super) scalar_count: &'a mut usize,
@@ -122,7 +119,6 @@ fn plan_inner(
                 trace,
             },
         binders,
-        erased_locals,
         operations,
         place_loans,
         scalar_count,
@@ -154,10 +150,9 @@ fn plan_inner(
         // symbol. Minting the row here is the only producer for locals that
         // are declared unassigned — skipping it leaves the whole machine's
         // unit plan omitted even though every writer plans elsewhere.
-        if !erased_locals.contains(&local.symbol)
-            && program
-                .primitive_type_reference(local.type_reference)
-                .is_none()
+        if program
+            .primitive_type_reference(local.type_reference)
+            .is_none()
         {
             local_phase("statement sequence: local data: deferred structural binding");
             establish_declared_home(
@@ -185,11 +180,7 @@ fn plan_inner(
         statement_index,
         local.initial_value,
     );
-    if (reference_capture.is_none()
-        && structural_root.is_none()
-        && erased_locals.contains(&local.symbol))
-        || local.role == language_core::LocalBindingRole::RecordPattern
-    {
+    if local.role == language_core::LocalBindingRole::RecordPattern {
         return Some(LocalPlan::Planned);
     }
     if !local.is_mutable
@@ -445,10 +436,10 @@ fn plan_inner(
         });
         return Some(LocalPlan::Planned);
     }
-    local_phase("statement sequence: local data: shared place loan");
-    // A retained reference root establishes its carrier before later reads.
-    // Borrowed aliases without such a value root retain their existing loan
-    // route; they cannot invent a carrier by replaying an initializer at a use.
+    local_phase("statement sequence: local data: place loan");
+    // A reference local may need no runtime descriptor, but later calls still
+    // need the exact place it borrowed. Publish that place before omitting the
+    // declaration; retained values and descriptor captures keep their producers.
     if structural_root.is_none()
         && let Some(loan) = place_loan(
             program,
@@ -458,7 +449,6 @@ fn plan_inner(
             structural_parameters,
             statement_index,
             local,
-            CheckedStructuralAccess::SharedBorrow,
         )
     {
         if let PlaceLoan::Captured(loan) = loan {
@@ -667,22 +657,6 @@ fn plan_inner(
         ));
         return Some(LocalPlan::Planned);
     }
-    local_phase("statement sequence: local data: exclusive place loan");
-    if let Some(loan) = place_loan(
-        program,
-        facts,
-        machine,
-        state,
-        structural_parameters,
-        statement_index,
-        local,
-        CheckedStructuralAccess::MutableBorrow,
-    ) {
-        if let PlaceLoan::Captured(loan) = loan {
-            place_loans.push(loan);
-        }
-        return Some(LocalPlan::Planned);
-    }
     if let Some(primitive_type) = program.primitive_type_reference(local.type_reference) {
         if local.is_mutable {
             local_phase("statement sequence: local data: mutable primitive local: storage type");
@@ -798,7 +772,8 @@ enum PlaceLoan {
 }
 
 /// A `let` binding a loan of a place: `let seen: &mut u8 = &mut self.byte;`
-/// or `let borrowed: &u32 = &self.size;`. The binding is immutable and a
+/// or `let borrowed: &u32 = &self.size;`. Write-only loans retain the same
+/// place without granting read access. The binding is immutable and a
 /// reference cannot be reseated, so the name denotes one place for its whole
 /// scope and carries no runtime value of its own: every read through it is a
 /// read of that place, every write through an exclusive loan is the ordinary
@@ -825,27 +800,17 @@ fn place_loan(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
     local: &typed_trees::statement::TableLocalData,
-    access: CheckedStructuralAccess,
 ) -> Option<PlaceLoan> {
     if local.is_mutable {
         return None;
     }
     let formation = validation::reference_formation_source(program, local.initial_value)?;
-    let (referee, _) = match access {
-        CheckedStructuralAccess::SharedBorrow => {
-            if formation.access != language_core::ReferenceAccess::Shared {
-                return None;
-            }
-            shared_place_borrowed_parts(program, local.type_reference)?
-        }
-        CheckedStructuralAccess::MutableBorrow => {
-            if formation.access != language_core::ReferenceAccess::Mutable {
-                return None;
-            }
-            mutable_borrowed_parts(program, local.type_reference)?
-        }
-        CheckedStructuralAccess::Owned | CheckedStructuralAccess::WriteOnlyBorrow => return None,
-    };
+    let shell = validation::reference_shell(program, local.type_reference)?;
+    if shell.access != formation.access {
+        return None;
+    }
+    let access = CheckedStructuralAccess::from(formation.access);
+    let referee = shell.referee;
     let statement = usize::try_from(statement_index).ok()?;
     let place = place_at(program, state.symbol, statement, formation.source)?;
     let symbol = place.root.as_symbol()?;
@@ -937,32 +902,34 @@ fn place_loan(
         None if recast_source.is_valid() => return Some(PlaceLoan::Unnamed),
         None => return None,
     };
-    // A mutable indexed recast's admission already proved the byte window —
+    // A writable indexed recast's admission already proved the byte window —
     // `index + view footprint <= region length` — through
     // `interior_byte_region_source`. The same predicates the borrow ledger
     // asked decide each store's emitted obligations once, here, so lowering
     // consumes this row instead of re-walking the proof.
-    let decided_byte_view_store = access == CheckedStructuralAccess::MutableBorrow
-        && (validation::validate_literal_indexed_recast_footprint(
+    let decided_byte_view_store = matches!(
+        access,
+        CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+    ) && (validation::validate_literal_indexed_recast_footprint(
+        program,
+        machine,
+        state,
+        statement,
+        local.initial_value,
+        referee,
+        formation.access,
+    )
+    .is_some()
+        || validation::validate_runtime_indexed_recast_source(
             program,
             machine,
             state,
             statement,
             local.initial_value,
             referee,
-            language_core::ReferenceAccess::Mutable,
+            formation.access,
         )
-        .is_some()
-            || validation::validate_runtime_indexed_recast_source(
-                program,
-                machine,
-                state,
-                statement,
-                local.initial_value,
-                referee,
-                language_core::ReferenceAccess::Mutable,
-            )
-            .is_some());
+        .is_some());
     Some(PlaceLoan::Captured(checked_trees::CheckedPlaceLoanPlan {
         statement_index,
         symbol: local.symbol,

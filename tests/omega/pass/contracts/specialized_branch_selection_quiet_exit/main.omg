@@ -1,0 +1,16 @@
+// A generic branch on its compile-time parameter is a selection, not a
+// contradiction: each specialization removes one alternative, and the
+// compiler does not warn about the alternative that specialization removed.
+machine pick<const N: u64>(count: u64) -> u64
+requires count >= 10
+{
+    transition N < 5 {
+        true -> (count)
+        false -> (count - 10u64)
+    }
+}
+machine main() crashes Trap {
+    transition pick<10>(12) == 2 && pick<3>(12) == 12 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

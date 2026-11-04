@@ -207,9 +207,9 @@ fn validate_source(
     for supplier in suppliers {
         let mut place = supplier.backing;
         place.segments.extend_from_slice(projection);
-        if crate::flow::compose_captured_view_segments(&mut place.segments).is_none() {
+        let Some(place) = physical_place(place) else {
             return refusal("returned projection has no complete source projection");
-        }
+        };
         let parents = match supplier.source {
             checked_trees::CheckedCallBorrowLoanSource::StoredLoan { loan } => {
                 if !facts
@@ -268,7 +268,7 @@ fn validate_source(
                     && candidate.statement_index == row.statement_index
                     && candidate.storage_owner == row.storage_owner
                     && facts.borrow.loan_owner_path(candidate) == facts.borrow.loan_owner_path(row)
-                    && captured_place(&facts.borrow, candidate) == place
+                    && captured_place(&facts.borrow, candidate).as_ref() == Some(&place)
             })
             .collect::<Vec<_>>();
         if parents.is_empty() {
@@ -286,17 +286,9 @@ fn validate_source(
                     }
             })
         }) {
-            return refusal(&format!(
-                "returned projection dropped a captured borrowing parent; source {:?}; parents {:?}; represented {:?}",
-                place,
-                parents,
-                represented
-                    .iter()
-                    .map(|(handle, row)| (*handle, row.lineage.clone(), row.source_owner_symbol))
-                    .collect::<Vec<_>>()
-            ));
+            return refusal("returned view did not retain every input borrow it needs");
         }
-        selected |= captured_place(&facts.borrow, row) == place
+        selected |= captured_place(&facts.borrow, row).as_ref() == Some(&place)
             && match row.lineage {
                 BorrowLoanLineage::DirectRoot => parents.is_empty(),
                 BorrowLoanLineage::Reborrow { parent_loan } => parents.contains(&parent_loan),
@@ -309,8 +301,8 @@ fn validate_source(
 fn captured_place(
     borrow: &checked_trees::BorrowFacts,
     loan: &BorrowLoanFact,
-) -> checked_trees::CapturedPlace {
-    checked_trees::CapturedPlace {
+) -> Option<checked_trees::CapturedPlace> {
+    physical_place(checked_trees::CapturedPlace {
         incoming_reference: loan.incoming_reference,
         incoming_owner_path: borrow
             .access_segments
@@ -318,5 +310,15 @@ fn captured_place(
             .to_vec(),
         root: loan.root,
         segments: borrow.loan_segments(loan).to_vec(),
-    }
+    })
+}
+
+/// Compare footprints in the original collection dimension. Stored loan rows
+/// also retain the full input prefix used to suspend outside access; composing
+/// a window for this comparison must not rewrite that independent debt.
+/// Equal opaque footprints supply no pointer identity or permission: the exact
+/// invocation, output path and borrowing-parent checks above still own the join.
+fn physical_place(mut place: checked_trees::CapturedPlace) -> Option<checked_trees::CapturedPlace> {
+    crate::flow::compose_captured_view_segments(&mut place.segments)?;
+    Some(place)
 }

@@ -59,17 +59,7 @@ impl BuildSession {
     }
 }
 
-/// Both standalone requests and package workflows configure the same optional
-/// compiler-private store before source preparation. Cache setup never admits
-/// source or prevents a cold compilation.
+/// Standalone requests and package workflows start from the same empty session.
 pub(crate) fn compiler_session() -> CompilationSession {
-    match package_manager::retain_compiler_source_storage(None) {
-        Ok(storage) => CompilationSession::default().with_source_retention(storage),
-        Err(reason) => {
-            if std::env::var_os("OMEGA_PHASE_PROFILE").is_some_and(|value| value != "0") {
-                eprintln!("compiler source retention unavailable: {reason}");
-            }
-            CompilationSession::default()
-        }
-    }
+    CompilationSession::default()
 }

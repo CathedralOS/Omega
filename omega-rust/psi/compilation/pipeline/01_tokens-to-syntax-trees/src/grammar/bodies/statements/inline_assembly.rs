@@ -1139,6 +1139,22 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 input,
             )
         }
+        AsmInstructionShape::GlobalDescriptorTable(operation) => {
+            let (operand, input) = parse_expression_handle(syntax_trees, input)?;
+            let arguments = syntax_trees
+                .statements
+                .insert_expression_handles(vec![operand]);
+            ParsedAsmInstruction::ok(
+                asm_intrinsic_call(
+                    syntax_trees,
+                    &mnemonic,
+                    operation.intrinsic_name(),
+                    arguments,
+                ),
+                contract,
+                input,
+            )
+        }
         AsmInstructionShape::DerivedExit | AsmInstructionShape::DescriptorTableLoad => {
             unreachable!("deriver-only instructions refuse before source lowering")
         }

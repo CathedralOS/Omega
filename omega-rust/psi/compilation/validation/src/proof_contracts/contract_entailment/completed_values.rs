@@ -180,16 +180,72 @@ pub(super) fn term_field_paths(
     value: &StructuralTerm,
     names: &[&str],
 ) -> Vec<Vec<PlaceSegment>> {
+    term_field_paths_with(
+        program,
+        reference,
+        value,
+        names,
+        &|reference, value, path, _| {
+            project_observed_value(program, reference, value.clone(), path)
+        },
+    )
+}
+
+/// A helper receiving a result payload must still find its original fields.
+/// Follow declared owned fields only, with independent case facts. A stored
+/// descriptor ends this walk; its referent supplies no further fields.
+pub(super) fn owned_term_field_paths_in_scope(
+    program: &dyn crate::CheckingInput,
+    judge: &StructuralJudge<'_>,
+    reference: TypeReferenceHandle,
+    value: &StructuralTerm,
+    names: &[&str],
+) -> Vec<Vec<PlaceSegment>> {
+    term_field_paths_with(
+        program,
+        reference,
+        value,
+        names,
+        &|reference, value, path, projected| {
+            if crate::reference_shell(program, reference).is_some()
+                || crate::reference_shell(program, projected).is_some()
+                || super::structural_terms::owned_observation_type(program, value).is_none()
+            {
+                return None;
+            }
+            super::observed_projections::project_observed_value_in_scope(
+                program,
+                judge,
+                reference,
+                value.clone(),
+                path,
+            )
+        },
+    )
+}
+
+fn term_field_paths_with(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    value: &StructuralTerm,
+    names: &[&str],
+    project: &impl Fn(
+        TypeReferenceHandle,
+        &StructuralTerm,
+        &[PlaceSegment],
+        TypeReferenceHandle,
+    ) -> Option<StructuralTerm>,
+) -> Vec<Vec<PlaceSegment>> {
     let Some((name, remaining)) = names.split_first() else {
         return vec![Vec::new()];
     };
     let mut paths = Vec::new();
     for (prefix, projected_type) in field_projections(program, reference, name) {
-        let Some(projected) = project_observed_value(program, reference, value.clone(), &prefix)
-        else {
+        let Some(projected) = project(reference, value, &prefix, projected_type) else {
             continue;
         };
-        for suffix in term_field_paths(program, projected_type, &projected, remaining) {
+        for suffix in term_field_paths_with(program, projected_type, &projected, remaining, project)
+        {
             let mut path = prefix.clone();
             path.extend(suffix);
             paths.push(path);
@@ -490,9 +546,16 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
                     ))
                 })
                 .collect::<Vec<_>>();
-            let value = outcome
-                .judge
-                .completed_value_identity(outcome.value.clone());
+            // A completed owned construction publishes a fresh value so its
+            // validity is never re-derived from equal fields. Its children,
+            // including nested owned constructions, are still the operands
+            // this occurrence evaluated; recover those receipts before
+            // describing the demanded projections.
+            let value = outcome.judge.completed_value_identity(
+                outcome
+                    .judge
+                    .completed_nominal_observation_tree(&outcome.value),
+            );
             let mut projections = Vec::new();
             observed_projections(
                 program,
@@ -542,7 +605,7 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
                 ) else {
                     continue;
                 };
-                let projected = outcome.judge.completed_value_identity(projected);
+                let projected = outcome.judge.completed_call_result_projection(projected);
                 projection.sources = CompletedSources {
                     program,
                     judge: &outcome.judge,

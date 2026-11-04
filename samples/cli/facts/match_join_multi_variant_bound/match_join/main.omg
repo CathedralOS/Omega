@@ -17,11 +17,12 @@ machine evaluate(mode: Mode) -> u64 {
     }
 }
 
-machine main() crashes Trap {
-    let m: Mode = Mode::Mid { val: 40 };
+// `run` receives `mode` as a parameter, so the payload is known only through
+// `Mode`'s requirement; the operation below must use the joined bound.
+machine run(mode: Mode) crashes Trap {
     let joined: u64 = match true {
-        true -> evaluate(m)
-        _ -> evaluate(m)
+        true -> evaluate(mode)
+        _ -> evaluate(mode)
     };
     let diff1: u64 = 60u64 - joined;
     let diff2: u64 = joined - 20u64;
@@ -31,4 +32,8 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    run(Mode::Mid { val: 40 });
 }

@@ -196,6 +196,11 @@ pub(super) fn analyze(
     {
         let count_proven =
             operation.require_shift_count_within_width(bridge, effective_domain, diagnostics);
+        for pending in &mut decisions.pending_formations {
+            if pending.expression == expression {
+                pending.other_conditions_proven = count_proven;
+            }
+        }
         if count_proven
             && (operator == BinaryOperator::ShiftRight
                 || effective_domain == ArithmeticDomain::Saturating
@@ -1028,6 +1033,35 @@ impl Operation<'_, '_> {
                 }
             }
         }
+        // The completed graph can distinguish a disjoint write from a write
+        // to these operands. Keep this occurrence mandatory until that graph
+        // exists; no successful formation receipt is published here.
+        let definitely_outside = range
+            .high
+            .zip(interval.low)
+            .is_some_and(|(high, low)| low > high)
+            || range
+                .low
+                .zip(interval.high)
+                .is_some_and(|(low, high)| high < low);
+        if !definitely_outside
+            && decisions.allows_pending_formations
+            && self.walk.checks_occurrence_fit
+            && self.walk.specification_facts.is_none()
+            && self.walk.program.storage_graph().is_none()
+            && let Some((machine, state)) = self.walk.machine.zip(self.walk.state)
+        {
+            decisions.pending_formations.push(
+                super::super::storage_formations::PendingIntegerFormation {
+                    machine: machine.symbol,
+                    state: state.symbol,
+                    expression: self.expression,
+                    other_conditions_proven: !self.is_shift(),
+                    diagnostic: self.unrepresentable_diagnostic(primitive),
+                },
+            );
+            return false;
+        }
         self.report_unrepresentable(primitive, diagnostics);
         false
     }
@@ -1156,6 +1190,12 @@ impl Operation<'_, '_> {
     }
 
     fn report_unrepresentable(&self, primitive: PrimitiveType, diagnostics: &mut Vec<Diagnostic>) {
+        diagnostics.push(Diagnostic::error(
+            self.unrepresentable_diagnostic(primitive),
+        ));
+    }
+
+    fn unrepresentable_diagnostic(&self, primitive: PrimitiveType) -> String {
         let program = self.walk.program;
         // When an operand is a value-machine CALL, "constrain the operands'
         // range" is unactionable at the call site -- the fix is to annotate the
@@ -1187,7 +1227,7 @@ impl Operation<'_, '_> {
         } else {
             String::new()
         };
-        diagnostics.push(Diagnostic::error(format!(
+        format!(
             "exact arithmetic in {} may overflow `{}`: the operands are not provably in range \
              (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast \
              to a larger type, constrain the operands' range (bound a parameter with a \
@@ -1198,7 +1238,7 @@ impl Operation<'_, '_> {
             primitive_name(primitive),
             call_hint,
             target_hint,
-        )));
+        )
     }
 
     /// F8 -- the shift-COUNT ruling (ch5, settled 2026-07-18): the count is

@@ -545,8 +545,9 @@ pub(crate) fn validate_machine_call_cycles(
                 // cannot borrow a direct-call singleton exemption.
                 if !witnessed {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine call cycle: `{}` can re-enter itself through a selector call; \
-                         termination across runtime implementation selection is not yet ranked",
+                        "machine call cycle: `{}` can re-enter itself through a selector call or \
+                         boundary requirement call; termination across implementation selection \
+                         is not yet ranked",
                         machine.name
                     )));
                 }

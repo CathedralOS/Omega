@@ -75,4 +75,8 @@ const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
 // Version 39 widens semantic alternative-family tags, not instruction-kind
 // tags or closed form payloads. Older one-byte families are never reinterpreted.
 // Version 41 fences the combined MemoryFence / InvokeNoNormal family roster.
-const VERSION: u32 = 41;
+// Version 42 records private callback address writes in the memory effects.
+// Version 43 retains single-attempt atomic forms and their separate outcome output.
+// Earlier decoders must not interpret an attempt as a decisive exchange.
+// Version 44 combines those atomic outcomes with fixed-width descriptor writes.
+const VERSION: u32 = 46;

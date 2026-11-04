@@ -45,6 +45,7 @@ impl CanonicalCallingSignature {
         } = self.policy;
         let mut application = BoundaryCallingApplication {
             abi: self.abi,
+            calling_owner_application: None,
             requirement_identity: self.requirement_identity,
             target,
             report_fingerprint: 0,

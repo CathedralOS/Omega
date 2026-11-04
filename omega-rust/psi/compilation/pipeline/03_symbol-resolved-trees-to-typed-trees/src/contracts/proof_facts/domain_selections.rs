@@ -59,6 +59,9 @@ pub(crate) fn normalize(
                         &name,
                         Some(selection.source_span()),
                         SymbolHandle::invalid(),
+                        program
+                            .type_reference_table
+                            .type_reference_handles(membership.domain_arguments),
                     );
                 let [domain] = candidates.as_slice() else {
                     continue;

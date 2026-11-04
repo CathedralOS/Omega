@@ -132,3 +132,38 @@ impl OperationFrame<'_, '_> {
         self.bind_scalar_result(identities, coordinate, value)
     }
 }
+
+impl OperationFrame<'_, '_> {
+    pub(super) fn global_descriptor_table(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        operation: language_core::inline_assembly::AsmGlobalDescriptorTableOperation,
+        storage: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        service: language_semantics::ServiceReachId,
+        inputs: &super::CallInputs<'_>,
+    ) -> Result<(), LoweringError> {
+        let service = lookup_service_id(self.service_ids, service)?;
+        let arguments = std::slice::from_ref(storage);
+        let earlier = self
+            .results
+            .earlier(arguments, self.operations, self.evaluation)?
+            .into_owned();
+        let arguments = self.lower_runtime_structural_arguments(
+            identities,
+            arguments,
+            &earlier,
+            inputs.byte_places,
+            inputs.evaluated_selectors,
+            inputs.completed_structural_arguments,
+        )?;
+        // Lowering preserves the checked operand roster, which has one member.
+        for source in arguments {
+            self.push_unit(OperationKind::GlobalDescriptorTable {
+                service,
+                operation,
+                source,
+            });
+        }
+        Ok(())
+    }
+}

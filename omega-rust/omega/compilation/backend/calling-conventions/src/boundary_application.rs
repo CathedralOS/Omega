@@ -10,6 +10,8 @@ use arena::{Arena, HandleSpan};
 use target::NativeTarget;
 mod callback_admission;
 mod callback_catalog;
+mod callback_placements;
+pub use callback_placements::{PrivateCallbackPlacements, encode_private_callback_placements};
 mod identity;
 mod native_telescope;
 mod recovery;
@@ -24,6 +26,9 @@ pub use terminal_telescope::TerminalCallingTelescope;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingApplication {
     pub abi: semantic_vocabulary::CallingAbiIdentity,
+    /// Explicit Calling receiver selected for this plan. Defaults have none;
+    /// they cannot supply a callback binder's missing calling declaration.
+    pub calling_owner_application: Option<String>,
     pub requirement_identity: String,
     pub target: NativeTarget,
     pub report_fingerprint: u64,

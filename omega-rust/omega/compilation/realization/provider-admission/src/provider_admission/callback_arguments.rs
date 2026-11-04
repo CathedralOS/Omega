@@ -42,7 +42,10 @@ pub fn project_native_callback_arguments(
             placement_index: occurrence.placement_index(),
             callback_function: occurrence.callback_thunk_identity(),
             destination: materialization.destination.clone(),
-            field_byte_offset: materialization.destination_application.byte_offset(),
+            field_placements: materialization
+                .destination_application
+                .placements()
+                .cloned(),
             application: application.clone(),
             registrar_boundary_entry_plan: materialization.registrar_boundary_entry_plan.clone(),
             registrar_context: materialization.context.clone(),

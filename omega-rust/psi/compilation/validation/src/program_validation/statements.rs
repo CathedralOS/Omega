@@ -11,6 +11,7 @@ mod integer_establishment;
 mod local_data_statements;
 pub(super) use local_data_statements::validate_type_reference as validate_local_type_reference;
 mod transition_statements;
+mod unreachable_branches;
 
 use crate::value_custody::expression_types::{
     self, ExpressionTypeOwner, validate_expression_type_handle,
@@ -223,14 +224,6 @@ pub(super) fn validate_state_statement_node<'p>(
     let diagnostic_mark = diagnostics.len();
     if let Some(state) = current_state {
         access_views::validate_statement(program, machine, state, statement, diagnostics);
-        crate::proof_contracts::contract_entailment::validate_scalar_loan_handbacks(
-            program,
-            machine,
-            state,
-            statement_index,
-            call_frames,
-            diagnostics,
-        );
     }
     let scope = StatementScope {
         program,
@@ -244,6 +237,16 @@ pub(super) fn validate_state_statement_node<'p>(
         local_write_origins,
         call_frames,
     };
+    if let Some(state) = current_state {
+        unreachable_branches::warn(
+            program,
+            machine,
+            state,
+            statement,
+            value_environment,
+            diagnostics,
+        );
+    }
     let mut outputs = StatementOutputs {
         stored_integer_writes,
         value_environment,
@@ -296,7 +299,7 @@ pub(super) fn validate_state_statement_node<'p>(
 /// The authored position a statement-level diagnostic belongs to. Variant
 /// payloads retain their own spans or expressions worth pointing at; a
 /// machine-free diagnostic reports no position rather than an invented one.
-pub(crate) fn statement_source_span(
+pub fn statement_source_span(
     program: &dyn crate::CheckingInput,
     statement: &StatementNode,
 ) -> Option<source::SourceSpan> {

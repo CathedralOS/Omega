@@ -219,6 +219,13 @@ checked independently of selection; selected ABI, import, layout, and ISA
 applicability is a realization obligation. Retained target-family rows are
 not accepted Terminal product semantics.
 
+An unused representation application is not a validated concrete target plan.
+[Demand-driven layout formation](../layouts/plans.md#layout-demand-and-validation)
+retains ordinary source checking while deferring target geometry until a
+consumer, entry or selected Build-row closure demands it. Another declared
+target row remains a consumer even if it is outside the emitted target set.
+No later consumer may treat absence of an earlier demand as layout acceptance.
+
 The companion binds each target's pending selection to the complete
 build-selection identity. Terminal independently retains the Psi selection already executed.
 A receiving consumer must admit the exact proposed pending selection using its

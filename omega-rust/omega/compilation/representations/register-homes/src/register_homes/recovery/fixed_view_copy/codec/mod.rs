@@ -38,7 +38,10 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 78 distinguishes reads of operation-local storage from source places.
 // Version 83 retains exact formal-relative provider requirement paths.
 // Version 85 preserves foreign reference transport roles on identity-only leaves.
-const VERSION: u32 = 88;
+// Version 89 retains all private callback address placements.
+// Version 90 retains typed descriptor-table instructions.
+// Version 91 separates the occupied owner from its granted backing.
+const VERSION: u32 = 93;
 const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;

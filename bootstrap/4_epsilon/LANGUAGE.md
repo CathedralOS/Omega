@@ -135,8 +135,8 @@ nonwildcard_pattern
                := INT | "true" | "false"
                 | IDENT "::" IDENT binder?
 binder         := "{" (IDENT ("," IDENT)*)? "}"
-continuation   := postfix_expression
-                | "return" expression?
+continuation   := expression
+                | "{" "}"
 
 place          := postfix_expression
 call           := postfix_expression
@@ -197,9 +197,9 @@ The checker classifies a postfix expression by its resolved declaration. A
 `place` may contain only field and single-index suffixes rooted at `self`, a
 parameter, or a local. A `call` must end in a resolved machine application. A
 slice, `.len`, `.as_slice`, constructor, or call is not an assignable place.
-Within a transition, a continuation must resolve uniquely to a state transfer,
-a machine call, or a return. State names and callable names that would make
-that resolution ambiguous reject. Every state transfer has an authored argument
+Within a transition, a continuation resolves to a state transfer, a complete
+expression result, or the explicit empty resultless block. State names and
+callable names that would make that resolution ambiguous reject. Every state transfer has an authored argument
 list, including `()` for a zero-parameter state. A known bare state is not a
 transfer, regardless of its arity, and is `InvalidControlTarget` at the
 continuation expression's first byte. A bare known machine and an unqualified
@@ -496,6 +496,27 @@ machines with those names.
 
 ## 8. Machines, states, and transitions
 
+Named decision: `epsilon-expression-arm-results`, settled 2026-11-03.
+Transition arms use Omega-like expression results rather than an optional
+arm-level `return expression?`. A value expression returns that value; a
+value-returning machine continuation forwards its normal result. `{}` is the
+explicit resultless completion, not a general statement block or a new value
+type. State applications retain their existing same-invocation transfer rule.
+
+```text
+transition code {
+  0 -> 7
+  3 -> compute()
+  _ -> fallback()
+}
+```
+
+Here `compute` and `fallback` return the enclosing machine's result type. A
+resultless machine can instead use `_ -> {}`. Ordinary block-level
+`return expression?;` remains unchanged; `-> return` and `-> return expression`
+are retired arm forms, not alternate spellings. Parsing an expression arm does
+not use the old nullable-return probe to inspect the following pattern.
+
 Unqualified calls bind value parameters. Every owner-qualified data-machine
 call additionally binds its first input to the receiver's mutable data place;
 the declaration spelling `&mut self` has exactly the owning data type. All
@@ -604,9 +625,14 @@ effect. A state application is `StateTransfer` and is compatible with every
 machine category because every target state is checked under that same machine
 category. A resultless machine continuation becomes `Falloff` if it returns; a
 `never` machine continuation is `NoNormalReturn`; and a value-returning machine
-continuation is `TypeMismatch` at the continuation expression start. A value
-return is written explicitly as `-> return expression`; there is no implicit
-machine-tail return effect.
+continuation forwards `ReturnValue(type)` and must match the enclosing machine's
+declared result. Other value expressions have the same `ReturnValue(type)` exit
+without an explicit `return` keyword. The empty `{}` continuation has
+`ReturnNone`; it is valid only for a resultless machine, and a mismatch anchors
+at the opening `{`. A value-result mismatch anchors at the expression's first
+byte. No continuation runs after a selected machine call completes. These rules
+introduce neither general expression statements nor fall-through into another
+arm or state. `never` and state-transfer outcomes keep their existing meanings.
 
 A transition has at least one arm. Its grammar admits at most one `_`, only as
 the final arm. After parsing a wildcard arm the next token must therefore be

@@ -18,6 +18,7 @@ use omega::language::core::filesystem_authority;
 // Expected exit: 70.
 use omega_language_std::posix_filesystem_host;
 use omega_language_std::time;
+use omega_language_std::time_host;
 
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
@@ -26,7 +27,7 @@ data Main {
     time: Time;
 }
 
-machine Main::main(context: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery {
+machine Main::main(context: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + TimeHost {
     let mode: i32 = 438;
     let mut buffer: [u8; 144];
     let descriptor: i32 = PosixFilesystemHost::create("/tmp/omega_time_interop.txt", mode);
@@ -76,7 +77,7 @@ machine Main::main(context: &mut Main) reaches Console + FilesystemContentRead +
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery {
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + TimeHost {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

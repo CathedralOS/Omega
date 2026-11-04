@@ -129,10 +129,28 @@ impl RankProjection {
                 custody.rank_range.unwrap_or_default(),
             ));
         }
-        if matches!(
-            witness.ranking_view,
-            RankingViewId::NAT_DESCENDING | RankingViewId::NAT_INCREASING_TO
-        ) && Some(witness.view_path.as_str()) == witness.ranking_view.canonical_path()
+        // Source lowering elaborates the plain `terminates by value` default
+        // only for a bare formal. A projected subject such as `pending.left`
+        // stays pending, and the checker infers descending naturals from its
+        // unsigned carrier. The component judgment reads that same order.
+        let pending_natural_default = !witness.ranking_view.is_valid()
+            && witness.view_path.is_empty()
+            && witness.view_arguments.is_empty()
+            && custody.view_arguments.is_empty()
+            && member_subject(program, *subject)
+            && integer_subject_carrier(program, machine, entry, *subject, parameter).is_some_and(
+                |primitive| {
+                    matches!(
+                        primitive,
+                        typed_trees::unsigned_integer_primitive_pattern!()
+                    )
+                },
+            );
+        if pending_natural_default
+            || matches!(
+                witness.ranking_view,
+                RankingViewId::NAT_DESCENDING | RankingViewId::NAT_INCREASING_TO
+            ) && Some(witness.view_path.as_str()) == witness.ranking_view.canonical_path()
         {
             let increasing = witness.ranking_view == RankingViewId::NAT_INCREASING_TO;
             let mut limit = ExpressionHandle::invalid();

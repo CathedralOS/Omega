@@ -177,6 +177,78 @@ pub(in crate::execution) fn build_call_operation(
         .symbols
         .builtin_function_for_symbol(call.target_symbol)
         .and_then(|builtin| {
+            language_core::inline_assembly::AsmGlobalDescriptorTableOperation::from_intrinsic_name(
+                builtin.name(),
+            )
+        })
+    {
+        phase("descriptor instruction: borrowed bytes");
+        if expected_call_result.is_some() {
+            return None;
+        }
+        let arguments = validation::call_site_argument_expressions(program, &call_site);
+        let [operand] = arguments else {
+            return None;
+        };
+        let reference = validation::compiler_operations::global_descriptor_table_operand(
+            program,
+            machine,
+            Some(state),
+            *operand,
+            operation,
+        )
+        .ok()?;
+        let parameter = super::structural_arguments::StructuralArgumentType {
+            type_reference: reference,
+            erased: false,
+        };
+        let mut arguments = super::structural_arguments::structural_arguments_for_types(
+            program,
+            shapes,
+            facts,
+            call,
+            machine,
+            state,
+            caller_parameters,
+            caller_trivial_affine_locals,
+            std::slice::from_ref(&parameter),
+            language_semantics::MachineSupplyMode::CheckedBody,
+            false,
+            None,
+            &call_site,
+            call.statement_index,
+            caller_structural_results,
+            caller_operations,
+            trace,
+        )?;
+        if arguments.len() != 1 {
+            return None;
+        }
+        let storage = arguments.pop()?;
+        phase("descriptor instruction: exact MachineControl service");
+        let rows = &facts.service_reaches.rows;
+        let [service] = rows.services(call.service_reach.direct) else {
+            return None;
+        };
+        if !rows
+            .services(call.service_reach.transitive)
+            .contains(service)
+        {
+            return None;
+        }
+        return Some(OperationPlan::GlobalDescriptorTable {
+            coordinate,
+            operation,
+            storage,
+            service: *service,
+            service_reach: call.service_reach,
+        });
+    }
+
+    if let Some(operation) = program
+        .symbols
+        .builtin_function_for_symbol(call.target_symbol)
+        .and_then(|builtin| {
             language_core::inline_assembly::AsmRegisterOperation::from_intrinsic_name(
                 builtin.name(),
             )
@@ -536,6 +608,57 @@ pub(in crate::execution) fn build_call_operation(
         .inspect_err(|reason| phase(reason))
         .ok()?
     };
+
+    if let Some((operation, expected_service)) =
+        validation::compiler_operations::descriptor_table_operation(program, target_machine)
+            .inspect_err(|reason| phase(reason))
+            .ok()?
+    {
+        let expected = match operation {
+            language_core::descriptor_tables::DescriptorTableOperation::ActivateTask { .. }
+            | language_core::descriptor_tables::DescriptorTableOperation::ReloadSegments {
+                ..
+            } => PrimitiveType::U8,
+            language_core::descriptor_tables::DescriptorTableOperation::ReadTask
+            | language_core::descriptor_tables::DescriptorTableOperation::ReadSegment { .. } => {
+                PrimitiveType::U16
+            }
+        };
+        if !matches!(expected_call_result, Some(ExpectedCallValueResult::Scalar(actual)) if actual == expected)
+        {
+            phase("descriptor operation lost its scalar result");
+            return None;
+        }
+        let rows = &facts.service_reaches.rows;
+        let [service] = rows.services(call_target.service_reach.direct) else {
+            phase("descriptor operation requires exactly its MachineControl service");
+            return None;
+        };
+        if *service != expected_service
+            || !rows
+                .services(call_target.service_reach.transitive)
+                .contains(service)
+        {
+            phase("descriptor call changed its checked MachineControl authority");
+            return None;
+        }
+        return CheckedUnitCallPlan::new(CheckedUnitCallParts {
+            coordinate,
+            source_site,
+            target: call_target,
+            route: CheckedUnitCallRoute::DescriptorTable {
+                operation,
+                service: *service,
+                result_type: expected,
+            },
+            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+            scalar_arguments,
+            structural_arguments,
+            result: CheckedUnitCallResult::Unit,
+            transfers: CallTransfers::Claims(transfers),
+        })
+        .map(OperationPlan::Call);
+    }
 
     if no_normal {
         CheckedUnitCallPlan::new(CheckedUnitCallParts {

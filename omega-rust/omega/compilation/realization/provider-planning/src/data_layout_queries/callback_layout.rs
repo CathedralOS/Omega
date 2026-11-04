@@ -25,7 +25,7 @@ pub struct PrivateCallbackLayout {
     fields: Arena<PrivateCallbackInlineField>,
     path: HandleSpan<PrivateCallbackInlineField>,
     terminal_slot: TargetClosedPrivateCallbackDemand,
-    composed_offset: usize,
+    composed_placements: calling_conventions::PrivateCallbackPlacements,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,8 +73,8 @@ impl PrivateCallbackLayout {
     pub const fn terminal_slot(&self) -> &TargetClosedPrivateCallbackDemand {
         &self.terminal_slot
     }
-    pub const fn composed_offset(&self) -> usize {
-        self.composed_offset
+    pub fn composed_placements(&self) -> &[layout_plans::LayoutPlacementReport] {
+        self.composed_placements.as_slice()
     }
 
     pub(crate) fn from_fields(
@@ -84,19 +84,25 @@ impl PrivateCallbackLayout {
     ) -> Result<Self, String> {
         let mut fields = Arena::with_capacity(inline_fields.len());
         let mut path = HandleSpan::empty();
-        let mut composed_offset = terminal_slot.offset;
+        let mut base = 0u64;
         for field in inline_fields {
-            composed_offset = composed_offset
-                .checked_add(field.offset)
+            base = base
+                .checked_add(field.offset as u64)
                 .ok_or_else(|| "callback inline path offset overflowed".to_owned())?;
             fields.append_to_span(&mut path, field.clone());
         }
+        let composed_placements = layout_plans::compose_private_callback_placements(
+            terminal_slot.placements.as_slice(),
+            base,
+        )?;
         Ok(Self {
             root_layout,
             fields,
             path,
             terminal_slot,
-            composed_offset,
+            composed_placements: calling_conventions::PrivateCallbackPlacements::new(
+                &composed_placements,
+            ),
         })
     }
 

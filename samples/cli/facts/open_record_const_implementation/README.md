@@ -18,6 +18,12 @@ On base `3ddc7d1455f182d54645df101870ea9b441b9019`, `omega --check` of [local](l
 
 Measured on macOS arm64 with the `factsr1` shared opt-level 1 producer (built at `9ff26a870215d1a351e830cacd1255a852e3dd1e`): the root and all nine places run `omega run --both` with native exit 0 and Terminal exit 0 (10/10 agree), and all nine `<place>/invalid` twins exit 1 at checking with the verbatim diagnostic "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments". Each twin differs from its positive on exactly one line: the selected implementation's record field `minimum: Base + 4` becomes `minimum: Base + 3`; the required argument, the consuming `value - 7` and every other line stay identical. Recorded on macOS arm64 at `ab30b42820ea+wt`: 18 rows in `corpus_outcomes.txt` (9 `checked check-target:macos_arm64`, 9 `rejected expected` carrying both diagnostics), 9 rows in `corpus_native_macos_arm64.txt` (`built ... exit:0`) and 9 rows in `corpus_both_macos_arm64.txt` (`exit:0 interpreter-exit:0 interpreter:agrees`). Both `<place>/invalid` families and the root invalid control also carry their intended-invalid `sample.json`; the sample check gate reports 40/40 checked with 20/20 intended rejection controls matched.
 
+The [specialization agreement control](controls/specialization_agreement/main.omg)
+selects `Selected<Configuration { minimum: 7 }>` for a bound that requires
+`Configuration { minimum: Base + 4 }`. The two agree only at Base = 3, the one specialization `main` uses,
+but the generic body must hold for every admitted Base, so it rejects in the
+body.
+
 ## Build-owned target-body migration
 
 The `target_body` place and its twin carry no source target prefix.

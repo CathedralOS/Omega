@@ -325,6 +325,135 @@ pub(super) fn validate_operation(
             sources.push((result.value, Source::Home(*result_home)));
         }
         (
+            TargetUnitOperation::ActivateTaskRegister {
+                psi_operation,
+                service,
+                entries,
+                gdt,
+                task_state,
+                selector,
+                scratch,
+                result_home,
+            },
+            AbstractOperation::ActivateTaskRegister {
+                psi_operation: expected_operation,
+                service: expected_service,
+                entries: expected_entries,
+                gdt: expected_gdt,
+                task_state: expected_task,
+                selector: expected_selector,
+                scratch: expected_scratch,
+                result,
+            },
+        ) => {
+            if psi_operation != expected_operation
+                || service != expected_service
+                || entries != expected_entries
+                || gdt != expected_gdt
+                || task_state != expected_task
+                || scratch != expected_scratch
+                || !sources
+                    .iter()
+                    .any(|(identity, source)| identity == expected_selector && source == selector)
+                || result_home.defining_operation != *psi_operation
+                || result_home.source_value != result.value
+                || result_home.scalar_type != result.scalar_type
+                || Some(result_home.shape) != super::super::scalar_shape(result.scalar_type)
+            {
+                return Err(LegalizationError::custody());
+            }
+            sources.push((result.value, Source::Home(*result_home)));
+        }
+        (
+            TargetUnitOperation::ReadTaskRegister {
+                psi_operation,
+                service,
+                result_home,
+            },
+            AbstractOperation::ReadTaskRegister {
+                psi_operation: expected_operation,
+                service: expected_service,
+                result,
+            },
+        ) => {
+            if psi_operation != expected_operation
+                || service != expected_service
+                || result_home.defining_operation != *psi_operation
+                || result_home.source_value != result.value
+                || result_home.scalar_type != result.scalar_type
+                || Some(result_home.shape) != super::super::scalar_shape(result.scalar_type)
+            {
+                return Err(LegalizationError::custody());
+            }
+            sources.push((result.value, Source::Home(*result_home)));
+        }
+        (
+            TargetUnitOperation::ReloadSegmentDescriptors {
+                psi_operation,
+                service,
+                entries,
+                gdt,
+                kind,
+                selector,
+                scratch,
+                result_home,
+            },
+            AbstractOperation::ReloadSegmentDescriptors {
+                psi_operation: expected_operation,
+                service: expected_service,
+                entries: expected_entries,
+                gdt: expected_gdt,
+                kind: expected_kind,
+                selector: expected_selector,
+                scratch: expected_scratch,
+                result,
+            },
+        ) => {
+            if psi_operation != expected_operation
+                || service != expected_service
+                || entries != expected_entries
+                || gdt != expected_gdt
+                || kind != expected_kind
+                || scratch != expected_scratch
+                || !sources
+                    .iter()
+                    .any(|(identity, source)| identity == expected_selector && source == selector)
+                || result_home.defining_operation != *psi_operation
+                || result_home.source_value != result.value
+                || result_home.scalar_type != result.scalar_type
+                || Some(result_home.shape) != super::super::scalar_shape(result.scalar_type)
+            {
+                return Err(LegalizationError::custody());
+            }
+            sources.push((result.value, Source::Home(*result_home)));
+        }
+        (
+            TargetUnitOperation::ReadSegmentSelector {
+                register,
+                psi_operation,
+                service,
+                result_home,
+            },
+            AbstractOperation::ReadSegmentSelector {
+                register: expected_register,
+                psi_operation: expected_operation,
+                service: expected_service,
+                result,
+            },
+        ) => {
+            if psi_operation != expected_operation
+                || service != expected_service
+                || register != expected_register
+                || result_home.defining_operation != *psi_operation
+                || result_home.source_value != result.value
+                || result_home.scalar_type != result.scalar_type
+                || Some(result_home.shape) != super::super::scalar_shape(result.scalar_type)
+            {
+                return Err(LegalizationError::custody());
+            }
+            sources.push((result.value, Source::Home(*result_home)));
+        }
+        (
             TargetUnitOperation::RegisterAccess {
                 psi_operation,
                 service,
@@ -582,6 +711,8 @@ pub(super) fn validate_operation(
             AbstractOperation::EstablishStructuralArray { .. }
             | AbstractOperation::EstablishScalarArray { .. }
             | AbstractOperation::EstablishActivationClaim { .. }
+            | AbstractOperation::SplitActivationClaim { .. }
+            | AbstractOperation::MergeActivationClaim { .. }
             | AbstractOperation::ReleaseActivationClaim { .. }
             | AbstractOperation::EstablishNativeCodeLayout { .. }
             | AbstractOperation::EstablishRecord { .. }
@@ -944,6 +1075,23 @@ pub(super) fn validate_operation(
             && sources.iter().any(|(identity, source)| {
                 *identity == value.value && source.scalar_type() == value.scalar_type
             }) => {}
+        (
+            TargetUnitOperation::GlobalDescriptorTable {
+                psi_operation,
+                service,
+                operation,
+                source,
+            },
+            AbstractOperation::GlobalDescriptorTable {
+                psi_operation: expected_operation,
+                service: expected_service,
+                operation: expected_kind,
+                source: expected_source,
+            },
+        ) if psi_operation == expected_operation
+            && service == expected_service
+            && operation == expected_kind
+            && source == expected_source => {}
         (
             TargetUnitOperation::StorageAddress {
                 psi_operation,

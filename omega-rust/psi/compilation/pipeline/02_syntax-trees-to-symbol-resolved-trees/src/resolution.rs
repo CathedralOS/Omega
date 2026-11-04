@@ -19,7 +19,6 @@ pub(crate) mod lowerer;
 pub(crate) mod operand_owners;
 pub(crate) mod type_inputs;
 
-use crate::constant::initializer_dependencies::restore_const_call_targets;
 use crate::lowering::state::LexicalInputDemand;
 use crate::preparation::declaration_selection::ConstantSelection;
 use crate::symbols::assign_lexical_inputs;
@@ -674,27 +673,6 @@ fn finish_resolved_tables(
     bind_sibling_calls(&mut lowerer.symbol_resolved_trees, inputs, machines);
     crate::symbols::recursive_tail_calls::normalize(&mut lowerer.symbol_resolved_trees, machines);
     crate::symbols::target_machine_families::prepare_premises(&mut lowerer.symbol_resolved_trees)?;
-    // Rejoin declaration-owned initializer targets after ordinary source
-    // resolution and named-implementation routing, before typing saved recipes.
-    let expressions = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .iter_expressions()
-        .filter(|(handle, _)| {
-            lowerer.seed.as_ref().is_none_or(|seed| {
-                !seed
-                    .source
-                    .tables
-                    .bodies
-                    .expressions
-                    .expression_is_valid(*handle)
-            })
-        })
-        .map(|(handle, _)| handle)
-        .collect::<Vec<_>>();
-    restore_const_call_targets(&mut lowerer.symbol_resolved_trees, &expressions);
     Ok(())
 }
 
@@ -715,3 +693,5 @@ pub fn resolve_call_result_selection(
 
 #[cfg(test)]
 mod call_result_selection_tests;
+#[cfg(test)]
+mod primitive_family_binding_tests;

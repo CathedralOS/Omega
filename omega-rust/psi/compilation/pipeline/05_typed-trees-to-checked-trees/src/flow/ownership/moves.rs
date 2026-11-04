@@ -97,15 +97,17 @@ pub(super) fn append_move_events_for_expression(
     if matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Indexed(_)
-    ) && observations::append_indexed_operands(
-        program,
-        sink,
-        state_symbol,
-        statement_index,
-        expression,
-        source,
-    ) == Some(true)
-    {
+    ) && matches!(
+        observations::append_indexed_operands(
+            program,
+            sink,
+            state_symbol,
+            statement_index,
+            expression,
+            source,
+        ),
+        Some(observations::IndexedResult::FreshValue)
+    ) {
         return;
     }
 

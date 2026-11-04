@@ -510,7 +510,12 @@ pub(crate) fn bound_symbol_declared_type(
     found
 }
 
+mod array_extents;
 mod attached_storage;
+pub use array_extents::{
+    ResolvedArrayExtent, resolved_array_extent, resolved_array_extent_at,
+    resolved_projected_array_extent,
+};
 mod builtin_coordinates;
 mod exact_self_field;
 mod structural_scalar_field;
@@ -811,10 +816,13 @@ mod canonical_projection;
 pub use canonical_projection::{
     CanonicalPlace, canonical_collection_element_place, canonical_place_from_expression,
     canonical_place_from_expression_in_state, element_place_segment, index_place_segment,
-    place_root_may_be_symbol, push_field_place_segments, window_coordinate,
+    place_root_may_be_symbol, push_field_place_segments, storage_operand,
+    storage_place_from_expression_in_state, window_coordinate,
 };
 mod contextual_projection;
-pub use contextual_projection::contextual_canonical_place_from_expression;
+pub use contextual_projection::{
+    contextual_canonical_place_from_expression, resolve_member_symbol_from_place,
+};
 mod member_resolution;
 pub use member_resolution::{
     effective_member_symbol, expression_place_type_reference, expression_type_symbol,

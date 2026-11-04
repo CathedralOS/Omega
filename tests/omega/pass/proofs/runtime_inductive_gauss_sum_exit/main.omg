@@ -15,9 +15,9 @@ data Main {
     count: u64 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches Console {
     main.count = 4;
-    let total: u64 in Wrapping = Main::gauss_sum(main.count, 0);
+    let total: u64 in Wrapping = gauss_sum(main.count, 0);
     transition total == 10 {
         true -> good(main)
         _ -> bad(main)
@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 }
 
-machine Main::gauss_sum(n: u64 in Wrapping, acc: u64 in Wrapping) -> u64 in Wrapping
+machine gauss_sum(n: u64 in Wrapping, acc: u64 in Wrapping) -> u64 in Wrapping
 terminates by n
 ensures
     result * 2 == acc * 2 + n * (n + 1)
@@ -46,5 +46,5 @@ ensures
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

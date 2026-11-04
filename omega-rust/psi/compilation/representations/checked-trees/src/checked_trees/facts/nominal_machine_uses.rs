@@ -140,6 +140,10 @@ pub struct CheckedNominalMachineUse {
     pub static_machine_ordinal: u32,
     pub selected_machine: SymbolHandle,
     pub selected_entry: SymbolHandle,
+    /// The binder's chosen child may supply Calling while the parent below
+    /// owns the handler requirement. A sibling child supplies neither choice.
+    pub receiving_trait: SymbolHandle,
+    pub receiving_application: Result<String, String>,
     pub satisfaction_trait: SymbolHandle,
     pub satisfaction_requirement: SymbolHandle,
     pub canonical_requirement_overload: String,
@@ -149,6 +153,9 @@ pub struct CheckedNominalMachineUse {
     /// the checked entry's resources, not an evaluated target ABI. Realization
     /// must supply the exact calling application for this requirement.
     pub callback_entry: Option<CheckedCallbackResourceReceipt>,
+    /// Executable inbound declarations prepared with this checked use. Lowering
+    /// retains this roster rather than inspecting the handler's source form.
+    pub callback_requirements: Vec<SymbolHandle>,
     /// Receipt for the callable-refinement judgment already discharged by
     /// static-machine admission. The endpoints remain explicit so consumers
     /// never infer the relationship merely from two nearby identities.

@@ -461,6 +461,23 @@ fn reads_survive(
                     collection_length_receiver(program, machine, Some(state), node).unwrap_or(node);
                 frames
                     .reference_expression_origins_before_statement(machine, statement, source)
+                    .or_else(|| {
+                        // When the element itself has no exact origin, its
+                        // collection's footprint covers the collection
+                        // and every element, so any write to either still
+                        // withdraws the read while a disjoint sibling write keeps
+                        // it. The index is checked separately as a value read.
+                        let ExpressionNode::Indexed(indexed) =
+                            program.expression_table.expression(node)
+                        else {
+                            return None;
+                        };
+                        frames.reference_expression_origins_before_statement(
+                            machine,
+                            statement,
+                            indexed.collection,
+                        )
+                    })
                     .and_then(|origins| {
                         origins
                             .into_iter()

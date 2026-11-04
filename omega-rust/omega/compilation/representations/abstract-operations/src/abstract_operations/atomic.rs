@@ -51,9 +51,9 @@ use terminal_psi::{
 };
 
 use crate::{AbstractOperation, AbstractResult};
-use scalar_owned_storage::contains_only_scalars;
+use scalar_storage::contains_only_scalars;
 
-mod scalar_owned_storage;
+mod scalar_storage;
 
 /// The fetch-family arithmetic one normalized atomic read-modify-write
 /// performs. `AtomicOrderingPlan::ReadModifyWrite` deliberately erases this
@@ -193,13 +193,15 @@ pub struct AbstractAtomicLocation {
 }
 
 /// Distinct simultaneous exclusive arrivals have disjoint live storage after
-/// ownership validation, and quoted bytes are immutable image storage that
-/// holds and reaches no atomic cell — lending them, as a console write of a
-/// string literal does, writes nothing. Shared roots, unknown roots, and roots
-/// from different arrival groups supply no such evidence; the latter can
-/// rename the same home. A stored-reference crossing leaves its carrier storage,
-/// so exclusive carrier roots do not establish disjoint referents. The producer
-/// naming each event's reaching write and its independent replay share this judgment.
+/// ownership validation. An exclusive arrival containing only ordinary scalar
+/// storage is also disjoint from the other arrivals: its checked loan cannot
+/// overlap them, and it has no nested reference through which a callee could
+/// reach them. Quoted bytes are immutable image storage with no atomic cell.
+/// Unknown roots and roots from different arrival groups supply no such
+/// evidence; the latter can rename the same home. A stored-reference crossing
+/// leaves its carrier storage, so these direct-storage relations cannot prove
+/// its referents disjoint. The reaching-write producer and independent replay
+/// share this judgment.
 pub fn atomic_projections_may_alias<'parameters, 'types>(
     places: &[terminal_psi::StructuralPlaceDeclaration],
     arrivals: impl Iterator<Item = &'parameters [terminal_psi::StructuralParameterDeclaration]>,
@@ -248,7 +250,23 @@ pub fn atomic_projections_may_alias<'parameters, 'types>(
                                 )
                         })
                     };
+                    let closed_exclusive = |root| {
+                        parameters.iter().any(|parameter| {
+                            parameter.place == root
+                                && matches!(
+                                    parameter.access,
+                                    StructuralAccess::Owned
+                                        | StructuralAccess::MutableBorrow
+                                        | StructuralAccess::WriteOnlyBorrow
+                                )
+                                && contains_only_scalars(types.clone(), parameter.structural_type)
+                        })
+                    };
+                    let has_root =
+                        |root| parameters.iter().any(|parameter| parameter.place == root);
                     exclusive(left) && exclusive(right)
+                        || closed_exclusive(left) && has_root(right)
+                        || closed_exclusive(right) && has_root(left)
                 })))
 }
 

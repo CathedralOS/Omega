@@ -15,7 +15,6 @@ use facts::PlaceRoot;
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
-use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::TypeReferenceHandle;
@@ -38,7 +37,7 @@ pub(crate) fn argument(
     owner: PlaceRoot,
     reference: TypeReferenceHandle,
     result: &CheckedUnitStructuralResultBindingPlan,
-    parameter: &StateParameter,
+    parameter: TypeReferenceHandle,
     target_identity: TypeIdentityId,
     trace: &LocalConstructionTrace,
     selectors: Option<&dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>>,
@@ -51,7 +50,7 @@ pub(crate) fn argument(
     let (referent, carrier_access) =
         reference_result_custody::stored_loan_parts(program, reference)?;
     phase("result reference argument: formal access");
-    let access = structural_access_for_type_reference(program, parameter.type_reference)?;
+    let access = structural_access_for_type_reference(program, parameter)?;
     phase("stored reference argument: access");
     if access == CheckedStructuralAccess::Owned {
         return None;
@@ -88,7 +87,7 @@ pub(crate) fn argument(
             program,
             referent,
             vec![CheckedUnitStructuralPathSegment::Referent],
-            parameter.type_reference,
+            parameter,
         )?
     } else {
         phase("result reference argument: projected referent path");
@@ -99,7 +98,7 @@ pub(crate) fn argument(
             program,
             referent,
             vec![CheckedUnitStructuralPathSegment::Referent],
-            parameter.type_reference,
+            parameter,
         )?;
         let ProjectedArgumentPath {
             storage_type: selected,
@@ -114,7 +113,7 @@ pub(crate) fn argument(
             selectors,
         )?;
         path.extend(suffix);
-        borrowed_argument_endpoint(program, selected, path, parameter.type_reference)?
+        borrowed_argument_endpoint(program, selected, path, parameter)?
     };
     phase("stored reference argument: lent endpoint");
     phase("stored reference argument: receiving identity");

@@ -34,26 +34,26 @@ machine same_canonical_path(left: &[u8; 1024], right: &[u8; 1024]) -> bool {
     }
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_canon_alias.txt");
     main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_canon_file.txt");
     main.result = block Filesystem::write_all(&mut main.filesystem, "/tmp/omega_canon_file.txt", "canonical");
-    transition main.result { UnitResult::Ok -> link(main) _ -> cleanup(main, false) }
+    transition main.result { UnitResult::Ok -> block link(main) _ -> block cleanup(main, false) }
     machine link(main: &mut Main) {
         main.result = block Filesystem::symlink(&mut main.filesystem, "/tmp/omega_canon_file.txt", "/tmp/omega_canon_alias.txt");
-        transition main.result { UnitResult::Ok -> target(main) _ -> cleanup(main, false) }
+        transition main.result { UnitResult::Ok -> block target(main) _ -> block cleanup(main, false) }
     }
     machine target(main: &mut Main) {
         main.result = block Filesystem::canonicalize(&mut main.filesystem, "/tmp/omega_canon_file.txt", &mut main.target);
-        transition main.result { UnitResult::Ok -> alias(main) _ -> cleanup(main, false) }
+        transition main.result { UnitResult::Ok -> block alias(main) _ -> block cleanup(main, false) }
     }
     machine alias(main: &mut Main) {
         main.result = block Filesystem::canonicalize(&mut main.filesystem, "/tmp/omega_canon_alias.txt", &mut main.alias);
-        transition main.result { UnitResult::Ok -> compare(main) _ -> cleanup(main, false) }
+        transition main.result { UnitResult::Ok -> block compare(main) _ -> block cleanup(main, false) }
     }
     machine compare(main: &mut Main) {
         let same: bool = same_canonical_path(&main.target, &main.alias);
-        transition { _ -> cleanup(main, same) }
+        transition { _ -> block cleanup(main, same) }
     }
     machine cleanup(main: &mut Main, correct: bool) {
         main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_canon_alias.txt");
@@ -65,7 +65,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

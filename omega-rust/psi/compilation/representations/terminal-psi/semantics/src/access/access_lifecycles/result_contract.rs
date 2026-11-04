@@ -148,7 +148,7 @@ pub fn access_result_contract<'module>(
             let [returned_field, reason] = rejected.fields.as_slice() else {
                 return Err("placement Rejected must carry its returned inputs and reason");
             };
-            require_type(resident, plan.storage.carrier)?;
+            require_type(resident, plan.storage.owner_carrier())?;
             let returned_type = structural_type(returned_field)?;
             let Some(StructuralTypeShape::Record { fields, .. }) = module
                 .structural_type(returned_type)
@@ -163,15 +163,58 @@ pub fn access_result_contract<'module>(
             require_type(&returned[0], plan.storage.carrier)?;
             require_type(&returned[1], plan.schema)?;
             let failures = failure_cases(module, reason)?;
-            storage_qualifications(
-                result,
-                &[
-                    StructuralPathSegment::Case(ready.id),
-                    StructuralPathSegment::Field(resident.identity),
-                ],
-                plan.storage.granted,
-                resident_domain,
-            )?;
+            let owner_path = [
+                StructuralPathSegment::Case(ready.id),
+                StructuralPathSegment::Field(resident.identity),
+            ];
+            match plan.storage.owner {
+                terminal_psi::TerminalAccessOwner::Extent => storage_qualifications(
+                    result,
+                    &owner_path,
+                    plan.storage.granted,
+                    resident_domain,
+                )?,
+                terminal_psi::TerminalAccessOwner::Run {
+                    carrier,
+                    storage,
+                    singleton,
+                    ..
+                } => {
+                    let singleton = singleton
+                        .ok_or("typed run initialization lost its singleton qualification")?;
+                    let (whole, descendants) = StructuralPathQualification::select(
+                        &result.qualifications,
+                        &result.projected_qualifications,
+                        &owner_path,
+                    );
+                    let Some(StructuralTypeShape::Record { fields, .. }) = module
+                        .structural_type(carrier)
+                        .map(|declaration| &declaration.shape)
+                    else {
+                        return Err("typed run initialization lost its owner record");
+                    };
+                    let backing = fields
+                        .iter()
+                        .find(|field| field.id == storage)
+                        .ok_or("typed run initialization lost its backing field")?;
+                    let (backing_domains, nested) = StructuralPathQualification::select(
+                        &whole,
+                        &descendants,
+                        &[StructuralPathSegment::Field(backing.identity)],
+                    );
+                    if whole.len() != 2
+                        || !whole.contains(&resident_domain)
+                        || !whole.contains(&singleton)
+                        || backing_domains.as_slice() != [plan.storage.granted]
+                        || !nested.is_empty()
+                        || descendants.len() != 1
+                    {
+                        return Err(
+                            "typed run initialization changed its live owner or nested backing qualifications",
+                        );
+                    }
+                }
+            }
             storage_qualifications(
                 result,
                 &[

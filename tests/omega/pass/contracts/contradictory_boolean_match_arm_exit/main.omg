@@ -1,0 +1,14 @@
+// A Boolean saved from `count >= 10` keeps that comparison: under the same
+// requirement its `false` arm is ruled out, so that arm's subtraction closes
+// and the compiler warns that the arm is unreachable.
+machine pick(count: u64) -> u64
+requires count >= 10
+{
+    let flag: bool = count >= 10;
+    match flag { true -> count, false -> count - 100u64 }
+}
+machine main() crashes Trap {
+    transition pick(12) == 12 && pick(99) == 99 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

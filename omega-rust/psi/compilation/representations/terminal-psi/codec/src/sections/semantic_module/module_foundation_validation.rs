@@ -1028,6 +1028,15 @@ fn validate_operation_foundation(
         call_structural_pair_pattern!(..) => validate_call_structural(module, machine, operation)?,
         OperationKind::BoundaryCall { .. } => validate_boundary_call(module, machine, operation)?,
         OperationKind::PortWrite { .. } => validate_port_write(module, operation)?,
+        OperationKind::ActivateTaskRegister { .. }
+        | OperationKind::ReadTaskRegister { .. }
+        | OperationKind::ReloadSegmentDescriptors { .. }
+        | OperationKind::ReadSegmentSelector { .. } => {
+            storage_foundations::validate_descriptor_operation(module, machine, operation)?
+        }
+        OperationKind::GlobalDescriptorTable { .. } => {
+            storage_foundations::validate_global_descriptor_table(module, machine, operation)?
+        }
         OperationKind::RegisterAccess { .. } => {
             validate_register_access(module, machine, operation)?
         }

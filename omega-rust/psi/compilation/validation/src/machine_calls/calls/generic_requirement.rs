@@ -82,16 +82,27 @@ pub fn requirement_contract_signature<'program>(
     caller: symbols::SymbolHandle,
     site: &super::CallSite<'_>,
 ) -> Option<(&'program TraitDefinition, &'program StateSignature)> {
+    resolve_requirement_contract(program, caller, site).ok()
+}
+
+/// Admission needs the precise refusal when a selected public contract is
+/// unavailable. Optional signature queries above use the same resolution.
+pub fn resolve_requirement_contract<'program>(
+    program: &'program dyn crate::CheckingInput,
+    caller: symbols::SymbolHandle,
+    site: &super::CallSite<'_>,
+) -> Result<(&'program TraitDefinition, &'program StateSignature), &'static str> {
     let target = site.target_symbol(program);
     let public_target = if let Some(dispatch) = site.static_requirement_dispatch() {
-        if !super::closed_requirement_dispatch_is_valid(program, caller, target, dispatch) {
-            return None;
-        }
+        super::closed_dispatch::validate_closed_requirement_dispatch(
+            program, caller, target, dispatch,
+        )?;
         dispatch.contract_symbol()
     } else {
         target
     };
-    let (declaration, selected) = selected_requirement_signature(program, public_target)?;
+    let (declaration, selected) = selected_requirement_signature(program, public_target)
+        .ok_or("selected public declaration has no requirement signature")?;
     let exact = match site {
         super::CallSite::Expression { call, .. } => {
             program.requirement_call_signature(caller, call)
@@ -106,7 +117,9 @@ pub fn requirement_contract_signature<'program>(
             || program
                 .closed_requirement_application(selected.symbol)
                 .is_some_and(|closed| closed.template == signature.symbol);
-        return same_source.then_some((declaration, signature));
+        return same_source
+            .then_some((declaration, signature))
+            .ok_or("applied public signature belongs to a different source declaration");
     }
     let requires_exact_application = match site {
         super::CallSite::Expression { call, .. } => {
@@ -116,9 +129,9 @@ pub fn requirement_contract_signature<'program>(
         super::CallSite::TransitionNamed { .. } => false,
     };
     if requires_exact_application {
-        return None;
+        return Err("selected call has no exact applied public signature");
     }
-    Some((declaration, selected))
+    Ok((declaration, selected))
 }
 
 /// The requirement already selected its trait telescope. Raw signature handles

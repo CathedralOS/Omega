@@ -146,18 +146,21 @@ pub fn structural_state_contract_predicates(
             .primitive_type_reference(parameter.type_reference)
             .is_some()
         {
-            if !parameter.is_mutable {
-                expected.extend(
-                    crate::scalar_predicate_domains(program, parameter.type_reference)
-                        .into_iter()
-                        .chain(crate::scalar_type_tags(program, parameter.type_reference))
-                        .chain(crate::scalar_type_routed_domains(
-                            program,
-                            parameter.type_reference,
-                        ))
-                        .map(|(_, domain)| (parameter.symbol, domain.0)),
-                );
-            }
+            // An owned scalar's declared qualification is its caller's arrival
+            // obligation whether or not the body may rebind it: `mut` lets the
+            // body write the binding, assignments must preserve the domain,
+            // and other writes invalidate the membership. The synthesized
+            // membership restatement therefore matches for both bindings.
+            expected.extend(
+                crate::scalar_predicate_domains(program, parameter.type_reference)
+                    .into_iter()
+                    .chain(crate::scalar_type_tags(program, parameter.type_reference))
+                    .chain(crate::scalar_type_routed_domains(
+                        program,
+                        parameter.type_reference,
+                    ))
+                    .map(|(_, domain)| (parameter.symbol, domain.0)),
+            );
             continue;
         }
         let reference = program

@@ -1,8 +1,7 @@
-//! Publish the structural result of one bounded compare-exchange instruction.
-//! The CAS output is the instruction-observed resident. x86 CMPXCHG and ARM
-//! LSE CAS complete without a retry loop, so these realizations select only
-//! Mismatched or Exchanged. The third case remains in the outcome schema;
-//! no contention or synthetic spurious failure is invented to select it.
+//! Store the observed resident and outcome produced by one atomic attempt.
+//! The native form owns the commit decision. Equality alone cannot distinguish
+//! an exchanged value from a matching load whose exclusive store failed.
+//! The checked canonical layout still owns the tag and payload storage.
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
     ScalarType, SelectedInstructionKind, SelectedMemoryAccessRole, VirtualRegisterId, invalid,
@@ -15,7 +14,7 @@ pub(super) fn establish(
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
     observed: VirtualRegisterId,
-    expected: VirtualRegisterId,
+    tag: VirtualRegisterId,
     scalar: ScalarType,
 ) -> Result<(), SelectedInstructionError> {
     let LegalizedScalarInstructionKind::AtomicAccess {
@@ -56,19 +55,6 @@ pub(super) fn establish(
         )?;
         normalized
     };
-    let tag = transport_register(builder, result.place, layout.tag_byte_offset)?;
-    builder.emit(
-        SelectedInstructionKind::CompareI64,
-        builder.constraints.keys.compare_i64,
-        &[prior, expected],
-        provenance(row),
-    )?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeBooleanEqual,
-        builder.constraints.keys.materialize_boolean,
-        &[tag],
-        provenance(row),
-    )?;
     let pointer = super::record::initialize_storage(row, builder, result.place, layout.shape)?;
     let payload = &layout.cases[0].fields[0];
     if layout.cases[2].fields != layout.cases[0].fields {

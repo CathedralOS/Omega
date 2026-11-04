@@ -10,11 +10,13 @@
 //! position matches its tags exhaustively, so a production is either read or
 //! refused with a reason that says why no retained policy contains it.
 
+mod callable_display;
 mod framing;
 mod grammar;
 mod index;
 mod lifetime_partition;
 pub mod vocabulary;
+pub use callable_display::callable_display_path;
 pub use lifetime_partition::normalize_requirement_lifetime_partition;
 
 /// Closed failures without source/compiler handles or allocated diagnostics.

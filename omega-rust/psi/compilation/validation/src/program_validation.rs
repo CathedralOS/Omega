@@ -1,4 +1,6 @@
-//! Validate typed programs and retain the analyses consumed by checking.
+//! Validate typed declarations, then finish proofs that need storage history.
+//! Pending storage proofs remain obligations until the shared graph is ready.
+//! All must succeed before checked publication; they never justify their own result.
 
 use crate::declarations::standard_declarations;
 use crate::declarations::state_signatures::validate_callable_state_signatures;
@@ -53,6 +55,7 @@ pub use contract_queries::{
     validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
 };
 pub use dependency_bodies::{DependencyBodyJudgment, FrozenDependencyBody};
+pub use statements::statement_source_span;
 use statements::validate_state_statement_node;
 
 pub use checked_trees::operators::ExactIntegerCastFact;
@@ -61,6 +64,9 @@ use crate::proof_contracts::arithmetic_domains::ExpressionInterval;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramValidationFacts {
+    pending_integer_formations:
+        Vec<arithmetic_domains::storage_formations::PendingIntegerFormation>,
+    pending_construction_predicates: Vec<struct_literals::PendingConstructionPredicates>,
     pub quotient_formations: Vec<quotients::ValidatedQuotientFormation>,
     pub integer_range_obligations: Vec<checked_trees::IntegerRangeObligation>,
     pub static_machine_selections: machine_parameters::PreparedStaticMachineSelections,
@@ -91,6 +97,31 @@ pub struct ProgramValidationFacts {
     /// Independently judged exact self-call decreases for private progress;
     /// semantic predecessors do not authorize structural induction hypotheses.
     pub self_call_descents: Vec<crate::ValidatedSelfCallDescent>,
+}
+
+impl ProgramValidationFacts {
+    /// Finish the occurrence proofs postponed until the storage graph exists.
+    /// No pending row is removed unless the entire batch succeeds.
+    pub fn discharge_storage_formations(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let proven = arithmetic_domains::storage_formations::discharge(
+            program,
+            &self.pending_integer_formations,
+        )?;
+        struct_literals::discharge_pending_predicates(
+            program,
+            &self.pending_construction_predicates,
+        )?;
+        self.decided_formations.extend(proven);
+        self.decided_formations
+            .sort_by_key(|expression| checked_trees::operators::handle_position(*expression));
+        self.decided_formations.dedup();
+        self.pending_integer_formations.clear();
+        self.pending_construction_predicates.clear();
+        Ok(())
+    }
 }
 
 /// Postconditions retain the observation point used by their proof. Entry-only
@@ -138,7 +169,10 @@ pub fn validate_program(program: &dyn crate::CheckingInput) -> Result<(), Vec<Di
         &[],
         false,
     )
-    .and_then(|validated| judge_contract_entailment(program, validated.deferred_entailment))
+    .and_then(|mut validated| {
+        validated.facts.discharge_storage_formations(program)?;
+        judge_contract_entailment(program, validated.deferred_entailment)
+    })
     .map(|_| ())
 }
 
@@ -257,6 +291,7 @@ fn validate<'program>(
     record_dependency_bodies: bool,
 ) -> Result<ProgramValidation, Vec<Diagnostic>> {
     let mut formation_obligations = Vec::new();
+    let mut pending_construction_predicates = Vec::new();
     let pre_machine_guard =
         phase_profile::guard("psi.05.prepare_typed_program.validate.pre_machine_validators");
     let mut diagnostics = Vec::new();
@@ -496,11 +531,13 @@ fn validate<'program>(
             phase_profile::scope(
                 "psi.05.prepare_typed_program.validate.constants_and_literals.struct_literals",
                 || {
-                    stored_integer_writes.extend(struct_literals::validate_struct_literal_fields(
+                    let literals = struct_literals::validate_struct_literal_fields(
                         program,
                         &mut diagnostics,
                         &mut formation_obligations,
-                    ));
+                    );
+                    stored_integer_writes.extend(literals.stored_integer_writes);
+                    pending_construction_predicates.extend(literals.pending_predicates);
                 },
             );
             // Record patterns in LET (owner spec 2026-07-18): the exhaustiveness
@@ -510,18 +547,6 @@ fn validate<'program>(
                 || {
                     destructure::validate_destructure_exhaustiveness(program, &mut diagnostics);
                 },
-            );
-        },
-    );
-    // R2 rung 3 slice 1: the default-domain write obligation (strict
-    // store-time semantics; obligations before hypotheses).
-    phase_profile::scope(
-        "psi.05.prepare_typed_program.validate.default_domain_writes",
-        || {
-            default_domains::validate_default_domain_writes(
-                program,
-                call_frames.as_ref(),
-                &mut diagnostics,
             );
         },
     );
@@ -1098,6 +1123,8 @@ fn validate<'program>(
         phase_profile::guard("psi.05.prepare_typed_program.validate.post_machine_validators");
 
     let arithmetic_domains::ArithmeticDecisions {
+        allows_pending_formations: _,
+        pending_formations: pending_integer_formations,
         mut integer_range_obligations,
         mut exact_integer_casts,
         mut integer_assignments,
@@ -1176,6 +1203,8 @@ fn validate<'program>(
         operational: conformance_operational,
         service_reaches: conformance_service_reaches,
         facts: ProgramValidationFacts {
+            pending_integer_formations,
+            pending_construction_predicates,
             quotient_formations,
             integer_range_obligations,
             static_machine_selections,
@@ -1226,16 +1255,30 @@ pub struct ContractEntailment {
     pub dependency_body_judgments: Vec<DependencyBodyJudgment>,
 }
 
-/// Judge every machine's contract entailment. Machines are independent, so
-/// workers partition them; merging in roster order keeps diagnostics and
+/// Check record restoration and every machine's contracts. Machines are
+/// independent, so workers partition them; merging in roster order keeps diagnostics and
 /// first-wins rows identical to a sequential pass.
 pub fn judge_contract_entailment(
     program: &dyn crate::CheckingInput,
     deferred: DeferredEntailment,
 ) -> Result<ContractEntailment, Vec<Diagnostic>> {
     let _guard = phase_profile::guard("psi.05.contract_entailment");
+    // A helper may restore one record using a bound read from another. The
+    // storage graph proves whether earlier writes preserved that source value.
+    // Checking before the graph exists treats those writes as opaque and loses
+    // the valid bound. Restoration remains mandatory before checked publication.
+    let call_frames = calls::CallFrameResolver::new(program);
+    let mut diagnostics = Vec::new();
+    phase_profile::scope("psi.05.contract_entailment.default_domain_writes", || {
+        default_domains::validate_default_domain_writes(
+            program,
+            call_frames.as_ref(),
+            &mut diagnostics,
+        );
+    });
     let judged = judge_machines(program, &deferred.body_index);
-    finish_diagnostics(judged.diagnostics)?;
+    diagnostics.extend(judged.diagnostics);
+    finish_diagnostics(diagnostics)?;
     Ok(ContractEntailment {
         proven_machine_contracts: judged.proven_machine_contracts,
         dependency_body_judgments: deferred.body_index.judgments(&judged.captured_entailments),
@@ -1246,6 +1289,42 @@ struct JudgedEntailment {
     diagnostics: Vec<Diagnostic>,
     proven_machine_contracts: Vec<(symbols::SymbolHandle, ProvenContractExpressions)>,
     captured_entailments: Vec<Option<dependency_bodies::CapturedEntailment>>,
+}
+
+/// A restricted field lent to a call must satisfy its standing predicate again
+/// when the call returns, which needs the callee's guarantees applied to the
+/// field's current storage. That storage history exists only once the flow
+/// fixed point is attached, so this judgment runs here rather than in the
+/// machine loop, where every write is opaque.
+fn validate_machine_scalar_loan_handbacks(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let frames = crate::CallFrameResolver::new(program);
+    for state in program.machine_states(machine) {
+        let statements = program.statement_table.statements(state.statement_nodes);
+        for (statement_index, statement) in statements.iter().enumerate() {
+            let mark = diagnostics.len();
+            crate::proof_contracts::contract_entailment::validate_scalar_loan_handbacks(
+                program,
+                machine,
+                state,
+                statement_index,
+                frames.as_ref(),
+                diagnostics,
+            );
+            if diagnostics.len() > mark
+                && let Some(source_span) = statements::statement_source_span(program, statement)
+            {
+                for diagnostic in &mut diagnostics[mark..] {
+                    if diagnostic.source_span.is_none() {
+                        diagnostic.source_span = Some(source_span);
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn judge_machines(
@@ -1292,6 +1371,7 @@ fn judge_machines(
                     record_dependency_entailment(false);
                 }
                 let mut machine_diagnostics = Vec::new();
+                validate_machine_scalar_loan_handbacks(program, machine, &mut machine_diagnostics);
                 let mut proven = ProvenContractExpressions::default();
                 crate::proof_contracts::contract_entailment::validate_machine_contract_entailment(
                     program,

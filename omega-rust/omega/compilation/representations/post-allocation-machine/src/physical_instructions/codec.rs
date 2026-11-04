@@ -22,7 +22,7 @@ use selected_instructions::selected_instructions::effects::program::encoding as 
 const MAGIC: &[u8; 8] = b"OMGPMX\0\0";
 // Version 22 keeps published MemoryFence family 257 distinct from
 // InvokeNoNormal family 258; earlier envelopes cannot be reinterpreted.
-const VERSION: u32 = 22;
+const VERSION: u32 = 25;
 
 pub(crate) fn encode_terminal_post_allocation_machine_plan(
     plan: &PostAllocationMachinePlan,

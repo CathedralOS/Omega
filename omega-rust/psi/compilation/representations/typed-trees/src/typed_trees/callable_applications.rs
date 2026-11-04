@@ -7,6 +7,7 @@
 //! Trait scopes own universal requirement views; static selection occurrences
 //! own determined provider tuples. Neither view is an admission or an instance.
 
+mod call_targets;
 mod closed_operands;
 mod conformance_scopes;
 mod data_cleanup_scopes;
@@ -408,6 +409,71 @@ impl CallableApplication {
             .map_or(original, |(_, replacement)| *replacement)
     }
 
+    /// Keep an inherited handler's declaring identity, supplied arguments and
+    /// narrowed permissions together when preparing its callable contract.
+    fn nominal_contract(
+        &mut self,
+        program: &mut TypedTrees,
+        selected_trait: SymbolHandle,
+        requirement: SymbolHandle,
+        mut arguments: Vec<types::TypeReferenceHandle>,
+    ) -> Result<data::MachineParameterContract, &'static str> {
+        use crate::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+
+        let receiving_arguments = arguments.clone();
+        let (declaration, signature) = program
+            .trait_machine_signature(requirement)
+            .ok_or("nominal requirement lost its declaring trait")?;
+        let declaring_trait = declaration.symbol;
+        let mut clauses = Vec::new();
+        let environment = if declaring_trait == selected_trait {
+            None
+        } else {
+            let selected = program
+                .trait_definition_by_symbol(selected_trait)
+                .ok_or("nominal requirement lost its selected trait")?;
+            let scope = AppliedTraitScope::new(
+                program,
+                selected,
+                TraitApplicationArguments {
+                    lexical_owner: self.region_scope,
+                    enclosing_data_applications: &[],
+                    arguments: &arguments,
+                    lifetimes: &[],
+                },
+            )
+            .ok_or("inherited nominal requirement has invalid selected trait arguments")?;
+            let declaring = scope
+                .declaring_scope(program, declaring_trait)
+                .ok_or("inherited nominal requirement has no unique declaring trait application")?;
+            clauses = declaring.callable_refinement_clauses(program, signature.name.as_str());
+            Some(declaring.environment())
+        };
+        let previous_regions = self.trait_region_application.clone();
+        if let Some(environment) = &environment {
+            arguments = program.materialize_trait_application_arguments(environment)?;
+            self.trait_region_application = Some((environment.clone(), environment.frame_count()));
+        }
+        let applied = if arguments.is_empty() && environment.is_none() {
+            Ok(None)
+        } else {
+            self.nominal(program, declaring_trait, requirement, &arguments)
+        };
+        self.trait_region_application = previous_regions;
+        let mut applied = applied?;
+        if let Some(signature) = &mut applied {
+            program.apply_callable_refinements(signature, &clauses)?;
+        }
+        Ok(data::MachineParameterContract::Nominal {
+            receiving_trait: selected_trait,
+            receiving_arguments,
+            trait_definition: declaring_trait,
+            requirement,
+            trait_arguments: arguments,
+            instantiated: applied.map(Box::new),
+        })
+    }
+
     fn nominal(
         &mut self,
         program: &mut TypedTrees,
@@ -618,33 +684,31 @@ impl TypedTrees {
                 data::TypeParameterKind::Machine {
                     contract:
                         data::MachineParameterContract::Nominal {
-                            trait_definition,
+                            receiving_trait,
+                            receiving_arguments,
                             requirement,
-                            trait_arguments,
                             instantiated: None,
+                            ..
                         },
-                } if !trait_arguments.is_empty() => Some((
+                } => Some((
                     handle,
-                    *trait_definition,
+                    *receiving_trait,
                     *requirement,
-                    trait_arguments.clone(),
+                    receiving_arguments.clone(),
+                    parameter.symbol,
                 )),
                 _ => None,
             })
             .collect::<Vec<_>>();
-        for (handle, trait_symbol, requirement, arguments) in pending {
-            let applied = CallableApplication::default().nominal(
-                self,
-                trait_symbol,
-                requirement,
-                &arguments,
-            )?;
-            if let data::TypeParameterKind::Machine {
-                contract: data::MachineParameterContract::Nominal { instantiated, .. },
-            } = &mut self.data_type_parameters.get_mut(handle).kind
-            {
-                *instantiated = applied.map(Box::new);
+        for (handle, selected_trait, requirement, arguments, parameter) in pending {
+            let lexical_owner = self.declaration_scope_parent(parameter);
+            let contract = CallableApplication {
+                region_scope: lexical_owner,
+                ..CallableApplication::default()
             }
+            .nominal_contract(self, selected_trait, requirement, arguments)?;
+            self.data_type_parameters.get_mut(handle).kind =
+                data::TypeParameterKind::Machine { contract };
         }
         Ok(())
     }

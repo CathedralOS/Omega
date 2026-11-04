@@ -38,10 +38,10 @@ machine Main::main(main: &mut Main) reaches Console {
     main.col = 3; // the month starts on Wednesday
     main.d = 1;
     Console::write_line(main.header);
-    transition { _ -> day_loop(main) }
+    transition { _ -> block day_loop(main) }
 
     machine day_loop(main: &mut Main) {
-        transition main.d >= 1 && main.d <= 30 { true -> place(main) _ -> flush(main) }
+        transition main.d >= 1 && main.d <= 30 { true -> block place(main) _ -> block flush(main) }
     }
     machine place(main: &mut Main) {
         main.o = main.col * 3;
@@ -49,51 +49,51 @@ machine Main::main(main: &mut Main) reaches Console {
         main.tens = main.d / 10;
         main.ones = main.d % 10;
         main.oc = narrow_i32_to_u8_trapping((main.ones + 48) as i32);
-        transition main.tens > 0 { true -> place_tens(main) _ -> place_space(main) }
+        transition main.tens > 0 { true -> block place_tens(main) _ -> block place_space(main) }
     }
     machine place_tens(main: &mut Main) {
         main.tc = narrow_i32_to_u8_trapping((main.tens + 48) as i32);
-        transition { _ -> place_guard(main) }
+        transition { _ -> block place_guard(main) }
     }
     machine place_space(main: &mut Main) {
         main.tc = 32;
-        transition { _ -> place_guard(main) }
+        transition { _ -> block place_guard(main) }
     }
     machine place_guard(main: &mut Main) {
         transition main.o >= 0 && main.o < 21 && main.o1 >= 0 && main.o1 < 21 {
-            true -> place_write(main)
-            _ -> bad(main)
+            true -> block place_write(main)
+            _ -> block bad(main)
         }
     }
     machine place_write(main: &mut Main) {
         main.line[main.o] = main.tc;
         main.line[main.o1] = main.oc;
         main.col = main.col + 1;
-        transition { _ -> advance(main) }
+        transition { _ -> block advance(main) }
     }
     machine advance(main: &mut Main) {
-        transition main.col >= 7 { true -> emit_week(main) _ -> next_d(main) }
+        transition main.col >= 7 { true -> block emit_week(main) _ -> block next_d(main) }
     }
     machine emit_week(main: &mut Main) {
         Console::write_line(main.line);
         main.k = 0;
-        transition { _ -> clear_loop(main) }
+        transition { _ -> block clear_loop(main) }
     }
     machine clear_loop(main: &mut Main) {
-        transition main.k >= 0 && main.k < 21 { true -> clear_cell(main) _ -> reset_col(main) }
+        transition main.k >= 0 && main.k < 21 { true -> block clear_cell(main) _ -> block reset_col(main) }
     }
     machine clear_cell(main: &mut Main) {
         main.line[main.k] = 32;
         main.k = main.k + 1;
-        transition { _ -> clear_loop(main) }
+        transition { _ -> block clear_loop(main) }
     }
     machine reset_col(main: &mut Main) {
         main.col = 0;
-        transition { _ -> next_d(main) }
+        transition { _ -> block next_d(main) }
     }
     machine next_d(main: &mut Main) {
         main.d = main.d + 1;
-        transition { _ -> day_loop(main) }
+        transition { _ -> block day_loop(main) }
     }
 
     machine flush(main: &mut Main) {

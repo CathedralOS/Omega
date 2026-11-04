@@ -61,6 +61,18 @@ const fn project_execution_identity(
     identity: CompilerIntrinsicExecutionIdentity,
 ) -> PackageReviewCompilerIntrinsicExecution {
     match identity {
+        CompilerIntrinsicExecutionIdentity::SegmentReload(kind) => {
+            PackageReviewCompilerIntrinsicExecution::SegmentReload(kind)
+        }
+        CompilerIntrinsicExecutionIdentity::SegmentRead(register) => {
+            PackageReviewCompilerIntrinsicExecution::SegmentRead(register)
+        }
+        CompilerIntrinsicExecutionIdentity::TaskRegisterActivate => {
+            PackageReviewCompilerIntrinsicExecution::TaskRegisterActivate
+        }
+        CompilerIntrinsicExecutionIdentity::TaskRegisterRead => {
+            PackageReviewCompilerIntrinsicExecution::TaskRegisterRead
+        }
         CompilerIntrinsicExecutionIdentity::AccessLifecycle(operation) => {
             PackageReviewCompilerIntrinsicExecution::AccessLifecycle(operation)
         }
@@ -120,6 +132,19 @@ const fn project_execution_identity(
 
 fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> String {
     match identity {
+        CompilerIntrinsicExecutionIdentity::SegmentReload(kind) => {
+            format!("Select {kind:?} descriptors after checking the borrowed GDT")
+        }
+        CompilerIntrinsicExecutionIdentity::SegmentRead(register) => {
+            format!("Read the CPU's {register:?} segment selector")
+        }
+        CompilerIntrinsicExecutionIdentity::TaskRegisterActivate => {
+            "Activate a task register after checking its borrowed GDT and task-state bytes"
+                .to_owned()
+        }
+        CompilerIntrinsicExecutionIdentity::TaskRegisterRead => {
+            "Read the current task-register selector".to_owned()
+        }
         CompilerIntrinsicExecutionIdentity::AccessLifecycle(operation) => {
             format!(
                 "Compiler-owned whole-value access lifecycle {operation:?} within an existing admitted extent"

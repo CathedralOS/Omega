@@ -79,15 +79,19 @@ impl BoundaryCallbackLayoutEntry {
     pub fn terminal_slot(&self) -> &CallbackSlotGeometry {
         &self.geometry.terminal
     }
-    pub fn composed_offset(&self) -> Result<u64, String> {
-        self.geometry
+    pub fn composed_placements(&self) -> Result<Vec<layout_plans::LayoutPlacementReport>, String> {
+        let base = self
+            .geometry
             .fields()?
             .iter()
-            .try_fold(self.geometry.terminal.offset, |offset, field| {
-                offset
-                    .checked_add(field.offset)
-                    .ok_or_else(|| "callback composed offset overflows".into())
-            })
+            .try_fold(0u64, |base, field| {
+                base.checked_add(field.offset)
+                    .ok_or("callback composed offset overflows")
+            })?;
+        layout_plans::compose_private_callback_placements(
+            self.geometry.terminal.placements.as_slice(),
+            base,
+        )
     }
     pub(crate) fn source_free(&self) -> Result<BoundaryCallbackLayout, String> {
         Ok(self.geometry.clone())

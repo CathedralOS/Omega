@@ -167,6 +167,8 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                 continue;
             }
             let mut holders = vec![loan];
+            // Each holder's own end, used when it supplies a later copy.
+            let mut holder_ends = vec![lexical];
             let mut cursor = 0;
             let mut final_weakening = lexical;
             while cursor < holders.len() {
@@ -208,6 +210,7 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                             final_weakening = Some(weakening);
                         }
                     }
+                    holder_ends.push(weakening);
                     holders.push(candidate);
                 }
             }

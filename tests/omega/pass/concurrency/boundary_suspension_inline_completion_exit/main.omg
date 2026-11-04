@@ -22,7 +22,7 @@ machine replace(value: &mut i32) { value = 47; }
 data Marker { value: i32; }
 data Main { }
 machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
-    transition { _ -> work(main, 39) }
+    transition { _ -> suspend work(main, 39) }
     machine work(main: &mut Main, mut input: i32) {
         input = 40;
         let marker: Marker = Marker { value: 19 };

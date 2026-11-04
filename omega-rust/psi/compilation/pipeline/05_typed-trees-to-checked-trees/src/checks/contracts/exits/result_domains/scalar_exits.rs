@@ -107,7 +107,15 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
         if crate::published::facts::domain_is_vacuous(program, domain_symbol, &mut Vec::new()) {
             continue;
         }
-        let transported = subject.as_ref().is_some_and(|subject| {
+        // The returned value's place may name the operand of `x as i32 in D`
+        // rather than the qualified result. Flow publishes the checked
+        // qualification's membership on that exact cast expression, so a
+        // membership on either the place or the returned expression counts.
+        let returned_value = returned.is_valid().then(|| CanonicalPlace {
+            root: facts::PlaceRoot::Expression(returned),
+            segments: Vec::new(),
+        });
+        let transported = subject.iter().chain(returned_value.iter()).any(|subject| {
             exact_scalar_membership(
                 program,
                 facts,

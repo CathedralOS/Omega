@@ -20,7 +20,7 @@ use filesystem_authority::{
     FilesystemLogicalHandleOutputSource, FilesystemObservationProvider, FilesystemOpenDescriptor,
     FilesystemOperationResult, filesystem_root_relative_path_is_canonical,
 };
-use std::io::Write;
+use std::io::{Read, Write};
 
 /// Observations belong to one completed activation. Only this runtime can
 /// construct them; package settlement still validates the staged files.
@@ -44,6 +44,9 @@ enum FileStorage {
     Captured {
         cursor: u64,
     },
+    LiveSource {
+        file: std::fs::File,
+    },
     Output {
         file: std::fs::File,
         writer: FilesystemOpenDescriptor,
@@ -61,19 +64,22 @@ pub struct BuildFilesystemRuntime {
 }
 
 impl BuildMachineFilesystemScope {
-    /// Establish exactly the already-admitted captured roots and private
-    /// Output staging. Live-host protocols remain a separate authority mode.
+    /// Retain the already-admitted input backing and private Output staging.
+    /// Captured inputs and live directory capabilities remain distinct.
     pub fn begin_filesystem_runtime(
         &self,
         account: EvaluationInvocationAccount,
     ) -> Result<BuildFilesystemRuntime, String> {
-        if self.captured_source_view.is_none() {
-            return Err("Terminal Build requires admitted captured Source storage".into());
+        if self.captured_source_view.is_none() && self.live_source.is_none() {
+            return Err("Terminal Build requires admitted Source backing".into());
         }
-        // Build admission already established the write fence before consent.
-        // Retain that exact scope instead of running admission a second time.
-        let access = self.filesystem_access();
-        if !self.is_private_snapshot_execution(&access) {
+        // Consent already joined the exact request before this host is built.
+        // A live Source does not acquire the private-snapshot exemption.
+        if !self
+            .sponsor
+            .as_ref()
+            .is_some_and(|sponsor| sponsor.owns_private_staging_root(&self.build_dir))
+        {
             return Err("Build Output is not owned by its private staging sponsor".into());
         }
         Ok(BuildFilesystemRuntime {
@@ -118,7 +124,9 @@ impl BuildFilesystemRuntime {
         if !filesystem_root_relative_path_is_canonical(relative, false) {
             return Err("Build path is not a canonical relative path".into());
         }
-        if root != BUILD_OUTPUT_ROOT_IDENTITY {
+        if root != BUILD_OUTPUT_ROOT_IDENTITY
+            && !(root == BUILD_SOURCE_ROOT_IDENTITY && self.effects.scope.live_source.is_some())
+        {
             self.snapshot(root)?;
         }
         Ok(())
@@ -213,7 +221,9 @@ impl BuildFilesystemRuntime {
             .map_err(|_| "cannot retain filesystem reservation")?;
         self.effects.attempts.push(BuildFilesystemOperationAttempt {
             operation_tag: operation.operation_tag(),
-            provider: if root == BUILD_OUTPUT_ROOT_IDENTITY {
+            provider: if root == BUILD_OUTPUT_ROOT_IDENTITY
+                || (root == BUILD_SOURCE_ROOT_IDENTITY && self.effects.scope.live_source.is_some())
+            {
                 FilesystemObservationProvider::RealScoped
             } else {
                 FilesystemObservationProvider::Captured
@@ -286,15 +296,20 @@ impl BuildFilesystemRuntime {
                 self.complete_attempt(ordinal, -1, if wants_write { 13 } else { 45 }) as i32,
             );
         }
-        match self.snapshot(root)?.lookup(path) {
-            Ok(source::SourceSnapshotEntry::File(_)) => {}
-            Ok(source::SourceSnapshotEntry::Directory) => {
-                return Ok(self.complete_attempt(ordinal, -1, 21) as i32);
+        let live_source = (root == BUILD_SOURCE_ROOT_IDENTITY)
+            .then(|| self.effects.scope.live_source.clone())
+            .flatten();
+        if live_source.is_none() {
+            match self.snapshot(root)?.lookup(path) {
+                Ok(source::SourceSnapshotEntry::File(_)) => {}
+                Ok(source::SourceSnapshotEntry::Directory) => {
+                    return Ok(self.complete_attempt(ordinal, -1, 21) as i32);
+                }
+                Ok(source::SourceSnapshotEntry::Symlink(_)) => {
+                    return Ok(self.complete_attempt(ordinal, -1, 40) as i32);
+                }
+                _ => return Ok(self.complete_attempt(ordinal, -1, 2) as i32),
             }
-            Ok(source::SourceSnapshotEntry::Symlink(_)) => {
-                return Ok(self.complete_attempt(ordinal, -1, 40) as i32);
-            }
-            _ => return Ok(self.complete_attempt(ordinal, -1, 2) as i32),
         }
         let handle = message(self.account.reserve_site(1, 1, path.len() as u64))?;
         let descriptor = i32::try_from(self.descriptors.len())
@@ -304,10 +319,23 @@ impl BuildFilesystemRuntime {
         self.descriptors
             .try_reserve(1)
             .map_err(|_| "cannot retain Build descriptor")?;
+        let retained_path = copy_bytes(path)?;
+        let storage = match live_source {
+            Some(source) => match source.open_read(path) {
+                Ok(file) => FileStorage::LiveSource { file },
+                Err(error) => {
+                    return Ok(
+                        self.complete_attempt(ordinal, -1, error.raw_os_error().unwrap_or(5))
+                            as i32,
+                    );
+                }
+            },
+            None => FileStorage::Captured { cursor: 0 },
+        };
         self.descriptors.push(Some(OpenFile {
             root,
-            path: copy_bytes(path)?,
-            storage: FileStorage::Captured { cursor: 0 },
+            path: retained_path,
+            storage,
             _handle: handle,
         }));
         self.complete_logical_handle(ordinal, descriptor)
@@ -324,10 +352,13 @@ impl BuildFilesystemRuntime {
         let file = self.descriptors[slot]
             .as_ref()
             .ok_or("closed Build descriptor")?;
-        let FileStorage::Captured { cursor } = &file.storage else {
-            return Err("BuildSource read requires an input descriptor".into());
+        let cursor = match &file.storage {
+            FileStorage::Captured { cursor } => Some(*cursor),
+            FileStorage::LiveSource { .. } => None,
+            FileStorage::Output { .. } => {
+                return Err("BuildSource read requires an input descriptor".into());
+            }
         };
-        let cursor = *cursor;
         let (path, _path_storage) = self.descriptor_path(slot)?;
         if count > buffer.len() as u64 {
             return Err("Build read exceeds the supplied buffer".into());
@@ -339,21 +370,42 @@ impl BuildFilesystemRuntime {
             FilesystemGrantAccess::Read,
             Some(descriptor),
         )?;
-        let bytes = self
-            .snapshot(root)?
-            .read(&path, cursor, count)
-            .map_err(|error| format!("captured Build read failed: {error:?}"))?;
-        let length = bytes.len();
-        buffer[..length].copy_from_slice(bytes);
-        if let Some(OpenFile {
-            storage: FileStorage::Captured { cursor },
-            ..
-        }) = self.descriptors[slot].as_mut()
-        {
-            *cursor = cursor
-                .checked_add(length as u64)
-                .ok_or("Build read cursor overflowed")?;
-        }
+        let length = if let Some(cursor) = cursor {
+            let bytes = self
+                .snapshot(root)?
+                .read(&path, cursor, count)
+                .map_err(|error| format!("captured Build read failed: {error:?}"))?;
+            let length = bytes.len();
+            buffer[..length].copy_from_slice(bytes);
+            if let Some(OpenFile {
+                storage: FileStorage::Captured { cursor },
+                ..
+            }) = self.descriptors[slot].as_mut()
+            {
+                *cursor = cursor
+                    .checked_add(length as u64)
+                    .ok_or("Build read cursor overflowed")?;
+            }
+            length
+        } else {
+            let Some(OpenFile {
+                storage: FileStorage::LiveSource { file },
+                ..
+            }) = self.descriptors[slot].as_mut()
+            else {
+                return Err("live Build Source lost its admitted descriptor".into());
+            };
+            match file.read(&mut buffer[..count as usize]) {
+                Ok(length) => length,
+                Err(error) => {
+                    return Ok(self.complete_attempt(
+                        ordinal,
+                        -1,
+                        error.raw_os_error().unwrap_or(5),
+                    ));
+                }
+            }
+        };
         Ok(self.complete_attempt(ordinal, length as i64, 0))
     }
 
@@ -790,7 +842,7 @@ mod tests {
             )],
         )
         .unwrap();
-        let scope = BuildMachineFilesystemScope::for_root(
+        let mut scope = BuildMachineFilesystemScope::for_root(
             &source_root.join("main.omg"),
             output,
             Some(sponsor),
@@ -887,3 +939,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod live_source_tests;

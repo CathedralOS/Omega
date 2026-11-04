@@ -12,20 +12,20 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
     let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_canonical_file_界");
     let removed_directory: i32 = block WindowsFilesystemHost::remove_directory("omega_raw_canonical_directory_界");
     let file: u64 = block WindowsFilesystemHost::create_file("omega_raw_canonical_file_界", 3221225472, 7, 2, 128);
-    transition file != 0 { true -> release(main, file) false -> finish(71) }
+    transition file != 0 { true -> block release(main, file) false -> block finish(71) }
     machine release(main: &mut Main, file: u64) {
         let status: i32 = block WindowsFilesystemHost::close_handle(file);
-        transition status == 0 { true -> directory(main) false -> finish(72) }
+        transition status == 0 { true -> block directory(main) false -> block finish(72) }
     }
     machine directory(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::create_directory("omega_raw_canonical_directory_界");
-        transition status == 0 { true -> file(main) false -> finish(73) }
+        transition status == 0 { true -> block file(main) false -> block finish(73) }
     }
     machine file(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::canonicalize("omega_raw_canonical_file_界", &mut main.buffer);
         transition status == 0 && canonical_spelling(&main.buffer) {
-            true -> directory_path(main)
-            false -> finish(74)
+            true -> block directory_path(main)
+            false -> block finish(74)
         }
     }
     machine directory_path(main: &mut Main) {
@@ -34,20 +34,20 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
         main.buffer[0] = 171;
         let status: i32 = block WindowsFilesystemHost::canonicalize("omega_raw_canonical_directory_界", &mut main.buffer);
         transition status == 0 && canonical_spelling(&main.buffer) {
-            true -> small()
-            false -> finish(75)
+            true -> block small()
+            false -> block finish(75)
         }
     }
     machine small() {
         let mut output: [u8; 1];
         output[0] = 171;
         let status: i32 = block WindowsFilesystemHost::canonicalize("omega_raw_canonical_file_界", &mut output);
-        transition status == -122 && output[0] == 171 { true -> missing() false -> finish(76) }
+        transition status == -122 && output[0] == 171 { true -> block missing() false -> block finish(76) }
     }
     machine missing() {
         let mut output: [u8; 1024];
         let status: i32 = block WindowsFilesystemHost::canonicalize("omega_raw_canonical_missing_界", &mut output);
-        transition status == -2 || status == -3 { true -> finish(70) false -> finish(77) }
+        transition status == -2 || status == -3 { true -> block finish(70) false -> block finish(77) }
     }
     machine finish(code: i32) {
         let file: i32 = block WindowsFilesystemHost::delete_file("omega_raw_canonical_file_界");

@@ -275,9 +275,9 @@ clause, per-expression binder, or index-operation registry is introduced.
 
 Normalize only operations licensed by that instance. Associativity,
 commutativity, distributivity, and zero/one identities require their respective
-laws; one does not imply another. Connecting nullary algebra operations to
-constructor constants requires ordinary unfolding or citation. Search limits
-and unequal normal forms do not establish inequality.
+laws; one does not imply another. Literal-linked identities follow the checked
+connection rule below. Search limits and unequal normal forms do not establish
+inequality.
 
 Having a static index does not itself require commutativity or associativity.
 Those laws are required only for transformations that consume them. Without a
@@ -291,14 +291,172 @@ facts establish remaining compatibility without changing index identity.
 Identity-bearing algebra evidence must be derived, not admitted. Retain the
 algebra instance, normalized operation-contract identity, canonical expression,
 compatibility evidence, and normalizer version. That version is provenance;
-changing the canonical form is an explicit language compatibility event.
+canonical policy changes must be recorded, not silently interpreted as the same
+policy. Internal provenance changes are not a language-release prerequisite.
 
-Index normalizer version 3 retains the exact selected provider and applied
-conformance operands, including operations with neither AC law. Aliases remain
+Index identity retains the exact selected provider and applied conformance
+operands, including operations with neither AC law. Aliases remain
 diagnostic names. Closed integer leaves share canonical value identity across
 expression and named-const forms. Established equality operands use this same
 normalizer under simultaneous call bindings; they do not change declared type
 identities or license an operation from a different conformance application.
+
+### Literal-linked index identities
+
+Named decision: `literal-linked-index-identities`, settled 2026-11-03.
+
+A generic program can identify `Indexed<N + 0>` with `Indexed<N>` when its
+selected algebra proves that adding the literal zero preserves the operand.
+This changes canonical application identity in signatures, conformance
+arguments, specialization keys, and value transfers alike; it is not merely a
+compatibility conversion at a value boundary.
+
+An abstract identity law such as `add(value, zero()) == value` combines with a
+checked connection law `zero() == 0`. Multiplication similarly combines
+`mul(value, one()) == value` with `one() == 1`. An ordinary index-specific trait
+may add those connections while inheriting general algebra operations and
+laws. A consumer requests that contract through its explicit conformance
+binder, and callers supply the implementation. No new syntax, implicit algebra,
+or proof citation at each use is introduced. Each rewrite needs only its own
+laws, not a complete ring or semiring.
+
+Collect the complete selected conformance's direct and inherited law slots under
+their exact applications and substitutions. Recognize law structure and
+mathematical equality, never requirement names or operator punctuation; match
+operations and nullary slots by exact requirement identity, not same-spelled
+names. Both laws must refer to the same selected conformance application and
+its corresponding slots. The connection names the exact typed integer literal.
+Identity-bearing laws must be checked, unconditional guarantees; a law with an
+undischarged premise cannot license a canonical rewrite. Concrete providers may
+use ordinary admitted computation or citation to prove a connection law, but
+generic use consumes the published law without evaluating an abstract machine
+or unfolding its implementation inside type equality.
+
+Canonical integer indices may retain domain qualifications, including an
+arithmetic policy. The conformance bound selects the operation; qualified
+operand types constrain matching and do not supply a default implementation.
+Retain the exact carrier, qualifications, selected operation, and law evidence.
+Wrapping, Saturating, and Exact do not grant any algebraic law by their names.
+For example, signed saturating addition is not associative: in `i8`,
+`(100 + 100) + -100` gives `27`, but `100 + (100 + -100)` gives `100`.
+
+Left and right identities are separate laws. A right identity removes a right
+operand, or an identity with a preceding operand in an associative chain;
+removing a leading identity needs a left-identity or commutativity law. A chain
+of identity elements reduces to the correctly typed identity, not an empty
+expression. `N + 1` is not an identity. `A * (B + 1)` may compose distributivity
+and multiplicative identity into `A * B + A`; removing `A * 0` separately needs
+an annihilation law and its literal connection.
+
+Discharge the authored expression's formation obligations independently of
+canonical identity simplification, and justify every newly introduced
+operation. Normalization may help prove an obligation but cannot remove it or
+use the goal to justify its own formation. Thus `0 * (B + C)` cannot erase the
+Exact representability obligation on `B + C`, and regrouping cannot hide an
+overflowing intermediate. An operation with preconditions is not categorically
+excluded: Exact `N + 0` is formed for every `u8 N`, and its checked identity law
+remains usable. Full unconditional algebra laws still owe their full formation
+and totality contracts.
+
+Remove licensed identities before considering expansion and normalize generated
+terms again, under the complete-chain and budget rules below. Normalizer
+versions record policy provenance, not a new nominal type; unreleased
+development artifacts may be rebuilt rather than requiring historical-normalizer
+support or an artifact migration framework.
+
+### Bounded canonical index normalization
+
+Named decision: `bounded-canonical-index-normalization`, settled 2026-11-03.
+
+A generic library can use a value indexed by `A * (B + C)` where
+`A * B + A * C` is required when the exact selected algebra licenses that
+distributivity. Normalize toward expanded sums of products, not general
+factoring. This is canonical index identity in signatures, conformance
+arguments, specialization keys, and value transfers, not an instruction to
+expand runtime arithmetic or every compiler expression tree.
+
+Resolve operand types and qualifications and bind exact operation contracts
+before applying algebraic rules. A generic conformance binder supplies its
+abstract requirement identities and checked public laws without a concrete
+provider body or known index value. Neither physical layout, ABI placement,
+native target realization, nor monomorphization is a prerequisite. Formation
+remains an independent obligation; normalization cannot justify its own partial
+operand or remove an authored overflow requirement.
+
+The canonical identity profile specifies a target-neutral encoding of typed
+leaves and selected operation applications. Retain the exact carrier and
+qualification identities, applied algebra and requirement identities, and
+ordered child encodings. Flatten a chain only under its own associativity law;
+sort operands by canonical encoding only under commutativity. Preserve factor
+order and grouping when their laws are absent, and preserve repeated operands.
+All producers of a published identity use the same schema and ordering, not
+compiler-private arena handles, diagnostic names, debug formatting, or hash-map
+iteration order. In-memory trees, shared nodes, or compact polynomial storage
+remain implementation choices and must export the same identity encoding.
+
+Internal coefficients may encode repetition of the same term, not the meaning
+of an authored integer literal. The zero/one connections above do not establish
+`N + N == 2 * N` or `N + 1 + 1 == N + 2`. A selected abstract operation on
+literal operands is not builtin integer arithmetic. Closed proof-static indices
+instead use ordinary admitted evaluation after their complete arguments and
+concrete implementation are supplied; their keys are canonical values. This
+evaluation owes the usual formation, admission, and resource obligations, and
+must agree with the checked generic evidence.
+
+Before distributive expansion, collect the whole same-authority associative
+operation chain. Do not expand an inner product before it can join that chain.
+Normalize its non-chain operands, remove licensed identities, and apply licensed
+ordering to obtain the canonical pre-expansion form. Decide expansion from
+that form, never the authored parenthesization. After an admitted expansion,
+normalize the generated products and sums under their own selected laws. In
+particular, associativity must keep `(A * (B + C)) * D` and
+`A * ((B + C) * D)` coherent when multiplication is not commutative.
+
+The expansion limit is 64 resulting summands per canonical product expansion.
+Count the prospective summands licensed expansion would produce before
+allocating them. With commutative multiplication, the measure is the product
+of the available sum-factor alternative counts; without it, left
+distributivity can expand only the rightmost sum and the measure is that sum's
+alternative count. The measure uses simplified operands and preserves any
+grouping for which no associativity law exists. Use bounded counting rather
+than materializing an oversized expansion to discover its size.
+
+Past the limit, retain that product's canonical pre-expansion form with its
+normalized non-chain operands; do not retain a parenthesization-dependent
+partially expanded chain. Retain cutoff evidence naming the product, measure,
+and limit. This does not reject a well-formed type merely because it appears
+in a signature or key, and identical retained forms may still compare equal.
+If compatibility cannot otherwise be established and a cutoff obstructed the
+comparison, diagnose "equality not established within the normalization budget"
+with that measure and limit, not mathematical inequality. Ordinary exact local
+facts or checked theorem guarantees can establish the remaining compatibility;
+using distributivity directly with a large operand need not expand that operand.
+No localized canonical-budget override syntax or implicit theorem search is
+introduced. Additional proof effort cannot change the canonical identity policy.
+
+For a fixed selected law set and canonical pre-expansion form, normalization is
+deterministic and idempotent and produces the same identity and budget decision.
+Below the larger law set's expansion limit, adding valid laws preserves
+identifications from the smaller set, subject to the mutual-distributivity
+exception below. Cutoffs can prevent that stronger-law identification; the
+compatibility diagnostic must identify the budget rather than silently promise
+unconditional monotonicity. Multiple algebras can coexist, but their identities
+and evidence do not mix. Changing a trait's laws changes its published contract.
+
+Named exception: `mutual-distributivity-no-expansion`. If the selected algebra
+declares that each of two operations distributes over the other, expand neither
+direction. Do not choose a direction from punctuation or add a new lattice
+normalizer without a concrete customer. This exception can change an
+identification even below the limit and is excluded from the monotonicity claim.
+
+Within one compilation, carry checked generic compatibility derivations through
+the exact specialization substitutions rather than rediscovering the same
+equality with another expansion attempt. This is evidence transport, not an
+unchecked success flag; call preconditions, formation, and target obligations
+still apply. Verification of foreign or untrusted evidence remains at its trust
+boundary. The canonical schema, rule set, measure, limit, fallback, and exception
+belong to one recorded policy; root proof-work sponsorship and its resource
+receipts do not alter that policy's index identities.
 
 ## Axioms and receiving policy
 

@@ -97,9 +97,13 @@ pub fn encode_native_callback_argument(
     encode_shape(bytes, callback.application.shape);
     encode_placement(bytes, &callback.application.placement);
     encode_native_place(bytes, &callback.destination);
-    encode_option(bytes, callback.field_byte_offset, |bytes, offset| {
-        crate::codec_bytes::push_encoded(bytes, (offset as u64).to_le_bytes())
-    });
+    encode_option(
+        bytes,
+        callback.field_placements.as_ref(),
+        |bytes, placements| {
+            calling_conventions::encode_private_callback_placements(bytes, placements);
+        },
+    );
     encode_call_plan(bytes, &callback.registrar_boundary_entry_plan.call);
     encode_state_plan_identity(bytes, &callback.registrar_boundary_entry_plan.state);
     encode_len(bytes, callback.registrar_context.binders.len());

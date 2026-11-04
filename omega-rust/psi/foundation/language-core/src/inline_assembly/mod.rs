@@ -98,7 +98,39 @@ pub enum AsmInstructionShape {
     /// a modeled memory operand contract.
     CacheOperation(AsmCacheOperationKind),
     DescriptorTableLoad,
+    /// Copy the ten GDTR bytes through an ordinary borrowed byte array.
+    GlobalDescriptorTable(AsmGlobalDescriptorTableOperation),
     DerivedExit,
+}
+
+/// SGDT writes a descriptor snapshot; LGDT reads one. Neither grants authority
+/// to the storage named inside the descriptor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
+pub enum AsmGlobalDescriptorTableOperation {
+    Store,
+    Load,
+}
+
+impl AsmGlobalDescriptorTableOperation {
+    pub const fn mnemonic(self) -> &'static str {
+        match self {
+            Self::Store => "sgdt",
+            Self::Load => "lgdt",
+        }
+    }
+    pub const fn intrinsic_name(self) -> &'static str {
+        match self {
+            Self::Store => "asm#sgdt",
+            Self::Load => "asm#lgdt",
+        }
+    }
+    pub fn from_intrinsic_name(name: &str) -> Option<Self> {
+        match name {
+            "asm#sgdt" => Some(Self::Store),
+            "asm#lgdt" => Some(Self::Load),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -966,6 +998,16 @@ const CONTROL_REGISTER_READ_CLOBBERS: &[&str] = &["r10", "r15"];
 const CONTROL_REGISTER_WRITE_CLOBBERS: &[&str] = &["rax", "r10", "r11", "r15"];
 const SYSTEM_REGISTER_READ_CLOBBERS: &[&str] = &["x9", "x15"];
 const SYSTEM_REGISTER_WRITE_CLOBBERS: &[&str] = &["x9", "x10", "x11", "x15"];
+const GDTR_STORE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read_place(
+    "destination",
+    "r10",
+    "&write [u8; 10]",
+)];
+const GDTR_LOAD_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read_place(
+    "descriptor",
+    "r10",
+    "&[u8; 10]",
+)];
 const IDT_DESCRIPTOR_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read_place(
     "IDT descriptor",
     "r10",
@@ -1011,6 +1053,8 @@ pub fn asm_intrinsic_mnemonic(intrinsic_name: &str) -> Option<&'static str> {
     }
     match intrinsic_name {
         "asm#hlt" => Some("hlt"),
+        "asm#sgdt" => Some("sgdt"),
+        "asm#lgdt" => Some("lgdt"),
         "asm#port_out" => Some("out"),
         "asm#port_in" => Some("in"),
         "asm#pushfq" => Some("pushfq"),
@@ -1360,6 +1404,20 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             NO_CLOBBERS,
         )),
 
+        "sgdt" | "lgdt" => Contract(AsmInstructionContract::machine_authority(
+            AsmInstructionShape::GlobalDescriptorTable(if mnemonic == "sgdt" {
+                AsmGlobalDescriptorTableOperation::Store
+            } else {
+                AsmGlobalDescriptorTableOperation::Load
+            }),
+            X86_64,
+            if mnemonic == "sgdt" {
+                GDTR_STORE_OPERANDS
+            } else {
+                GDTR_LOAD_OPERANDS
+            },
+            IDT_DESCRIPTOR_CLOBBERS,
+        )),
         // This remains deriver-only: an admitted provider supplies the
         // descriptor operand under the instruction's checked authority
         // contract, never as an unrestricted source address.
@@ -1511,13 +1569,13 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         | "stsminb" | "stsminh" | "stsminl" | "stsminlb" | "stsminlh" | "stumax" | "stumaxb"
         | "stumaxh" | "stumaxl" | "stumaxlb" | "stumaxlh" | "stumin" | "stuminb" | "stuminh"
         | "stuminl" | "stuminlb" | "stuminlh" | "xchg" | "xadd" | "cmpxchg" | "cmpxchg8b"
-        | "cmpxchg16b" | "xlat" | "xlatb" | "lds" | "les" | "lss" | "lfs" | "lgs" | "sgdt"
-        | "sidt" | "lgdt" | "movnti" | "movntq" | "movntdq" | "movntdqa" | "bound" | "fxsave"
-        | "fxrstor" | "xsave" | "xsavec" | "xsaves" | "xsaveopt" | "xrstor" | "xrstors"
-        | "movs" | "movsb" | "movsw" | "movsq" | "lods" | "lodsb" | "lodsw" | "lodsq" | "lodsd"
-        | "stos" | "stosb" | "stosw" | "stosq" | "stosd" | "scas" | "scasb" | "scasw" | "scasq"
-        | "scasd" | "cmps" | "cmpsb" | "cmpsw" | "cmpsq" | "ins" | "outs" | "insb" | "insw"
-        | "insd" | "outsb" | "outsw" | "outsd" => Refused(UnmodeledMemoryAccess),
+        | "cmpxchg16b" | "xlat" | "xlatb" | "lds" | "les" | "lss" | "lfs" | "lgs" | "sidt"
+        | "movnti" | "movntq" | "movntdq" | "movntdqa" | "bound" | "fxsave" | "fxrstor"
+        | "xsave" | "xsavec" | "xsaves" | "xsaveopt" | "xrstor" | "xrstors" | "movs" | "movsb"
+        | "movsw" | "movsq" | "lods" | "lodsb" | "lodsw" | "lodsq" | "lodsd" | "stos" | "stosb"
+        | "stosw" | "stosq" | "stosd" | "scas" | "scasb" | "scasw" | "scasq" | "scasd" | "cmps"
+        | "cmpsb" | "cmpsw" | "cmpsq" | "ins" | "outs" | "insb" | "insw" | "insd" | "outsb"
+        | "outsw" | "outsd" => Refused(UnmodeledMemoryAccess),
         _ => return None,
     };
     Some(entry)

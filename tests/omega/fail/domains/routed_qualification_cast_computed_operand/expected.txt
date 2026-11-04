@@ -1,0 +1,1 @@
+`as ... in i32::Issued` cannot establish a non-vacuous domain

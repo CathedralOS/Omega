@@ -11,34 +11,34 @@ machine Main::main(main: &mut Main)
 reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration {
     let removed: i32 = block cleanup_names();
     let created: i32 = block WindowsFilesystemHost::create_directory("omega_raw_directory");
-    transition created == 0 { true -> child(main) false -> finish(main, 71) }
+    transition created == 0 { true -> block child(main) false -> block finish(main, 71) }
     machine child(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::create_directory("omega_raw_directory/child");
-        transition status == 0 { true -> first(main) false -> finish(main, 72) }
+        transition status == 0 { true -> block first(main) false -> block finish(main, 72) }
     }
     machine first(main: &mut Main) {
         main.first = block WindowsFilesystemHost::create_file("omega_raw_directory/first", 3221225472, 7, 2, 128);
-        transition main.first != 0 { true -> second(main) false -> finish(main, 73) }
+        transition main.first != 0 { true -> block second(main) false -> block finish(main, 73) }
     }
     machine second(main: &mut Main) {
         main.second = block WindowsFilesystemHost::create_file("omega_raw_directory/界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界", 3221225472, 7, 2, 128);
-        transition main.second != 0 { true -> count(main) false -> finish(main, 74) }
+        transition main.second != 0 { true -> block count(main) false -> block finish(main, 74) }
     }
     machine count(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::directory_count("omega_raw_directory");
-        transition count == 3 { true -> empty(main) false -> finish(main, 75) }
+        transition count == 3 { true -> block empty(main) false -> block finish(main, 75) }
     }
     machine empty(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::directory_count("omega_raw_directory/child");
-        transition count == 0 { true -> refuse_file(main) false -> finish(main, 76) }
+        transition count == 0 { true -> block refuse_file(main) false -> block finish(main, 76) }
     }
     machine refuse_file(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::directory_count("omega_raw_directory/first");
-        transition count < 0 { true -> refuse_missing(main) false -> finish(main, 77) }
+        transition count < 0 { true -> block refuse_missing(main) false -> block finish(main, 77) }
     }
     machine refuse_missing(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::directory_count("omega_raw_directory/missing");
-        transition count < 0 { true -> finish(main, 70) false -> finish(main, 78) }
+        transition count < 0 { true -> block finish(main, 70) false -> block finish(main, 78) }
     }
     machine finish(main: &mut Main, code: i32) {
         let second: i32 = block close_if_present(main.second);
@@ -53,7 +53,7 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
 }
 
 machine close_if_present(handle: u64) -> i32 {
-    transition handle != 0 { true -> release(handle) false -> 0 }
+    transition handle != 0 { true -> block release(handle) false -> 0 }
     machine release(handle: u64) -> i32 { block WindowsFilesystemHost::close_handle(handle) }
 }
 

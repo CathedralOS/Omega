@@ -1,3 +1,5 @@
+mod fragment;
+pub(crate) use fragment::append_fragment;
 mod generated_writer;
 mod writer_encoding;
 

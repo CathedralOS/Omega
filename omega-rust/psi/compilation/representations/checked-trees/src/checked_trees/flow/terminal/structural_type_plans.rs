@@ -56,6 +56,10 @@ pub struct CheckedUnitStructuralTypePlan {
     pub source_declaration: SymbolHandle,
     pub source_application: typed_trees::SourceTypeApplication,
     pub identity: TypeIdentityId,
+    /// A stored view retains the exact canonical descriptor collected with it.
+    /// Selector evaluation may capture that presentation; this dependency
+    /// grants no access, membership or backing permission.
+    pub descriptor_presentation: TypeIdentityId,
     /// Producer-issued nominal data identity for native layout applications.
     /// Non-nominal or non-hermetic carriers have none; semantic type names do
     /// not impersonate a portable declaration identity.
@@ -89,6 +93,7 @@ pub struct CheckedUnitStructuralTypePlan {
 impl PartialEq for CheckedUnitStructuralTypePlan {
     fn eq(&self, other: &Self) -> bool {
         self.identity == other.identity
+            && self.descriptor_presentation == other.descriptor_presentation
             && self.native_identity == other.native_identity
             && self.native_policy_identity == other.native_policy_identity
             && self.native_semantic_identity == other.native_semantic_identity

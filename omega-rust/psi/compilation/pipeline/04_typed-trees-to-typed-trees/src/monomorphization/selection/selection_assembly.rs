@@ -324,7 +324,7 @@ pub(crate) fn proposal_bindings(
         }
     }
     for (_, parameter, binding) in evidence_proposals {
-        if program.symbols.get(binding.symbol).kind == SymbolKind::ConformanceParameter {
+        if super::super::contextual_calls::argument_is_open(program.typed_program(), &binding) {
             selection.unresolved_evidence_parameters = true;
         }
         match &selection.evidence_bindings[parameter] {

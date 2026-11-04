@@ -1,0 +1,17 @@
+// The result guarantee `result >= 2` holds on every arrival: the live branch
+// proves it from `count >= 10`, and the branch returning 0 is ruled out by the
+// contradiction between `count >= 10` and `count < 5`.
+machine pick(count: u64) -> u64
+requires count >= 10
+ensures result >= 2u64
+{
+    transition count < 5 {
+        true -> (0u64)
+        false -> (count - 8u64)
+    }
+}
+machine main() crashes Trap {
+    transition pick(12) == 4 && pick(30) == 22 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

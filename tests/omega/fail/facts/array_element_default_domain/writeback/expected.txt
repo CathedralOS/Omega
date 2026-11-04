@@ -1,1 +1,3 @@
-default domain is still FALSE
+cannot complete return from machine `replace_and_increment` state `entry`
+the `requires` facts of `tallies` (data `Tallies`)
+unproved; restore them first

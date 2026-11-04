@@ -11,6 +11,7 @@
 //! `execution_projection.rs` selects executable declaration contexts without
 //! granting a checked judgment; compile-time evaluation and checking share it.
 
+pub use declarations::data_queries::data_field_is_where_independent;
 pub use declarations::traits::conformance_applications;
 pub mod compiler_evaluation;
 pub use queries::execution_projection;
@@ -71,7 +72,8 @@ pub use machine_calls::calls::{
     SelectedCallArgument, SelectedCallArgumentError, call_target_has_checked_body_contract,
     call_type_arguments, closed_requirement_dispatch_is_valid, machine_has_unit_result,
     named_conformance_target_requirement, nested_boundary_applications_compose,
-    requirement_contract_signature, result_initializer_call_is_admitted, selected_call_arguments,
+    requirement_contract_signature, resolve_requirement_contract,
+    result_initializer_call_is_admitted, selected_call_arguments,
     selected_call_result_domain_matches, selected_requirement_signature, target_family_members,
     unit_result_initializer_call_is_admitted, unit_return_call_is_admitted,
     unit_statement_call_is_admitted,
@@ -161,7 +163,7 @@ pub use proof_contracts::domains::{
     scalar_field_restriction, scalar_membership_carrier, scalar_membership_is_tag,
     scalar_membership_predicates, scalar_membership_value_carrier,
     scalar_membership_value_predicates, scalar_predicate_domains, scalar_type_routed_domains,
-    scalar_type_tags, validate_executable_domain_test_carriers,
+    scalar_type_tags, validate_domain_membership_carriers,
 };
 pub use proof_contracts::parameter_domains::parameter_domain_constraints;
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
@@ -226,10 +228,10 @@ pub use value_custody::atomic_operations::{
     AtomicCarrierAccess, atomic_assignment_carrier, atomic_execution_children, atomic_load_carrier,
     atomic_once_carrier, atomic_once_operands, atomic_once_result_type, atomic_once_write_place,
     atomic_resident_type_reference, atomic_result_placeholder, atomic_value_operands,
-    place_is_atomic_storage,
+    is_atomic_type, place_is_atomic_storage,
 };
 pub use value_custody::places::{
-    AttachedStorageRoot, ScalarCoordinateProjection, StructuralCoordinate,
+    AttachedStorageRoot, ResolvedArrayExtent, ScalarCoordinateProjection, StructuralCoordinate,
     StructuralScalarCoordinate, StructuralScalarField, StructuralSource, assignment_target_indexes,
     assignment_target_selectors, attached_storage_root, canonical_storage_label,
     collection_length_receiver, declaration_storage_label, declared_collection_extent,
@@ -237,8 +239,9 @@ pub use value_custody::places::{
     exact_data_member_field, exact_self_field, expression_names_attached_storage,
     fixed_array_type_extent, fixed_array_type_length, has_builtin_subslice_meaning,
     indexed_operation_has_builtin_meaning, mutable_byte_slice_parameter_element,
-    place_has_builtin_coordinates, range_operator_establishes_endpoint_extent, saved_dispatch_call,
-    saved_dispatch_subject, structural_atomic_field, structural_coordinate,
+    place_has_builtin_coordinates, range_operator_establishes_endpoint_extent,
+    resolved_array_extent, resolved_array_extent_at, resolved_projected_array_extent,
+    saved_dispatch_call, saved_dispatch_subject, structural_atomic_field, structural_coordinate,
     structural_coordinate_in_type, structural_scalar_coordinate,
     structural_scalar_coordinate_in_type, structural_scalar_field,
     structural_scalar_field_at_coordinate, structural_scalar_field_at_element_coordinate,
@@ -292,8 +295,8 @@ pub use crate::machine_calls::calls::{
     InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource,
     ReferenceResultLeafOrigin, ReferenceResultTransport, ReferenceSlotContract,
     ReferenceViewFormation, ScalarStorageCoordinate, StoredReferenceCallContext,
-    StoredReferenceCallSchedule, StoredReferenceDestinationKind, StoredReferenceEffect,
-    StoredReferenceRelationRefusal, ValidatedSelfCallDescent, assignment_stored_value_type,
+    StoredReferenceDestinationKind, StoredReferenceEffect, StoredReferenceRelationRefusal,
+    ValidatedSelfCallDescent, assignment_rebinds_parameter, assignment_stored_value_type,
     frame_coordinate_path, frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
     state_reference_parameter_binding_is_stable, storage_origin_types_match,
 };
@@ -401,7 +404,6 @@ pub use proof_contracts::quotients::{
 };
 pub use value_custody::constants::completed_integer_constant;
 pub use value_custody::expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
-pub use value_custody::expression_types::borrow_selects_reference_storage;
 pub use value_custody::expression_types::bounded_byte_buffer_capacity;
 pub use value_custody::expression_types::match_subject_primitive_type;
 pub use value_custody::expression_types::validate_match_dispatch;
@@ -593,8 +595,9 @@ pub use program_validation::{
     FrozenDependencyBody, OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,
     ProvenContractExpressions, admit_prepared_program_effects, checking_thread_pool,
     dependency_body_read_totals, dependency_entailment_totals, judge_contract_entailment,
-    prepare_specialized_program, validate_checked_operator_realization_contract,
-    validate_generic_machine_contract_entailment, validate_program,
+    prepare_specialized_program, statement_source_span,
+    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
+    validate_program,
 };
 pub(crate) use program_validation::{DependencyBodyRead, note_dependency_body_read};
 
@@ -638,10 +641,11 @@ pub use value_custody::places::{
     parameter_source_type_application, place_root_may_be_symbol,
     project_type_reference_from_segments, projected_statement_receiver_place,
     projected_statement_receiver_type_reference, push_field_place_segments,
-    qualification_storage_path, receiver_projections, resolve_member_symbol_from_type_symbol,
-    runtime_field_subject, source_type_application_from_segments, state_scoped_name_symbol,
-    structural_member_identity, symbol_type_symbol, unique_data_definition_by_symbol,
-    whole_collection_view_source,
+    qualification_storage_path, receiver_projections, resolve_member_symbol_from_place,
+    resolve_member_symbol_from_type_symbol, runtime_field_subject,
+    source_type_application_from_segments, state_scoped_name_symbol, storage_operand,
+    storage_place_from_expression_in_state, structural_member_identity, symbol_type_symbol,
+    unique_data_definition_by_symbol, whole_collection_view_source,
 };
 
 /// Walk a type-reference table once into a positional row vector: row 0 is
@@ -669,6 +673,7 @@ pub use value_custody::activation_storage::{
     ActivationStorageContract, ActivationStorageOperation,
     activation_accessor_has_empty_write_frame, activation_claim_byte_carrier,
     activation_storage_bound, exact_toolchain_activation_storage_contract,
+    type_carries_activation_claim,
 };
 pub use value_custody::atomic_fences::{
     AtomicFenceContract, exact_toolchain_atomic_fence_contract,

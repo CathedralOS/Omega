@@ -67,6 +67,11 @@ pub(in crate::flow::ownership) fn append(
     }
 }
 
+pub(super) enum IndexedResult {
+    StoredProjection,
+    FreshValue,
+}
+
 /// A selected index operator evaluates ordinary parameter-aligned operands.
 /// Only intrinsic place indexing may implicitly observe its collection.
 /// The result of a consuming collection operator is fresh, not a projection
@@ -78,7 +83,26 @@ pub(super) fn append_indexed_operands(
     statement: usize,
     expression: ExpressionHandle,
     source: FlowOwnershipEventSource,
-) -> Option<bool> {
+) -> Option<IndexedResult> {
+    if validation::has_builtin_subslice_meaning(program, sink.machine, Some(sink.state), expression)
+    {
+        let indexed = program.expression_table.indexed_node(expression)?;
+        // A range creates a view descriptor. It observes the collection rather
+        // than extracting an element, even when that element is not copyable.
+        // Evaluate both endpoints, including their calls and ownership effects,
+        // before returning the fresh descriptor.
+        append(program, sink, state, statement, indexed.collection, source);
+        append_move_events_for_expression(
+            program,
+            sink,
+            state,
+            statement,
+            indexed.index,
+            Default::default(),
+            source,
+        );
+        return Some(IndexedResult::FreshValue);
+    }
     let operator_symbol = selected_operator(sink, state, statement, expression)?;
     let operator = declaration_by_symbol(program, operator_symbol)?;
     let indexed = program.expression_table.indexed_node(expression)?;
@@ -126,7 +150,11 @@ pub(super) fn append_indexed_operands(
             append(program, sink, state, statement, operand, source);
         }
     }
-    Some(policy.receiver_transfers())
+    Some(if policy.receiver_transfers() {
+        IndexedResult::FreshValue
+    } else {
+        IndexedResult::StoredProjection
+    })
 }
 
 pub(super) fn selected_operator(

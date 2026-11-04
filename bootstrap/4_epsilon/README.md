@@ -7,6 +7,13 @@ adjacent execution validation.
 It is self-contained: a compiler, sample corpus, historical implementation, or
 Omega document cannot amend Epsilon by acceptance.
 
+The ratified [expression-arm result rule](LANGUAGE.md#8-machines-states-and-transitions)
+aligns transition values and terminal call results with Omega, with `{}` for
+resultless completion. The current evaluator and admitted source closure still
+use the earlier arm-return profile. Their coordinated migration and identity
+revalidation are deferred under **OMEGA-D** in [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md);
+this documentation decision changes no admitted artifact or proof identity.
+
 Declaration identity, type formation, body/control premise dependencies, and
 entry diagnostics belong to the [language contract](LANGUAGE.md#4-names-types-and-closure-checking).
 Its [resource classification](LANGUAGE.md#10-resource-classification) separates

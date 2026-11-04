@@ -16,12 +16,12 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("NEW021 constrained pendulum; signed micro-units; dt=0.01; gravity=9.81; mass=1");
     let input: ByteRead = block Console::read_byte();
     transition input {
-        ByteRead::Byte { value } -> scenario(main, value)
+        ByteRead::Byte { value } -> block scenario(main, value)
         ByteRead::Eof -> invalid(main)
     }
     machine scenario(main: &mut Main, value: i32) {
         transition value >= 48 && value <= 51 {
-            true -> length_input(main, value - 48)
+            true -> block length_input(main, value - 48)
             false -> invalid(main)
         }
     }
@@ -29,35 +29,35 @@ machine Main::main(main: &mut Main) reaches Console {
         main.scenario = scenario;
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> length(main, value)
+            ByteRead::Byte { value } -> block length(main, value)
             ByteRead::Eof -> invalid(main)
         }
     }
     machine length(main: &mut Main, value: i32) {
         transition value {
-            49 -> unit_length(main)
-            50 -> double_length(main)
+            49 -> block unit_length(main)
+            50 -> block double_length(main)
             _ -> invalid(main)
         }
     }
     machine unit_length(main: &mut Main) {
         main.pendulum.length = 1.0;
-        transition { _ -> newline(main) }
+        transition { _ -> block newline(main) }
     }
     machine double_length(main: &mut Main) {
         main.pendulum.length = 2.0;
-        transition { _ -> newline(main) }
+        transition { _ -> block newline(main) }
     }
     machine newline(main: &mut Main) {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> check_newline(main, value)
+            ByteRead::Byte { value } -> block check_newline(main, value)
             ByteRead::Eof -> invalid(main)
         }
     }
     machine check_newline(main: &mut Main, value: i32) {
         transition value == 10 {
-            true -> end_input(main)
+            true -> block end_input(main)
             false -> invalid(main)
         }
     }

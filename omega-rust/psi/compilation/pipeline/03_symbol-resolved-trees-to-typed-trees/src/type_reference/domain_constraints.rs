@@ -90,6 +90,7 @@ fn normalize_constraint_span(
             authored_name,
             reference,
             domain_constraint.symbol,
+            &domain_constraint.arguments,
         );
         let [domain] = matches.as_slice() else {
             // Zero matches is either a compiler-known pseudo-domain or an
@@ -287,6 +288,7 @@ pub(crate) fn select_domain_candidates(
     authored_name: &str,
     reference: Option<source::SourceSpan>,
     retained: symbols::SymbolHandle,
+    arguments: &[typed_trees::types::TypeReferenceHandle],
 ) -> Vec<typed_trees::domain::DomainDefinition> {
     let selected = reference
         .and_then(|span| {
@@ -305,7 +307,12 @@ pub(crate) fn select_domain_candidates(
     };
     let matches = if let Some(symbol) = selected {
         domain_by_symbol(program, symbol)
-            .filter(|domain| visible(domain) && domain_accepts_carrier(program, domain, carrier))
+            .filter(|domain| {
+                visible(domain)
+                    && typed_trees::domain::domain_accepts_carrier(
+                        program, domain, carrier, arguments,
+                    )
+            })
             .cloned()
             .into_iter()
             .collect()
@@ -333,7 +340,9 @@ pub(crate) fn select_domain_candidates(
                                 authored_name,
                                 reference,
                             ))
-                        && domain_accepts_carrier(program, domain, carrier))
+                        && typed_trees::domain::domain_accepts_carrier(
+                            program, domain, carrier, arguments,
+                        ))
                     .then(|| domain.clone())
                 })
                 .collect()
@@ -413,33 +422,4 @@ fn domain_exposed_to(
             .symbols
             .source_module_import_paths(reference.source_id)
             .any(|path| path == qualified)
-}
-
-pub(crate) fn domain_accepts_carrier(
-    program: &TypedTrees,
-    domain: &typed_trees::domain::DomainDefinition,
-    carrier: typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    if !typed_trees::domain::has_generic_carrier(program, domain) {
-        // The declaration may import its carrier by a short name while the
-        // consumer qualifies it. Spelling is not carrier identity; retain the
-        // package owner too so equal module paths in different dependencies
-        // cannot borrow each other's domain.
-        return program.package_qualified_type_identity(domain.target_type)
-            == program.package_qualified_type_identity(carrier);
-    }
-    let parameters = program.domain_type_parameters(domain);
-    let Some(parameter) = parameters.first() else {
-        return false;
-    };
-    let typed_trees::data::TypeParameterKind::Type = parameter.kind else {
-        return false;
-    };
-    let typed_trees::types::TypeReferenceNode::Named { symbol, name } = program
-        .type_reference_table
-        .type_reference(domain.target_type)
-    else {
-        return false;
-    };
-    (*symbol == parameter.symbol || name == &parameter.name) && carrier.is_valid()
 }

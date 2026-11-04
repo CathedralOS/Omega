@@ -49,6 +49,41 @@ pub(super) fn proves_condition(
     let Some(operator) = binary.operator.complement() else {
         return false;
     };
+    // The ordered operand owner admits fixed-integer observations only.
+    let mut observations = Observations::default();
+    let Some(comparison) = integer_comparison(
+        program,
+        machine,
+        state,
+        expression,
+        operator,
+        bindings,
+        &mut observations,
+    ) else {
+        return false;
+    };
+    contradicts(
+        program,
+        machine,
+        environment,
+        observations,
+        vec![comparison],
+    )
+}
+
+/// One authored integer comparison, restated with `operator`, over the exact
+/// current observations of its operands. `None` when either operand is not a
+/// fixed-integer observation the ordered-value owner resolves.
+fn integer_comparison(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    operator: BinaryOperator,
+    bindings: &[(Operand, Operand)],
+    observations: &mut Observations,
+) -> Option<ScopedArithmeticComparison> {
+    let binary = program.expression_table.binary_node(expression)?;
     // Names and fields are storage observations for more than integers. An
     // IEEE comparison cannot inherit integer complement/order laws.
     let integer = |value| {
@@ -73,40 +108,169 @@ pub(super) fn proves_condition(
                 })
     };
     if !integer(binary.left) || !integer(binary.right) {
-        return false;
+        return None;
     }
-    let (Some(left), Some(right)) = (
-        super::ordered_values::operand(program, machine, state, binary.left, None),
-        super::ordered_values::operand(program, machine, state, binary.right, None),
-    ) else {
-        return false;
-    };
+    let left = super::ordered_values::operand(program, machine, state, binary.left, None)?;
+    let right = super::ordered_values::operand(program, machine, state, binary.right, None)?;
     let (left, right) = if bindings.is_empty() {
         (left, right)
     } else {
         let rebound_left = left.rebound(bindings);
         let rebound_right = right.rebound(bindings);
         let ([left], [right]) = (rebound_left.as_slice(), rebound_right.as_slice()) else {
-            return false;
+            return None;
         };
         (left.clone(), right.clone())
     };
-    // The ordered operand owner admits fixed-integer observations only.
-    let mut observations = Observations::default();
-    let (Some(left), Some(right)) = (observations.value(&left), observations.value(&right)) else {
-        return false;
+    Some(ScopedArithmeticComparison {
+        operator,
+        left: observations.value(&left)?,
+        right: observations.value(&right)?,
+    })
+}
+
+/// The facts in force before a branch that rule it out, or `None` when the
+/// branch's narrowed facts are consistent.
+///
+/// `base` holds the facts in force before the branch condition and `arm` the
+/// same facts after the condition's ordinary narrowing for this branch. The
+/// question is advisory: the unreachable-branch warning reads it, while every
+/// obligation inside the branch still owes its own checked proof. `None`
+/// never means the branch is reachable. A base that already contradicts
+/// itself makes the whole arrival impossible, not this branch, and a
+/// condition that narrows nothing (a closed compile-time selection) cannot
+/// contradict anything, so both stay quiet.
+///
+/// A compiler-generated machine, such as a generic specialization, stays
+/// quiet: its authored origin is checked with its own contract, so a branch
+/// that specialization alone removes is not reported, while a branch that
+/// contradicts the generic's own contract is reported once, there.
+///
+/// The result is a minimal set of base facts that, with the condition, still
+/// rule the branch out. An empty set means the condition contradicts itself.
+pub(crate) fn contradicting_premises(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    base: &ValueEnvironment,
+    arm: &ValueEnvironment,
+) -> Option<Vec<String>> {
+    if program.symbols.authored_origin(machine.symbol) != machine.symbol {
+        return None;
+    }
+    let impossible = |environment: &ValueEnvironment| {
+        environment
+            .intervals
+            .values()
+            .any(|interval| matches!((interval.low(), interval.high()), (Some(low), Some(high)) if low > high))
+            || contradicts(
+                program,
+                machine,
+                environment,
+                Observations::default(),
+                Vec::new(),
+            )
     };
-    contradicts(
-        program,
-        machine,
-        environment,
-        observations,
-        vec![ScopedArithmeticComparison {
-            operator,
-            left,
-            right,
-        }],
-    )
+    if !impossible(arm) || impossible(base) {
+        return None;
+    }
+    // A base fact the narrowed facts still contain, unchanged or narrowed by
+    // the condition, is a premise; deleting it from the arm either keeps the
+    // contradiction (so it is not needed) or removes it (so it is reported).
+    let mut core = arm.clone();
+    let mut premises = Vec::new();
+    for relation in &base.ordered_values {
+        let Some(position) = core.ordered_values.iter().position(|kept| kept == relation) else {
+            continue;
+        };
+        let mut trial = core.clone();
+        trial.ordered_values.remove(position);
+        if impossible(&trial) {
+            core = trial;
+        } else {
+            premises.push(render_relation(relation));
+        }
+    }
+    for (path, interval) in &base.intervals {
+        // Withdraw each base bound separately, keeping whatever the condition
+        // itself bounds on the same path.
+        for lower in [true, false] {
+            let Some(narrowed) = core.intervals.get(path).copied() else {
+                break;
+            };
+            let (base_bound, narrowed_bound) = if lower {
+                (interval.low(), narrowed.low())
+            } else {
+                (interval.high(), narrowed.high())
+            };
+            let Some(bound) = base_bound.filter(|bound| narrowed_bound == Some(*bound)) else {
+                continue;
+            };
+            let mut withdrawn = narrowed;
+            if lower {
+                withdrawn.low = None;
+            } else {
+                withdrawn.high = None;
+            }
+            let mut trial = core.clone();
+            if withdrawn.low.is_none() && withdrawn.high.is_none() {
+                trial.intervals.remove(path);
+            } else {
+                trial.intervals.insert(path.clone(), withdrawn);
+            }
+            if impossible(&trial) {
+                core = trial;
+            } else {
+                let relation = if lower { ">=" } else { "<=" };
+                premises.push(format!("{path} {relation} {bound}"));
+            }
+        }
+    }
+    Some(premises)
+}
+
+fn render_relation(relation: &super::ordered_values::Relation) -> String {
+    let left = render_operand(&relation.left);
+    let right = render_operand(&relation.right);
+    match relation.constraint {
+        RelationConstraint::Unequal => format!("{left} != {right}"),
+        RelationConstraint::MinimumDifference(0) => format!("{left} >= {right}"),
+        RelationConstraint::MinimumDifference(floor) if floor > 0 => {
+            format!("{left} >= {right} + {floor}")
+        }
+        RelationConstraint::MinimumDifference(floor) => {
+            format!("{left} >= {right} - {}", floor.unsigned_abs())
+        }
+    }
+}
+
+fn render_operand(operand: &Operand) -> String {
+    if let Some(path) = operand.static_path() {
+        return path;
+    }
+    match operand {
+        Operand::Integer(literal, _) => literal
+            .value_bignum()
+            .map_or_else(|| "a literal".to_owned(), |value| value.to_string()),
+        Operand::CollectionLength(collection) => format!("{}.len", render_operand(collection)),
+        Operand::Binary {
+            operator, operands, ..
+        } if operands.len() == 2 => {
+            let symbol = match operator {
+                BinaryOperator::Add => "+",
+                BinaryOperator::Subtract => "-",
+                BinaryOperator::Multiply => "*",
+                BinaryOperator::Divide => "/",
+                BinaryOperator::Modulo => "%",
+                _ => return "a computed value".to_owned(),
+            };
+            format!(
+                "({} {symbol} {})",
+                render_operand(&operands[0]),
+                render_operand(&operands[1])
+            )
+        }
+        _ => "a computed value".to_owned(),
+    }
 }
 
 /// Whether the current facts exclude this simultaneous assignment of values.

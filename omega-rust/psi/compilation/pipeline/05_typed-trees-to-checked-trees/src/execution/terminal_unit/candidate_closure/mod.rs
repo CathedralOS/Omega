@@ -198,7 +198,9 @@ fn admit_call_target(
         // implementation's rows are the dispatch catalog's dependencies,
         // which lowering resolves when it assembles the tables.
         (
-            CheckedUnitCallRoute::Dynamic { .. } | CheckedUnitCallRoute::ActivationStorage { .. },
+            CheckedUnitCallRoute::Dynamic { .. }
+            | CheckedUnitCallRoute::ActivationStorage { .. }
+            | CheckedUnitCallRoute::DescriptorTable { .. },
             _,
         ) => {}
     }
@@ -315,6 +317,7 @@ pub(super) fn retain_available(
                 ),
                 // Selected execution already joined exact realization custody.
                 OperationPlan::RegisterAccess { .. }
+                | OperationPlan::GlobalDescriptorTable { .. }
                 | OperationPlan::EvaluateStructuralValue { .. }
                 | OperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. },
@@ -436,6 +439,7 @@ pub(super) fn retain_available(
                     | OperationPlan::AtomicFence { .. }
                     | OperationPlan::AtomicAccess(_)
                     | OperationPlan::RegisterAccess { .. }
+                | OperationPlan::GlobalDescriptorTable { .. }
                     | OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. })
                     // A borrowed reference binds storage already owned by the
                     // frame; establish/release carry no callee dependency.

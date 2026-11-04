@@ -371,7 +371,7 @@ pub(super) fn build(
                 *argument,
                 &place,
                 result,
-                parameter,
+                parameter.type_reference,
                 target_identity,
                 caller_operations,
                 trace,
@@ -404,8 +404,6 @@ pub(super) fn build(
         // declared referent and dense source coordinate without transferring
         // the caller's custody.
         phase("call operation: boundary borrowed storage");
-        let mut receiving_parameter = (*parameter).clone();
-        receiving_parameter.type_reference = formal;
         if let Some(argument) = borrowed_storage_argument(
             program,
             shapes,
@@ -414,7 +412,7 @@ pub(super) fn build(
             state,
             call,
             &place,
-            &receiving_parameter,
+            formal,
             None,
         ) {
             structural_arguments.push(argument);

@@ -17,11 +17,11 @@ data Main {
     limit: u64;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches Console {
     main.limit = 4;
     // Read the field before the first argument forwards exclusive custody.
     let initial_limit: u64 = main.limit;
-    let total: u64 = Main::climb(main, initial_limit, 0, 0);
+    let total: u64 = climb(main, initial_limit, 0, 0);
     transition total == 4 {
         true -> good(main)
         _ -> bad(main)
@@ -36,7 +36,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 }
 
-machine Main::climb(main: &mut Main, limit: u64, index: u64, acc: u64) -> u64
+machine climb(main: &mut Main, limit: u64, index: u64, acc: u64) -> u64
 requires
     limit <= 1000,
     acc <= index,
@@ -54,5 +54,5 @@ ensures
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

@@ -351,11 +351,10 @@ fn build_structural_runtime_requirements(
             }
             typed_trees::domain::ProofFact::Membership(membership) => {
                 let primitive = validation::scalar_membership_carrier(program, membership)?;
-                let subject = values::lower_unit_scalar_argument(
+                let subject = values::lower_machine_entry_scalar_argument(
                     program,
                     operators,
-                    entry,
-                    0,
+                    machine,
                     membership.value,
                     primitive,
                 )?;

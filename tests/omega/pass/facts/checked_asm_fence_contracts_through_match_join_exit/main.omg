@@ -31,8 +31,7 @@ X86Ordered satisfies SelectedOrdered {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires input == 37 ensures result == 37
     {
         SelectedBodyCheck::require_tag(17u64);
-        asm clobbers none {
-        entry requires input == 37 ensures input == 37:
+        asm requires input == 37 ensures input == 37 clobbers none {
             lfence;
             sfence;
             mfence
@@ -46,8 +45,7 @@ ArmOrdered satisfies SelectedOrdered {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires input == 37 ensures result == 37
     {
         SelectedBodyCheck::require_tag(29u64);
-        asm clobbers none {
-        entry requires input == 37 ensures input == 37:
+        asm requires input == 37 ensures input == 37 clobbers none {
             dmb ld;
             dmb st;
             dmb sy
@@ -61,10 +59,20 @@ machine failed() crashes Trap { crash Trap; }
 machine consume(value: u32) requires value == 37 crashes Trap {
     transition value == 37 { true -> finished() false -> failed() }
 }
-machine joined(branch: bool) -> u32 ensures result == 37 {
-    match branch { true -> SelectedOrdered::ordered(37), false -> SelectedOrdered::ordered(37) }
+machine marked_ordered(path: &write u32) -> u32 ensures result == 37 {
+    path = 1;
+    SelectedOrdered::ordered(37)
 }
-machine main() crashes Trap { consume(joined(true)); consume(joined(false)); }
+machine joined(branch: bool, path: &write u32) -> u32 ensures result == 37 {
+    match branch { true -> marked_ordered(path), false -> SelectedOrdered::ordered(37) }
+}
+machine main() crashes Trap {
+    let mut first_path: u32 = 0;
+    let mut second_path: u32 = 0;
+    consume(joined(true, &write first_path));
+    consume(joined(false, &write second_path));
+    transition first_path == 1 && second_path == 0 { true -> finished() false -> failed() }
+}
 machine x86_entry() crashes Trap {
     SelectedBodyCheck::require_tag(17u64);
     main();

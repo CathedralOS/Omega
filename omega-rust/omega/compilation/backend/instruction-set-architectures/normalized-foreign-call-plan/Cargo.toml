@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [features]
 test-support = [
+    "dep:layout-plans",
     "dep:calling-conventions",
     "dep:function-identity",
     "dep:legalized-operations",
@@ -20,6 +21,7 @@ test-support = [
 ]
 
 [dependencies]
+layout-plans = { path = "../../../../../psi/foundation/layout-plans", optional = true }
 register-model = { path = "../../register-model" }
 selected-instructions = { path = "../../../representations/selected-instructions" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }

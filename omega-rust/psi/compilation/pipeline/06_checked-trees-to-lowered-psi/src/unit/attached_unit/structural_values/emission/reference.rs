@@ -14,10 +14,6 @@ use super::{lookup_type_id, unsupported};
 use crate::expression_preparation::bindings::LoanAccess;
 use crate::expression_preparation::bindings::StructuralLocalBinding;
 use crate::expression_preparation::bindings::structural_paths::structural_access_can_supply;
-use crate::expression_preparation::bindings::structural_paths::terminal_access;
-use crate::expression_preparation::bindings::structural_paths::{
-    PreparedStructuralPathSegment, prepare_structural_argument_path,
-};
 use crate::shared::checked_facts::value_facts;
 use crate::shared::terminal_identities::stored_structural_identity;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
@@ -110,14 +106,9 @@ impl Emission<'_, '_, '_> {
         }
         let bindings = self
             .evaluation
-            .scalar_bindings
-            .clone()
+            .contextual_bindings()
             .with_computation_operands(0, self.values.iter().map(|value| value.scalar_type))
-            .with_structural_parameters(&self.evaluation.structural_parameters)
-            .with_structural_locals(&self.evaluation.structural_locals)
-            .with_view_locals(&self.evaluation.view_locals)
-            .with_structural_observations(self.structural_types)
-            .with_primitive_storage(&self.evaluation.primitive_storage);
+            .with_structural_observations(self.structural_types);
         let mut argument = match referent.shape {
             StructuralTypeShape::PrimitiveScalar(_)
                 if matches!(
@@ -148,31 +139,22 @@ impl Emission<'_, '_, '_> {
                 )?
             }
             _ => {
-                let argument = bindings
-                    .borrowed_structural_home(source, self.checked.state_parameters(state))?;
-                let root_type = bindings.structural_argument_type(&argument).ok_or(
-                    LoweringError::Unsupported("reference source lost its published selected type"),
-                )?;
-                let suffix = prepare_structural_argument_path(
+                // A saved reference may name borrowed storage without owning a
+                // descriptor slot. Reborrowing it follows the checked loan to
+                // that storage, using the same path as an ordinary call.
+                let argument = bindings.prepared_borrowed_argument(
                     identities,
                     self.checked,
                     source,
-                    root_type,
+                    self.checked.state_parameters(state),
                     self.structural_types,
                 )?;
-                let prepared = argument
-                    .path
-                    .iter()
-                    .cloned()
-                    .map(PreparedStructuralPathSegment::Static)
-                    .chain(suffix)
-                    .collect::<Vec<_>>();
                 self.complete_projection(
                     identities,
                     formation.expression,
-                    argument.place,
-                    prepared,
-                    terminal_access(source.access),
+                    argument.source.known_place()?,
+                    argument.path,
+                    argument.access,
                 )?
             }
         };

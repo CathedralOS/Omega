@@ -102,6 +102,7 @@ pub struct ProviderPlanDerivation<'a> {
     selected_target: Option<&'a str>,
     evaluated_bindings: Option<&'a crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
     target_machine_origins: &'a [SelectedTargetMachineOrigin],
+    native_bindings: &'a [DerivedProviderPlan],
 }
 
 impl<'a> ProviderPlanDerivation<'a> {
@@ -120,12 +121,14 @@ impl<'a> ProviderPlanDerivation<'a> {
             selected_target,
             evaluated_bindings: None,
             target_machine_origins: &[],
+            native_bindings: &[],
         }
     }
 
-    /// Derive with the evaluated `via` binding table this compile produced for
-    /// the same typed program and target. The table is not replayed against
-    /// the program it was just evaluated from.
+    /// Derive with the evaluated `via` binding table and the native-build
+    /// candidate rows this compile produced for the same typed program and
+    /// target. The table is not replayed against the program it was just
+    /// evaluated from.
     pub fn evaluated(
         services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'a>,
         body_declarations: &'a DirectCallDeclarations<SymbolHandle>,
@@ -133,6 +136,7 @@ impl<'a> ProviderPlanDerivation<'a> {
         selected_target: Option<&'a str>,
         evaluated_bindings: &'a crate::evaluated_via_bindings::EvaluatedViaBindingTable,
         target_machine_origins: &'a [SelectedTargetMachineOrigin],
+        native_bindings: &'a [DerivedProviderPlan],
     ) -> Self {
         Self {
             services,
@@ -141,6 +145,7 @@ impl<'a> ProviderPlanDerivation<'a> {
             selected_target,
             evaluated_bindings: Some(evaluated_bindings),
             target_machine_origins,
+            native_bindings,
         }
     }
 }
@@ -157,5 +162,6 @@ pub fn derive_satisfies_plans(
         derivation.selected_target,
         derivation.evaluated_bindings,
         derivation.target_machine_origins,
+        derivation.native_bindings,
     )
 }

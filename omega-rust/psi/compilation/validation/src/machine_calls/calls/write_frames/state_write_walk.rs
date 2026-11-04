@@ -553,8 +553,7 @@ fn walk_state_write_prefix_body(
             StatementNode::LocalData(local)
                 if (type_may_carry_write(program, local.type_reference)
                     && !type_is_caller_isolated_local(program, local.type_reference))
-                    || (include_shared
-                        && type_reference_is_reference(program, local.type_reference)) =>
+                    || type_reference_is_reference(program, local.type_reference) =>
             {
                 stable_local_reference_alias_origin(
                     program,
@@ -1110,13 +1109,13 @@ fn walk_state_write_prefix_body(
             }
             StatementNode::Expression(_) => {}
             StatementNode::LocalData(local) => {
-                if (type_may_carry_write(program, local.type_reference)
+                if let Some(origin) = declared_local_alias_origin {
+                    local_alias_origins.push((local.name.as_str().to_owned(), origin));
+                } else if (type_may_carry_write(program, local.type_reference)
                     && !type_is_caller_isolated_local(program, local.type_reference))
                     || include_shared
                 {
-                    if let Some(origin) = declared_local_alias_origin {
-                        local_alias_origins.push((local.name.as_str().to_owned(), origin));
-                    } else if let Some(origins) = declared_stored_origins {
+                    if let Some(origins) = declared_stored_origins {
                         // A reference has one leaf but may retain several
                         // captured referents. Preserve those established rows
                         // before considering an unknown read-only binding.

@@ -304,12 +304,14 @@ pub(in super::super) fn call_contexts(
         inference,
         &mut capture,
     )?;
-    Some(super::StoredReferenceCallSchedule {
-        fallthrough: capture
-            .fallthrough_call_context
-            .unwrap_or(capture.current_call_context),
-        contexts: capture.calls,
-    })
+    capture
+        .calls
+        .push(super::StoredReferenceCallContext::StatementCompletion {
+            entry: capture
+                .fallthrough_call_context
+                .unwrap_or(capture.current_call_context),
+        });
+    Some(capture.calls)
 }
 
 #[derive(Default)]

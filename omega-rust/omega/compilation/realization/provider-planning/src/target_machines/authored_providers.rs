@@ -49,6 +49,7 @@ impl AuthoredTargetProviders {
         bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
         target: Option<target::TargetProfile>,
         declarations: crate::SettledTargetMachineDeclarations,
+        native_bindings: &[crate::DerivedProviderPlan],
     ) -> Result<Self, Vec<Diagnostic>> {
         let candidates = crate::derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
             services,
@@ -57,6 +58,7 @@ impl AuthoredTargetProviders {
             target.map(target::TargetProfile::target_name),
             bindings,
             &declarations.origins,
+            native_bindings,
         ))?;
         Ok(Self {
             target,

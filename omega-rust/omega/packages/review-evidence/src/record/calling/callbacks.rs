@@ -54,10 +54,10 @@ pub(crate) struct PackagePolicyCallbackLayout {
     pub(crate) root_layout: PackagePolicyCallbackLayoutApplication,
     pub(crate) inline_fields: Vec<PackagePolicyCallbackInlineField>,
     pub(crate) terminal_slot: PackagePolicyClosedConformanceApplication,
-    pub(crate) terminal_offset: u64,
+    pub(crate) terminal_placements: Vec<layout_plans::LayoutPlacementReport>,
     pub(crate) terminal_byte_size: u64,
     pub(crate) terminal_alignment: u64,
-    pub(crate) composed_offset: u64,
+    pub(crate) composed_placements: Vec<layout_plans::LayoutPlacementReport>,
 }
 
 /// Exact supported layout application `Policy<Schema>` and target geometry.

@@ -159,7 +159,9 @@ pub(super) fn derive(
                         implementation,
                         row.declaring_trait,
                     )?;
-                let (binding, lifetime_partition, origin) = if machine.supply_mode.is_checked_body()
+                let (binding, lifetime_partition, origin, realization) = if machine
+                    .supply_mode
+                    .is_checked_body()
                     && machine.body_is_present
                 {
                     (
@@ -175,6 +177,7 @@ pub(super) fn derive(
                             lifetime_arguments,
                         ),
                         None,
+                        ProviderRowRealization::Authored(machine.symbol),
                     )
                 } else {
                     // Foreign candidates belong to the selected target member,
@@ -183,32 +186,43 @@ pub(super) fn derive(
                     let mut matched = Vec::new();
                     for candidate in candidates {
                         for (index, binding) in candidate.plan.rows.iter().enumerate() {
+                            let realization_matches =
+                                match candidate.provenance.row_realizations.get(index) {
+                                    Some(ProviderRowRealization::Authored(symbol)) => {
+                                        *symbol == machine.symbol
+                                    }
+                                    // A build-owned row names no authored leaf:
+                                    // it matches when this member's resolved
+                                    // declaration satisfies the bound requirement.
+                                    Some(ProviderRowRealization::BuildNative(origin)) => {
+                                        origin.requirement == row.requirement
+                                            && typed.machine_trait_conformances(machine).iter().any(
+                                                |edge| edge.requirement_symbol == row.requirement,
+                                            )
+                                    }
+                                    _ => false,
+                                };
                             if candidate.provenance.row_requirements.get(index)
                                 == Some(&row.requirement)
-                                && candidate
-                                    .provenance
-                                    .row_realizations
-                                    .get(index)
-                                    .and_then(ProviderRowRealization::authored)
-                                    == Some(machine.symbol)
+                                && realization_matches
                                 && candidate.plan.identities.text(binding.requirement_identity)
                                     == identity.as_str()
                             {
                                 matched.push((
                                     candidate,
                                     binding,
+                                    candidate.provenance.row_realizations.get(index)?,
                                     candidate.provenance.row_target_machine_origins.get(index)?,
                                 ));
                             }
                         }
                     }
-                    let (candidate, binding, origin) = *matched.first()?;
-                    if matched.iter().any(|(_, other, other_origin)| {
+                    let (candidate, binding, realization, origin) = *matched.first()?;
+                    if matched.iter().any(|(_, other, _, other_origin)| {
                         *other != binding || *other_origin != origin
                     }) {
                         return None;
                     }
-                    let origin = origin.clone();
                     let bound = match &binding.binding {
                         ProviderBinding::CheckedAdapter {
                             machine_identity,
@@ -224,7 +238,8 @@ pub(super) fn derive(
                     (
                         bound,
                         binding.requirement_lifetime_partition.clone(),
-                        origin,
+                        origin.clone(),
+                        realization.clone(),
                     )
                 };
                 let requirement_identity = plan.identities.intern(&identity);
@@ -235,7 +250,23 @@ pub(super) fn derive(
                     admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                     binding,
                 });
-                provenance.push_authored_row(row.requirement, machine.symbol, origin);
+                // The joined row keeps its own realization custody: a
+                // build-owned leaf stays `BuildNative` under the map's
+                // provider identity so review and boundary discovery rejoin
+                // the package-evaluated binding, not an authored `via`.
+                match realization {
+                    ProviderRowRealization::BuildNative(native) => {
+                        provenance.row_requirements.push(row.requirement);
+                        provenance
+                            .row_realizations
+                            .push(ProviderRowRealization::BuildNative(native));
+                        provenance.row_target_machine_origins.push(origin);
+                        provenance.row_accessors.push(None);
+                    }
+                    _ => {
+                        provenance.push_authored_row(row.requirement, machine.symbol, origin);
+                    }
+                }
             }
             Some(DerivedProviderPlan { plan, provenance })
         })

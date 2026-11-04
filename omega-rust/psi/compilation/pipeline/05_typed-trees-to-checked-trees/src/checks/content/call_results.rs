@@ -412,9 +412,18 @@ pub(super) fn check_call_result_qualifications(
             // Non-content theories retain the existing boundary authorization
             // rule. In particular, a routed alias without an exact direct
             // route is not silently accepted as a predicate-only theory.
-            let projection = projection?;
-            result_claim(program, facts, &invocation, path)?;
-            let parameters = call_parameters?;
+            let Some(projection) = projection else {
+                failure_reason = Some("the qualified domain has no retained content projection for conservation");
+                return None;
+            };
+            if result_claim(program, facts, &invocation, path).is_none() {
+                failure_reason = Some("the qualified result path has no exact owned result claim");
+                return None;
+            }
+            let Some(parameters) = call_parameters else {
+                failure_reason = Some("the exact invocation has no retained input signature");
+                return None;
+            };
             if facts
                 .qualifications
                 .content
@@ -462,21 +471,19 @@ pub(super) fn check_call_result_qualifications(
                     })
                 })
             {
+                failure_reason = Some("the result has simultaneous qualified destinations without a conservation proof");
                 return None;
             }
             let mut inputs = Vec::new();
             for (position, parameter) in parameters.iter().enumerate() {
-                for claim in linear_claim_frontier(
-                    program,
-                    parameter.type_reference,
-                ) {
+                for path in qualified_input_paths(program, parameter.type_reference, projection) {
                     if let Some(identity) = input_claim(
                         program,
                         facts,
                         &invocation,
                         parameters,
                         position,
-                        &claim.path,
+                        &path,
                         projection,
                     ) {
                         inputs.push(identity);
@@ -485,7 +492,11 @@ pub(super) fn check_call_result_qualifications(
             }
             // The only implicit bodyless relationship is unique identity
             // forwarding of this same qualification, not same-algebra minting.
-            (inputs.len() == 1).then_some(())
+            if inputs.len() != 1 {
+                failure_reason = Some("the invocation does not transfer exactly one established input claim for this domain");
+                return None;
+            }
+            Some(())
         })()
         .is_some();
         if !valid {
@@ -565,9 +576,20 @@ fn private_access_result_contract(
         .iter()
         .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
         && qualified_leaf_carrier(program, result_type, path).is_some_and(|carrier| {
-            unwrapped_type_references_match(program, carrier, domain.target_type)
-                && validation::field_domains::domain_constraint_identities(program, carrier)
-                    .contains(&(domain.symbol, semantic_domain))
+            validation::field_domains::declared_domain_constraint_records(program, carrier)
+                .into_iter()
+                .any(|constraint| {
+                    constraint.symbol == domain.symbol
+                        && constraint.semantic_id == semantic_domain
+                        && typed_trees::domain::domain_accepts_carrier(
+                            program,
+                            domain,
+                            program
+                                .type_reference_table
+                                .unconstrained_type_reference(carrier),
+                            &constraint.arguments,
+                        )
+                })
         });
     if !matches {
         return Err(Diagnostic::error(
@@ -898,21 +920,58 @@ fn consumes_qualified_input(
     projection: &ContentProjectionPlan,
 ) -> bool {
     parameters.iter().enumerate().any(|(position, parameter)| {
-        linear_claim_frontier(program, parameter.type_reference)
+        qualified_input_paths(program, parameter.type_reference, projection)
             .iter()
-            .any(|claim| {
+            .any(|path| {
                 input_claim(
-                    program,
-                    facts,
-                    invocation,
-                    parameters,
-                    position,
-                    &claim.path,
-                    projection,
+                    program, facts, invocation, parameters, position, path, projection,
                 )
                 .is_some()
             })
     })
+}
+
+/// Content can qualify an owned field inside a whole linear carrier. The
+/// ownership frontier intentionally stops at that carrier; the declaration
+/// roster supplies the nested subjects, not additional ownership claims.
+/// Keep distinct subjects distinct here: two qualified fields cannot satisfy
+/// the implicit single-input forwarding rule merely because one owner holds both.
+fn qualified_input_paths(
+    program: &dyn ::validation::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    projection: &ContentProjectionPlan,
+) -> Vec<Vec<PlaceSegment>> {
+    let mut paths = linear_claim_frontier(program, reference)
+        .into_iter()
+        .map(|claim| claim.path)
+        .collect::<Vec<_>>();
+    for row in validation::field_domains::declared_type_domain_rows(program, reference) {
+        if !row.transfer
+            && row.domain_symbol == projection.domain
+            && row.semantic_domain == projection.semantic_domain
+            && owned_claim_path(program, reference, &row.path).is_some()
+            && !paths.contains(&row.path)
+        {
+            paths.push(row.path);
+        }
+    }
+    paths
+}
+
+/// Find the frontier claim that owns this structural subject without crossing
+/// a reference. Returning the containing identity does not split its custody:
+/// conservation binding still refuses to count that identity twice.
+fn owned_claim_path(
+    program: &dyn ::validation::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    path: &[PlaceSegment],
+) -> Option<Vec<PlaceSegment>> {
+    qualified_leaf_carrier(program, reference, path)?;
+    let mut owners = linear_claim_frontier(program, reference)
+        .into_iter()
+        .filter(|claim| path.starts_with(&claim.path));
+    let owner = owners.next()?;
+    owners.next().is_none().then_some(owner.path)
 }
 
 pub(super) fn input_claim(
@@ -991,14 +1050,18 @@ pub(super) fn input_claim(
     let evaluation = invocation.evaluation(program)?;
     let mut current = place_at(program, invocation.state, invocation.statement, argument)?;
     current.extend_segments(path);
+    let owner_path = owned_claim_path(program, parameter.type_reference, path)?;
+    let projection_path = &path[owner_path.len()..];
+    let mut owner = place_at(program, invocation.state, invocation.statement, argument)?;
+    owner.extend_segments(&owner_path);
     let transferred = unique_claim(
         program,
         facts,
         invocation,
         evaluation,
         PermissionEventKind::Transfer,
-        current.root,
-        &current.segments,
+        owner.root,
+        &owner.segments,
     )?;
     if current == *actual {
         return Some(transferred);
@@ -1007,6 +1070,10 @@ pub(super) fn input_claim(
     // without an intermediate owner to move out of. Join its exact receiving
     // establishment to the captured producer and the call's current transfer.
     // A receiving type or an unrelated historical claim supplies neither join.
+    let received_owner_path = value
+        .observation_projection
+        .remaining
+        .strip_suffix(projection_path)?;
     invocation
         .events
         .iter()
@@ -1017,14 +1084,14 @@ pub(super) fn input_claim(
                 && event.access == PermissionAccess::Owned
                 && event.obligation_live
                 && event.evaluation == evaluation
-                && event.root == current.root
-                && facts.flow.ownership.segments.span_or_empty(event.segments) == current.segments
+                && event.root == owner.root
+                && facts.flow.ownership.segments.span_or_empty(event.segments) == owner.segments
                 && event.claim_identity == transferred
                 && validation::receiving_value(program, &facts.flow.ownership.segments, event)
                     == Some((
                         invocation.statement,
                         value.observation_projection.expression,
-                        value.observation_projection.remaining.as_slice(),
+                        received_owner_path,
                     ))
         })
         .then_some(transferred)
@@ -1041,6 +1108,7 @@ pub(super) fn result_claim(
     // establishment back to its producer through the same operation used by
     // claim reconciliation, not a list of receiving statement spellings.
     let evaluation = invocation.evaluation(program)?;
+    let owner_path = owned_claim_path(program, invocation.result_type(program)?, path)?;
     let call_source = PermissionEventSource::Call {
         statement_index: invocation.statement,
         call_ordinal: invocation.ordinal,
@@ -1063,7 +1131,11 @@ pub(super) fn result_claim(
             continue;
         }
         if validation::receiving_value(program, &facts.flow.ownership.segments, event)
-            != Some((invocation.statement, invocation.expression, path))
+            != Some((
+                invocation.statement,
+                invocation.expression,
+                owner_path.as_slice(),
+            ))
         {
             continue;
         }

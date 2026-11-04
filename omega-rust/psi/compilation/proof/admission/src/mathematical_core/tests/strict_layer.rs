@@ -5,8 +5,8 @@
 //! and no eta law for squash or box.
 
 use super::{
-    apply, box_elim, box_intro, boxed, default_budget, empty, empty_elim, lambda, pi, squash,
-    squash_elim, squash_intro, strict_sort, two, type_sort, variable,
+    apply, box_elim, box_intro, boxed, default_budget, empty, empty_elim, lambda, pi, sigma,
+    squash, squash_elim, squash_intro, strict_sort, two, type_sort, variable,
 };
 use crate::mathematical_core::{
     Budget, Context, CoreError, Signature, TermArena, check_type, convertible, infer_type,
@@ -669,4 +669,58 @@ fn stuck_unbox_eliminations_compare_componentwise() {
     assert!(
         !conv!(&mut arena => &context => left => other_motive => shared => &mut budget).unwrap()
     );
+}
+
+/// The reference rule types `sEmpty : sProp_i` at every level (Gilbert et
+/// al., POPL 2019, §3.3). This kernel admits only the `i = 0` instance and
+/// has no cumulativity, so `sEmpty` is not a `Strict 1` proposition: every
+/// kernel derivation stays a reference derivation, but not conversely.
+#[test]
+fn empty_proposition_is_typed_only_at_strict_level_zero() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let context = Context::empty();
+    let proposition = empty(&mut arena);
+    let inferred = infer_type(&mut arena, &context, proposition, &mut budget).unwrap();
+    let strict_zero = strict_sort(&mut arena, 0);
+    assert!(arena.structurally_equal(inferred, strict_zero));
+
+    let strict_one = strict_sort(&mut arena, 1);
+    let error = check_type(&mut arena, &context, proposition, strict_one, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+}
+
+/// The reference prints relevant `Σ` over two relevant components (Fig. 1)
+/// and strict `Σs` over two strict components (§3.6). This kernel also forms
+/// a `Σ` with one strict and one relevant component, in the relevant
+/// universe; that case is a kernel extension beyond the printed rules.
+#[test]
+fn a_sigma_is_strict_only_when_both_components_are_strict() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let context = Context::empty();
+    let cases = [
+        (true, true, strict_sort(&mut arena, 0)),
+        (false, true, type_sort(&mut arena, 0)),
+        (true, false, type_sort(&mut arena, 0)),
+        (false, false, type_sort(&mut arena, 0)),
+    ];
+    for (strict_domain, strict_codomain, expected) in cases {
+        let domain = if strict_domain {
+            empty(&mut arena)
+        } else {
+            two(&mut arena)
+        };
+        let codomain = if strict_codomain {
+            empty(&mut arena)
+        } else {
+            two(&mut arena)
+        };
+        let pair_type = sigma(&mut arena, domain, codomain);
+        let inferred = infer_type(&mut arena, &context, pair_type, &mut budget).unwrap();
+        assert!(
+            arena.structurally_equal(inferred, expected),
+            "domain strict: {strict_domain}, codomain strict: {strict_codomain}"
+        );
+    }
 }

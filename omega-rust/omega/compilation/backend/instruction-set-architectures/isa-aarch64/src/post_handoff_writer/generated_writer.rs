@@ -1,15 +1,11 @@
 //! Reusable post-handoff writer lowering for AArch64.
 //!
 //! X9 receives the provider-private packed context pointer. X10 holds the
-//! destination, X11 the source fragment, X12 masks, and X13 the destination
+//! destination, X11 the unchanged source, X12 the extracted fragment, and X13 the destination
 //! container. The helper embeds geometry only—never destination or source
 //! addresses.
 
-use super::writer_encoding::{
-    append_unsigned_immediate_padded, encode_and_x_register, encode_load_w_from_x,
-    encode_load_x_from_x, encode_lsl_x_immediate, encode_lsr_x_immediate, encode_move_x_register,
-    encode_orr_x_register, encode_store_w_to_x, encode_store_x_to_x,
-};
+use super::writer_encoding::{encode_load_x_from_x, encode_move_x_register};
 use calling_conventions::{MachineRegister, MachineStateSet, RegisterSet};
 use diagnostics::Diagnostic;
 use layout_plans::ByteOrder;
@@ -22,7 +18,7 @@ use post_handoff_writer_plan::{
 const CONTEXT_REGISTER: u8 = 9;
 const DESTINATION_REGISTER: u8 = 10;
 const SOURCE_REGISTER: u8 = 11;
-const MASK_REGISTER: u8 = 12;
+const FRAGMENT_REGISTER: u8 = 12;
 const CONTAINER_REGISTER: u8 = 13;
 
 pub fn generated_post_handoff_writer_clobbers() -> RegisterSet {
@@ -30,7 +26,7 @@ pub fn generated_post_handoff_writer_clobbers() -> RegisterSet {
         MachineRegister::Aarch64X(CONTEXT_REGISTER),
         MachineRegister::Aarch64X(DESTINATION_REGISTER),
         MachineRegister::Aarch64X(SOURCE_REGISTER),
-        MachineRegister::Aarch64X(MASK_REGISTER),
+        MachineRegister::Aarch64X(FRAGMENT_REGISTER),
         MachineRegister::Aarch64X(CONTAINER_REGISTER),
     ])
 }
@@ -69,80 +65,27 @@ pub fn encode_generated_post_handoff_writer_bytes(
                     })?,
             )
             .ok_or_else(|| Diagnostic::error("generated writer source-slot offset overflows"))?;
-        let destination_offset = usize::try_from(step.container_byte_offset).map_err(|_| {
-            Diagnostic::error("generated writer destination offset does not fit the host")
-        })?;
 
         bytes.extend(encode_load_x_from_x(
             SOURCE_REGISTER,
             CONTEXT_REGISTER,
             source_offset,
         )?);
-        if step.source_lsb != 0 {
-            bytes.extend(encode_lsr_x_immediate(
-                SOURCE_REGISTER,
-                SOURCE_REGISTER,
-                step.source_lsb as u8,
-            ));
-        }
-        let fragment_mask = low_mask(step.width);
-        append_unsigned_immediate_padded(&mut bytes, MASK_REGISTER, fragment_mask);
-        bytes.extend(encode_and_x_register(
+        super::append_fragment(
+            &mut bytes,
             SOURCE_REGISTER,
-            SOURCE_REGISTER,
-            MASK_REGISTER,
-        ));
-        if step.destination_lsb != 0 {
-            bytes.extend(encode_lsl_x_immediate(
-                SOURCE_REGISTER,
-                SOURCE_REGISTER,
-                step.destination_lsb as u8,
-            ));
-        }
-
-        let container_bytes = usize::from(step.container_width_bits / 8);
-        match container_bytes {
-            1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
-                CONTAINER_REGISTER,
-                DESTINATION_REGISTER,
-                destination_offset,
-                container_bytes,
-            )?),
-            8 => bytes.extend(encode_load_x_from_x(
-                CONTAINER_REGISTER,
-                DESTINATION_REGISTER,
-                destination_offset,
-            )?),
-            _ => unreachable!("generated writer container width validated"),
-        }
-
-        let destination_mask = fragment_mask << step.destination_lsb;
-        append_unsigned_immediate_padded(&mut bytes, MASK_REGISTER, !destination_mask);
-        bytes.extend(encode_and_x_register(
+            DESTINATION_REGISTER,
+            FRAGMENT_REGISTER,
             CONTAINER_REGISTER,
-            CONTAINER_REGISTER,
-            MASK_REGISTER,
-        ));
-        bytes.extend(encode_orr_x_register(
-            CONTAINER_REGISTER,
-            CONTAINER_REGISTER,
-            SOURCE_REGISTER,
-        ));
-
-        match container_bytes {
-            1 | 2 | 4 => bytes.extend(encode_store_w_to_x(
-                CONTAINER_REGISTER,
-                DESTINATION_REGISTER,
-                destination_offset,
-                container_bytes,
-            )?),
-            8 => bytes.extend(encode_store_x_to_x(
-                CONTAINER_REGISTER,
-                DESTINATION_REGISTER,
-                destination_offset,
-            )?),
-            _ => unreachable!("generated writer container width validated"),
-        }
+            layout_plans::LayoutPlacementReport::Bits {
+                container: step.container_byte_offset,
+                container_width: u64::from(step.container_width_bits),
+                destination_lsb: u64::from(step.destination_lsb),
+                source_lsb: u64::from(step.source_lsb),
+                width: u64::from(step.width),
+            },
+        )
+        .ok_or_else(|| Diagnostic::error("generated writer fragment cannot be encoded"))?;
     }
     Ok(bytes)
 }
@@ -196,14 +139,6 @@ fn validate_generated_post_handoff_writer(
         ));
     }
     Ok(pointer_register)
-}
-
-const fn low_mask(width: u16) -> u64 {
-    if width == 64 {
-        u64::MAX
-    } else {
-        (1_u64 << width) - 1
-    }
 }
 
 #[cfg(test)]

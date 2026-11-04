@@ -10,18 +10,21 @@ pub(super) fn derive(
 ) -> Result<Vec<&SelectedBlock>, OptimizedResolvedSelectedFormLayoutError> {
     let invalid =
         || OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(function.machine);
-    let entry = function.block(function.entry_block).ok_or_else(invalid)?;
-    if policy == SelectedFunctionLayoutPolicy::SingleEntryBlockV1
-        && (function.blocks.len() != 1
-            || !matches!(entry.terminator, SelectedTerminator::Return { .. }))
-    {
-        return Err(invalid());
-    }
+    // Resolve every identity, the entry included, through this checker's own
+    // association: the producer keeps storage positions independent of block
+    // identities, so the check must not assume an identity names its position.
     let mut positions = BTreeMap::new();
     for (position, block) in function.blocks.iter().enumerate() {
         if positions.insert(block.id, position).is_some() {
             return Err(invalid());
         }
+    }
+    let entry = &function.blocks[*positions.get(&function.entry_block).ok_or_else(invalid)?];
+    if policy == SelectedFunctionLayoutPolicy::SingleEntryBlockV1
+        && (function.blocks.len() != 1
+            || !matches!(entry.terminator, SelectedTerminator::Return { .. }))
+    {
+        return Err(invalid());
     }
     let mut has_incoming = vec![false; function.blocks.len()];
     for block in &function.blocks {

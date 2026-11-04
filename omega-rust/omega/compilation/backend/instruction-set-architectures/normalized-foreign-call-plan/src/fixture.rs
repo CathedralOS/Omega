@@ -440,7 +440,13 @@ pub fn callback_fixture<Destination>(
             )
             .unwrap(),
             destination: place,
-            field_byte_offset,
+            field_placements: field_byte_offset.map(|offset| {
+                calling_conventions::PrivateCallbackPlacements::new(&[
+                    layout_plans::LayoutPlacementReport::At {
+                        offset: offset as u64,
+                    },
+                ])
+            }),
             application: NativeParameterApplication {
                 parameter,
                 native_ordinal: native_ordinal as u32,
@@ -700,7 +706,7 @@ pub fn retained_callbacks<Destination, Kind, State, Callback>(
     into_destination: fn(CallbackPlacement) -> Destination,
     counts: CallbackByteCounts,
 ) where
-    Destination: Copy + PartialEq + std::fmt::Debug,
+    Destination: Clone + PartialEq + std::fmt::Debug,
     Kind: Clone + PartialEq + std::fmt::Debug,
     State: Clone + PartialEq + std::fmt::Debug,
     Callback: Clone + PartialEq + std::fmt::Debug,
@@ -854,7 +860,7 @@ pub fn retained_callbacks<Destination, Kind, State, Callback>(
         changed_record.call.callbacks[0].application.native_ordinal = 0;
         assert!((entrances.constraint)(&changed_record).is_none());
         let mut changed_record = subject.record.clone();
-        changed_record.call.callbacks[1].field_byte_offset = None;
+        changed_record.call.callbacks[1].field_placements = None;
         assert!((entrances.constraint)(&changed_record).is_none());
         let mut changed_record = subject.record.clone();
         changed_record.call.callbacks[0].terminal_operation = OperationId::new(99).unwrap();
@@ -873,7 +879,7 @@ pub fn direct_and_hidden_aggregate_results_share_the_import_template<
     entrances: &Entrances<Destination, Kind, State, Callback>,
     inputs: impl Fn(bool, usize, usize) -> Case,
 ) where
-    Destination: Copy + PartialEq + std::fmt::Debug,
+    Destination: Clone + PartialEq + std::fmt::Debug,
     Kind: PartialEq + std::fmt::Debug,
     State: PartialEq + std::fmt::Debug,
     Callback: PartialEq + std::fmt::Debug,
@@ -928,7 +934,7 @@ pub fn template_has_exact_bytes_and_fixup<Destination, Kind, State, Callback>(
     entrances: &Entrances<Destination, Kind, State, Callback>,
     inputs: impl Fn(bool, usize, usize) -> Case,
 ) where
-    Destination: Copy + PartialEq + std::fmt::Debug,
+    Destination: Clone + PartialEq + std::fmt::Debug,
     Kind: Clone + PartialEq + std::fmt::Debug,
     State: Clone + PartialEq + std::fmt::Debug,
     Callback: Clone + PartialEq + std::fmt::Debug,
@@ -974,7 +980,7 @@ pub fn evaluated_plans_select_exact_operands_and_effects_under_one_template<
     layouts: std::ops::Range<usize>,
     substitute: &str,
 ) where
-    Destination: Copy + PartialEq + std::fmt::Debug,
+    Destination: Clone + PartialEq + std::fmt::Debug,
     Kind: PartialEq + std::fmt::Debug,
     State: PartialEq + std::fmt::Debug,
     Callback: PartialEq + std::fmt::Debug,
@@ -1035,7 +1041,7 @@ pub fn rejects_wrong_kind_target_alternative_and_fixup<Destination, Kind, State,
     unsupported: &[NativeTarget],
     malformed: &[u8],
 ) where
-    Destination: Copy + PartialEq + std::fmt::Debug,
+    Destination: Clone + PartialEq + std::fmt::Debug,
     Kind: Clone + PartialEq + std::fmt::Debug,
     State: Clone + PartialEq + std::fmt::Debug,
     Callback: Clone + PartialEq + std::fmt::Debug,

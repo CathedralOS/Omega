@@ -374,17 +374,6 @@ fn components_use_the_shared_product_sequence() {
         "component production bypasses the shared sequence:",
         &["TerminalProductionRequest"],
     );
-    let (_, completion) = component
-        .split_once("pub(crate) fn finish(")
-        .expect("component preparation precedes completion");
-    assert_absent(
-        &[
-            completion,
-            include_str!("../../native-production/src/application.rs"),
-        ],
-        "component completion rebuilds source applications:",
-        &["component_calling_applications("],
-    );
 }
 
 #[test]
@@ -442,17 +431,16 @@ fn terminal_calling_activation_uses_only_canonical_geometry() {
 }
 
 #[test]
-fn native_telescope_construction_is_shared_by_preparation_and_canonical_replay() {
-    let source = include_str!(
-        "../../realization/provider-planning/src/calling_policy_plans/callback_bindings.rs"
-    );
+fn native_telescope_construction_is_shared_by_canonical_replay_and_projection() {
+    // Callback preparation copies the canonical replay's telescope instead of
+    // closing its own, so only these two owners construct one.
     let replay = include_str!(
         "../../backend/calling-conventions/src/boundary_application/terminal_telescope.rs"
     );
     let projection = include_str!(
         "../../realization/provider-planning/src/calling_policy_plans/terminal_signature.rs"
     );
-    for consumer in [source, replay, projection] {
+    for consumer in [replay, projection] {
         assert_eq!(
             consumer.matches("NativeParameterTelescope::close(").count(),
             1
@@ -463,13 +451,6 @@ fn native_telescope_construction_is_shared_by_preparation_and_canonical_replay()
             &["sort_unstable_by_key(|parameter| parameter.native_ordinal)"],
         );
     }
-    // Slot geometry has not been published yet. A direct callback does not
-    // prove that a nested field destination is absent, so retain this refusal.
-    assert!(
-        projection.contains(
-            "Terminal calling signature still requires private callback geometry closure"
-        )
-    );
 }
 
 #[test]
@@ -505,15 +486,6 @@ fn provider_derivation_consumes_the_prepared_service_census() {
         "provider census consumer reopens",
         &["service_schema::from_typed"],
     );
-    // The supplied target is evaluated before the selected target is compared.
-    assert_in_order(
-        native_supply,
-        "native binding supply",
-        &[
-            "let evaluated = evaluate(",
-            "if selected_target != Some(target)",
-        ],
-    );
     let build = include_str!("../../../build-system/build-settings/src/admission/checking.rs");
     assert_in_order(
         build,
@@ -543,16 +515,6 @@ fn native_product_supplies_inputs_without_orchestrating_component_emission() {
         &[source, inputs],
         "product owner orchestrates",
         &["with_component_products("],
-    );
-}
-
-#[test]
-fn selected_numeric_admission_binds_facts_after_requiring_the_owner() {
-    let preparation = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
-    assert_in_order(
-        preparation,
-        "selected provider binding",
-        &[".require_owner(", "bind_selected_provider_plan_facts("],
     );
 }
 

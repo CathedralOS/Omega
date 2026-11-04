@@ -167,6 +167,12 @@ public machine LayoutPlan::place_private(plan: LayoutPlan, offset: u64) -> Layou
     plan
 }
 
+// Several Bits placements may fill one private slot. The complete set must
+// cover its source exactly and preserve every other field in the layout.
+public machine LayoutPlan::place_private(plan: LayoutPlan, representation: FieldPlan) -> LayoutPlan {
+    plan
+}
+
 // Access-policy vocabulary (wiki/spec/resources/access.md). `LayoutPlan` owns
 // representation and geometry with no access rights; `AccessPlan` contains one
 // `LayoutPlan`, per-field operation decisions and required boundary reach.

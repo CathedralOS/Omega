@@ -233,9 +233,16 @@ machine_semantic_kinds! {
     { fixed MemoryFence },
     { fixed ControlRegisterRead },
     { fixed ControlRegisterWrite },
+    { fixed GlobalDescriptorTableLoad },
+    { fixed GlobalDescriptorTableStore },
 
     { fixed AtomicFence },
     { fixed InvokeNoNormal },
+    { fixed TaskRegisterActivate },
+    { fixed TaskRegisterRead },
+    { fixed CodeSegmentReload },
+    { fixed DataSegmentReload },
+    { fixed SegmentSelectorRead },
     {
         /// One `Trapping` primitive at one carrier: the exact result, or an
         /// in-function architectural trap when the policy predicate holds.
@@ -311,6 +318,13 @@ impl MachineSemanticKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineAlternativeFamily {
+    GlobalDescriptorTableLoad,
+    GlobalDescriptorTableStore,
+    TaskRegisterActivate,
+    TaskRegisterRead,
+    CodeSegmentReload,
+    DataSegmentReload,
+    SegmentSelectorRead,
     ControlRegisterRead,
     ControlRegisterWrite,
     PortWrite,
@@ -427,6 +441,13 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::InvokeNoNormal => Self::InvokeNoNormal,
             MachineSemanticKind::SystemRegisterRead => Self::SystemRegisterRead,
             MachineSemanticKind::SystemRegisterWrite => Self::SystemRegisterWrite,
+            MachineSemanticKind::GlobalDescriptorTableLoad => Self::GlobalDescriptorTableLoad,
+            MachineSemanticKind::GlobalDescriptorTableStore => Self::GlobalDescriptorTableStore,
+            MachineSemanticKind::TaskRegisterActivate => Self::TaskRegisterActivate,
+            MachineSemanticKind::TaskRegisterRead => Self::TaskRegisterRead,
+            MachineSemanticKind::CodeSegmentReload => Self::CodeSegmentReload,
+            MachineSemanticKind::DataSegmentReload => Self::DataSegmentReload,
+            MachineSemanticKind::SegmentSelectorRead => Self::SegmentSelectorRead,
             MachineSemanticKind::ControlRegisterRead => Self::ControlRegisterRead,
             MachineSemanticKind::ControlRegisterWrite => Self::ControlRegisterWrite,
             MachineSemanticKind::PortRegisterRead => Self::PortRegisterRead,
@@ -595,6 +616,8 @@ pub enum MachineAlternativeApplicability {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineMemoryEffect {
+    /// Writes callback containers; partial placements also read their original bits.
+    PrivateCallbackMaterializationV1,
     /// Exact ordering event selected by the catalog operation, without a location.
     CatalogFenceV1,
     /// Orders coherent memory without accessing a location.
@@ -620,6 +643,10 @@ pub enum MachineMemoryEffect {
     HostedReadByteV1,
     /// Private-byte initialization and kernel read, with an observable stdout write.
     HostedWriteByteV1,
+    /// Checked GDTR association, scratch write and conditional locked TSS descriptor update.
+    TaskRegisterActivationV1,
+    /// Snapshot GDTR, inspect the borrowed descriptor and conditionally set its accessed bit.
+    SegmentDescriptorReloadV1,
     WritePointerV1,
     NoneV1,
     ReadPointerV1,
@@ -811,6 +838,9 @@ impl MachineEncodedEffects {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedMemoryEffect {
+    /// Containers and record roots come from the retained normalized callback roster.
+    /// The separate stack effect retains any return-address write by CALL.
+    PrivateCallbackMaterializationV1,
     /// Catalog ordering event; the selected kind and byte decoder fix its exact mask.
     CatalogFenceV1,
     /// Load one pointer from a named, layout-derived table field. The call's
@@ -878,9 +908,36 @@ pub enum MachineEncodedMemoryEffect {
     HostedWriteByteV1 {
         stack_pointer: RegisterViewId,
     },
+    /// The preflight reads the actual GDTR into ten scratch bytes and inspects
+    /// the selected sixteen-byte descriptor within the borrowed table. Success
+    /// performs LTR's locked descriptor update and retains the task-state base
+    /// in TR. PUSHFQ temporarily uses eight bytes below the current stack.
+    TaskRegisterActivationV1 {
+        table_pointer_operand: u16,
+        table_byte_count_operand: u16,
+        task_pointer_operand: u16,
+        selector_operand: u16,
+        scratch_pointer_operand: u16,
+        stack_pointer: RegisterViewId,
+    },
+    /// Reads an eight-byte descriptor and conditionally sets its accessed bit.
+    /// The ten-byte GDTR snapshot is caller-owned scratch. The sealed code
+    /// continuation uses sixteen stack bytes; data reload uses eight for flags.
+    SegmentDescriptorReloadV1 {
+        table_pointer_operand: u16,
+        table_byte_count_operand: u16,
+        selector_operand: u16,
+        scratch_pointer_operand: u16,
+        stack_pointer: RegisterViewId,
+    },
     /// Exact footprint is the receiving-validated Store instruction byte size.
     WritePointerV1 {
         pointer_operand: u16,
+    },
+    /// The validated instruction writes this exact fixed byte span.
+    WriteFixedPointerV1 {
+        pointer_operand: u16,
+        byte_count: u16,
     },
     ReadIndexedPointerV1 {
         pointer_operand: u16,

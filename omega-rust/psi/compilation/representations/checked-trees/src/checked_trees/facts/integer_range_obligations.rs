@@ -57,6 +57,15 @@ impl IntegerRangeRecipe {
         self.target_dependent
     }
 
+    /// The closed bounds of a recipe with no deferred observation. Ground
+    /// composition normalizes to one bounds step, so this is that step.
+    pub fn ground_bounds(&self) -> Option<(&BigInt, &BigInt)> {
+        match self.steps.as_slice() {
+            [RangeStep::Bounds { low, high }] if !self.target_dependent => Some((low, high)),
+            _ => None,
+        }
+    }
+
     pub fn binary(&self, operator: BinaryOperator, right: &Self) -> Option<Self> {
         let step = match operator {
             BinaryOperator::Add => RangeStep::Add,

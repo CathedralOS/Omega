@@ -55,7 +55,7 @@ impl OwnerCandidates {
             .collect::<Vec<_>>();
         let mut owners: Vec<OwnerCandidate> = Vec::new();
         for value_root in roots.into_iter().rev() {
-            for handle in dependency_dispositions(facts, machine, state, value_root.root)? {
+            for handle in dependency_dispositions(program, facts, state, value_root.root)? {
                 let row = facts.contextual_cleanup.dispositions.get(handle);
                 let language_semantics::PermissionEventSource::Call {
                     statement_index,

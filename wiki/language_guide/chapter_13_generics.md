@@ -76,6 +76,41 @@ Explicit conformance selection is different from guessing a machine from its
 name or finding a visible implementation. [Chapter 14](chapter_14_traits.md)
 explains the complete map and its laws.
 
+## Generic Requirements
+
+A trait can declare the same generic interface as an ordinary machine, including
+an implementation parameter supplied by the caller:
+
+```omega
+boundary trait Sorting {
+    machine sort<T, Order satisfies Ordering<T>>(
+        items: &mut [T]
+    );
+}
+```
+
+For `Sorting::sort<u32, Ascending>(items)`, the caller selects u32 and the named
+Ascending map. Build independently selects the platform implementation of
+Sorting. The compiler specializes that member with the caller's selections;
+Build does not supply or enumerate the generic arguments. Every selected member
+must honor the requirement for all admitted arguments.
+
+That static interface is not an unrestricted generic virtual method. For a
+runtime-selected implementation, parameters can instead belong to the trait:
+
+```omega
+trait TypedSorter<T, Order satisfies Ordering<T>> {
+    machine sort(items: &mut [T]);
+}
+```
+
+`dyn TypedSorter<u32, Ascending>` has a fixed method shape while its implementation
+can vary at runtime. An open requirement-local type or evidence binder cannot
+become a dynamic slot merely because current callers happen to use one tuple;
+the attempt rejects during source checking. Explicit finite value families keep
+their existing rules. See [generic requirements](../spec/language/generics.md#generic-machine-requirements)
+and [dynamic eligibility](../spec/terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes).
+
 ## Runtime-Capable Value Parameters
 
 Value binders distinguish two staging contracts:
@@ -312,6 +347,99 @@ The checker consumes that ordinary trait evidence. There is no domain-specific
 selection syntax, implicit implementation search, or need to repeat a selection
 beside every index expression. Citing an exact equality remains an alternative
 when general algebraic normalization is unnecessary.
+
+### Literal identities
+
+A generic library can accept `Indexed<Count + 0>` as `Indexed<Count>` without a
+proof call at each use. Its selected implementation must prove both that adding
+its abstract zero preserves the operand and that this zero is the index literal
+`0`. An ordinary child trait adds the connection without making every abstract
+algebra use integer literals:
+
+```omega
+trait Additive<T> {
+    machine zero() -> T terminates;
+
+    machine + add(
+        left: T,
+        right: T
+    ) -> T terminates;
+
+    machine right_identity(value: T)
+    ensures add(value, zero()) == value;
+}
+
+trait WrappingByteIndices : Additive<u8 in Wrapping> {
+    machine zero_is_literal()
+    ensures zero() == 0;
+}
+
+domain<T, const Count: u8 in Wrapping> T::Indexed<Count>;
+
+machine remove_zero<
+    const Count: u8 in Wrapping,
+    Arithmetic satisfies WrappingByteIndices
+>(
+    value: u32 in Indexed<Count + 0>
+) -> u32 in Indexed<Count> {
+    value
+}
+```
+
+A caller selects a complete implementation, for example
+`remove_zero<8, ByteArithmetic>(value)`. `ByteArithmetic` supplies the inherited
+operations and proves both laws; their names have no compiler authority. The
+same pattern connects multiplicative identity to `1`. Each rewrite needs only
+its own laws, not a full ring or semiring. `Count + 1` is not an identity.
+
+Normalization uses the complete selected conformance, including inherited laws,
+and identifies the applications in signatures and specialization keys as well
+as value transfers. It does not evaluate abstract machines. Qualified operand
+types constrain which operation matches; the explicit conformance selects it.
+Wrapping and Saturating do not grant the same laws by name, and normalization
+cannot erase an Exact overflow obligation on an authored intermediate.
+
+See [literal-linked index identities](../spec/proofs/contracts.md#literal-linked-index-identities)
+for operation direction, formation, and bounded expansion rules.
+
+### Distributivity and bounded work
+
+Under a selected algebra that proves distributivity, a generic library can
+identify these applications by normalization toward sums of products:
+
+```text
+Buffer<A * (B + C)>
+Buffer<A*B + A*C>
+```
+
+Reordering still needs commutativity, regrouping needs associativity, and the
+authored operations must be well-formed. Resolve the operand types and exact
+operation contracts before using a law; layout and native target realization
+come later. The compiler keeps complete associative chains coherent before
+expanding them. An internal repetition count does not establish an authored
+literal's algebraic meaning: `N + N` need not identify with `2 * N`.
+
+Expansion can multiply the number of terms even in a short type expression.
+The canonical policy permits at most 64 resulting summands per product
+expansion, decided from the simplified pre-expansion form. This limits symbolic
+checking work, not the magnitude of an index or runtime arithmetic. Beyond it,
+retain the product unexpanded; using the well-formed indexed type alone need
+not fail. If compatibility cannot otherwise be proved because expansion was
+cut off, the diagnostic reports the measure and limit, not inequality.
+
+An ordinary theorem can apply distributivity with a large expression as one
+operand without expanding that operand. Its checked guarantee or an already
+established exact equality can discharge the compatibility obligation. Keeping
+the same index formulation across APIs can also avoid expansion. No local
+canonical-budget override syntax is needed. A compatibility proof established
+generically is carried into its specialized uses, not rediscovered there;
+fully closed indices still evaluate under the concrete selected implementation.
+
+The named mutual-distributivity exception expands neither direction when two
+operations distribute over each other. Different selected law sets therefore
+do not have an unconditional monotonicity promise. The complete rules and
+published identity requirements are in
+[bounded canonical index normalization](../spec/proofs/contracts.md#bounded-canonical-index-normalization).
 
 ## Machine Parameters
 

@@ -53,6 +53,7 @@ pub(super) fn prepare<'host, 'artifact>(
     }
     let supplies = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            native_code_layouts: None,
             x86_flags,
             memory_ordering,
             entry: Some(terminal_psi::TargetMachineCallable::Machine(

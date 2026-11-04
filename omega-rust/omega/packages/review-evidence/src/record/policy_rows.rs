@@ -5,7 +5,10 @@ mod limits;
 pub use limits::{PackagePolicyRowLimits, PackagePolicyRowUsage};
 
 /// Independent of legacy review rows and of the complete baseline grammar.
-pub const PACKAGE_POLICY_ROW_VERSION: u16 = 8;
+// Version 9: builtin-function slots returned to their published numbers after
+// three fences were briefly inserted mid-table. Rows recorded under version 8
+// may carry the shifted slots, so they must be re-reviewed rather than decoded.
+pub const PACKAGE_POLICY_ROW_VERSION: u16 = 9;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicyRowKind {

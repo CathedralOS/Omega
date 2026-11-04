@@ -7,6 +7,7 @@ this caller additionally refuses missing rows and success without execution.
 """
 
 import argparse
+from copy import deepcopy
 from dataclasses import dataclass
 import hashlib
 import json
@@ -155,6 +156,16 @@ def validate_report(report, expected, *, both, revision, target):
         if row["fixture"].startswith("fail/"):
             if row["status"] != "rejected" or row.get("expected_satisfied") is not True:
                 raise ValueError(f"{row['fixture']}: missing intended rejection")
+        elif (both or "check-target" in row.get("facts", {})) and corpus_gate.native_rejection_oracle(
+                ROOT / "tests/omega" / row["fixture"],
+                target if both else row["facts"]["check-target"]).is_file():
+            # A product can check successfully and still owe a target refusal.
+            # Authenticate its authored reason without calling it an execution.
+            observed = deepcopy(row)
+            failures = corpus_gate.native_rejection_failures(
+                [observed], ROOT / "tests/omega", target, native_leg=both)
+            if failures or not corpus_gate.corpus_records.native_rejection_satisfied(observed):
+                raise ValueError(f"{row['fixture']}: missing authored native publication refusal")
         elif both:
             facts = row.get("facts", {})
             exits_agree = (facts.get("interpreter") == "agrees"
@@ -315,6 +326,10 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
             value = operation()
             result["passed"] = True
             return value
+        except (OSError, ValueError, subprocess.CalledProcessError,
+                corpus_gate.InfrastructureFailure) as error:
+            result["error"] = str(error)
+            raise
         finally:
             result["seconds"] = round(time.monotonic() - started, 3)
 
@@ -350,20 +365,25 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         validate_report(json.loads(report_path.read_text(encoding="utf-8")), fixtures,
                         both=both, revision=revision, target=summary["target"])
 
-    refused = None
+    refusals = []
+
+    def observe(name, operation):
+        try:
+            stage(name, operation)
+        except (OSError, ValueError, subprocess.CalledProcessError,
+                corpus_gate.InfrastructureFailure) as error:
+            # Independent consumers can still produce useful evidence from
+            # this compiler. Keep every failure and leave the run red.
+            refusals.append(f"{name}: {error}")
+        # A failed fixture does not invalidate the compiler. Changed compiler
+        # bytes do: stop before another consumer uses an unauthenticated file.
+        producer.verify()
+
     if positives or checking_only or negatives:
         checking = tuple(dict.fromkeys(positives + checking_only + negatives))
-        try:
-            stage("checking and rejection controls", lambda: corpus("checking", checking))
-        except ValueError as error:
-            # The run stays red, but a remote base comparison
-            # (`corpus_gate.py --compare --remote`) still needs the
-            # native/Terminal rows of a base whose checking oracles fail.
-            refused = error
+        observe("checking and rejection controls", lambda: corpus("checking", checking))
     if positives:
-        stage("native and Terminal execution", lambda: corpus("both", positives, both=True))
-    if refused is not None:
-        raise refused
+        observe("native and Terminal execution", lambda: corpus("both", positives, both=True))
     if cli_fixtures:
         def ordinary_cli():
             rows = []
@@ -379,7 +399,7 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
                 (output / "cli.json").write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
                 if row.get("passed") is not True:
                     raise ValueError(f"{fixture}: {row.get('error', 'ordinary CLI observation failed')}")
-        stage("ordinary CLI package admission and native/Terminal execution", ordinary_cli)
+        observe("ordinary CLI package admission and native/Terminal execution", ordinary_cli)
     if samples:
         def fact_samples():
             report = output / "samples.json"
@@ -392,10 +412,12 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
                     or {row["sample"] for row in rows} != set(samples)
                     or any(row.get("state") not in ("pass", "rejected") for row in rows)):
                 raise ValueError("fact samples lack complete runtime/oracle/rejection evidence")
-        stage("fact sample native and Terminal execution", fact_samples)
+        observe("fact sample native and Terminal execution", fact_samples)
     producer.verify()
     if command(["git", "rev-parse", "HEAD"]) != revision or command(["git", "status", "--porcelain"]):
         raise ValueError("candidate changed during validation")
+    if refusals:
+        raise ValueError("; ".join(refusals))
 
 
 def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fixtures=None, samples=None, cli_fixtures=None, check_only=False):

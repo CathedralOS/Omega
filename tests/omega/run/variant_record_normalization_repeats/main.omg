@@ -21,13 +21,13 @@ data Application {
 machine Main::main(main: &mut Main) reaches Console {
     let mut application: Application;
     Console::write_line("VARIANT_NORMALIZATION|1");
-    transition { _ -> read(&mut application) }
+    transition { _ -> block read(&mut application) }
     machine read(application: &mut Application) {
         let mut line: [u8; 64];
         let result: LineReadResult = block Console::read_line(&mut line);
         transition result {
-            LineReadResult::LineComplete { count } -> process(application, &line, count as u64 in Wrapping, false)
-            LineReadResult::EndOfInput { count } -> eof(application, &line, count as u64 in Wrapping)
+            LineReadResult::LineComplete { count } -> block process(application, &line, count as u64 in Wrapping, false)
+            LineReadResult::EndOfInput { count } -> block eof(application, &line, count as u64 in Wrapping)
             LineReadResult::Full { count } -> overflow(application)
             LineReadResult::Invalid -> overflow(application)
         }
@@ -35,12 +35,12 @@ machine Main::main(main: &mut Main) reaches Console {
     machine eof(application: &mut Application, line: &[u8; 64], count: u64 in Wrapping) {
         transition count == 0 {
             true -> finish(application)
-            _ -> process(application, line, count, true)
+            _ -> block process(application, line, count, true)
         }
     }
     machine process(application: &mut Application, line: &[u8; 64], count: u64 in Wrapping, last: bool) {
         transition application.line_number < 512 {
-            true -> bounded_process(application, line, count, last)
+            true -> block bounded_process(application, line, count, last)
             _ -> record_capacity(application)
         }
     }
@@ -55,19 +55,19 @@ machine Main::main(main: &mut Main) reaches Console {
         parse(line, count, &mut input);
         let reason: u64 in Wrapping = consume(application, &input);
         transition reason == 0 {
-            true -> next(application, last)
-            _ -> reject(application, last, reason)
+            true -> block next(application, last)
+            _ -> block reject(application, last, reason)
         }
     }
     machine reject(application: &mut Application, last: bool, reason: u64 in Wrapping) {
         application.rejected = application.rejected + 1;
         Console::write("REJECT|"); number(application.line_number); separator(); number(reason); newline();
-        transition { _ -> next(application, last) }
+        transition { _ -> block next(application, last) }
     }
     machine next(application: &mut Application, last: bool) {
         transition last {
             true -> finish(application)
-            _ -> read(application)
+            _ -> block read(application)
         }
     }
     machine overflow(application: &mut Application) {

@@ -1,1 +1,3 @@
-data `Grid`'s default domain is still FALSE at state exit
+cannot complete return from machine `store_unbounded` state `entry`
+the `requires` facts of `context.grid` (data `Grid`)
+unproved; restore them first

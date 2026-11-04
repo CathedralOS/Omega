@@ -97,6 +97,7 @@ impl RecordValue for calling_conventions::BoundaryCallingApplication {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         let Self {
             abi,
+            calling_owner_application,
             requirement_identity,
             target,
             report_fingerprint,
@@ -109,6 +110,7 @@ impl RecordValue for calling_conventions::BoundaryCallingApplication {
             callback_context_closed,
         } = self;
         abi.write(output)?;
+        calling_owner_application.write(output)?;
         requirement_identity.write(output)?;
         target.write(output)?;
         report_fingerprint.write(output)?;
@@ -124,6 +126,7 @@ impl RecordValue for calling_conventions::BoundaryCallingApplication {
         input.record(|input| {
             calling_conventions::BoundaryCallingApplicationCandidate {
                 abi: RecordValue::read(input)?,
+                calling_owner_application: RecordValue::read(input)?,
                 requirement_identity: RecordValue::read(input)?,
                 target: RecordValue::read(input)?,
                 report_fingerprint: RecordValue::read(input)?,
@@ -288,6 +291,7 @@ mod exact_abi_tests {
             }],
         };
         let mut application = BoundaryCallingApplication {
+            calling_owner_application: None,
             requirement_identity: abi.requirement_identity.clone(),
             abi,
             target: target::NativeTarget::from_omega_target_name(Some("windows_x86_64")).unwrap(),
@@ -320,6 +324,26 @@ mod exact_abi_tests {
         };
         application.commitment = application.recomputed_commitment().unwrap();
         application
+    }
+
+    #[test]
+    fn native_recovery_preserves_sibling_calling_owners() {
+        let mut first = application("u64");
+        first.calling_owner_application = Some("TimerCallback".into());
+        first.commitment = first.recomputed_commitment().unwrap();
+        let mut sibling = first.clone();
+        sibling.calling_owner_application = Some("UnusedTimerCallback".into());
+        sibling.commitment = sibling.recomputed_commitment().unwrap();
+        assert_eq!(first.abi, sibling.abi);
+        assert_eq!(first.plan, sibling.plan);
+        assert_ne!(first.commitment, sibling.commitment);
+        let applications = vec![first, sibling];
+        let mut output = RecordWriter::new(Default::default());
+        applications.write(&mut output).unwrap();
+        let bytes = output.finish();
+        let mut input = RecordReader::new(&bytes, Default::default()).unwrap();
+        let recovered = Vec::<BoundaryCallingApplication>::read(&mut input).unwrap();
+        assert_eq!(recovered, applications);
     }
 
     #[test]

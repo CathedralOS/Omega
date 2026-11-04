@@ -98,6 +98,20 @@ pub(super) fn transport(
                     }
                     facts::domain_membership_pattern!(domain, domain_symbol, semantic_domain) => {
                         let fact_place = fact.place.as_place()?;
+                        // A cast's target describes the whole value, so it
+                        // erases only the source's own membership; a field
+                        // keeps its declared domains.
+                        let whole_value = matches_source(fact_place);
+                        if whole_value
+                            && super::owned_qualifications::explicitly_erased(
+                                program,
+                                write.source_expression,
+                                domain_symbol,
+                                semantic_domain,
+                            )
+                        {
+                            return None;
+                        }
                         matches_source(fact_place).then_some((
                             FactPayload::DomainMembership {
                                 value: ExpressionHandle::invalid(),

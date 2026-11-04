@@ -101,6 +101,35 @@ pub(crate) fn lower_machine_entry_boolean_expression(
     Some(predicate)
 }
 
+/// Lower a scalar membership subject as the caller supplies it at invocation.
+/// The entry state's statement-0 namespace reads a `mut` scalar formal through
+/// its body storage; before any statement runs that storage still holds the
+/// argument, so the read is rebound to the formal's dense entry position. A
+/// requirement row published on the call boundary cannot name body storage.
+pub(crate) fn lower_machine_entry_scalar_argument(
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    machine: &typed_trees::machine::Machine,
+    expression: ExpressionHandle,
+    primitive_type: PrimitiveType,
+) -> Option<CheckedScalarExpression> {
+    let entry = program.machine_states(machine).first()?;
+    let mut subject = crate::values::lower_unit_scalar_argument(
+        program,
+        operators,
+        entry,
+        0,
+        expression,
+        primitive_type,
+    )?;
+    EntryOperands {
+        program,
+        parameters: program.state_parameters(entry),
+    }
+    .scalar(&mut subject)?;
+    Some(subject)
+}
+
 struct EntryOperands<'program> {
     program: &'program dyn ::validation::CheckingInput,
     parameters: &'program [StateParameter],

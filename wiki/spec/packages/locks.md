@@ -77,7 +77,7 @@ versions. Loading requires neither an old checkout nor a compiler invocation.
 The outer format is version 4 and requires compilation inputs for every
 occurrence. Older versions, including version 3, reject rather than guessing
 compiler identity or bindings; the compact acceptance child uses policy row
-schema version 8. Explicit review also reads historical child schemas 4 and 5
+schema version 9. Explicit review also reads historical child schemas 4 and 5
 as baseline consent, never as current approval.
 Unknown formats or unrecoverable baseline meaning reject with recovery guidance;
 they never become empty acceptance or an inferred schema migration. Cache paths,

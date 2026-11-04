@@ -34,6 +34,7 @@ pub(crate) fn validate(
         {
             judge_qualification_cast(
                 program,
+                expression,
                 expression_interval(intervals, cast.value),
                 cast,
                 diagnostics,
@@ -48,6 +49,7 @@ pub(crate) fn validate(
 /// `as`, even when it has no predicate propositions.
 fn judge_qualification_cast(
     program: &dyn crate::CheckingInput,
+    occurrence: typed_trees::expression::ExpressionHandle,
     source: Option<&ExpressionInterval>,
     cast: &TableCastExpression,
     diagnostics: &mut Vec<Diagnostic>,
@@ -101,7 +103,12 @@ fn judge_qualification_cast(
             {
                 return;
             }
-            let judgment = operand_mint_judgment(program, cast, source);
+            let mut judgment = operand_mint_judgment(program, cast, source);
+            if judgment == MintJudgment::NotProved
+                && predicates_hold_on_private_arrivals(program, occurrence, cast, domain.symbol)
+            {
+                judgment = MintJudgment::Discharged;
+            }
             match judgment {
                 MintJudgment::Discharged => {}
                 MintJudgment::FactFalse => {
@@ -143,6 +150,7 @@ fn judge_qualification_cast(
 }
 
 /// The mint's tri-state judgment for one qualification cast.
+#[derive(PartialEq, Eq)]
 enum MintJudgment {
     Discharged,
     FactFalse,
@@ -189,4 +197,41 @@ fn operand_mint_judgment(
         StrictArithmeticImplicationJudgment::Refuted => MintJudgment::FactFalse,
         StrictArithmeticImplicationJudgment::Unknown => MintJudgment::NotProved,
     }
+}
+
+/// The retained interval describes only this machine's own prefix. A private
+/// nested machine's operand may instead owe the predicates on every closed
+/// arrival, where the caller's guard justifies the inferred requirement.
+fn predicates_hold_on_private_arrivals(
+    program: &dyn crate::CheckingInput,
+    occurrence: typed_trees::expression::ExpressionHandle,
+    cast: &TableCastExpression,
+    domain: symbols::SymbolHandle,
+) -> bool {
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let owns = program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .any(|statement| {
+                    let mut handles = Vec::new();
+                    crate::expression_traversal::collect_statement_expression_trees(
+                        program,
+                        statement,
+                        &mut handles,
+                    );
+                    handles.contains(&occurrence)
+                });
+            if owns {
+                return crate::expression_result_type_reference(program, machine, state, cast.value)
+                    .is_some_and(|operand| {
+                        crate::proof_contracts::contract_entailment::domain_predicates_hold_at_occurrence(
+                            program, machine, state, occurrence, operand, domain,
+                        )
+                    });
+            }
+        }
+    }
+    false
 }

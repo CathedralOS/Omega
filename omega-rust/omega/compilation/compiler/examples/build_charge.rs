@@ -55,7 +55,14 @@ fn sponsor(limits: BuildEvaluationSponsorLimits) -> BuildEvaluationSponsor {
     .expect("current Terminal measurement")
 }
 
+#[path = "build_charge/restricted_consent.rs"]
+mod restricted_consent;
+
 fn main() {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--restricted-consent")) {
+        restricted_consent::run();
+        return;
+    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
         println!("{}", compiler::compiler_build_profile());
         return;
@@ -91,6 +98,17 @@ fn main() {
         settled_default_build_contexts();
         return;
     }
+    if std::env::args_os().nth(1).as_deref()
+        == Some(std::ffi::OsStr::new("--settled-product-contexts"))
+    {
+        settled_build_product_contexts();
+        return;
+    }
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--accounting")) {
+        pure_build_accounting();
+        logged_build_reuse();
+        return;
+    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--owned-activations")) {
         interleaved_build_invocations();
         terminal_build_filesystem();
@@ -122,6 +140,13 @@ fn main() {
     source_discovery_root_resources();
     foreign_build_return_refuses();
     ignored_build_request_still_requires_join();
+    pure_build_accounting();
+    logged_build_reuse();
+    anonymous_build_completes_before_product();
+    sliced_build_retains_effects();
+}
+
+fn pure_build_accounting() {
     let root = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg");
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
@@ -262,10 +287,6 @@ fn main() {
     assert_eq!(result_limited.consumed_fuel_units(), fuel);
     assert_eq!(result_limited.consumed_result_storage_cells(), cells);
     println!("warm_result_limit_rejected_atomically");
-
-    logged_build_reuse();
-    anonymous_build_completes_before_product();
-    sliced_build_retains_effects();
 }
 
 /// Discovery binds the complete root snapshot before its first effect.
@@ -2060,6 +2081,11 @@ fn settled_build_product_contexts() {
                 .contains("different Build execution inputs or output obligations"))
     );
     assert_eq!(counters::product_source_completion_count(), completions);
+    assert_eq!(
+        counters::build_execution_count(),
+        before + 2,
+        "source discovery and settlement start the root and its dependency once"
+    );
     let fuel = sponsor.consumed_fuel_units();
     for name in ["main.omg", "build.omg"] {
         std::fs::remove_file(project.join(name)).unwrap();
@@ -2075,6 +2101,11 @@ fn settled_build_product_contexts() {
     )
     .unwrap()
     .unwrap();
+    // Deriving the independently accepted standard-library entry contract may
+    // start that supplier's own Build. It is setup for these Product requests,
+    // outside the settled root's sponsor and invocation. Measure Product replay
+    // only after that independent derivation has finished.
+    let product_builds_before = counters::build_execution_count();
     let accepted = inputs
         .clone()
         .with_accepted_semantic_bindings(vec![candidate])
@@ -2133,7 +2164,11 @@ fn settled_build_product_contexts() {
             .message
             .contains("cannot replace its settled Build source graph")
     }));
-    assert_eq!(counters::build_execution_count(), before + 2);
+    assert_eq!(
+        counters::build_execution_count(),
+        product_builds_before,
+        "Product contexts cannot start a Build after entry-contract setup"
+    );
     assert_eq!(
         sponsor.consumed_fuel_units(),
         fuel,

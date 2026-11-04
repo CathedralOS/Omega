@@ -647,7 +647,7 @@ fn table_and_own_copies_append_identical_rows_in_child_first_order() {
 const EXPECTED_COPY_ROWS: &str = r#"
 expression #28 = Name(TableNamePath { members: #9+2, member_symbols: #5+2, head_symbol: #3, symbol: #3 }) at 0:0..0 exposure Some(PrivateImplementation) partition None occurrences #5+1
 expression #29 = Integer(IntegerLiteral { text: "1", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
-expression #30 = Float(FloatLiteral { text: "2.5", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
+expression #30 = Float(FloatLiteral { text: "2.5", landing: None, presented: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #31 = ArrayLiteral(#7+2) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #32 = Boolean(true) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #33 = Unary(TableUnaryExpression { operator: LogicalNot, operand: #32 }) at 0:0..0 exposure None partition None occurrences #0@0+0

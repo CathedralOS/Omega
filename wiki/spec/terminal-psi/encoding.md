@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 239 even when every table
+order below. This layout uses semantic format marker 240 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -70,6 +70,16 @@ is empty; older markers reject rather than selecting an optional dialect:
 | qualification-change edges | machine id + edge id + `u32` argument ordinal + source value id + destination value id |
 | float entry ranges | machine id + parameter value id + minimum IEEE float value + maximum IEEE float value + `bool` maximum-inclusive flag |
 | integer entry ranges | machine id + parameter value id + integer type + minimum integer value + maximum integer value |
+
+Canonical identity-table references retain the semantic identity governed by
+[bounded index normalization](../proofs/contracts.md#bounded-canonical-index-normalization).
+Producers must agree on the canonical typed structure, selected operation and
+law authority, ordering, and encoding, including the fixed cutoff policy for
+open indices. Compiler-local handles and storage compression cannot change the
+published identity. Transported generic compatibility evidence and separately
+evaluated closed values keep their distinct obligations. This does not require
+runtime expressions to use a polynomial representation or add a new wire
+operation for distributivity.
 
 An optional predicate is a presence Boolean, followed when present by its
 subject value id and one canonical proposition. Its domain-local subject is
@@ -837,7 +847,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 239 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 240 + `u16` vocabulary
 marker 133 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -1076,7 +1086,10 @@ is `Bits(container, container_width, destination_lsb, source_lsb, width)`; numer
 payloads are `u64`, and interpretation is `0` signed or `1` unsigned.
 
 Each private demand retains the complete portable selected application, slot,
-layout-owner and callback-requirement identity strings, plus its `u64` offset.
+layout-owner and callback-requirement identity strings, plus a counted list of
+placements using the same tags and payloads as field entries. Marker 239 replaces
+the previous single offset with this list. Every fragment belongs to the same
+sealed callback source; target closure checks complete pointer-bit coverage.
 The selection stores declaration, trait, semantic, layout and requirement
 identities, the `u64` Source-v4 application fingerprint, 32-byte commitment and
 counted Source-v4 identity preimage. Ingress verifies that preimage and exact
@@ -1165,9 +1178,14 @@ The roster is semantic input, not a provider-selection or realization receipt.
 
 A callback application carries a `u32` checked occurrence number, nonzero
 registrar operation id, `u32` static-machine binder ordinal, counted UTF-8
-canonical requirement identity, then the published 32-byte contract commitment
-and selected checked-machine declaration. Rows are strictly ordered by occurrence number. Requirements and
-commitments are nonempty and the registrar names an existing boundary call.
+canonical requirement identity, counted UTF-8 binder-selected calling-owner
+application, optional inbound boundary identity, published 32-byte contract
+commitment, entry-admitted Boolean, and selected checked-machine declaration.
+The calling owner can be a child of the requirement's declaring trait; keeping
+both prevents a sibling's calling policy from being used for this registration.
+Rows are strictly ordered by occurrence number. Requirement and calling-owner
+identities and commitments are nonempty, and the registrar names an existing
+boundary call. Marker 240 retains the calling owner; earlier markers reject.
 Several callback applications may share a registrar operation. Occurrence numbers
 are local to the producing compilation and remain stable under pruning; they
 are not source arena handles and alone authorize nothing.
@@ -2103,14 +2121,14 @@ identities: two actual positions may name the same storage and still contribute
 separate rows, claims and policies. Preserve every occurrence and the complete
 count; do not deduplicate equal coordinates. Each live value's claims are
 strictly ordered by claim id. The frontier commitment uses the
-`terminal-suspension-frontier-v9` domain and includes the ordered roster and
+`terminal-suspension-frontier-v8` domain and includes the ordered roster and
 its cardinality, each value's loan links and the complete loan graph. Marker
 137 adds evaluated-actual captures; earlier markers are not reinterpreted.
 
 Each live value ends with a loan tag: `0` unresolved, `1` view-free, or `2`
 followed by a span into the plan's loan-link arena. The plan then encodes counted
 structural path segments, counted value-to-loan handles, counted supplier
-handles, counted input-obligation handles and counted loan occurrences. Marker 158 replaces a single supplier
+handles and counted loan occurrences. Marker 158 replaces a single supplier
 handle with a span of immediate supplier alternatives; earlier markers are not
 reinterpreted. Shared predecessors retain custody without enumerating histories.
 Handles are `u32` one-based slot plus `u32` generation: zero/zero is absent,
@@ -2119,7 +2137,7 @@ zero/zero/zero empty representation. Decoder bounds checks concern foreign
 coordinates, not source borrow admission.
 
 A loan occurrence encodes capture, backing, resource kind, parent handle,
-supplier span, input-obligation span, structural access and an active-at-call Boolean. Capture is
+supplier span, structural access and an active-at-call Boolean. Capture is
 `0` unresolved, or `1` followed by formation operation, carrier place, source
 place, source access and a source-path span, or `2` followed by a `u32`
 retained live-value position and a captured-leaf path span. This position
@@ -2132,26 +2150,7 @@ structural argument. Resource kind is `0` unresolved, `1` direct root,
 ingress captures, ordinary no-normal invocations and inherited scalar-domain
 membership rows. Earlier independent marker-195 and marker-196 layouts reject
 rather than being reinterpreted.
-Marker 239 adds completed helper outputs and their original input obligations.
-Capture `3` names the normal-completion operation, its evaluated output argument
-and the selected output-leaf path. Capture `4` names the earlier call operation,
-its evaluated input argument, selected leaf path and a Stored Boolean: true
-selects the input's stored descriptor contents at invocation entry; false
-selects its referent. The distinction remains explicit for an empty path.
-Capture `5` is a nonspatial input obligation; capture `6` is descriptor transport
-through the separately encoded immediate suppliers.
-
-Backing `3` names the retained completed-output loan occurrence, `4` denotes
-nonspatial input obligations, and `5` denotes the backing observed by that row's
-earlier call-input capture. Resource tags `4`, `5`, `6` and `7` respectively
-identify a completed output, lifetime dependency, captured output input and
-descriptor transport. Every input-obligation link names a captured output-input
-row. Those links retain all inputs; supplier alternatives and borrowing parents
-remain different relationships. The output's pointer permission does not make
-its lifetime-related inputs spatial parents or its old variable owned backing.
-Earlier wire markers reject rather than reinterpret these records.
-
-Parentage, supplier transport and input retention are distinct relationships.
+Parentage and supplier transport are distinct relationships.
 Incoming referents are not descriptor-slot ownership; retired dependencies do
 not become active because descendants retain them. These rows record demands,
 not a completed lifetime, activation or physical-preservation judgment.
@@ -2350,7 +2349,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 238 | yes |
+| semantic module | `PSITERM\0` | 240 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

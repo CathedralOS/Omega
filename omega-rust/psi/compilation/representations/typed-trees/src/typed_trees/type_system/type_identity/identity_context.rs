@@ -604,6 +604,17 @@ pub(super) fn static_nominal_argument_identity(
     if let Some((replacement, outer)) = context.applied_argument(argument.symbol) {
         return Some(substitution::index_argument(program, replacement, &outer));
     }
+    // A bare const binder such as `Base` in `Selected<Base>` is an index
+    // operand. Read it through the index-name grammar its `Named` type
+    // reference uses, so an open body forwarding `Base` to a bound that
+    // requires `Reading<Base>` compares one identity, not a type name.
+    if argument.application.is_none()
+        && program
+            .data_type_parameter_by_symbol(argument.symbol)
+            .is_some_and(|binder| binder.kind.is_const_or_value())
+    {
+        return None;
+    }
     if let Some(application) = &argument.application {
         return Some(generic_type_identity(
             program,

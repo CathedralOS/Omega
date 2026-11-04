@@ -238,6 +238,11 @@ pub enum MachineParameterContract {
     RequirementIdentity,
     Structural(crate::signature::StateSignature),
     Nominal {
+        /// The binder can name a child that adds a calling policy to an
+        /// inherited requirement. Keep that choice separate from the parent
+        /// declaration used to check the handler's contract.
+        receiving_trait: SymbolHandle,
+        receiving_arguments: Vec<crate::types::TypeReferenceHandle>,
         trait_definition: SymbolHandle,
         requirement: SymbolHandle,
         /// The trait application the binder is declared under
