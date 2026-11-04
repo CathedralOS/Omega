@@ -224,6 +224,13 @@ sponsored directory from the invocation's monotonic sequence. Component demands
 join the completed Build's opaque continuation before Product checking; they do
 not trigger a second compilation or replay Build effects. Closing an owner
 prevents another review from using it.
+Completed application and dependency reviews can be reused across commands
+when every recorded input still matches. The source resolver keeps its cache
+locations on the acquired root as well as dependencies. The existing full key
+and current source-consumption check govern reuse; ordinary decisions and lock
+publication still run. [The Cathedral measurement](../../../../wiki/drafts/measurements/root_review_reuse_2026_11_04.md)
+records the unchanged-resume result and input-change controls.
+
 If a persisted dependency review lacks a demanded component description, refresh
 that dependency while retaining completed sibling reviews and the consumer's
 Build continuation. Reuse still compares complete inputs, entry and snapshot;
