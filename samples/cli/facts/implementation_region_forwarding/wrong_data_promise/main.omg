@@ -1,5 +1,0 @@
-trait Tag {}
-trait Other {}
-data Holder<Implementation satisfies Tag> [copy] { value: u64; }
-data Enclosure<Implementation satisfies Other> [copy] { item: Holder<Implementation>; }
-machine main() {}

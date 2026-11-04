@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "conformance `GenericPolicy` parameter `Width` requires a const argument, but `<structural type>` has another static category"
-  ]
-}

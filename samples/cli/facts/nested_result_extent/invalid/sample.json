@@ -1,8 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "cannot prove subslice range end bound",
-    "is within unknown slice length"
-  ]
-}

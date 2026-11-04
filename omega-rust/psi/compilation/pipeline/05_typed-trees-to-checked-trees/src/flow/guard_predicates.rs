@@ -563,6 +563,18 @@ pub(super) fn guard_observations(
                 return;
             }
         }
+        ExpressionNode::Match(_) => {
+            // A decision on a joined value could only come from an arm that
+            // can yield it: a literal yield of the other polarity rules its
+            // arm out. When exactly one arm survives, its yield held at that
+            // arm's own point; several survivors keep the decision opaque.
+            if let Some(arm_value) =
+                validation::match_result_unique_arm(program, expression, value)
+            {
+                guard_observations(program, machine, state, arm_value, value, observations);
+                return;
+            }
+        }
         _ => {}
     }
     observations.push((expression, value));

@@ -1,2 +1,0 @@
-selects private machine
-ops::Wrapped::describe

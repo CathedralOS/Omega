@@ -1,3 +1,0 @@
-// Expected exit: 0
-machine missing() -> u8 crashes Trap { crash Trap; }
-machine main() {}

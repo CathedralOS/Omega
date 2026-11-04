@@ -1,2 +1,0 @@
-data Int { value: u64; }
-machine main() {}

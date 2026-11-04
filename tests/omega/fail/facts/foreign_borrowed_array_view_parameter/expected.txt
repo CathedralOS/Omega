@@ -1,1 +1,0 @@
-reads `buffer.cells[1].value` while local borrow

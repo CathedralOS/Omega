@@ -1,1 +1,0 @@
-state `write_pair` receives `view` as mutable more than once

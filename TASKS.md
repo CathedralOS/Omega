@@ -167,11 +167,9 @@ retired-syntax deletions to completion.
     owned copies from borrowed outer input homes, runtime-selected stored-reference
     call operands (captured-loan access), other remaining declared body forms,
     nonscalar orders beyond fixed-integer
-    lexicographic products, or an unranked helper whose computed rank endpoint,
-    such as `items.len - 1`, reads a formal the helper supplies through a field
-    projection or computed argument rather than a whole parameter; the
-    whole-parameter case [runs in the parameter place](samples/cli/facts/nested_machine_invocation/joint_rank/parameter/bounded_distance/computed_length/README.md)
-    and its other eight places are unwritten).
+    lexicographic products,     or an unranked helper whose computed rank endpoint,
+    such as `items.len - 1`, reads a formal the helper supplies through a
+    computed argument rather than a whole parameter or a field projection).
   - Bring the composed state-graph planner
     (`omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph`)
     to parity with the ordinary call plan, starting with temporary cleanup
