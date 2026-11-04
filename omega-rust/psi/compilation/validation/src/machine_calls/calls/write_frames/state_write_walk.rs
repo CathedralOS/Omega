@@ -943,40 +943,33 @@ fn walk_state_write_prefix_body(
                 };
                 let receiver_origins = divergent_receiver_origins.unwrap_or_default();
                 let nested_writes = {
-                    let deduped_paths =
-                        |paths: for<'site> fn(
-                            &dyn crate::CheckingInput,
-                            &Machine,
-                            &MachineSymbols<'site>,
-                            &TopLevelSymbols<'site>,
-                            &[String],
-                            &str,
-                            CallerWriteSite<'site>,
-                            &[checked_trees::expression::ExpressionHandle],
-                            &mut FrameInference,
-                        ) -> Option<Vec<String>>,
-                         inference: &mut FrameInference| {
-                            if has_divergent_receiver {
-                                return None;
-                            }
-                            (!arguments.iter().any(|argument| {
-                                expression_is_effectful_indexed_place(program, *argument)
-                            }))
-                            .then(|| {
-                                paths(
-                                    program,
-                                    machine,
-                                    &machine_symbols,
-                                    symbols,
-                                    receiver_members,
-                                    nested_call.target.as_str(),
-                                    CallerWriteSite::Call(nested_call),
-                                    arguments,
-                                    inference,
-                                )
-                            })
-                            .flatten()
-                        };
+                    let deduped_paths = |paths: super::demand::KnownWrittenPathsForParts,
+                                         inference: &mut FrameInference,
+                                         argument_origins: &[Option<
+                        Vec<super::FramePlaceOrigin>,
+                    >]| {
+                        if has_divergent_receiver {
+                            return None;
+                        }
+                        (!arguments.iter().any(|argument| {
+                            expression_is_effectful_indexed_place(program, *argument)
+                        }))
+                        .then(|| {
+                            paths(
+                                program,
+                                machine,
+                                &machine_symbols,
+                                symbols,
+                                receiver_members,
+                                nested_call.target.as_str(),
+                                CallerWriteSite::Call(nested_call),
+                                arguments,
+                                inference,
+                                Some(argument_origins),
+                            )
+                        })
+                        .flatten()
+                    };
                     let argument_types = super::call_targets::call_argument_types(
                         program,
                         machine,
@@ -1013,10 +1006,18 @@ fn walk_state_write_prefix_body(
                         Some(&argument_origins),
                     )
                     .or_else(|| {
-                        deduped_paths(known_boundary_call_written_paths_for_parts, inference)
+                        deduped_paths(
+                            known_boundary_call_written_paths_for_parts,
+                            inference,
+                            &argument_origins,
+                        )
                     })
                     .or_else(|| {
-                        deduped_paths(known_requirement_call_written_paths_for_parts, inference)
+                        deduped_paths(
+                            known_requirement_call_written_paths_for_parts,
+                            inference,
+                            &argument_origins,
+                        )
                     })
                     .or_else(|| {
                         if has_divergent_receiver || has_divergent_actual {

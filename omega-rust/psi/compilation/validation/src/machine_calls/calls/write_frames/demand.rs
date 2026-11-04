@@ -183,7 +183,7 @@ impl CallFrameCaches {
 
 /// Both known-callee written-path lanes (boundary call and requirement call)
 /// take the same parts; a probe closure picks the lane.
-type KnownWrittenPathsForParts = for<'site> fn(
+pub(super) type KnownWrittenPathsForParts = for<'site> fn(
     &'site dyn crate::CheckingInput,
     &Machine,
     &MachineSymbols<'_>,
