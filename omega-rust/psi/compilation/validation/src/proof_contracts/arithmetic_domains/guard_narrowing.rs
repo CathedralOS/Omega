@@ -495,6 +495,23 @@ pub(super) fn narrow_environment_by_condition(
         );
         return;
     }
+    // A Boolean match observed at one polarity narrows by its unique
+    // compatible arm's yield — `let ok = match e { a -> x < 4, b -> false }`
+    // observed true is `x < 4`, so a snapshot bound on `ok` keeps that arm's
+    // comparison exactly as a spelled one would.
+    if let Some(arm_value) =
+        meaning::match_result_unique_arm(program, condition, positive)
+    {
+        narrow_environment_by_condition(
+            program,
+            machine,
+            state,
+            environment,
+            arm_value,
+            positive,
+        );
+        return;
+    }
     let Some(comparison) =
         meaning::guard_comparison(program, machine.symbol, condition, &|operand| {
             crate::proof_contracts::bound_expression_meaning::operand_type(
