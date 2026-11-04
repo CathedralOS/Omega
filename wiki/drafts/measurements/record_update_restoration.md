@@ -46,6 +46,9 @@ after the first destination write. Restoration checking now runs at the existing
 later contract-checking boundary, after that history is available. The same
 history proves whether the source was preserved; separate parameter names alone
 do not justify preservation. The check remains mandatory before publication.
+The completed storage history belongs to a new checking context. It shares the
+unchanged program indexes, but recomputes answers that depend on current storage.
+An answer obtained before that history existed cannot become a later proof.
 The controls include an unrelated array in the source and a source promise of
 at most 61 that cannot restore the destination's maximum of 60.
 
@@ -77,14 +80,14 @@ The two controls cover both `self.cell.value` and `cell.value` spellings.
 ## Verification
 
 Fresh qualification on macOS ARM64 used optimized compiler source
-`82848105c806bd6f608f9ec0cc0fa251645486ef`:
+`f78c2623a68cf93044b0b38befd42e627a98667a`:
 
 - 37 positive programs ran with native and Terminal Psi exits of zero.
 - All 44 negative controls rejected with the relevant diagnostic fragments.
 - The focused corpus checked 36 valid fixtures and rejected 83 invalid fixtures,
   with no wrong-reason refusals, unsafe acceptances or lost successes.
 - Ten focused Rust tests passed. Lint passed with no diagnostics on added Rust
-  lines, and all 35 changed Rust files passed formatting.
+  lines, and all 36 changed Rust files passed formatting.
 
 The nine restored write-only programs and their eighteen twins are included.
 The nine mutable-recast programs and their nine twins are included too. The
@@ -94,7 +97,7 @@ retain an unsafe child even when its result is unused, multiplied by zero,
 inside a match, wrapped afterward or followed by a guard. Storage controls check
 that overlapping writes invalidate an old value while separate writes preserve it.
 
-The [evidence archive](https://github.com/CathedralOS/Omega/tree/3a3a4d53e122c3508075d50bb73ef3633055e13e) retains inputs, producer hashes and profiles,
+The [evidence archive](https://github.com/CathedralOS/Omega/tree/b0a0e03ebb6f31884c1527a9d5e319283646c5f2) retains inputs, producer hashes and profiles,
 commands, source bundles, diagnostic expectations, actual engine observations,
 reviews and failed attempts. Disk-full links and the initial cleanup-helper
 failure are recorded separately from successful checks. Every edited fixture

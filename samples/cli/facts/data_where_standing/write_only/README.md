@@ -83,7 +83,7 @@ from `c5cc3d8749224ed1a76fa7abad1707dfd9f5dd1d`; their compiler and library inpu
 are identical. All nine programs wrongly failed on return despite the restoring
 store. The flat mutable and write-only controls failed immediately on storing
 61. Frozen inputs and raw results are retained in the
-[qualification evidence](https://github.com/CathedralOS/Omega/tree/3a3a4d53e122c3508075d50bb73ef3633055e13e). These baseline refusals demonstrate the defects.
+[qualification evidence](https://github.com/CathedralOS/Omega/tree/b0a0e03ebb6f31884c1527a9d5e319283646c5f2). These baseline refusals demonstrate the defects.
 
 The checker tracks each declared requirement separately. A write makes only the
 requirements about changed storage need proof again; requirements about untouched
