@@ -1002,9 +1002,19 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             if let Some(calls) = self.selected_calls
                 && !calls.contains(&(target_span, declaration))
             {
+                let mut retained_count = 0usize;
+                let mut retained_prefix = Vec::new();
+                for (reference, retained) in calls {
+                    if *reference == target_span {
+                        retained_count += 1;
+                        if retained_prefix.len() < 4 {
+                            retained_prefix.push(*retained);
+                        }
+                    }
+                }
                 return Err(format!(
-                    "constant call selection disagrees with its owning implementation: call {target_span:?}, owner {:?}, selected declaration {declaration:?}",
-                    self.lexical_owner,
+                    "constant call selection disagrees with its owning implementation: purpose {:?}, call {target_span:?}, owner {:?}, binding original {:?}, selected {:?}, selected declaration {declaration:?}, retained declaration count {retained_count}, retained prefix {retained_prefix:?}",
+                    self.purpose, self.lexical_owner, binding.original, binding.selected,
                 ));
             }
             return self.realized_call_dependency(binding, target_span);
