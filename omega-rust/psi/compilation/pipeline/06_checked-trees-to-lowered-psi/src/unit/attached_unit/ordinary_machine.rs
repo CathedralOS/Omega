@@ -221,10 +221,6 @@ pub(super) fn emit(
         &plan.entry_claims,
         claim_bindings,
     )?;
-    let attachment = plan
-        .attachment_type_identity
-        .map(|identity| lookup_type_id(type_ids, &identity))
-        .transpose()?;
     let local_places = plan
         .trivial_affine_locals
         .iter()
@@ -1116,7 +1112,6 @@ pub(super) fn emit(
     )?;
     let nominal_cleanup_subject =
         crate::machine_lowering::nominal_cleanup_subject(checked, plan.machine, type_ids)?;
-    let attachment = attachment.or(nominal_cleanup_subject);
     crate::emission::claim_bindings::seal_block_entry_claims(&mut block_entry_claims)?;
     let mut machine = TerminalMachine {
         assembly_target_requirement: checked
@@ -1130,7 +1125,7 @@ pub(super) fn emit(
         closed_reach_application: None,
         declared_service_reach: lower_declared_service_reach(checked, plan.machine, service_ids)?,
         id: terminal_machine,
-        attachment,
+        attachment: nominal_cleanup_subject,
         nominal_cleanup_subject,
         parameters: scalar_parameters.clone(),
         parameter_order: signature.parameter_order.clone(),

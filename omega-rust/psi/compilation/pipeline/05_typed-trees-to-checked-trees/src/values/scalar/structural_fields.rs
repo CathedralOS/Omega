@@ -870,16 +870,6 @@ pub(crate) fn structural_data(
         }
         _ => return None,
     };
-    let symbol = if symbol.is_valid() {
-        program
-            .machine_positions_for_symbol(symbol)
-            .iter()
-            .map(|&position| &program.machines()[position as usize])
-            .find(|machine| machine.attached_data_symbol.is_valid())
-            .map_or(symbol, |machine| machine.attached_data_symbol)
-    } else {
-        symbol
-    };
     if symbol.is_valid() {
         program.data_definition_by_symbol(symbol)
     } else {

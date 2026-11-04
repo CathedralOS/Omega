@@ -379,7 +379,6 @@ pub(super) fn lower_unit_structural_types<'checked>(
         if let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()? {
             roots.push(result.type_identity);
         }
-        roots.extend(body.attachment());
         if let UnitBody::Composed(machine) = body {
             roots.extend(
                 machine
@@ -460,7 +459,6 @@ pub(super) fn lower_unit_structural_types<'checked>(
                     };
                     target.entry()?;
                     roots.push(signature.type_identity);
-                    roots.extend(target.attachment());
                     roots.extend(
                         target
                             .structural_parameters()
@@ -497,7 +495,6 @@ pub(super) fn lower_unit_structural_types<'checked>(
         }
     }
     for (boundary, _) in boundaries {
-        roots.extend(boundary.attachment_type_identity);
         for (_, operation) in checked.typed.access_lifecycle_plans.iter() {
             if matches!(operation, typed_trees::typed_trees::AccessLifecyclePlan::Evaluated { callable, .. }
                 if *callable == boundary.machine || *callable == boundary.state)
