@@ -9,7 +9,10 @@ terminates by remaining in 0..=3
 {
     transition { _ -> observe(&Cell { value: remaining }, remaining) }
 
-    machine observe(cell: &Cell, fuel: u32) -> u32 requires fuel <= 3 {
+    machine observe(cell: &Cell, fuel: u32) -> u32
+    requires fuel <= 3
+    terminates by fuel in 0..=3
+    {
         let matches: bool = cell.value == fuel;
         transition matches && fuel > 0 {
             true -> observe(&Cell { value: fuel - 1 }, fuel - 1)

@@ -12,6 +12,7 @@ terminates by remaining
 
     machine step(remaining: u32, scratch: [u32; 2]) -> u32
     requires remaining <= 9
+    terminates by remaining in 0..=9
     {
         let mut record: Scratch;
         let scalar: u32;

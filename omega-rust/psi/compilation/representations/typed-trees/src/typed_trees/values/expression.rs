@@ -586,6 +586,33 @@ impl ExpressionTable {
             .span_or_empty(self.static_machine_application(application).bindings)
     }
 
+    /// Save an independent set of call inputs for a prepared checking view.
+    /// Qualified member payloads are copied too, so later rewrites cannot alter it.
+    pub fn snapshot_static_machine_bindings(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+    ) -> HandleSpan<StaticMachineBinding> {
+        let mut bindings = self
+            .static_machine_application_bindings(application)
+            .to_vec();
+        for binding in &mut bindings {
+            if let crate::static_applications::StaticMachineBindingValue::Machine(argument)
+            | crate::static_applications::StaticMachineBindingValue::Conformance(argument) =
+                &mut binding.value
+            {
+                *argument = self.copy_static_argument_from_self(argument);
+            }
+        }
+        self.static_machine_bindings.insert_many(bindings)
+    }
+
+    pub fn static_machine_binding_snapshot(
+        &self,
+        bindings: HandleSpan<StaticMachineBinding>,
+    ) -> &[StaticMachineBinding] {
+        self.static_machine_bindings.span_or_empty(bindings)
+    }
+
     pub fn static_machine_application_bindings_mut(
         &mut self,
         application: StaticMachineApplicationHandle,

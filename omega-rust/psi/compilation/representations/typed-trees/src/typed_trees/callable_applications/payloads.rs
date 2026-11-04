@@ -649,9 +649,6 @@ impl CallableApplication {
                     expression::ExpressionNode::ZeroValue(self.type_reference(program, reference)?),
                 ),
                 expression::ExpressionNode::Call(mut call) => {
-                    if let Some(target) = call_target {
-                        self.apply_call_target(program, &mut call, target);
-                    }
                     self.static_arguments(program, &mut call.machine_arguments)?;
                     let application = call.authored_machine_application;
                     if application.is_valid() {
@@ -722,6 +719,9 @@ impl CallableApplication {
                             .expression_table
                             .static_machine_application_bindings_mut(application)
                             .clone_from_slice(&bindings);
+                    }
+                    if let Some(target) = call_target {
+                        self.apply_call_target(program, &mut call, target)?;
                     }
                     Some(expression::ExpressionNode::Call(call))
                 }

@@ -1288,19 +1288,9 @@ defines the complete product bar.
   `omega-rust/psi/compilation/validation/src/machine_calls/call_cycles/runtime_ranking/`,
   Psi 06 `src/unit/attached_unit/`, and
   `omega-rust/psi/interpreter/terminal-interpreter/src/engine/terminators/`.
-  - A termination promise that reaches a recursive component with no ranking
-    of its own is accepted unchecked; twelve `fail/termination` twins
-    (`rank_arrival_*`, `rank_range_declared_step_unbounded`,
-    `rank_range_record_stepped_copy_stale`, `rank_state_dependent_bound_prefix_write`,
-    `endpoint_folded_into_payload`, `stored_reference_endpoint_reseat`) compile.
-    The reach rule is implemented on `work/wave1-termination-reach` and lands
-    last, with its positive migrations, once component ranking accepts the
-    projected and arrival rank subjects those helpers need. Ranked probes of
-    opaque children, ranges and stored-reference endpoints already check; the
-    migration confirms them. The call-component judgment
-    (`ranking_range/calls.rs`) still evaluates a declared measure over a record
-    subject as a scalar and still builds the field-only
-    `RankingRangeMeasure::Field`; retire both there.
+  - The call-component judgment (`ranking_range/calls.rs`) still evaluates a
+    declared measure over a record subject as a scalar and still builds the
+    field-only `RankingRangeMeasure::Field`; retire both there.
   - Re-run the external-result and `std`-loop execution controls
     (`external_result_ranked_arrival_compile` currently refuses with `provider
     candidate requires beyond its boundary's declared obligations`) once

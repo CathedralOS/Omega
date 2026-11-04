@@ -6,6 +6,7 @@ terminates by remaining in 0..=5 {
     transition { _ -> tally(remaining, base + step) }
     machine tally(count: u32, total: u32) -> u32
         requires 0 <= count && count <= 5 && 0 <= total && total <= 10
+    terminates by count in 0..=5
     {
         transition count > 0 {
             true -> tally(count - 1, total)

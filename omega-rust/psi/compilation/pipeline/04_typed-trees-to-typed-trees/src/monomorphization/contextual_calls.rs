@@ -24,6 +24,9 @@ use super::{CallSite, Diagnostic, ExpressionNode, StatementNode, SymbolHandle, T
 use crate::tables::{expressions_of, expressions_of_mut};
 
 pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
+    // Save the supplied functions together with type and constant arguments.
+    // Later requirement closure must see the same complete declaration order.
+    super::requirement_applications::prepare_invocation_bindings(program)?;
     let invocations = invocations::collect(program)?;
     let mut changed = Vec::new();
     for invocation in invocations {
@@ -146,6 +149,9 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
             expressions_of_mut(program)
                 .set_static_machine_application_selected_machines(application, &selected);
         }
+        program
+            .prepare_selected_machine_contracts(application)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
         if invocation.use_site == invocations::InvocationUse::RetainedEvaluation {
             // The overlay is ordinary checking custody. Its source recipe and
             // explicit tuple remain intact; only an active executable call
