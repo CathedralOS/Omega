@@ -76,13 +76,25 @@ its own corrected baseline. Reference-slot controls refuse earlier at
 mutable-source admission; those refusals are not arithmetic or final carry-policy
 evidence.
 
-The tested repair at 825d8c8c315d5acc56f444dbb21b7a71b943e062 lets the
-reference-slot controls run and read the replacement while numbers read before
-replacement keep their original values. Twelve focused programs pass native and Terminal
-execution. A compatible view of the supplied reference now gets past the earlier
-lookup error, but still fails lifetime checks at the pause. Calls whose later
-argument returns an output slot still lack a complete record of that slot's
-borrowed inputs. The nine-place production remains unfinished.
+Eight places now run with native and Terminal exits 0 at the tested
+5f6b07fb3a63d3c8f24ccc71805be64d92d1003b checkpoint. Their policy twins name
+both forbidden backing values. The match join still refuses while capturing the
+second installation's input references; its twin has not reached the intended
+policy check. The frozen witnesses and their 73/11 outcomes are unchanged.
+
+The later tested repair at 89edff58b9cf0426947eeff5ccebedd46fc71112 runs
+18 focused programs in both engines. A saved view survives replacing its output
+variable, a compatible view survives the possible pause, and an original mutable
+input becomes writable after every saved copy ends. The early-write control
+still rejects access before that closure. Numbers read before pointer replacement
+keep their old values; arithmetic on the replacement cannot use the old bound.
+
+This remains unfinished. Ordinary helper-installed generations still lack an
+input-permission association in two controls; a shared containing record reaches
+a cleanup correspondence refusal. The incoming descriptor relay and qualified
+alternative-handback controls also remain red. Those failures do not qualify
+their intended negative controls. Full nine-place acceptance and final pins
+remain required.
 
 Sources, hashes and raw observations are retained in build/supplied-output-loan/.
 The 54-file row was frozen before compiler edits. The two match-join mains were
