@@ -26918,7 +26918,7 @@ pass/collections/integer_index_every_width checked 1969ms @ccdb99ca2214
 pass/collections/local_byte_array_input_state_loan_exit checked 17121ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/mutable_slice_view_edge_release checked 17361ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/mutable_slice_view_establishment checked 11878ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/named_transition_completion rejected 0ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/collections/named_transition_completion rejected 3ms regressed-from:checked+check-target:macos_arm64 @360a7d48582f+wt
 	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
 pass/collections/nested_empty_record_array_borrow_exit checked 3226ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/nested_runtime_indexed_successor_argument_exit checked 16621ms check-target:macos_arm64 @ccdb99ca2214
@@ -31159,8 +31159,7 @@ pass/facts/nested_machine_completion_result_nonreturning_call_exit checked 3333m
 pass/facts/nested_machine_completion_result_other_machine_exit checked 3521ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_completion_result_other_state_exit checked 4059ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_completion_result_parameter_exit checked 4318ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_machine_completion_result_target_body_exit rejected 30ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	select_provider requires two bare declaration operands and its explicit mutable Build and catalog target arguments (plus an optional composition mode)
+pass/facts/nested_machine_completion_result_target_body_exit checked 3497ms check-target:macos_arm64 @360a7d48582f+wt
 pass/facts/nested_machine_completion_result_unit_and_crash_exit checked 3109ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_copied_structural_payload_exit checked 10944ms check-target:macos_arm64 @6485d5294954
 pass/facts/nested_machine_declared_repeated_reads_call_result checked 79027ms check-target:macos_arm64 @7280b73089bb
@@ -31196,8 +31195,7 @@ pass/facts/nested_machine_default_domain_no_indexed_store_exit checked 6645ms ch
 pass/facts/nested_machine_default_domain_other_machine_exit checked 6761ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/nested_machine_default_domain_other_state_exit checked 8583ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/nested_machine_default_domain_parameter_exit checked 7742ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/nested_machine_default_domain_target_body_exit rejected 61ms regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	select_provider requires two bare declaration operands and its explicit mutable Build and catalog target arguments (plus an optional composition mode)
+pass/facts/nested_machine_default_domain_target_body_exit checked 3501ms check-target:macos_arm64 @360a7d48582f+wt
 pass/facts/nested_machine_descriptor_literal_selector_exit checked 1247ms check-target:macos_arm64 @02a2d6944961
 pass/facts/nested_machine_descriptor_owned_snapshot_exit checked 1263ms check-target:macos_arm64 @02a2d6944961
 pass/facts/nested_machine_descriptor_result_assignment_exit checked 1034ms check-target:macos_arm64 @02a2d6944961
