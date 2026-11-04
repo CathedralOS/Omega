@@ -10204,52 +10204,62 @@ fail/facts/finite_family_input_index/wrong_provider rejected 11117ms expected @4
 	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
 	machine `produce$specialized$bf862e295a8967d7$0$2751` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
 	machine `produce$specialized$d1322acad3338bfd$1$2756` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
-fail/facts/finite_family_returned_descriptor/call_result rejected 4026ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/call_result rejected 5468ms expected @059fb0b41d83
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/const_name rejected 4405ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/caller_view rejected 5362ms expected @059fb0b41d83
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/field rejected 8720ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/const_name rejected 5343ms expected @059fb0b41d83
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/local rejected 7057ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/field rejected 5442ms expected @059fb0b41d83
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/match_join rejected 6881ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/incoming_join rejected 5497ms expected @059fb0b41d83
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/other_machine rejected 6909ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/local rejected 5338ms expected @059fb0b41d83
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/other_state rejected 5692ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/match_join rejected 5390ms expected @059fb0b41d83
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/parameter rejected 3974ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/other_machine rejected 5362ms expected @059fb0b41d83
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/pointer_field rejected 3923ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/other_state rejected 5321ms expected @059fb0b41d83
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/replaced_source rejected 6032ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/parameter rejected 5459ms expected @059fb0b41d83
+	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_returned_descriptor/pointer_field rejected 5455ms expected @059fb0b41d83
+	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_returned_descriptor/replaced_source rejected 5452ms expected @059fb0b41d83
 	machine `replace_and_dispatch` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `replace_and_dispatch` stores a borrowed value without a complete normal-exit backing relation
 	machine `main` state `entry` statement 3: call stores a borrowed value without a complete destination/backing relation
-fail/facts/finite_family_returned_descriptor/target_body rejected 15798ms expected @25f8bb78090b
+fail/facts/finite_family_returned_descriptor/saved_source rejected 5427ms expected @059fb0b41d83
+	machine `replace_and_dispatch` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `replace_and_dispatch` stores a borrowed value without a complete normal-exit backing relation
+	machine `main` state `entry` statement 3: call stores a borrowed value without a complete destination/backing relation
+fail/facts/finite_family_returned_descriptor/target_body rejected 5543ms expected @059fb0b41d83
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/target_qualification rejected 8460ms expected @05a6f6af37ec+wt
-	native execution input: TargetFamily("target family Boundary(BoundaryMachineId(3)) has no member for deployment tag `linux_x86_64`")
 fail/facts/finite_family_static_inline_result/argument_effect rejected 3457ms expected @ddc17fff6a3c
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 fail/facts/finite_family_static_inline_result/call_result rejected 981ms expected @ddc17fff6a3c
@@ -29652,19 +29662,23 @@ pass/facts/finite_family_input_index/other_machine checked 18357ms check-target:
 pass/facts/finite_family_input_index/other_state checked 14815ms check-target:macos_arm64 @4148c7ab0c1e
 pass/facts/finite_family_input_index/parameter checked 13018ms check-target:macos_arm64 @4148c7ab0c1e
 pass/facts/finite_family_input_index/target_body checked 18230ms check-target:macos_arm64 @4148c7ab0c1e
-pass/facts/finite_family_returned_descriptor/call_result checked 8090ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/const_name checked 8868ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/field checked 6737ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/local checked 6994ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/match_join checked 7838ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/other_machine checked 6631ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/other_state checked 6447ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/parameter checked 6438ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/pointer_field checked 8881ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/replaced_source incomplete 4159ms check-target:macos_arm64 @05a6f6af37ec+wt
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 3
-pass/facts/finite_family_returned_descriptor/target_body checked 19043ms check-target:macos_arm64 @25f8bb78090b
-pass/facts/finite_family_returned_descriptor/target_qualification checked 8807ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_returned_descriptor/call_result checked 7110ms check-target:macos_arm64 @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/caller_view checked 7092ms check-target:macos_arm64 @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/const_name checked 7052ms check-target:macos_arm64 @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/field checked 7080ms check-target:macos_arm64 @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/incoming_join checked 7228ms check-target:macos_arm64 @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/local checked 7118ms check-target:macos_arm64 @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/match_join checked 7283ms check-target:macos_arm64 @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/other_machine checked 7126ms check-target:macos_arm64 @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/other_state checked 7153ms check-target:macos_arm64 @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/parameter checked 7239ms check-target:macos_arm64 @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/pointer_field checked 7069ms check-target:macos_arm64 @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/replaced_source checked 7029ms check-target:macos_arm64 @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/saved_source checked 7155ms check-target:macos_arm64 @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/target_body checked 7233ms check-target:macos_arm64 @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/target_qualification checked 7155ms check-target:macos_arm64 @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply rejected 6929ms expected check-target:macos_arm64 native-rejection:match @059fb0b41d83
+	no provider is selected for boundary requirement `SelectedTarget::target_only`, which the program entry reaches on target `macos_arm64`
 pass/facts/finite_family_static_inline_result/argument_effect checked 4871ms check-target:macos_arm64 @ddc17fff6a3c
 pass/facts/finite_family_static_inline_result/authored_sum checked 4839ms check-target:macos_arm64 @ddc17fff6a3c
 pass/facts/finite_family_static_inline_result/call_result checked 5117ms check-target:macos_arm64 @ddc17fff6a3c
@@ -35953,7 +35967,7 @@ pass/slices/runtime_same_carrier_inline_cast_index_exit checked 3642ms check-tar
 pass/slices/runtime_saturating_array_element_guard_exit checked 13137ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_saved_collection_length_arrival_exit checked 3450ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_sequential_same_backing_views_exit checked 3604ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_shared_subslice_return_exit checked 17261ms check-target:macos_arm64 @ccdb99ca2214
+pass/slices/runtime_shared_subslice_return_exit checked 119808ms check-target:macos_arm64 @059fb0b41d83
 pass/slices/runtime_shared_whole_view_return_exit checked 15583ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_slice_element_runtime_index_read_exit checked 12841ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_slice_fixed_index_guard_exit checked 15222ms check-target:macos_arm64 @ccdb99ca2214

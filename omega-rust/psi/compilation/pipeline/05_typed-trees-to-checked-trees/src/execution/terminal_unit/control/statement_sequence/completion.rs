@@ -238,10 +238,14 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             // returning call, including reference shells and views. Argument
             // presentation (`add_type`) may name its referent and cannot
             // classify this value.
+            trace.phase("statement sequence: returned value type");
+            trace.statement(Some(root.statement_ordinal));
             let mut result =
                 checked_structural_result_type(program, shapes, state.return_type, binders)?;
             result.statement_index = root.statement_ordinal;
             result.binding_ordinal = u32::try_from(structural_count).ok()?;
+            trace.phase("statement sequence: returned value producer");
+            trace.statement(Some(root.statement_ordinal));
             let establishment = structural_operands::establish_value(
                 facts,
                 result.clone(),
@@ -252,6 +256,8 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 &mut operations,
             )?;
             operations.push(establishment);
+            trace.phase("statement sequence: returned value exit");
+            trace.statement(Some(root.statement_ordinal));
             return_binding(result)
         }
     } else if let Some((ordinal, expression)) = tail
