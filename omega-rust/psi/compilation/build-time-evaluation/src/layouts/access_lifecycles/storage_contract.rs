@@ -138,7 +138,7 @@ pub(super) fn check(
             })
             .map(|row| row.semantic_domain)
             .collect::<Vec<_>>();
-        matches.sort_unstable();
+        matches.sort_unstable_by_key(|domain| domain.0);
         matches.dedup();
         match matches.as_slice() {
             [domain] => Ok(*domain),
