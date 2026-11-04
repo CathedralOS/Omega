@@ -47,6 +47,52 @@ pub(crate) fn scalar_fits_storage(stored: ScalarType, scalar: TerminalScalarValu
         && encode(stored, scalar).is_ok()
 }
 
+/// A whole byte observation can retain its original addressable cell through
+/// an identity codec or aggregate projection. Recover that endpoint before
+/// checking a newly admitted region against the original backing extent;
+/// fragmented storage and nonidentity codecs cannot supply that address.
+fn original_byte_storage(storage: &PrimitiveStorage) -> Option<PrimitiveStorage> {
+    let byte = byte_type().ok()?;
+    let mut source = storage;
+    let mut projected = false;
+    loop {
+        if let Some(encoding) = source.encoding {
+            if encoding.source != byte || encoding.view != byte {
+                return None;
+            }
+            projected = true;
+        }
+        let PrimitiveStorageEndpoint::Projection {
+            fragments,
+            logical,
+            stored,
+        } = &source.endpoint
+        else {
+            break;
+        };
+        let [fragment] = fragments.as_slice() else {
+            return None;
+        };
+        if *logical != byte
+            || *stored != byte
+            || fragment.logical != byte
+            || fragment.stored != byte
+        {
+            return None;
+        }
+        let Some(original) = fragment.contiguous_address_storage(byte) else {
+            return None;
+        };
+        source = original;
+        projected = true;
+    }
+    projected.then(|| {
+        let mut original = source.clone();
+        original.encoding = None;
+        original
+    })
+}
+
 impl TerminalExecution<'_> {
     /// Resolve scalar descendants of a retained aggregate region. Borrowed
     /// formals retain the same opaque view, so this works after forwarding as
@@ -232,6 +278,11 @@ impl TerminalExecution<'_> {
         byte_offset: usize,
         width: usize,
     ) -> Result<(), TerminalInterpretError> {
+        if loan.scalar_type == byte_type()?
+            && let Some(original) = original_byte_storage(&loan.storage)
+        {
+            loan.storage = original;
+        }
         if loan.storage.encoding.is_some() {
             return Err(malformed());
         }
