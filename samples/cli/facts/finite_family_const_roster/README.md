@@ -31,8 +31,7 @@ static obligations needed to form the calls.
 Each reject twin changes only the call in `selected_width`: it sends the
 ordinary runtime argument directly to the const-only method. The width's
 membership premise, implementations, transport and result checks remain the
-same. The separate [runtime-const control](runtime_const/invalid/main.omg) also
-retains this restriction.
+same.
 
 The target case passes the selector and width to `FamilyForward`. Four explicit
 Build rows choose the checked `HostedFamily` implementation. Its requirement
@@ -76,15 +75,23 @@ Terminal exits 0 on macOS ARM64. Runtime-to-const, unrestricted-value,
 wrong-carrier, unsupported-row and crossed-pair controls still reject for their
 intended causes. The claim retains the exact producer, sources and raw outputs.
 
-All nine updated sample places execute with native and Terminal exits 0 on
-macOS ARM64. Their nine corpus positives check and all eighteen sample/corpus
-twins reject as intended. These observations use the retained `d023d9db7fb8`
-compiler against program revision `baf04598f640`, with all seven compiler,
-library, tool and configuration objects verified equal. The claim retains all
-319 input hashes and 72 raw-output digests. Corpus runtime records still need
-fresh qualification. Other-host execution and target-ineligible
-bridge qualification remain open. These local results do not close the parent
-task.
+At `a50253a693d8`, a fresh optimized compiler and corpus runner pass the complete
+local selection on macOS ARM64: ten positives check, eleven controls reject for
+the intended reasons, and all ten corpus positives execute with native and
+Terminal exits 0. All nine sample positives also execute with both exits 0;
+their nine twins reject as intended. The claim retains the producer profiles,
+316 input hashes, reports and raw outputs.
+
+The ordinary forwarding case first exposed a second defect: the arithmetic
+checker discarded a complete disjunction that was identical to the called
+machine's requirement after argument substitution. The repair compares complete
+predicates, preserving their selected operations and parameter pairs. It does
+not infer individual pairs from unrelated conditions.
+
+Current main has since been merged into the repair. Matching-host qualification
+of that merged source remains pending on Linux x86-64, Linux ARM64, Windows
+x86-64 and macOS ARM64. Target-ineligible bridge qualification also remains open;
+these local results do not close the parent task.
 
 
 The focused [forwarding program](../../../../tests/omega/pass/traits/finite_family_const_forwarding/main.omg)
