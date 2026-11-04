@@ -90,10 +90,26 @@ machine's requirement after argument substitution. The repair compares complete
 predicates, preserving their selected operations and parameter pairs. It does
 not infer individual pairs from unrelated conditions.
 
-Current main has since been merged into the repair. Matching-host qualification
-of that merged source remains pending on Linux x86-64, Linux ARM64, Windows
-x86-64 and macOS ARM64. Target-ineligible bridge qualification also remains open;
-these local results do not close the parent task.
+The merged compiler at `c7a12e81bd2a` passes the same complete selection on all
+four matching hosts. Each checks ten positives, rejects eleven controls for
+their intended causes, executes all ten corpus positives with native and
+Terminal exits 0, and passes the nine sample positives and nine intended twins.
+The raw reports, optimized compiler profiles and all 316 input hashes have been
+audited independently.
+
+- [Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41922981066)
+- [Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/41922985742)
+- [macOS ARM64](https://github.com/CathedralOS/Omega/actions/runs/41922995281)
+- [Windows x86-64](https://github.com/CathedralOS/Omega/actions/runs/41922990615)
+
+A fresh macOS ARM64 compiler at `538cc2df6785`, after the next main merge,
+also passes that selection. The nine existing ARM runtime records now contain
+the actual `c7a12e81bd2a` successes. Source records retain their measured
+`a50253a693d8` revision. Replay archives for all three compiler revisions are
+preserved in [PR #1861](https://github.com/CathedralOS/Omega/pull/1861).
+
+The remaining parent-task requirement is target-ineligible bridge qualification.
+The const-only bridge results do not close that requirement.
 
 
 The focused [forwarding program](../../../../tests/omega/pass/traits/finite_family_const_forwarding/main.omg)
