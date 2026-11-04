@@ -152,6 +152,65 @@ the work marked unfinished, and continue all other feasible engineering. A
 user stop or exhausted runtime budget preserves the work for a later
 continuation; it does not turn unfinished work into completion.
 
+### Decision-making framing for compiler completion
+
+Every agent decision serves one global destination
+([rust_compiler_completion.md](wiki/drafts/reference/rust_compiler_completion.md)):
+**recording all six release gates (repository, source semantics, build and
+packages, native matrix, diagnostics, and representative programs) with
+`tools/release/release_record.py` at one commit across all four hosted targets
+(`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`).**
+
+Optimize every engineering and validation choice for **compiler completion**,
+never for making a single turn or gate check appear green:
+
+1. **Never settle for 1-off wins or stop after one passing test:** Making a
+   single fixture or fact folder pass and stopping does not complete the
+   compiler. The nine-place fact row (`samples/cli/facts/<fact>/`) exists to
+   prevent 1-off AST shape hacks by proving a compiler mechanism works across all
+   nine transport places — it is a **generalization bar, never a stopping
+   condition**. Whenever you repair a mechanism:
+   - Prove the general mechanism across all nine transport places (`local`,
+     `field`, `parameter`, `call_result`, `match_join`, `const_name`,
+     `other_state`, `other_machine`, `target_body`).
+   - Sweep and re-record the **entire root-cause family** of pinned regressions in
+     `tests/omega/corpus_outcomes.txt` (`--list-pinned-regressions`) and failing
+     programs in `samples/` (`tools/sample_native_gate.py`) that share that
+     mechanism, closing the whole cluster in one pass rather than one test at a
+     time.
+   - Immediately continue to the next open requirement of the `TASKS.md`
+     capability or the next release-gate blocker in the same session. Do not stop
+     after landing one witness or one PR unless the coordinator or user
+     explicitly bounds the slice.
+2. **Fail-closed semantics over positive-only shortcuts:** When an analysis
+   (`Psi 05` place rebasing, borrow origins, write frames, or call-result
+   candidates) cannot resolve an exact backing place or proof obligation, return
+   `None` / `Err` (fail closed). Never add a fallback branch that treats an
+   unresolved local or reference as its own backing storage or returns
+   `Ok(Vec::new())` to unblock a positive test, and always scope taint or
+   rejection checks to the exact projected path (`path.is_empty()` or
+   prefix/suffix overlap) so sibling fields are not poisoned.
+3. **Never `--record` a broken or dirty row:** Before opening a PR, inspect
+   `git diff -- tests/omega/corpus_outcomes.txt`:
+   - Every `pass/` and `run/` row in the diff must be `checked` or `built`
+     (never record a `pass/` place as `rejected` because one place such as
+     `target_body` had un-migrated syntax, a leftover `omega.lock`, or a missing
+     `reaches` clause — fix the place first).
+   - Every `fail/` row in the diff must be `rejected ... expected` (never leave
+     `rejected ... unexpected` or `checked`; if a compiler repair legitimately
+     sharpens a diagnostic on an existing `fail/` control, update its
+     `expected.txt` to the true obligation first).
+   - Always commit all code and fixture edits **before** running
+     `python3 tools/corpus_gate.py --record --filter ...` so recorded `@<sha>`
+     stamps never carry a dirty `+wt` suffix.
+4. **Evolve framing when recurring failures appear:** Whenever
+   [coordinator-review](.agents/skills/coordinator-review/SKILL.md) or
+   [retrospect](.agents/skills/retrospect/SKILL.md) catches agents repeatedly
+   making the same wrong tradeoff along the compiler-completion path, update the
+   common framing here in `AGENTS.md` (and the execution steps in
+   [advance](.agents/skills/advance/SKILL.md) or creation-time checks in
+   `tools/check_rules.py`) while keeping platform swarm skills thin.
+
 ## The sample loop
 
 Capability outcomes determine priority; samples provide executable evidence.
@@ -255,12 +314,16 @@ stopping at an intermediate compiler stage. Completion also follows the
 fact row names the requirement it establishes, and each requirement closes only
 when its full acceptance is demonstrated.
 
-Programs under the rest of `samples/` stay out of compiler-advance selection.
-They may stay broken while this layer is in progress. A named assignment
-outside that tree keeps the oracle on its own program: a runnable program
-whose header documents `Expected exit` or `Expected output contains`. A
-passing witness completes that repair, not every requirement of its parent
-capability.
+The sample loop is the **anti-1-off generalization instrument** serving the six
+release gates in [rust_compiler_completion.md](wiki/drafts/reference/rust_compiler_completion.md):
+it ensures every compiler mechanism is proved across all nine transport places
+(`samples/cli/facts/<fact>/`), while every repair simultaneously closes its
+entire root-cause family across `TASKS.md`, pinned corpus regressions in
+`tests/omega/corpus_outcomes.txt`, and representative programs across `samples/`
+(`tools/sample_native_gate.py`). A named assignment outside `samples/cli/facts`
+keeps the oracle on its own program (`Expected exit` or `Expected output
+contains`) and closes the underlying compiler or migration family blocking the
+representative-programs release gate.
 
 1. **Choose the outcome, then its witness.** Honor explicit user scope and
    retain the current capability assignment first; sessions with an active
