@@ -386,6 +386,12 @@ impl<'program> CallFrameResolver<'program> {
         {
             return Some(Vec::new());
         }
+        // Provider-default bodies record a build selection. That call does not
+        // install a caller reference loan, and its generic slot inventory stays
+        // template-dependent, so the lexical successor keeps an empty roster.
+        if machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults {
+            return Some(Vec::new());
+        }
         // A complete empty writable-slot relation needs no caller origins.
         // Use the same ordered evaluator as the prefix-dependent query: an
         // unknown invocation remains incomplete even with no incoming slots.
