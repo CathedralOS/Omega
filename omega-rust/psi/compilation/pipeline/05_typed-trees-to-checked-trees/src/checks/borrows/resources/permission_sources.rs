@@ -881,13 +881,15 @@ fn collect_invocation_accesses(
     let before = output.len();
     for access in accesses {
         let row = facts.borrow.argument_accesses.get(access);
-        let backings = if let Some(formation) = &formation {
+        let backings = if let Some(formation) = &formation
+            && formation.storage
+        {
             match super::super::access_sources::stored_address(
                 program,
                 facts,
                 state,
                 formation.target,
-                formation.storage,
+                true,
             ) {
                 Ok(backings) => Some(backings),
                 Err(reason) => {

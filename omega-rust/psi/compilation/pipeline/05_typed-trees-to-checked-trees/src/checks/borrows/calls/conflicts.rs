@@ -504,6 +504,18 @@ pub(super) fn check_call_access_conflicts<'p>(
             }
             let detail =
                 active_loan_detail(state_flow, facts, *loan_handle, borrow_call.statement_index);
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE call-live-loan-conflict state={:?} statement={} ordinal={} access={access:?} loan={loan_handle:?} fact={loan:?}",
+                    state_flow.state_symbol, borrow_call.statement_index, borrow_call.call_ordinal
+                );
+                for backing in &operand_backings[index].places {
+                    eprintln!(
+                        "CHECKSITE call-live-loan-backing place={:?} lineage={:?}",
+                        backing.place, backing.lineage
+                    );
+                }
+            }
             diagnostics.push(Diagnostic::error(format!(
                 "state `{target_name}` receives `{}` while local borrow `{}` is still active{}",
                 borrow_access_label(program, &facts.borrow, access),

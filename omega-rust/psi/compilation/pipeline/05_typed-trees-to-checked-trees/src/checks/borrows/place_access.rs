@@ -179,6 +179,7 @@ pub(super) fn argument_backings(
         if let Some(selected) = selected
             && let Some(formation) =
                 super::formation_captures::argument_formation(program, facts, state, selected)?
+            && formation.storage
         {
             let resolved =
                 super::completed_backings::resolve(program, facts, state, formation.value)?;
