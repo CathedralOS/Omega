@@ -258,9 +258,11 @@ impl CheckedSource {
 /// Root pruning is a transform, not a new judgment. Equal roots of the same
 /// immutable input retain its one output rather than cloning and pruning it
 /// once per realization. Authority admission happens before this operation.
+/// The portable Terminal code of those shared outputs is likewise produced once.
 #[derive(Default)]
 pub struct ProductSelections {
     entries: Vec<SelectedProduct>,
+    productions: Arc<crate::PortableProductions>,
 }
 
 struct SelectedProduct {
@@ -270,6 +272,11 @@ struct SelectedProduct {
 }
 
 impl ProductSelections {
+    /// The invocation's shared portable productions, for each Product publication.
+    pub fn portable_productions(&self) -> Arc<crate::PortableProductions> {
+        Arc::clone(&self.productions)
+    }
+
     pub fn select(
         &mut self,
         checked: CheckedSource,
