@@ -219,7 +219,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                     completed = Some(CompletedWork::Source(position));
                 }
                 Work::Build { acquired, request } => {
-                    let mut invocation = self
+                    let invocation = self
                         .session
                         .compiler
                         .begin_package_build(request)

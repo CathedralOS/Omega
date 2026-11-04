@@ -1,5 +1,8 @@
 //! A default has no authored named declaration. Its role and owner come only
 //! from the admitted context; Product code and its same-spelled names stay inert.
+#[path = "../../tests/support/build_sequence.rs"]
+mod build_sequence;
+
 use artifacts::compile_timings::counters;
 use build_declarations::{BuildDeclarationKind, DependencyPurpose};
 use compiler::{CheckedCompileRequest, CompilationSession};
@@ -74,7 +77,7 @@ fn inherited(role: BuildDeclarationKind, marker: u8) {
             ..CheckedCompileRequest::new(&root, Some(host.target_name()))
         })
         .unwrap();
-    super::build_sequence::prepare_package_root(&mut invocation);
+    build_sequence::prepare_package_root(&mut invocation);
     let mut returned = execute(invocation.execution());
     assert!(
         returned
@@ -136,7 +139,7 @@ fn anonymous() {
     let mut invocation = session
         .begin_source_compilation(CheckedCompileRequest::new(&root, Some(host.target_name())))
         .unwrap();
-    super::build_sequence::prepare_source_root(&mut invocation);
+    build_sequence::prepare_source_root(&mut invocation);
     let mut returned = execute(invocation.execution());
     assert!(
         returned
