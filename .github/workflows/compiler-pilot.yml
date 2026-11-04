@@ -1,153 +1,168 @@
-name: Compiler queue pilot
-
+name: Trace an unchanged inline equality contract
 on:
-  pull_request:
-    branches: [integration-pilot]
-  merge_group:
-    branches: [integration-pilot]
-    types: [checks_requested]
   workflow_dispatch:
-    inputs:
-      smoke:
-        description: Also build executables and run the native/Terminal smoke (not admission)
-        type: boolean
-        default: false
-      fixtures:
-        description: Optional comma-separated exact pass/group/name and fail/group/name IDs; replaces smoke
-        type: string
-        default: ''
-      checking_only:
-        description: Check only the exact fixtures and rejection controls, without repeating runtime observations
-        type: boolean
-        default: false
-      samples:
-        description: Optional comma-separated exact samples/cli/facts project paths (with descendants); replaces smoke
-        type: string
-        default: ''
-      cli_fixtures:
-        description: Optional exact pass/... or samples/cli/... normal-exit projects through ordinary CLI package review and both engines
-        type: string
-        default: ''
-      build_consent:
-        description: Run public source-produced Build consent and filesystem isolation controls
-        type: boolean
-        default: false
-      native_host:
-        description: Matching native host for manual executable observations
-        type: choice
-        options:
-          - linux_x86_64
-          - linux_arm64
-          - windows_x86_64
-          - macos_arm64
-        default: linux_x86_64
-
 permissions:
   contents: read
-
-# A new PR revision supersedes its old check; never cancel a merge-group check
-# merely because another PR entered the queue.
-concurrency:
-  group: compiler-pilot-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
+  actions: read
 jobs:
-  compiler-pilot:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","linux_arm64":"ubuntu-24.04-arm","windows_x86_64":"windows-2022","macos_arm64":"macos-15"}')[inputs.native_host] || 'ubuntu-24.04' }}
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     env:
-      CARGO_BUILD_JOBS: '2'
-      CARGO_INCREMENTAL: '0'
-      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
-      CARGO_BUILD_FINGERPRINT: content
-      # Large calling-policy checks use about 2.8 GiB each. Run one fixture
-      # at a time to reduce concurrent memory pressure.
-      OMEGA_CORPUS_JOBS: '1'
+      GH_TOKEN: ${{ github.token }}
       RUST_MIN_STACK: '67108864'
-      # Match Linux/macOS post-merge storage; Windows keeps its short target path.
-      CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
+      OMEGA_ENTAILMENT_TRACE: '1'
+      OMEGA_STRUCT_TRACE: '1'
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: cdfb47f180a4d08f4ba71a4d0eaab3106f88d00b
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Test the gate's refusal paths
-        run: python tools/tests/test_compiler_pilot.py -v
-      - name: Test Build control evidence refusal paths
-        run: python tools/tests/test_build_consent_controls.py -v
-      - name: Validate exact fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_fixtures; import os; print(select_fixtures(os.environ['OMEGA_COMPILER_PILOT_FIXTURES']))"
-      - name: Validate exact fact sample selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.samples != ''
-        env:
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-        run: python -c "from tools.ci.compiler_pilot import select_samples; import os; print(select_samples(os.environ['OMEGA_COMPILER_PILOT_SAMPLES']))"
-      - name: Validate exact ordinary CLI fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.cli_fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_cli_fixtures; import os; print(select_cli_fixtures(os.environ['OMEGA_COMPILER_PILOT_CLI_FIXTURES']))"
-      - name: Provision Windows rooted temporary directory for hosted applications
-        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && inputs.cli_fixtures != ''
-        run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        id: build-cache
+      - name: Authenticate the cdfb compiler and trace inline equality
+        shell: bash
+        run: |
+          python3 - <<'REPLAY'
+          """Trace the unchanged inline equality refusal with the retained cdfb producer."""
+          from pathlib import Path, PurePosixPath
+          import hashlib, json, os, re, stat, subprocess, sys, time, zipfile
+          
+          settings = {'label': 'inline-equality-trace-cdfb', 'run': 41888053132, 'artifact_id': 13353761118, 'artifact': 'compiler-pilot-linux_x86_64-cdfb47f180a4d08f4ba71a4d0eaab3106f88d00b-1', 'artifact_size': 486245481, 'artifact_digest': 'sha256:a6bbc9a40455edcd2330884d8dcceaf4e24c62524bd635eb498e69ce460311c7', 'producer_source': 'cdfb47f180a4d08f4ba71a4d0eaab3106f88d00b', 'producer_tree': 'c917cfd1427ff8e37456ff05a96550607fa3c1f7', 'original_producer': {'revision': 'cdfb47f180a4d08f4ba71a4d0eaab3106f88d00b', 'tree': 'c917cfd1427ff8e37456ff05a96550607fa3c1f7', 'target': 'linux_x86_64', 'toolchain': 'rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1', 'cli': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-a02xa2im/omega', 'runner': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-a02xa2im/corpus_runner', 'cli_profile': {'binary': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-a02xa2im/omega', 'sha256': '011ff73de1f2b48416176c8c8016dcbe295424a3dbe166a67cf702a15038a5a4', 'profile': {'schema': 'omega-compiler-build-profile-v1', 'opt_level': '1'}}, 'runner_profile': {'binary': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-a02xa2im/corpus_runner', 'sha256': '1772ed5c4bca3042d9f598b39af1ff028a27c3263ce53ba3d51e3cda76aa6260', 'profile': {'schema': 'omega-compiler-build-profile-v1', 'opt_level': '1'}}}, 'objects': {'omega-rust': 'f3e343139428499bddea7147a3e45f2a9c618335', 'source/library': '8dedc671435ee12f16aba75c6070d008693c79f6', 'tools': 'c8330e79d20aee1852872dff2fed35ea9c0f2da9', '.github': 'bae01e4f85b7173fa6cce374bf7bc9a924654a71', 'Cargo.toml': '2699e0a8d0be49c789639cbd3c603521634145d9', 'Cargo.lock': '7f1025f3e7dad4a00d30faf3aacaa6e23dfba830', 'rust-toolchain.toml': '34677fc928123970d13e8b81641724e2a9e6f929'}, 'program_source': 'cdfb47f180a4d08f4ba71a4d0eaab3106f88d00b', 'source_checkpoint': '5741e33c4812894addea3a37423fb9680c3acb49', 'meaning': 'Retained exact cdfb compiler, library and private-trait inline fixture. Existing entailment and structural trace flags only; no Rust build or later-source/runtime acceptance.'}
+          programs = {'inline-equality': {'main.omg': {'text': '// Expected exit: 0\nboundary trait ExactRead {\n    machine read(value: u8) -> u8\n    reaches\n    ensures result == value;\n}\nboundary trait SecondRead {\n    machine observe(value: u8) -> u8\n    reaches\n    ensures result == value;\n}\ntrait LocalForward {\n    machine forward(value: u8) -> u8\n    ensures result == value;\n}\nReadRoute satisfies LocalForward {\n    machine forward(value: u8) -> u8\n    satisfies ExactRead::read, SecondRead::observe\n    ensures result == value\n    { value }\n}\n// The member passes 7 to echo even when its public caller passes 42.\nboundary trait LiteralRead {\n    machine read(value: u8) -> u8 reaches;\n}\nmachine echo(value: u8) -> u8 satisfies LiteralRead::read reaches { value }\nLiteralRoute satisfies LiteralRead {\n    machine read(value: u8) -> u8 reaches { echo(7u8) }\n}\nmachine main() crashes Trap {\n    let result: u8 = ExactRead::read(7u8);\n    let second: u8 = SecondRead::observe(9u8);\n    let literal: u8 = LiteralRead::read(42u8);\n    transition result == 7u8 && second == 9u8 && literal == 7u8 { true -> done() _ -> bad() }\n    machine done() {}\n    machine bad() { crash Trap; }\n}\n', 'sha256': '077f879ae140fefb5801385ad413e2a9d299ac39093ef509ad3919d23cbd2123'}, 'build.omg': {'text': 'machine build(builder: &mut Build) {\n    Build::application(builder, "inline_exact_boundary_provider");\n    Build::select_provider<ExactRead, ReadRoute>(builder, linux_x86_64);\n    Build::select_provider<SecondRead, ReadRoute>(builder, linux_x86_64);\n    Build::select_provider<LiteralRead, LiteralRoute>(builder, linux_x86_64);\n    Build::bind(builder, linux_x86_64::ProgramEntry, main);\n    Build::select_provider<ExactRead, ReadRoute>(builder, linux_arm64);\n    Build::select_provider<SecondRead, ReadRoute>(builder, linux_arm64);\n    Build::select_provider<LiteralRead, LiteralRoute>(builder, linux_arm64);\n    Build::bind(builder, linux_arm64::ProgramEntry, main);\n    Build::select_provider<ExactRead, ReadRoute>(builder, macos_arm64);\n    Build::select_provider<SecondRead, ReadRoute>(builder, macos_arm64);\n    Build::select_provider<LiteralRead, LiteralRoute>(builder, macos_arm64);\n    Build::bind(builder, macos_arm64::ProgramEntry, main);\n    Build::select_provider<ExactRead, ReadRoute>(builder, windows_x86_64);\n    Build::select_provider<SecondRead, ReadRoute>(builder, windows_x86_64);\n    Build::select_provider<LiteralRead, LiteralRoute>(builder, windows_x86_64);\n    Build::bind(builder, windows_x86_64::ProgramEntry, main);\n}\n', 'sha256': '6c3b5d2e525c43949d2299875c281574483d24a2edb0fb092b65a18771f12050'}}}
+          trace_flags = {'OMEGA_ENTAILMENT_TRACE': '1', 'OMEGA_STRUCT_TRACE': '1'}
+          root = Path.cwd()
+          out = root / 'build/inline-equality-trace-cdfb'
+          out.mkdir(parents=True, exist_ok=False)
+          
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+          
+          def digest(path):
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+          
+          assert git('rev-parse', 'HEAD') == settings['producer_source']
+          assert git('rev-parse', 'HEAD^{tree}') == settings['producer_tree']
+          assert not git('status', '--porcelain')
+          objects = {p: git('rev-parse', 'HEAD:' + p) for p in settings['objects']}
+          assert objects == settings['objects']
+          run = json.loads(subprocess.check_output([
+              'gh', 'api', 'repos/CathedralOS/Omega/actions/runs/' + str(settings['run'])
+          ], text=True))
+          (out / 'authenticated-origin-run.json').write_text(json.dumps(run, indent=2) + '\n')
+          assert run['head_sha'] == settings['producer_source'] and run['status'] == 'completed'
+          endpoint = 'repos/CathedralOS/Omega/actions/artifacts/' + str(settings['artifact_id'])
+          meta = json.loads(subprocess.check_output(['gh', 'api', endpoint], text=True))
+          assert meta['id'] == settings['artifact_id'] and meta['name'] == settings['artifact']
+          assert meta['size_in_bytes'] == settings['artifact_size'] and not meta['expired']
+          assert meta['workflow_run']['id'] == settings['run']
+          assert meta['workflow_run']['head_sha'] == settings['producer_source']
+          assert re.fullmatch(r'sha256:[0-9a-f]{64}', meta['digest'])
+          assert meta['digest'] == settings['artifact_digest']
+          archive = root / 'build/inline-equality-trace-cdfb.zip'
+          with archive.open('wb') as stream:
+              subprocess.run(['gh', 'api', endpoint + '/zip'], stdout=stream, check=True)
+          actual_archive_digest = digest(archive)
+          assert 'sha256:' + actual_archive_digest == meta['digest']
+          retained = out / 'retained'
+          with zipfile.ZipFile(archive) as zipped:
+              for member in zipped.infolist():
+                  path = PurePosixPath(member.filename)
+                  assert not path.is_absolute() and '..' not in path.parts
+                  assert ':' not in member.filename and not stat.S_ISLNK(member.external_attr >> 16)
+              zipped.extractall(retained)
+          archive.unlink()
+          (out / 'artifact-authentication.json').write_text(json.dumps({
+              'metadata': meta, 'actual_archive_sha256': actual_archive_digest
+          }, indent=2) + '\n')
+          records = list(retained.rglob('producer.json'))
+          assert len(records) == 1
+          original = json.loads(records[0].read_text())
+          assert original == settings['original_producer']
+          assert original['revision'] == settings['producer_source']
+          assert original['tree'] == settings['producer_tree'] and original['target'] == 'linux_x86_64'
+          (out / 'original-producer.json').write_text(json.dumps(original, indent=2) + '\n')
+          cli = (records[0].parent / Path(original['cli']).name).resolve()
+          cli.chmod(0o755)
+          sys.path.insert(0, str(root / 'tools'))
+          import compiler_profile
+          profile = compiler_profile.require_optimized(cli)
+          
+          def profile_identity(observed):
+              result = {k: v for k, v in observed.items() if k != 'binary'}
+              if isinstance(result.get('build_receipt'), dict):
+                  result['build_receipt'] = {k: v for k, v in result['build_receipt'].items() if k != 'path'}
+              return result
+          
+          assert profile_identity(profile) == profile_identity(original['cli_profile'])
+          library_paths = subprocess.check_output(['git', 'ls-files', 'source/library'], text=True).splitlines()
+          inputs = {p: digest(Path(p)) for p in library_paths}
+          for name, files in programs.items():
+              for filename, payload in files.items():
+                  assert filename in ['main.omg', 'build.omg']
+                  path = out / 'projects' / name / filename
+                  path.parent.mkdir(parents=True, exist_ok=True)
+                  path.write_text(payload['text'])
+                  assert digest(path) == payload['sha256']
+                  inputs[str(path.relative_to(root))] = payload['sha256']
+          
+          def verify():
+              assert {name: os.environ.get(name) for name in trace_flags} == trace_flags
+              assert git('rev-parse', 'HEAD') == settings['producer_source']
+              assert not git('status', '--porcelain')
+              assert {p: git('rev-parse', 'HEAD:' + p) for p in objects} == objects
+              assert compiler_profile.require_optimized(cli) == profile
+              for path, expected in inputs.items():
+                  assert digest(root / path) == expected, path
+          
+          verify()
+          (out / 'retained-origin.json').write_text(json.dumps({
+              'settings': settings, 'driver': os.environ['GITHUB_SHA'], 'trace_flags': trace_flags,
+              'original_run_conclusion': run['conclusion'], 'actual_cli': str(cli),
+              'actual_profile': profile, 'inputs': inputs, 'builds_rust': False,
+              'meaning': 'Producer, library and private-trait fixture remain exact cdfb. Existing entailment/structural trace flags observe its actual source refusal; the later diagnostic source is not executed.'
+          }, indent=2) + '\n')
+          observations = []
+          try:
+              for name in programs:
+                  entry = out / 'projects' / name / 'main.omg'
+                  for leg, arguments in [('source', ['--check', str(entry)])]:
+                      verify()
+                      command = [str(cli), *arguments]
+                      started = time.monotonic()
+                      label = name + '-' + leg
+                      try:
+                          result = subprocess.run(command, capture_output=True, timeout=600)
+                          stdout, stderr, code = result.stdout, result.stderr, result.returncode
+                      except subprocess.TimeoutExpired as failure:
+                          stdout, stderr, code = failure.stdout or b'', failure.stderr or b'', None
+                      channels = {}
+                      for suffix, data in [('stdout', stdout), ('stderr', stderr)]:
+                          path = out / (label + '.' + suffix)
+                          path.write_bytes(data)
+                          channels[suffix] = {'path': path.name, 'sha256': digest(path), 'bytes': len(data)}
+                      observations.append({'program': name, 'leg': leg, 'command': command,
+                                           'cli_exit': code, 'seconds': round(time.monotonic() - started, 3),
+                                           'channels': channels})
+                      verify()
+          finally:
+              (out / 'summary.json').write_text(json.dumps({
+                  'passed': len(observations) == len(programs) and all(r['cli_exit'] == 0 for r in observations),
+                  'producer': original, 'program_source': settings['program_source'],
+                  'driver': os.environ['GITHUB_SHA'], 'target': 'linux_x86_64', 'trace_flags': trace_flags,
+                  'observations': observations, 'builds_rust': False,
+                  'limits': 'Only Source checking runs with existing trace flags. Its actual refusal remains red; no later-source, runtime, SDK or feature acceptance is inferred.'
+              }, indent=2) + '\n')
+          raise SystemExit(0 if all(row['cli_exit'] == 0 for row in observations) else 1)
+          REPLAY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
+          name: inline-equality-trace-cdfb-${{ github.run_id }}
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
-      - name: Check the exact integration candidate
-        id: compiler-check
-        run: cargo check --locked -p omega
-      - name: Observe public Build consent and filesystem isolation
-        if: github.event_name == 'workflow_dispatch' && inputs.build_consent
-        run: python tools/ci/build_consent_controls.py
-      - name: Optional executable observations
-        if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py
-      - name: Report actual producer and fixture observations
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        with:
-          name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/
-          if-no-files-found: warn
-          compression-level: 0
-          retention-days: 7
-      # The corpus reports alone, so `corpus_gate.py --compare --remote` reads
-      # rows without downloading the retained producer (350-520 MB).
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        with:
-          name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/*.json
-          if-no-files-found: warn
-          retention-days: 7
-      # A source/runtime fixture failure does not invalidate compiled Cargo
-      # objects. Retain them for the next correction; check outcomes stay red.
-      - name: Save build cache after fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
+            build/inline-equality-trace-cdfb/*.json
+            build/inline-equality-trace-cdfb/*.stdout
+            build/inline-equality-trace-cdfb/*.stderr
+            build/inline-equality-trace-cdfb/projects/*/*.omg
+          retention-days: 30
