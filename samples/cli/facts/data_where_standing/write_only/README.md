@@ -1,5 +1,11 @@
 # Restore a record before returning it
 
+The nine producers now save `&write counter` in a local reference before passing
+it to `fill`. This exercises the same loan-location record as the mutable scalar
+reference production while retaining write-only access. These programs already
+check on optimized baseline source `2713116252386e98ce5e87961aca764f8760b217`;
+execution with the changed planner is pending.
+
 A helper can temporarily put a record outside its declared bounds while updating
 it. These programs set a field to 61 when the record requires at most 60, then
 restore it before returning. The compiler must accept the completed update and

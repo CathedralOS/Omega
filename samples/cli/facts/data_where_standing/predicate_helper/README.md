@@ -1,6 +1,26 @@
-# Checked predicate helper production
+# Pass a saved field reference to a helper
 
 Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
+
+These programs save a reference to `Counter.value`, pass it to a helper, and use
+the field's bound afterward. The helper temporarily writes 61 and then restores
+a value no greater than 60. The caller's addition needs no extra guard.
+
+The local reference needs no separate runtime descriptor, but calls still need
+the original field's location. The checker must retain that location, its field
+path, access and any indices captured when the borrow was formed. Lowering reads
+that record instead of evaluating the borrow expression again.
+
+Each place also has an `invalid_window` control. It keeps the record predicate
+but lets the helper return 61 under a matching, weaker guarantee. The caller must
+reject that return to a field whose enclosing record still requires at most 60.
+These controls accompany the existing missing-predicate twins.
+
+Current baseline evidence uses optimized source
+`2713116252386e98ce5e87961aca764f8760b217`: eight saved-reference places fail while
+producing executable compiler output with "computed borrow lost its established
+local". The const-name place already checks. The proposed repair passes scoped
+Rust checking and lint; its native/Terminal qualification is pending.
 
 Owning task: **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. This is another production
 of the parent fact: the default domain calls an ordinary checked Boolean machine
@@ -23,7 +43,7 @@ Each positive computes the addition before checking transported neighbor fields
 17 and 53. A lost field, stale value or incorrect match choice therefore traps;
 the neighbor checks never establish the arithmetic bound. Both match choices
 execute, and the lower signed value retains its distinct authored result.
-Every twin removes only the record's `where` clause.
+Every missing-predicate twin removes only the record's declared predicate.
 
 The [alias](controls/alias/main.omg) and [literal](controls/literal/main.omg)
 controls exercise independent constant/index membership judgments. Their
