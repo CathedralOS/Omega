@@ -15,7 +15,6 @@ use omega::language::core::native_execution_authority;
 use omega::language::core::filesystem_authority;
 use omega::language::core::process_authority;
 use omega::language::core::process_exit;
-use targets::macos_arm64::macos_gui_impl;
 use macos_image;
 
 public domain [u8]::CString
@@ -179,8 +178,10 @@ reaches
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
 invokes ObjectiveC
+invokes AppKit
+invokes CoreGraphics
 {
-    let loaded: bool = appkit_load();
+    let loaded: bool = AppKit::load();
     let rx: f64 = F64::from_i32(x);
     let ry: f64 = F64::from_i32(y);
     let mut rw: f64 = F64::from_i32(width);
@@ -255,7 +256,7 @@ invokes ObjectiveC
     let run_name: [u8; 4] = "run\0";
     let run_selector: u64 = ObjectiveC::register_selector(&run_name);
     rc = ObjectiveC::send(app, run_selector);
-    let space: u64 = cg_color_space_rgb();
+    let space: u64 = CoreGraphics::color_space_rgb();
     // Pump scratch, once: the distantPast date, the run-loop-mode NSString, the
     // nextEvent/sendEvent:/isVisible/keyWindow selectors, and the event mask.
     let cbuf20: [u8; 7] = "NSDate\0";
@@ -309,6 +310,7 @@ reaches
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
 invokes ObjectiveC
+invokes CoreGraphics
 {
     let close_name: [u8; 6] = "close\0";
     let close_selector: u64 = ObjectiveC::register_selector(&close_name);
@@ -316,7 +318,7 @@ invokes ObjectiveC
     ignored = ObjectiveC::send(window.window, window.relsel);
     ignored = ObjectiveC::send(window.view, window.relsel);
     ignored = ObjectiveC::send(window.mode, window.relsel);
-    cg_color_space_release(window.space);
+    CoreGraphics::color_space_release(window.space);
     ignored = ObjectiveC::pool_pop(window.pool);
 }
 public machine macos_window_get_dc(window_state: &Window, window: u64) -> u64
@@ -547,9 +549,10 @@ public machine macos_map_keycode(virtual_key: u32) -> u64 {
 
 public machine macos_key_state(virtual_key: u32) -> u64
 reaches GlobalInputObservation
+invokes CoreGraphics
 {
     let keycode: u64 = macos_map_keycode(virtual_key);
-    let result: u64 = cg_event_source_key_state(1, keycode);
+    let result: u64 = CoreGraphics::event_source_key_state(1, keycode);
     transition keycode == 65535 { true -> not_down() _ -> ret(result) }
     machine not_down() -> u64 { 0 }
     machine ret(result: u64) -> u64 { result }
@@ -567,24 +570,27 @@ public boundary trait DarwinClock {
 // the former u32-to-i32 wrapping contract.
 public machine macos_sleep(milliseconds: u32)
 reaches ExecutionDelay
+invokes DarwinClock
 {
     let timeout: i32 = narrow_u32_to_i32_wrapping(milliseconds);
-    let result: i32 = darwin_poll(0, 0, timeout);
+    let result: i32 = DarwinClock::poll(0, 0, timeout);
 }
 
 // CLOCK_MONOTONIC milliseconds since boot, retaining the low 32 bits.
 public machine macos_get_tick_count() -> u32
 reaches ClockObservation
+invokes DarwinClock
 {
-    let nanoseconds: u64 = darwin_clock_ns(6);
+    let nanoseconds: u64 = DarwinClock::clock_ns(6);
     let milliseconds: u64 = nanoseconds / 1000000;
     narrow_u64_to_u32_wrapping(milliseconds)
 }
 
 public machine macos_perf_counter() -> u64
 reaches ClockObservation
+invokes DarwinClock
 {
-    darwin_clock_ns(6)
+    DarwinClock::clock_ns(6)
 }
 
 public machine macos_perf_frequency() -> u64 { 1000000000 }
