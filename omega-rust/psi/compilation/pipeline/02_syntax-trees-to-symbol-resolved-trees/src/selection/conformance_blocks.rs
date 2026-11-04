@@ -942,7 +942,7 @@ fn resolve_realizations<'catalog>(
 /// for one map without dropping an independently authored obligation.
 fn remove_inline_row_disambiguation_edges(program: &mut SymbolResolvedTrees) {
     let mut rows =
-        std::collections::BTreeMap::<SymbolHandle, Vec<(SymbolHandle, DiagnosticName)>>::new();
+        std::collections::HashMap::<SymbolHandle, Vec<(SymbolHandle, DiagnosticName)>>::new();
     for implementation in program.conformances.iter() {
         for row in implementation
             .rows
