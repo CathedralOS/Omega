@@ -1,4 +1,4 @@
-name: Compiler queue pilot
+name: Diagnose selected-call reference records
 
 on:
   pull_request:
@@ -58,11 +58,13 @@ jobs:
       CARGO_BUILD_FINGERPRINT: content
       OMEGA_CORPUS_JOBS: '2'
       RUST_MIN_STACK: '67108864'
+      OMEGA_COMPILER_CHECK_SITES: '1'
       # Match Linux/macOS post-merge storage; Windows keeps its short target path.
       CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: 28dc9bca7099f3f26403d974c84003b717e0b78d
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
@@ -108,7 +110,32 @@ jobs:
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py
+        run: |
+          mkdir -p build/compiler-pilot
+          python -c "import json,os; from pathlib import Path; Path('build/compiler-pilot/driver-source.json').write_text(json.dumps({'driver':os.environ['GITHUB_SHA'],'source':'28dc9bca7099f3f26403d974c84003b717e0b78d','purpose':'Diagnostic output only; the compiler is built from the exact checked-out source.'})+'\n')"
+          GITHUB_SHA=28dc9bca7099f3f26403d974c84003b717e0b78d python tools/ci/compiler_pilot.py
+      - name: Preserve the exact native reference mismatch details
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          import json,subprocess,os,sys
+          out=Path('build/compiler-pilot');summary=json.loads((out/'summary.json').read_text());producer=summary['producer']
+          assert producer['revision']=='28dc9bca7099f3f26403d974c84003b717e0b78d' and producer['tree']=='2e65e7e3057362cace5e0952258e704edcb2b860'
+          sys.path.insert(0,'tools/ci');import compiler_pilot
+          cli=Path(producer['cli']);profile=compiler_pilot.corpus_gate.require_optimized(cli)
+          assert profile==producer['cli_profile']
+          rows=[]
+          for folder in ['caller_view','incoming_join','saved_source','replaced_source']:
+              program='tests/omega/pass/facts/finite_family_returned_descriptor/'+folder+'/main.omg'
+              command=[str(cli),'run','--both',program]
+              with (out/(folder+'.stdout')).open('wb') as stdout,(out/(folder+'.stderr')).open('wb') as stderr:
+                  result=subprocess.run(command,stdout=stdout,stderr=stderr,timeout=120)
+              rows.append({'command':command,'exit':result.returncode})
+          (out/'diagnostic-commands.json').write_text(json.dumps(rows,indent=2)+'\n')
+          assert compiler_pilot.corpus_gate.require_optimized(cli)==profile
+          PYTHON
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json') if (root / name).is_file()]"
