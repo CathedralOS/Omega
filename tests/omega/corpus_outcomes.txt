@@ -722,62 +722,80 @@ fail/facts/data_where_standing_nested_borrowed_field_suspended_descriptor_slot r
 fail/facts/data_where_standing_nested_borrowed_field_target_body rejected 2143ms expected @d3679195288a
 	exact arithmetic in machine `X86Compute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `ArmCompute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_predicate_helper_call_result_unrestored rejected 4822ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
+	machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/data_where_standing_predicate_helper_const_name_unrestored rejected 554ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
+	machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/data_where_standing_predicate_helper_field_unrestored rejected 4101ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
+	machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/data_where_standing_predicate_helper_local_unrestored rejected 5344ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
+	machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/data_where_standing_predicate_helper_match_join_unrestored rejected 5231ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
+	machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/data_where_standing_predicate_helper_other_machine_unrestored rejected 4786ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
+	machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/data_where_standing_predicate_helper_other_state_unrestored rejected 4959ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
+	machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/data_where_standing_predicate_helper_parameter_unrestored rejected 5180ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
+	machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/data_where_standing_predicate_helper_target_body_unrestored rejected 5101ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
+	machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/data_where_standing_recast_owner_restoration rejected 2451ms expected @f78c2623a68c
 	cannot complete return from machine `replace` state `entry`: this write left the `requires` facts of `outer` (data `Outer`) unproved; restore them first
 fail/facts/data_where_standing_shared_record_replacement rejected 2115ms expected @f78c2623a68c
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/facts/data_where_standing_shared_record_with_array rejected 2108ms expected @f78c2623a68c
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/data_where_standing_write_only_call_result rejected 2467ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_call_result rejected 4182ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_call_result_unrestored_window rejected 2560ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_call_result_unrestored_window rejected 4732ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/data_where_standing_write_only_const_name rejected 2687ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_const_name rejected 6230ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_const_name_unrestored_window rejected 294ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_const_name_unrestored_window rejected 926ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/facts/data_where_standing_write_only_enclosing_array_violation rejected 2262ms expected @f78c2623a68c
 	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `envelope` (data `Envelope`) unproved; restore them first
 fail/facts/data_where_standing_write_only_enclosing_owner_violation rejected 2161ms expected @f78c2623a68c
 	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `envelope` (data `Envelope`) unproved; restore them first
-fail/facts/data_where_standing_write_only_field rejected 7493ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_field rejected 4467ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_field_unrestored_window rejected 9110ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_field_unrestored_window rejected 5299ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/facts/data_where_standing_write_only_forbidden_read rejected 644ms expected @f78c2623a68c
 	machine `fill` state `entry` reads field `peer` from write-only parameter `counter`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 fail/facts/data_where_standing_write_only_invalid_store rejected 3777ms expected @f78c2623a68c
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/data_where_standing_write_only_local rejected 1817ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_local rejected 4461ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_local_unrestored_window rejected 6348ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_local_unrestored_window rejected 4505ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/data_where_standing_write_only_match_join rejected 1635ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_match_join rejected 3832ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_match_join_unrestored_window rejected 8795ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_match_join_unrestored_window rejected 4405ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/data_where_standing_write_only_other_machine rejected 4251ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_other_machine rejected 4227ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `add` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_other_machine_unrestored_window rejected 3003ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_other_machine_unrestored_window rejected 5605ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/data_where_standing_write_only_other_state rejected 2110ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_other_state rejected 4713ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `next` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_other_state_unrestored_window rejected 3632ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_other_state_unrestored_window rejected 5806ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/facts/data_where_standing_write_only_outer_owner_violation rejected 4764ms expected @f78c2623a68c
 	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `outer` (data `Outer`) unproved; restore them first
-fail/facts/data_where_standing_write_only_parameter rejected 1820ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_parameter rejected 5303ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_parameter_unrestored_window rejected 2206ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_parameter_unrestored_window rejected 5264ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/facts/data_where_standing_write_only_recast_owner_violation rejected 3169ms expected @f78c2623a68c
 	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `outer` (data `Outer`) unproved; restore them first
 fail/facts/data_where_standing_write_only_relational_debt rejected 2428ms expected @f78c2623a68c
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/data_where_standing_write_only_target_body rejected 1959ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_target_body rejected 4898ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `X86Compute::compute` state `compute` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `ArmCompute::compute` state `compute` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_target_body_unrestored_window rejected 12290ms expected @f78c2623a68c
+fail/facts/data_where_standing_write_only_target_body_unrestored_window rejected 4658ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/facts/default_domain_field_write_through_call_result_rejected rejected 12294ms expected @f78c2623a68c
 	machine `main` state `entry` statement 3: the next whole-value read of `span` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
@@ -3427,6 +3445,17 @@ fail/facts/typed_reflection_mutation_completion_unit_value_rejected rejected 135
 	machine `maybe` state `entry`: `entry(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
 	machine `maybe` state `entry`: `done(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
 	machine `maybe` state `entry` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`
+fail/facts/typed_run_nested_borrowed rejected 1229ms expected @9a26074461a7
+	callable `Carrier::unwrap` returns content-bearing custody `Token::Owned` sourced only from borrowed parameter `envelope` through a structural field; retained-after-return authority requires a consumed owned input
+fail/facts/typed_run_nested_duplicate rejected 6075ms expected @9a26074461a7
+	callable `Carrier::duplicate` has a structural content result without an exact conservation equation covering its owned qualified output paths from consumed inputs of the same qualification; result annotations and equal content algebras do not establish partitioned authority
+fail/facts/typed_run_nested_two_inputs rejected 5266ms expected @9a26074461a7
+	cannot establish call-result qualification `Token::Owned` in `steal`, state `entry` (statement 0, call 0): the invocation does not transfer exactly one established input claim for this domain
+fail/facts/typed_run_singleton_count rejected 10409ms expected @9a26074461a7
+	cannot prove requires contract for call extract_cell from extract: current.count == 1 (needs fact `run.count == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call extract_cell from extract: current in toolchain:product::Live<type:named(name(nominal\\(package-owner\\(32:f818c4a9a734d433b61fd54db6090aa9de5ac8dceb973b38b562995e075b2a55\\)\\,path\\(WordPlacement\\)\\))),type:named(name(nominal\\(package-owner\\(32:f818c4a9a734d433b61fd54db6090aa9de5ac8dceb973b38b562995e075b2a55\\)\\,path\\(Word\\)\\)))> (invalidated by prior mutation of current.count; current is part of Live) in state `entry`
+fail/facts/typed_run_singleton_double_drop rejected 9014ms expected @9a26074461a7
+	cannot use `value` in machine `finish` state `entry` (statement 2) after `value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/unsigned_byte_to_signed_case_domain_through_call_result_rejected rejected 12666ms expected @46cdd6b85b82+wt
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/unsigned_byte_to_signed_case_domain_through_const_name_rejected rejected 713ms expected @46cdd6b85b82+wt
@@ -3565,6 +3594,17 @@ fail/generics/static_dispatch_private_ensures_through_generic rejected 2984ms ex
 	cannot prove requires contract for call hold from main: picked == 7 (needs fact `picked == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/inline_asm/asm_where_retired rejected 623ms expected @d83ddecd7693+wt
 	tests/omega/fail/inline_asm/asm_where_retired/main.omg:3:22: expected one of `clobbers <registers>`, `requires`, `ensures`, `{`, found identifier `where`
+fail/inline_asm/gdtr_excluded_machine_control rejected 1918ms expected @fe5c93add7a4
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `MachineControl`
+fail/inline_asm/gdtr_numeric_address rejected 716ms expected @fe5c93add7a4
+	asm instruction `lgdt`: operand must be a borrowed ten-byte array, not a numeric address
+fail/inline_asm/gdtr_store_invalidates_bytes rejected 2116ms expected @fe5c93add7a4
+	cannot prove requires contract for call consume from main: buffer.bytes[0] == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/inline_asm/gdtr_store_shared_reference rejected 716ms expected @fe5c93add7a4
+	asm instruction `sgdt`: sgdt needs writable bytes
+fail/inline_asm/gdtr_wrong_extent rejected 716ms expected @fe5c93add7a4
+	machine `capture` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
+	asm instruction `sgdt`: descriptor must be exactly [u8; 10]
 fail/layouts/accessor_with_linear_owner_write_denied rejected 13119ms expected @ee4dbb4b2d56
 	accessor write application: the access plan does not permit this operation
 fail/layouts/fixed_layout_closed_requirement_policy_rejected rejected 4093ms expected @d68d95fa82f8
@@ -4617,6 +4657,7 @@ pass/build/dependency_implementation_closure rejected 873ms regressed-from:check
 	fixed-array length `[u8; placed_byte_count()]`: const evaluation of `placed_byte_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-1-43` has non-hermetic source origin `User`"))
 pass/build/described_runner_entry_left_exit checked 17644ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/described_runner_entry_right_exit checked 19223ms check-target:macos_arm64 @ccdb99ca2214
+pass/build/descriptor_table_round_trip checked 74924ms check-target:linux_x86_64 @fe5c93add7a4
 pass/build/discarded_provider_selection_exit rejected 3180ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b8f9f267c739+wt
 	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
 	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
@@ -7690,15 +7731,15 @@ pass/facts/data_where_standing_nested_borrowed_field_target_body checked 8922ms 
 pass/facts/data_where_standing_owned_whole_replacement_child_restoration checked 3306ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_predicate_helper_alias_exit checked 5396ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_predicate_helper_literal_exit checked 5347ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_predicate_helper_through_call_result_exit checked 5256ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_predicate_helper_through_const_name_exit checked 5731ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_predicate_helper_through_field_exit checked 5590ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_predicate_helper_through_local_exit checked 5665ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_predicate_helper_through_match_join_exit checked 5534ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_predicate_helper_through_other_machine_exit checked 4987ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_predicate_helper_through_other_state_exit checked 5095ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_predicate_helper_through_parameter_exit checked 6149ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_predicate_helper_through_target_body_exit checked 5014ms check-target:macos_arm64 @911f6617ba9e
+pass/facts/data_where_standing_predicate_helper_through_call_result_exit checked 5570ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
+pass/facts/data_where_standing_predicate_helper_through_const_name_exit checked 7360ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
+pass/facts/data_where_standing_predicate_helper_through_field_exit checked 6383ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
+pass/facts/data_where_standing_predicate_helper_through_local_exit checked 6478ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
+pass/facts/data_where_standing_predicate_helper_through_match_join_exit checked 6987ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
+pass/facts/data_where_standing_predicate_helper_through_other_machine_exit checked 6659ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
+pass/facts/data_where_standing_predicate_helper_through_other_state_exit checked 6125ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
+pass/facts/data_where_standing_predicate_helper_through_parameter_exit checked 6277ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
+pass/facts/data_where_standing_predicate_helper_through_target_body_exit checked 6989ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
 pass/facts/data_where_standing_recast_owner_restoration checked 3244ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_root_exit checked 6116ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_shared_record_replacement checked 3701ms check-target:macos_arm64 @f78c2623a68c
@@ -7713,19 +7754,19 @@ pass/facts/data_where_standing_through_other_state_exit checked 5470ms check-tar
 pass/facts/data_where_standing_through_parameter_exit checked 5373ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_through_target_body_exit checked 5527ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_untouched_child_restoration checked 3509ms check-target:macos_arm64 @f78c2623a68c
-pass/facts/data_where_standing_write_only_call_result checked 3668ms check-target:macos_arm64 @f78c2623a68c
-pass/facts/data_where_standing_write_only_const_name checked 3822ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_call_result checked 6395ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
+pass/facts/data_where_standing_write_only_const_name checked 7909ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
 pass/facts/data_where_standing_write_only_direct_field checked 3254ms check-target:macos_arm64 @f78c2623a68c
-pass/facts/data_where_standing_write_only_field checked 3852ms check-target:macos_arm64 @f78c2623a68c
-pass/facts/data_where_standing_write_only_local checked 3288ms check-target:macos_arm64 @f78c2623a68c
-pass/facts/data_where_standing_write_only_match_join checked 3337ms check-target:macos_arm64 @f78c2623a68c
-pass/facts/data_where_standing_write_only_other_machine checked 3367ms check-target:macos_arm64 @f78c2623a68c
-pass/facts/data_where_standing_write_only_other_state checked 4087ms check-target:macos_arm64 @f78c2623a68c
-pass/facts/data_where_standing_write_only_parameter checked 3344ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_field checked 7162ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
+pass/facts/data_where_standing_write_only_local checked 7508ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
+pass/facts/data_where_standing_write_only_match_join checked 7039ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
+pass/facts/data_where_standing_write_only_other_machine checked 7237ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
+pass/facts/data_where_standing_write_only_other_state checked 6731ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
+pass/facts/data_where_standing_write_only_parameter checked 7140ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
 pass/facts/data_where_standing_write_only_predicate_helper checked 3269ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_write_only_relational_window checked 3877ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_write_only_restoration checked 3686ms check-target:macos_arm64 @f78c2623a68c
-pass/facts/data_where_standing_write_only_target_body checked 3218ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_target_body checked 7033ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
 pass/facts/data_where_standing_write_only_untouched_child_restoration checked 3342ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_write_only_whole_replacement_child_restoration checked 3966ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/default_domain_mathematical_coupling_exit checked 16581ms check-target:macos_arm64 @2cfbda3635e2+wt
@@ -11933,6 +11974,9 @@ pass/facts/typed_reflection_mutation_completion_other_state_exit checked 7915ms 
 pass/facts/typed_reflection_mutation_completion_parameter_exit checked 7517ms check-target:macos_arm64 @f0eff27c64cd
 pass/facts/typed_reflection_mutation_completion_shared_generic_exit checked 7226ms check-target:macos_arm64 @f0eff27c64cd
 pass/facts/typed_reflection_mutation_completion_target_body_exit checked 9156ms check-target:macos_arm64 @f0eff27c64cd
+pass/facts/typed_run_nested_owned checked 6936ms @9a26074461a7
+pass/facts/typed_run_singleton checked 16389ms check-target:macos_arm64 @9a26074461a7
+pass/facts/typed_run_singleton_rejection checked 15738ms check-target:macos_arm64 @9a26074461a7
 pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 6521ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 6552ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_direct_boundary_call_through_field_exit checked 6444ms check-target:macos_arm64 @d68d95fa82f8
@@ -13126,6 +13170,7 @@ pass/inline_asm/asm_system_register_scalar_variants_compile rejected 2534ms chec
 pass/inline_asm/asm_typed_places checked 3553ms @ccdb99ca2214
 pass/inline_asm/asm_where_contract checked 6826ms @0af7c594a1c0
 pass/inline_asm/asm_where_exact_clobbers_compile checked 7171ms @0af7c594a1c0
+pass/inline_asm/gdtr_store_preserves_neighbor checked 2854ms check-target:linux_x86_64 @fe5c93add7a4
 pass/inline_asm/port_write_terminal_sequences checked 17549ms terminal-inspections:match @03522ca11fdf
 pass/inline_asm/target_family_control_observation checked 3733ms check-target:linux_x86_64 @ccdb99ca2214
 pass/inline_asm/target_family_instruction_exit checked 3668ms check-target:macos_arm64 @ccdb99ca2214
@@ -23446,27 +23491,25 @@ fail/facts/data_where_standing_predicate_helper_qualified_formal_rejected reject
 fail/facts/data_where_standing_predicate_helper_stronger_rejected rejected 2950ms expected @911f6617ba9e
 	machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_predicate_helper_through_call_result_rejected rejected 1002ms expected @ccdb99ca2214
+fail/facts/data_where_standing_predicate_helper_through_call_result_rejected rejected 4536ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_predicate_helper_through_const_name_rejected rejected 1530ms expected @ccdb99ca2214
+fail/facts/data_where_standing_predicate_helper_through_const_name_rejected rejected 6355ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_predicate_helper_through_field_rejected rejected 1436ms expected @ccdb99ca2214
+fail/facts/data_where_standing_predicate_helper_through_field_rejected rejected 4722ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_predicate_helper_through_local_rejected rejected 1043ms expected @ccdb99ca2214
+fail/facts/data_where_standing_predicate_helper_through_local_rejected rejected 4757ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_predicate_helper_through_match_join_rejected rejected 1129ms expected @ccdb99ca2214
+fail/facts/data_where_standing_predicate_helper_through_match_join_rejected rejected 5140ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_predicate_helper_through_other_machine_rejected rejected 1405ms expected @ccdb99ca2214
+fail/facts/data_where_standing_predicate_helper_through_other_machine_rejected rejected 4387ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `add` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_predicate_helper_through_other_state_rejected rejected 1184ms expected @ccdb99ca2214
+fail/facts/data_where_standing_predicate_helper_through_other_state_rejected rejected 5028ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `next` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_predicate_helper_through_parameter_rejected rejected 1507ms expected @ccdb99ca2214
+fail/facts/data_where_standing_predicate_helper_through_parameter_rejected rejected 4526ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_predicate_helper_through_target_body_rejected rejected 1166ms expected @ccdb99ca2214
-	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_predicate_helper_through_target_body_rejected rejected 4598ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
+	exact arithmetic in machine `X86Compute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `ArmCompute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_root_rejected rejected 1271ms expected @ccdb99ca2214
 	exact arithmetic in machine `run` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_through_call_result_rejected rejected 1707ms expected @ccdb99ca2214
