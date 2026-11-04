@@ -121,33 +121,30 @@ missing static type or bounds guarantee.
 
 ## Validation and remaining scope
 
-A later record conflict required integrating main `d9a17196e2da`. Its shared
-checking and library changes are being qualified with the same focused cases.
-All 343 program and oracle inputs remain fixed. The table below retains the
-completed `163` measurements while the new source awaits its own observations.
-
-A real Mac-record conflict required merging main `fa33c81d5ef2` into measured
-source `16349300ab357c3f9093da63293e33af256d5c67`. All 343 authored inputs and
-58 matching Main/Build pairs remain unchanged. Main changed the Terminal format
-from 239 to 240, canonical contract identities, source-checking reuse and common
-compiler and library consumers. The existing focused scope was checked again.
+These checks used compiler source
+`ddc17fff6a3cd0e0cb071f975538a087c14670bd`, after a merge with published main
+`d9a17196e2da` resolved a conflict in the recorded results. Main changed shared
+arithmetic, default-domain checks, domain arguments and console declarations,
+so the existing focused scope was checked again. All 343 program and oracle
+inputs and 58 matching Main/Build pairs stayed fixed.
 
 | Host | Corpus checking | Native/Terminal results | Ordinary fact projects |
 | --- | --- | --- | --- |
 | Linux x86-64 | 28 checked, 45 intended refusals | 28 agreements, 2 publication refusals | 14 exit-zero agreements, 14 source refusals, 1 publication refusal |
 | macOS ARM64 | 28 checked, 45 intended refusals | 28 agreements, 2 publication refusals | 14 exit-zero agreements, 14 source refusals, 1 publication refusal |
 
-The Linux [seed](https://github.com/CathedralOS/Omega/actions/runs/41763030472) and
-Mac [seed](https://github.com/CathedralOS/Omega/actions/runs/41763033908) each passed all 29 ordinary projects
-and the two verification fixtures. Their [Linux corpus replay](https://github.com/CathedralOS/Omega/actions/runs/41765292703)
-and [Mac corpus replay](https://github.com/CathedralOS/Omega/actions/runs/41766793454) then passed all 73 checking and
+The Linux [seed](https://github.com/CathedralOS/Omega/actions/runs/41780735581) and
+Mac [seed](https://github.com/CathedralOS/Omega/actions/runs/41780739235) each passed all 29 ordinary projects
+and the two verification fixtures. Their [Linux corpus replay](https://github.com/CathedralOS/Omega/actions/runs/41783441526)
+and [Mac corpus replay](https://github.com/CathedralOS/Omega/actions/runs/41784898410) then passed all 73 checking and
 30 native/Terminal fixtures using the same authenticated CLI and runner, without
-another Rust build. The case limits, oracles and worker counts stayed unchanged.
+another Rust build. The existing adaptive time-limit policy, expected results and worker count
+stayed unchanged.
 Each host has 24 exit-zero agreements and four additional programs' authored
 exit-70 agreements. Every positive in this fact exits 0. Publication refusals
 have no engine result.
 
-The [supplied Linux ARM64 pair](https://github.com/CathedralOS/Omega/actions/runs/41763037443) has actual exit-zero agreements
+The [supplied Linux ARM64 pair](https://github.com/CathedralOS/Omega/actions/runs/41780492745) has actual exit-zero agreements
 for both corpus programs and both ordinary projects at the same source. Its
 separate checking leg used macOS ARM64 and refused missing supply there. This
 qualifies only that pair. Windows native execution and the rest of the row on
@@ -164,21 +161,30 @@ unknown-input, unguarded-cycle and partial-operand controls retain their causes.
 Ordinary publication controls first pass the portable source check, then refuse
 target compilation for the exact missing provider. The corpus checking route
 also evaluates target publication. All producer profiles use optimization
-level 1. The array validation records use their actual `16349300ab35`
-execution identity. The separate provider configuration migration in
-[PR #1789](https://github.com/CathedralOS/Omega/pull/1789) is also included:
-its records retain input revision `d68d95fa82f8` and compiler revision
-`2035ca5b0be6`. Its Build changes leave all 343 array validation inputs and
-their compiler unchanged. The two sets of recorded cases do not overlap;
-every other recorded block is preserved.
+level 1. Current records use the actual `ddc17fff6a3c` execution identity and
+preserve every unrelated recorded block from incoming main. The final README
+and record updates change no compiler, program or oracle bytes.
 
 Independent source and raw reviews and exact source archives are retained with
 [PR #1721](https://github.com/CathedralOS/Omega/pull/1721). Review decisions keep
-their own submitted source identities. The eight shared publication-oracle tool,
-test and documentation files retain their focused results.
+their own submitted source identities. The shared publication-checking tools
+retain their focused test evidence.
+
+The explicit provider choices required by this repair were published separately
+in [PR #1789](https://github.com/CathedralOS/Omega/pull/1789) and are included
+here unchanged. Its records retain the actual input `d68d95fa82f8` and compiler
+`2035ca5b0be6` identities, including the computed-const refusal observed in that
+separate qualification.
+That limitation is not counted as passing array coverage.
 
 <details>
 <summary>Original baseline and earlier measured sources</summary>
+
+At `16349300ab35`, Linux and macOS each passed all 73 checking cases, 30
+native/Terminal cases and 29 ordinary projects. The supplied ARM pair also
+passed. Those results and their accepted metadata candidate `9054099475ed`
+remain historical. The next conflict brought shared checking and library
+changes, which required the fresh ddc observations above.
 
 At `7ea5b8217acc`, the complete Linux scope and affected Mac scope passed,
 with all 29 ordinary projects on both hosts. The [Linux seed](https://github.com/CathedralOS/Omega/actions/runs/41754803449)
