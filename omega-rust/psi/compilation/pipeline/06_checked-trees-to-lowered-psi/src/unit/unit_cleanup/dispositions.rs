@@ -52,9 +52,12 @@ pub(crate) fn outstanding_actions<'a>(
                     ..
                 } if path.is_empty()
                     && action.source() == source
-                    && action.path().is_empty()
                     && !matches!(action, CheckedNormalCleanupAction::InvokeNominal(_)) =>
                 {
+                    // Whole-home disposal also completes its field discards.
+                    // Leaving one pending would look up an already retired
+                    // home. Nominal hooks retain their independent obligation;
+                    // a later store re-establishes the affected actions.
                     *retained = false;
                 }
                 _ => {}
