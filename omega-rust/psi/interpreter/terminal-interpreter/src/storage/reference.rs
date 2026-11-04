@@ -1059,11 +1059,156 @@ impl TerminalExecution<'_> {
                     reference_type,
                 ))
         {
+            // Distinguish a missing emitted membership from a different runtime
+            // source. Inspect bounded metadata only after the original refusal.
+            let summarize_memberships =
+                |whole: &[semantic_vocabulary::StructuralDomainId],
+                 paths: &[terminal_psi::StructuralPathQualification]| {
+                    (
+                        whole.len(),
+                        whole.iter().take(4).copied().collect::<Vec<_>>(),
+                        paths.len(),
+                        paths
+                            .iter()
+                            .take(4)
+                            .map(|row| {
+                                (
+                                    row.domain,
+                                    row.path.len(),
+                                    row.path.iter().take(4).cloned().collect::<Vec<_>>(),
+                                )
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                };
+            let describe_declaration = |machine: &terminal_psi::TerminalMachine, place| {
+                machine
+                    .structural_parameter(place)
+                    .map(|parameter| {
+                        (
+                            "parameter",
+                            parameter.structural_type,
+                            parameter.multiplicity,
+                            None,
+                            summarize_memberships(
+                                &parameter.qualifications,
+                                &parameter.projected_qualifications,
+                            ),
+                        )
+                    })
+                    .or_else(|| {
+                        let (operation, _) = machine.producing_operation(place)?;
+                        let result = operation.result.structural()?;
+                        Some((
+                            terminal_semantics::OperationSemanticTag::for_operation(
+                                &operation.kind,
+                            )
+                            .name(),
+                            result.structural_type,
+                            result.multiplicity,
+                            Some(operation.id),
+                            summarize_memberships(
+                                &result.qualifications,
+                                &result.projected_qualifications,
+                            ),
+                        ))
+                    })
+            };
+            let machine = self.program.machine(self.current_machine).ok();
+            let declared_source =
+                machine.and_then(|machine| describe_declaration(machine, source.place));
+            // These are catalogued store candidates, not a replay of the path
+            // taken. Their coordinates identify the supplying initializer.
+            let mut whole_store_count = 0usize;
+            let mut whole_stores = Vec::new();
+            if let Some(machine) = machine {
+                for block in &machine.blocks {
+                    for (ordinal, operation) in block.operations.iter().enumerate() {
+                        if let terminal_psi::OperationKind::StoreStructuralField {
+                            destination,
+                            path,
+                            field: None,
+                            value,
+                            ..
+                        } = &operation.kind
+                            && *destination == source.place
+                            && path.is_empty()
+                        {
+                            whole_store_count += 1;
+                            if whole_stores.len() < 4 {
+                                whole_stores.push((
+                                    block.id,
+                                    ordinal,
+                                    operation.id,
+                                    value.place,
+                                    value.access,
+                                    value.path.len(),
+                                    value.path.iter().take(4).cloned().collect::<Vec<_>>(),
+                                    describe_declaration(machine, value.place),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            let runtime_source = self.structural_values.get(&source.place).map(|value| {
+                (
+                    value.opaque_identity,
+                    value.structural_type,
+                    value.path.len(),
+                    summarize_memberships(&value.qualifications, &value.projected_qualifications),
+                )
+            });
+            let packed_source = self.scalar_array_values.get(&source.place).map(|array| {
+                (
+                    array.structural_type,
+                    array.len(),
+                    array.qualifications.len(),
+                    array
+                        .qualifications
+                        .iter()
+                        .take(4)
+                        .copied()
+                        .collect::<Vec<_>>(),
+                )
+            });
+            let captured_array_home = collection_loan.as_ref().map(|(_, loan)| {
+                (
+                    loan.len(),
+                    loan.access(),
+                    loan.descriptor_home().map(|home| {
+                        (
+                            home.opaque_identity,
+                            home.structural_type,
+                            home.path.len(),
+                            summarize_memberships(
+                                &home.qualifications,
+                                &home.projected_qualifications,
+                            ),
+                        )
+                    }),
+                )
+            });
+            let source_array_home = self
+                .element_view_values
+                .get(&source.place)
+                .and_then(|loan| loan.descriptor_home())
+                .map(|home| {
+                    (
+                        home.opaque_identity,
+                        home.structural_type,
+                        home.path.len(),
+                        summarize_memberships(&home.qualifications, &home.projected_qualifications),
+                    )
+                });
             return Err(TerminalInterpretError::ReferenceFormation {
                 stage: "validate captured reference contract",
                 detail: format!(
-                    "source={source:?}, referent={:?}, reference={reference_type:?}, required={required_projected:?}, observed={projected:?}",
-                    referent.structural_type
+                    "source={source:?}, referent={:?}, reference={reference_type:?}, required={required_projected:?}, observed={projected:?}; declared_source={declared_source:?}, runtime_source={runtime_source:?}, packed_source={packed_source:?}, source_has_array_companion={}, source_has_aggregate_backing={}, requested_roster={:?}, captured_array_home={captured_array_home:?}, source_array_home={source_array_home:?}, static_whole_store_count={whole_store_count}, first_static_whole_stores={whole_stores:?}",
+                    referent.structural_type,
+                    self.element_view_values.contains_key(&source.place),
+                    self.aggregate_argument_backings.contains_key(&source.place),
+                    summarize_memberships(&[], projected_qualifications),
                 ),
             });
         }
