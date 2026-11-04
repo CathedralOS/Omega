@@ -24,7 +24,7 @@ use compilation_products::{
     PreparedCheckedSource, PreparedPackageBuild, RetainedCompilationChecks, SettledCheckReuse,
 };
 use package_compilation::{PackageCompilationInputs, PackageCompilationSourceInputs};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 #[derive(Default)]
