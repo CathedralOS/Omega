@@ -3367,8 +3367,12 @@ fail/facts/unsigned_byte_to_signed_case_domain_through_parameter_rejected reject
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/unsigned_byte_to_signed_case_domain_through_target_body_rejected rejected 6915ms expected @46cdd6b85b82+wt
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/value_location_alignment_case_payload_rejected rejected 1139ms expected @8d6537e9a051
+	`align_of(value)` on a case payload field needs a proof that the case is active, which the query does not yet carry; query a field outside the case
 fail/facts/value_location_alignment_constant_rejected rejected 829ms expected @f8c7d2180faf+wt
 	`align_of(value)` observes an addressable storage place; this operand is a value with no storage location
+fail/facts/value_location_alignment_contract_field_rejected rejected 7043ms expected @8d6537e9a051
+	constant checking: scalar predicate is false: requires contract for call slack_of from main: align_of() >= 8
 fail/facts/value_location_alignment_contract_rejected rejected 7692ms expected @f8c7d2180faf+wt
 	constant checking: scalar predicate is false: requires contract for call slack_of from main: align_of() >= 8
 fail/facts/value_location_alignment_ensures_rejected rejected 622ms expected @f8c7d2180faf+wt
@@ -12195,6 +12199,7 @@ pass/facts/unsigned_shift_right_bound_through_other_state_exit checked 3442ms ch
 pass/facts/unsigned_shift_right_bound_through_parameter_exit checked 3730ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unsigned_shift_right_bound_through_target_body_exit checked 3188ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/value_location_alignment_contract_exit checked 10376ms check-target:macos_arm64 @f8c7d2180faf+wt
+pass/facts/value_location_alignment_contract_field_exit checked 9422ms check-target:macos_arm64 @8d6537e9a051
 pass/facts/value_location_alignment_slice_exit checked 10444ms check-target:macos_arm64 @f8c7d2180faf+wt
 pass/facts/value_location_alignment_through_call_result_exit checked 9977ms check-target:macos_arm64 @f8c7d2180faf+wt
 pass/facts/value_location_alignment_through_const_name_exit checked 8360ms check-target:macos_arm64 @f8c7d2180faf+wt
