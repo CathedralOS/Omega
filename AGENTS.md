@@ -820,6 +820,13 @@ are byte-sensitive.
 - The session that starts work finishes it. A claim records what a session
   is doing so other sessions can see it; it grants nothing and blocks nothing.
   Parked work is available to any session once its prerequisite is met.
+- You still own your open PRs after a session ends or changes. At startup
+  and resumption, check the PRs you opened, including earlier sessions, against
+  retained worktree and claim records. Keep each PR's URL, submitted head,
+  remaining acceptance or failure, and next action in its existing claim note.
+  Resume the unfinished work and carry authorized publication through verified
+  merge. Close a PR only when its work is deliberately withdrawn or superseded,
+  with the disposition recorded; age alone does not end ownership.
 - A sample's work includes the complete application and the compiler repairs
   it needs to run; carry it through source, native/Terminal execution, invalid
   controls and publication. Several failing samples with one demonstrated root

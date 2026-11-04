@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 239 even when every table
+order below. This layout uses semantic format marker 240 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -847,7 +847,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 239 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 240 + `u16` vocabulary
 marker 133 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -1178,9 +1178,14 @@ The roster is semantic input, not a provider-selection or realization receipt.
 
 A callback application carries a `u32` checked occurrence number, nonzero
 registrar operation id, `u32` static-machine binder ordinal, counted UTF-8
-canonical requirement identity, then the published 32-byte contract commitment
-and selected checked-machine declaration. Rows are strictly ordered by occurrence number. Requirements and
-commitments are nonempty and the registrar names an existing boundary call.
+canonical requirement identity, counted UTF-8 binder-selected calling-owner
+application, optional inbound boundary identity, published 32-byte contract
+commitment, entry-admitted Boolean, and selected checked-machine declaration.
+The calling owner can be a child of the requirement's declaring trait; keeping
+both prevents a sibling's calling policy from being used for this registration.
+Rows are strictly ordered by occurrence number. Requirement and calling-owner
+identities and commitments are nonempty, and the registrar names an existing
+boundary call. Marker 240 retains the calling owner; earlier markers reject.
 Several callback applications may share a registrar operation. Occurrence numbers
 are local to the producing compilation and remain stable under pruning; they
 are not source arena handles and alone authorize nothing.
@@ -2344,7 +2349,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 239 | yes |
+| semantic module | `PSITERM\0` | 240 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

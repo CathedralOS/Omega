@@ -10,4 +10,5 @@ use macos_gui;
 use posix_filesystem_host;
 use process_exit;
 use windows_filesystem_host;
+use windows_gui_host;
 use time;
