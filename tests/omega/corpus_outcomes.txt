@@ -255,12 +255,16 @@ fail/domains/routed_qualification_erased_array_element rejected 5639ms expected 
 	cannot prove requires contract for call consume from main: tickets[0] in Ticket::Held in state `entry`
 fail/domains/routed_qualification_erased_borrow_argument rejected 6650ms expected @f8e80b0c32b0
 	cannot prove requires contract for call observe from main: issued in Ticket::Held in state `entry`
+fail/domains/routed_qualification_erased_borrow_from_parameter rejected 6682ms expected @9da5bc95d748
+	cannot prove requires contract for call observe from outer: t in Ticket::Held in state `entry`
 fail/domains/routed_qualification_erased_call_argument rejected 5889ms expected @f2672d675498
 	cannot prove requires contract for call consume from main: issued as Ticket in Ticket::Held in state `entry`
 fail/domains/routed_qualification_erased_case_payload rejected 5653ms expected @f2672d675498
 	cannot prove requires contract for call consume from main: wrapped::Some.ticket in Ticket::Held in state `entry`
 fail/domains/routed_qualification_erased_literal_field rejected 6059ms expected @f2672d675498
 	cannot prove requires contract for call consume from main: holder.ticket in Ticket::Held in state `entry`
+fail/domains/routed_qualification_erased_reference_annotation rejected 6811ms expected @9da5bc95d748
+	cannot prove initializer of `held` in main is in domain `Ticket::Held`; an annotation cannot establish routed qualification
 fail/domains/routed_qualification_erased_return rejected 6034ms expected @f2672d675498
 	cannot prove default-domain field requirement for return from forward, state entry, at statement 0: t as Ticket  requires Ticket::Held
 fail/domains/routed_qualification_erased_transition_argument rejected 4714ms expected @f2672d675498
