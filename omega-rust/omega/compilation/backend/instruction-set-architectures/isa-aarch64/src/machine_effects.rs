@@ -245,8 +245,7 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             atomic_store: Some(crate::AARCH64_ATOMIC_STORE),
             atomic_update: (target == NativeTarget::macos_arm64())
                 .then_some(crate::AARCH64_ATOMIC_UPDATE),
-            atomic_bitwise_update: (target == NativeTarget::macos_arm64())
-                .then_some(crate::AARCH64_ATOMIC_UPDATE),
+            atomic_bitwise_update: Some(crate::AARCH64_ATOMIC_BITWISE_UPDATE),
             atomic_compare_exchange: (target == NativeTarget::macos_arm64())
                 .then_some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE),
             atomic_compare_exchange_once: Some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE_ONCE),

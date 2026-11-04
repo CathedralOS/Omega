@@ -103,6 +103,7 @@ pub(in super::super) fn case_guard_classifier<'program>(
     // A payload-free case can still carry common fields.
     let fieldless_equality = comparison.operator == BinaryOperator::Equal
         && !is_case_observation(program, expression)
+        && crate::has_builtin_binary_expression_meaning(program, machine, state, expression)
         && constructor_fields(program, definition, Some(variant)).is_empty();
     (membership || fieldless_equality).then_some((definition, variant))
 }

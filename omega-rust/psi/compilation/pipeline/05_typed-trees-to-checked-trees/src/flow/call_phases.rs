@@ -21,8 +21,7 @@ pub(super) use instruction_effects::append as append_instruction_effect;
 mod reference_custody;
 mod referents;
 pub(super) use reference_custody::{
-    completed_output_retention, finish_statement_reference_custody,
-    install_returned_reference_custody,
+    finish_statement_reference_custody, install_returned_reference_custody,
 };
 
 pub(super) use copied_guarantees::ArgumentSources;

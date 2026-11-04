@@ -42,6 +42,8 @@ pub use stored_carrier_sources::{StoredCarrierSource, stored_carrier_sources};
 mod call_reception;
 pub use call_reception::{RecordCallReception, record_call_reception};
 mod captured_returns;
+mod completed_loads;
+pub use completed_loads::{CompletedDescriptorLoad, completed_descriptor_load};
 #[cfg(test)]
 mod declared_frontier_tests;
 mod declared_returns;
@@ -1092,6 +1094,163 @@ pub fn declared_carrier_references(
     Some(output)
 }
 
+/// Resolve only the descriptor selected by the lifetime relation. Pointer
+/// crossings remain explicit; unrelated recursive descendants are not part
+/// of this finite request. This locates a declaration, not an actual loan.
+fn declared_input_reference(
+    program: &dyn CheckingInput,
+    reference: TypeReferenceHandle,
+    owner_path: &[BorrowLoanOwnerSegment],
+    reference_hops: usize,
+) -> Option<DeclaredCarrierReference> {
+    use checked_trees::CheckedReferenceOriginProjection::{Element, Exact};
+    use checked_trees::CheckedUnitStructuralPathSegment as Segment;
+    let mut scopes = DeclarationScopes::default();
+    let mut scope = 0;
+    let mut selected = reference;
+    let mut remaining = owner_path;
+    let mut hops = reference_hops;
+    let mut shared = false;
+    let mut payload = None;
+    let mut path = Vec::new();
+    for _ in 0..MAX_REFERENCE_ORIGIN_VISITS {
+        (selected, scope) = scopes.head(program, selected, scope);
+        if let Some(shell) = crate::reference_shell(program, selected) {
+            let view = matches!(
+                program
+                    .type_reference_table
+                    .type_reference(crate::peel_declared_constraints(program, shell.referee)),
+                TypeReferenceNode::Slice { .. }
+            ) || crate::byte_sequence_carrier(program, selected, &[])
+                .is_some_and(|carrier| carrier.is_borrowed());
+            if remaining.is_empty() && hops == 0 {
+                let mut access = CheckedStructuralAccess::from(shell.access);
+                if shared {
+                    match access {
+                        CheckedStructuralAccess::WriteOnlyBorrow => return None,
+                        CheckedStructuralAccess::MutableBorrow => {
+                            access = CheckedStructuralAccess::SharedBorrow
+                        }
+                        _ => {}
+                    }
+                }
+                return Some(DeclaredCarrierReference {
+                    path,
+                    type_identity: scopes.type_identity(
+                        program,
+                        if view { selected } else { shell.referee },
+                        scope,
+                    ),
+                    access,
+                    crosses_reference: !view,
+                });
+            }
+            if !shell.access.is_readable() || (!view && hops == 0) || payload.is_some() {
+                return None;
+            }
+            shared |= shell.access == language_semantics::ReferenceAccess::Shared;
+            if !view {
+                hops -= 1;
+                path.push(Exact(Segment::Referent));
+            }
+            selected = shell.referee;
+            continue;
+        }
+        if let TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(selected)
+        {
+            selected = *base_type;
+            continue;
+        }
+        let (segment, suffix) = remaining.split_first()?;
+        match segment {
+            BorrowLoanOwnerSegment::Case(symbol) => {
+                if payload.is_some() {
+                    return None;
+                }
+                let (definition, nested_scope) = scopes.definition(program, selected, scope)?;
+                if definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
+                    return None;
+                }
+                scope = nested_scope;
+                let case = program
+                    .data_members(definition)
+                    .iter()
+                    .filter_map(|member| member.as_variant())
+                    .find(|case| case.symbol == *symbol)?;
+                path.push(Exact(Segment::Case(CheckedMemberIdentity::of_member(
+                    case.identity,
+                    case.name.clone(),
+                ))));
+                payload = Some(case);
+            }
+            BorrowLoanOwnerSegment::Field(symbol) => {
+                let fields = if let Some(case) = payload.take() {
+                    program.data_payload_fields(case)
+                } else {
+                    let (definition, nested_scope) = scopes.definition(program, selected, scope)?;
+                    if definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
+                        return None;
+                    }
+                    scope = nested_scope;
+                    let field = program
+                        .data_members(definition)
+                        .iter()
+                        .filter_map(|member| member.as_field())
+                        .find(|field| field.symbol == *symbol && !field.relevance.is_erased())?;
+                    path.push(Exact(Segment::Field(CheckedMemberIdentity::of_member(
+                        field.identity,
+                        field.name.clone(),
+                    ))));
+                    selected = field.type_reference;
+                    remaining = suffix;
+                    continue;
+                };
+                let field = fields
+                    .iter()
+                    .find(|field| field.symbol == *symbol && !field.relevance.is_erased())?;
+                path.push(Exact(Segment::Field(CheckedMemberIdentity::of_member(
+                    field.identity,
+                    field.name.clone(),
+                ))));
+                selected = field.type_reference;
+            }
+            BorrowLoanOwnerSegment::FixedIndex(index) => {
+                if payload.is_some() {
+                    return None;
+                }
+                let TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: typed_trees::types::FixedArrayLength::Literal(length),
+                } = program.type_reference_table.type_reference(selected)
+                else {
+                    return None;
+                };
+                if *index >= *length {
+                    return None;
+                }
+                path.push(Exact(Segment::FixedIndex(u64::try_from(*index).ok()?)));
+                selected = *element_type;
+            }
+            BorrowLoanOwnerSegment::DynamicIndex => {
+                if payload.is_some() {
+                    return None;
+                }
+                let (TypeReferenceNode::Slice { element_type }
+                | TypeReferenceNode::FixedArray { element_type, .. }) =
+                    program.type_reference_table.type_reference(selected)
+                else {
+                    return None;
+                };
+                path.push(Element);
+                selected = *element_type;
+            }
+        }
+        remaining = suffix;
+    }
+    None
+}
+
 /// An owned parameter retains every stored borrowed leaf as an opaque ingress
 /// origin. A storage classifier alone cannot supply this custody: join the
 /// producer's exact owner, state, parameter and declared leaf paths. State
@@ -1504,6 +1663,10 @@ fn replaced_stored_reference_carrier(
     Some(group.clone())
 }
 
+/// A saved reference's cleanup must account for the inputs it keeps borrowed.
+/// A shared pointer may retain an original mutable input obligation, so only
+/// physical pointer rows must match the descriptor's access. Keep every input's
+/// own access and ending obligation in the group used to schedule release.
 /// Loan rows for one descriptor are contiguous in the producer's arena, even
 /// when that descriptor retains several possible origins. The checked captured
 /// roster owns residency: declarations enumerate possible slots, not loans for
@@ -1542,6 +1705,7 @@ fn record_leaf_loan_groups(
         let access = source.source.access.borrow_access_kind()?;
         let mut group = arena::HandleSpan::empty();
         let mut formation = None;
+        let mut has_pointer = false;
         for handle in loans.iter().copied() {
             let loan = facts.borrow.loans.get(handle);
             if crate::corresponding_loan_owner_path(
@@ -1552,13 +1716,15 @@ fn record_leaf_loan_groups(
             {
                 continue;
             }
+            let dependency = loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency;
             if loan.storage_owner != owner
-                || loan.kind != access
+                || (!dependency && loan.kind != access)
                 || formation.is_some_and(|statement| statement != loan.statement_index)
                 || (!group.is_empty() && !group.is_followed_by(handle))
             {
                 return None;
             }
+            has_pointer |= !dependency;
             formation = Some(loan.statement_index);
             let start = if group.is_empty() {
                 handle
@@ -1570,6 +1736,9 @@ fn record_leaf_loan_groups(
         }
         if group.is_empty() {
             continue;
+        }
+        if !has_pointer {
+            return None; // Input obligations cannot supply a descriptor leaf.
         }
         output.push((source, group));
     }
@@ -1604,6 +1773,48 @@ pub fn origin_place_segments(
     root: TypeReferenceHandle,
     path: impl IntoIterator<Item = checked_trees::CheckedReferenceOriginProjection>,
 ) -> Option<Vec<PlaceSegment>> {
+    // A stored owner's frontier ends at its descriptor. A returned origin can
+    // cross that pointer, but the pointee is not another owned child here.
+    let mut crosses_reference = false;
+    let projected = origin_place_projection(
+        program,
+        root,
+        path.into_iter().inspect(|projection| {
+            crosses_reference |= matches!(
+                projection,
+                checked_trees::CheckedReferenceOriginProjection::Exact(
+                    checked_trees::CheckedUnitStructuralPathSegment::Referent
+                )
+            );
+        }),
+    )?;
+    (!crosses_reference).then_some(projected.segments)
+}
+
+pub(super) struct OriginPlaceProjection {
+    pub segments: Vec<PlaceSegment>,
+    endpoint: TypeReferenceHandle,
+    scope: usize,
+    scopes: DeclarationScopes,
+}
+
+impl OriginPlaceProjection {
+    pub(super) fn type_identity(
+        &mut self,
+        program: &dyn CheckingInput,
+    ) -> typed_trees::type_identity::TypeIdentityId {
+        self.scopes
+            .type_identity(program, self.endpoint, self.scope)
+    }
+}
+
+/// Keep the endpoint type with the path so a forwarded result cannot substitute
+/// a same-shaped field or erase a reference crossing from its checked contract.
+pub(super) fn origin_place_projection(
+    program: &dyn CheckingInput,
+    root: TypeReferenceHandle,
+    path: impl IntoIterator<Item = checked_trees::CheckedReferenceOriginProjection>,
+) -> Option<OriginPlaceProjection> {
     let mut selected = root;
     let mut payload = None;
     let mut segments = Vec::new();
@@ -1611,6 +1822,19 @@ pub fn origin_place_segments(
     let mut scope = 0;
     for projection in path {
         (selected, scope) = scopes.head(program, selected, scope);
+        if matches!(
+            projection,
+            checked_trees::CheckedReferenceOriginProjection::Exact(
+                checked_trees::CheckedUnitStructuralPathSegment::Referent
+            )
+        ) {
+            if payload.is_some() {
+                return None;
+            }
+            let shell = crate::reference_shell(program, selected)?;
+            (selected, scope) = scopes.head(program, shell.referee, scope);
+            continue;
+        }
         while let TypeReferenceNode::Constrained { base_type, .. }
         | TypeReferenceNode::Reference {
             referee: base_type, ..
@@ -1713,7 +1937,12 @@ pub fn origin_place_segments(
             _ => return None,
         }
     }
-    Some(segments)
+    Some(OriginPlaceProjection {
+        segments,
+        endpoint: selected,
+        scope,
+        scopes,
+    })
 }
 
 pub fn loan_owner_path(

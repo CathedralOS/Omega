@@ -293,6 +293,9 @@ fn resolve_snapshot(
             FlowStorageOperation::Join { .. } => None,
         };
         if let Some(result) = terminal {
+            if matches!(result, Resolution::Unavailable) {
+                trace_query_refusal(control, current, source, observation);
+            }
             annotations.insert(key, Annotation::Complete(result));
         } else {
             annotations.insert(key, Annotation::Active);
@@ -325,15 +328,50 @@ pub fn at_snapshot(
     source: &CanonicalPlace,
     observation: StoredObservation,
 ) -> Option<StoredOperand> {
-    match resolve_snapshot(
+    let resolved = resolve_snapshot(
         program,
         control,
         snapshot,
         source,
         observation,
         SourceBoundary::Stores,
-    )? {
-        Resolution::Incoming => None,
+    )?;
+    if matches!(resolved, Resolution::Incoming) {
+        None
+    } else {
+        sources_from_resolution(control, snapshot, source, resolved)
+    }
+}
+
+/// Keep a proved unchanged entry value distinct from an invalid or unavailable
+/// cut. Consumers joining conditional stores need every incoming alternative;
+/// the older `at_snapshot` query deliberately omits a wholly unchanged entry.
+pub fn sources_at_snapshot(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    snapshot: Snapshot,
+    source: &CanonicalPlace,
+    observation: StoredObservation,
+) -> Option<StoredOperand> {
+    let resolved = resolve_snapshot(
+        program,
+        control,
+        snapshot,
+        source,
+        observation,
+        SourceBoundary::Stores,
+    )?;
+    sources_from_resolution(control, snapshot, source, resolved)
+}
+
+fn sources_from_resolution(
+    control: &FlowControlFacts,
+    snapshot: Snapshot,
+    source: &CanonicalPlace,
+    resolved: Resolution,
+) -> Option<StoredOperand> {
+    match resolved {
+        Resolution::Incoming => Some(StoredOperand::Incoming(source.clone())),
         Resolution::Unavailable => Some(StoredOperand::Unavailable),
         Resolution::Sources { incoming, stores } => {
             let mut values = Vec::new();
@@ -358,6 +396,13 @@ pub fn at_snapshot(
                 };
                 let mut projection = selected.to_vec();
                 projection.extend_from_slice(&source.segments[path.len()..]);
+                if trace_query_enabled(source) {
+                    eprintln!(
+                        "STORAGE_QUERY selected-store query_snapshot={snapshot:?} store={handle:?} source={source:?} destination_root={:?} destination_path={path:?} value={value:?} type={:?} projection={projection:?}",
+                        destination.root,
+                        control.operands.get(value).type_reference
+                    );
+                }
                 values.push(StoredOperand::Value {
                     capture: value,
                     reference: control.operands.get(value).type_reference,
@@ -371,5 +416,84 @@ pub fn at_snapshot(
                 Some(StoredOperand::Alternatives(values))
             }
         }
+    }
+}
+
+fn trace_query_enabled(source: &CanonicalPlace) -> bool {
+    if std::env::var_os("OMEGA_STORAGE_QUERY_TRACE").is_none() {
+        return false;
+    }
+    std::env::var("OMEGA_STORAGE_QUERY_TRACE_ROOT")
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .is_none_or(|root| {
+            source
+                .root
+                .as_symbol()
+                .is_some_and(|symbol| symbol.arena_index() == root)
+        })
+}
+
+fn trace_query_refusal(
+    control: &FlowControlFacts,
+    snapshot: Snapshot,
+    source: &CanonicalPlace,
+    observation: StoredObservation,
+) {
+    if !trace_query_enabled(source) {
+        return;
+    }
+    let event = control.storage_snapshots.get(snapshot);
+    let mode = match observation {
+        StoredObservation::Binding => "binding",
+        StoredObservation::InlineContents => "inline-contents",
+        StoredObservation::Contents => "contents",
+    };
+    eprintln!(
+        "STORAGE_QUERY refused source={source:?} snapshot={snapshot:?} observation={mode} event={event:?}"
+    );
+    match event.operation {
+        FlowStorageOperation::Store {
+            destination,
+            value,
+            projection,
+        } => {
+            eprintln!(
+                "STORAGE_QUERY refused-store destination_root={:?} destination_path={:?} value={value:?} type={:?} projection={:?}",
+                destination.root,
+                control.operand_referent_segments.span(destination.segments),
+                control
+                    .operands
+                    .is_valid(value)
+                    .then(|| control.operands.get(value).type_reference),
+                control.operand_retained_paths.span(projection)
+            );
+        }
+        FlowStorageOperation::Writes {
+            bindings,
+            contents,
+            bindings_complete,
+            contents_complete,
+        } => {
+            for (mode, writes, complete) in [
+                ("binding", bindings, bindings_complete),
+                ("contents", contents, contents_complete),
+            ] {
+                let writes = control.operand_origin_writes.span(writes).map(|rows| {
+                    rows.iter()
+                        .map(|write| {
+                            (
+                                write.root,
+                                control.operand_referent_segments.span(write.segments),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                });
+                eprintln!(
+                    "STORAGE_QUERY refused-writes mode={mode} complete={complete} writes={writes:?}"
+                );
+            }
+        }
+        _ => {}
     }
 }

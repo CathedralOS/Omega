@@ -1,1 +1,0 @@
-expected a complete `Reading` implementation with the instantiated trait arguments

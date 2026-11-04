@@ -427,21 +427,8 @@ fn authenticate_indirect_ingress(
             .iter()
             .rposition(|segment| *segment == StructuralPathSegment::Referent)?;
         let carrier_path = &incoming_path[..incoming_crossing];
-        let parameter = function.structural_parameter(*root)?;
-        let origin = if parameter.access != StructuralAccess::Owned
-            || carrier_path.contains(&StructuralPathSegment::Referent)
-        {
-            Root::Alternatives(vec![target_operations::TargetReferenceOrigin {
-                base: target_operations::TargetReferenceOriginBase::IncomingContents {
-                    root: *root,
-                    slot: carrier_path.to_vec(),
-                },
-                path: Vec::new(),
-                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
-            }])
-        } else {
-            Root::Ingress(*root, carrier_path.to_vec())
-        };
+        function.structural_parameter(*root)?;
+        let origin = Root::incoming_contents(*root, carrier_path.to_vec());
         incoming.extend(origin.origins());
     }
     // A selected descriptor retains a complete frontier, sometimes grouped in

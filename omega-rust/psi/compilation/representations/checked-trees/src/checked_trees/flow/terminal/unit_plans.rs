@@ -10,7 +10,6 @@
 //! is a composed plan; no separate structural control roster competes for it.
 
 use symbols::SymbolHandle;
-use typed_trees::type_identity::TypeIdentityId;
 
 use crate::checked_trees::flow::FlowFacts;
 use crate::checked_trees::flow::terminal::{
@@ -60,24 +59,13 @@ impl<'a> CheckedUnitPlan<'a> {
         }
     }
 
-    /// The exact attached data carrier, or `None` for a free machine.
-    pub fn attachment_type_identity(self) -> Option<TypeIdentityId> {
-        match self {
-            Self::NominalAffineCleanup(plan) => plan.attachment_type_identity,
-            Self::PartialAffineCleanup(plan) => plan.machine.attachment_type_identity,
-            Self::ComposedControl(plan) => plan.attachment_type_identity,
-        }
-    }
-
-    /// Whether `signature` is the selection this plan lowers under: either
-    /// free Unit signature, and never a plan that retains an owner.
+    /// Whether `signature` is the selection this plan lowers under.
     pub fn admits_signature(self, signature: CheckedTerminalSignatureEligibility) -> bool {
-        self.attachment_type_identity().is_none()
-            && matches!(
-                signature,
-                CheckedTerminalSignatureEligibility::Eligible
-                    | CheckedTerminalSignatureEligibility::FreeUnitEffect
-            )
+        matches!(
+            signature,
+            CheckedTerminalSignatureEligibility::Eligible
+                | CheckedTerminalSignatureEligibility::FreeUnitEffect
+        )
     }
 
     /// Whether the roster that admitted this plan carries its machine more

@@ -769,6 +769,51 @@ pub(super) fn declared_value_type(
     )
 }
 
+/// `&mut pointer` may lend the pointer's slot or the data it points to. The
+/// complete receiving type selects which value is borrowed; it supplies no
+/// permission to read or replace that value.
+pub fn borrow_selects_reference_storage(
+    program: &dyn crate::CheckingInput,
+    source: ExpressionHandle,
+    required: TypeReferenceHandle,
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    // An exclusive formal already names its caller's referent. A mutable
+    // spelling does not turn that fixed incoming pointer into an owned slot.
+    // Shared parameter bindings keep their separate replacement semantics.
+    if let Some(place) = crate::canonical_place_from_expression(program, source)
+        && place.segments.is_empty()
+        && let Some(symbol) = place.root.as_symbol().filter(|symbol| symbol.is_valid())
+        && let Some(state) = program.state_by_symbol(program.symbols.get(symbol).parent)
+        && crate::value_custody::places::assignment_targets_parameter_referent(
+            program, state, source,
+        )
+    {
+        return false;
+    }
+    let (required, required_substitutions) =
+        substituted_required_reference(program, required, required_substitutions);
+    let TypeReferenceNode::Reference { referee, .. } =
+        program.type_reference_table.type_reference(required)
+    else {
+        return false;
+    };
+    let mut substitutions = Vec::new();
+    let Some(actual) = declared_value_type(program, source, &mut substitutions)
+        .and_then(|actual| substituted_reference(program, actual, &substitutions))
+    else {
+        return false;
+    };
+    matches!(
+        program.type_reference_table.type_reference(actual),
+        TypeReferenceNode::Reference { .. }
+    ) && substituted_identity(program, actual, &substitutions)
+        == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(*referee)
+        })
+}
+
 /// A projection off an owned rvalue forwards the leaf's declared exclusive
 /// access. `helper(..).window` and `Record { window: &mut items[..] }.window`
 /// name that leaf inside fresh result storage; they are not a new loan of a
@@ -921,7 +966,26 @@ pub(crate) fn place_storage_write_access(
     root: facts::PlaceRoot,
     root_type: TypeReferenceHandle,
 ) -> Option<StorageWriteAccess> {
-    let mut projection = ProjectionContext::requiring(ReferenceAccess::WriteOnly);
+    place_storage_borrow_access(
+        program,
+        expression,
+        root,
+        root_type,
+        ReferenceAccess::WriteOnly,
+    )
+}
+
+/// Check the references crossed to reach a slot, without using the authority
+/// of a reference stored in that slot. Its owned binding's mutability remains
+/// the caller's separate obligation.
+pub(crate) fn place_storage_borrow_access(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    root: facts::PlaceRoot,
+    root_type: TypeReferenceHandle,
+    access: ReferenceAccess,
+) -> Option<StorageWriteAccess> {
+    let mut projection = ProjectionContext::requiring(access);
     selected_value_type(
         program,
         expression,
@@ -1111,17 +1175,6 @@ fn selected_value_type(
                 ),
                 _ => return None,
             };
-            // A `&mut self` / `&self` receiver's referee names the machine
-            // symbol; its attached data declaration carries the fields. Other
-            // receivers already name the data declaration directly.
-            let symbol = if program.data_definition_by_symbol(symbol).is_some() {
-                symbol
-            } else {
-                program
-                    .machine(symbol)
-                    .map(|machine| machine.attached_data_symbol)
-                    .unwrap_or(symbol)
-            };
             let mut definitions = program
                 .data_definitions()
                 .iter()
@@ -1289,7 +1342,7 @@ fn place_machine_symbol(
 
 /// A call's formal-to-actual environment is simultaneous: the replacement
 /// already belongs to the caller, including when caller and callee coincide.
-pub(super) fn substituted_required_reference<'bindings>(
+pub(crate) fn substituted_required_reference<'bindings>(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &'bindings [(symbols::SymbolHandle, TypeReferenceHandle)],

@@ -99,6 +99,18 @@ pub(super) fn check_call_requires(
             );
         },
     );
+    phase_profile::scope(
+        "psi.05.check_checked_facts.check_flow_call_contracts.lender_domains",
+        || {
+            check_lender_domain_restoration(
+                program,
+                facts,
+                state_flow,
+                call_flow,
+                diagnostics,
+            );
+        },
+    );
     let mut whole_contract_caches = Vec::<WholeContractCache>::new();
     for requires_context in facts
         .flow
@@ -1067,4 +1079,220 @@ fn qualified_argument_grants_domain(
             domain_symbol,
             semantic_domain,
         )
+}
+
+/// A local declared with a domain qualification (`let mut bytes: [u8; 2] in Ascii`)
+/// retains that obligation across exclusive loans (`&mut`, `&write`).
+/// If a callee mutates the lent storage without an `ensures` clause restoring
+/// the declared domain, the call statement's exit contexts cannot prove the
+/// declared domain for that storage, rendering the call inadmissible.
+fn check_lender_domain_restoration(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(parameters) = validation::call_target_parameters(program, call_flow.target_symbol) else {
+        return;
+    };
+    if !parameters.iter().any(|p| {
+        validation::reference_shell(program, p.type_reference)
+            .is_some_and(|shell| shell.access.is_exclusive())
+    }) {
+        return;
+    }
+    let Some(site) = validation::find_call_site(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+        call_flow.statement_index,
+        call_flow.call_ordinal,
+    ) else {
+        return;
+    };
+    let arguments = validation::call_site_argument_expressions(program, &site);
+    let receiver_offset = usize::from(
+        matches!(&site, validation::CallSite::Expression { call, .. } if call.receiver.is_valid()),
+    );
+    let Some(state) = validation::find_state_in_machine(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+    ) else {
+        return;
+    };
+    let exit_contexts: Vec<_> = {
+        let call_contexts: Vec<_> = facts
+            .flow
+            .contexts
+            .semantic_context_refs
+            .span_or_empty(call_flow.exit_semantic_contexts)
+            .iter()
+            .map(|c| c.context)
+            .collect();
+        if !call_contexts.is_empty() {
+            call_contexts
+        } else {
+            facts
+                .flow
+                .state_statement(state_flow, call_flow.statement_index)
+                .map(|s| {
+                    facts
+                        .flow
+                        .contexts
+                        .semantic_context_refs
+                        .span_or_empty(s.exit_semantic_contexts)
+                        .iter()
+                        .map(|c| c.context)
+                        .collect()
+                })
+                .unwrap_or_default()
+        }
+    };
+
+    let mut checked_obligations = Vec::new();
+    for (position, parameter) in parameters.iter().enumerate() {
+        if !validation::reference_shell(program, parameter.type_reference)
+            .is_some_and(|shell| shell.access.is_exclusive())
+        {
+            continue;
+        }
+        let argument = arguments.get(position).copied();
+        let operand_position = position + receiver_offset;
+        let actual = super::call_values::Actual {
+            parameter,
+            argument,
+            path: Vec::new(),
+            operand_position,
+        };
+        let Some(captured_values) =
+            super::call_values::captured_values(program, facts, state_flow, call_flow, &actual)
+        else {
+            continue;
+        };
+        for captured in captured_values {
+            let mut places = Vec::new();
+            if let Some(obs_places) =
+                crate::flow::captured_observation_places(program, &facts.flow, &captured)
+            {
+                places.extend(obs_places);
+            }
+            if let Some(val_places) =
+                crate::flow::captured_value_places(program, &facts.flow, &captured)
+            {
+                places.extend(val_places);
+            }
+            for place in places {
+                let Some(symbol) = place.storage.root.as_symbol() else {
+                    continue;
+                };
+                let Some(local_type) = program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .find_map(|s| match s {
+                        typed_trees::statement::StatementNode::LocalData(l)
+                            if l.symbol == symbol =>
+                        {
+                            Some(l.type_reference)
+                        }
+                        _ => None,
+                    })
+                else {
+                    continue;
+                };
+                for row in
+                    validation::field_domains::declared_type_domain_rows(program, local_type)
+                {
+                    if row.transfer {
+                        continue;
+                    }
+                    let overlaps = row.path.starts_with(&place.storage.segments)
+                        || place.storage.segments.starts_with(&row.path);
+                    if !overlaps {
+                        continue;
+                    }
+                    let domain_symbol = row.domain_symbol;
+                    let semantic_domain = row.semantic_domain;
+                    let required_place = validation::CanonicalPlace {
+                        root: place.storage.root,
+                        segments: row.path.clone(),
+                    };
+                    if checked_obligations.contains(&(required_place.clone(), domain_symbol)) {
+                        continue;
+                    }
+                    checked_obligations.push((required_place.clone(), domain_symbol));
+
+                    let has_membership = exit_contexts.iter().any(|&context_handle| {
+                        let context = facts.semantic.contexts.get(context_handle);
+                        facts.semantic.context_view(context).facts().any(|fact| {
+                            let (
+                                FactPlace::Place(fact_place),
+                                FactPayload::DomainMembership {
+                                    domain_symbol: f_dom,
+                                    semantic_domain: f_id,
+                                    ..
+                                },
+                            ) = (fact.place, fact.payload)
+                            else {
+                                return false;
+                            };
+                            if f_dom != domain_symbol {
+                                return false;
+                            }
+                            if semantic_domain.is_valid() && f_id != semantic_domain {
+                                return false;
+                            }
+                            let fact_place = facts.semantic.places.get(fact_place);
+                            crate::flow::canonical_place_from_semantic_place(
+                                program,
+                                &facts.semantic,
+                                fact_place,
+                            )
+                            .as_ref()
+                                == Some(&required_place)
+                        })
+                    });
+                    let satisfied = has_membership
+                        || if semantic_domain.is_valid() {
+                            super::prover::prove_indexed_domain_at_place(
+                                program,
+                                &facts.semantic,
+                                &exit_contexts,
+                                &required_place,
+                                domain_symbol,
+                                semantic_domain,
+                            )
+                        } else {
+                            super::prover::prove_domain_at_place(
+                                program,
+                                &facts.semantic,
+                                &exit_contexts,
+                                &required_place,
+                                domain_symbol,
+                            )
+                        };
+                    if !satisfied {
+                        let diagnostic = Diagnostic::error(format!(
+                            "cannot prove default-domain field requirement for call {} from {}::{}: parameter {} requires {}",
+                            call_target_label(program, call_flow.target_symbol),
+                            machine_name(program, state_flow.machine_symbol),
+                            symbol_name(program, state_flow.state_symbol),
+                            facts::canonical_place_label_from_parts(
+                                program,
+                                facts::PlaceRoot::Symbol(parameter.symbol),
+                                &row.path,
+                            ),
+                            symbol_name(program, domain_symbol),
+                        ));
+                        diagnostics.push(match call_source_span(program, state_flow, call_flow) {
+                            Some(span) => diagnostic.with_source_span(span),
+                            None => diagnostic,
+                        });
+                    }
+                }
+            }
+        }
+    }
 }

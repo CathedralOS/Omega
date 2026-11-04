@@ -28,45 +28,19 @@ Acceptance is `omega run --both <place>/main.omg` exiting 0 in both engines for 
 
 ## Requirements and evidence
 
-The [`case_payload`](case_payload/main.omg) and [`generic`](generic/main.omg)
-mechanism probes preserve the saved case payload or generic field through the
-same non-writing call. Their respective [`case twin`](case_payload/invalid/main.omg)
-and [`generic twin`](generic/invalid/main.omg) add only the overlapping store.
-These focused probes do not close the parent outcome's remaining composition.
+The canonical row uses array elements. Earlier sibling probes, including the
+float variants, were retired in [#1841](https://github.com/CathedralOS/Omega/pull/1841).
+Their producer-bound observations remain historical evidence in the source
+history; they do not qualify the current Build configuration repair.
 
-The [`reference`](reference/main.omg) probe and the six [`float`](float/main.omg)
-places (local, field, parameter, match join, const name, a nested machine) use that
-same complete non-writing call on the observed referent. Each twin adds only
-the overlapping store. On `8bd3d5732111`, these non-writing same-place sources
-wrongly refuse their saved equality; their former invalid labels do not justify
-treating permission as a store. Producer-bound baseline observations retain the
-original sources and diagnostics.
-
-Float call result, other machine, and target body carry a saved observation
-that the kept float is 7 across an exclusive loan of the other float. The
-callee reads that saved record. Each twin stores through the loan of the kept
-float. At optimized source `60453171ca5f23df9feff9c236a4667d47f4456f`,
-all nine float positives executed with native and Terminal exit 0, and all nine
-actual overlapping-write twins rejected. The saved-equality repair was already
-present at that checkpoint. The
-call-result, other-machine and target-body fixture pairs are now pinned under
-`tests/omega/{pass,fail}/facts/exclusive_observation_exposure_through_float_*`.
-Their source and Build companions match these sample pairs byte-for-byte.
-This pinning observation adds no new matching-host runtime qualification.
-The [float row](float/README.md) uses ordinary Build selection, retains the
-standard local path and exercises both match choices. Its four-host observations
-executed source `967c651da77a`. The linked row also records later default-selection
-refusals and the unfinished configuration repair in PR #1811; those earlier
-observations do not establish execution of the new configuration.
-
-- **Establishment.** The observation is the read `items[0]` of the literal `[7, 1]`. Where that read is in another machine or target body, the callee requires `items[0] == 7` and the caller proves it from the literal. The consuming `agree` requires the saved value still equal the live element and 7. The exclusive loan does not establish the fact; the read does.
+**Establishment.** The observation is the read `items[0]` of the literal `[7, 1]`. Where that read is in another machine or target body, the callee requires `items[0] == 7` and the caller proves it from the literal. The consuming `agree` requires the saved value still equal the live element and 7. The exclusive loan does not establish the fact; the read does.
 - **Identity and invalidation.** The complete non-writing call preserves the exact observed element. The twin's actual store overlaps that element and invalidates equality with its saved value. Disjoint actual writes remain covered by the choice rows.
 - **Composition.** The nine places carry that same sentence. Parameter, call result, other machine, and target body pass the saved value or the array through a contract that names the element. Field, match join, const name, and a nested machine keep the read in the lending state. The positive and reject twins differ only by the store in `expose`.
 - **Soundness.** The loan is ordinary exclusive access. No mathematical binding is executed. Proof retirement follows actual write footprints; no frame grants borrow authority.
 - **Checked-to-Terminal Psi.** The positive places execute in the Terminal Psi interpreter and agree with native execution. The reject twins fail checking, so they have no Terminal Psi product.
 - **Later realization.** Each positive binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`. Current native/Terminal execution evidence is host-specific; bindings alone do not establish execution on the other hosts.
 
-This row covers complete non-writing frames over saved array-element observations, with actual overlapping-write twins. Case, generic and reference probes and the float places do not close the rest of `STATE-LOCAL-VALUE-FRONTIER`.
+This row covers complete non-writing frames over saved array-element observations, with actual overlapping-write twins. This row does not close the rest of `STATE-LOCAL-VALUE-FRONTIER`.
 
 ## Build-owned target-body migration
 

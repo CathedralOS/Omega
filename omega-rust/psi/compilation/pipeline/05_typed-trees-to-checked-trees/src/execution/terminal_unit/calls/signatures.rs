@@ -10,105 +10,10 @@ use crate::execution::terminal_unit::types::{
 use crate::execution::terminal_unit::{
     CarryPolicy, CheckFacts, CheckedStructuralAccess as StructuralAccess,
     CheckedStructuralScalarParameterPlan as ParameterPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypePlan, Multiplicity,
-    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
-    StateParameter, SymbolHandle, strips_erased_parameter,
+    CheckedUnitStructuralParameterPlan, Multiplicity, PermissionAccess, PermissionClaimIdentity,
+    PermissionEventKind, PermissionEventSource, StateParameter, SymbolHandle,
+    strips_erased_parameter,
 };
-
-/// The qualified structural signature of a state without scalar
-/// parameters. A qualified machine contributes no implicit receiver
-/// parameter, so the roster is exactly the authored telescope and the plan
-/// needs no attachment slot of its own.
-pub(crate) fn structural_signature(
-    program: &dyn ::validation::CheckingInput,
-    shapes: &mut ShapeCollector<'_>,
-    state: &typed_trees::state::State,
-    binders: &[(SymbolHandle, String)],
-) -> Option<(
-    Option<typed_trees::type_identity::TypeIdentityId>,
-    Vec<CheckedUnitStructuralParameterPlan>,
-)> {
-    let parameters = program.state_parameters(state);
-    let mut structural_parameters = Vec::new();
-    for (position, parameter) in parameters.iter().enumerate() {
-        // An erased binding occurrence owns no ABI position: it is skipped
-        // here and at every caller-side argument producer, while `position`
-        // stays the authored index so entry claims, returns, and the Terminal
-        // consumer keep rejoining the typed source signature.
-        if strips_erased_parameter(parameter)? {
-            continue;
-        }
-        if parameter.is_const
-            || program
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
-        {
-            return None;
-        }
-        let type_identity = shapes.add_type(parameter.type_reference, binders, &[])?;
-        // Ingress lends the access-neutral view, but evaluating this formal as
-        // a descriptor demands its exact stored shell. Declare both here;
-        // operation roots decide whether the stored row survives pruning.
-        if validation::slice_view_shell(program, parameter.type_reference, &[]).is_some() {
-            shapes.add_stored_type(parameter.type_reference, binders, &[])?;
-        }
-        let qualifications =
-            parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
-        let access = structural_access_for_type_reference(program, parameter.type_reference)?;
-        // Owned formals transfer stored carriers, including each descriptor
-        // inside an aggregate. Borrowed formals expose referent access instead.
-        let multiplicity = if access == StructuralAccess::Owned {
-            validation::reference_result_custody::result_multiplicity(
-                program,
-                parameter.type_reference,
-            )
-        } else {
-            crate::checks::type_multiplicity(program, parameter.type_reference)
-        };
-        // The bounded write-only closure, the exact shared-observer leaf, and
-        // an ordinary shared borrow of a primitive referent all admit a
-        // borrowed primitive place; the borrow's own custody checks decide
-        // whether the callee may read through it.
-        let primitive_access_is_admitted = matches!(
-            access,
-            StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-                | StructuralAccess::SharedBorrow
-        );
-        // The registered referent retains its complete scalar receiving
-        // restriction. Nominal qualifications travel on the same exact
-        // carrier through the ordinary structural parameter channel below;
-        // a primitive loan does not erase them or become an owned scalar.
-        let primitive_referent = shapes.primitive_scalar(type_identity);
-        if primitive_referent.is_some()
-            && (multiplicity != Multiplicity::Unrestricted || !primitive_access_is_admitted)
-        {
-            return None;
-        }
-        structural_parameters.push(CheckedUnitStructuralParameterPlan {
-            position: u32::try_from(position).ok()?,
-            type_identity,
-            multiplicity,
-            access,
-            primitive_referent,
-            qualifications,
-            projected_qualifications: projected_parameter_qualifications(
-                program,
-                shapes,
-                parameter.type_reference,
-                binders,
-            )?,
-        });
-    }
-    fold_parameter_entry_domains(
-        program,
-        shapes,
-        state.symbol,
-        binders,
-        &mut structural_parameters,
-    )?;
-    Some((None, structural_parameters))
-}
 
 fn scalar_parameter_signature(
     program: &dyn ::validation::CheckingInput,
@@ -126,47 +31,6 @@ fn scalar_parameter_signature(
     })
 }
 
-/// A static qualified signature, marking each parameter's erasure, scalar
-/// signature, const-ness, type shape, qualifications, access, and projected
-/// qualifications that declined the state. Only the general state-graph
-/// route traces this, so the marks carry that route's phase prefix.
-pub(crate) fn structural_scalar_signature_traced(
-    program: &dyn ::validation::CheckingInput,
-    shapes: &mut ShapeCollector<'_>,
-    state: &typed_trees::state::State,
-    binders: &[(SymbolHandle, String)],
-    trace: &LocalConstructionTrace,
-) -> Option<(
-    Option<typed_trees::type_identity::TypeIdentityId>,
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<ParameterPlan>,
-)> {
-    // Static qualification supplies identity, never implicit storage.
-    let (structural_parameters, scalar_parameters) =
-        scalar_and_structural_parameters(program, shapes, state, binders, trace)?;
-    Some((None, structural_parameters, scalar_parameters))
-}
-
-/// A scalar body's explicit parameters and the structural shapes they require.
-pub(crate) fn ambient_self_scalar_signature(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-) -> Option<(
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<ParameterPlan>,
-    Vec<CheckedUnitStructuralTypePlan>,
-)> {
-    let mut shapes = ShapeCollector::new(program);
-    let (_, structural, scalar) = structural_scalar_signature_traced(
-        program,
-        &mut shapes,
-        state,
-        &[],
-        &LocalConstructionTrace::default(),
-    )?;
-    Some((structural, scalar, shapes.types.into_values().collect()))
-}
-
 pub(crate) fn free_structural_scalar_signature(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
@@ -182,8 +46,7 @@ pub(crate) fn free_structural_scalar_signature(
     )
 }
 
-/// `free_structural_scalar_signature` with the per-parameter trace marks of
-/// `structural_scalar_signature_traced`.
+/// `free_structural_scalar_signature` with per-parameter trace marks.
 pub(crate) fn free_structural_scalar_signature_traced(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,

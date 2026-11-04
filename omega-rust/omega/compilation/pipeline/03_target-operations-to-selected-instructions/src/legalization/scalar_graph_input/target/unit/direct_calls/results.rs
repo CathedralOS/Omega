@@ -152,6 +152,17 @@ pub(super) fn validate(
                 || *result_home != expected_home
                 || *reference_results != expected_references
             {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE call-reference-result machine={:?} operation={:?} same_result={} same_home={} retained={:?} reconstructed={:?}",
+                        caller.machine,
+                        psi_operation,
+                        result == expected_result,
+                        *result_home == expected_home,
+                        reference_results,
+                        expected_references
+                    );
+                }
                 return Err(LegalizationError::custody());
             }
         }

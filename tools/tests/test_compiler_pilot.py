@@ -1,6 +1,8 @@
 """Refusal controls for the CI adapter; compiler behavior stays in the corpus."""
 
+from contextlib import contextmanager
 from copy import deepcopy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -16,6 +18,274 @@ import compiler_retained_foreign as retained
 
 
 class CompilerPilotTests(unittest.TestCase):
+    def setUp(self):
+        # Real Git export and shallow-history controls have their own tests.
+        export = patch.object(pilot.compiler_source_export, "export", return_value=[])
+        self.source_export = export.start()
+        self.addCleanup(export.stop)
+
+    def test_source_export_refusal_stops_before_compiler_build_or_observations(self):
+        self.source_export.side_effect = ValueError("incomplete source history")
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                    patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                    patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+                    patch.object(pilot, "prepare_producer") as build, \
+                    patch.object(pilot.subprocess, "run") as consume:
+                summary = {}
+                with self.assertRaisesRegex(ValueError, "incomplete source history"):
+                    pilot.execute(output, summary, positives=("pass/group/example",), negatives=())
+            build.assert_not_called()
+            consume.assert_not_called()
+            self.assertEqual(summary["stages"], [dict(name="retain measured source", passed=False,
+                                                    error="incomplete source history",
+                                                    seconds=summary["stages"][0]["seconds"])])
+
+    def retained_producer(self, root, *, runner=True):
+        directory = root / "retained"
+        directory.mkdir()
+        cli = directory / "omega"
+        cli.write_bytes(b"retained optimized CLI")
+        corpus = directory / "runner" if runner else None
+        if corpus is not None:
+            corpus.write_bytes(b"retained optimized runner")
+        return pilot.CompilerProducer("a" * 40, "b" * 40, "linux_x86_64", "rustc test toolchain",
+                                      cli, corpus, self.retained_profile(cli),
+                                      self.retained_profile(corpus) if corpus is not None else None)
+
+    def retained_profile(self, binary):
+        return dict(sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),
+                    profile=dict(schema="omega-compiler-build-profile-v1", opt_level="1"))
+
+    @contextmanager
+    def producer_environment(self, root, producer):
+        consumer = producer.consumer_revision or producer.revision
+        tree = producer.tree if producer.consumer_revision is None else "c" * 40
+        answers = {
+            ("git", "rev-parse", "HEAD"): consumer,
+            ("git", "rev-parse", "HEAD^{tree}"): tree,
+            ("git", "rev-parse", consumer + "^{tree}"): tree,
+            ("git", "status", "--porcelain"): "",
+            ("rustc", "-Vv"): producer.toolchain,
+        }
+        with patch.object(pilot, "ROOT", root), \
+                patch.object(pilot, "command", side_effect=lambda args: answers[tuple(args)]), \
+                patch.dict(os.environ, {"GITHUB_SHA": consumer}), \
+                patch.object(pilot.corpus_gate, "host_target", return_value=producer.target), \
+                patch.object(pilot.corpus_gate, "require_optimized", side_effect=self.retained_profile):
+            yield
+
+    def test_prepared_manifest_round_trip_checks_both_and_cli_only_producers(self):
+        for runner in (False, True):
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                producer = self.retained_producer(root, runner=runner)
+                manifest = root / "producer.json"
+                record = dict(schema="omega-compiler-producer-v1", producer=producer.record())
+                pilot.write_new_record(manifest, record)
+                with self.producer_environment(root, producer):
+                    self.assertEqual(pilot.load_producer(manifest), producer)
+                with self.assertRaises(FileExistsError):
+                    pilot.write_new_record(manifest, record)
+
+    def test_manifest_refuses_changed_source_host_toolchain_profile_and_runner_custody(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            producer = self.retained_producer(root)
+            manifest = root / "producer.json"
+            original = dict(schema="omega-compiler-producer-v1", producer=producer.record())
+            changes = (
+                ("revision", "c" * 40), ("tree", "c" * 40), ("target", "macos_arm64"),
+                ("toolchain", "another rustc"), ("runner", None), ("runner_profile", None),
+                ("cli_profile", dict(sha256="c" * 64, opt_level="1")),
+                ("cli_profile", {}), ("cli", "relative/omega"),
+            )
+            with self.producer_environment(root, producer):
+                for field, value in changes:
+                    record = deepcopy(original)
+                    record["producer"][field] = value
+                    manifest.write_text(json.dumps(record))
+                    with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                        pilot.load_producer(manifest)
+                manifest.write_text(json.dumps(original))
+                producer.cli.write_bytes(b"different compiler")
+                with self.assertRaisesRegex(ValueError, "identity/profile changed"):
+                    pilot.load_producer(manifest)
+                producer.cli.unlink()
+                with self.assertRaises(OSError):
+                    pilot.load_producer(manifest)
+
+    def test_prepare_only_builds_once_and_consumer_failure_preserves_preparation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            producer = self.retained_producer(root)
+            with self.producer_environment(root, producer), \
+                    patch.object(pilot, "prepare_producer", return_value=producer) as build, \
+                    patch.object(pilot, "execute") as execute:
+                self.assertEqual(pilot.run_suite("split", ("pass/example/exit",), (), phase="prepare"), 0)
+                output = root / "build/split"
+                build.assert_called_once_with(output, need_runner=True)
+                execute.assert_not_called()
+                preparation = (output / "preparation.json").read_bytes()
+                manifest = (output / "producer.json").read_bytes()
+                self.assertTrue(json.loads(preparation)["passed"])
+                self.assertEqual(pilot.run_suite("split", ("pass/example/exit",), (), phase="prepare"), 1)
+                build.assert_called_once()
+                build.reset_mock()
+                execute.side_effect = ValueError("retained checking refusal")
+                self.assertEqual(pilot.run_suite("split", ("pass/example/exit",), (), phase="consume"), 1)
+                build.assert_not_called()
+                self.assertEqual(execute.call_args.kwargs["producer"], producer)
+                self.assertFalse(json.loads((output / "summary.json").read_text())["passed"])
+                self.assertEqual((output / "preparation.json").read_bytes(), preparation)
+                self.assertEqual((output / "producer.json").read_bytes(), manifest)
+
+    def test_invalid_preparation_request_never_builds_and_keeps_its_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.object(pilot, "ROOT", root), \
+                    patch.object(pilot, "prepare_producer") as build, \
+                    patch.object(pilot, "execute") as execute:
+                self.assertEqual(pilot.run_suite("invalid", (), (), fixtures="../escape", phase="prepare"), 1)
+                build.assert_not_called()
+                execute.assert_not_called()
+            output = root / "build/invalid"
+            self.assertFalse(json.loads((output / "preparation.json").read_text())["passed"])
+            self.assertFalse((output / "producer.json").exists())
+
+    def test_failed_preparation_retains_error_and_consume_never_falls_back_to_build(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            producer = self.retained_producer(root)
+            with self.producer_environment(root, producer), \
+                    patch.object(pilot, "prepare_producer", side_effect=ValueError("CLI build refused")) as build, \
+                    patch.object(pilot, "execute") as execute:
+                self.assertEqual(pilot.run_suite("failed", ("pass/example/exit",), (), phase="prepare"), 1)
+                build.assert_called_once()
+                build.reset_mock()
+                output = root / "build/failed"
+                preparation = (output / "preparation.json").read_bytes()
+                self.assertEqual(json.loads(preparation)["error"], "CLI build refused")
+                self.assertEqual(pilot.run_suite("failed", ("pass/example/exit",), (), phase="consume"), 1)
+                build.assert_not_called()
+                execute.assert_not_called()
+                self.assertEqual((output / "preparation.json").read_bytes(), preparation)
+
+    def test_consume_requires_the_runner_for_corpus_without_building_one(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            producer = self.retained_producer(root, runner=False)
+            output = root / "build/cli-only"
+            output.mkdir(parents=True)
+            pilot.write_new_record(output / "producer.json",
+                                   dict(schema="omega-compiler-producer-v1", producer=producer.record()))
+            with self.producer_environment(root, producer), \
+                    patch.object(pilot, "prepare_producer") as build, \
+                    patch.object(pilot.subprocess, "run") as run:
+                self.assertEqual(pilot.run_suite("cli-only", ("pass/example/exit",), (), phase="consume"), 1)
+                build.assert_not_called()
+                run.assert_not_called()
+            summary = json.loads((output / "summary.json").read_text())
+            self.assertIn("requires a retained optimized corpus runner", summary["error"])
+
+    def test_command_phase_defaults_to_all_and_forwards_explicit_selection(self):
+        with patch.object(pilot, "run_suite", return_value=0) as suite:
+            self.assertEqual(pilot.main([]), 0)
+            self.assertEqual(suite.call_args.kwargs["phase"], "all")
+            for phase in ("prepare", "consume"):
+                self.assertEqual(pilot.main(["--phase", phase, "--fixtures", "pass/example/exit"]), 0)
+                self.assertEqual(suite.call_args.kwargs["phase"], phase)
+                self.assertEqual(suite.call_args.kwargs["fixtures"], "pass/example/exit")
+
+    def test_consume_refuses_unoptimized_or_changed_binary_without_building(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            producer = self.retained_producer(root)
+            output = root / "build/prepared"
+            output.mkdir(parents=True)
+            pilot.write_new_record(output / "producer.json",
+                                   dict(schema="omega-compiler-producer-v1", producer=producer.record()))
+            with self.producer_environment(root, producer), \
+                    patch.object(pilot, "prepare_producer") as build, \
+                    patch.object(pilot, "execute") as execute:
+                with patch.object(pilot.corpus_gate, "require_optimized", side_effect=ValueError("unoptimized")):
+                    self.assertEqual(pilot.run_suite("prepared", ("pass/example/exit",), (), phase="consume"), 1)
+                producer.runner.write_bytes(b"changed runner")
+                self.assertEqual(pilot.run_suite("prepared", ("pass/example/exit",), (), phase="consume"), 1)
+                build.assert_not_called()
+                execute.assert_not_called()
+
+
+    def test_prepare_export_refusal_retains_failure_without_building(self):
+        self.source_export.side_effect = ValueError("incomplete source history")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            producer = self.retained_producer(root)
+            with self.producer_environment(root, producer), \
+                    patch.object(pilot, "prepare_producer") as build, \
+                    patch.object(pilot, "execute") as execute:
+                self.assertEqual(pilot.run_suite("export-failure", ("pass/example/exit",), (), phase="prepare"), 1)
+                build.assert_not_called()
+                execute.assert_not_called()
+            output = root / "build/export-failure"
+            self.assertFalse((output / "producer.json").exists())
+            self.assertIn("incomplete source history", json.loads((output / "preparation.json").read_text())["error"])
+
+    def test_split_replay_preserves_identity_and_preparation_without_building(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            producer = self.retained_producer(root)
+            inputs = {name: None for name in pilot.compiler_replay_plan.COMPILER_INPUTS}
+            producer = pilot.CompilerProducer(
+                producer.revision, producer.tree, producer.target, producer.toolchain,
+                producer.cli, producer.runner, producer.cli_profile, producer.runner_profile,
+                "d" * 40, inputs,
+                dict(run=123, cache_key="retained-cache", plan="replay.json", transport="existing workflow cache"))
+            plan = pilot.compiler_replay_plan.ReplayPlan("replay.json", dict(
+                revision=producer.revision, tree=producer.tree, target=producer.target,
+                toolchain=producer.toolchain, input_objects=inputs, origin_run=123, cache_key="retained-cache",
+                executables=dict(cli=producer.cli_profile, runner=producer.runner_profile)),
+                ("pass/example/exit",), True, (), ())
+            order = []
+            self.source_export.side_effect = lambda *args: order.append("source") or []
+            def capture(*args):
+                order.append("capture")
+                return producer
+            with self.producer_environment(root, producer), \
+                    patch.object(pilot.compiler_replay_plan, "load", return_value=plan), \
+                    patch.object(pilot.compiler_replay_plan, "check_inputs") as inputs_checked, \
+                    patch.object(pilot, "select_fixtures", return_value=(("pass/example/exit",), ())), \
+                    patch.object(pilot, "retained_producer", side_effect=capture) as retained, \
+                    patch.object(pilot, "prepare_producer") as build, \
+                    patch.object(pilot, "execute", side_effect=ValueError("actual consumer refusal")) as execute:
+                self.assertEqual(pilot.run_suite("replay", (), (), fixtures="@replay.json", phase="prepare"), 0)
+                output = root / "build/replay"
+                preparation = (output / "preparation.json").read_bytes()
+                manifest = (output / "producer.json").read_bytes()
+                self.assertEqual(order, ["source", "capture"])
+                self.source_export.assert_called_once_with(output, (producer.consumer_revision, producer.revision))
+                self.assertEqual(json.loads(manifest)["producer"]["revision"], producer.revision)
+                self.assertEqual(json.loads(manifest)["producer"]["consumer_revision"], producer.consumer_revision)
+                self.assertEqual(pilot.run_suite("replay", (), (), fixtures="@replay.json", phase="consume"), 1)
+                build.assert_not_called()
+                retained.assert_called_once()
+                self.assertEqual(execute.call_args.kwargs["producer"], producer)
+                self.assertEqual(execute.call_args.kwargs["checking_only"], ("pass/example/exit",))
+                self.assertFalse(execute.call_args.kwargs["positives"])
+                self.assertEqual((output / "preparation.json").read_bytes(), preparation)
+                self.assertEqual((output / "producer.json").read_bytes(), manifest)
+                inputs_checked.assert_called()
+                # A different requested binary cannot replace the prepared one.
+                different = deepcopy(plan.producer)
+                different["executables"]["cli"]["sha256"] = "f" * 64
+                changed = pilot.compiler_replay_plan.ReplayPlan(plan.path, different, plan.fixtures, True, (), ())
+                with patch.object(pilot.compiler_replay_plan, "load", return_value=changed):
+                    execute.reset_mock()
+                    self.assertEqual(pilot.run_suite("replay", (), (), fixtures="@replay.json", phase="consume"), 1)
+                    execute.assert_not_called()
+                build.assert_not_called()
+
     def test_ordinary_cli_copy_loop_retains_the_actual_project_directory(self):
         sample = "samples/cli/systems/journal"
         with tempfile.TemporaryDirectory() as temporary:
@@ -230,7 +500,7 @@ class CompilerPilotTests(unittest.TestCase):
         sample = "samples/cli/facts/layout/local"
         accepted = [dict(sample=sample, state="pass"),
                     dict(sample=sample + "/invalid", state="rejected", role="intended-invalid")]
-        producer = Mock(revision="a" * 40, target="linux_x86_64", cli=Path("/retained/omega"),
+        producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64", cli=Path("/retained/omega"),
                         runner=None, runner_profile=None)
         for rows, code in ((accepted, 0), ([], 0), (accepted[:1], 0),
                            ([accepted[0], accepted[0]], 0), (accepted, 1),
@@ -270,7 +540,7 @@ class CompilerPilotTests(unittest.TestCase):
         for samples, negatives in (((sample,), ()), ((sample,), (fixture,)), ((), (fixture,))):
             with self.subTest(samples=samples, negatives=negatives), tempfile.TemporaryDirectory() as temporary:
                 output = Path(temporary)
-                producer = Mock(revision="a" * 40, target="linux_x86_64", cli=output / "omega",
+                producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64", cli=output / "omega",
                                 runner=output / "runner" if negatives else None,
                                 runner_profile={"sha256": "b" * 64} if negatives else None)
                 def consume(arguments, **kwargs):
@@ -292,14 +562,74 @@ class CompilerPilotTests(unittest.TestCase):
                     pilot.execute(output, summary, positives=(), negatives=negatives, samples=samples)
                 build.assert_called_once_with(output, need_runner=bool(negatives))
                 self.assertEqual(run.call_count, bool(samples) + bool(negatives))
-                self.assertEqual(producer.verify.call_count, 2)
+                self.assertEqual(producer.verify.call_count, 2 + bool(samples) + bool(negatives))
                 self.assertEqual("runner_sha256" in summary, bool(negatives))
+
+    def test_failed_corpus_consumers_still_measure_cli_and_samples_and_keep_run_red(self):
+        fixture = "pass/example/normal_exit"
+        sample = "samples/cli/facts/layout/local"
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64",
+                            runner_profile={"sha256": "b" * 64})
+
+            def consume(arguments, **kwargs):
+                if "--write-results" in arguments:
+                    Path(arguments[arguments.index("--write-results") + 1]).write_text(
+                        json.dumps([dict(sample=sample, state="pass")]))
+                else:
+                    Path(arguments[arguments.index("--json") + 1]).write_text("{}")
+                return Mock(returncode=0)
+
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                    patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                    patch.object(pilot.corpus_gate, "host_target", return_value=producer.target), \
+                    patch.object(pilot, "observation_golden", return_value=output / "golden"), \
+                    patch.object(pilot.subprocess, "run", side_effect=consume) as run, \
+                    patch.object(pilot, "validate_report", side_effect=[ValueError("checking timeout"), ValueError("runtime timeout")]), \
+                    patch.object(pilot.ordinary_cli_fixture, "observe", return_value={"passed": True}) as ordinary:
+                summary = {}
+                with self.assertRaisesRegex(ValueError, "checking timeout.*runtime timeout"):
+                    pilot.execute(output, summary, positives=(fixture,), negatives=(),
+                                  producer=producer, samples=(sample,), cli_fixtures=(fixture,))
+            self.assertEqual(run.call_count, 3)
+            ordinary.assert_called_once()
+            self.assertEqual([row["passed"] for row in summary["stages"]],
+                             [True, True, False, False, True, True])
+            self.assertEqual(summary["stages"][2]["error"], "checking timeout")
+            self.assertEqual(summary["stages"][3]["error"], "runtime timeout")
+            self.assertEqual(summary["sample_observations"], [dict(sample=sample, state="pass")])
+
+    def test_changed_producer_stops_before_another_consumer(self):
+        fixture = "pass/example/normal_exit"
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64",
+                            runner_profile={"sha256": "b" * 64})
+            producer.verify.side_effect = [None, ValueError("compiler bytes changed")]
+
+            def consume(arguments, **kwargs):
+                Path(arguments[arguments.index("--json") + 1]).write_text("{}")
+                return Mock(returncode=0)
+
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                    patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                    patch.object(pilot.corpus_gate, "host_target", return_value=producer.target), \
+                    patch.object(pilot, "observation_golden", return_value=output / "golden"), \
+                    patch.object(pilot.subprocess, "run", side_effect=consume) as run, \
+                    patch.object(pilot, "validate_report", side_effect=ValueError("checking timeout")), \
+                    patch.object(pilot.ordinary_cli_fixture, "observe") as ordinary:
+                with self.assertRaisesRegex(ValueError, "compiler bytes changed"):
+                    pilot.execute(output, {}, positives=(fixture,), negatives=(), producer=producer,
+                                  cli_fixtures=(fixture,))
+            run.assert_called_once()
+            ordinary.assert_not_called()
 
     def test_ordinary_cli_checks_through_package_admission_without_corpus(self):
         fixture = "pass/filesystem/write_all_full_device_exit"
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
-            producer = Mock(revision="a" * 40, target="linux_x86_64", runner=None, runner_profile=None)
+            producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64", runner=None, runner_profile=None)
             with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
                     patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
                     patch.object(pilot.corpus_gate, "host_target", return_value=producer.target), \
@@ -312,7 +642,7 @@ class CompilerPilotTests(unittest.TestCase):
             run.assert_not_called()
 
     def test_cli_only_producer_cannot_execute_corpus_fixtures(self):
-        producer = Mock(revision="a" * 40, target="linux_x86_64", runner=None, runner_profile=None)
+        producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64", runner=None, runner_profile=None)
         with tempfile.TemporaryDirectory() as temporary, \
                 patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
                 patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
@@ -448,7 +778,7 @@ class CompilerPilotTests(unittest.TestCase):
     def test_rejection_only_run_never_launches_an_empty_runtime_filter(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
-            producer = Mock(revision="a" * 40, target="linux_x86_64",
+            producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64",
                             runner_profile={"sha256": "b" * 64})
             fixture = "fail/example/intended_rejection"
             def corpus(arguments, **kwargs):
@@ -475,7 +805,7 @@ class CompilerPilotTests(unittest.TestCase):
     def test_failed_checking_still_measures_execution_and_stays_red(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
-            producer = Mock(revision="a" * 40, target="linux_x86_64",
+            producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64",
                             runner_profile={"sha256": "b" * 64})
             legs = []
             def corpus(arguments, **kwargs):
@@ -494,6 +824,41 @@ class CompilerPilotTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "oracle"):
                     pilot.execute(output, {}, producer=producer)
             self.assertEqual(legs, ["checking", "both"])
+
+    def test_failed_consumers_do_not_skip_later_ordinary_or_sample_observations(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64",
+                            runner_profile={"sha256": "b" * 64})
+            sample = "samples/cli/facts/example/local"
+            observed = []
+
+            def consume(arguments, **kwargs):
+                if "--write-results" in arguments:
+                    observed.append("sample")
+                    Path(arguments[arguments.index("--write-results") + 1]).write_text(
+                        json.dumps([dict(sample=sample, state="pass")]))
+                    return Mock(returncode=0)
+                observed.append("checking")
+                return Mock(returncode=3)
+
+            rows = [dict(fixture="pass/group/first", passed=False, error="source refusal"),
+                    dict(fixture="pass/group/second", passed=True)]
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                    patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                    patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+                    patch.object(pilot, "observation_golden", return_value=output / "golden"), \
+                    patch.object(pilot.subprocess, "run", side_effect=consume), \
+                    patch.object(pilot.ordinary_cli_fixture, "observe", side_effect=rows) as ordinary:
+                summary = {}
+                with self.assertRaisesRegex(ValueError, "source refusal"):
+                    pilot.execute(output, summary, positives=(), negatives=("fail/group/control",),
+                                  cli_fixtures=("pass/group/first", "pass/group/second"),
+                                  samples=(sample,), producer=producer)
+            self.assertEqual(ordinary.call_count, 2)
+            self.assertEqual(observed, ["checking", "sample"])
+            self.assertEqual(len(summary["consumer_errors"]), 2)
+            self.assertTrue(summary["stages"][-1]["passed"])
 
     def test_first_host_keeps_unknown_history_separate_from_other_host_results(self):
         with tempfile.TemporaryDirectory() as temporary:

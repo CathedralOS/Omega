@@ -238,8 +238,12 @@ impl StructuralJudge<'_> {
         subjects: &[crate::machine_calls::calls::InvocationEntrySubject],
         bindings: &[(SymbolHandle, Option<super::StructuralTerm>)],
     ) {
+        let caller_version = self.storage_version;
+        let mut values = self.owned_argument_storage_values(entry, caller_state, bindings);
         self.storage_version = self.incoming_storage_version(entry);
-        let mut values = Vec::new();
+        // Operand writes belong to the caller; this invocation starts at its
+        // own entry cut before any of its body writes.
+        self.storage_write_sequence = 0;
         for subject in subjects {
             if !crate::reference_shell(self.program, subject.parameter_type)
                 .is_some_and(|shell| shell.access.is_readable())
@@ -261,6 +265,9 @@ impl StructuralJudge<'_> {
                 else {
                     continue;
                 };
+                if !self.storage_value_transfer_is_current(stored, caller_version) {
+                    continue;
+                }
                 let Some(current) = stored.current.clone() else {
                     continue;
                 };
@@ -345,6 +352,9 @@ impl StructuralJudge<'_> {
                     if stored.coordinate.root != facts::PlaceRoot::Symbol(subject.parameter) {
                         continue;
                     }
+                    if !self.storage_value_transfer_is_current(stored, self.storage_version) {
+                        continue;
+                    }
                     let Some(current) = stored.current.clone() else {
                         continue;
                     };
@@ -374,12 +384,27 @@ impl StructuralJudge<'_> {
                 }
             }
         }
+        self.storage_version = returned.storage_version;
         self.stored_values = returned.stored_values;
         self.invalidated_storage = returned.invalidated_storage;
         self.premise_facts = returned.premise_facts;
         self.storage_write_sequence = returned.storage_write_sequence;
         self.capture_sequence = self.capture_sequence.max(returned.capture_sequence);
         Some(())
+    }
+
+    /// Transferring a current cell requires its actual source cut whenever
+    /// the program has a storage graph. Captured arguments and returned values
+    /// carry their own saved fields separately.
+    fn storage_value_transfer_is_current(
+        &self,
+        stored: &CapturedStorageValue,
+        version: Option<StorageVersion>,
+    ) -> bool {
+        match version {
+            Some(version) => self.current_value_valid(stored, &stored.coordinate, version),
+            None => self.storage_graph().is_none(),
+        }
     }
 
     /// Unknown effects retire reachable live storage observations, not immutable
@@ -465,54 +490,14 @@ impl StructuralJudge<'_> {
         let Some(machine) = self.program.machine(self.machine_symbol) else {
             return;
         };
-        let mut expressions = Vec::new();
-        crate::queries::expression_traversal::collect_expression_tree(
-            self.program,
-            fact,
-            &mut expressions,
-        );
-        for expression in expressions {
-            if super::super::observed_projections::scalar_storage_read(
-                self.program,
-                machine,
-                state,
-                expression,
-            )
-            .is_none()
-            {
-                continue;
-            }
-            if !self.ordinary_storage_path(Some((machine, state)), expression) {
-                continue;
-            }
-            let Some(place) = crate::canonical_place_from_expression(self.program, expression)
-                .and_then(|place| self.capture_entry_storage_place(place))
-            else {
-                continue;
-            };
-            let Some(canonical) = crate::canonical_place_from_expression(self.program, expression)
-            else {
-                continue;
-            };
-            let Some(root) = place.root.as_symbol() else {
-                continue;
-            };
-            let Some(backing) = self.entry_read_backing(machine, state, root, &canonical.segments)
-            else {
+        for (canonical, expression) in self.entry_scalar_read_coordinates(machine, state, fact) {
+            let Some(_) = canonical.root.as_symbol() else {
                 continue;
             };
             let Some(value) = self.declaration_term(expression) else {
                 continue;
             };
-            let backing = self.freeze_entry_read_backing(state, backing);
-            self.retain_storage_value(place.clone(), value, true);
-            if let Some(stored) =
-                std::sync::Arc::make_mut(&mut self.stored_values).value_at_mut(&place)
-            {
-                stored.backing = Some(backing);
-                // No executable read was observed while admitting a Requires.
-                stored.completed_read = None;
-            }
+            let _ = self.retain_entry_scalar_snapshot(machine, state, canonical, value);
         }
     }
 
@@ -1494,10 +1479,7 @@ impl StructuralJudge<'_> {
             |field| {
                 let selected = field_place(field.symbol)?;
                 let value = self
-                    .captured_place_projection(
-                        &selected,
-                        language_semantics::content::ContentPlaceVersion::Current,
-                    )
+                    .current_place_projection(&selected)
                     .or_else(|| {
                         // A retired aggregate has no whole snapshot. Its inline
                         // child may still have a complete current field roster.
@@ -1538,6 +1520,91 @@ impl StructuralJudge<'_> {
         }
         active.pop();
         subject
+    }
+
+    /// The current contents of one place for a stored-predicate judgment.
+    /// A captured observation wins. Otherwise an entry formal's cell that no
+    /// recorded exposure has touched still holds its entry contents: the same
+    /// declaration projection an executed read would observe, under the same
+    /// exposure rule `storage_observation_invalidated` applies to such reads.
+    pub(in crate::proof_contracts::contract_entailment) fn current_place_projection(
+        &self,
+        place: &CanonicalPlace,
+    ) -> Option<super::StructuralTerm> {
+        self.captured_place_projection(
+            place,
+            language_semantics::content::ContentPlaceVersion::Current,
+        )
+        .or_else(|| self.untouched_entry_projection(place))
+    }
+
+    /// Project an entry formal's declaration value along fields and live tags.
+    /// A case segment needs the ledger's surviving tag for its exact prefix;
+    /// indexed and reference-bearing cells retain their captured-read fence.
+    /// Only an owned formal or an exclusive formal of reference-free storage
+    /// qualifies: nothing else can write its cells without an exposure here,
+    /// which is what lets this skip the scalar read-backing authentication.
+    fn untouched_entry_projection(&self, place: &CanonicalPlace) -> Option<super::StructuralTerm> {
+        self.requires_value_preservation().then_some(())?;
+        let root = place.root.as_symbol()?;
+        let (_, state) = self.runtime_declaration_scope()?;
+        let parameter = self.program.state_parameter_by_symbol(state, root)?;
+        let frames = self.frame_resolver()?;
+        let exclusive = match crate::reference_shell(self.program, parameter.type_reference) {
+            None => frames.value_is_reference_free(parameter.type_reference),
+            Some(shell) => {
+                shell.access == language_semantics::ReferenceAccess::Mutable
+                    && frames.value_is_reference_free(shell.referee)
+            }
+        };
+        if !exclusive {
+            return None;
+        }
+        // The storage graph answers per place whether incoming storage still
+        // reaches it; without a graph, any recorded write to the root fences.
+        if self.graph_storage_mode() {
+            if self.graph_place_invalidated(place) {
+                return None;
+            }
+        } else if self.invalidated_storage.contains(&root) {
+            return None;
+        }
+        // The formal's own exclusive shell names its caller-owned referent;
+        // any further reference belongs to a separate live epoch.
+        let referent = crate::reference_shell(self.program, parameter.type_reference)
+            .map_or(parameter.type_reference, |shell| shell.referee);
+        let reference = crate::value_custody::places::owned_projection_type_reference(
+            self.program,
+            referent,
+            &place.segments,
+        )?;
+        let mut value = super::StructuralTerm::Variable(parameter.name.to_string());
+        let mut prefix = CapturedStorageCoordinate {
+            root: place.root,
+            segments: Vec::new(),
+        };
+        for segment in &place.segments {
+            match segment {
+                PlaceSegment::Case { variant } => {
+                    self.stored_values
+                        .iter()
+                        .find(|stored| stored.coordinate == prefix)
+                        .and_then(|stored| stored.selected_case)
+                        .filter(|selected| selected == variant)?;
+                }
+                PlaceSegment::Field { symbol } => {
+                    value = super::super::observed_projections::project_field(
+                        value,
+                        self.program.symbols.name(*symbol),
+                    )?;
+                }
+                _ => return None,
+            }
+            prefix
+                .segments
+                .push(CapturedStorageSegment::Place(*segment));
+        }
+        frames.value_is_reference_free(reference).then_some(value)
     }
 
     /// Query a captured place rather than reconstructing its initializer.

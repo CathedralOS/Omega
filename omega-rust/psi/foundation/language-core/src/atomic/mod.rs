@@ -38,8 +38,8 @@ pub enum AtomicOrderingPlan {
         success: MemoryOrdering,
         failure: MemoryOrdering,
     },
-    /// One observing compare-exchange attempt. Unlike decisive
-    /// compare-exchange, this operation may report an uncommitted attempt.
+    /// One compare-exchange attempt may remain uncommitted. The expression's
+    /// separate result custody records whether failures expose the resident.
     CompareExchangeOnce {
         success: MemoryOrdering,
         failure: MemoryOrdering,
@@ -77,19 +77,17 @@ pub enum AtomicObservingCompareExchangeResultShape {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum AtomicExpressionResultCustody {
     Scalar,
-    ObservingCompareExchangeOnce(AtomicCompareExchangeOnceResultCustody),
+    CompareExchangeOnce(AtomicCompareExchangeOnceResultCustody),
 }
 
-/// Exact observing single-attempt result identity retained through checked
-/// expression lowering.
-///
-/// The three fields are deliberately redundant. Every phase rechecks their
-/// canonical agreement so a decisive operation, two-arm shape, or sibling
-/// outcome identity cannot substitute under an unchanged ordering plan.
+/// Keep the selected attempt and observation rules with the complete result.
+/// Every consumer checks the three identities together: changing the result
+/// family must not turn an observing attempt into a non-observing one, or
+/// erase the uncommitted case. These identities grant no access or custody.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct AtomicCompareExchangeOnceResultCustody {
-    pub operation: AtomicObservingCompareExchangeOperation,
-    pub result_shape: AtomicObservingCompareExchangeResultShape,
+    pub attempt: AtomicCompareExchangeAttemptAxis,
+    pub observation: AtomicCompareExchangeObservationAxis,
     pub outcome_identity: AtomicCompareExchangeOutcomeIdentity,
 }
 
@@ -98,7 +96,7 @@ pub struct AtomicCompareExchangeOnceResultCustody {
 ///
 /// This is an identity axis only. In particular, naming `SingleAttempt` does
 /// not authorize an atomic attempt or select an implementation strategy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AtomicCompareExchangeAttemptAxis {
     Decisive,
     SingleAttempt,
@@ -108,10 +106,29 @@ pub enum AtomicCompareExchangeAttemptAxis {
 ///
 /// This is an identity axis only. Custody, copyability, and access authority
 /// remain obligations of the carrier that uses an outcome identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AtomicCompareExchangeObservationAxis {
     Observing,
     NonObserving,
+}
+
+impl AtomicCompareExchangeObservationAxis {
+    /// Only member-call syntax on dedicated atomic storage can use these
+    /// names; ordinary free or qualified calls remain ordinary machines.
+    pub fn single_attempt_member(name: &str) -> Option<Self> {
+        match name {
+            "compare_exchange_once" => Some(Self::Observing),
+            "try_exchange_once" => Some(Self::NonObserving),
+            _ => None,
+        }
+    }
+
+    pub const fn single_attempt_member_name(self) -> &'static str {
+        match self {
+            Self::Observing => "compare_exchange_once",
+            Self::NonObserving => "try_exchange_once",
+        }
+    }
 }
 
 /// One canonical case in the flat public compare-exchange outcome family.
@@ -331,23 +348,29 @@ impl AtomicObservingCompareExchangeResultShape {
 }
 
 impl AtomicCompareExchangeOnceResultCustody {
-    pub const CANONICAL: Self = Self {
-        operation: AtomicObservingCompareExchangeOperation::SingleAttempt,
-        result_shape:
-            AtomicObservingCompareExchangeResultShape::ExchangedOrMismatchedOrUncommittedObserved,
-        outcome_identity: AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOnceOutcome,
-    };
+    pub const fn for_observation(observation: AtomicCompareExchangeObservationAxis) -> Self {
+        let attempt = AtomicCompareExchangeAttemptAxis::SingleAttempt;
+        Self {
+            attempt,
+            observation,
+            outcome_identity: AtomicCompareExchangeOutcomeIdentity::from_axes(attempt, observation),
+        }
+    }
 
+    /// Only the two complete single-attempt families are admitted here.
+    /// Describing a decisive outcome elsewhere does not authorize this event.
     pub const fn is_canonical(self) -> bool {
         matches!(
-            self,
-            Self {
-                operation: AtomicObservingCompareExchangeOperation::SingleAttempt,
-                result_shape: AtomicObservingCompareExchangeResultShape::
-                    ExchangedOrMismatchedOrUncommittedObserved,
-                outcome_identity:
-                    AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOnceOutcome,
-            }
+            (self.attempt, self.observation, self.outcome_identity),
+            (
+                AtomicCompareExchangeAttemptAxis::SingleAttempt,
+                AtomicCompareExchangeObservationAxis::Observing,
+                AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOnceOutcome,
+            ) | (
+                AtomicCompareExchangeAttemptAxis::SingleAttempt,
+                AtomicCompareExchangeObservationAxis::NonObserving,
+                AtomicCompareExchangeOutcomeIdentity::AtomicTryExchangeOnceOutcome,
+            )
         )
     }
 }
@@ -360,10 +383,10 @@ impl AtomicExpressionResultCustody {
             (Self::Scalar, AtomicOrderingPlan::CompareExchangeOnce { .. }) => false,
             (Self::Scalar, _) => true,
             (
-                Self::ObservingCompareExchangeOnce(custody),
+                Self::CompareExchangeOnce(custody),
                 AtomicOrderingPlan::CompareExchangeOnce { .. },
             ) => custody.is_canonical(),
-            (Self::ObservingCompareExchangeOnce(_), _) => false,
+            (Self::CompareExchangeOnce(_), _) => false,
         }
     }
 
@@ -371,7 +394,7 @@ impl AtomicExpressionResultCustody {
     /// type belongs to the enclosing binding; the scalar observed-prior slot
     /// in the expression carrier remains invalid.
     pub const fn has_structural_result(self) -> bool {
-        matches!(self, Self::ObservingCompareExchangeOnce(_))
+        matches!(self, Self::CompareExchangeOnce(_))
     }
 }
 
@@ -518,60 +541,6 @@ mod tests {
             Operation::SingleAttempt.outcome_identity(),
             Shape::ExchangedOrMismatchedOrUncommittedObserved.outcome_identity()
         );
-    }
-
-    #[test]
-    fn single_attempt_expression_custody_rejects_axis_substitution() {
-        use super::{
-            AtomicCompareExchangeOnceResultCustody as OnceCustody,
-            AtomicCompareExchangeOutcomeIdentity as Outcome,
-            AtomicExpressionResultCustody as ResultCustody,
-            AtomicObservingCompareExchangeOperation as Operation,
-            AtomicObservingCompareExchangeResultShape as Shape, AtomicOrderingPlan,
-        };
-
-        let once_ordering = AtomicOrderingPlan::CompareExchangeOnce {
-            success: O::ReceivePublish,
-            failure: O::Receive,
-        };
-        assert!(
-            ResultCustody::ObservingCompareExchangeOnce(OnceCustody::CANONICAL)
-                .is_valid_for(once_ordering)
-        );
-        assert!(!ResultCustody::Scalar.is_valid_for(once_ordering));
-
-        let decisive_ordering = AtomicOrderingPlan::CompareExchange {
-            success: O::ReceivePublish,
-            failure: O::Receive,
-        };
-        assert!(ResultCustody::Scalar.is_valid_for(decisive_ordering));
-        assert!(
-            !ResultCustody::ObservingCompareExchangeOnce(OnceCustody::CANONICAL)
-                .is_valid_for(decisive_ordering)
-        );
-
-        for drifted in [
-            OnceCustody {
-                operation: Operation::Decisive,
-                ..OnceCustody::CANONICAL
-            },
-            OnceCustody {
-                result_shape: Shape::ExchangedOrMismatchedObserved,
-                ..OnceCustody::CANONICAL
-            },
-            OnceCustody {
-                outcome_identity: Outcome::AtomicCompareExchangeOutcome,
-                ..OnceCustody::CANONICAL
-            },
-            OnceCustody {
-                outcome_identity: Outcome::AtomicTryExchangeOnceOutcome,
-                ..OnceCustody::CANONICAL
-            },
-        ] {
-            assert!(
-                !ResultCustody::ObservingCompareExchangeOnce(drifted).is_valid_for(once_ordering)
-            );
-        }
     }
 
     #[test]

@@ -1,12 +1,50 @@
-//! Authored declaration identity for resolved calls and their compiler copies.
+//! Declaration sources for resolved calls and their compiler copies.
 //!
-//! A machine's implicit entry is an implementation coordinate, not a second
-//! authored declaration. Selection reconciliation and constant custody share
-//! this exact-owner check; an arbitrary source-less child cannot inherit it.
+//! Constant evaluation retains which declarations its calls selected. A local
+//! evidence child has no source token of its own, so that record names its
+//! public method while the call retains the exact child and binder. A generated
+//! machine entry similarly uses its owning machine's declaration source.
 
 use source::SourceSpan;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind};
+
+/// A constant must retain each call's declared method after evaluation. Record
+/// the public method's source because the local evidence child has no source
+/// declaration of its own. Keep that exact child as the separate call target;
+/// invocation checking still verifies its binder and complete application.
+pub(crate) fn call_custody_source(
+    program: &SymbolResolvedTrees,
+    target: SymbolHandle,
+) -> Result<SourceSpan, String> {
+    if let Some(requirement) =
+        crate::symbols::requirement_namespaces::evidence_requirement(program, target)?
+    {
+        return program
+            .symbols
+            .symbol_source_span(requirement.symbol)
+            .ok_or_else(|| {
+                "constant evidence requirement lost its public declaration source".into()
+            });
+    }
+    let symbol = program.symbols.get(target);
+    // Other logical calls can be generated from an authored binder. Its
+    // recorded origin identifies source custody; the exact call target remains
+    // separate and still owes ordinary invocation checks.
+    if matches!(
+        symbol.kind,
+        SymbolKind::Operator | SymbolKind::MachineParameter
+    ) || (symbol.kind == SymbolKind::State
+        && symbol.parent.is_valid()
+        && program.symbols.get(symbol.parent).kind == SymbolKind::Trait)
+    {
+        return program
+            .symbols
+            .symbol_provenance_source_span(target)
+            .ok_or_else(|| "constant logical call lost its exact authored provenance".into());
+    }
+    call_declaration_source(program, target)
+}
 
 pub(crate) fn call_declaration_source(
     program: &SymbolResolvedTrees,

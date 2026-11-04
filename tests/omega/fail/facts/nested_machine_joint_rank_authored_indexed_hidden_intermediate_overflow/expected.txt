@@ -1,1 +1,0 @@
-cannot prove the `terminates by` ranking

@@ -1323,11 +1323,33 @@ fn encode_atomic_event(bytes: &mut Vec<u8>, event: terminal_psi::AtomicAccessEve
             ordering(bytes, failure);
         }
         Event::CompareExchangeOnce {
-            success, failure, ..
+            success,
+            failure,
+            custody,
+            ..
         } => {
+            use language_core::atomic::{
+                AtomicCompareExchangeAttemptAxis as Attempt,
+                AtomicCompareExchangeObservationAxis as Observation,
+                AtomicCompareExchangeOutcomeIdentity as Outcome,
+            };
             bytes.push(5);
             ordering(bytes, success);
             ordering(bytes, failure);
+            bytes.push(match custody.attempt {
+                Attempt::Decisive => 1,
+                Attempt::SingleAttempt => 2,
+            });
+            bytes.push(match custody.observation {
+                Observation::Observing => 1,
+                Observation::NonObserving => 2,
+            });
+            bytes.push(match custody.outcome_identity {
+                Outcome::AtomicCompareExchangeOutcome => 1,
+                Outcome::AtomicCompareExchangeOnceOutcome => 2,
+                Outcome::AtomicTryExchangeOutcome => 3,
+                Outcome::AtomicTryExchangeOnceOutcome => 4,
+            });
         }
     }
     for operand in event.operands() {

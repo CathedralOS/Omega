@@ -161,6 +161,9 @@ pub struct StateBorrowFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowReturnedLoanFact {
     pub lineage: BorrowLoanLineage,
+    /// Keep the original call-input obligation beside a narrower returned
+    /// field view; returning does not erase its exact borrowing occurrence.
+    pub retained_operand: Option<BorrowRetainedOperand>,
     pub statement_index: usize,
     /// The selected normal-return arm. Zero denotes a final expression.
     /// Mutually exclusive arms never authenticate each other's formations.
@@ -396,8 +399,10 @@ pub enum BorrowLoanLineage {
     },
     UnretainedDerived,
     /// A normal invocation supplies this descriptor's opaque permission.
-    /// It is not a local borrow activation or a reborrow parent. The exact
+    /// It is not derived from a local borrow activation. The exact
     /// output identity, completed-call roster and destination slot must agree.
+    /// An available authenticated completion may lend a later view; its input
+    /// lifetime dependencies never supply that view's spatial permission.
     SuppliedOutput,
     /// An opaque output retains an input or earlier output's lifetime. This
     /// supplies keepalive, never a spatial pointer or reborrow permission.
@@ -450,6 +455,15 @@ pub struct CheckedCallBorrowLoanResource {
     pub backing_path: HandleSpan<facts::PlaceSegment>,
 }
 
+/// A normally completed stored generation keeps these original evaluated
+/// inputs borrowed. The input resources retain their own call, capture, full
+/// access and parent lifetime; this association creates no new permission.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedStoredCallBorrowInputs {
+    pub loan: Handle<BorrowLoanFact>,
+    pub resources: HandleSpan<Handle<CheckedCallBorrowLoanResource>>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedCallBorrowLoanSource {
     /// Transport preserves the exact stored occurrence observed at completion.
@@ -484,9 +498,9 @@ pub struct CheckedDirectBorrowRestorationObligation {
     pub weakening_reason: crate::FlowBorrowWeakeningReason,
 }
 
-/// A resource remains held by every exact transported descriptor after its
-/// original slot retires. Keep the lexical retirement and final holding event
-/// distinct; neither a later slot generation nor equal geometry is a holder.
+/// Saved references and established lifetime obligations keep the original
+/// borrowing resource held after its slot retires. Keep lexical retirement
+/// separate from that final hold; neither role grants a new access permission.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBorrowResourceRetention {
     pub lexical_weakening: Handle<crate::FlowBorrowWeakeningFact>,
@@ -494,6 +508,101 @@ pub struct CheckedBorrowResourceRetention {
     /// without a local loan and have no activation or weakening rows.
     pub holders: HandleSpan<Handle<BorrowLoanFact>>,
     pub final_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+}
+
+/// A normally completed provider call establishes this output reference's
+/// permission. Its input lifetimes constrain how long it may be kept; they
+/// neither locate the pointer nor substitute for its access permission.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedSuppliedOutputBorrowResource {
+    pub loan: Handle<BorrowLoanFact>,
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub call: Handle<crate::FlowCallFact>,
+    pub identity: Handle<IncomingReferenceIdentity>,
+    /// Complete original applied input edges. Resource existence distinguishes
+    /// a checked empty roster from unavailable source evidence.
+    pub lifetime_sources: HandleSpan<crate::FlowOperandRetainedSupplier>,
+    /// Permission demands captured at those inputs' own completion cuts.
+    /// Stored sources select their earlier descriptor value, not the short
+    /// exclusive loan of the output slot used to install its replacement.
+    pub inputs: HandleSpan<CheckedOutputBorrowInput>,
+    /// The complete nonspatial cohort published beside this exact output.
+    /// These are lifetime obligations, never additional pointer alternatives.
+    pub debts: HandleSpan<Handle<BorrowLoanFact>>,
+    /// Every saved descriptor holds the same permission after its source slot
+    /// changes. This span belongs to loan_suppliers, as does `debts` above.
+    /// This is retention, not another local borrowing activation.
+    pub holders: HandleSpan<Handle<BorrowLoanFact>>,
+    /// Last saved holder's lexical end. A child may keep the completed
+    /// permission and its input obligations held beyond this boundary.
+    pub holder_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    /// Complete descendant/cohort closure, including children of saved views.
+    pub final_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+}
+
+/// One input lifetime remains held by the output's saved copies. Its exact
+/// completed input permissions are retained without lending the output's
+/// address or making this debt eligible as a borrowing parent.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedOutputLifetimeDependencyResource {
+    pub loan: Handle<BorrowLoanFact>,
+    pub source: CheckedOutputLifetimeDependencySource,
+    pub inputs: HandleSpan<CheckedOutputBorrowInput>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedOutputLifetimeDependencySource {
+    Completion {
+        output: Handle<CheckedSuppliedOutputBorrowResource>,
+    },
+    Transfer {
+        suppliers: HandleSpan<Handle<CheckedOutputLifetimeDependencyResource>>,
+    },
+}
+
+impl Default for CheckedOutputLifetimeDependencySource {
+    fn default() -> Self {
+        Self::Completion {
+            output: Handle::invalid(),
+        }
+    }
+}
+
+/// A declared input edge and its selected permission retain different
+/// coordinates. In particular, a Stored edge names the earlier captured
+/// descriptor; its outer actual can point at a slot overwritten by the call.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedOutputBorrowInput {
+    /// Selected leaf below the original evaluated actual, at call entry.
+    pub capture_path: HandleSpan<crate::CheckedUnitStructuralPathSegment>,
+    pub source: Handle<crate::FlowOperandRetainedSupplier>,
+    pub stored: Handle<crate::FlowOperandStoredSource>,
+    pub permission: CheckedOutputBorrowInputPermission,
+}
+
+/// An unchanged incoming descriptor owes lifetime retention without creating
+/// a new call-access loan. Produced descriptors retain their real permission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedOutputBorrowInputPermission {
+    Borrowed {
+        resource: Handle<CheckedCallBorrowLoanResource>,
+    },
+    Incoming {
+        identity: Handle<IncomingReferenceIdentity>,
+        access: language_core::ReferenceAccess,
+        root: facts::PlaceRoot,
+        path: HandleSpan<facts::PlaceSegment>,
+        owner_path: HandleSpan<facts::PlaceSegment>,
+    },
+}
+
+impl Default for CheckedOutputBorrowInputPermission {
+    fn default() -> Self {
+        Self::Borrowed {
+            resource: Handle::invalid(),
+        }
+    }
 }
 
 /// Checked-only resource closure for one state-local loan captured directly
@@ -530,6 +639,9 @@ pub enum CheckedParentBorrowResource {
     },
     Reborrow {
         resource: Handle<CheckedReborrowLoanResource>,
+    },
+    SuppliedOutput {
+        resource: Handle<CheckedSuppliedOutputBorrowResource>,
     },
 }
 
@@ -590,8 +702,9 @@ pub enum ParentLexicalStatusAtChildEnd {
 
 /// Exact checked weakening-order join for one retained direct reborrow.
 ///
-/// The two handles identify the authoritative flow events; `status` is derived
-/// from their semantic statement phases rather than arena insertion order.
+/// The typed parent end distinguishes an ordinary lexical event from the
+/// last saved holder of a completed output. `status` compares that boundary
+/// with the child's lexical event by semantic phase, never arena order.
 /// This checked-only row grants no suspension-containment, restoration,
 /// reactivation, cascade, or Terminal authority.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -600,8 +713,29 @@ pub struct CheckedReborrowParentEndStatus {
     pub parent_loan: Handle<BorrowLoanFact>,
     pub parent_resource: CheckedParentBorrowResource,
     pub child_weakening: Handle<crate::FlowBorrowWeakeningFact>,
-    pub parent_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    pub parent_end: CheckedBorrowParentEnd,
     pub status: ParentLexicalStatusAtChildEnd,
+}
+
+/// A local carrier has a lexical retirement. An invocation-established
+/// permission instead stops being directly held when its last saved holder
+/// ends; neither event is proof that its remaining children have finished.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedBorrowParentEnd {
+    Lexical {
+        weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    },
+    CompletedOutput {
+        holder_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    },
+}
+
+impl Default for CheckedBorrowParentEnd {
+    fn default() -> Self {
+        Self::Lexical {
+            weakening: Handle::invalid(),
+        }
+    }
 }
 
 /// Semantic phase used by checked-only borrow-resource lifecycle replay.
@@ -616,6 +750,7 @@ pub struct CheckedReborrowParentEndStatus {
 pub enum CheckedBorrowResourceLifecyclePhase {
     #[default]
     LastUseExpired,
+    NormalCompletion,
     Activation,
     LocalReassigned,
     StateExit,
@@ -630,6 +765,7 @@ pub enum CheckedBorrowResourceLifecyclePhase {
 pub enum CheckedBorrowResourceDispositionTarget {
     ParentResource(CheckedParentBorrowResource),
     DirectRootLifetime(CheckedDirectBorrowParentLifetime),
+    CompletedOutput(Handle<CheckedSuppliedOutputBorrowResource>),
 }
 
 impl Default for CheckedBorrowResourceDispositionTarget {
@@ -747,6 +883,26 @@ pub enum BorrowLoanOwnerSegment {
     DynamicIndex,
 }
 
+/// The body needs proof that a write cannot conflict with its saved pointer.
+/// Ordinary callers must prove this from their actual arguments or pass the
+/// requirement to their own callers. A selected external entry must establish
+/// it without caller arguments. Recording the requirement leaves that proof due.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct BorrowIncomingCompatibilityRequirement {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub loan: Handle<BorrowLoanFact>,
+    pub load: Handle<crate::FlowOperandFact>,
+    pub read: Handle<crate::FlowValueObservationFact>,
+    pub store_target: Handle<crate::FlowOperandFact>,
+    pub backing_input: SymbolHandle,
+    pub backing_path: HandleSpan<facts::PlaceSegment>,
+    pub backing_suffix: HandleSpan<facts::PlaceSegment>,
+    pub storage_input: SymbolHandle,
+    pub storage_path: HandleSpan<facts::PlaceSegment>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowFacts {
     pub incoming_references: Arena<IncomingReferenceIdentity>,
@@ -761,6 +917,7 @@ pub struct BorrowFacts {
     pub resource_holders: Arena<Handle<BorrowLoanFact>>,
     pub returned_loans: Arena<BorrowReturnedLoanFact>,
     pub states: Arena<StateBorrowFact>,
+    pub incoming_compatibility: Arena<BorrowIncomingCompatibilityRequirement>,
     /// `(machine, state) -> state rows` grouping owned by this ledger. The
     /// grouping carries the `states` arena's exact revision, so a mutation
     /// rebuilds it on the next query; the ledger's lifetime bounds it.
@@ -774,7 +931,13 @@ pub struct BorrowFacts {
     /// resource handles. Aggregate and otherwise unretained transfers have no
     /// row.
     pub reborrow_loan_resources: Arena<CheckedReborrowLoanResource>,
+    pub supplied_output_resources: Arena<CheckedSuppliedOutputBorrowResource>,
+    pub supplied_output_inputs: Arena<CheckedOutputBorrowInput>,
+    pub output_lifetime_dependencies: Arena<CheckedOutputLifetimeDependencyResource>,
+    pub output_dependency_suppliers: Arena<Handle<CheckedOutputLifetimeDependencyResource>>,
     pub call_loan_resources: Arena<CheckedCallBorrowLoanResource>,
+    pub stored_call_inputs: Arena<CheckedStoredCallBorrowInputs>,
+    pub stored_call_input_resources: Arena<Handle<CheckedCallBorrowLoanResource>>,
     pub call_loan_parents: Arena<Handle<BorrowLoanFact>>,
     pub call_loan_paths: Arena<crate::CheckedUnitStructuralPathSegment>,
     pub call_loan_backing_paths: Arena<facts::PlaceSegment>,
@@ -787,6 +950,24 @@ pub struct BorrowFacts {
 }
 
 impl BorrowFacts {
+    /// Only a complete, unique normal-call association supplies retained input
+    /// coverage. Missing and duplicate associations remain unavailable.
+    pub fn retained_call_inputs(
+        &self,
+        loan: Handle<BorrowLoanFact>,
+    ) -> Option<&[Handle<CheckedCallBorrowLoanResource>]> {
+        let mut rows = self
+            .stored_call_inputs
+            .iter()
+            .filter(|(_, row)| row.loan == loan);
+        let (_, row) = rows.next()?;
+        if rows.next().is_some() {
+            return None;
+        }
+        self.stored_call_input_resources
+            .span(row.resources)
+            .filter(|rows| !rows.is_empty())
+    }
     /// Exact checked invocation within one owning state. Coordinates repeat
     /// across states; duplicate rows are unavailable rather than first-match.
     pub fn call_at(
@@ -835,10 +1016,17 @@ impl BorrowFacts {
             resource_holders: Arena::new(),
             returned_loans,
             states,
+            incoming_compatibility: Arena::new(),
             state_index: KeyedRows::default(),
             direct_loan_resources: Arena::new(),
             reborrow_loan_resources: Arena::new(),
+            supplied_output_resources: Arena::new(),
+            supplied_output_inputs: Arena::new(),
+            output_lifetime_dependencies: Arena::new(),
+            output_dependency_suppliers: Arena::new(),
             call_loan_resources: Arena::new(),
+            stored_call_inputs: Arena::new(),
+            stored_call_input_resources: Arena::new(),
             call_loan_parents: Arena::new(),
             call_loan_paths: Arena::new(),
             call_loan_backing_paths: Arena::new(),

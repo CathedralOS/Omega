@@ -1020,9 +1020,9 @@ impl CheckedUnitEffectOperationPlan {
         }
     }
 
-    /// The structural result binding of a call or a constructed value, the
-    /// producers that own an automatic return discard, with that flag. The
-    /// other structural producers answer `None`.
+    /// A produced structural value and its automatic return-disposal schedule.
+    /// Declarations and borrowed views have separate lifetime owners and do
+    /// not acquire a completed-value disposal obligation from this query.
     pub fn discardable_structural_result(
         &self,
     ) -> Option<(&CheckedUnitStructuralResultBindingPlan, bool)> {
@@ -1031,6 +1031,10 @@ impl CheckedUnitEffectOperationPlan {
             Self::Call(call) => call
                 .structural_result()
                 .zip(call.discard_result_on_return()),
+            Self::AtomicAccess(access) => access
+                .structural_result
+                .as_ref()
+                .map(|result| (result, access.discard_result_on_return)),
             _ => None,
         }
     }
@@ -1053,6 +1057,10 @@ impl CheckedUnitEffectOperationPlan {
                 },
             ) => Some((result, discard_result_on_return)),
             Self::Call(call) => call.structural_result_mut(),
+            Self::AtomicAccess(access) => access
+                .structural_result
+                .as_mut()
+                .map(|result| (result, &mut access.discard_result_on_return)),
             _ => None,
         }
     }
@@ -1162,8 +1170,6 @@ pub struct CheckedUnitEffectMachinePlan {
     pub structural_result: Option<CheckedUnitStructuralReturnPlan>,
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
-    /// Exact attached data carrier, or `None` for an ordinary free machine.
-    pub attachment_type_identity: Option<TypeIdentityId>,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     /// Primitive parameters in authored order after removing structural
     /// parameters into their independent custody namespace.
@@ -1204,7 +1210,6 @@ pub struct CheckedUnitCallableEntry<'plan> {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub returns_unit: bool,
-    pub attachment_type_identity: Option<TypeIdentityId>,
     pub structural_parameters: &'plan [CheckedUnitStructuralParameterPlan],
     pub scalar_parameters: &'plan [CheckedStructuralScalarParameterPlan],
     pub erased_scalar_parameters: &'plan [CheckedStructuralScalarParameterPlan],
@@ -1220,7 +1225,6 @@ impl CheckedUnitEffectMachinePlan {
             machine: self.machine,
             state: self.state,
             returns_unit: self.result == super::CheckedControlResultPlan::Unit,
-            attachment_type_identity: self.attachment_type_identity,
             structural_parameters: &self.structural_parameters,
             scalar_parameters: &self.scalar_parameters,
             erased_scalar_parameters: &self.erased_scalar_parameters,
@@ -1249,7 +1253,6 @@ impl CheckedComposedUnitControlMachinePlan {
             machine: self.machine,
             state: state.state,
             returns_unit: matches!(self.result, super::CheckedControlResultPlan::Unit),
-            attachment_type_identity: self.attachment_type_identity,
             structural_parameters: &state.structural_parameters,
             scalar_parameters: &state.scalar_parameters,
             erased_scalar_parameters: &state.erased_scalar_parameters,

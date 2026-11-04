@@ -652,6 +652,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     .collect::<Option<Vec<_>>>()
             })
             .flatten();
+        if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+            eprintln!(
+                "CALLWRITE recorded state={:?} statement={} ordinal={} bindings={binding_writes:?} observations={observations:?}",
+                self.state.symbol, borrowed_call.statement_index, borrowed_call.call_ordinal
+            );
+        }
         self.record_operand_writes(OperandMutation {
             bindings: binding_writes,
             observations,
@@ -1003,7 +1009,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) -> EvaluatedOperand {
-        if let Some(mut capture) = self.dispatch_copy_value(expression, *constraints)
+        if expression != self.reference_slot_target
+            && let Some(mut capture) = self.dispatch_copy_value(expression, *constraints)
             && matches!(capture.completion, checked_trees::FlowOperandCompletion::Copied { path, .. } if path.is_empty())
         {
             if self.is_view_type(capture.type_reference) {
@@ -1028,7 +1035,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             contexts,
             constraints,
         );
-        if let Some(mut capture) = self.dispatch_copy_value(expression, *constraints) {
+        if expression != self.reference_slot_target
+            && let Some(mut capture) = self.dispatch_copy_value(expression, *constraints)
+        {
             if self.is_view_type(capture.type_reference) {
                 capture.referents = self.complete_reference_formation(
                     expression,
@@ -1241,8 +1250,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         self.filter_captured_sources(&changed, &mut captured_contexts, &mut captured_constraints);
         let retention = self.retention_from_referents(referents);
         checked_trees::FlowOperandFact {
-            descriptor_loan: Handle::invalid(),
-            descriptor_read: Handle::invalid(),
+            descriptor_permission: Default::default(),
             expression,
             state_symbol: self.state.symbol,
             statement_index: self.statement_index,
@@ -1411,6 +1419,75 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         &mut self,
         expression: ExpressionHandle,
     ) -> HandleSpan<checked_trees::FlowOperandReferent> {
+        if let ExpressionNode::Match(dispatch) =
+            self.program.expression_table.expression(expression)
+        {
+            // Each arm keeps the addresses a direct use of that arm would
+            // see. A nonempty snapshot wins. An empty snapshot is unknown
+            // for that spelling, so the syntactic storage walk may still
+            // name the arm. An arm with neither record fails the join.
+            let mut rows = Vec::<checked_trees::FlowOperandReferent>::new();
+            for arm in self.program.expression_table.match_arms(dispatch.arms) {
+                let snapshot = self
+                    .stored_view_referents(arm.value)
+                    .filter(|referents| !referents.is_empty());
+                let arm_referents = if let Some(referents) = snapshot {
+                    referents
+                } else {
+                    let Some(places) =
+                        crate::flow::reference_expression_storage_places_including_shared(
+                            self.program,
+                            self.state.symbol,
+                            self.statement_index,
+                            arm.value,
+                            self.context.call_frames,
+                        )
+                    else {
+                        return HandleSpan::empty();
+                    };
+                    let formed = places
+                        .iter()
+                        .map(|referent| checked_trees::FlowOperandReferent {
+                            formation: arena::Handle::invalid(),
+                            root: referent.root,
+                            segments: self
+                                .context
+                                .control
+                                .operand_referent_segments
+                                .insert_many(referent.segments.iter().copied()),
+                        })
+                        .collect::<Vec<_>>();
+                    self.context.control.operand_referents.insert_many(formed)
+                };
+                let captured = self
+                    .context
+                    .control
+                    .operand_referents
+                    .span_or_empty(arm_referents);
+                if captured.is_empty() {
+                    return HandleSpan::empty();
+                }
+                for referent in captured {
+                    let duplicate = rows.iter().any(|prior| {
+                        prior.root == referent.root
+                            && self
+                                .context
+                                .control
+                                .operand_referent_segments
+                                .span_or_empty(prior.segments)
+                                == self
+                                    .context
+                                    .control
+                                    .operand_referent_segments
+                                    .span_or_empty(referent.segments)
+                    });
+                    if !duplicate {
+                        rows.push(*referent);
+                    }
+                }
+            }
+            return self.context.control.operand_referents.insert_many(rows);
+        }
         if let Some(referents) = self.stored_view_referents(expression) {
             return referents;
         }
@@ -2243,9 +2320,22 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             }
             ExpressionNode::Borrow(borrow) => {
                 let previous_purpose = self.read_purpose;
+                let previous_slot = self.reference_slot_target;
+                // Taking the pointer variable's address must not load its old
+                // pointer. Use the same final-cell capture as replacement;
+                // intermediate receivers and selectors still evaluate normally.
+                if validation::borrow_selects_reference_storage(
+                    self.program,
+                    borrow.target,
+                    destination,
+                    &[],
+                ) {
+                    self.reference_slot_target = borrow.target;
+                }
                 self.read_purpose = ReadPurpose::Address;
                 let evaluated = self.evaluated_place(borrow.target, contexts, constraints);
                 self.read_purpose = previous_purpose;
+                self.reference_slot_target = previous_slot;
                 *backing = self.context.control.operands.insert(evaluated.capture);
                 *referents = Some(evaluated.capture.referents);
                 *retention = Some(self.formed_view_retention(&evaluated.capture));

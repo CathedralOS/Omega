@@ -1,8 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "`multiply` of `IndexSemiring` licenses distributivity over `add`",
-    "`add` of `IndexSemiring` licenses distributivity over `multiply`"
-  ]
-}

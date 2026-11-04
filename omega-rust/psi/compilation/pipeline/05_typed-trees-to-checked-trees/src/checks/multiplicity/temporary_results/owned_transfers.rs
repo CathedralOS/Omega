@@ -193,12 +193,15 @@ pub(in crate::checks::multiplicity) fn append_stored_transfer(
     conditional_carrier_transfers: &mut Vec<usize>,
 ) -> Result<(), diagnostics::Diagnostic> {
     let mut sources = Vec::new();
-    for (_, scope) in facts
+    // The table already retains each machine's complete rows in arena order.
+    // A store needs that machine's matching states, including duplicates, rather
+    // than another scan of every library and application state.
+    for scope in facts
         .flow
         .control
-        .states
-        .iter()
-        .filter(|(_, scope)| scope.machine_symbol == machine && scope.state_symbol == state)
+        .machine_states(machine)
+        .into_iter()
+        .filter(|scope| scope.state_symbol == state)
     {
         for row in facts
             .flow

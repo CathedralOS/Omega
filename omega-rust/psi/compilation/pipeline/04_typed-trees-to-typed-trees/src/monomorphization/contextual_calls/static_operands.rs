@@ -5,8 +5,8 @@
 
 use super::super::{SymbolHandle, TypeReferenceHandle, TypedTrees};
 use symbols::SymbolKind;
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::references::{TypedReferences, visit_type_reference};
+use typed_trees::expression::{ExpressionHandle, StaticMachineArgument};
+use typed_trees::references::{TypedReferences, visit_static_argument, visit_type_reference};
 use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
 #[derive(Default)]
@@ -43,6 +43,11 @@ impl TypedReferences for OperandReferences {
 fn collect(program: &TypedTrees, reference: TypeReferenceHandle) -> OperandReferences {
     let mut references = OperandReferences::default();
     visit_type_reference(program, &mut references, reference);
+    follow_data_applications(program, &mut references);
+    references
+}
+
+fn follow_data_applications(program: &TypedTrees, references: &mut OperandReferences) {
     // Normalization may name a data instance instead of retaining Generic at
     // the root. Its exact application still owns the operand's open binders.
     let mut symbol_ordinal = 0usize;
@@ -53,10 +58,9 @@ fn collect(program: &TypedTrees, reference: TypeReferenceHandle) -> OperandRefer
             .data_definition_by_symbol(symbol)
             .and_then(|definition| definition.generic_instance)
         {
-            visit_type_reference(program, &mut references, application);
+            visit_type_reference(program, references, application);
         }
     }
-    references
 }
 
 pub(crate) fn names_any(
@@ -75,6 +79,23 @@ pub(in crate::monomorphization) fn is_open(
     reference: TypeReferenceHandle,
 ) -> bool {
     let references = collect(program, reference);
+    references_are_open(program, &references)
+}
+
+/// A named implementation can still carry a caller's open operands, including
+/// captures unused by its body. Keep the complete source application available
+/// for checking while executable selection waits for outer substitution.
+pub(in crate::monomorphization) fn argument_is_open(
+    program: &TypedTrees,
+    argument: &StaticMachineArgument,
+) -> bool {
+    let mut references = OperandReferences::default();
+    visit_static_argument(program, &mut references, argument);
+    follow_data_applications(program, &mut references);
+    references_are_open(program, &references)
+}
+
+fn references_are_open(program: &TypedTrees, references: &OperandReferences) -> bool {
     references.symbols.iter().any(|symbol| {
         symbol.is_valid()
             && matches!(

@@ -45,6 +45,47 @@ impl StructuralJudge<'_> {
         if let Some(value) = proof_integer::anonymous_integer_value(program, expression) {
             return Some(StructuralTerm::Integer(value));
         }
+        // A completed result can expose a field or an indexed scalar through
+        // its retained backing cell. The ordinary projection path below still
+        // treats a reference as a descriptor rather than its contents.
+        let stored_projection = match expression_table(program).expression(expression) {
+            ExpressionNode::Member(_) => true,
+            ExpressionNode::Indexed(indexed) => {
+                let references = [indexed.collection, indexed.index].map(|operand| {
+                    crate::parameter_expression_result_type_reference(
+                        program, scope, parameters, operand,
+                    )
+                });
+                typed_trees::operator::builtin_index_read_is_spelled(
+                    program,
+                    scope,
+                    expression,
+                    &references,
+                )
+            }
+            _ => false,
+        };
+        if stored_projection {
+            let completed = if let Some(place) = crate::reserved_result_place(program, expression) {
+                (place.machine_symbol == callable)
+                    .then(|| {
+                        result.and_then(|result| self.captured_scalar_read(result, &place.segments))
+                    })
+                    .flatten()
+            } else {
+                crate::canonical_place_from_expression(program, expression).and_then(|place| {
+                    let symbol = place.root.as_symbol()?;
+                    parameters
+                        .iter()
+                        .find(|parameter| parameter.symbol == symbol)?;
+                    let (_, value) = bindings.iter().find(|(bound, _)| *bound == symbol)?;
+                    self.captured_scalar_read(value, &place.segments)
+                })
+            };
+            if completed.is_some() {
+                return completed;
+            }
+        }
         match expression_table(program).expression(expression) {
             ExpressionNode::Name(path) => {
                 if let Some((_, value)) = bindings
@@ -80,32 +121,6 @@ impl StructuralJudge<'_> {
                 None
             }
             ExpressionNode::Member(member) => {
-                // A formal/result substitutes an exact completed value. Only
-                // its live authenticated scalar cell may observe a returned
-                // reference; the ordinary projection walker stays descriptor-only.
-                let completed = if let Some(place) =
-                    crate::reserved_result_place(program, expression)
-                {
-                    (place.machine_symbol == callable)
-                        .then(|| {
-                            result.and_then(|result| {
-                                self.completed_result_read(result, &place.segments)
-                            })
-                        })
-                        .flatten()
-                } else {
-                    crate::canonical_place_from_expression(program, expression).and_then(|place| {
-                        let symbol = place.root.as_symbol()?;
-                        parameters
-                            .iter()
-                            .find(|parameter| parameter.symbol == symbol)?;
-                        let (_, value) = bindings.iter().find(|(bound, _)| *bound == symbol)?;
-                        self.completed_result_read(value, &place.segments)
-                    })
-                };
-                if completed.is_some() {
-                    return completed;
-                }
                 let reference = crate::parameter_expression_result_type_reference(
                     program,
                     scope,

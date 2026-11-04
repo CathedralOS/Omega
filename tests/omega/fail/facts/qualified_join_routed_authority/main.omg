@@ -1,8 +1,0 @@
-// Geometry cannot mint a storage grant on either incoming edge.
-use omega::language::core::extent;
-machine forge(flag: bool) -> Extent in Granted {
-    match flag {
-        true -> Extent { base: 0, length: 0 },
-        false -> Extent { base: 0, length: 0 }
-    }
-}

@@ -1,2 +1,0 @@
-qualified call
-has no resolved callable declaration

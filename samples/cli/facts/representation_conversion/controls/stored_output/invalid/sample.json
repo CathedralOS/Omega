@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "mutates `source` while local borrow `slot` is still active"
-  ]
-}

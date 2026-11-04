@@ -434,18 +434,9 @@ pub(in crate::exit_contract) fn validate_non_return(
     encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), WholeFunctionExitContractError> {
     let expected_control = match kind {
-        // LSE has one fall-through atomic instruction; x86 bitwise fetch
-        // owns a target-local retry until its compare-exchange commits.
-        // Producer and replay both pass the actual admitted architecture.
-        SelectedInstructionKind::AtomicAccess { form }
-            if architecture == target::Architecture::X86_64
-                && matches!(
-                    form.operation,
-                    selected_instructions::AtomicOperation::FetchAnd
-                        | selected_instructions::AtomicOperation::FetchOr
-                        | selected_instructions::AtomicOperation::FetchXor
-                ) =>
-        {
+        // Bitwise fetch retries until its indivisible update commits. Keep
+        // that target-relative work on both current instruction sets.
+        SelectedInstructionKind::AtomicAccess { form } if form.operation.is_bitwise_fetch() => {
             MachineEncodedControlEffect::AtomicRetryUntilCommitV1
         }
         SelectedInstructionKind::FloatResultPolicy { form } if form.can_trap() => {

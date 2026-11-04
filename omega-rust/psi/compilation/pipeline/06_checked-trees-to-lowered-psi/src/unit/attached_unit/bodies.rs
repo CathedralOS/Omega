@@ -345,13 +345,6 @@ impl<'a> UnitBody<'a> {
             .chain(composed.iter().flat_map(|state| &state.parameter_storage))
     }
 
-    pub(crate) fn attachment(self) -> Option<typed_trees::type_identity::TypeIdentityId> {
-        match self {
-            Self::Ordinary(plan) => plan.attachment_type_identity,
-            Self::Composed(plan) => plan.attachment_type_identity,
-        }
-    }
-
     pub(crate) fn qualifications(self) -> &'a [SemanticDomainId] {
         match self {
             Self::Ordinary(plan) => &plan.body_qualifications,

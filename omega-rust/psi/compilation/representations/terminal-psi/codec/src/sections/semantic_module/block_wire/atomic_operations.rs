@@ -14,6 +14,10 @@ use super::operation_tags;
 use crate::sections::semantic_module::structural_place_wire::{
     decode_structural_path, encode_structural_path,
 };
+use language_core::atomic::{
+    AtomicCompareExchangeAttemptAxis, AtomicCompareExchangeObservationAxis,
+    AtomicCompareExchangeOnceResultCustody, AtomicCompareExchangeOutcomeIdentity,
+};
 use semantic_vocabulary::{PlaceId, StructuralFieldId};
 use terminal_psi::{
     AtomicAccessEvent, AtomicReadModifyWrite, MemoryOrdering, OperationKind, StructuralPathSegment,
@@ -89,12 +93,14 @@ pub(super) fn encode_atomic_access(
             encode_ordering(writer, failure);
         }
         AtomicAccessEvent::CompareExchangeOnce {
+            custody,
             expected,
             replacement,
             success,
             failure,
         } => {
             writer.u8(COMPARE_EXCHANGE_ONCE);
+            encode_once_custody(writer, custody)?;
             writer.id(expected);
             writer.id(replacement);
             encode_ordering(writer, success);
@@ -150,6 +156,7 @@ pub(super) fn decode_atomic_access(
             failure: decode_ordering(reader)?,
         },
         COMPARE_EXCHANGE_ONCE => AtomicAccessEvent::CompareExchangeOnce {
+            custody: decode_once_custody(reader)?,
             expected: reader.id("ValueId")?,
             replacement: reader.id("ValueId")?,
             success: decode_ordering(reader)?,
@@ -164,6 +171,80 @@ pub(super) fn decode_atomic_access(
         event,
         resident_obligation,
     })
+}
+
+fn encode_once_custody(
+    writer: &mut Writer,
+    custody: AtomicCompareExchangeOnceResultCustody,
+) -> Result<(), CodecError> {
+    if !custody.is_canonical() {
+        return Err(CodecError::MalformedStructuralFoundation(
+            "atomic attempt has inconsistent result custody",
+        ));
+    }
+    writer.u8(match custody.attempt {
+        AtomicCompareExchangeAttemptAxis::Decisive => 1,
+        AtomicCompareExchangeAttemptAxis::SingleAttempt => 2,
+    });
+    writer.u8(match custody.observation {
+        AtomicCompareExchangeObservationAxis::Observing => 1,
+        AtomicCompareExchangeObservationAxis::NonObserving => 2,
+    });
+    writer.u8(match custody.outcome_identity {
+        AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOutcome => 1,
+        AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOnceOutcome => 2,
+        AtomicCompareExchangeOutcomeIdentity::AtomicTryExchangeOutcome => 3,
+        AtomicCompareExchangeOutcomeIdentity::AtomicTryExchangeOnceOutcome => 4,
+    });
+    Ok(())
+}
+
+fn decode_once_custody(
+    reader: &mut Reader<'_>,
+) -> Result<AtomicCompareExchangeOnceResultCustody, CodecError> {
+    let attempt = match reader.u8()? {
+        1 => AtomicCompareExchangeAttemptAxis::Decisive,
+        2 => AtomicCompareExchangeAttemptAxis::SingleAttempt,
+        tag => {
+            return Err(CodecError::InvalidTag(
+                "AtomicCompareExchangeAttemptAxis",
+                tag,
+            ));
+        }
+    };
+    let observation = match reader.u8()? {
+        1 => AtomicCompareExchangeObservationAxis::Observing,
+        2 => AtomicCompareExchangeObservationAxis::NonObserving,
+        tag => {
+            return Err(CodecError::InvalidTag(
+                "AtomicCompareExchangeObservationAxis",
+                tag,
+            ));
+        }
+    };
+    let outcome_identity = match reader.u8()? {
+        1 => AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOutcome,
+        2 => AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOnceOutcome,
+        3 => AtomicCompareExchangeOutcomeIdentity::AtomicTryExchangeOutcome,
+        4 => AtomicCompareExchangeOutcomeIdentity::AtomicTryExchangeOnceOutcome,
+        tag => {
+            return Err(CodecError::InvalidTag(
+                "AtomicCompareExchangeOutcomeIdentity",
+                tag,
+            ));
+        }
+    };
+    let custody = AtomicCompareExchangeOnceResultCustody {
+        attempt,
+        observation,
+        outcome_identity,
+    };
+    if !custody.is_canonical() {
+        return Err(CodecError::MalformedStructuralFoundation(
+            "atomic attempt has inconsistent result custody",
+        ));
+    }
+    Ok(custody)
 }
 
 fn encode_ordering(writer: &mut Writer, ordering: MemoryOrdering) {

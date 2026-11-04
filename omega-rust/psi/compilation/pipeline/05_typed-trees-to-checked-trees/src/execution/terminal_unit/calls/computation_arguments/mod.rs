@@ -252,8 +252,6 @@ pub(crate) fn subslice_computation_argument(
         .any(|parameter| place.root == PlaceRoot::Symbol(parameter.symbol))
     {
         Vec::new()
-    } else if owner.attached_data.is_some() {
-        super::ambient_self_scalar_signature(program, state)?.0
     } else {
         super::free_structural_scalar_signature(program, shapes, state, &[])?.0
     };

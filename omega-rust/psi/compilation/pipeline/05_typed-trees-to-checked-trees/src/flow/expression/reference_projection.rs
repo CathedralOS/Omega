@@ -167,9 +167,17 @@ impl Execution<'_, '_, '_> {
             let mut roots = Vec::new();
             let mut lifetime_known = true;
             for place in places {
-                let place = place
-                    .projected(std::slice::from_ref(segment))
-                    .ok_or(ReferenceProjectionRefusal::UnavailableProjection { position })?;
+                let place = super::super::CapturedReferencePlace {
+                    place: validation::completed_storage::project_captured_storage_place(
+                        self.program,
+                        self.state.symbol,
+                        self.statement_index,
+                        place.place,
+                        std::slice::from_ref(segment),
+                    )
+                    .ok_or(ReferenceProjectionRefusal::UnavailableProjection { position })?,
+                    formation: place.formation,
+                };
                 if reads_descriptor {
                     let stored = self
                         .stored_view_referents_at_place(&place.place)

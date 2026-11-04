@@ -1,8 +1,8 @@
-//! Provider-neutral storage retained at checked suspending calls.
+//! Record the values and borrowed data that a call must keep available if it pauses.
 //!
-//! Structural frontiers keep the ordinary operand's location and access
-//! together. Pointer-equivalent owned and borrowed operands must not share a
-//! frontier commitment. This records existing authority; loan ancestry,
+//! Keep each operand's location and read/write access together. Owned and
+//! borrowed storage have different frontier commitments even when their pointer
+//! representations agree. These demands record existing authority; loan ancestry,
 //! backing lifetime and runtime preservation still require their own joins.
 
 use crate::{
@@ -51,6 +51,7 @@ pub struct TerminalSuspensionLoans {
     pub paths: Arena<StructuralPathSegment>,
     pub value_links: Arena<Handle<TerminalSuspensionLoan>>,
     pub supplier_links: Arena<Handle<TerminalSuspensionLoan>>,
+    pub input_links: Arena<Handle<TerminalSuspensionLoan>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +63,8 @@ pub struct TerminalSuspensionLoan {
     /// Immediate alternative suppliers, not reborrow parents or flattened
     /// transport histories. Every dependency stays present after convergence.
     pub suppliers: HandleSpan<Handle<TerminalSuspensionLoan>>,
+    /// All original input obligations, separate from spatial parent/suppliers.
+    pub inputs: HandleSpan<Handle<TerminalSuspensionLoan>>,
     pub access: StructuralAccess,
     /// A retired dependency remains constrained by its descendant. This flag
     /// never reactivates that dependency's descriptor or restores access.
@@ -76,6 +79,7 @@ impl Default for TerminalSuspensionLoan {
             resource: Default::default(),
             parent: Handle::invalid(),
             suppliers: HandleSpan::empty(),
+            inputs: HandleSpan::empty(),
             access: StructuralAccess::SharedBorrow,
             active_at_call: false,
         }
@@ -89,6 +93,10 @@ pub enum TerminalSuspensionLoanResource {
     DirectRoot,
     Reborrow,
     IncomingReference,
+    CompletedOutput,
+    LifetimeDependency,
+    OutputInput,
+    DescriptorTransfer,
 }
 
 /// The address captured by the named operation, not a path to reevaluate at
@@ -113,6 +121,22 @@ pub enum TerminalSuspensionLoanCapture {
         live_value: u32,
         path: HandleSpan<StructuralPathSegment>,
     },
+    /// The output leaf established by this operation's normal completion.
+    CompletedOutput {
+        call: OperationId,
+        argument: StructuralArgument,
+        path: HandleSpan<StructuralPathSegment>,
+    },
+    /// Contents observed at this earlier call's entry, before its writes.
+    CallInput {
+        call: OperationId,
+        argument: StructuralArgument,
+        path: HandleSpan<StructuralPathSegment>,
+        stored: bool,
+    },
+    /// A nonspatial obligation; its input links contain the actual captures.
+    InputDependencies,
+    DescriptorTransfer,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -122,10 +146,20 @@ pub enum TerminalSuspensionLoanBacking {
     /// Canonical live-value roster index of the retained owner. Its enclosing
     /// activation lifetime covers the incomplete call, never a descriptor slot
     /// standing in for an incoming referent.
-    RetainedOwner { live_value: u32 },
+    RetainedOwner {
+        live_value: u32,
+    },
     /// The call's incoming referent namespace. The argument is an ingress
     /// coordinate, not proof that its descriptor owns or pins that storage.
-    IncomingReferent { argument: StructuralArgument },
+    IncomingReferent {
+        argument: StructuralArgument,
+    },
+    CompletedOutput {
+        loan: Handle<TerminalSuspensionLoan>,
+    },
+    InputDependencies,
+    /// Backing observed by this row's original CallInput capture.
+    CapturedInput,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -205,7 +239,7 @@ pub fn suspension_frontier_commitment(
     plan: &TerminalSuspensionCallPlan,
 ) -> [u8; 32] {
     let mut hash =
-        crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v8\0");
+        crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v9\0");
     hash.raw(&plan.operation.get().to_le_bytes());
     hash.raw(&plan.crossing.get().to_le_bytes());
     match plan.target {
@@ -289,6 +323,15 @@ impl TerminalSuspensionCallPlan {
             }
         }
         for (_, loan) in self.loans.occurrences.iter() {
+            if let TerminalSuspensionLoanCapture::CompletedOutput { argument, .. }
+            | TerminalSuspensionLoanCapture::CallInput { argument, .. } = &loan.capture
+            {
+                for segment in &argument.path {
+                    if let StructuralPathSegment::RuntimeIndex { index, .. } = segment {
+                        visit(*index);
+                    }
+                }
+            }
             if let TerminalSuspensionLoanBacking::IncomingReferent { argument } = &loan.backing {
                 for segment in &argument.path {
                     if let StructuralPathSegment::RuntimeIndex { index, .. } = segment {
@@ -327,6 +370,10 @@ fn hash_loans(
     for (_, supplier) in loans.supplier_links.iter() {
         hash_handle(hash, *supplier);
     }
+    hash.u64(loans.input_links.len() as u64);
+    for (_, input) in loans.input_links.iter() {
+        hash_handle(hash, *input);
+    }
     hash.u64(loans.occurrences.len() as u64);
     for (_, loan) in loans.occurrences.iter() {
         match &loan.capture {
@@ -350,6 +397,30 @@ fn hash_loans(
                 hash.raw(&live_value.to_le_bytes());
                 hash_span(hash, *path);
             }
+            TerminalSuspensionLoanCapture::CompletedOutput {
+                call,
+                argument,
+                path,
+            } => {
+                hash.byte(3);
+                hash.raw(&call.get().to_le_bytes());
+                hash_argument(identities, hash, argument);
+                hash_span(hash, *path);
+            }
+            TerminalSuspensionLoanCapture::CallInput {
+                call,
+                argument,
+                path,
+                stored,
+            } => {
+                hash.byte(4);
+                hash.raw(&call.get().to_le_bytes());
+                hash_argument(identities, hash, argument);
+                hash_span(hash, *path);
+                hash.byte(u8::from(*stored));
+            }
+            TerminalSuspensionLoanCapture::InputDependencies => hash.byte(5),
+            TerminalSuspensionLoanCapture::DescriptorTransfer => hash.byte(6),
         }
         match &loan.backing {
             TerminalSuspensionLoanBacking::Unresolved => hash.byte(0),
@@ -366,15 +437,26 @@ fn hash_loans(
                     hash_loan_path_segment(identities, hash, segment);
                 }
             }
+            TerminalSuspensionLoanBacking::CompletedOutput { loan } => {
+                hash.byte(3);
+                hash_handle(hash, *loan);
+            }
+            TerminalSuspensionLoanBacking::InputDependencies => hash.byte(4),
+            TerminalSuspensionLoanBacking::CapturedInput => hash.byte(5),
         }
         hash.byte(match loan.resource {
             TerminalSuspensionLoanResource::Unresolved => 0,
             TerminalSuspensionLoanResource::DirectRoot => 1,
             TerminalSuspensionLoanResource::Reborrow => 2,
             TerminalSuspensionLoanResource::IncomingReference => 3,
+            TerminalSuspensionLoanResource::CompletedOutput => 4,
+            TerminalSuspensionLoanResource::LifetimeDependency => 5,
+            TerminalSuspensionLoanResource::OutputInput => 6,
+            TerminalSuspensionLoanResource::DescriptorTransfer => 7,
         });
         hash_handle(hash, loan.parent);
         hash_span(hash, loan.suppliers);
+        hash_span(hash, loan.inputs);
         hash_access(hash, loan.access);
         hash.byte(u8::from(loan.active_at_call));
     }
@@ -471,4 +553,17 @@ fn hash_carry_policy(hash: &mut crate::digest_encoder::DomainDigestEncoder, poli
     hash.byte(u8::from(
         policy.address == language_semantics::CarryAddress::Movable,
     ));
+}
+
+fn hash_argument(
+    identities: &TerminalIdentityTable,
+    hash: &mut crate::digest_encoder::DomainDigestEncoder,
+    argument: &StructuralArgument,
+) {
+    hash.raw(&argument.place.get().to_le_bytes());
+    hash_access(hash, argument.access);
+    hash.u64(argument.path.len() as u64);
+    for segment in &argument.path {
+        hash_loan_path_segment(identities, hash, segment);
+    }
 }

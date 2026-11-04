@@ -9,6 +9,7 @@ name = "terminal_interpreter"
 path = "src/lib.rs"
 
 [dependencies]
+language-core = { path = "../../foundation/language-core" }
 compiler-storage = { path = "../../foundation/compiler-storage" }
 access-plans = { path = "../../foundation/access-plans" }
 arena = { path = "../../foundation/arena" }

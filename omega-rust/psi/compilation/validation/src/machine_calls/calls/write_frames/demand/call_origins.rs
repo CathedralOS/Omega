@@ -134,7 +134,7 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
-    fn invocation_write_origins(
+    pub(super) fn invocation_write_origins(
         &self,
         machine: &'program Machine,
         site: CallerWriteSite<'_>,
@@ -372,9 +372,9 @@ impl<'program> CallFrameResolver<'program> {
                 frames::type_is_caller_isolated_local(program, reference)
                     && !frames::type_reference_is_reference(program, reference)
             });
-            let origins = if let Some(origin) =
-                frames::reference_subjects::owned_borrow_origin(program, machine, *argument)
-            {
+            let origins = if let Some(origin) = frames::reference_subjects::owned_borrow_origin(
+                program, machine, *argument, reference,
+            ) {
                 // Address formation consumes no earlier descriptor binding.
                 // Keep its authenticated owned coordinate even when unrelated
                 // slots changed; this retains no fact about stored contents.

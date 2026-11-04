@@ -168,19 +168,14 @@ pub(super) fn available_target(
             return None;
         }
         let mut shapes = ShapeCollector::new(program);
-        let signature = super::calls::free_structural_scalar_entry_signature_traced(
+        let (structural, scalar) = super::calls::free_structural_scalar_entry_signature_traced(
             program,
             &mut shapes,
             state,
             &[],
             &super::control::LocalConstructionTrace::default(),
-        )
-        .map(|(structural, scalar)| (None, structural, scalar));
-        let (attachment, structural, scalar) = signature?;
-        if attachment != plan.attachment_type_identity
-            || structural != entry.structural_parameters
-            || scalar != entry.scalar_parameters
-        {
+        )?;
+        if structural != entry.structural_parameters || scalar != entry.scalar_parameters {
             return None;
         }
         availability = AvailableScalarTarget::Composed(composed_index);
@@ -246,11 +241,9 @@ pub(super) fn available_target(
         }
         let mut shapes = ShapeCollector::new(program);
         let binders = machine_binders(program, machine);
-        let signature = free_structural_scalar_signature(program, &mut shapes, state, &binders)
-            .map(|(structural, scalar)| (None, structural, scalar));
-        let (attachment, structural, scalar) = signature?;
-        if attachment != plan.attachment_type_identity
-            || structural != plan.structural_parameters
+        let (structural, scalar) =
+            free_structural_scalar_signature(program, &mut shapes, state, &binders)?;
+        if structural != plan.structural_parameters
             || scalar != plan.scalar_parameters
             || plan.scalar_result.as_ref().is_some_and(|completion| {
                 plan.operations

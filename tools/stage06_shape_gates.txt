@@ -85,7 +85,7 @@
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/crash_routes/crash_predicates.rs
 40 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/crash_routes/scalar_terms.rs
 43 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/crash_routes/structural_members.rs
-18 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/crash_routes/structural_route_buckets.rs
+16 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/crash_routes/structural_route_buckets.rs
 21 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/evidence_lowering.rs
 12 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/evidence_lowering/evidence_terms.rs
 29 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/evidence_lowering/outcome_specific_calls.rs
@@ -120,7 +120,7 @@
 6 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/computations/cases/observed_values.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/computations/comparisons.rs
 12 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/computations/dispatch.rs
-87 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/computations/fields.rs
+86 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/computations/fields.rs
 3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/computations/literals.rs
 18 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/computations/observations.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/computations/operand_scope.rs
@@ -173,7 +173,7 @@
 9 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/completion_cleanup.rs
 11 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/completion_cleanup/owner_order.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/completion_cleanup/remaining_partition.rs
-4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/admission.rs
+3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/admission.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/callable.rs
 12 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/emission.rs
 8 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/literal_arguments.rs

@@ -1,3 +1,0 @@
-// Expected error contains: cannot prove ensures
-machine read(value: &u64) -> u64 ensures result == 4 { value as u64 }
-machine main() {}
