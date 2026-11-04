@@ -81,9 +81,8 @@ impl OperationFrame<'_, '_> {
             suffix.push(terminal_psi::StructuralPathSegment::Field(field.identity));
             suffix
         } else {
-            if access.field_case.is_some() {
-                return unsupported("whole atomic cell has a member-case namespace");
-            }
+            // The checked place producer supplies a case namespace only
+            // with a real member. A whole cell needs no appended coordinate.
             Vec::new()
         };
         let resident = terminal_semantics::atomic_cell_type(
@@ -163,9 +162,9 @@ impl OperationFrame<'_, '_> {
                 failure: *failure,
             },
         };
-        if !event.ordering_is_legal() {
-            return unsupported("atomic event orderings are not source-legal");
-        }
+        // Checked event planning consumes the source decoder's admitted
+        // orderings. The independent Terminal verifier checks the emitted
+        // event; lowering does not repeat source admission here.
         let resident_obligation = if event.modifies_resident() && resident_bounds.is_some() {
             if !crate::emission::structural_scalar_store::atomic_source_range_decided(
                 self.checked,

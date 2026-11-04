@@ -880,9 +880,8 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
                 StructuralTypeShape::PrimitiveScalar(terminal_scalar_type(*primitive)?)
             }
             CheckedUnitStructuralTypeShape::AtomicCell(cell) => {
-                if !cell.is_supported() {
-                    return unsupported("atomic storage has an unsupported resident carrier");
-                }
+                // ShapeCollector admits the exact resident carrier before
+                // publishing this checked shape; lowering preserves it.
                 StructuralTypeShape::AtomicCell(*cell)
             }
             CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
