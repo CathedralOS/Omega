@@ -28,3 +28,8 @@ borrow-conflict diagnostic. Its corpus pass pin originally lacked the exit files
 so the corpus built row alone is compile-only; those files now require both
 exits explicitly. This control does not complete the parent row's returned
 reference and retirement acceptance.
+
+Producer `6baea78fce36d968924dbd557d5b26650f902251` executes both the sample and
+its corpus pin with native and Terminal exits 0/0. The alias twin still reports
+the conflict inside the helper body. This qualifies this control, while the
+parent row remains blocked on cleanup of replaced pointer fields.

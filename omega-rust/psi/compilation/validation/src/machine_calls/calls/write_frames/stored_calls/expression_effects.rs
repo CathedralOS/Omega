@@ -304,6 +304,13 @@ pub(in super::super) fn call_contexts(
         inference,
         &mut capture,
     )?;
+    capture
+        .calls
+        .push(super::StoredReferenceCallContext::StatementCompletion {
+            entry: capture
+                .fallthrough_call_context
+                .unwrap_or(capture.current_call_context),
+        });
     Some(capture.calls)
 }
 
@@ -317,6 +324,7 @@ struct Capture {
     collect_calls: bool,
     calls: Vec<super::StoredReferenceCallContext>,
     current_call_context: usize,
+    fallthrough_call_context: Option<usize>,
 }
 
 impl Capture {
@@ -389,6 +397,7 @@ fn evaluate_statement(
             )?;
         }
         fallthrough = Some(effects.clone());
+        capture.fallthrough_call_context = Some(capture.current_call_context);
         let prefix = capture_prefix(&empty_prefix, &effects, capture);
         let mut alternatives = Vec::new();
         let entry_calls = capture.current_call_context;

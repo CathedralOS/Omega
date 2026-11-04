@@ -59,21 +59,64 @@ pub(super) fn roster_at_expression(
 
 pub(super) fn loans(
     program: &dyn ::validation::CheckingInput,
-    _state: &typed_trees::state::State,
     machine_symbol: symbols::SymbolHandle,
     statement: &checked_trees::statement::StatementNode,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-    loan_trackers: &[super::StateLoanTracker],
-) -> Vec<StatementBorrowLoan> {
+    incoming: &[super::StateLoanTracker],
+    completed: Option<&[super::StateLoanTracker]>,
+) -> Result<Vec<StatementBorrowLoan>, &'static str> {
     let Some(machine) = program.machine(machine_symbol) else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
-    let Some(effects) = call_frames
-        .and_then(|frames| frames.stored_reference_fallthrough_effects(machine, statement))
-    else {
-        return Vec::new();
+    let Some(frames) = call_frames else {
+        return Ok(Vec::new());
     };
-    from_effects(program, effects, loan_trackers)
+    let effects = frames
+        .stored_reference_fallthrough_effects(machine, statement)
+        .ok_or("stored call has no complete statement-successor effects")?;
+    if effects.is_empty() {
+        return Ok(Vec::new());
+    }
+    let completed = completed.ok_or("stored call has no complete statement-successor roster")?;
+    let mut output = Vec::new();
+    for source in completed {
+        let selected = effects.iter().any(|effect| {
+            source.storage_owner == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
+                && super::place_path_covers_owner(
+                    program, &effect.destination.local_segments, &source.owner_path,
+                )
+                // A possible destination keeps its original physical slots.
+                // Only its actually produced alternatives need new rows.
+                && (!effect.may_select
+                    || !incoming.iter().any(|entry| entry.handle == source.handle))
+        });
+        if !selected {
+            continue;
+        }
+        // This statement copy retains the exact final descriptor generation,
+        // including skipped-call alternatives. Merged effects select storage
+        // slots only; they cannot reconstruct a pointer's supplying occurrence.
+        output.push(StatementBorrowLoan {
+            formation_owner_path: None,
+            incoming_origin: None,
+            formation_expression: Default::default(),
+            representation_address: source.representation_address.clone(),
+            owner_symbol: source.owner_symbol,
+            storage_owner: source.storage_owner,
+            owner_name: source.owner_name.clone(),
+            owner_path: source.owner_path.clone(),
+            retained_operand: source.retained_operand,
+            place: source.place.clone(),
+            source_owner_symbol: source.owner_symbol,
+            supplying_loans: std::iter::once(source.handle)
+                .filter(|handle| handle.is_valid())
+                .collect(),
+            lineage: source.lineage.derived(),
+            kind: source.kind.clone(),
+            formation: super::BorrowFormation::ReturnedDescriptor,
+        });
+    }
+    Ok(output)
 }
 
 pub(in crate::borrow) fn from_effects(

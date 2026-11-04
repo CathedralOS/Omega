@@ -50,6 +50,11 @@ impl StoredReferenceEffect {
 #[derive(Clone)]
 pub enum StoredReferenceCallContext {
     Entry,
+    /// Final lexical contents, after the statement's guard but before any
+    /// departing transition arm. The last schedule row names this predecessor.
+    StatementCompletion {
+        entry: usize,
+    },
     Invocation {
         entry: usize,
         /// Zero is an ordinary statement call, never a transition target.

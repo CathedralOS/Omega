@@ -1,5 +1,6 @@
-//! Discharge each retained input relation at every ordinary caller. Exact
-//! unresolved relations propagate outward; cycles need an established boundary.
+//! Check every call: its write must not conflict with the saved reference.
+//! If the arguments still depend on the caller's inputs, check its callers in
+//! turn. A recursive call cycle cannot supply its own proof.
 use checked_trees::{BorrowAccessKind, CheckFacts};
 use symbols::SymbolHandle;
 

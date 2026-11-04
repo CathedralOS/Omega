@@ -1,6 +1,7 @@
-//! Resolve completed pointer backing separately from descriptor-slot storage.
-//! Every source alternative retains its actual completion or call-entry cut;
-//! enclosing authority footprints are never narrowed without typed coordinates.
+//! Keep the data reached by a pointer separate from the field storing it.
+//! Resolve every possible source at its recorded read or call-entry snapshot.
+//! A recast may identify only an enclosing storage region; keep that whole
+//! region unless checked field/index coordinates identify a smaller projection.
 use arena::Handle;
 use checked_trees::{
     CapturedPlace, CheckFacts, FlowOperandFact, FlowStateFact, IncomingReferenceOrigin,
@@ -321,8 +322,8 @@ pub(super) fn collect_backings(
     Ok(())
 }
 
-/// Stop before the final field's descriptor: a slot replacement writes the
-/// carrier's bytes, whereas the backing query above follows the pointer value.
+/// Locate the field being overwritten without following its stored pointer.
+/// Replacing the pointer changes that field's bytes, not the data it pointed to.
 pub(super) fn actual_storage(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
@@ -345,8 +346,8 @@ pub(super) fn actual_storage(
             crossing = length;
         }
     }
-    // The outer actual pointer is already captured. Inner slots instead use
-    // the call-entry storage, after every later actual's effects have run.
+    // The outer pointer was captured when this argument was evaluated.
+    // Resolve fields behind it at call entry, after all arguments have finished.
     let mut backings = Vec::new();
     if crossing == 0 {
         collect_backings(

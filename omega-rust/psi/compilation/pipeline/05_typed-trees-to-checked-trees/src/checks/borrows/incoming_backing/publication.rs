@@ -1,5 +1,6 @@
-//! Retain conditional input relations after source checking, then settle only
-//! those rows when Build selects the current request's external roots.
+//! Keep the caller requirements with the checked source. When Build selects
+//! an external entry, check them again: that entry has no ordinary caller whose
+//! arguments can prove its outstanding requirements.
 use checked_trees::CheckFacts;
 use facts::{PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
@@ -8,9 +9,9 @@ use validation::CanonicalPlace;
 use super::sources::state_flow;
 use super::{IncomingBacking, IncomingBackingCalls, PendingRequirement, Requirement};
 
-/// Build chooses roots after language checking can be reused. Only the retained
-/// conditional requirements depend on this request; statements and conflicts
-/// were already checked when these rows were published.
+/// Build can select different entries while reusing the same checked source.
+/// Check those entries' saved requirements for each request. Their statements
+/// and other borrow conflicts have already been checked.
 pub(crate) fn check_external_roots(
     checked: &checked_trees::CheckedTrees,
     roots: &[SymbolHandle],

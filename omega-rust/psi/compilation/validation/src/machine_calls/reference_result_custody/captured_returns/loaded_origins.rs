@@ -1,6 +1,7 @@
-//! Export a saved pointer from the input slot that supplied its completed load.
-//! The slot may have changed since then. Its captured pointer and the result's
-//! lifetime debts remain separate; neither chooses the other's address.
+//! A returned saved pointer still comes from its earlier read, even when the
+//! input field has since changed. Record that original source for the result.
+//! The lifetime contract limits where the pointer can be returned; it does not
+//! choose the pointer's address.
 
 use super::{Captures, is_mutable_structural_parameter, reference_access_can_supply};
 use checked_trees::{
