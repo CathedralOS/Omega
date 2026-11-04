@@ -7,7 +7,7 @@
 use super::Aarch64SelectedFormEncodingError;
 use selected_instructions::AtomicWidth;
 
-pub(super) const BYTE_COUNT: u32 = 40;
+pub(super) const BYTE_COUNT: u16 = 40;
 const FULL_SYSTEM_BARRIER: u32 = 0xd503_3fbf;
 const CLEAR_EXCLUSIVE: u32 = 0xd503_3f5f;
 
