@@ -20,6 +20,10 @@ on:
         description: Check only the exact fixtures and rejection controls, without repeating runtime observations
         type: boolean
         default: false
+      phase_profile:
+        description: Record compiler phase timings for a focused attribution run
+        type: boolean
+        default: false
       samples:
         description: Optional comma-separated exact samples/cli/facts project paths (with descendants); replaces smoke
         type: string
@@ -95,8 +99,29 @@ jobs:
       - name: Provision Windows rooted temporary directory for hosted applications
         if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
+      - name: Select the retained compiler cache from its validated plan
+        id: replay-cache
+        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
+        env:
+          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
+        run: python -c "import os; from tools.ci import compiler_pilot; compiler_pilot.write_replay_cache_key(os.environ['OMEGA_COMPILER_PILOT_FIXTURES'], os.environ['GITHUB_OUTPUT'])"
+      - name: Restore the exact retained compiler cache
+        id: replay-build-cache
+        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ env.CARGO_TARGET_DIR }}
+          key: ${{ steps.replay-cache.outputs.key }}
+          fail-on-cache-miss: true
+      - name: Refuse an absent or partial retained compiler cache
+        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@') && steps.replay-build-cache.outputs.cache-hit != 'true'
+        run: python -c "raise SystemExit('The exact retained compiler cache was not restored; no rebuild was attempted')"
       - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         id: build-cache
+        if: github.event_name != 'workflow_dispatch' || !startsWith(inputs.fixtures, '@')
         with:
           path: |
             ~/.cargo/registry
@@ -130,7 +155,7 @@ jobs:
       # Save compiled objects before any program consumer can use the job budget.
       # A failed preparation still retains useful objects and keeps the job red.
       - name: Save build cache before fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
+        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
@@ -141,6 +166,9 @@ jobs:
       - name: Observe public Build consent and filesystem isolation
         if: github.event_name == 'workflow_dispatch' && inputs.build_consent
         run: python tools/ci/build_consent_controls.py
+      - name: Enable requested compiler phase timings
+        if: github.event_name == 'workflow_dispatch' && inputs.phase_profile
+        run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_PHASE_PROFILE=1\n')"
       - name: Optional executable observations
         if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
         env:
