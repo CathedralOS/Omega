@@ -37,3 +37,16 @@ impl BuildSourceSelection {
         Self { source_id, ..self }
     }
 }
+
+/// This role is issued by source assembly, never by an authored path. The
+/// origin, scope and visibility checks distinguish the compiler's protocol
+/// unit from a user file with the same diagnostic spelling.
+pub(crate) fn is_build_prelude_source(source: &source::SourceFile) -> bool {
+    source.origin == source::SourceOrigin::Toolchain
+        && source.package_identity.is_none()
+        && source.dependency_scope == source::DependencyScope::Build
+        && source.resolution_stratum == source::SourceResolutionStratum::Base
+        && source.path == std::path::Path::new(BUILD_PRELUDE_PATH)
+}
+
+pub(super) const BUILD_PRELUDE_PATH: &str = "<build-prelude>";

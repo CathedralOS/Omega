@@ -17,6 +17,7 @@
 
 mod build_source;
 pub use build_source::BuildSourceSelection;
+pub(crate) use build_source::is_build_prelude_source;
 
 use crate::PackageCompilationInputs;
 use crate::source::source_imports::{
@@ -1046,7 +1047,7 @@ fn append_build_prelude(
     };
     let admitted = storage.admit_source(
         SourceContents {
-            path: PathBuf::from("<build-prelude>"),
+            path: PathBuf::from(build_source::BUILD_PRELUDE_PATH),
             source: Arc::from(prelude.source),
             scope: source::DependencyScope::Build,
         },
