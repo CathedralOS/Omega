@@ -117,11 +117,21 @@ impl SourceStorage {
                 )]);
             }
         }
-        self.filesystem
+        let mut supplier_filesystem = source::SourceFileSystem::new();
+        supplier_filesystem
             .add_capture(root.clone(), capture.tree().clone())
             .map_err(|error| {
                 vec![Diagnostic::error(format!(
                     "cannot retain default supplier capture: {error}"
+                ))]
+            })?;
+        // Initial source capture may already include this core. Join the full
+        // snapshots, including missing entries, rather than replace or skip it.
+        self.filesystem
+            .join_captures(&supplier_filesystem)
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "default supplier conflicts with the receiving source capture: {error}"
                 ))]
             })?;
         self.anonymous_core_capture = Some((root, capture.tree().clone()));
