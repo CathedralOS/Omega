@@ -108,6 +108,7 @@ pub(super) fn retain(
             registrar,
             static_machine_ordinal: usage.static_machine_ordinal,
             requirement: usage.canonical_requirement_overload.clone(),
+            calling_owner_application: usage.receiving_application.clone()?,
             published_contract: usage
                 .published_requirement_envelope
                 .contract_commitment

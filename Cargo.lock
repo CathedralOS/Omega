@@ -1905,6 +1905,7 @@ dependencies = [
  "diagnostics",
  "flow-effects",
  "language-semantics",
+ "layout-plans",
  "optimization",
  "phase-profile",
  "psi-terminal-production",
