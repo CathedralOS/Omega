@@ -508,33 +508,44 @@ impl Engine<'_> {
         right: &Polynomial,
         value: &Polynomial,
     ) -> bool {
-        let dividend = self.substituted(left);
-        let divisor = self.substituted(right);
-        let consequence = match operator {
-            BinaryOperator::Divide
-                if self.prove_at_least(&dividend, &BigInt::zero())
-                    && self.prove_at_least(&divisor, &BigInt::from_i64(1)) =>
-            {
-                let strict = self.prove_at_least(&dividend, &BigInt::from_i64(1))
-                    && self.prove_at_least(&divisor, &BigInt::from_i64(2));
-                Some((
-                    dividend.sub(&self.substituted(value)),
-                    BigInt::from_i64(i64::from(strict)),
-                ))
+        if !matches!(
+            operator,
+            BinaryOperator::Divide | BinaryOperator::ShiftRight | BinaryOperator::Modulo
+        ) {
+            return false;
+        }
+        let consequence = {
+            // These queries share unchanged premises. Index their bounds once,
+            // then release the borrowed index before installing a consequence.
+            let queries = self.lower_bound_queries();
+            let dividend = self.substituted(left);
+            let divisor = self.substituted(right);
+            match operator {
+                BinaryOperator::Divide
+                    if queries.prove_at_least(&dividend, &BigInt::zero())
+                        && queries.prove_at_least(&divisor, &BigInt::from_i64(1)) =>
+                {
+                    let strict = queries.prove_at_least(&dividend, &BigInt::from_i64(1))
+                        && queries.prove_at_least(&divisor, &BigInt::from_i64(2));
+                    Some((
+                        dividend.sub(&self.substituted(value)),
+                        BigInt::from_i64(i64::from(strict)),
+                    ))
+                }
+                BinaryOperator::ShiftRight
+                    if queries.prove_at_least(&dividend, &BigInt::from_i64(1))
+                        && queries.prove_at_least(&divisor, &BigInt::from_i64(1)) =>
+                {
+                    Some((dividend.sub(&self.substituted(value)), BigInt::from_i64(1)))
+                }
+                BinaryOperator::Modulo
+                    if queries.prove_at_least(&dividend, &BigInt::zero())
+                        && queries.prove_at_least(&divisor, &BigInt::from_i64(1)) =>
+                {
+                    Some((divisor.sub(&self.substituted(value)), BigInt::from_i64(1)))
+                }
+                _ => None,
             }
-            BinaryOperator::ShiftRight
-                if self.prove_at_least(&dividend, &BigInt::from_i64(1))
-                    && self.prove_at_least(&divisor, &BigInt::from_i64(1)) =>
-            {
-                Some((dividend.sub(&self.substituted(value)), BigInt::from_i64(1)))
-            }
-            BinaryOperator::Modulo
-                if self.prove_at_least(&dividend, &BigInt::zero())
-                    && self.prove_at_least(&divisor, &BigInt::from_i64(1)) =>
-            {
-                Some((divisor.sub(&self.substituted(value)), BigInt::from_i64(1)))
-            }
-            _ => None,
         };
         if let Some(bound) = consequence
             && !self.bounds.contains(&bound)

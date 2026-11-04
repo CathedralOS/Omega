@@ -13,6 +13,7 @@ use omega::language::core::content;
 use omega::language::core::device;
 use omega::language::core::nat;
 use omega::language::core::layout;
+use omega::language::core::run;
 
 public data Extent [linear] {
     base: addr;
@@ -25,7 +26,7 @@ public data Extent [linear] {
 // the routes alone supply neither actual backing nor a Stable access profile.
 public domain Extent::Vacant
 established by VacantContentTransfer::transfer, AccessLifecycle::move_out,
-    Access::extract_resident;
+    Access::extract_resident, Run::extract_from_profile;
 public domain<P, T> Extent::Resident<P, T>
 established by ResidentContentTransfer::transfer, AccessLifecycle::initialize,
     Access::initialize_from_profile;

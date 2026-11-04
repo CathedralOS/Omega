@@ -19,6 +19,7 @@ pub use artifacts::{
 };
 pub use language_core::inline_assembly::{
     AsmControlRegister as ControlRegister, AsmFenceKind as MemoryFenceKind,
+    AsmGlobalDescriptorTableOperation as GlobalDescriptorTableOperation,
     AsmInterruptControlKind as InterruptControlKind, AsmRegisterCarrier as RegisterCarrier,
     AsmRegisterOperation as RegisterOperation, AsmSystemRegister as SystemRegister,
     AsmTargetApplicability as RegisterTargetApplicability,

@@ -2158,7 +2158,7 @@ defines the complete product bar.
   - Pin dense qualified-float slice reads and domain-preserving mutable writes;
     non-copy relocation with exactly-once observable cleanup and none during move;
     distinct same-typed resource claims, zero-sized obligations, contained borrows,
-    split/rejoin, failed initialization and restored indexed removal. Reject twins
+    split/rejoin and restored indexed removal. Reject twins
     cover forged count/custody, swapped child geometry, non-adjacent merge, duplicate
     extraction, conflicting carry anchors, relocation while borrowed, predicate
     violation and backing return with live cells. Inspect emitted/interpreted run

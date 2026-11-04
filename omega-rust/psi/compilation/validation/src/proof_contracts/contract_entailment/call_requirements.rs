@@ -861,6 +861,28 @@ fn runtime_fact_for_parameters(
         expression,
         None,
     );
+    if term.is_none() && super::struct_trace() {
+        let operands = expression_table(program)
+            .binary_node(expression)
+            .map(|binary| {
+                [binary.left, binary.right].map(|operand| {
+                    (
+                        crate::canonical_place_from_expression(program, operand),
+                        crate::parameter_expression_result_type_reference(
+                            program, owner, parameters, operand,
+                        ),
+                    )
+                })
+            });
+        eprintln!(
+            "STRUCT runtime-predicate unavailable owner={owner:?} expression={} parameters={:?} operands={operands:?}",
+            expression_table(program).display_name(expression),
+            parameters
+                .iter()
+                .map(|parameter| (parameter.symbol, parameter.type_reference))
+                .collect::<Vec<_>>()
+        );
+    }
     if term
         .as_ref()
         .is_some_and(StructuralTerm::is_checked_predicate)

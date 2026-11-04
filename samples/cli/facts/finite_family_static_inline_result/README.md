@@ -121,6 +121,12 @@ missing static type or bounds guarantee.
 
 ## Validation and remaining scope
 
+A later conflict required merging main `ca30092c51e2`. Its shared call cleanup,
+Terminal format, native-input schema and bundled library changed, so the same
+focused checks must run on the combined source. All 343 program and oracle
+inputs remain fixed. The table below retains the completed `ddc` observations;
+it does not claim execution of the newer integration.
+
 These checks used compiler source
 `ddc17fff6a3cd0e0cb071f975538a087c14670bd`, after a merge with published main
 `d9a17196e2da` resolved a conflict in the recorded results. Main changed shared
