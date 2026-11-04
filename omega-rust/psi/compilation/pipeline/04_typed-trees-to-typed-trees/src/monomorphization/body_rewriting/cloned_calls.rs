@@ -20,6 +20,7 @@ use typed_trees::expression::StaticMachineArgument;
 use typed_trees::references::StaticArgumentCall;
 
 mod source_calls;
+pub use source_calls::restore_expressions as restore_copied_call_sources;
 
 pub(crate) fn statement_span_handles(
     span: HandleSpan<StatementNode>,

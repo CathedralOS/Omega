@@ -14,6 +14,7 @@ use validation::collect_statement_expression_trees;
 use validation::runtime_field_subject;
 
 mod cloned_calls;
+pub use cloned_calls::restore_copied_call_sources;
 mod const_substitution;
 mod evidence_rewrites;
 mod machine_arguments;
