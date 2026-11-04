@@ -1,3 +1,4 @@
 constant initializer
-violates required fact `value == 7`
-structurally false (`8 == 7`)
+cannot prove requires contract for call read
+8 == 7
+needs fact `value == 7`
