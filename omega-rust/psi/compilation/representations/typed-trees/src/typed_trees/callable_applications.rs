@@ -7,6 +7,7 @@
 //! Trait scopes own universal requirement views; static selection occurrences
 //! own determined provider tuples. Neither view is an admission or an instance.
 
+mod call_targets;
 mod closed_operands;
 mod conformance_scopes;
 mod data_cleanup_scopes;
