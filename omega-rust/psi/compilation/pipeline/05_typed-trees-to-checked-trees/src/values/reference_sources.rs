@@ -51,18 +51,28 @@ pub(crate) fn transported_value_type(
     Some(actual)
 }
 
-/// A source-selected loan forms its authored reference value before
-/// a consumer attenuates access. The receiving formal cannot choose this
-/// carrier's type or replace its storage interpretation.
+/// A loan of a pointer slot must retain that slot rather than its pointee.
+/// Preserve the exact endpoint selected by source admission; otherwise form
+/// the source-derived reference before the consumer attenuates its access.
+/// Receiving type correspondence grants neither storage nor access permission.
 pub(crate) fn formed_reference_type(
     program: &dyn validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
+    receiving: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     let formation = validation::reference_formation_source(program, expression)?;
-    let reference =
-        validation::expression_result_type_reference(program, machine, state, expression)?;
+    let reference = if validation::borrow_selects_reference_storage(
+        program,
+        formation.source,
+        receiving,
+        &[],
+    ) {
+        receiving
+    } else {
+        validation::expression_result_type_reference(program, machine, state, expression)?
+    };
     let shell = validation::reference_shell(program, reference)?;
     let referee = shell.referee;
     let access = StructuralAccess::from(shell.access);

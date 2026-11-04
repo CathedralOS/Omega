@@ -129,6 +129,7 @@ pub(super) fn written_paths(
             site,
             arguments,
             inference,
+            Some(&argument_origins),
         )
         .or_else(|| {
             super::boundary_calls::known_requirement_call_written_paths_for_parts(
@@ -141,6 +142,7 @@ pub(super) fn written_paths(
                 site,
                 arguments,
                 inference,
+                Some(&argument_origins),
             )
         })
     }?;

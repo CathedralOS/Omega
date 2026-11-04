@@ -2045,6 +2045,10 @@ fail/borrows/stored_writeonly_carrier_shared_outer rejected 675ms expected @ccdb
 fail/borrows/stored_writeonly_carrier_shared_widening rejected 826ms expected @ccdb99ca2214
 	machine `update` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 	argument `value` for state `entry` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access
+fail/borrows/supplied_output_ordinary_helper_saved_reference_forbidden rejected 2241ms unexpected @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+fail/borrows/supplied_output_shared_stored_input_no_mutable_upgrade rejected 2145ms expected @70822431ff39
+	machine `exercise` state `entry` local `forbidden` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/suspension_projected_call_view_earlier_argument_original_forbidden_rejected rejected 3967ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/borrows/suspension_projected_call_view_forbidden_alternative_rejected rejected 3976ms expected @d68d95fa82f8
@@ -18844,6 +18848,24 @@ fail/facts/structural_issuer_forwarding_target_body rejected 2936ms expected @cc
 	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
 fail/facts/subslice_state_extent_wrong_view_rejected rejected 2746ms expected @ccdb99ca2214
 	cannot prove requires contract for call extended from transfer: buffer.len >= 1024 (needs fact `buffer.len >= 1024` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/supplied_output_loan_through_call_result_forbidden rejected 2162ms unexpected @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+fail/facts/supplied_output_loan_through_const_name_forbidden rejected 1882ms unexpected @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+fail/facts/supplied_output_loan_through_field_forbidden rejected 2804ms unexpected @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+fail/facts/supplied_output_loan_through_local_forbidden rejected 2446ms unexpected @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+fail/facts/supplied_output_loan_through_match_join_forbidden rejected 1710ms unexpected @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+fail/facts/supplied_output_loan_through_other_machine_forbidden rejected 2449ms unexpected @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+fail/facts/supplied_output_loan_through_other_state_forbidden rejected 2200ms unexpected @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+fail/facts/supplied_output_loan_through_parameter_forbidden rejected 2307ms unexpected @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+fail/facts/supplied_output_loan_through_target_body_forbidden rejected 1947ms unexpected @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
 fail/facts/suspension_projected_call_view_through_call_result_rejected rejected 3945ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
@@ -26163,6 +26185,10 @@ pass/borrows/stored_reference_address_field_exit checked 3969ms check-target:mac
 pass/borrows/stored_reference_projection_exit checked 15667ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/stored_view_return_consumers checked 2281ms @ccdb99ca2214
 pass/borrows/structural_operand_view_catalog_exit checked 3710ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/supplied_output_ordinary_helper_saved_reference_exit rejected 1835ms check-target:macos_arm64 @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/borrows/supplied_output_shared_stored_input_ceiling_exit rejected 2271ms check-target:macos_arm64 @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
 pass/borrows/suspension_projected_call_view_all_suppliers_only_view_exit checked 5499ms check-target:macos_arm64 @d68d95fa82f8
 pass/borrows/suspension_projected_call_view_earlier_argument_exit checked 5373ms check-target:macos_arm64 @d68d95fa82f8
 pass/borrows/suspension_projected_call_view_entry_source_exit checked 5376ms check-target:macos_arm64 @d68d95fa82f8
@@ -33486,6 +33512,24 @@ pass/facts/structural_issuer_forwarding_other_state checked 3373ms check-target:
 pass/facts/structural_issuer_forwarding_parameter checked 3334ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/structural_issuer_forwarding_target_body checked 3943ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/subslice_state_extent_after_write_exit checked 3696ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/supplied_output_loan_through_call_result_exit rejected 1843ms check-target:macos_arm64 @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/supplied_output_loan_through_const_name_exit rejected 2289ms check-target:macos_arm64 @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/supplied_output_loan_through_field_exit rejected 2590ms check-target:macos_arm64 @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/supplied_output_loan_through_local_exit rejected 3130ms check-target:macos_arm64 @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/supplied_output_loan_through_match_join_exit rejected 2022ms check-target:macos_arm64 @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/supplied_output_loan_through_other_machine_exit rejected 3050ms check-target:macos_arm64 @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/supplied_output_loan_through_other_state_exit rejected 2952ms check-target:macos_arm64 @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/supplied_output_loan_through_parameter_exit rejected 2508ms check-target:macos_arm64 @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/supplied_output_loan_through_target_body_exit rejected 2587ms check-target:macos_arm64 @70822431ff39
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
 pass/facts/suspension_projected_call_view_through_call_result_exit checked 5521ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/suspension_projected_call_view_through_const_name_exit checked 5544ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/suspension_projected_call_view_through_field_exit checked 5461ms check-target:macos_arm64 @d68d95fa82f8

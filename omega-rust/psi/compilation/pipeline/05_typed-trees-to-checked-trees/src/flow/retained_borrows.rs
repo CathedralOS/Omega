@@ -44,7 +44,6 @@ pub(in crate::flow) use qualifications::memberships;
 pub(crate) use qualifications::{RetainedMembership, replay_memberships};
 
 mod captured_inputs;
-mod lifetime_contract;
 mod output_debts;
 pub(in crate::flow) use captured_inputs::{RetainedSources, captured_sources, completed_calls};
 pub(in crate::flow) use output_debts::sources as output_debt_sources;
