@@ -195,6 +195,19 @@ mod tests {
     }
 
     #[test]
+    fn another_program_under_the_same_targets_and_authority_misses() {
+        let program = typed_trees::TypedTrees::default();
+        let scopes = [scope("linux_x86_64", 8)];
+        let authority = Scoped(BTreeMap::from([(package(1), vec![package(1)])]));
+        let input = LayoutEvaluationInput::capture(&program, &scopes, Some(&authority))
+            .expect("a predicate with an exported scope is comparable");
+        let mut other = typed_trees::TypedTrees::default();
+        other.push_data_definition(Default::default());
+        assert!(!input.matches(&other, &scopes, Some(&authority)));
+        assert!(input.matches(&program, &scopes, Some(&authority)));
+    }
+
+    #[test]
     fn a_predicate_without_a_comparison_scope_is_never_captured() {
         let program = typed_trees::TypedTrees::default();
         let scopes = [scope("linux_x86_64", 8)];
