@@ -36,7 +36,7 @@ X86Observe satisfies SelectedObserve {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result <= 100
     {
         SelectedBodyCheck::require_tag(17u64);
-     cell.value.load(NoOrdering) 
+     cell.value.load(NoOrdering)
     }
 }
 
@@ -45,7 +45,7 @@ ArmObserve satisfies SelectedObserve {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result <= 100
     {
         SelectedBodyCheck::require_tag(29u64);
-     cell.value.load(NoOrdering) 
+     cell.value.load(NoOrdering)
     }
 }
 
