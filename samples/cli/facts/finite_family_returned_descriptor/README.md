@@ -167,8 +167,10 @@ The preceding `e46c33e3c75a055c41e48fbc53c7ead8c2548e8b` probe
 three new examples, but native legalization refuses their storage relationships.
 The stored-pointer and existing view-composition programs execute with exit 0 in
 both engines. The original replacement also refuses lowering at that source.
-An existing case-descriptor example rejects; its earlier-baseline attribution is
-being measured separately. These failures remain open.
+An existing case-descriptor example rejects identically on the earlier `750`
+compiler, confirmed by [retained baseline run](https://github.com/CathedralOS/Omega/actions/runs/41766271632).
+Its invalid control also has an unrelated diagnostic, so it does not establish
+enforcement of that obligation. These failures remain open.
 
 Actual producer identities, raw reports and earlier source are retained under
 `build/finite-descriptor-selected-20261103/`.

@@ -502,8 +502,31 @@ impl Resolver<'_> {
                 segments: segments.to_vec(),
             });
         }
+        let captured_pointer = |place| Selection::Sources {
+            incoming: Vec::new(),
+            values: vec![StoredCapture {
+                capture: value,
+                reference: capture.type_reference,
+                projection: Vec::new(),
+                slot: Some(place),
+            }],
+        };
         let mut selected = Vec::new();
         for place in slots {
+            // An immutable reference formal keeps its entry pointer. A store
+            // through that formal replaces pointee contents, not this binding.
+            // Stored reference fields and mutable bindings still query their
+            // actual capture snapshot below.
+            if place.segments.is_empty()
+                && place.root.as_symbol().is_some_and(|root| {
+                    self.program
+                        .state_parameter_by_symbol(state, root)
+                        .is_some_and(|parameter| !parameter.is_mutable)
+                })
+            {
+                selected.push(captured_pointer(place));
+                continue;
+            }
             match super::at_snapshot(
                 self.program,
                 self.control,
@@ -522,15 +545,7 @@ impl Resolver<'_> {
                     // pointer. Keep its value capture and slot; an unread
                     // incoming carrier remains Incoming in the ordinary
                     // source-frontier query above.
-                    selected.push(Selection::Sources {
-                        incoming: Vec::new(),
-                        values: vec![StoredCapture {
-                            capture: value,
-                            reference: capture.type_reference,
-                            projection: Vec::new(),
-                            slot: Some(place),
-                        }],
-                    });
+                    selected.push(captured_pointer(place));
                 }
                 None => return Some(Selection::Unavailable),
             }
