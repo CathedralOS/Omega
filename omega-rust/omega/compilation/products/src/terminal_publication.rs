@@ -12,6 +12,9 @@ use std::sync::{Arc, OnceLock};
 pub struct ProductTerminalPublication {
     optimizations: OptimizationSelections,
     program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
+    /// Another publication of the same checked program and roots in this
+    /// invocation reads the code this one produced instead of lowering again.
+    productions: Arc<psi_compiler::PortableProductions>,
 }
 
 impl std::fmt::Debug for ProductTerminalPublication {
@@ -25,11 +28,20 @@ impl std::fmt::Debug for ProductTerminalPublication {
 }
 
 impl ProductTerminalPublication {
-    pub fn new(optimizations: OptimizationSelections) -> Self {
+    pub fn new(
+        optimizations: OptimizationSelections,
+        productions: Arc<psi_compiler::PortableProductions>,
+    ) -> Self {
         Self {
             optimizations,
             program: OnceLock::new(),
+            productions,
         }
+    }
+
+    /// The invocation's shared productions, keyed by their exact inputs.
+    pub fn productions(&self) -> &psi_compiler::PortableProductions {
+        &self.productions
     }
 
     pub fn optimizations(&self) -> &OptimizationSelections {
@@ -67,7 +79,7 @@ impl ProductTerminalPublication {
     pub fn retain(
         &self,
         optimizations: &OptimizationSelections,
-        produce: impl FnOnce() -> Result<PortableTerminalProgram, Vec<Diagnostic>>,
+        produce: impl FnOnce() -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>,
     ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {
         if self.optimizations.project_psi().selections() != optimizations.project_psi().selections()
         {
@@ -75,7 +87,7 @@ impl ProductTerminalPublication {
                 "Terminal publication differs from the Product's fixed Psi optimization selection",
             )]);
         }
-        self.program.get_or_init(|| produce().map(Arc::new)).clone()
+        self.program.get_or_init(produce).clone()
     }
 }
 
@@ -86,7 +98,8 @@ mod tests {
 
     #[test]
     fn publication_keeps_its_projection_and_one_refusal_without_retry() {
-        let publication = ProductTerminalPublication::new(OptimizationSelections::default());
+        let publication =
+            ProductTerminalPublication::new(OptimizationSelections::default(), Default::default());
         let mut attempts = 0;
         for _ in 0..2 {
             let result = publication.retain(&OptimizationSelections::default(), || {

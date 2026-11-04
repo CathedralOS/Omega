@@ -183,12 +183,24 @@ fail/contracts/generic_issued_result_wrong_type rejected 3333ms expected @af6bba
 	index compatibility condition `index-equality:Issued:relay::entry:call-1-0:Issued<Word>==Issued<FirstRole>` is not established: actual `Issued<Word>` and expected `Issued<FirstRole>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 	index compatibility condition `index-equality:Issued:relay$specialized$686c6d9df5a0cdd5$0$2683::entry:call-1-0:Issued<Word>==Issued<FirstRole>` is not established: actual `Issued<Word>` and expected `Issued<FirstRole>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 	index compatibility condition `index-equality:Issued:relay$specialized$18e2f5c80845adeb$1$2687::entry:call-1-0:Issued<Word>==Issued<FirstRole>` is not established: actual `Issued<Word>` and expected `Issued<FirstRole>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/contracts/overwritten_requirement_cannot_rule_out_branch rejected 2011ms expected @6be568cdb4e5
+	exact arithmetic in machine `pick` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/contracts/recursive_private_arrival_exit rejected 2447ms expected @7391b2ce665a
 	cannot prove requires contract for call ones from emit: 48 <= 48 + rest && 48 + rest <= 57 (needs fact `48 <= value && value <= 57` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call ones from digit: 48 <= 48 + rest && 48 + rest <= 57 (needs fact `48 <= value && value <= 57` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/returned_case_geometry_domain_exit rejected 2460ms expected @12dc24de59c1+wt
 	construction of `BootGeometryCheck` field `geometry` is not proven in domain `BootGeometry::Separated` in separate state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for return from separate, state entry, at statement 3: BootGeometryCheck::Ready.geometry requires BootGeometry::Separated
+fail/contracts/ruled_out_arm_value_does_not_reach_join rejected 2712ms expected @6be568cdb4e5
+	unreachable branch: the `true` arm of a match in machine `pick` state `entry` can never run; its pattern contradicts the facts in force here: count >= 10
+	exact arithmetic in machine `pick` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/contracts/ruled_out_branch_requires_resolved_names rejected 1757ms expected @6be568cdb4e5
+	machine `pick` state `entry` uses `missing_name`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+	unreachable branch: the `true` arm of a transition in machine `pick` state `entry` can never run; its guard contradicts the facts in force here: count >= 10
+	exact arithmetic in machine `pick` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/contracts/ruled_out_caller_does_not_bound_callee_body rejected 1756ms expected @6be568cdb4e5
+	unreachable branch: the `true` arm of a transition in machine `pick` state `entry` can never run; its guard contradicts the facts in force here: count >= 10
+	exact arithmetic in machine `helper` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/contracts/runtime_recursive_result_false_base rejected 5958ms expected @3a4409d34005
 	cannot prove ensures contract for exit from carry at statement 2: result.first == first
 	cannot prove ensures contract for exit from carry at statement 2: result.second == second
@@ -199,6 +211,10 @@ fail/contracts/runtime_recursive_result_swapped_actual rejected 7117ms expected 
 	cannot prove ensures contract for exit from step at statement 0: result.second == second
 fail/contracts/transition_argument_effects_reject_old_observation rejected 1317ms expected @d2f3e99f1e08
 	cannot prove requires contract for call finish from main: cell.value == 7 (needs fact `observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/unproved_branch_is_not_contradiction rejected 1905ms expected @6be568cdb4e5
+	exact arithmetic in machine `pick` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/contracts/written_element_cannot_rule_out_branch rejected 1737ms expected @6be568cdb4e5
+	exact arithmetic in machine `pick` state `entry` return value may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/control_flow/selected_adapter_missing_rejected rejected 2876ms expected @ee4dbb4b2d56
 	machine `Selector::select` state `select`: value call `select_missing(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
 fail/core/scoped_integer_call_crash_route_blocks_unfolding rejected 6309ms expected @7a2c1562808d+wt
@@ -257,12 +273,16 @@ fail/domains/routed_qualification_erased_array_element rejected 5639ms expected 
 	cannot prove requires contract for call consume from main: tickets[0] in Ticket::Held in state `entry`
 fail/domains/routed_qualification_erased_borrow_argument rejected 6650ms expected @f8e80b0c32b0
 	cannot prove requires contract for call observe from main: issued in Ticket::Held in state `entry`
+fail/domains/routed_qualification_erased_borrow_from_parameter rejected 6682ms expected @9da5bc95d748
+	cannot prove requires contract for call observe from outer: t in Ticket::Held in state `entry`
 fail/domains/routed_qualification_erased_call_argument rejected 5889ms expected @f2672d675498
 	cannot prove requires contract for call consume from main: issued as Ticket in Ticket::Held in state `entry`
 fail/domains/routed_qualification_erased_case_payload rejected 5653ms expected @f2672d675498
 	cannot prove requires contract for call consume from main: wrapped::Some.ticket in Ticket::Held in state `entry`
 fail/domains/routed_qualification_erased_literal_field rejected 6059ms expected @f2672d675498
 	cannot prove requires contract for call consume from main: holder.ticket in Ticket::Held in state `entry`
+fail/domains/routed_qualification_erased_reference_annotation rejected 6811ms expected @9da5bc95d748
+	cannot prove initializer of `held` in main is in domain `Ticket::Held`; an annotation cannot establish routed qualification
 fail/domains/routed_qualification_erased_return rejected 6034ms expected @f2672d675498
 	cannot prove default-domain field requirement for return from forward, state entry, at statement 0: t as Ticket  requires Ticket::Held
 fail/domains/routed_qualification_erased_transition_argument rejected 4714ms expected @f2672d675498
@@ -3476,8 +3496,12 @@ fail/facts/unsigned_byte_to_signed_case_domain_through_parameter_rejected reject
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/unsigned_byte_to_signed_case_domain_through_target_body_rejected rejected 6915ms expected @46cdd6b85b82+wt
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/value_location_alignment_case_payload_rejected rejected 1139ms expected @8d6537e9a051
+	`align_of(value)` on a case payload field needs a proof that the case is active, which the query does not yet carry; query a field outside the case
 fail/facts/value_location_alignment_constant_rejected rejected 829ms expected @f8c7d2180faf+wt
 	`align_of(value)` observes an addressable storage place; this operand is a value with no storage location
+fail/facts/value_location_alignment_contract_field_rejected rejected 7043ms expected @8d6537e9a051
+	constant checking: scalar predicate is false: requires contract for call slack_of from main: align_of() >= 8
 fail/facts/value_location_alignment_contract_rejected rejected 7692ms expected @f8c7d2180faf+wt
 	constant checking: scalar predicate is false: requires contract for call slack_of from main: align_of() >= 8
 fail/facts/value_location_alignment_ensures_rejected rejected 622ms expected @f8c7d2180faf+wt
@@ -3945,9 +3969,7 @@ pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit checked 18105ms che
 pass/arithmetic/runtime_explicit_call_operand_policy_exit checked 17284ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_explicit_call_result_policy_exit checked 3747ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_fixed_input_policy_reuse_exit checked 3684ms check-target:macos_arm64 @ccdb99ca2214
-pass/arithmetic/runtime_fixed_integer_across_console_exit rejected 16443ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `positive` state `entry`: value call `U64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `positive` state `entry`: a value-call argument cannot itself be a machine call yet (`add(..)` nested in `from_f64(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
+pass/arithmetic/runtime_fixed_integer_across_console_exit checked 372307ms check-target:macos_arm64 @61d32e24eb90
 pass/arithmetic/runtime_float_nan_comparison_exit checked 21286ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_float_self_compare_nan_exit checked 19267ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_full_width_unsigned_quotient_exit checked 3886ms check-target:macos_arm64 @ccdb99ca2214
@@ -5076,8 +5098,7 @@ pass/calls/runtime_static_entry_context_exit checked 3774ms check-target:macos_a
 pass/calls/runtime_static_proof_only_namespace_exit checked 3656ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_static_tail_local_custody_exit checked 3704ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_static_tail_reordered_local_custody_exit checked 3592ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/runtime_std_math_sin_cos_exit rejected 39472ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
+pass/calls/runtime_std_math_sin_cos_exit checked 446970ms check-target:macos_arm64 @ff514b7f093c
 pass/calls/runtime_stored_constructor_snapshots_exit checked 6637ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_stored_equal_observations_exit checked 3567ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_stored_field_constructor_snapshots_exit checked 3069ms check-target:macos_arm64 @ccdb99ca2214
@@ -5094,8 +5115,7 @@ pass/calls/runtime_value_call_nested_entry_call_exit checked 16621ms check-targe
 pass/calls/runtime_value_call_return_types_exit checked 17928ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_value_call_single_execution_exit checked 17996ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_value_call_statement_recursive_walk_exit checked 171070ms check-target:macos_arm64 @d7a81677e637
-pass/calls/runtime_value_call_terminal_exit rejected 38018ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
+pass/calls/runtime_value_call_terminal_exit checked 432120ms check-target:macos_arm64 @ff514b7f093c
 pass/calls/runtime_wrapping_division_call_span_exit checked 16660ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/scalar_callee_borrowed_primitive_reads_exit checked 16649ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/scalar_expression_binding_evaluation_order_exit checked 4149ms check-target:macos_arm64 @ccdb99ca2214
@@ -5366,10 +5386,10 @@ pass/comptime/runtime_const_array_wrapping_result_exit checked 3183ms check-targ
 pass/comptime/runtime_const_measured_recursion_exit rejected 8407ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	fixed-array length `[u8; table_size()]`: const evaluation of `table_size` failed: machine call cycle: `triangle`, `step` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 pass/comptime/runtime_generic_constructor_field_demand_extent_exit checked 8491ms check-target:macos_arm64 @911f6617ba9e
-pass/comptime/selected_float_array_length_exit rejected 21033ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	constant checking: scalar evaluation needs an unavailable provider or external effect
-pass/comptime/selected_float_array_length_layout_query_exit rejected 19883ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	constant checking: scalar evaluation needs an unavailable provider or external effect
+pass/comptime/selected_float_array_length_exit rejected 324036ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @72a0af2d293d
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(482)]
+pass/comptime/selected_float_array_length_layout_query_exit rejected 383631ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d73dac294b53
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(482)]
 pass/concurrency/boundary_suspension_inline_completion_exit checked 18404ms check-target:macos_arm64 @e1cfe02f1a9b
 pass/concurrency/host_boundary_readiness_exit checked 11020ms check-target:macos_arm64 @11bdd2fe41ff+wt
 pass/concurrency/incoming_aggregate_loan_after_suspend checked 3127ms check-target:macos_arm64 @ccdb99ca2214
@@ -5433,7 +5453,14 @@ pass/contracts/carry_contract_decl checked 3437ms @ccdb99ca2214
 pass/contracts/case_requires_payload_field_read_exit checked 3010ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/completed_anonymous_cast_preserves_prefix_exit checked 2307ms check-target:macos_arm64 @17690916d54b
 pass/contracts/completed_unit_call_post_case checked 2080ms check-target:macos_arm64 @d2f3e99f1e08
+pass/contracts/consistent_branches_quiet_exit checked 8641ms check-target:macos_arm64 @6be568cdb4e5
 pass/contracts/contract_declaration_boundary checked 2871ms @ccdb99ca2214
+pass/contracts/contradictory_boolean_match_arm_exit checked 8639ms check-target:macos_arm64 @6be568cdb4e5
+pass/contracts/contradictory_branch_call_admission_exit checked 8664ms check-target:macos_arm64 @6be568cdb4e5
+pass/contracts/contradictory_branch_closes_obligation_exit checked 8636ms check-target:macos_arm64 @6be568cdb4e5
+pass/contracts/contradictory_branch_result_guarantee_exit checked 8238ms check-target:macos_arm64 @6be568cdb4e5
+pass/contracts/contradictory_match_predecessor_join_exit checked 8170ms check-target:macos_arm64 @6be568cdb4e5
+pass/contracts/contradictory_relational_branch_exit checked 8782ms check-target:macos_arm64 @6be568cdb4e5
 pass/contracts/current_computed_scalar_guard_exit checked 18790ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/disequality_disjoin checked 3443ms @ccdb99ca2214
 pass/contracts/disjunctive_ensures checked 3509ms @ccdb99ca2214
@@ -5450,6 +5477,7 @@ pass/contracts/entry_case_replaced_before_call checked 2415ms @ccdb99ca2214
 pass/contracts/float_guard_disjoint_operand_write rejected 5456ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call from `read` to `invalid` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 pass/contracts/folded_actual_requires checked 3653ms @ccdb99ca2214
+pass/contracts/generic_branch_contract_contradiction_exit checked 8815ms check-target:macos_arm64 @6be568cdb4e5
 pass/contracts/generic_effective_result_comparison_exit checked 3300ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/generic_issued_result_exit checked 4553ms check-target:macos_arm64 @af6bba8b4fb9
 pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit checked 3923ms check-target:macos_arm64 @ccdb99ca2214
@@ -5512,6 +5540,7 @@ pass/contracts/saved_case_guarantee checked 3469ms @ccdb99ca2214
 pass/contracts/scalar_reference_unit_completion_exit checked 3852ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/selected_storage_contract_exit checked 4058ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/shared_field_current_arithmetic checked 2087ms @ccdb99ca2214
+pass/contracts/specialized_branch_selection_quiet_exit checked 8555ms check-target:macos_arm64 @6be568cdb4e5
 pass/contracts/static_type_requires_prior_call_exit checked 3740ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/strict_clause_terminated_headers checked 2600ms @ccdb99ca2214
 pass/contracts/terminal_contract checked 3686ms @ccdb99ca2214
@@ -5655,11 +5684,7 @@ pass/control_flow/runtime_later_state_shared_array_loan checked 3086ms check-tar
 pass/control_flow/runtime_local_record_array_byte_render_exit rejected 251352ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @e1cfe02f1a9b
 	cannot prove requires contract for call emit_line from prepare_line: line in [u8; N]::Ascii (invalidated by prior mutation of line[__hoist_13]; line is part of [u8; N]::Ascii) in state `entry`
 pass/control_flow/runtime_loop_patterns_exit checked 11002ms check-target:macos_arm64 @ccdb99ca2214
-pass/control_flow/runtime_mutable_bounded_byte_formatter_exit rejected 2771ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `negative` state `entry`: value call `I64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `negative` state `entry`: a value-call argument cannot itself be a machine call yet (`add(..)` nested in `from_f64(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
-	machine `positive` state `entry`: value call `I64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `positive` state `entry`: a value-call argument cannot itself be a machine call yet (`add(..)` nested in `from_f64(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
+pass/control_flow/runtime_mutable_bounded_byte_formatter_exit checked 19847ms check-target:macos_arm64 @61d32e24eb90
 pass/control_flow/runtime_namespace_local_state_loan checked 3983ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_narrow_signed_case_payload_state_guard_exit checked 3567ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_nested_case_pattern_guard_meet_exit rejected 3072ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -6032,6 +6057,8 @@ pass/domains/policy_plan_shapes checked 3084ms @ccdb99ca2214
 pass/domains/predicate_domain_param checked 3743ms @ccdb99ca2214
 pass/domains/private_arrival_guarded_qualification_exit checked 10723ms check-target:macos_arm64 @18fc751d0060+wt
 pass/domains/progress_domain_provider checked 3733ms @ccdb99ca2214
+pass/domains/qualified_fixed_byte_array_ensured_mutation_exit checked 9763ms check-target:macos_arm64 @29c0122d09c2
+pass/domains/qualified_fixed_byte_array_ensured_no_nul_store_exit checked 9366ms check-target:macos_arm64 @c0f1dbfc2dfd
 pass/domains/qualified_fixed_byte_field_loan_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/qualified_mutable_field_exit checked 3221ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/qualified_mutable_scalar_input_domain_expires checked 2490ms @ccdb99ca2214
@@ -6209,8 +6236,7 @@ pass/drops/runtime_nested_empty_array_owner_cleanup_exit checked 40039ms check-t
 pass/drops/runtime_nested_nominal_producer_loans_exit checked 36001ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nested_temporary_capture_cleanup_exit checked 60977ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nominal_array_replacement_exit checked 52055ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/runtime_nominal_case_observation_exit incomplete 52541ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	`main` calls `replace_after_observation`; `replace_after_observation` has no executable body: this compiler does not lower a state of it yet (cleanup cannot reconstruct its remaining region partition); in state `replace_after_observation::entry`
+pass/drops/runtime_nominal_case_observation_exit checked 9931ms check-target:macos_arm64 @6c3dcb823e47
 pass/drops/runtime_nominal_cleanup_compound_contract_exit checked 43820ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nominal_state_loan_alias_exit checked 42431ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nominal_state_loan_cleanup_order_exit checked 55727ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -6239,8 +6265,7 @@ pass/drops/runtime_scalar_temporary_nominal_continuation_exit checked 36188ms ch
 pass/drops/runtime_scalar_temporary_residual_partition_exit checked 3713ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_selected_case_mutation_bindings_exit rejected 40517ms check-target:macos_arm64 @ee4dbb4b2d56
 	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(26), callee: Some(MachineId(8)), operation: OperationId(262), reason: "callee stored-reference effects are unresolved" }
-pass/drops/runtime_selected_case_mutation_complement_exit incomplete 18996ms check-target:macos_arm64 @ee4dbb4b2d56
-	`main` calls `select_after_observation`; `select_after_observation` has no executable body: this compiler does not lower a state of it yet (cleanup cannot reconstruct its remaining region partition); in state `select_after_observation::entry`
+pass/drops/runtime_selected_case_mutation_complement_exit checked 9940ms check-target:macos_arm64 @6c3dcb823e47
 pass/drops/runtime_selected_linear_residual_death_exit incomplete 41387ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
 	`main` calls `scenario`; `scenario` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural value: operand custody)); in state `scenario::entry`, statement 1
 pass/drops/runtime_selected_nominal_owner_cleanup_exit checked 26089ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -6401,8 +6426,7 @@ pass/expressions/runtime_match_structural_predicate_effect_order_exit checked 32
 pass/expressions/runtime_match_structural_result_subject_once_exit checked 3537ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/runtime_nested_record_field_call_exit checked 3589ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/runtime_nested_record_field_reads_exit checked 12214ms check-target:macos_arm64 @ccdb99ca2214
-pass/expressions/runtime_numeric_cast_exit rejected 9724ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `Main::main` state `main`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/expressions/runtime_numeric_cast_exit checked 426526ms check-target:macos_arm64 @61d32e24eb90
 pass/expressions/runtime_owned_match_borrowed_subject_exit checked 3398ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/runtime_owned_match_call_result_exit checked 16232ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/runtime_owned_match_effectful_subject_exit checked 3044ms check-target:macos_arm64 @ccdb99ca2214
@@ -7163,8 +7187,7 @@ pass/facts/checked_asm_flag_snapshot_dynamic_input_exit checked 31299ms check-ta
 pass/facts/checked_asm_flag_snapshot_hardware_calls_exit checked 8413ms check-target:linux_x86_64 @0af7c594a1c0
 pass/facts/checked_asm_flag_snapshot_pre_sub_exit checked 7469ms check-target:linux_x86_64 @0af7c594a1c0
 pass/facts/checked_asm_flag_snapshot_retained_exit checked 7973ms check-target:linux_x86_64 @0af7c594a1c0
-pass/facts/checked_asm_flag_snapshot_stack_functions rejected 12353ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @0af7c594a1c0
-	Terminal boundary application has no unique exact selected row
+pass/facts/checked_asm_flag_snapshot_stack_functions checked 19439ms check-target:linux_x86_64 @ff514b7f093c
 pass/facts/checked_asm_flag_snapshot_through_call_result_exit incomplete 6010ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @0af7c594a1c0
 	`main` calls `capture`; `capture` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `capture::entry`
 pass/facts/checked_asm_flag_snapshot_through_const_name_exit checked 8128ms check-target:linux_x86_64 @0af7c594a1c0
@@ -7426,20 +7449,7 @@ pass/facts/computed_nested_state_loan_through_parameter_exit checked 7294ms chec
 pass/facts/computed_nested_state_loan_through_target_body_exit checked 7378ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/computed_record_window_mixed_lifecycle_exit rejected 7018ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "consume", reason: "completed arrival has no established block", gap: None })
-pass/facts/computed_record_window_original_exit rejected 2938ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `tail` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `tail` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `tail` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `tail` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/facts/computed_record_window_original_exit checked 15474ms check-target:macos_arm64 @61d32e24eb90
 pass/facts/computed_record_window_through_call_result_exit checked 6679ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/computed_record_window_through_const_name_exit checked 7512ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/computed_record_window_through_field_exit checked 6886ms check-target:macos_arm64 @ccdb99ca2214
@@ -12346,6 +12356,7 @@ pass/facts/unsigned_shift_right_bound_through_other_state_exit checked 3442ms ch
 pass/facts/unsigned_shift_right_bound_through_parameter_exit checked 3730ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unsigned_shift_right_bound_through_target_body_exit checked 3188ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/value_location_alignment_contract_exit checked 10376ms check-target:macos_arm64 @f8c7d2180faf+wt
+pass/facts/value_location_alignment_contract_field_exit checked 9422ms check-target:macos_arm64 @8d6537e9a051
 pass/facts/value_location_alignment_slice_exit checked 10444ms check-target:macos_arm64 @f8c7d2180faf+wt
 pass/facts/value_location_alignment_through_call_result_exit checked 9977ms check-target:macos_arm64 @f8c7d2180faf+wt
 pass/facts/value_location_alignment_through_const_name_exit checked 8360ms check-target:macos_arm64 @f8c7d2180faf+wt
@@ -12523,21 +12534,14 @@ pass/filesystem/wrapper_lock_metadata_exit checked 323362ms check-target:macos_a
 pass/filesystem/wrapper_open_with_exit checked 305050ms check-target:macos_arm64 @e1cfe02f1a9b
 pass/float/admitted_float_conversion_crash checked 58649ms check-target:macos_arm64 @b4b6a0d362e1+wt
 pass/float/admitted_float_lower_boundary_crash checked 56442ms check-target:macos_arm64 @b4b6a0d362e1+wt
-pass/float/admitted_numeric_imports_preserve_semantics rejected 8720ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `U64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `I8.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `U8.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `I64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/float/admitted_numeric_imports_preserve_semantics checked 400571ms check-target:macos_arm64 @61d32e24eb90
 pass/float/authored_heterogeneous_float_operator checked 5047ms @ccdb99ca2214
 pass/float/boundary_call_guard_result checked 16693ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/build_runtime_semantics_twins_windows_x64 rejected 49193ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @ccdb99ca2214
-	constant checking: scalar evaluation needs an unavailable provider or external effect
-pass/float/build_runtime_semantics_twins_x86_baseline rejected 48446ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	constant checking: scalar evaluation needs an unavailable provider or external effect
-pass/float/builtin_extrema_field_store_exit rejected 33074ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
+pass/float/build_runtime_semantics_twins_windows_x64 rejected 405671ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @d73dac294b53
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(482), BoundaryMachineId(483), BoundaryMachineId(484), BoundaryMachineId(485), BoundaryMachineId(486), BoundaryMachineId(487), BoundaryMachineId(488), BoundaryMachineId(489), BoundaryMachineId(644), BoundaryMachineId(645), BoundaryMachineId(646), BoundaryMachineId(647), BoundaryMachineId(648), BoundaryMachineId(649), BoundaryMachineId(650), BoundaryMachineId(651), BoundaryMachineId(652), BoundaryMachineId(653), BoundaryMachineId(654), BoundaryMachineId(655), BoundaryMachineId(656), BoundaryMachineId(657), BoundaryMachineId(658), BoundaryMachineId(659), BoundaryMachineId(660), BoundaryMachineId(661), BoundaryMachineId(662), BoundaryMachineId(663), BoundaryMachineId(664), BoundaryMachineId(665)]
+pass/float/build_runtime_semantics_twins_x86_baseline rejected 414375ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @d73dac294b53
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(482), BoundaryMachineId(483), BoundaryMachineId(484), BoundaryMachineId(485), BoundaryMachineId(486), BoundaryMachineId(487), BoundaryMachineId(488), BoundaryMachineId(489), BoundaryMachineId(644), BoundaryMachineId(645), BoundaryMachineId(646), BoundaryMachineId(647), BoundaryMachineId(648), BoundaryMachineId(649), BoundaryMachineId(650), BoundaryMachineId(651), BoundaryMachineId(652), BoundaryMachineId(653), BoundaryMachineId(654), BoundaryMachineId(655), BoundaryMachineId(656), BoundaryMachineId(657), BoundaryMachineId(658), BoundaryMachineId(659), BoundaryMachineId(660), BoundaryMachineId(661), BoundaryMachineId(662), BoundaryMachineId(663), BoundaryMachineId(664), BoundaryMachineId(665)]
+pass/float/builtin_extrema_field_store_exit checked 436689ms check-target:macos_arm64 @ff514b7f093c
 pass/float/closed_integer_conversion_predicate_proof_exit checked 6992ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/closed_integer_conversion_trapping_source_no_normal_result checked 6217ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/coherent_field_energy_scattering_exit checked 6844ms check-target:macos_arm64 @ccdb99ca2214
@@ -12573,8 +12577,7 @@ pass/float/float_ops_surface checked 6605ms @ccdb99ca2214
 pass/float/float_range_field_storage_exit checked 60100ms check-target:macos_arm64 @911f6617ba9e
 pass/float/float_saturating_arithmetic_exit checked 15769ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/float_selected_comparison_authority checked 18057ms check-target:macos_arm64 @c2cfe5f3dece+wt
-pass/float/float_to_int_trapping_nan_traps rejected 9930ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `Main::main` state `main`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/float/float_to_int_trapping_nan_traps checked 398223ms check-target:macos_arm64 @61d32e24eb90
 pass/float/float_trapping_overflow_traps checked 15775ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/float_trapping_propagated_nan_traps checked 15483ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/foreign_control_state_restore checked 15048ms check-target:macos_arm64 @ccdb99ca2214
@@ -12582,59 +12585,25 @@ pass/float/format_conversion_proved_finite_return_exit checked 163693ms check-ta
 pass/float/fused_multiply_add_single_rounding_exit checked 7164ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/guarded_exact_float_conversion checked 15098ms @6fbf73342bf2
 pass/float/guarded_float_transition_range_exit checked 6856ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/guarded_scalar_state_contract_exit rejected 2338ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `bounded` state `entry`: value call `I64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-pass/float/hydrostatic_load_format_exit rejected 9607ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `negative` state `entry`: value call `I64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `negative` state `entry`: a value-call argument cannot itself be a machine call yet (`add(..)` nested in `from_f64(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
-	machine `positive` state `entry`: value call `I64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `positive` state `entry`: a value-call argument cannot itself be a machine call yet (`add(..)` nested in `from_f64(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
+pass/float/guarded_scalar_state_contract_exit checked 39159ms check-target:macos_arm64 @61d32e24eb90
+pass/float/hydrostatic_load_format_exit checked 510307ms check-target:macos_arm64 @ff514b7f093c
 pass/float/literal_indexed_float_field_read_exit checked 14635ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/live_division_operand_across_call_exit checked 3374ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/live_float_parameter_across_call_exit checked 7109ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/local_after_float_call_store_exit checked 15441ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/module_imported_policy_conversion_family_exit rejected 9153ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-pass/float/named_constant_materialization_exit rejected 17611ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	constant checking: scalar evaluation needs an unavailable provider or external effect
-pass/float/named_float_integer_lower_boundary_conversion_traps rejected 9933ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `Main::main` state `main`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-pass/float/named_float_integer_nan_conversion_traps rejected 10500ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `Main::main` state `main`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-pass/float/named_fractional_integer_boundary_exit rejected 9356ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `Main::main` state `main`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `U32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/float/module_imported_policy_conversion_family_exit checked 515428ms check-target:macos_arm64 @ff514b7f093c
+pass/float/named_constant_materialization_exit rejected 400135ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d73dac294b53
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(646)]
+pass/float/named_float_integer_lower_boundary_conversion_traps checked 516877ms check-target:macos_arm64 @ff514b7f093c
+pass/float/named_float_integer_nan_conversion_traps checked 526006ms check-target:macos_arm64 @ff514b7f093c
+pass/float/named_fractional_integer_boundary_exit checked 306478ms check-target:macos_arm64 @ff514b7f093c
 pass/float/named_ieee_conversions_exit checked 17142ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/named_ieee_operations_exit checked 15813ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/named_ieee_truncations_exit rejected 9290ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `Main::main` state `main`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `i32_below` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `i32_nan` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `i32_toward_zero` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `i64_above` state `entry`: value call `I64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `i64_below` state `entry`: value call `I64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `i64_toward_zero` state `entry`: value call `I64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `u32_above` state `entry`: value call `U32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `u32_negative` state `entry`: value call `U32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `u32_toward_zero` state `entry`: value call `U32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `u32_nan` state `entry`: value call `U32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `i32_from_f32` state `entry`: value call `I32.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `i32_from_f32_toward_zero` state `entry`: value call `I32.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `i64_from_f32` state `entry`: value call `I64.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `u32_from_f32` state `entry`: value call `U32.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `u32_from_f32_nan` state `entry`: value call `U32.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `i8_above` state `entry`: value call `I8.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `i8_below` state `entry`: value call `I8.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `i16_below` state `entry`: value call `I16.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `i16_toward_zero` state `entry`: value call `I16.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `u8_above` state `entry`: value call `U8.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `u8_nan` state `entry`: value call `U8.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `u16_negative` state `entry`: value call `U16.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `u16_above` state `entry`: value call `U16.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/float/named_ieee_truncations_exit checked 302239ms check-target:macos_arm64 @ff514b7f093c
 pass/float/named_infinity_classification_exit checked 18828ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/named_integer_conversion_source_proofs_exit checked 60079ms check-target:macos_arm64 @911f6617ba9e
-pass/float/named_nan_semantic_only_exit rejected 17555ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	constant checking: scalar evaluation needs an unavailable provider or external effect
+pass/float/named_nan_semantic_only_exit rejected 193273ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d73dac294b53
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(646)]
 pass/float/named_operation_retains_collection_element_policy_exit checked 7117ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/named_provider_directed_divide_exit checked 14651ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/named_provider_fused_multiply_add_exit checked 15523ms check-target:macos_arm64 @ccdb99ca2214
@@ -12646,10 +12615,8 @@ pass/float/nearest_even_binary_arithmetic_exit checked 16115ms check-target:maco
 pass/float/nested_call_requirement_before_sibling_write_exit checked 6416ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/nested_caller_snapshot_before_sibling_write_exit rejected 5583ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call demand from forward: value == value (needs fact `value == value` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/float/nested_float_operator_applications_exit rejected 36447ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
-pass/float/ordinary_numeric_helper_edges_exit rejected 35643ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
+pass/float/nested_float_operator_applications_exit checked 420166ms check-target:macos_arm64 @ff514b7f093c
+pass/float/ordinary_numeric_helper_edges_exit checked 349255ms check-target:macos_arm64 @ff514b7f093c
 pass/float/owned_local_computed_float_store_exit checked 14880ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/primitive_comparison_sealed_scope_exit checked 6385ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/primitive_storage_predicate_keeps_ieee_meaning checked 6381ms check-target:macos_arm64 @ccdb99ca2214
@@ -12670,22 +12637,16 @@ pass/float/public_integer_input_contract_import_exit rejected 5425ms check-targe
 pass/float/public_integer_input_contract_state_import_exit rejected 5001ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove ensures contract for exit from rounded at statement 1: F32.classify(result) == F32.classify(F32.from_i32(value)) && F32.is_nan(result) || result == F32.from_i32(value)
 	cannot prove ensures contract for exit from rounded at statement 2: F32.classify(result) == F32.classify(F32.from_i32(value)) && F32.is_nan(result) || result == F32.from_i32(value)
-pass/float/public_integer_result_contract_import_exit rejected 3119ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `saturating_integer` state `entry`: value call `I32.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `integer` state `entry`: value call `I32.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/float/public_integer_result_contract_import_exit rejected 10476ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ff514b7f093c
+	cannot prove ensures contract for exit from integer at statement 1: result == saturating_integer(value)
 pass/float/qualified_integer_source_exact_float_coercion_exit checked 7158ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/requirement_nested_record_arithmetic_exit checked 15740ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/returned_record_computed_fields_exit checked 15972ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/runtime_absolute_return_sum_exit rejected 35910ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
-pass/float/runtime_absolute_shared_call_operands_exit rejected 34925ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
-pass/float/runtime_authored_max_selection_exit rejected 33283ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
-pass/float/runtime_builtin_guard_application_exit rejected 32518ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
-pass/float/runtime_builtin_ieee_order_exit rejected 31576ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
+pass/float/runtime_absolute_return_sum_exit checked 350973ms check-target:macos_arm64 @ff514b7f093c
+pass/float/runtime_absolute_shared_call_operands_exit checked 348202ms check-target:macos_arm64 @ff514b7f093c
+pass/float/runtime_authored_max_selection_exit checked 416979ms check-target:macos_arm64 @72a0af2d293d
+pass/float/runtime_builtin_guard_application_exit checked 412660ms check-target:macos_arm64 @72a0af2d293d
+pass/float/runtime_builtin_ieee_order_exit checked 409821ms check-target:macos_arm64 @72a0af2d293d
 pass/float/runtime_classification_result_categories_exit checked 6668ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_coercion_future_policy_exit checked 17556ms check-target:macos_arm64 @6fbf73342bf2
 pass/float/runtime_exact_format_narrowing_exit checked 6281ms check-target:macos_arm64 @ccdb99ca2214
@@ -12695,57 +12656,21 @@ pass/float/runtime_exact_integer_to_float_coercion_exit rejected 2853ms check-ta
 pass/float/runtime_finite_record_invariant_window_exit checked 6183ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_float_call_same_carrier_cast_exit checked 6468ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_float_digit_separators_exit checked 7453ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/runtime_float_integer_conversion_boundaries_exit rejected 10136ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `Main::main` state `main`: value call `I8.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `U64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `U64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `U64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/float/runtime_float_integer_conversion_boundaries_exit checked 436706ms check-target:macos_arm64 @ff514b7f093c
 pass/float/runtime_float_predicate_domain_exit checked 14633ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_format_conversion_result_bounds_exit checked 6477ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_generic_constructor_literal_landing_exit checked 15759ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_guarded_float_capture_exit checked 5942ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_ieee_collection_disjoint_exit checked 11402ms check-target:macos_arm64 @085f035b8b6e+wt
-pass/float/runtime_ieee_saved_boolean_epochs_exit rejected 2236ms check-target:macos_arm64 @ccdb99ca2214
-	machine `disjoint` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `snapshot` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `decide` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/float/runtime_ieee_saved_boolean_epochs_exit rejected 14087ms check-target:macos_arm64 @ff514b7f093c
+	cannot prove `copied == copied && copied > -2147483649.0 && copied < 2147483648.0` — the `requires` of `I32::from_f64` (called `I32.from_f64(copied)`)
 pass/float/runtime_literal_return_guarded_contract_exit checked 6615ms check-target:linux_x86_64 @ccdb99ca2214
 pass/float/runtime_meaning_contract_forwarding checked 5010ms @ccdb99ca2214
 pass/float/runtime_named_boundary_transition_exit checked 6280ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/runtime_named_float_to_integer_conversion_exit rejected 10528ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `Main::main` state `main`: value call `I8.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `I8.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `I16.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `I16.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `I32.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `I64.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `I64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `U8.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `U8.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `U16.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `U16.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `U32.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `U32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `U64.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `U64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `I8.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `U64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `main`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/float/runtime_named_float_to_integer_conversion_exit checked 447632ms check-target:macos_arm64 @ff514b7f093c
 pass/float/runtime_named_fma_sequence_exit checked 15445ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_named_format_conversion_exit checked 16029ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/runtime_named_policy_conversion_composition_exit rejected 13708ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `Main::main` state `main`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `low` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `nan` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `guard` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `nested` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `nested` state `entry`: a value-call argument cannot itself be a machine call yet (`add(..)` nested in `from_f64(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
-	machine `unsigned_high` state `entry`: value call `U8.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `unsigned_low` state `entry`: value call `U8.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `short_low` state `entry`: value call `I16.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/float/runtime_named_policy_conversion_composition_exit checked 428199ms check-target:macos_arm64 @ff514b7f093c
 pass/float/runtime_named_policy_result_exit checked 14189ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_nested_float_min_max_exit checked 16259ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_owned_mutable_float_parameter_exit checked 6769ms check-target:macos_arm64 @ccdb99ca2214
@@ -12758,20 +12683,15 @@ pass/float/runtime_resultless_law_equality_custody_exit rejected 11796ms check-t
 	cannot prove ensures contract for exit from same32 at statement 0: value == value
 	cannot prove ensures contract for exit from same64 at statement 0: value == value
 	cannot prove ensures contract for exit from same64 at statement 0: value == value
-pass/float/runtime_shared_float_lazy_branch_exit rejected 32687ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
-pass/float/runtime_shared_float_operand_once_exit rejected 32395ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
-pass/float/runtime_std_is_finite_exit rejected 32449ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
-pass/float/runtime_std_trigonometric_endpoints rejected 33378ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
+pass/float/runtime_shared_float_lazy_branch_exit checked 437221ms check-target:macos_arm64 @72a0af2d293d
+pass/float/runtime_shared_float_operand_once_exit checked 369140ms check-target:macos_arm64 @72a0af2d293d
+pass/float/runtime_std_is_finite_exit checked 356819ms check-target:macos_arm64 @72a0af2d293d
+pass/float/runtime_std_trigonometric_endpoints checked 352134ms check-target:macos_arm64 @72a0af2d293d
 pass/float/runtime_total_order_satisfiers_exit checked 14841ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/saturating_named_operations_retain_ordered_inputs checked 7007ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/scalar_helper_boundary_sequence_exit checked 16852ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/specification_index_reference_selector_exit checked 13950ms check-target:macos_arm64 @e8827ad1dd64+wt
-pass/float/state_arrival_ieee_predicates rejected 9570ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `bounded` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/float/state_arrival_ieee_predicates checked 417573ms check-target:macos_arm64 @ff514b7f093c
 pass/float/state_loop_field_refinement_restoration_exit checked 57026ms check-target:macos_arm64 @911f6617ba9e
 pass/float/symbolic_integer_conversion_finite_requires_exit checked 7540ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/trapping_float_sites_share_nonentry_guard_coverage checked 5835ms check-target:macos_arm64 @ccdb99ca2214
@@ -13518,8 +13438,7 @@ pass/operators/integer_literal_suffix_exit checked 11189ms check-target:macos_ar
 pass/operators/operand_requires_after_effects checked 2664ms @ccdb99ca2214
 pass/operators/parenthesized_precedence_value checked 2359ms @ccdb99ca2214
 pass/operators/range_extent_preserves_numeric_contract_exit checked 3519ms check-target:macos_arm64 @ccdb99ca2214
-pass/operators/result_domain_operator_family_conversion_exit rejected 2489ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `main` state `entry`: value call `I8.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/operators/result_domain_operator_family_conversion_exit checked 14662ms check-target:macos_arm64 @ff514b7f093c
 pass/operators/runtime_bitwise_operators_exit checked 11484ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/runtime_constructed_operand_result_exit checked 7282ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/runtime_declared_index_collection_loans_exit checked 4011ms check-target:macos_arm64 @ccdb99ca2214
@@ -13793,8 +13712,7 @@ pass/packages/retained_dependency_bodies_exit checked 4034ms check-target:macos_
 pass/packages/rootless_numeric_provider_consumer checked 11498ms check-target:macos_arm64 @ccdb99ca2214
 pass/packages/rootless_numeric_provider_review checked 13156ms @ccdb99ca2214
 pass/packages/runtime_attached_owner_crash_guard_scope_exit checked 3639ms check-target:macos_arm64 @ccdb99ca2214
-pass/packages/runtime_public_attached_owner_cleanup_exit incomplete 11042ms check-target:macos_arm64 @ee4dbb4b2d56
-	`main` calls `select_after_observation`; `select_after_observation` has no executable body: this compiler does not lower a state of it yet (cleanup cannot reconstruct its remaining region partition); in state `select_after_observation::entry`
+pass/packages/runtime_public_attached_owner_cleanup_exit checked 7678ms check-target:macos_arm64 @6c3dcb823e47
 pass/parameters/byte_store_root_after_scalar_formal_exit checked 11779ms check-target:macos_arm64 @ccdb99ca2214
 pass/parameters/shared_and_mut_borrow_params_compile checked 2944ms @ccdb99ca2214
 pass/parser/deep_nesting_within_limit checked 2816ms @ccdb99ca2214
@@ -14120,9 +14038,7 @@ pass/providers/linear_structural_provider_pure_exit checked 74877ms check-target
 pass/providers/linear_structural_provider_return_exit rejected 81587ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @10b4c36f3bb2
 	terminal-artifact production failed: Lowering(MissingUnitDomainPlan { domain: SemanticDomainId(0), name: "" })
 pass/providers/local_record_foreign_borrow_exit checked 12380ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/module_named_operator_result_domain_satisfaction rejected 8247ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `calculate` state `entry`: value call `Policy.convert(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `calculate` state `entry`: value call `Policy.convert(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/providers/module_named_operator_result_domain_satisfaction checked 251786ms check-target:macos_arm64 @ff514b7f093c
 pass/providers/named_boundary_applied_issuance checked 2394ms @ccdb99ca2214
 pass/providers/named_boundary_issuance_ordinary_guarantee checked 2294ms @ccdb99ca2214
 pass/providers/named_boundary_mutable_issuance checked 2612ms @ccdb99ca2214
@@ -14640,8 +14556,7 @@ pass/structural/composed_case_field_store_exit checked 14449ms check-target:maco
 pass/structural/computed_enum_case_guard_effects_exit checked 3767ms check-target:macos_arm64 @ccdb99ca2214
 pass/structural/computed_enum_equality_guard_exit checked 4349ms check-target:macos_arm64 @ccdb99ca2214
 pass/structural/element_store checked 11505ms check-target:macos_arm64 @ccdb99ca2214
-pass/structural/indexed_scalar_call_result_store rejected 10729ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `Main::main` state `main`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/structural/indexed_scalar_call_result_store checked 443723ms check-target:macos_arm64 @ff514b7f093c
 pass/structural/local_record_receivers checked 2478ms @ccdb99ca2214
 pass/structural/primitive_array_snapshot_indexed_row_exit checked 12583ms check-target:macos_arm64 @ccdb99ca2214
 pass/structural/primitive_array_snapshot_swap_exit checked 17309ms check-target:macos_arm64 @ccdb99ca2214
@@ -19187,8 +19102,8 @@ fail/data/closed_literal_omitted_zero_invalid rejected 2442ms expected @911f6617
 	data `Cell` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/data/closed_literal_selected_case_false rejected 1463ms unexpected @911f6617ba9e
 	data `Packet` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/data/constructor_case_payload_call_result_window rejected 524ms unexpected @d83ddecd7693+wt
-	tests/omega/fail/data/constructor_case_payload_call_result_window/main.omg:8:43: expected `:` after data field `where` (alternatives are spelled `case where;`)
+fail/data/constructor_case_payload_call_result_window rejected 6429ms expected @8bffc84d2ff9
+	data `Outcome` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/data/constructor_distinct_field_versions rejected 1152ms expected @911f6617ba9e
 	data `Snapshot` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/data/constructor_prior_operand_write rejected 14474ms expected @911f6617ba9e
@@ -19776,14 +19691,16 @@ fail/domains/qualified_fixed_byte_array_explicit_buffer_unbounded_count rejected
 	machine `set_count` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/domains/qualified_fixed_byte_array_immutable_parameter rejected 829ms expected @ccdb99ca2214
 	machine `corrupt` state `entry` assignment cannot write `bytes` because it is not mutable in this state (if `bytes` is undeclared -- a typo -- no such field or local exists)
-fail/domains/qualified_fixed_byte_array_invalid_mutation checked 2517ms @ccdb99ca2214
+fail/domains/qualified_fixed_byte_array_invalid_mutation rejected 6168ms expected regressed-from:checked @29c0122d09c2
+	cannot prove ensures contract for exit from mutate at statement 1: bytes in [u8; N]::Ascii
 fail/domains/qualified_fixed_byte_array_invalid_utf8 rejected 1658ms expected @ccdb99ca2214
 	cannot prove initializer of `bytes` in main is in domain `[u8; N]::Utf8`; an annotation cannot establish routed qualification
 fail/domains/qualified_fixed_byte_array_nested_zero_no_nul rejected 617ms expected @ccdb99ca2214
 	construction of `Inner` omits gated field `bytes`: its zero-filled representation is not an established value -- initialize it explicitly
 fail/domains/qualified_fixed_byte_array_nested_zero_route rejected 849ms expected @ccdb99ca2214
 	construction of `Inner` omits gated field `bytes`: its zero-filled representation is not an established value -- initialize it explicitly
-fail/domains/qualified_fixed_byte_array_no_nul_store checked 2427ms @ccdb99ca2214
+fail/domains/qualified_fixed_byte_array_no_nul_store rejected 5936ms expected regressed-from:checked @29c0122d09c2
+	cannot prove ensures contract for exit from mutate at statement 1: bytes in [u8; N]::NoNul
 fail/domains/qualified_fixed_byte_array_nul_default rejected 967ms expected @ccdb99ca2214
 	machine `main` state `entry` statement 1: reading `bytes` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `[u8; 2][in NoNul]`
 fail/domains/qualified_fixed_byte_array_shared_local_write rejected 2629ms expected @ccdb99ca2214
@@ -27323,8 +27240,8 @@ fail/facts/nested_machine_private_arithmetic_match_join_rejected rejected 1493ms
 	exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_machine_private_arithmetic_multiple_arrivals_rejected rejected 1618ms expected @ccdb99ca2214
 	exact arithmetic in machine `apply` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_machine_private_arithmetic_mutable_alias_overlap_rejected rejected 1115ms expected @ccdb99ca2214
-	exact arithmetic in machine `apply` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_private_arithmetic_mutable_alias_overlap_rejected rejected 3407ms expected @8bffc84d2ff9
+	exact arithmetic in machine `apply` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_machine_private_arithmetic_mutable_call_result_rejected rejected 1626ms expected @ccdb99ca2214
 	exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_machine_private_arithmetic_mutable_const_name_rejected rejected 1357ms expected @ccdb99ca2214
@@ -31933,12 +31850,11 @@ fail/float/float_semantics_lookalike_grants_no_primitive rejected 109ms expected
 	`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive implementation or proof authority
 fail/float/format_conversion_exclusive_upper rejected 5315ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from exclusive at statement 0: result >= 0.0 && result < 1.0
-fail/float/format_conversion_lookalike rejected 5131ms unexpected @ccdb99ca2214
+fail/float/format_conversion_lookalike rejected 11859ms expected @8bffc84d2ff9
 	cannot prove ensures contract for exit from lookalike at statement 0: result >= 0.10000000149011612 && result <= 0.10000000149011612
 fail/float/format_conversion_requires_result_proof rejected 3177ms expected @66107356a089
 	cannot prove initializer `F32.from_f64(huge())` satisfies `finite` for the bounded value of machine `make` state `entry` constructor field `amount`
 	cannot prove call argument `F32.from_f64(huge())` satisfies `finite` for bounded parameter `value` for `consume` in `overflow.entry`
-	cannot prove return value `F32.from_f64(value)` satisfies `finite` for bounded return type in `unknown.entry`
 fail/float/generic_constructor_suffix_format_disagrees rejected 1920ms expected @ccdb99ca2214
 	literal `3.0` is suffixed `f64` but lands in a `f32` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/float/guarded_range_requires_builtin_boolean_wrapper rejected 3918ms expected @ccdb99ca2214
@@ -32130,7 +32046,7 @@ fail/float/trapping_raw_finite_predicate_invalidated_by_write rejected 7280ms ex
 	`multiply(value, 2.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 fail/float/trapping_raw_finite_predicate_keeps_operand_identity rejected 4019ms expected @ccdb99ca2214
 	`multiply(value, 3.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/trapping_raw_finite_proof_keeps_operation_identity rejected 4131ms expected @ccdb99ca2214
+fail/float/trapping_raw_finite_proof_keeps_operation_identity rejected 10957ms expected @8bffc84d2ff9
 	`divide(value, 0.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 	`F32.from_f64(value)` in machine `wrong_format` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 fail/float/unbounded_result_does_not_prove_guarantee rejected 9334ms expected @ccdb99ca2214
@@ -36757,25 +36673,11 @@ run/layouts/placed_ram_capture_forwarding checked 23301ms check-target:macos_arm
 run/layouts/placed_ram_capture_helper checked 24091ms check-target:macos_arm64 @b80d7416b671+wt
 run/layouts/placed_ram_capture_retirement checked 25544ms check-target:macos_arm64 @b80d7416b671+wt
 run/layouts/placed_ram_capture_return checked 23929ms check-target:macos_arm64 @b80d7416b671+wt
-run/layouts/placed_ram_original_backing rejected 16680ms check-target:macos_arm64 @b43a5fa574e6
-	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
+run/layouts/placed_ram_original_backing incomplete 413458ms check-target:macos_arm64 @ff514b7f093c
+	`mutate` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `mutate::entry`
 run/layouts/placed_ram_scalar_types checked 28056ms check-target:macos_arm64 @b80d7416b671+wt
-run/layouts/placed_ram_stored_field_return rejected 14752ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b43a5fa574e6
-	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
+run/layouts/placed_ram_stored_field_return incomplete 335250ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ff514b7f093c
+	`mutate` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `mutate::entry`
 run/layouts/placed_stable_array checked 4633ms check-target:macos_arm64 @ccdb99ca2214
 run/layouts/placed_stable_distinct_fields checked 3994ms check-target:macos_arm64 @ccdb99ca2214
 run/layouts/placed_stable_nested_array checked 3272ms check-target:macos_arm64 @ccdb99ca2214
@@ -36802,8 +36704,7 @@ run/proofs/quotient_copy_paths rejected 57231ms check-target:macos_arm64 regress
 	`Quotient::define` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
 	`Quotient::define` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
 	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
-run/providers/module_named_float_conversion_family_exit rejected 8776ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+run/providers/module_named_float_conversion_family_exit checked 335066ms check-target:macos_arm64 @72a0af2d293d
 run/providers/target_applicable_provider_closure checked 110569ms check-target:macos_arm64 @d68d95fa82f8
 run/providers/target_family_provider_boundary_identity_exit checked 11036ms check-target:macos_arm64 @ccdb99ca2214
 run/ranges/borrowed_case_payload_alias checked 2774ms check-target:macos_arm64 @02f650a3c5b1
@@ -36812,25 +36713,8 @@ run/ranges/guarded_case_payload_identity checked 2333ms check-target:macos_arm64
 run/ranges/guarded_case_payload_types checked 2294ms check-target:macos_arm64 @2c185c80180f
 run/ranges/refuted_boolean_alias_dispatch checked 2899ms check-target:macos_arm64 @aab8b8443f04
 run/ranges/refuted_boolean_alias_local checked 2971ms check-target:macos_arm64 @aab8b8443f04
-run/slices/call_result_mutable_window_exit rejected 2428ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `tail` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `tail` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `tail` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `tail` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-run/slices/computed_record_window rejected 2451ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `check` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `tail` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `tail` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `tail` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `tail` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+run/slices/call_result_mutable_window_exit checked 13584ms check-target:macos_arm64 @ff514b7f093c
+run/slices/computed_record_window checked 15666ms check-target:macos_arm64 @ff514b7f093c
 run/slices/disjoint_local_state_windows checked 9954ms check-target:macos_arm64 @ccdb99ca2214
 run/slices/edge_window_owned_backing checked 3548ms check-target:macos_arm64 @ccdb99ca2214
 run/slices/folded_window_endpoint_effects checked 1208ms check-target:macos_arm64 @e5a7f19e3929
@@ -36841,11 +36725,8 @@ run/slices/returned_record_fixed_array_window checked 3473ms check-target:macos_
 run/slices/returned_record_parameter_length checked 2713ms check-target:macos_arm64 @ccdb99ca2214
 run/state_owned_nested_borrow checked 3200ms check-target:macos_arm64 @ccdb99ca2214
 run/state_shared_nested_backing checked 2950ms check-target:macos_arm64 @ccdb99ca2214
-run/stores/runtime_float_indexed_call_result_exit rejected 8524ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `store` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-run/stores/runtime_float_store_selector_snapshot_exit rejected 8397ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `store` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `store` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+run/stores/runtime_float_indexed_call_result_exit checked 340220ms check-target:macos_arm64 @72a0af2d293d
+run/stores/runtime_float_store_selector_snapshot_exit checked 339598ms check-target:macos_arm64 @72a0af2d293d
 run/traits/named_map_record_result_contract checked 2913ms check-target:macos_arm64 @ccdb99ca2214
 run/traits/static_implementation_method_arguments rejected 1441ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call `keep` has an invalid argument correspondence: selected executable carrier differs from its exact public application
