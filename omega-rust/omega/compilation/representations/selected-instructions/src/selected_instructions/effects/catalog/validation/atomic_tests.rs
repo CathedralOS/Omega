@@ -25,7 +25,7 @@ fn declaration(form: AtomicForm) -> (RegisterInstructionConstraint, MachineEffec
         key,
         operands: (0..form.operand_count())
             .map(|operand| {
-                let output = Some(operand) == form.observed_operand();
+                let output = form.output_operands().contains(&operand);
                 RegisterOperandConstraint {
                     operand,
                     access: if output {
@@ -46,7 +46,7 @@ fn declaration(form: AtomicForm) -> (RegisterInstructionConstraint, MachineEffec
     };
     let mut encoded = MachineEncodedEffects::fallthrough_v1(
         (0..form.operation.input_count()).collect(),
-        form.observed_operand().into_iter().collect(),
+        form.output_operands().collect(),
     );
     encoded.memory = MachineEncodedMemoryEffect::AtomicPointerV1 {
         pointer_operand: 0,

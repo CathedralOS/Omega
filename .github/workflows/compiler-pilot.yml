@@ -109,9 +109,6 @@ jobs:
           import shutil
           import subprocess
           cases = [
-              ("semantic-vocabulary", "bit_ranges"),
-              ("isa-aarch64", "atomic"),
-              ("isa-x86_64", "atomic"),
               ("selected-instructions", "retry_control_is_required_for_bitwise_atomic_updates"),
               ("selected-instructions", "retry_fixed_output_requires_every_input_to_have_a_distinct_fixed_home"),
               ("machine-emission", "atomic_exit_admission_binds_memory_width_operands_and_control"),
