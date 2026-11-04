@@ -225,6 +225,10 @@ fail/contracts/unproved_branch_is_not_contradiction rejected 1905ms expected @6b
 	exact arithmetic in machine `pick` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/contracts/written_element_cannot_rule_out_branch rejected 1737ms expected @6be568cdb4e5
 	exact arithmetic in machine `pick` state `entry` return value may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
+fail/control_flow/pattern_arm_unguarded_index_argument rejected 9571ms expected @189b8cf70738+wt
+	cannot prove requires contract for call edges from nodes: u < 8 (needs fact `u < 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove index `u` is within length 9 in nodes::entry
+	cannot prove index `u + 1` is within length 9 in nodes::entry
 fail/control_flow/selected_adapter_missing_rejected rejected 2876ms expected @ee4dbb4b2d56
 	machine `Selector::select` state `select`: value call `select_missing(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
 fail/core/scoped_integer_call_crash_route_blocks_unfolding rejected 6309ms expected @7a2c1562808d+wt
@@ -5670,6 +5674,7 @@ pass/control_flow/ordered_terminal_call_exit checked 3719ms check-target:macos_a
 pass/control_flow/ordered_unconditional_arm_exit checked 12779ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/owned_array_local_state_transfer_exit checked 18797ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/owned_array_state_transfer_exit checked 12709ms check-target:macos_arm64 @ccdb99ca2214
+pass/control_flow/pattern_arm_guarded_index_argument_exit checked 11923ms check-target:macos_arm64 @189b8cf70738+wt
 pass/control_flow/projected_case_subject_root_forwarding_exit checked 16594ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/projected_field_exhaustive_case_dispatch_exit checked 11203ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/projected_loan_state_argument_exit checked 12647ms check-target:macos_arm64 @ccdb99ca2214

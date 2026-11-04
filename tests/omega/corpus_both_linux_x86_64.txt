@@ -54,6 +54,7 @@ pass/calls/selected_crash_argument_snapshot_exit built 10692ms exit:0 interprete
 pass/calls/selected_crash_distinct_limits_exit built 10688ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_match_record_exit built 13834ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_private_forwarding_exit built 10143ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
+pass/control_flow/pattern_arm_guarded_index_argument_exit built 9930ms exit:0 interpreter-exit:0 interpreter:agrees @189b8cf70738+wt
 pass/domains/erasing_cast_keeps_field_domains_exit built 8521ms exit:0 interpreter-exit:0 interpreter:agrees @f2672d675498
 pass/domains/erasing_cast_keeps_field_facts_exit built 8678ms exit:0 interpreter-exit:0 interpreter:agrees @f2672d675498
 pass/domains/erasing_cast_keeps_predicates_and_named_domains_exit built 8206ms exit:0 interpreter-exit:0 interpreter:agrees @f2672d675498
