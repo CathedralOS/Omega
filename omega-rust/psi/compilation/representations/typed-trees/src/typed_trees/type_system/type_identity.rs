@@ -1270,6 +1270,7 @@ impl TypedTrees {
             binders,
             substitutions,
             SubstitutionSemantics::Transitive,
+            &[],
         )
     }
 
@@ -1285,6 +1286,24 @@ impl TypedTrees {
             &[],
             substitutions,
             SubstitutionSemantics::Simultaneous,
+            &[],
+        )
+    }
+
+    /// Compare an array size through the exact enclosing argument scopes.
+    /// Each supplied argument sees only the scopes before its own group.
+    pub fn scoped_fixed_array_length_identity(
+        &self,
+        length: &crate::types::FixedArrayLength,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        scope_starts: &[usize],
+    ) -> Option<NormalizedTypeIdentity> {
+        self.fixed_array_length_identity_with_substitution_semantics(
+            length,
+            &[],
+            substitutions,
+            SubstitutionSemantics::Transitive,
+            scope_starts,
         )
     }
 
@@ -1294,6 +1313,7 @@ impl TypedTrees {
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         substitution_semantics: SubstitutionSemantics,
+        scope_starts: &[usize],
     ) -> Option<NormalizedTypeIdentity> {
         if let crate::types::FixedArrayLength::Expression(reference) = length
             && (!self.contains_type_reference(*reference)
@@ -1312,6 +1332,7 @@ impl TypedTrees {
                 binders,
                 substitutions,
                 substitution_semantics,
+                substitution_scope_starts: scope_starts,
                 invalid_index_argument: Some(&invalid),
                 ..Default::default()
             },

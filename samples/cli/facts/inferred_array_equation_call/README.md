@@ -86,8 +86,9 @@ The retained regression programs cover the [original named constant](../../../..
 and its [conflicting-size twin](../../../../tests/omega/fail/generics/inferred_equation_typed_const_const_name_conflict/main.omg).
 One [focused positive](../../../../tests/omega/pass/generics/inferred_equation_computed_satisfaction_exit/main.omg)
 also combines an evaluated packet type, a computed satisfaction argument and a
-value-qualified constant. Its [Boolean twin](../../../../tests/omega/fail/generics/inferred_equation_computed_satisfaction_non_integer/main.omg)
-changes only the size computation's result type and value. The [invalid-value control](../../../../tests/omega/fail/generics/inferred_equation_mixed_destination_invalid_value/main.omg)
+value-qualified constant. Its [wrong-size twin](../../../../tests/omega/fail/generics/inferred_equation_computed_satisfaction_extent_conflict/main.omg)
+keeps the computed packet size at 2 and changes only the satisfaction argument
+to 3. The [invalid-value control](../../../../tests/omega/fail/generics/inferred_equation_mixed_destination_invalid_value/main.omg)
 changes only the ready constant from 7 to 8, so preserving an unfinished type
 cannot suppress a condition on a completed value. These three projects use six
 new source/Build files altogether.

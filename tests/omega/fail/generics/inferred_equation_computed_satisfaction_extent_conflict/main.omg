@@ -2,7 +2,7 @@
 // Expected exit: 0
 data Ready [copy] requires value <= 7 { value: u64; }
 const READY: Ready = Ready { value: 7 };
-machine extent() -> bool { true }
+machine extent() -> u64 { 2 }
 data IndexedPacket<Value [copy], const Capacity: u64> [copy]
 requires Value == [u8; Capacity]
 { items: Value; }
@@ -13,7 +13,7 @@ requires Length == [u8; Capacity]
 data Envelope<Value [copy]> [copy] { value: Value; }
 machine forward<Value [copy]>(value: Value) -> Envelope<Value> { Envelope { value: value } }
 trait SizedHook<const Count: u64> { machine read(items: [u8; Count]) -> u64; }
-machine consume(items: [u8; 2]) -> u64 satisfies SizedHook<extent()>::read {
+machine consume(items: [u8; 2]) -> u64 satisfies SizedHook<3>::read {
     capacity(items)
 }
 machine main() crashes Trap {
