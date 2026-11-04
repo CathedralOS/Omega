@@ -10323,8 +10323,10 @@ fail/facts/finite_family_owned_field/parameter rejected 8357ms expected @4969443
 	cannot prove ensures contract for exit from ReadField::read at statement 2: result >= 100
 	cannot prove ensures contract for exit from ReadField::read$specialized$ef379b294b035803$0$2713 at statement 2: result >= 100
 	cannot prove ensures contract for exit from ReadField::read$specialized$d45a4b2c8f81ae01$1$2718 at statement 2: result >= 100
-fail/facts/finite_family_owned_field/target_body rejected 474ms unexpected @4969443addd0
-	tests/omega/fail/facts/finite_family_owned_field/target_body/main.omg:41:26: boundary-trait machine requirement `SelectedRead::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
+fail/facts/finite_family_owned_field/target_body rejected 3120ms expected @d029ec91d378
+	cannot prove ensures contract for exit from ReadField::read at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$ef379b294b035803$0$2723 at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$d45a4b2c8f81ae01$1$2728 at statement 2: result >= 100
 fail/facts/finite_family_returned_descriptor/call_result rejected 5568ms expected @9ad31e5e8715
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
@@ -29918,8 +29920,7 @@ pass/facts/finite_family_owned_field/match_join checked 11001ms check-target:mac
 pass/facts/finite_family_owned_field/other_machine checked 10031ms check-target:macos_arm64 @4969443addd0
 pass/facts/finite_family_owned_field/other_state checked 10045ms check-target:macos_arm64 @4969443addd0
 pass/facts/finite_family_owned_field/parameter checked 12194ms check-target:macos_arm64 @4969443addd0
-pass/facts/finite_family_owned_field/target_body rejected 1897ms check-target:macos_arm64 @4969443addd0
-	tests/omega/pass/facts/finite_family_owned_field/target_body/main.omg:41:26: boundary-trait machine requirement `SelectedRead::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
+pass/facts/finite_family_owned_field/target_body checked 4051ms check-target:macos_arm64 @d029ec91d378
 pass/facts/finite_family_returned_descriptor/call_result checked 6985ms check-target:macos_arm64 @9ad31e5e8715
 pass/facts/finite_family_returned_descriptor/caller_view checked 6931ms check-target:macos_arm64 @9ad31e5e8715
 pass/facts/finite_family_returned_descriptor/const_name checked 7112ms check-target:macos_arm64 @9ad31e5e8715
