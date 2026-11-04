@@ -191,8 +191,7 @@ fn symbolic_extent_index_is_proven(
 ) -> bool {
     let collection_label = program.expression_table.display_name(collection);
     let index_label = program.expression_table.display_name(index);
-    let floor =
-        types::collection_symbolic_extent_floor(program, machine, state, collection, extent, facts);
+    let floor = types::collection_symbolic_extent_floor(program, state, collection, facts);
     facts.index_is_proven(&collection_label, &index_label)
         // `index < N` (and `index <= N - k` for k >= 1) names this extent
         // binder directly. The row is seeded from the guard and carried into
@@ -239,8 +238,7 @@ fn symbolic_extent_range_bound_is_proven(
 ) -> bool {
     let collection_label = program.expression_table.display_name(collection);
     let bound_label = program.expression_table.display_name(bound);
-    let floor =
-        types::collection_symbolic_extent_floor(program, machine, state, collection, extent, facts);
+    let floor = types::collection_symbolic_extent_floor(program, state, collection, facts);
     facts.range_bound_is_proven(&collection_label, &bound_label)
         || validation::completed_value_is_bounded_by_static(program, machine, state, facts.statement_index, bound, extent.0, false)
         || symbolic_extent_is_named(program, machine, state, facts, collection, bound, extent)

@@ -42,8 +42,8 @@ machine Main::main(main: &mut Main) reaches Console {
     main.buffer[1] = main.ones_byte;
 
     transition main.buffer == "25" {
-        true -> ok(main)
-        _ -> bad(main)
+        true -> block ok(main)
+        _ -> block bad(main)
     }
 
     machine ok(main: &mut Main) {

@@ -452,6 +452,27 @@ retired-syntax deletions to completion.
     introducer ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
     and remove legacy parser/IR consumers and undifferentiated
     `MachineSupplyMode::Boundary`.
+  - Restore the coverage `fail/float/guarded_range_requires_ieee_comparison`
+    lost when authored operators over bare primitive carriers became
+    declaration errors: a guard through a domain-homed `<` over
+    `f64 in <Domain>` must not supply the IEEE range fact, and a domain-homed
+    `+` in an index must not fold to element zero. Blocked because core's
+    bare-`f64` `Float::less` also matches domain-qualified operands
+    (`ambiguous operator spelling '<' has 2 viable candidates`), and a direct
+    guard over such a call fails Psi 04 with `cannot determine the dispatch
+    subject storage type`.
+  - Lower and prove the domain-qualified shapes that fixtures moved off bare
+    primitive operators had to avoid: `&mut` of a `mut` parameter whose type
+    is domain-qualified fails native selection (`SourceCustodyMismatch …
+    borrowed call argument does not match its retained source geometry and
+    ABI`); returning an `i32 in D` parameter as a bare `i32` result fails Psi 06
+    (`checked scalar return completion cannot erase unrelated membership`)
+    without an explicit `as`; `let mut value: i32 in D = start;` with a
+    predicate-free `D` fails with `primitive initializer lost its exact scalar
+    membership correspondence`; and builtin subtraction on a domain-qualified
+    saved local does not establish strict descent, so
+    `fail/termination/saved_rank_authored_operator_rejected` no longer has a
+    passing contrast without its authored `-`.
   Acceptance: `tests/omega/pass/expressions/declared_operator_match_result/`
   (exit 70), `samples/cli/facts/{body_bearing_comparison,generic_comparison_body,projection_call_premise,abstract_signature_call,static_evidence_premise}`,
   `samples/cli/facts/open_index_distributivity` and its necessary additional
@@ -1234,12 +1255,6 @@ defines the complete product bar.
     correspondence"), and `look(&(issued as Ticket))` fails with "completed
     projection has no exact consumer capture", so no erasure positive can
     lend a cast at run time.
-  - Stop a borrowed erasing cast from supplying its erased domain through the
-    remaining routes: a parameter source (`outer(t: Ticket in Ticket::Held)`
-    calling `observe(&(t as Ticket))`), an annotated reference local
-    (`let r: &Ticket in Ticket::Held = &(issued as Ticket)`), and a record
-    holding the reference (`View { t: &(issued as Ticket) }`, then
-    `observe(v.t)`).
   - **DOMAIN-ISSUER-ROUTES:** extend same-project checked ordinary
     issuance/forwarding to cross-package private routes and selected structural
     payloads in
@@ -1286,9 +1301,12 @@ defines the complete product bar.
     `endpoint_folded_into_payload`, `stored_reference_endpoint_reseat`) compile.
     The reach rule is implemented on `work/wave1-termination-reach` and lands
     last, with its positive migrations, once component ranking accepts the
-    projected and arrival rank subjects those helpers need: measures applied
-    to a field (`pending.held -> Countdown::Remaining`), formal/result-equation
-    arrivals, opaque children, ranges and stored-reference endpoints.
+    projected and arrival rank subjects those helpers need. Ranked probes of
+    opaque children, ranges and stored-reference endpoints already check; the
+    migration confirms them. The call-component judgment
+    (`ranking_range/calls.rs`) still evaluates a declared measure over a record
+    subject as a scalar and still builds the field-only
+    `RankingRangeMeasure::Field`; retire both there.
   - Re-run the external-result and `std`-loop execution controls
     (`external_result_ranked_arrival_compile` currently refuses with `provider
     candidate requires beyond its boundary's declared obligations`) once
@@ -1401,8 +1419,9 @@ defines the complete product bar.
     placement/allocator contracts with runtime observation, exact location
     validity across view replacement, offsets and moved backing, and admitted
     interpreted geometry for such locations; `ensures` clauses, trait
-    requirement contracts, and contract queries over a field path or a slice
-    (all currently rejected).
+    requirement contracts, contract queries over a slice, an element or a case
+    payload field, and body queries on a case payload field, which need the
+    active-case proof an ordinary read owes (all currently rejected).
   - Complete remaining flag-producing instructions, remaining AArch64 register
     views, and checked hardware-effect retirement of exact linear obligations on
     every normal exit (assembly body contracts and label `ensures` are proof goals, never
@@ -1835,11 +1854,12 @@ defines the complete product bar.
 - **UNREACHABLE-BRANCH-DIAGNOSTICS.** Report source branches that contradict
   their machine's entry contract or established facts, under
   [unreachable branches](wiki/spec/language/state_contracts.md#unreachable-branches).
-  - Emit an advisory warning identifying the branch and conflicting premises,
-    retaining available source locations and exact subjects/storage versions.
-  - Keep routine generic-specialization and compile-time selection quiet without
-    suppressing contradictions already present in the generic's own contract.
-    Proof-internal impossible cases do not each produce a source warning.
+  - Report branches beyond transition arms and statement-level match arms:
+    matches nested inside other expressions, and the statements after an
+    exit-if transition whose guard always holds.
+  - Name each conflicting premise's source location and exact storage version,
+    and show the warning's location on a successful check (stderr currently
+    prints the message alone).
   Acceptance: focused examples pin warnings for source contradictions and no
   warning for ordinary specialization; warning emission and code pruning do not
   change proof acceptance. Missing, stale or out-of-scope contradiction evidence
@@ -2158,7 +2178,7 @@ defines the complete product bar.
   - Pin dense qualified-float slice reads and domain-preserving mutable writes;
     non-copy relocation with exactly-once observable cleanup and none during move;
     distinct same-typed resource claims, zero-sized obligations, contained borrows,
-    split/rejoin, failed initialization and restored indexed removal. Reject twins
+    split/rejoin and restored indexed removal. Reject twins
     cover forged count/custody, swapped child geometry, non-adjacent merge, duplicate
     extraction, conflicting carry anchors, relocation while borrowed, predicate
     violation and backing return with live cells. Inspect emitted/interpreted run

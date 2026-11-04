@@ -220,6 +220,9 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             port_write: None,
             system_register_read: Some(crate::AARCH64_SYSTEM_REGISTER_READ),
             system_register_write: Some(crate::AARCH64_SYSTEM_REGISTER_WRITE),
+            global_descriptor_table: None,
+            task_register_activate: None,
+            task_register_read: None,
             control_register_read: None,
             control_register_write: None,
             port_register_read: None,
@@ -521,6 +524,10 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::ProcessorHalt
         | MachineSemanticKind::InterruptControl
         | MachineSemanticKind::ControlRegisterRead
+        | MachineSemanticKind::GlobalDescriptorTableLoad
+        | MachineSemanticKind::GlobalDescriptorTableStore
+        | MachineSemanticKind::TaskRegisterActivate
+        | MachineSemanticKind::TaskRegisterRead
         | MachineSemanticKind::ControlRegisterWrite
         | MachineSemanticKind::PortWrite => unreachable!("x86 port I/O has no AArch64 constraint"),
         MachineSemanticKind::SystemRegisterRead => {

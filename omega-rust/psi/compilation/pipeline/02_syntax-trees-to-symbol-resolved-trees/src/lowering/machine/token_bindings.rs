@@ -19,6 +19,13 @@
 //! of bare compiler-owned primitives has no declaration-owned home, so
 //! `machine + add(left: u8, right: u8)` would inject into `u8`'s closed
 //! family and rejects here rather than becoming a candidate at every `u8 +`.
+//! That primitive-family rule binds every introducer -- direct machines,
+//! `operator` declarations and `boundary` requirement slots -- because each
+//! becomes a candidate for the token at a use site, and a provider-supplied
+//! slot replaces the primitive meaning just as a checked body would. Only
+//! the core semantic-home owner, the toolchain sources, publishes primitive
+//! operator meanings; compiler policy qualifiers such as `Wrapping` are not
+//! declared domains and supply no home.
 //!
 //! Ownership is package-scoped, not merely program-local: a closed direct
 //! family is published only by its semantic-home owner's package
@@ -30,8 +37,7 @@
 //! free binding every declared type or domain the operand tuple names.
 //! Package identity comes from each declaration's checked source owner, so
 //! symbols without one (toolchain, source-free, or unmanaged inputs) cannot
-//! prove a foreign owner and keep the owner-local rule; compiler-owned
-//! primitive custody is enforced by its own sealed-source checks.
+//! prove a foreign owner and keep the owner-local rule.
 //!
 //! A binding attached to a domain (`machine + Quantity::Additive::add`) is a
 //! domain-family meaning ([domains: semantic roles and operators](../../../../../../../wiki/spec/language/domains.md#semantic-roles-and-operators)):
@@ -80,36 +86,56 @@ use syntax_trees::operator_spelling::OperatorSpelling;
 /// the operand tuple, and trait-homed operators participate through
 /// conformance, not operand selection. Whether the operator form keeps that
 /// looser admission or retires behind the machine rule is an
-/// OPERATOR-MACHINE-SUPPLY question, not one this check settles.
+/// OPERATOR-MACHINE-SUPPLY question, not one this check settles. The one
+/// home rule every form answers is the primitive-family rule
+/// ([`TokenBinding::primitive_family_binding`]): no authored declaration of
+/// any introducer may bind a token over operands that name no declared type
+/// or domain.
 pub(crate) fn reject_duplicate_direct_token_bindings(
     program: &SymbolResolvedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
+    let machine_bindings = program
+        .machines
+        .iter()
+        .filter_map(|machine| {
+            machine
+                .spelling
+                .map(|spelling| machine_token_binding(program, machine, spelling))
+        })
+        .collect::<Vec<_>>();
+    let mut operator_bindings = program
+        .operators
+        .iter()
+        .filter_map(|operator| {
+            operator
+                .spelling
+                .map(|spelling| operator_token_binding(program, operator, None, spelling))
+        })
+        .collect::<Vec<_>>();
+    for domain in program.domain_definitions.iter() {
+        operator_bindings.extend(
+            program
+                .operator_definitions(domain.operators)
+                .iter()
+                .filter_map(|operator| {
+                    operator.spelling.map(|spelling| {
+                        operator_token_binding(program, operator, Some(domain), spelling)
+                    })
+                }),
+        );
+    }
     let mut bindings: Vec<TokenBinding<'_>> = Vec::new();
     let mut diagnostics = Vec::new();
-    for machine in program.machines.iter() {
-        let Some(spelling) = machine.spelling else {
-            continue;
-        };
-        let binding = TokenBinding {
-            machine: Some(machine),
-            name: machine.name.as_str().to_owned(),
-            name_span: machine.name.source_span(),
-            owner_spelling: machine
-                .attached_data
-                .as_ref()
-                .map_or_else(String::new, |attached| attached.as_str().to_owned()),
-            spelling,
-            owner: binding_owner(program, machine),
-            operand_shape: ShapeNormalizer::new(program, machine.type_parameters)
-                .operand_shape(entry_parameters(program, machine)),
-            operand_display: ShapeNormalizer::for_display(program, machine.type_parameters)
-                .operand_shape(entry_parameters(program, machine)),
-        };
+    for binding in machine_bindings {
         if let Some(diagnostic) = binding.missing_semantic_home(program) {
             diagnostics.push(diagnostic);
             continue;
         }
         if let Some(diagnostic) = binding.foreign_semantic_home(program) {
+            diagnostics.push(diagnostic);
+            continue;
+        }
+        if let Some(diagnostic) = binding.primitive_family_binding(program) {
             diagnostics.push(diagnostic);
             continue;
         }
@@ -122,36 +148,47 @@ pub(crate) fn reject_duplicate_direct_token_bindings(
         }
         bindings.push(binding);
     }
-    for operator in program.operators.iter() {
-        let Some(spelling) = operator.spelling else {
+    for binding in &operator_bindings {
+        if let Some(diagnostic) = binding.primitive_family_binding(program) {
+            diagnostics.push(diagnostic);
             continue;
-        };
-        let binding = operator_token_binding(program, operator, None, spelling);
+        }
         if let Some(earlier) = bindings
             .iter()
-            .find(|earlier| earlier.repeats(program, &binding))
+            .find(|earlier| earlier.repeats(program, binding))
         {
-            diagnostics.push(duplicate_diagnostic(&binding, earlier));
-        }
-    }
-    for domain in program.domain_definitions.iter() {
-        for operator in program.operator_definitions(domain.operators) {
-            let Some(spelling) = operator.spelling else {
-                continue;
-            };
-            let binding = operator_token_binding(program, operator, Some(domain), spelling);
-            if let Some(earlier) = bindings
-                .iter()
-                .find(|earlier| earlier.repeats(program, &binding))
-            {
-                diagnostics.push(duplicate_diagnostic(&binding, earlier));
-            }
+            diagnostics.push(duplicate_diagnostic(binding, earlier));
         }
     }
     if diagnostics.is_empty() {
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+/// Build the binding identity of a `machine <token>` declaration.
+fn machine_token_binding<'program>(
+    program: &'program SymbolResolvedTrees,
+    machine: &'program Machine,
+    spelling: OperatorSpelling,
+) -> TokenBinding<'program> {
+    TokenBinding {
+        machine: Some(machine),
+        symbol: machine.symbol,
+        operand_types: entry_operand_types(program, machine),
+        name: machine.name.as_str().to_owned(),
+        name_span: machine.name.source_span(),
+        owner_spelling: machine
+            .attached_data
+            .as_ref()
+            .map_or_else(String::new, |attached| attached.as_str().to_owned()),
+        spelling,
+        owner: binding_owner(program, machine),
+        operand_shape: ShapeNormalizer::new(program, machine.type_parameters)
+            .operand_shape(entry_parameters(program, machine)),
+        operand_display: ShapeNormalizer::for_display(program, machine.type_parameters)
+            .operand_shape(entry_parameters(program, machine)),
     }
 }
 
@@ -173,6 +210,11 @@ struct TokenBinding<'program> {
     /// `operator`-form bindings carry `None` and skip the semantic-home rule
     /// per the module contract above.
     machine: Option<&'program Machine>,
+    /// The declaring machine or operator symbol, whose source custody decides
+    /// whether it may publish a primitive operator meaning.
+    symbol: SymbolHandle,
+    /// The declaration's operand types in telescope order.
+    operand_types: Vec<&'program TypeReference>,
     /// The declaration's display path (`Vec2::add`, or the leaf for a
     /// domain-homed operator).
     name: String,
@@ -216,6 +258,50 @@ impl TokenBinding<'_> {
         }
     }
 
+    /// Whether the declaration comes from a toolchain source; `None` for
+    /// source-free trees, which cannot prove custody either way.
+    fn is_toolchain_declaration(&self, program: &SymbolResolvedTrees) -> Option<bool> {
+        program
+            .symbols
+            .symbol_source_origin(self.symbol)
+            .map(|origin| origin == source::SourceOrigin::Toolchain)
+    }
+
+    /// The rejection for an authored binding whose operands name no declared
+    /// type or domain, or `None` otherwise. Such a binding joins a primitive
+    /// operator family (`u32 -`, `i32 ==`), which only the core semantic-home
+    /// owner publishes; its spelled path cannot supply a home, since use sites
+    /// select by operand types alone. A domain-homed binding participates only
+    /// through operands its domain qualifies and keeps its own carrier rule.
+    /// Toolchain declarations are the core owner; source-free trees cannot
+    /// prove custody and are left to the remaining rules.
+    fn primitive_family_binding(&self, program: &SymbolResolvedTrees) -> Option<Diagnostic> {
+        if matches!(self.owner, BindingOwner::Domain { .. })
+            || self.is_toolchain_declaration(program)?
+        {
+            return None;
+        }
+        if self
+            .operand_types
+            .iter()
+            .any(|type_reference| names_declaration(program, type_reference))
+        {
+            return None;
+        }
+        Some(
+            Diagnostic::error(format!(
+                "`{}` binds the fixed operator token `{}` over operands that name no declared \
+                 type or domain ({}); that joins a primitive operator family, which only the \
+                 core semantic-home owner may publish -- give the binding a data or domain \
+                 home among its operands",
+                self.name,
+                self.spelling.symbol(),
+                self.operand_display,
+            ))
+            .with_source_span(self.name_span),
+        )
+    }
+
     /// The rejection for a binding whose operand tuple carries no semantic
     /// home, or `None` when some operand names it. Only `machine <token>`
     /// declarations answer this rule; `machine` is `None` on an
@@ -227,7 +313,7 @@ impl TokenBinding<'_> {
         if machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement {
             return None;
         }
-        let operand_types = entry_operand_types(program, machine);
+        let operand_types = &self.operand_types;
         let message = match self.owner {
             BindingOwner::AttachedData(home) => {
                 if operand_types
@@ -270,22 +356,9 @@ impl TokenBinding<'_> {
                     self.operand_shape
                 )
             }
-            BindingOwner::Module(_) => {
-                if operand_types
-                    .iter()
-                    .any(|type_reference| names_declaration(program, type_reference))
-                {
-                    return None;
-                }
-                format!(
-                    "`{}` binds the fixed operator token `{}` over operands that name no declared \
-                     type or domain ({}); compiler-owned primitive families accept no direct \
-                     token bindings",
-                    self.name,
-                    self.spelling.symbol(),
-                    self.operand_shape
-                )
-            }
+            // A free binding's home is any declared operand; the
+            // primitive-family rule answers the telescope with none.
+            BindingOwner::Module(_) => return None,
         };
         Some(Diagnostic::error(message).with_source_span(self.name_span))
     }
@@ -321,7 +394,8 @@ impl TokenBinding<'_> {
             BindingOwner::Domain { domain, .. } => {
                 (domain.is_valid() && foreign(domain)).then_some((domain, "home domain"))
             }
-            BindingOwner::Module(_) => entry_operand_types(program, machine)
+            BindingOwner::Module(_) => self
+                .operand_types
                 .iter()
                 .flat_map(|type_reference| declared_operand_symbols(program, type_reference))
                 .find(|symbol| foreign(*symbol))
@@ -425,6 +499,12 @@ fn operator_token_binding<'program>(
     };
     TokenBinding {
         machine: None,
+        symbol: operator.symbol,
+        operand_types: program
+            .state_parameters(operator.parameters)
+            .iter()
+            .map(|parameter| &parameter.type_reference)
+            .collect(),
         name,
         name_span,
         owner_spelling,
@@ -655,9 +735,9 @@ fn names_declaration(program: &SymbolResolvedTrees, type_reference: &TypeReferen
             TypePosition::Declaration { symbol } | TypePosition::Trait { symbol } => {
                 is_declaration(program, symbol)
             }
-            // A constraint names a domain declaration; its spelling is settled
-            // against the declaration roster by `domains_named`.
-            TypePosition::Domain { .. } => true,
+            // A constraint is a home only when it spells a declared domain;
+            // compiler policy qualifiers (`Wrapping`) have no declaration.
+            TypePosition::Domain { name } => domains_named(program, name).next().is_some(),
         })
 }
 

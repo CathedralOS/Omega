@@ -301,6 +301,17 @@ impl OperationKind {
         map: &mut impl FnMut(PlaceId, StructuralAccess) -> PlaceId,
     ) {
         match self {
+            Self::ActivateTaskRegister {
+                gdt,
+                task_state,
+                scratch,
+                ..
+            } => {
+                for source in [gdt, task_state, scratch] {
+                    source.place = map(source.place, source.access);
+                }
+            }
+            Self::ReadTaskRegister { .. } => {}
             Self::EstablishNativeCodeLayout { .. } | Self::EstablishActivationClaim { .. } => {}
             Self::TransformContent {
                 source,
@@ -326,6 +337,7 @@ impl OperationKind {
             Self::ReleaseActivationClaim { source, .. }
             | Self::SplitActivationClaim { source, .. }
             | Self::StorageAddress { source }
+            | Self::GlobalDescriptorTable { source, .. }
             | Self::MoveStructuralValue { source }
             | Self::EstablishAccessReference { source, .. }
             | Self::EstablishReference { source, .. }
@@ -486,6 +498,17 @@ impl OperationKind {
     pub fn storage_uses(&self) -> Vec<StructuralStorageUse<'_>> {
         let mut projections = Vec::new();
         match self {
+            Self::ActivateTaskRegister {
+                gdt,
+                task_state,
+                scratch,
+                ..
+            } => {
+                for source in [gdt, task_state, scratch] {
+                    projections.push(argument_projection(source).into());
+                }
+            }
+            Self::ReadTaskRegister { .. } => {}
             Self::EstablishNativeCodeLayout { .. } => {}
             Self::EstablishActivationClaim { backing_type, .. } => {
                 projections.push(StructuralStorageUse::Type(*backing_type));
@@ -502,6 +525,7 @@ impl OperationKind {
             Self::ReleaseActivationClaim { source, .. }
             | Self::SplitActivationClaim { source, .. }
             | Self::StorageAddress { source }
+            | Self::GlobalDescriptorTable { source, .. }
             | Self::MoveStructuralValue { source }
             | Self::EstablishAccessReference { source, .. }
             | Self::EstablishReference { source, .. }
@@ -695,6 +719,17 @@ impl OperationKind {
     pub fn structural_projection_paths_mut(&mut self) -> Vec<&mut Vec<StructuralPathSegment>> {
         let mut paths = Vec::new();
         match self {
+            Self::ActivateTaskRegister {
+                gdt,
+                task_state,
+                scratch,
+                ..
+            } => {
+                for source in [gdt, task_state, scratch] {
+                    paths.push(&mut source.path);
+                }
+            }
+            Self::ReadTaskRegister { .. } => {}
             Self::EstablishByteSequenceConcatenation { left, right, .. }
             | Self::ByteSequenceEqual { left, right } => {
                 for operand in [left, right] {
@@ -707,6 +742,7 @@ impl OperationKind {
             Self::ReleaseActivationClaim { source, .. }
             | Self::SplitActivationClaim { source, .. }
             | Self::StorageAddress { source }
+            | Self::GlobalDescriptorTable { source, .. }
             | Self::MoveStructuralValue { source }
             | Self::EstablishAccessReference { source, .. }
             | Self::EstablishReference { source, .. }

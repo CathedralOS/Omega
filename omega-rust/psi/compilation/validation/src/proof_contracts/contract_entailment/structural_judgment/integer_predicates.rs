@@ -560,7 +560,6 @@ impl<'program> StructuralJudge<'program> {
         value: &StructuralTerm,
         depth: usize,
     ) -> Option<checked_trees::IntegerRangeRecipe> {
-        use checked_trees::IntegerRangeRecipe;
         if depth >= 64 || !self.runtime_body_values || self.case_facts_only {
             return None;
         }
@@ -568,9 +567,82 @@ impl<'program> StructuralJudge<'program> {
         // call descriptions must not expand nested saved actuals before the
         // integer resolver authenticates their completed supplier identities.
         // Its current refinements and whole-context admission remain unchanged.
+        // A captured result records the range its producer proved, such as a
+        // callee's inferred returns. Rewriting the capture into its result
+        // equation can name a term with no range of its own, so also compose
+        // the recorded ranges over the original term; both bound one value.
+        let recorded = self.recorded_integer_range_recipe(value, depth);
         let value = self
             .integer_projection_value(self.completed_integer_call_description(value))
             .into_semantic_value();
+        let derived = self.rewritten_integer_range_recipe(value, depth);
+        match (derived, recorded) {
+            (Some(derived), Some(recorded)) => Some(derived.intersect(&recorded)),
+            (derived, recorded) => derived.or(recorded),
+        }
+    }
+
+    /// Compose the ranges recorded on captured operands, before any rewrite.
+    /// An operand without a recorded range contributes only its carrier.
+    fn recorded_integer_range_recipe(
+        &self,
+        value: &StructuralTerm,
+        depth: usize,
+    ) -> Option<checked_trees::IntegerRangeRecipe> {
+        use checked_trees::IntegerRangeRecipe;
+        if depth >= 64 {
+            return None;
+        }
+        match value.semantic_value() {
+            StructuralTerm::Integer(value) => {
+                Some(IntegerRangeRecipe::bounds(value.clone(), value.clone()))
+            }
+            StructuralTerm::CapturedValue { integer_range, .. } => {
+                integer_range.as_deref().cloned()
+            }
+            StructuralTerm::IntegerEmbedding { reference, value } => {
+                let primitive = self.program.primitive_type_reference(*reference)?;
+                let (low, high) = primitive.integer_bounds()?;
+                let carrier =
+                    IntegerRangeRecipe::bounds(BigInt::from_i128(low), BigInt::from_i128(high));
+                Some(
+                    self.recorded_integer_range_recipe(value, depth + 1)
+                        .map_or_else(|| carrier.clone(), |recipe| recipe.intersect(&carrier)),
+                )
+            }
+            StructuralTerm::MathematicalBinary {
+                operator,
+                left,
+                right,
+            } => self.recorded_integer_range_recipe(left, depth + 1)?.binary(
+                *operator,
+                &self.recorded_integer_range_recipe(right, depth + 1)?,
+            ),
+            StructuralTerm::ScalarBinary {
+                operator,
+                left,
+                right,
+                meaning,
+                ..
+            } if meaning
+                .iter()
+                .all(|(_, domain)| *domain == ArithmeticDomain::Exact) =>
+            {
+                self.recorded_integer_range_recipe(left, depth + 1)?.binary(
+                    *operator,
+                    &self.recorded_integer_range_recipe(right, depth + 1)?,
+                )
+            }
+            _ => None,
+        }
+    }
+
+    fn rewritten_integer_range_recipe(
+        &self,
+        value: StructuralTerm,
+        depth: usize,
+    ) -> Option<checked_trees::IntegerRangeRecipe> {
+        use checked_trees::IntegerRangeRecipe;
         match value {
             StructuralTerm::Integer(value) => {
                 Some(IntegerRangeRecipe::bounds(value.clone(), value))

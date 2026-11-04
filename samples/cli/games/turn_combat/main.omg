@@ -29,21 +29,21 @@ machine Main::main(main: &mut Main) reaches Console {
     main.monster.hp = 25;
     main.monster.attack = 5;
 
-    transition { _ -> hero_attacks(main) }
+    transition { _ -> block hero_attacks(main) }
 
     machine hero_attacks(main: &mut Main) {
         main.monster.hp = (main.monster.hp - main.hero.attack) % 101;
         transition main.monster.hp <= 0 {
-            true -> hero_wins(main)
-            _ -> monster_attacks(main)
+            true -> block hero_wins(main)
+            _ -> block monster_attacks(main)
         }
     }
 
     machine monster_attacks(main: &mut Main) {
         main.hero.hp = (main.hero.hp - main.monster.attack) % 101;
         transition main.hero.hp <= 0 {
-            true -> monster_wins(main)
-            _ -> hero_attacks(main)
+            true -> block monster_wins(main)
+            _ -> block hero_attacks(main)
         }
     }
 

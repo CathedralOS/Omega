@@ -45,48 +45,48 @@ machine Main::main(main: &mut Main) reaches Console {
         Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall
     ];
     main.r = 0;
-    transition { _ -> row_loop(main) }
+    transition { _ -> block row_loop(main) }
 
     machine row_loop(main: &mut Main) {
-        transition main.r < 4 { true -> col_start(main) _ -> done(main) }
+        transition main.r < 4 { true -> block col_start(main) _ -> block done(main) }
     }
     machine col_start(main: &mut Main) {
         main.c = 0;
         main.line = "      ";
-        transition { _ -> col_loop(main) }
+        transition { _ -> block col_loop(main) }
     }
     machine col_loop(main: &mut Main) {
-        transition main.c < 6 { true -> cell(main) _ -> emit_row(main) }
+        transition main.c < 6 { true -> block cell(main) _ -> block emit_row(main) }
     }
     machine cell(main: &mut Main) {
         // The DIRECT row-major index (R0 sweep 2026-07-11): one dominating guard on the
         // compound bound, then `grid[r * 6 + c]` as the MATCH SUBJECT -- the free-running
         // `k` counter and its re-guard state are gone (the match-subject position now
         // hoists computed indexes like every other position).
-        transition main.r * 6 + main.c < 24 { true -> match_cell(main) _ -> emit_row(main) }
+        transition main.r * 6 + main.c < 24 { true -> block match_cell(main) _ -> block emit_row(main) }
     }
     machine match_cell(main: &mut Main) {
         // Direct runtime-indexed enum-match subject -- the tilemap classification.
         transition main.grid[main.r * 6 + main.c] {
-            Cell::Wall  -> put(main, 35)   // '#'
-            Cell::Floor -> put(main, 46)   // '.'
-            Cell::Door  -> put(main, 43)   // '+'
-            Cell::Water -> put(main, 126)  // '~'
+            Cell::Wall  -> block put(main, 35)   // '#'
+            Cell::Floor -> block put(main, 46)   // '.'
+            Cell::Door  -> block put(main, 43)   // '+'
+            Cell::Water -> block put(main, 126)  // '~'
         }
     }
     machine put(main: &mut Main, ch: u8) {
         main.lab = ch;
-        transition { _ -> write_cell(main) }
+        transition { _ -> block write_cell(main) }
     }
     machine write_cell(main: &mut Main) {
         main.line[main.c] = main.lab;
         main.c = main.c + 1;
-        transition { _ -> col_loop(main) }
+        transition { _ -> block col_loop(main) }
     }
     machine emit_row(main: &mut Main) {
         Console::write_line(main.line);
         main.r = main.r + 1;
-        transition { _ -> row_loop(main) }
+        transition { _ -> block row_loop(main) }
     }
     machine done(main: &mut Main) {
         Console::write_line("done: 4 rows rendered -- walls, floor, door and water all classified (exit 0)");

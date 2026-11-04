@@ -89,3 +89,17 @@ The final CLI SHA-256 is
 `15a75295c6e8eafd66c290ba0834660d85f07b8a2117f8087b831bacfed676d1`
 (opt-level 1). These observations do not establish Product compiler parity or
 execution on other hosts.
+
+## Build-owned target-body migration
+
+The `target_body` place carries no source target prefix. Its four prefixed
+`relay` bodies became the boundary requirement `SelectedRelay::relay(selected:
+dyn Family, width: u32)` with its `requires width == 16 || width == 32`,
+implemented by ordinary `X86Relay` and `ArmRelay` and selected by target-keyed
+`Build::select_provider` rows (`BUILD-OWNED-TARGET-SELECTION`). Each
+implementation and entry wrapper checks a target tag through `SelectedBodyCheck`,
+so a wrong Build row traps. `transport` calls `SelectedRelay::relay`; the
+family call, the twin's `slot = 32` write and the payload-7 oracle are
+unchanged. On macOS x86-64 the positive exits 0 under `omega run --both` and the
+twin still rejects with `cannot prove runtime index subject equality`. No
+compiler change was needed. The other hosted targets were not executed here.

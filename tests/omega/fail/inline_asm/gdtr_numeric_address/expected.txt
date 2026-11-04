@@ -1,0 +1,1 @@
+asm instruction `lgdt`: operand must be a borrowed ten-byte array, not a numeric address

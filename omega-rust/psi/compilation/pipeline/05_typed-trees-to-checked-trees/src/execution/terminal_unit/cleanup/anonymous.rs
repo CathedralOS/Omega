@@ -116,12 +116,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         trace.phase(phase);
         trace.statement(Some(coordinate.statement_index));
     };
-    let Some(call) = invocation.call() else {
-        // Register invocations admit scalar operands only; they have no
-        // descriptor or owned operand continuation to complete.
-        return invocation.structural_operands().is_empty().then(Vec::new);
-    };
-    if !call.has_normal_continuation() {
+    if !invocation.has_normal_continuation() {
         // Preserve operand custody in the suspended caller. Absence of return
         // grants neither descriptor death nor borrowed-storage restoration.
         return Some(Vec::new());
@@ -133,7 +128,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         machine.symbol,
         state.symbol,
         results,
-        call,
+        invocation,
         operations,
         shapes,
     )?;
@@ -192,7 +187,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     let values = &facts.values.structural_values;
     let mut dying = Vec::new();
     facts.contextual_cleanup.for_each_state_disposition(
-        machine.symbol,
+        super::owning_cleanup_machine(program, state.symbol),
         state.symbol,
         |_, disposition| {
             if !matches!(

@@ -972,6 +972,11 @@ not a completed launch preflight.
   carries authorized work through implementation, testing, review, normal
   main landing and remote verification, and keeps working until it is
   complete.
+- **Never schedule timers or polling check-ins during coordination.** After
+  launching background tasks or subagents, stop calling tools and let
+  reactive wakeups (subagent messages and background task completion events)
+  resume execution. Periodic timers (`schedule`, cron, `send_later`, or sleep
+  loops) burn coordinator context and tokens without advancing work.
 - Dot-created Omega cloud sessions and their native workers default to
   **GPT 6.1 Sol, medium reasoning** (`gpt-6.1-sol`, `medium`), unless the user
   specifies another model or effort. Select them through the runtime's exposed

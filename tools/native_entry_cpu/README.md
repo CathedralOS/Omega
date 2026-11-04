@@ -41,3 +41,47 @@ Handwritten `control.S` is solely a harness bringup/falsification input. `--cont
 The direct and helper Omega images both produced the exact eight-marker result. The frozen pre-repair compiler instead refused the demanded entry with `IncompatiblePlan`. Raw producer/source manifests and historical bringup records remain in the qualification build directory; copied bytes and logs are not committed.
 
 This proves entry/body transport and safe repeated CPU return. It does not prove Cathedral boot, IDT installation authority, stack-root lifetime, live PIC/PIT delivery, `Pending` acknowledgement issuance, or waking ordinary Omega work. The separate nested Resident-layout gap is unchanged.
+
+## Save and restore GDTR through an ordinary call
+
+The [descriptor-table witness](../../tests/omega/pass/build/descriptor_table_round_trip/README.md)
+uses an ordinary System V callback entry. Capture it with the same corpus command,
+filtered to `pass/build/descriptor_table_round_trip`, then select its recorded
+`CallReturn` entry:
+
+```sh
+python3 tools/native_entry_cpu/extract.py --entry-control CallReturn \
+  build/gdtr-capture/pass/build/descriptor_table_round_trip/linux_x86_64
+python3 tools/native_entry_cpu/run.py --oracle gdtr-call --label gdtr-round-trip \
+  --placement build/gdtr-capture/pass/build/descriptor_table_round_trip/linux_x86_64/placement.json
+```
+
+The harness owns and pins the table and descriptor buffers for the entire call.
+It initializes all ten output bytes to `0xA5`, then calls the actual Omega entry
+eight times. After each return it independently checks the loaded base/limit,
+original GDTR restoration, immediate six-byte and outer word canaries, unchanged
+table contents, exact RSP, callee-saved registers and IF/DF. Ordinary caller-saved
+registers and arithmetic flags may change. The required output is `B........P`
+and QEMU exit33. Repeat with a distinct label and `--corrupt-neighbor`: the
+harness deliberately damages one adjacent byte and must report failure.
+
+This closed CPU test injects no asynchronous interrupts, single stepping or
+hardware breakpoints during the temporary load. It does not reload segment
+registers or activate a TSS/IDT/timer. The interrupt oracle above retains its
+separate complete interrupted-state checks.
+
+## Activate a retained task-state segment
+
+The [task-register witness](../../tests/omega/pass/build/task_register_activation/README.md)
+uses the same ordinary-call export path. Extract its `CallReturn` entry and run
+`--oracle task-register-call`. The harness owns the GDT and task-state bytes
+until shutdown. The Omega body performs the activation and all selector reads;
+the harness independently checks the resulting TR and complete descriptor.
+
+An alternate table contains an otherwise valid descriptor, so the wrong-table
+control specifically tests the association with the CPU's current GDTR. A
+mismatched task-state buffer, code slot, outside selector and already-busy
+repetition must also refuse. Eight ordinary calls produce `B........P` and
+exit33. The first activates and the other seven verify refusal of the busy
+entry. `--corrupt-neighbor` must report failure using the same compiled payload.
+No timer interrupt or acknowledgement is created by this test.

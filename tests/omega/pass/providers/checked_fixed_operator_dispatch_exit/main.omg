@@ -9,14 +9,18 @@ use omega_language_std::console;
 
 data CheckedMath {}
 
-boundary machine - CheckedMath::select_left(left: i32, right: i32) -> i32;
+// The operator's declared home: bare primitive operands would join the
+// core's primitive operator family, which only the core may publish.
+domain i32::Picked;
+
+boundary machine - CheckedMath::select_left(left: i32 in Picked, right: i32 in Picked) -> i32;
 
 data CheckedMathProvider {}
 
-machine CheckedMathProvider::select_left_impl(left: i32, right: i32) -> i32
+machine CheckedMathProvider::select_left_impl(left: i32 in Picked, right: i32 in Picked) -> i32
 satisfies CheckedMath::select_left
 {
-    transition { _ -> left }
+    transition { _ -> (left as i32) }
 }
 
 data Main { }
@@ -25,7 +29,7 @@ machine Main::main(main: &mut Main)
 reaches Console
 {
     // Primitive subtraction would return 67; the selected body returns 70.
-    let result: i32 = (70 as i32) - 3;
+    let result: i32 = (70 as i32 in Picked) - (3 as i32 in Picked);
     Console::exit_process(result);
 }
 
