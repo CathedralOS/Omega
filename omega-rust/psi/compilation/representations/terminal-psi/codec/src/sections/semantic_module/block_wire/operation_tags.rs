@@ -279,3 +279,8 @@ pub(super) const GLOBAL_DESCRIPTOR_TABLE: u8 = 133;
 pub(super) const ACTIVATE_TASK_REGISTER: u8 = 134;
 /// `OperationKind::ReadTaskRegister`.
 pub(super) const READ_TASK_REGISTER: u8 = 135;
+
+/// `OperationKind::ReloadSegmentDescriptors`.
+pub(super) const RELOAD_SEGMENT_DESCRIPTORS: u8 = 136;
+/// `OperationKind::ReadSegmentSelector`.
+pub(super) const READ_SEGMENT_SELECTOR: u8 = 137;

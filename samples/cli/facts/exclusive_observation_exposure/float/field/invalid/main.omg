@@ -1,4 +1,4 @@
-// A saved observation that the kept float is 7 stays provable across a complete non-writing exclusive call on that float.
+// A saved observation that kept is 7 stays valid across a complete non-writing exclusive call.
 // This twin writes the saved float, invalidating its live equality with the observation.
 data Ends { kept: f64; other: f64; }
 data Note { observed: f64; }
@@ -18,7 +18,8 @@ machine main() crashes Trap {
     let saved: f64 = item.kept;
     let note: Note = Note { observed: saved };
     let held: f64 = expose(&mut item.kept);
-    transition agree(note.observed, item.kept) == 7.0 { true -> done(held) _ -> bad() }
+    let agreed: f64 = agree(note.observed, item.kept);
+    transition agreed == 7.0 && item.kept == 7.0 && item.other == 1.0 { true -> done(held) _ -> bad() }
     machine done(held: f64) {}
     machine bad() { crash Trap; }
 }

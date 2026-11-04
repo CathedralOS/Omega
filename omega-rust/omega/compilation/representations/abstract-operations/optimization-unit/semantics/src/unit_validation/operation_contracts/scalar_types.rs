@@ -68,7 +68,14 @@ pub(crate) fn operation_scalar_types_match(
                 && scalar(result.value) == Some(result.scalar_type)
                 && scalar(*selector).is_some_and(|ty| unsigned(ty, 16))
         }
-        O::ReadTaskRegister { result, .. } => matches!(result.scalar_type, ScalarType::Integer(integer)
+        O::ReloadSegmentDescriptors { result, selector, entries, .. } => {
+            let unsigned = |ty, bits| matches!(ty, ScalarType::Integer(integer)
+                if fixed(integer) && integer.bits() == bits && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned);
+            (1..=8192).contains(entries) && unsigned(result.scalar_type, 8)
+                && scalar(result.value) == Some(result.scalar_type)
+                && scalar(*selector).is_some_and(|ty| unsigned(ty, 16))
+        }
+        O::ReadTaskRegister { result, .. } | O::ReadSegmentSelector { result, .. } => matches!(result.scalar_type, ScalarType::Integer(integer)
             if fixed(integer) && integer.bits() == 16 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
             && scalar(result.value) == Some(result.scalar_type),
         O::GlobalDescriptorTable { .. } => true,

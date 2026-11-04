@@ -61,6 +61,12 @@ const fn project_execution_identity(
     identity: CompilerIntrinsicExecutionIdentity,
 ) -> PackageReviewCompilerIntrinsicExecution {
     match identity {
+        CompilerIntrinsicExecutionIdentity::SegmentReload(kind) => {
+            PackageReviewCompilerIntrinsicExecution::SegmentReload(kind)
+        }
+        CompilerIntrinsicExecutionIdentity::SegmentRead(register) => {
+            PackageReviewCompilerIntrinsicExecution::SegmentRead(register)
+        }
         CompilerIntrinsicExecutionIdentity::TaskRegisterActivate => {
             PackageReviewCompilerIntrinsicExecution::TaskRegisterActivate
         }
@@ -126,6 +132,12 @@ const fn project_execution_identity(
 
 fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> String {
     match identity {
+        CompilerIntrinsicExecutionIdentity::SegmentReload(kind) => {
+            format!("Select {kind:?} descriptors after checking the borrowed GDT")
+        }
+        CompilerIntrinsicExecutionIdentity::SegmentRead(register) => {
+            format!("Read the CPU's {register:?} segment selector")
+        }
         CompilerIntrinsicExecutionIdentity::TaskRegisterActivate => {
             "Activate a task register after checking its borrowed GDT and task-state bytes"
                 .to_owned()

@@ -40,13 +40,6 @@ pub(crate) const fn writes_rflags(operation: AtomicOperation) -> bool {
     !matches!(operation, AtomicOperation::Load | AtomicOperation::Store)
 }
 
-const fn retries_bitwise_update(operation: AtomicOperation) -> bool {
-    matches!(
-        operation,
-        AtomicOperation::FetchAnd | AtomicOperation::FetchOr | AtomicOperation::FetchXor
-    )
-}
-
 pub(crate) fn effects(form: AtomicForm) -> MachineEncodedEffects {
     let mut effects = MachineEncodedEffects {
         memory: MachineEncodedMemoryEffect::AtomicPointerV1 {
@@ -65,11 +58,11 @@ pub(crate) fn effects(form: AtomicForm) -> MachineEncodedEffects {
     if matches!(
         form.operation,
         AtomicOperation::CompareExchange | AtomicOperation::CompareExchangeOnce
-    ) || retries_bitwise_update(form.operation)
+    ) || form.operation.is_bitwise_fetch()
     {
         effects.implicit_unit_clobbers.extend(units("rax"));
     }
-    if retries_bitwise_update(form.operation) {
+    if form.operation.is_bitwise_fetch() {
         effects.control = MachineEncodedControlEffect::AtomicRetryUntilCommitV1;
     }
     effects.implicit_unit_clobbers.sort_unstable();
@@ -187,7 +180,7 @@ fn validate_registers(
     }
     // RAX is the loop's private comparison, written before either input is
     // consumed by all attempts. None of the external homes may alias it.
-    if retries_bitwise_update(form.operation) && registers.contains(&0) {
+    if form.operation.is_bitwise_fetch() && registers.contains(&0) {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok(())
@@ -484,7 +477,7 @@ mod tests {
         );
         for form in AtomicForm::ALL
             .into_iter()
-            .filter(|form| retries_bitwise_update(form.operation))
+            .filter(|form| form.operation.is_bitwise_fetch())
         {
             for operand in 0..3 {
                 let mut homes = [2, 1, 8];

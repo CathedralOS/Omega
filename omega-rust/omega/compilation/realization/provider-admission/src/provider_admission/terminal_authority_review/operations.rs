@@ -38,6 +38,12 @@ pub(super) fn physical_authority_use(operation: &AbstractOperation) -> PhysicalA
             service: Some(*service), register_operation: terminal_psi::RegisterOperation::TaskRegisterRead,
             operation: *psi_operation,
         },
+        AbstractOperation::ReloadSegmentDescriptors { service, psi_operation, kind, .. } => PhysicalAuthorityUse::CheckedRegister {
+            service: Some(*service), register_operation: terminal_psi::RegisterOperation::SegmentReload(*kind), operation: *psi_operation,
+        },
+        AbstractOperation::ReadSegmentSelector { service, psi_operation, register, .. } => PhysicalAuthorityUse::CheckedRegister {
+            service: Some(*service), register_operation: terminal_psi::RegisterOperation::SegmentRead(*register), operation: *psi_operation,
+        },
         AbstractOperation::GlobalDescriptorTable {
             service,
             operation,

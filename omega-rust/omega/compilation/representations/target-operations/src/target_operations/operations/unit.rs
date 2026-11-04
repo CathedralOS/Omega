@@ -635,6 +635,22 @@ pub enum TargetUnitOperation {
         scratch: StructuralArgument,
         result_home: TargetUnitScalarHomeRequirement,
     },
+    ReloadSegmentDescriptors {
+        psi_operation: OperationId,
+        service: ServiceId,
+        entries: u16,
+        kind: terminal_psi::SegmentReload,
+        gdt: StructuralArgument,
+        selector: TargetUnitScalarArgumentSource,
+        scratch: StructuralArgument,
+        result_home: TargetUnitScalarHomeRequirement,
+    },
+    ReadSegmentSelector {
+        psi_operation: OperationId,
+        service: ServiceId,
+        register: terminal_psi::SegmentRegister,
+        result_home: TargetUnitScalarHomeRequirement,
+    },
     ReadTaskRegister {
         psi_operation: OperationId,
         service: ServiceId,

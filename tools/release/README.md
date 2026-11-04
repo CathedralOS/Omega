@@ -265,7 +265,11 @@ gate `open` — the contract's timeout and unavailable-dependency cases:
   and records the rest `beyond --limit`.
 
 stdout and stderr share one pipe so the stored `output_tail` (the last
-64 KiB) keeps the runners' order. The full output of every command goes to
+64 KiB) keeps the runners' order. The same lines are printed as they arrive,
+prefixed with `|`. A command that prints nothing for 30 seconds reports how
+long it has been running and the last line it did print, so a corpus or
+workspace test does not look frozen while it works. The full output of every
+command goes to
 `target/release_record/<lane>__<commit>__<utc>/<gate>-<index>.log`
 (override with `--log-dir`), and each command row names its `log`. The
 cleanliness check ignores the records directory, so a second run in the same

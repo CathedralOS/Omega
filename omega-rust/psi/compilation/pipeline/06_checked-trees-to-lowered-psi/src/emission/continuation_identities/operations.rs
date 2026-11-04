@@ -326,6 +326,8 @@ pub(crate) fn map_obligations(
         | OperationKind::RegisterAccess { .. }
         | OperationKind::ActivateTaskRegister { .. }
         | OperationKind::ReadTaskRegister { .. }
+        | OperationKind::ReloadSegmentDescriptors { .. }
+        | OperationKind::ReadSegmentSelector { .. }
         | OperationKind::GlobalDescriptorTable { .. }
         | OperationKind::IntegerConstant { .. }
         | OperationKind::BooleanConstant { .. }

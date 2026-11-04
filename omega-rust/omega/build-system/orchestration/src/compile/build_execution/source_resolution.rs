@@ -209,8 +209,8 @@ pub(crate) fn resolve_acquired_sources(
     execution: package_compilation::BuildExecutionInputs,
     collect_timings: bool,
 ) -> Result<(ResolvedBuildSources, Vec<ResolvedPackageBuild>), ProjectSourceResolutionError> {
-    acquisitions
-        .retain_root(&acquired)
+    let acquired = acquisitions
+        .retain_root(acquired)
         .map_err(ProjectSourceResolutionError::Source)?;
     let mut scheduler = readiness::ReadinessScheduler::new(
         session,

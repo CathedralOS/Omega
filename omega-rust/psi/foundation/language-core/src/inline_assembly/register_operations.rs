@@ -5,6 +5,8 @@
 //! writes and operand-free processor control all remain observable. No event
 //! grants machine authority.
 
+use crate::descriptor_tables::{SegmentRegister, SegmentReload};
+
 use super::{
     AsmFenceKind, AsmGlobalDescriptorTableOperation, AsmInterruptControlKind, AsmSystemRegister,
     AsmTargetApplicability,
@@ -58,6 +60,8 @@ pub enum AsmRegisterOperation {
     /// been checked. It is not exposed as a numeric-pointer assembly operand.
     TaskRegisterActivate,
     TaskRegisterRead,
+    SegmentReload(SegmentReload),
+    SegmentRead(SegmentRegister),
 }
 
 impl AsmRegisterOperation {
@@ -67,6 +71,8 @@ impl AsmRegisterOperation {
         match self {
             Self::TaskRegisterActivate => 0x602,
             Self::TaskRegisterRead => 0x603,
+            Self::SegmentReload(kind) => 0x610 | kind.code() as u16,
+            Self::SegmentRead(register) => 0x620 | register.code() as u16,
             Self::GlobalDescriptorTable(AsmGlobalDescriptorTableOperation::Store) => 0x600,
             Self::GlobalDescriptorTable(AsmGlobalDescriptorTableOperation::Load) => 0x601,
             Self::ProcessorHalt => 0x400,
@@ -91,6 +97,18 @@ impl AsmRegisterOperation {
         match tag {
             0x602 => return Some(Self::TaskRegisterActivate),
             0x603 => return Some(Self::TaskRegisterRead),
+            0x610..=0x611 => {
+                return match SegmentReload::from_code((tag & 0xf) as u8) {
+                    Some(kind) => Some(Self::SegmentReload(kind)),
+                    None => None,
+                };
+            }
+            0x620..=0x625 => {
+                return match SegmentRegister::from_code((tag & 0xf) as u8) {
+                    Some(register) => Some(Self::SegmentRead(register)),
+                    None => None,
+                };
+            }
             0x600 => {
                 return Some(Self::GlobalDescriptorTable(
                     AsmGlobalDescriptorTableOperation::Store,
@@ -166,7 +184,8 @@ impl AsmRegisterOperation {
         use AsmRegisterCarrier::*;
         match self {
             Self::TaskRegisterActivate => &[U64, U64, U16, U64, U64],
-            Self::TaskRegisterRead => &[],
+            Self::TaskRegisterRead | Self::SegmentRead(_) => &[],
+            Self::SegmentReload(_) => &[U64, U16, U64, U64],
             Self::SystemRead(_)
             | Self::ProcessorHalt
             | Self::InterruptControl(_)
@@ -182,8 +201,10 @@ impl AsmRegisterOperation {
     pub const fn result_carrier(self) -> Option<AsmRegisterCarrier> {
         match self {
             Self::SystemRead(_) | Self::ModelSpecificRead => Some(AsmRegisterCarrier::U64),
-            Self::PortRead | Self::TaskRegisterActivate => Some(AsmRegisterCarrier::U8),
-            Self::TaskRegisterRead => Some(AsmRegisterCarrier::U16),
+            Self::PortRead | Self::TaskRegisterActivate | Self::SegmentReload(_) => {
+                Some(AsmRegisterCarrier::U8)
+            }
+            Self::TaskRegisterRead | Self::SegmentRead(_) => Some(AsmRegisterCarrier::U16),
             _ => None,
         }
     }
@@ -212,7 +233,9 @@ impl AsmRegisterOperation {
             | Self::ModelSpecificWrite
             | Self::GlobalDescriptorTable(_)
             | Self::TaskRegisterActivate
-            | Self::TaskRegisterRead => true,
+            | Self::TaskRegisterRead
+            | Self::SegmentReload(_)
+            | Self::SegmentRead(_) => true,
             Self::SystemWrite(register) => register.write_intrinsic_name().is_some(),
         }
     }

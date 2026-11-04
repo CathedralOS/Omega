@@ -53,6 +53,10 @@ call-result, other-machine and target-body fixture pairs are now pinned under
 `tests/omega/{pass,fail}/facts/exclusive_observation_exposure_through_float_*`.
 Their source and Build companions match these sample pairs byte-for-byte.
 This pinning observation adds no new matching-host runtime qualification.
+The [float row](float/README.md) uses ordinary Build selection, retains the
+standard local path and exercises both match choices. All four hosted targets have completed
+its current row and ordinary CLI checks. Those observations retain their
+measured source; earlier observations stay historical.
 
 - **Establishment.** The observation is the read `items[0]` of the literal `[7, 1]`. Where that read is in another machine or target body, the callee requires `items[0] == 7` and the caller proves it from the literal. The consuming `agree` requires the saved value still equal the live element and 7. The exclusive loan does not establish the fact; the read does.
 - **Identity and invalidation.** The complete non-writing call preserves the exact observed element. The twin's actual store overlaps that element and invalidates equality with its saved value. Disjoint actual writes remain covered by the choice rows.
