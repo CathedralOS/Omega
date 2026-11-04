@@ -106,3 +106,76 @@ pub(super) fn validate_targets(
     }
     Ok(())
 }
+
+/// Finalized instruction spans in this completed image's linked address space.
+/// A separately launched process may apply a load slide; these coordinates do
+/// not claim to observe that process or grant access to its code.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LinkedNativeCodeLayout {
+    pub private_function: Option<function_identity::MachineFunctionIdentity>,
+    pub terminal_psi: terminal_psi::TerminalPsiIdentity,
+    pub machine: semantic_vocabulary::MachineId,
+    pub entry: u64,
+    pub regions: Vec<LinkedNativeCodeRegion>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LinkedNativeCodeRegion {
+    pub base: u64,
+    pub length: u64,
+}
+
+/// Inspect the descriptor words already checked against final instruction
+/// attribution. Private objects keep their own semantic namespace and exact
+/// section placement, so equal local machine numbers never merge their rows.
+pub fn inspect_native_code_layouts(
+    artifact: &crate::ObjectArtifact,
+    image: &crate::ExecutableImage,
+) -> Result<Vec<LinkedNativeCodeLayout>, Diagnostic> {
+    if artifact.psi() != image.psi() || artifact.target() != image.target() {
+        return Err(Diagnostic::error(
+            "native layout inspection requires the image's exact object and target",
+        ));
+    }
+    let output = image.output();
+    let mut descriptions = Vec::new();
+    for namespace in crate::object::private_object_composition::namespaces(artifact) {
+        validate_targets(&namespace, output)?;
+        let Some(pool) = &namespace.artifact.native_code_layout_pool else {
+            continue;
+        };
+        for descriptor in &pool.layouts {
+            let address = |offset: u64| {
+                u64::try_from(namespace.text_offset)
+                    .ok()
+                    .and_then(|placement| {
+                        output
+                            .final_image_layout
+                            .text_address
+                            .checked_add(placement)
+                    })
+                    .and_then(|base| base.checked_add(offset))
+                    .ok_or_else(|| Diagnostic::error("native layout inspection address overflows"))
+            };
+            let regions = descriptor
+                .layout
+                .regions
+                .iter()
+                .map(|region| {
+                    Ok(LinkedNativeCodeRegion {
+                        base: address(region.section_offset)?,
+                        length: region.length,
+                    })
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            descriptions.push(LinkedNativeCodeLayout {
+                private_function: namespace.private_function,
+                terminal_psi: namespace.artifact.psi(),
+                machine: descriptor.layout.machine,
+                entry: address(descriptor.layout.entry_section_offset)?,
+                regions,
+            });
+        }
+    }
+    Ok(descriptions)
+}

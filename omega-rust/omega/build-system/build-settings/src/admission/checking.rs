@@ -89,6 +89,7 @@ pub(crate) fn prepare_checked_build(
         execution_profile.map(TargetProfile::target_name),
         &bindings,
         &declarations.origins,
+        &[],
     ))?;
     let (selected_provider_plan_facts, provenance) =
         if candidates.is_empty() && declarations.provider_defaults.is_empty() {

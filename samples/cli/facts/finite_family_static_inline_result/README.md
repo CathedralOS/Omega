@@ -121,6 +121,12 @@ missing static type or bounds guarantee.
 
 ## Validation and remaining scope
 
+A later actual Mac-record conflict required merging main `fa33c81d5ef2`.
+All authored inputs and feature algorithms remain unchanged. Main changes the
+Terminal format from 239 to 240 and changes common compiler and library
+consumers, so integrated checks are pending. The completed observations below
+retain their actual `7ea5b8217acc` and `990cae4277cb` identities.
+
 An actual record conflict required merging main `9e959fe1460e` into measured
 source `7ea5b8217acc27c062f0a479cd915ea98f62bfeb`. All 343 authored inputs and
 58 matching Main/Build pairs remain unchanged. Main changed domain and call

@@ -16,7 +16,7 @@ use typed_trees::TypedTrees;
 /// Every supplied declaration and member is checked, including defaults and
 /// overrides. None retains the reusable Source surface; Some(empty) carries
 /// provider declarations or authored target bodies without inventing an entry.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedLayoutTargetScope {
     pub target: String,
     pub facts: Option<layout_plans::LayoutTargetFacts>,

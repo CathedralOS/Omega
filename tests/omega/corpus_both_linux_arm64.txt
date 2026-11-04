@@ -1025,9 +1025,11 @@ pass/calls/native_code_layout_lifetime_exit rejected 1901ms interpreter:unchecke
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "describe", reason: "return materialized custody has another carrier", gap: None })
 pass/calls/native_code_layout_nested_type_const_exit rejected 2067ms interpreter:unchecked @6e42425cd720
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "describe$specialized$f4dc146df69dbae0$0", reason: "return materialized custody has another carrier", gap: None })
+pass/calls/native_code_layout_region_snapshot_exit built 6688ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
 pass/calls/native_code_layout_shadowing_exit built 2141ms interpreter-exit:0 @6e42425cd720
 pass/calls/native_code_layout_uncalled_boundary_exit built 1942ms interpreter:declined @6e42425cd720
 	Terminal interpreter: UnsupportedCapability(NativeCodeLayout { machine: MachineId(3) })
+pass/calls/native_code_layout_uncalled_cycle_exit built 6689ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
 pass/calls/negated_edge_guard_requires_exit built 7878ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
 pass/calls/nested_binding_call checked 1840ms @6e42425cd720
 pass/calls/nested_call_footprints_follow_occurrences built 1961ms interpreter-exit:0 @6e42425cd720
@@ -6805,24 +6807,15 @@ pass/facts/selected_crash_formal_through_other_machine_exit built 2132ms exit:0 
 pass/facts/selected_crash_formal_through_other_state_exit built 2079ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/selected_crash_formal_through_parameter_exit built 2087ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/selected_crash_formal_through_target_body_exit built 2230ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/selected_native_code_layout_through_call_result_exit rejected 2206ms interpreter:unchecked @6e42425cd720
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "fetch", reason: "return materialized custody has another carrier", gap: None })
-pass/facts/selected_native_code_layout_through_const_name_exit built 2198ms exit:0 interpreter:declined @6e42425cd720
-	Terminal interpreter: UnsupportedCapability(NativeCodeLayout { machine: MachineId(2) })
-pass/facts/selected_native_code_layout_through_field_exit built 2063ms exit:0 interpreter:declined @6e42425cd720
-	Terminal interpreter: UnsupportedCapability(NativeCodeLayout { machine: MachineId(2) })
-pass/facts/selected_native_code_layout_through_local_exit built 2046ms exit:0 interpreter:declined @6e42425cd720
-	Terminal interpreter: UnsupportedCapability(NativeCodeLayout { machine: MachineId(2) })
-pass/facts/selected_native_code_layout_through_match_join_exit rejected 2100ms interpreter:unchecked @6e42425cd720
-	native artifact target lowering failed: StructuralStateBindingMismatch { machine: MachineId(2), reason: "binding=AbstractStructuralBinding { parameter: PlaceId(10), argument: StructuralArgument { place: PlaceId(11), path: [], access: Owned } }; parameter=StructuralParameterDeclaration { place: PlaceId(10), position: 0, structural_type: StructuralTypeId(1), multiplicity: Affine, access: Owned, qualifications: [], projected_qualifications: [] }; source_type=Some(StructuralTypeId(1)); argument_type=Some(StructuralTypeId(1)); source_storage_contract=Some(false); leaf_copy_owned_contract=None; crosses_loan_leaf=false" }
-pass/facts/selected_native_code_layout_through_other_machine_exit rejected 2107ms interpreter:unchecked @6e42425cd720
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "query_in_caller", reason: "return materialized custody has another carrier", gap: None })
-pass/facts/selected_native_code_layout_through_other_state_exit built 2150ms exit:0 interpreter:declined @6e42425cd720
-	Terminal interpreter: UnsupportedCapability(NativeCodeLayout { machine: MachineId(2) })
-pass/facts/selected_native_code_layout_through_parameter_exit rejected 2035ms interpreter:unchecked @6e42425cd720
-	native artifact target lowering failed: InvalidOwnedStructuralArgument { source: PlaceId(10), parameter: PlaceId(10), structural_type: StructuralTypeId(1), reason: "source home multiplicity differs from its formal" }
-pass/facts/selected_native_code_layout_through_target_body_exit built 2114ms exit:0 interpreter:declined @6e42425cd720
-	Terminal interpreter: UnsupportedCapability(NativeCodeLayout { machine: MachineId(2) })
+pass/facts/selected_native_code_layout_through_call_result_exit built 6449ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_const_name_exit built 6492ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_field_exit built 6539ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_local_exit built 6488ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_match_join_exit built 6441ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_other_machine_exit built 6313ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_other_state_exit built 6352ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_parameter_exit built 6478ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_target_body_exit built 6501ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
 pass/facts/selected_provider_issuance_through_call_result_exit built 2830ms exit:0 @6e42425cd720
 	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
 pass/facts/selected_provider_issuance_through_const_name_exit built 2817ms exit:0 @6e42425cd720

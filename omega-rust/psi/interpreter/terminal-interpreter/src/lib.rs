@@ -80,6 +80,9 @@ pub use boundary::errors::{
     AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,
     TerminalInterpretError,
 };
+pub use boundary::native_code_layouts::{
+    TerminalNativeCodeLayout, TerminalNativeCodeLayoutEnvironment, TerminalNativeCodeRegion,
+};
 pub use boundary::results::{
     TerminalCrash, TerminalCrashSite, TerminalEffectWait, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalExternalCompletion, TerminalScalarCaseResult,

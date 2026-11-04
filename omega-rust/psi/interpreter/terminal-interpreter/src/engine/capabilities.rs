@@ -191,9 +191,18 @@ pub(crate) fn check_with_private_entry_ram(
                 }
                 let callee = match &operation.kind {
                     OperationKind::EstablishNativeCodeLayout { machine } => {
-                        return Err(TerminalInterpretError::UnsupportedCapability(
-                            TerminalUnsupportedCapability::NativeCodeLayout { machine: *machine },
-                        ));
+                        if installation
+                            .and_then(|supplies| supplies.native_code_layouts.as_ref())
+                            .and_then(|layouts| layouts.layout(*machine))
+                            .is_none()
+                        {
+                            return Err(TerminalInterpretError::UnsupportedCapability(
+                                TerminalUnsupportedCapability::NativeCodeLayout {
+                                    machine: *machine,
+                                },
+                            ));
+                        }
+                        None
                     }
                     OperationKind::RegisterAccess {
                         event:
@@ -1094,6 +1103,7 @@ mod tests {
             folded_constant_target: None,
             target_machines: None,
             target_layouts: None,
+            native_code_layouts: None,
         };
         assert_eq!(
             check(&program, Some(&installation)),
@@ -1307,6 +1317,7 @@ mod tests {
             folded_constant_target: None,
             target_machines: None,
             target_layouts: None,
+            native_code_layouts: None,
         };
         // Multi-source result transport no longer adds a capability demand.
         // Following the installed provider satisfies this graph's missing

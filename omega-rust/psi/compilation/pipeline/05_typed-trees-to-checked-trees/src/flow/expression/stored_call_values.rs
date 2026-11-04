@@ -44,11 +44,18 @@ impl Execution<'_, '_, '_> {
                 inputs = selected;
                 validation::ReferenceSlotContract::CheckedBody { machine, state }
             } else {
-                let Some(effects) = self
-                    .context
-                    .call_frames
-                    .and_then(|frames| frames.dynamic_stored_reference_effects(slot.symbol))
-                else {
+                // Without a selection proved in this state, a selector that
+                // may come from outside the program keeps the requirement's
+                // declared outputs; validation's loan formation, which has no
+                // selection step, applies the same rule to every such call.
+                let effects = self.context.call_frames.and_then(|frames| {
+                    match frames.received_selector_stored_reference_effects(self.state, slot.symbol)
+                    {
+                        Some(declared) => declared,
+                        None => frames.dynamic_stored_reference_effects(slot.symbol),
+                    }
+                });
+                let Some(effects) = effects else {
                     return Vec::new();
                 };
                 validation::ReferenceSlotContract::Opaque {
