@@ -19,6 +19,8 @@ pass/borrows/rebound_parameter_keeps_earlier_copy_exit built 8645ms exit:0 inter
 pass/borrows/runtime_byte_case_partial_cleanup_exit built 15056ms exit:0 interpreter-exit:0 interpreter:agrees @3139db74cf0d
 pass/borrows/runtime_exclusive_byte_field_cleanup_exit built 15242ms exit:0 interpreter-exit:0 interpreter:agrees @60b8f1171d45
 pass/borrows/view_local_rebind_keeps_alias_exit built 184696ms exit:70 interpreter-exit:70 interpreter:agrees @7a2c1562808d
+pass/calls/private_arrival_guarded_helper_range_exit built 9657ms exit:0 interpreter-exit:0 interpreter:agrees @6f6402629925
+pass/calls/private_arrival_identity_return_range_exit built 9852ms exit:0 interpreter-exit:0 interpreter:agrees @6f6402629925
 pass/calls/selected_crash_argument_snapshot_exit built 10692ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_distinct_limits_exit built 10688ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_match_record_exit built 13834ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d

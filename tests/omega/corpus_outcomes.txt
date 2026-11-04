@@ -114,6 +114,10 @@ fail/calls/nested_machine_qualified_call_carriers rejected 1056ms expected @11bd
 	call `outer::generic_helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
 	call `outer::subject_helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
 	call `outer::terminal_helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
+fail/calls/private_arrival_guarded_helper_range_rejected rejected 1819ms expected @6f6402629925
+	exact arithmetic in machine `step` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/calls/private_arrival_identity_return_range_rejected rejected 1906ms expected @6f6402629925
+	exact arithmetic in machine `step` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/calls/runtime_guarded_reference_return_nested_local_escape rejected 4129ms expected @c79bb8268163+wt
 	machine `failed` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/calls/selected_crash_argument_snapshot_rejected rejected 8318ms expected @feef96dc297d
@@ -4733,6 +4737,8 @@ pass/calls/owned_mixed_overaligned_call checked 12475ms check-target:macos_arm64
 pass/calls/owned_overaligned_local_call checked 3953ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/owned_state_parameter_call_exit checked 15998ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/prefix_effectful_call checked 9472ms @7b4244a67630
+pass/calls/private_arrival_guarded_helper_range_exit checked 9944ms check-target:macos_arm64 @6f6402629925
+pass/calls/private_arrival_identity_return_range_exit checked 9976ms check-target:macos_arm64 @6f6402629925
 pass/calls/private_callback_call_closure checked 22551ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/projected_receiver_callee checked 7606ms @911f6617ba9e
 pass/calls/qualified_record_call_result_field_exit checked 16957ms check-target:macos_arm64 @ccdb99ca2214
