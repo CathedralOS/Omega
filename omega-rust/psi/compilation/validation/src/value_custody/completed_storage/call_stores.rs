@@ -10,7 +10,19 @@ use symbols::SymbolHandle;
 pub struct CompletedCallDescriptor {
     pub call: Handle<FlowCallFact>,
     pub loan: Handle<BorrowLoanFact>,
-    pub captured: super::StoredCapture,
+    pub source: CompletedCallDescriptorSource,
+    pub origin: CompletedCallDescriptorOrigin,
+}
+
+#[derive(Clone)]
+pub enum CompletedCallDescriptorSource {
+    Captured(super::StoredCapture),
+    Incoming(crate::CanonicalPlace),
+}
+
+pub enum CompletedCallDescriptorOrigin {
+    Produced,
+    Retained,
 }
 
 /// Statement continuation can retain several call generations. Resolve every
@@ -105,57 +117,170 @@ pub fn loan_call_descriptors(
             return Err("the installed reference has ambiguous normal completions");
         }
         let invocation = control.calls.get(call);
-        let destination = crate::CanonicalPlace {
+        let root = crate::CanonicalPlace {
             root: row.storage_owner,
-            segments: super::loan_homes::place_segments(borrow.loan_owner_path(row)),
+            segments: Vec::new(),
         };
-        let captures = super::at_snapshot(
+        let owner_type =
+            crate::canonical_place_type_reference(program, state, row.statement_index, &root)
+                .ok_or("the installed descriptor lost its physical owner type")?;
+        let destination = crate::CanonicalPlace {
+            root: root.root,
+            segments: crate::corresponding_place_projection(
+                program,
+                owner_type,
+                &super::loan_homes::place_segments(borrow.loan_owner_path(row)),
+            )
+            .ok_or("the installed descriptor lost its physical member correspondence")?,
+        };
+        let stored = super::at_snapshot(
             program,
             control,
             invocation.completed_storage,
             &destination,
             super::StoredObservation::Binding,
         )
-        .and_then(super::StoredOperand::captures)
-        .filter(|captures| !captures.is_empty())
         .ok_or("the completed call has no complete installed descriptor frontier")?;
-        for mut captured in captures {
-            let value = control.operands.get(captured.capture);
-            if value.state_symbol != state
-                || value.statement_index != row.statement_index
-                || value.storage_snapshot != invocation.invocation_storage
-            {
-                return Err("the installed descriptor belongs to another call cut");
-            }
-            captured.projection = crate::corresponding_place_projection(
-                program,
-                captured.reference,
-                &captured.projection,
-            )
-            .ok_or("the installed descriptor lost its applied member correspondence")?;
-            let reference = crate::project_type_reference_from_segments(
-                program,
-                captured.reference,
-                &captured.projection,
-            )
-            .and_then(|reference| crate::reference_shell(program, reference))
-            .ok_or("the completed store does not contain the declared reference")?;
-            // A debt can retain stronger input access than the pointer stored
-            // beside it. Both share this installation, but only the pointer
-            // row's kind describes its physical reference access.
-            if row.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
-                && checked_trees::BorrowAccessKind::from(reference.access)
-                    .direct_reborrow_effect(&row.kind)
-                    .is_none()
-            {
-                return Err("the installed descriptor cannot supply its recorded access");
-            }
+        let sources = descriptor_sources(program, stored)?;
+        let mut entry = None;
+        for source in sources {
+            let produced = match &source {
+                CompletedCallDescriptorSource::Captured(captured) => {
+                    let value = control.operands.get(captured.capture);
+                    if value.state_symbol != state {
+                        return Err("the installed descriptor belongs to another state");
+                    }
+                    let reference = crate::project_type_reference_from_segments(
+                        program,
+                        captured.reference,
+                        &captured.projection,
+                    )
+                    .and_then(|reference| crate::reference_shell(program, reference))
+                    .ok_or("the completed store does not contain the declared reference")?;
+                    // Debts retain their original input access, independently
+                    // of the physical pointer stored beside them.
+                    if row.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
+                        && checked_trees::BorrowAccessKind::from(reference.access)
+                            .direct_reborrow_effect(&row.kind)
+                            .is_none()
+                    {
+                        return Err("the installed descriptor cannot supply its recorded access");
+                    }
+                    value.statement_index == row.statement_index
+                        && value.storage_snapshot == invocation.invocation_storage
+                }
+                CompletedCallDescriptorSource::Incoming(_) => false,
+            };
+            let origin = if produced {
+                CompletedCallDescriptorOrigin::Produced
+            } else {
+                // A conditional store may keep the old descriptor. Confirm
+                // that exact source at entry; it keeps its earlier identity
+                // instead of acquiring a new permission from this call.
+                if entry.is_none() {
+                    let stored = super::at_snapshot(
+                        program,
+                        control,
+                        invocation.invocation_storage,
+                        &destination,
+                        super::StoredObservation::Binding,
+                    )
+                    .ok_or("the retained descriptor has no complete call-entry frontier")?;
+                    entry = Some(descriptor_sources(program, stored)?);
+                }
+                if !entry
+                    .as_ref()
+                    .ok_or("the retained descriptor lost its call-entry frontier")?
+                    .iter()
+                    .any(|old| same_source(old, &source))
+                {
+                    return Err(
+                        "the retained descriptor is not an original call-entry alternative",
+                    );
+                }
+                CompletedCallDescriptorOrigin::Retained
+            };
             output.push(CompletedCallDescriptor {
                 call,
                 loan: handle,
-                captured,
+                source,
+                origin,
             });
         }
     }
     Ok(Some(output))
+}
+
+fn descriptor_sources(
+    program: &dyn crate::CheckingInput,
+    stored: super::StoredOperand,
+) -> Result<Vec<CompletedCallDescriptorSource>, &'static str> {
+    let mut pending = vec![stored];
+    let mut output = Vec::new();
+    while let Some(source) = pending.pop() {
+        match source {
+            super::StoredOperand::Unavailable => {
+                return Err("the descriptor frontier is unavailable");
+            }
+            super::StoredOperand::Alternatives(alternatives) => {
+                if alternatives.is_empty() {
+                    return Err("the descriptor frontier has no alternatives");
+                }
+                pending.extend(alternatives.into_iter().rev());
+            }
+            super::StoredOperand::Incoming(place) => {
+                output.push(CompletedCallDescriptorSource::Incoming(place));
+            }
+            super::StoredOperand::Value {
+                capture,
+                reference,
+                projection,
+                slot,
+            } => {
+                let projection =
+                    crate::corresponding_place_projection(program, reference, &projection)
+                        .ok_or("the stored descriptor lost its applied member correspondence")?;
+                output.push(CompletedCallDescriptorSource::Captured(
+                    super::StoredCapture {
+                        capture,
+                        reference,
+                        projection,
+                        slot,
+                    },
+                ));
+            }
+        }
+    }
+    Ok(output)
+}
+
+fn same_source(
+    left: &CompletedCallDescriptorSource,
+    right: &CompletedCallDescriptorSource,
+) -> bool {
+    match (left, right) {
+        (
+            CompletedCallDescriptorSource::Captured(left),
+            CompletedCallDescriptorSource::Captured(right),
+        ) => left.capture == right.capture && left.projection == right.projection,
+        (
+            CompletedCallDescriptorSource::Incoming(left),
+            CompletedCallDescriptorSource::Incoming(right),
+        ) => left == right,
+        _ => false,
+    }
+}
+
+pub fn matches_call_descriptor_frontier(
+    program: &dyn crate::CheckingInput,
+    stored: super::StoredOperand,
+    descriptors: &[CompletedCallDescriptor],
+) -> Result<bool, &'static str> {
+    let sources = descriptor_sources(program, stored)?;
+    Ok(!sources.is_empty()
+        && sources.iter().all(|source| {
+            descriptors
+                .iter()
+                .any(|descriptor| same_source(source, &descriptor.source))
+        }))
 }

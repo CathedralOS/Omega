@@ -179,23 +179,21 @@ impl Retirement<'_> {
                     value.storage_snapshot,
                     &storage,
                     validation::completed_storage::StoredObservation::Binding,
-                )
-                .and_then(|stored| stored.captures()) else {
+                ) else {
+                    return false;
+                };
+                if let Some(descriptors) = &call_descriptors {
+                    return validation::completed_storage::matches_call_descriptor_frontier(
+                        self.program,
+                        stored,
+                        descriptors,
+                    ) == Ok(true);
+                }
+                let Some(stored) = stored.captures() else {
                     return false;
                 };
                 !stored.is_empty()
                     && stored.iter().all(|stored| {
-                        if let Some(descriptors) = &call_descriptors {
-                            return descriptors.iter().any(|descriptor| {
-                                descriptor.captured.capture == stored.capture
-                                    && validation::corresponding_place_projection(
-                                        self.program,
-                                        stored.reference,
-                                        &stored.projection,
-                                    )
-                                    .is_some_and(|path| path == descriptor.captured.projection)
-                            });
-                        }
                         validation::completed_storage::descriptor_formation_matches_loan(
                             self.program,
                             control,

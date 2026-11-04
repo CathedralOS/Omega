@@ -106,4 +106,7 @@ pub use loan_homes::{
     InstalledLoanHomes, descriptor_formation_matches_loan, descriptor_formation_sources,
 };
 mod call_stores;
-pub use call_stores::{CompletedCallDescriptor, loan_call_descriptors};
+pub use call_stores::{
+    CompletedCallDescriptor, CompletedCallDescriptorOrigin, CompletedCallDescriptorSource,
+    loan_call_descriptors, matches_call_descriptor_frontier,
+};
