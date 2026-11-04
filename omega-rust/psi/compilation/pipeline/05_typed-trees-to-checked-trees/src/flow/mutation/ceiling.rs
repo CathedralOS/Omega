@@ -86,7 +86,7 @@ pub(crate) fn signature_ceiling_regions(
     )?;
     let parameters = site.parameters(program, machine.symbol)?;
     let arguments = call_site_argument_expressions(program, &site);
-    if parameters.iter().count() != arguments.len() {
+    if parameters.len() != arguments.len() {
         return None;
     }
     let mut owned_frames = None;
@@ -333,8 +333,8 @@ fn resident_owners_in_type(
     }
     let mut paths = UniqueRoster::default();
     paths.push(Vec::new());
-    for (path, _, _) in roster.identities {
-        paths.push(path);
+    for row in roster.domains {
+        paths.push(row.identity.0);
     }
     for path in paths.into_vec() {
         let projected = project_type_reference_from_segments(program, reference, &path)?;

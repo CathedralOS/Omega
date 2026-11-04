@@ -94,9 +94,9 @@ pub(crate) struct CachedCompiledReview {
     target: target::TargetProfile,
     build_execution_profile: Option<target::TargetProfile>,
     selected_build_machine_identity: String,
-    build_evaluation_usage: Option<build_evaluation::BuildEvaluationUsage>,
-    build_observation_summary: Option<build_evaluation::BuildObservationSummary>,
-    restricted_build_requests: Vec<build_evaluation::RestrictedBuildRequest>,
+    build_evaluation_usage: Option<build_settings::BuildEvaluationUsage>,
+    build_observation_summary: Option<build_settings::BuildObservationSummary>,
+    restricted_build_requests: Vec<build_settings::RestrictedBuildRequest>,
     semantic_bindings: Vec<AcceptedSemanticBinding>,
     semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
     build_handoff: PackageBuildHandoff,
@@ -149,7 +149,7 @@ impl CachedCompiledReview {
         let (policy_rows, _) = policy
             .canonical_rows_with_limits(package_evidence::record::PackagePolicyRowLimits::default())
             .ok()?;
-        let policy_commitment = crate::digest_encoder::content_identity(&self.policy_bytes).into();
+        let policy_commitment = crate::digest_encoder::content_identity(&self.policy_bytes);
         let review = CompilerIssuedPackageReview {
             key: key.clone(),
             resolution: resolution.clone(),
@@ -234,7 +234,7 @@ impl CompiledReviewCache {
         }
         let mut trailer = Vec::with_capacity(payload.len() + 32);
         trailer.extend_from_slice(&payload);
-        let digest: [u8; 32] = crate::digest_encoder::content_identity(&payload).into();
+        let digest: [u8; 32] = crate::digest_encoder::content_identity(&payload);
         trailer.extend_from_slice(&digest);
         let path = self.record_path(key);
         let exists = path.exists();

@@ -458,6 +458,31 @@ pub(in crate::checks::borrows) fn retained_lineage(
                     });
                 }
             }
+            if matches!(loan.lineage, BorrowLoanLineage::Reborrow { .. }) {
+                // A real borrow can be reached through saved descriptors.
+                // Retain those exact forwarding occurrences as well as its
+                // borrowing parent; call-input debts belong to that route even
+                // when the new view selects a smaller physical projection.
+                let suppliers = borrow.loan_suppliers.span(loan.supplying_loans)?;
+                let mut forwarded = Vec::new();
+                for (position, supplier) in suppliers.iter().enumerate() {
+                    let (_, ancestors) = completed
+                        .iter()
+                        .find(|(candidate, _)| candidate == supplier)?;
+                    if position == 0 {
+                        forwarded.clone_from(ancestors);
+                    } else {
+                        forwarded.retain(|ancestor| {
+                            ancestors
+                                .iter()
+                                .any(|candidate| same_descriptor(borrow, *ancestor, *candidate))
+                        });
+                    }
+                }
+                for ancestor in forwarded {
+                    crate::shared::collections::push_unique(&mut common, ancestor);
+                }
+            }
             common.push(handle);
             completed.push((handle, common));
             continue;
@@ -487,6 +512,19 @@ pub(in crate::checks::borrows) fn retained_lineage(
                     return None;
                 }
                 pending.push((parent_loan, false));
+                for supplier in borrow.loan_suppliers.span(loan.supplying_loans)? {
+                    if !borrow.state_owns_loan(state, *supplier)
+                        || borrow
+                            .loans
+                            .get(*supplier)
+                            .kind
+                            .direct_reborrow_effect(&loan.kind)
+                            .is_none()
+                    {
+                        return None;
+                    }
+                    pending.push((*supplier, false));
+                }
             }
             BorrowLoanLineage::UnretainedDerived => {
                 for supplier in transport_suppliers(borrow, state, handle)? {

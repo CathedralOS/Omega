@@ -518,7 +518,6 @@ fn generated_post_handoff_writer_report_fingerprint(
 
 /// Bit-range and slot checks for one generated writer step inside a
 /// `byte_len`-byte destination and an exact `used_slots` source roster.
-
 pub fn validate_step(
     step: &GeneratedPostHandoffWriterStep,
     byte_len: u64,

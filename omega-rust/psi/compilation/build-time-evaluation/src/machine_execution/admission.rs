@@ -6,8 +6,9 @@
 //! and must neither suspend nor block, every checked body in its concrete call
 //! closure must carry the ordinary termination guarantee, and no reachable
 //! checked body may declare an unadmitted linear runtime carrier. Authority,
-//! finer resource admission, and failure remain independent axes and are added
-//! here as their checked plans become available. Authored entry preconditions
+//! finer resource admission, and failure remain independent axes. Execution
+//! additionally requires a complete empty failure judgment at its actual
+//! supplied arguments before entering the interpreter. Authored entry preconditions
 //! need a checked invocation proof; internal premises behind an unconditional
 //! entry use the source judgment. Post-check callers borrow that same checked
 //! program rather than replaying checking. Escaping mutation is excluded by
@@ -29,6 +30,7 @@ use crate::syntax_probes::PreparedEvaluationInputs;
 
 mod closure_validation;
 mod concrete_invocation;
+mod failures;
 mod supplied_values;
 
 pub(crate) use concrete_invocation::{
@@ -36,7 +38,6 @@ pub(crate) use concrete_invocation::{
     require_complete_invocation_conditions as require_complete_checked_conditions,
     snapshot_arguments_discharge,
 };
-pub(crate) use supplied_values::require_established_arguments;
 pub(crate) mod const_evaluable;
 mod selection_authority;
 
@@ -151,8 +152,6 @@ pub struct BuildTimeAdmissionPlan {
     selected_operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
     selected_provider_bodies: Vec<crate::SelectedBuildTimeProviderBody>,
     selected_execution: Option<TypedTrees>,
-    checked_selected_closures:
-        std::cell::RefCell<Vec<(SymbolHandle, Result<std::rc::Rc<CheckedTrees>, String>)>>,
     pub(crate) accounting: EvaluationAccounting,
     checked_closures: std::cell::RefCell<
         Vec<(
@@ -161,6 +160,24 @@ pub struct BuildTimeAdmissionPlan {
             Result<std::rc::Rc<(CheckedTrees, Self)>, String>,
         )>,
     >,
+}
+
+/// Keep the completed check used to prove recursive calls terminate. Borrow
+/// an unchanged checked program or retain the check of the selected bodies.
+enum RecursiveCheckingInput<'input> {
+    Borrowed(&'input CheckedTrees),
+    Demanded(std::rc::Rc<(CheckedTrees, BuildTimeAdmissionPlan)>),
+    Selected(Box<CheckedTrees>),
+}
+
+impl RecursiveCheckingInput<'_> {
+    fn checked(&self) -> &CheckedTrees {
+        match self {
+            Self::Borrowed(checked) => checked,
+            Self::Demanded(demanded) => &demanded.0,
+            Self::Selected(checked) => checked,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -256,7 +273,6 @@ impl BuildTimeAdmissionPlan {
             selected_operators: Vec::new(),
             selected_provider_bodies: Vec::new(),
             selected_execution: None,
-            checked_selected_closures: std::cell::RefCell::new(Vec::new()),
             accounting: Default::default(),
             checked_closures: Default::default(),
         }
@@ -403,7 +419,6 @@ impl BuildTimeAdmissionPlan {
         }
         self.selected_provider_bodies = bodies.to_vec();
         self.checked_closures.borrow_mut().clear();
-        self.checked_selected_closures.borrow_mut().clear();
         Ok(self)
     }
 
@@ -434,7 +449,6 @@ impl BuildTimeAdmissionPlan {
         self.selected_operators =
             super::selected_operators::retain_specialized_operators(program, operators)?;
         self.checked_closures.borrow_mut().clear();
-        self.checked_selected_closures.borrow_mut().clear();
         Ok(self)
     }
 
@@ -647,75 +661,40 @@ impl BuildTimeAdmissionPlan {
         Ok(pair)
     }
 
-    /// Check recursion with the storage history of the bodies that will run.
-    /// Early callers obtain ordinary checking only when the walk reaches a cycle.
-    fn checked_recursive_component(
+    /// Use ordinary checked storage and call facts throughout this invocation.
+    /// Selected bodies need their own check; unchanged checked input is borrowed.
+    fn prepare_recursive_checking_input<'input>(
         &self,
-        input: BuildTimeProgram<'_>,
+        input: BuildTimeProgram<'input>,
         root: SymbolHandle,
-    ) -> Result<Vec<SymbolHandle>, String> {
-        fn members(
-            checked: &CheckedTrees,
-            root: SymbolHandle,
-        ) -> Result<Vec<SymbolHandle>, String> {
-            concrete_invocation::require_complete_invocation_conditions(checked, root)?;
-            let machine = checked
-                .typed
-                .machine(root)
-                .ok_or("checked recursive execution lost its requested machine")?;
-            Ok(
-                typed_trees_to_checked_trees::infer_checked_recursive_machine_terminations(
-                    checked,
-                    root,
-                    machine.states,
-                )
-                .into_iter()
-                .filter_map(|member| {
-                    checked
-                        .typed
-                        .machine(member.machine)
-                        .filter(|machine| machine.states == member.body)
-                        .map(|machine| machine.symbol)
-                })
-                .collect(),
-            )
-        }
-        if let Some(execution) = self.selected_execution.as_ref() {
-            let cached = self
-                .checked_selected_closures
-                .borrow()
-                .iter()
-                .find(|(symbol, _)| *symbol == root)
-                .map(|(_, result)| result.clone());
-            let checked = match cached {
-                Some(result) => result?,
-                None => {
-                    // Rewritten calls need their own checking. Source flow facts
-                    // cannot describe the selected bodies' writes or calls.
-                    let admission = Self::infer(execution, self.selection_authority.clone());
-                    let domain = PreparedEvaluationInputs::domain_for_admission(
-                        execution,
-                        &admission,
-                        &[root],
-                        &[],
-                    );
-                    let result = concrete_invocation::checked_demanded_closure(&domain, execution)
-                        .map(std::rc::Rc::new);
-                    self.checked_selected_closures
-                        .borrow_mut()
-                        .push((root, result.clone()));
-                    result?
-                }
-            };
-            return members(&checked, root);
-        }
-        match input {
-            BuildTimeProgram::Checked(checked) => members(checked, root),
-            BuildTimeProgram::Typed(program) => {
-                let pair = self.checked_closure_admission(program, root)?;
-                members(&pair.0, root)
+    ) -> Result<RecursiveCheckingInput<'input>, String> {
+        let prepared = match &self.selected_execution {
+            Some(execution) => {
+                // Selection changed executable calls. Derive the demanded work
+                // from that exact graph before checking its storage history.
+                let admission = Self::infer(execution, self.selection_authority.clone());
+                let domain = PreparedEvaluationInputs::domain_for_admission(
+                    execution,
+                    &admission,
+                    &[root],
+                    &[],
+                );
+                let checked =
+                    phase_profile::scope("compile_time.admission.recursive_program_check", || {
+                        concrete_invocation::checked_demanded_closure(&domain, execution)
+                    })?;
+                RecursiveCheckingInput::Selected(Box::new(checked))
             }
-        }
+            None => match input {
+                BuildTimeProgram::Checked(checked) => RecursiveCheckingInput::Borrowed(checked),
+                BuildTimeProgram::Typed(program) => {
+                    RecursiveCheckingInput::Demanded(self.checked_closure_admission(program, root)?)
+                }
+            },
+        };
+        // Ranking does not discharge conditions still pending in this invocation.
+        concrete_invocation::require_complete_invocation_conditions(prepared.checked(), root)?;
+        Ok(prepared)
     }
 
     fn require_checked_invocation_floor(
@@ -891,11 +870,12 @@ impl BuildTimeAdmissionPlan {
             None => input.checking_input(),
         };
         let closure_violation = checked_closure_violation(
+            self,
+            input,
             &self.call_edges,
             execution_input,
             execution_machine,
             discharge_authored_requires,
-            &|symbol| self.checked_recursive_component(input, symbol),
         );
         let selection_violation = selection_authority_violation(
             &self.call_edges,
@@ -941,7 +921,8 @@ impl BuildTimeAdmissionPlan {
         let machine = program
             .realized_machine_named(machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
-        self.require_floor(input, machine, None, false)?;
+        let mut arguments = arguments;
+        self.require_supplied_invocation(input, machine, &mut arguments, None)?;
         self.accounting
             .evaluate(
                 checked_interpreter::BuildMachineProgram::Typed(program),
@@ -970,7 +951,8 @@ impl BuildTimeAdmissionPlan {
                 "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
             )
         })?;
-        self.require_floor(input, machine, Some(custody), false)?;
+        let mut arguments = arguments;
+        self.require_supplied_invocation(input, machine, &mut arguments, Some(custody))?;
         self.accounting
             .evaluate(
                 checked_interpreter::BuildMachineProgram::Typed(program),
@@ -1067,6 +1049,7 @@ impl BuildTimeAdmissionPlan {
         let machine = program
             .realized_machine_named(machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
+        let mut arguments = arguments;
         let discharge =
             self.zero_argument_invocation_discharge(program, machine, &arguments, custody);
         self.require_floor(
@@ -1074,6 +1057,12 @@ impl BuildTimeAdmissionPlan {
             machine,
             custody,
             discharge,
+        )?;
+        self.require_invocation_failures(
+            BuildTimeProgram::Typed(program),
+            machine,
+            &mut arguments,
+            custody,
         )?;
         let value = self
             .accounting
@@ -1190,6 +1179,7 @@ impl BuildTimeAdmissionPlan {
                 let [machine] = matching.as_slice() else {
                     return Err("build-time invocation has no unique exact machine".into());
                 };
+                let mut arguments = arguments;
                 let discharge_authored_requires = self.zero_argument_invocation_discharge(
                     program,
                     machine,
@@ -1206,6 +1196,7 @@ impl BuildTimeAdmissionPlan {
                     Some(custody),
                     discharge_authored_requires,
                 )?;
+                self.require_invocation_failures(input, machine, &mut arguments, Some(custody))?;
                 let measured = self
                     .accounting
                     .evaluate(
@@ -1238,6 +1229,7 @@ impl BuildTimeAdmissionPlan {
         let [machine] = matching.as_slice() else {
             return Err("build-time invocation has no unique exact machine".into());
         };
+        let mut arguments = arguments;
         let discharge_authored_requires = discharge_authored_requires
             || self.zero_argument_invocation_discharge(program, machine, &arguments, Some(custody));
         let pair = self.checked_closure_admission(program, machine_symbol)?;
@@ -1251,6 +1243,12 @@ impl BuildTimeAdmissionPlan {
             machine,
             Some(custody),
             discharge_authored_requires,
+        )?;
+        admission.require_invocation_failures(
+            BuildTimeProgram::Checked(checked),
+            machine,
+            &mut arguments,
+            Some(custody),
         )?;
         let measured = self
             .accounting
@@ -1284,6 +1282,13 @@ impl BuildTimeAdmissionPlan {
         } else {
             self.require_common_floor_for_invocation(program, machine, custody)?;
         }
+        let mut snapshots = arguments.to_vec();
+        self.require_invocation_failures(
+            BuildTimeProgram::Typed(program),
+            machine,
+            &mut snapshots,
+            Some(custody),
+        )?;
         Ok(())
     }
 

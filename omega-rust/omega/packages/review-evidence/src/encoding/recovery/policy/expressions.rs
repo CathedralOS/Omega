@@ -15,94 +15,6 @@ use crate::record::{
 };
 use symbols::BuiltinFunction;
 
-#[cfg(test)]
-mod codec_tests {
-    use super::super::PackagePolicyRecoveryLimits;
-    use super::*;
-
-    #[test]
-    fn layout_queries_recover_exact_dependencies_and_refuse_malformed_frames() {
-        use crate::record::{PackageReviewLayoutQueryKind, PackageReviewTypeIdentity};
-        let canonical = "named(name(u8))";
-        for (tag, kind) in [
-            (0, PackageReviewLayoutQueryKind::Size),
-            (1, PackageReviewLayoutQueryKind::Alignment),
-        ] {
-            let mut bytes = vec![27, tag];
-            bytes.extend_from_slice(&(canonical.len() as u64).to_le_bytes());
-            bytes.extend_from_slice(canonical.as_bytes());
-            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
-            assert_eq!(
-                expression(&mut reader).unwrap(),
-                PackageReviewContractExpression::LayoutQuery {
-                    kind,
-                    operand: PackageReviewTypeIdentity {
-                        canonical: canonical.to_owned()
-                    },
-                }
-            );
-            reader.finish().unwrap();
-            bytes.pop();
-            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
-            assert!(expression(&mut reader).is_err());
-        }
-        for bytes in [&[27][..], &[27, 2][..], &[27, 255][..]] {
-            let mut reader = Reader::new(bytes, PackagePolicyRecoveryLimits::default()).unwrap();
-            assert!(expression(&mut reader).is_err());
-        }
-    }
-
-    #[test]
-    fn recast_access_recovers_exact_modes_and_rejects_unknown_tags() {
-        for (tag, access) in [
-            (1, PackageReviewReferenceAccess::Shared),
-            (2, PackageReviewReferenceAccess::Mutable),
-            (3, PackageReviewReferenceAccess::WriteOnly),
-        ] {
-            let canonical = "named(name(u32))";
-            let mut bytes = vec![9, 3];
-            bytes.extend_from_slice(&(canonical.len() as u64).to_le_bytes());
-            bytes.extend_from_slice(canonical.as_bytes());
-            bytes.extend_from_slice(&[0, 0]);
-            bytes.extend_from_slice(&0u64.to_le_bytes());
-            bytes.push(tag);
-            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
-            let recovered = expression(&mut reader).unwrap();
-            assert!(matches!(recovered, PackageReviewContractExpression::Cast {
-                form: PackageReviewCastForm::Recast(recovered_access), ..
-            } if recovered_access == access));
-            reader.finish().unwrap();
-            bytes.pop();
-            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
-            assert!(expression(&mut reader).is_err());
-            bytes.push(4);
-            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
-            assert!(expression(&mut reader).is_err());
-        }
-    }
-
-    #[test]
-    fn builtin_carrier_member_recovers_without_nominal_ownership() {
-        let bytes = [25, 0];
-        let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
-        assert_eq!(
-            expression(&mut reader).unwrap(),
-            PackageReviewContractExpression::BuiltinTypeMember(
-                symbols::BuiltinTypeMember::AddressBound,
-            )
-        );
-        reader.finish().unwrap();
-    }
-
-    #[test]
-    fn unknown_or_truncated_builtin_carrier_members_are_rejected() {
-        for bytes in [&[25, 1][..], &[25, 255][..], &[25][..]] {
-            let mut reader = Reader::new(bytes, PackagePolicyRecoveryLimits::default()).unwrap();
-            assert!(expression(&mut reader).is_err());
-        }
-    }
-}
-
 pub(in crate::encoding::recovery) fn expression(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewContractExpression, Error> {
@@ -348,4 +260,92 @@ pub(in crate::encoding::recovery) fn static_argument(
             },
         }))
     })
+}
+
+#[cfg(test)]
+mod codec_tests {
+    use super::super::PackagePolicyRecoveryLimits;
+    use super::*;
+
+    #[test]
+    fn layout_queries_recover_exact_dependencies_and_refuse_malformed_frames() {
+        use crate::record::{PackageReviewLayoutQueryKind, PackageReviewTypeIdentity};
+        let canonical = "named(name(u8))";
+        for (tag, kind) in [
+            (0, PackageReviewLayoutQueryKind::Size),
+            (1, PackageReviewLayoutQueryKind::Alignment),
+        ] {
+            let mut bytes = vec![27, tag];
+            bytes.extend_from_slice(&(canonical.len() as u64).to_le_bytes());
+            bytes.extend_from_slice(canonical.as_bytes());
+            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert_eq!(
+                expression(&mut reader).unwrap(),
+                PackageReviewContractExpression::LayoutQuery {
+                    kind,
+                    operand: PackageReviewTypeIdentity {
+                        canonical: canonical.to_owned()
+                    },
+                }
+            );
+            reader.finish().unwrap();
+            bytes.pop();
+            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert!(expression(&mut reader).is_err());
+        }
+        for bytes in [&[27][..], &[27, 2][..], &[27, 255][..]] {
+            let mut reader = Reader::new(bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert!(expression(&mut reader).is_err());
+        }
+    }
+
+    #[test]
+    fn recast_access_recovers_exact_modes_and_rejects_unknown_tags() {
+        for (tag, access) in [
+            (1, PackageReviewReferenceAccess::Shared),
+            (2, PackageReviewReferenceAccess::Mutable),
+            (3, PackageReviewReferenceAccess::WriteOnly),
+        ] {
+            let canonical = "named(name(u32))";
+            let mut bytes = vec![9, 3];
+            bytes.extend_from_slice(&(canonical.len() as u64).to_le_bytes());
+            bytes.extend_from_slice(canonical.as_bytes());
+            bytes.extend_from_slice(&[0, 0]);
+            bytes.extend_from_slice(&0u64.to_le_bytes());
+            bytes.push(tag);
+            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            let recovered = expression(&mut reader).unwrap();
+            assert!(matches!(recovered, PackageReviewContractExpression::Cast {
+                form: PackageReviewCastForm::Recast(recovered_access), ..
+            } if recovered_access == access));
+            reader.finish().unwrap();
+            bytes.pop();
+            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert!(expression(&mut reader).is_err());
+            bytes.push(4);
+            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert!(expression(&mut reader).is_err());
+        }
+    }
+
+    #[test]
+    fn builtin_carrier_member_recovers_without_nominal_ownership() {
+        let bytes = [25, 0];
+        let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+        assert_eq!(
+            expression(&mut reader).unwrap(),
+            PackageReviewContractExpression::BuiltinTypeMember(
+                symbols::BuiltinTypeMember::AddressBound,
+            )
+        );
+        reader.finish().unwrap();
+    }
+
+    #[test]
+    fn unknown_or_truncated_builtin_carrier_members_are_rejected() {
+        for bytes in [&[25, 1][..], &[25, 255][..], &[25][..]] {
+            let mut reader = Reader::new(bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert!(expression(&mut reader).is_err());
+        }
+    }
 }

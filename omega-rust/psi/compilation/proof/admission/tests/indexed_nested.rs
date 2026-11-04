@@ -73,11 +73,10 @@ fn family_budget() -> Budget {
 // four assumptions the vector demonstration uses, so `Vec` inside the
 // nested payload is the same `IW` constant at the same instantiation:
 
-/// `λ(_ : Two). Type 0` — the constant motive every `caseTwo` selecting
-/// *types* here shares.
+// `λ(_ : Two). Type 0` — the constant motive every `caseTwo` selecting
+// *types* here shares.
 
-/// `Id Two zero one` — the dead child position: no closed inhabitant.
-
+// `Id Two zero one` — the dead child position: no closed inhabitant.
 // ── The vector description (the family nested inside the payload) ────
 //
 // `Vec k` is `common::vector_family` — the same `IW` instantiation the
@@ -274,7 +273,7 @@ fn nested_context(arena: &mut TermArena, family: &IndexedFamily) -> Context {
             let arity = variable(arena, 2);
             let elements = variable(arena, 1);
             let node = rnode(arena, arity, elements);
-            next_indexed_w(arena, &family, node)
+            next_indexed_w(arena, family, node)
         };
         pi(arena, domain, codomain)
     };

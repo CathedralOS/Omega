@@ -29,37 +29,51 @@ InlineValue satisfies DeferredValue {
     }
 }
 
-windows_x86_64 machine invoke(selected: dyn DeferredValue) -> u64
-ensures result == 100u64
-suspends {
-    let observed: u64 = suspend DeferredValue::get(selected, 99u64);
-    observed
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-linux_x86_64 machine invoke(selected: dyn DeferredValue) -> u64
-ensures result == 100u64
-suspends {
-    let observed: u64 = suspend DeferredValue::get(selected, 99u64);
-    observed
+boundary trait SelectedInvoke {
+    machine invoke(selected: dyn DeferredValue) -> u64
+    ensures result == 100u64
+    suspends reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
-
-macos_arm64 machine invoke(selected: dyn DeferredValue) -> u64
-ensures result == 100u64
-suspends {
-    let observed: u64 = suspend DeferredValue::get(selected, 99u64);
-    observed
+X86Invoke satisfies SelectedInvoke {
+    machine invoke(selected: dyn DeferredValue) -> u64
+    ensures result == 100u64
+    suspends {
+        SelectedBodyCheck::require_tag(17u64);
+        let observed: u64 = suspend DeferredValue::get(selected, 99u64);
+        observed
+    }
 }
-
-linux_arm64 machine invoke(selected: dyn DeferredValue) -> u64
-ensures result == 100u64
-suspends {
-    let observed: u64 = suspend DeferredValue::get(selected, 99u64);
-    observed
+ArmInvoke satisfies SelectedInvoke {
+    machine invoke(selected: dyn DeferredValue) -> u64
+    ensures result == 100u64
+    suspends {
+        SelectedBodyCheck::require_tag(29u64);
+        let observed: u64 = suspend DeferredValue::get(selected, 99u64);
+        observed
+    }
 }
 
 machine main() crashes Trap {
     let selected: dyn DeferredValue = InlineValue as dyn DeferredValue;
-    let observed: u64 = suspend invoke(selected);
+    let observed: u64 = suspend SelectedInvoke::invoke(selected);
     let difference: u64 = observed - 100u64;
     transition difference == 0u64 {
         true -> done()
@@ -67,4 +81,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    suspend main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    suspend main();
 }

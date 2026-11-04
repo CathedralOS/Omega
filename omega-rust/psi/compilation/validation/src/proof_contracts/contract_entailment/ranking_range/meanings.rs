@@ -204,7 +204,7 @@ pub(super) fn admitted_carrier(
             if integer_target && integer_literal {
                 return Some(Some(cast.target_type));
             }
-            (integer_target && integer_source).then(|| Some(cast.target_type))
+            (integer_target && integer_source).then_some(Some(cast.target_type))
         }
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             admitted_carrier(program, machine, state, unary.operand, depth + 1)?;
@@ -302,10 +302,7 @@ pub(super) fn admitted_carrier(
             }
             let spelling = match binary.operator {
                 BinaryOperator::And | BinaryOperator::Or => return Some(None),
-                operator => match typed_trees::operator::binary_operator_spelling(operator) {
-                    Some(spelling) => spelling,
-                    None => return None,
-                },
+                operator => typed_trees::operator::binary_operator_spelling(operator)?,
             };
             // Proof coordinates can be carrier-less (notably slice length),
             // but operator selection needs their actual runtime types. Keep

@@ -238,7 +238,7 @@ impl CurrentScalarValues<'_> {
                     self.program,
                     self.program.state_parameters(self.state),
                     parameter.symbol,
-                    &coordinate,
+                    coordinate,
                 ) else {
                     continue;
                 };

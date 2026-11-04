@@ -73,6 +73,7 @@ fn fixture() -> (ProofApplicationScope, ScalarConditions) {
         conditions
             .retain_range(
                 subject,
+                semantic_vocabulary::ScalarConditionRole::Prerequisite,
                 ScalarRangeRequirement::AddressModel,
                 vec![IntegerBoundStep::Observation(
                     ScalarRangeObservation::Application(pending),
@@ -84,12 +85,19 @@ fn fixture() -> (ProofApplicationScope, ScalarConditions) {
             ScalarValue::Boolean(true),
         )));
         conditions
-            .retain_predicate(subject, "scope test".into(), nodes, root)
+            .retain_predicate(
+                subject,
+                semantic_vocabulary::ScalarConditionRole::Prerequisite,
+                "scope test".into(),
+                nodes,
+                root,
+            )
             .unwrap();
     }
     conditions
         .retain_range(
             ScalarConditionSubject::Declaration(ProofDeclarationId(4)),
+            semantic_vocabulary::ScalarConditionRole::Prerequisite,
             ScalarRangeRequirement::Fixed {
                 minimum: BigInt::from_u64(0),
                 maximum: BigInt::from_u64(255),
@@ -308,6 +316,7 @@ fn abi_storage_demands_keep_actual_helper_debt_without_product_declarations() {
     conditions
         .retain_predicate(
             ScalarConditionSubject::Declaration(ProofDeclarationId(3)),
+            semantic_vocabulary::ScalarConditionRole::Prerequisite,
             "actual scalar helper must satisfy this condition".into(),
             nodes,
             root,

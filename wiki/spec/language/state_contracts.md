@@ -136,6 +136,30 @@ Every reachable predecessor participates in a join. Unknown input cannot be
 omitted to preserve a convenient invariant. A minimum collection length is not
 an exact extent, and declaration initializers are not recurring loop invariants.
 
+## Unreachable branches
+
+Named decision: `scoped-contradiction-elimination`, settled 2026-11-03.
+
+A checked contradiction between valid premises can establish that a particular
+arrival is impossible. Obligations on that arrival may close by constructive
+[contradiction elimination](../proofs/classicality.md#contradiction-elimination).
+The contradiction must retain exact subjects, storage versions, scope and premise
+dependencies. Failure to prove an obligation is not evidence that its arrival
+is impossible; a dead branch cannot supply facts to a reachable predecessor.
+Source and operand well-formedness remain required.
+
+By default, issue an unreachable-branch warning when an authored branch
+contradicts its machine's entry contract or established source facts independent
+of specialization. The diagnostic identifies the branch condition and the
+conflicting premises, with their source locations where available. Do not warn
+merely because ordinary generic specialization or compile-time selection removes
+an alternative; a generic branch that already contradicts its own contract is
+not exempt. Proof-internal impossible cases do not each create source warnings.
+
+This is an advisory diagnostic, not an inherent language error. Proving the path
+impossible, pruning its emitted code and issuing a warning are separate decisions.
+Proof soundness does not depend on pruning or on warning emission.
+
 ## Terminal calls in transition arms
 
 Resolve every called target as a machine, nested or otherwise. A terminal call
@@ -196,6 +220,30 @@ A complete empty summary preserves facts; an unknown summary proves no
 non-interference. Fact invalidation uses storage footprints, while borrow
 authorization uses the access route. Neither may-write summaries nor origin
 recovery grant loans, permit moves, or discharge linear claims.
+
+### Restoring a saved scalar value
+
+Named decision: `restored-scalar-value-facts`, ratified 2026-11-02.
+
+Saving an integer from a valid ordinary storage place captures its current value.
+A later overwrite invalidates facts about that storage, not facts about the saved
+copy. Writing the saved value back establishes a new equality between the current
+contents of that exact destination and the saved value. A subsequent guard on the
+copy may therefore justify a requirement on the restored contents. This is new
+evidence from the restoring write, not resurrection of invalidated storage facts.
+
+Checking must establish the captured place, index identity, saved value and
+absence of intervening invalidating effects at the use. A different saved value,
+changed selector, possible aliasing write or unknown call effect supplies no
+unproved equality. Entry storage may supply an initialized reaching value without
+an earlier store in the body; no zero value or initialization is inferred for
+uninitialized storage. The [Terminal fact rules](../terminal-psi/fact_validity.md#restored-scalar-values)
+carry the same distinction into lowered proofs.
+
+Analysis may bound its value/storage tracking and conservatively lose a relation;
+it then needs fresh evidence for the obligation. This decision neither requires
+an unlimited write history nor permits weakening a proved relation solely because
+a write preceded the restoration.
 
 ## Returns and proof use
 

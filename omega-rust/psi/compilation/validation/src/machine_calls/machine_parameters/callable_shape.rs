@@ -4,7 +4,7 @@ use super::type_refinement::{
 };
 use super::{
     MachineBlockingRow, MachineStateIndex, MachineSuspensionRow, machine_and_state,
-    machine_parameter_contract, machine_parameter_signature,
+    machine_parameter_contract_definition, machine_parameter_signature,
 };
 use crate::borrow_contracts::CallableBorrowContract;
 use crate::borrow_contracts::PreparedCallableBorrowRefinement;
@@ -120,13 +120,25 @@ pub(super) fn validate_selected_callable_shape(
         return;
     }
 
-    if let Some((actual_parameter, actual_signature)) =
-        machine_parameter_contract(program, selected_symbol)
+    if let Some((actual_parameter, actual_contract)) =
+        machine_parameter_contract_definition(program, selected_symbol)
     {
         let label = format!(
             "machine parameter `{}` forwarded into `{generic_call}`",
             actual_parameter.name
         );
+        // A declaration-identity parameter names a machine or requirement and
+        // has no signature, so it cannot be supplied where a callable is due.
+        if matches!(
+            actual_contract,
+            typed_trees::data::MachineParameterContract::RequirementIdentity
+        ) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{label}: declaration identity and callable requirement are different parameter roles"
+            )));
+            return;
+        }
+        let actual_signature = machine_parameter_signature(program, actual_contract);
         let applied = program.applied_machine_callable(
             application,
             ordinal,

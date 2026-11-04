@@ -338,11 +338,11 @@ pub fn satisfies_plan_name(target: &str, trait_name: &str, provider_type: &str) 
 
 /// The single target-machine origin claiming `machine` under `admits`, when
 /// exactly one does.
-fn sole_machine_origin<'origins>(
-    target_machine_origins: &'origins [SelectedTargetMachineOrigin],
+fn sole_machine_origin(
+    target_machine_origins: &[SelectedTargetMachineOrigin],
     machine: symbols::SymbolHandle,
     admits: impl Fn(&SelectedTargetMachineOrigin) -> bool,
-) -> Option<&'origins SelectedTargetMachineOrigin> {
+) -> Option<&SelectedTargetMachineOrigin> {
     let origins = target_machine_origins
         .iter()
         .filter(|origin| origin.machine == machine && admits(origin))

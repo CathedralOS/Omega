@@ -57,9 +57,7 @@ impl ExitScalars<'_, '_> {
             self.assigned_call_at_place(&place)?
         };
         let selected = self.normal_return_call_target(expression)?;
-        let Some(authored) = self.program.expression_table.call_node(expression) else {
-            return None;
-        };
+        let authored = self.program.expression_table.call_node(expression)?;
         let parameters = self.program.machine_type_parameters(selected.callee);
         if parameters.len() != authored.machine_arguments.len() {
             return None;

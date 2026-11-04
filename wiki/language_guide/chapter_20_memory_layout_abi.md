@@ -92,6 +92,40 @@ particular compiler's current offsets. Ordinary storage declarations use the
 default representation when no explicit family is selected. That default is a
 rule of the storage use, not a policy attached to the data declaration.
 
+## Dense Owned Collections
+
+An allocator-backed vector owns two adjacent regions: established elements and
+vacant spare capacity. A core `Run<P, T>` under its protected `Live` qualification
+holds the first region and its element count. The compiler understands its
+ownership contract; allocation and Vec growth remain ordinary library code.
+
+```text
+one allocation: [ T | T | T | T ][ vacant capacity ]
+                 live run: 4
+```
+
+There is no tag or ownership table beside each element. Each live value retains
+its own obligations: four tasks can own four different resources. Pop transfers
+one actual task out; release must account for every remaining task before the
+backing can become vacant. Zero-sized values still count and still owe their
+required disposition.
+
+Removing the tenth element need not consume the vector. A library `swap_remove`
+moves that element out, fills its place with the last element and shortens the
+live range. A temporary hole uses the ordinary exclusive-borrow restoration
+window. If holes must remain, use an explicit shape such as `Optional<T>`.
+
+With ordinary native layout on Stable RAM, the live region can be borrowed as
+`&[T]` or `&mut [T]`. Qualified floats remain dense floats suitable for SIMD:
+reading `&[f32 in Km]` as `&[f32]` follows qualification erasure. Writing through
+an unqualified mutable view must preserve or restore the original predicates
+before returning it. Casting does not discard access restrictions.
+
+Swaps move data, pop updates the count, and disposal runs required cleanup.
+The compiler checks the repeated custody transformation symbolically; it does
+not demand per-element runtime bookkeeping. See [dense owned runs](../spec/resources/typed_runs.md)
+for the complete contract and the distinction from single-value resident storage.
+
 ## Stable Representation
 
 A storage or parameter declaration can select a library representation:

@@ -14,7 +14,7 @@ impl Emission<'_, '_, '_> {
             let child = self.structural_value_node(*argument);
             let ty = lookup_type_id(
                 self.type_ids,
-                &stored_structural_identity(&self.checked, child.type_reference),
+                &stored_structural_identity(self.checked, child.type_reference),
             )?;
             let ValueOutcome::Normal(child) =
                 self.child_constructor_operand(identities, ty, *argument, child.type_reference)?

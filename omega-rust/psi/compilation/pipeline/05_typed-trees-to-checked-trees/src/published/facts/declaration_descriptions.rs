@@ -13,10 +13,11 @@ use checked_trees::{
 use symbols::SymbolHandle;
 
 pub(crate) fn retain_declaration_descriptions(checked: &mut CheckedTrees) {
-    let mut descriptions = CheckedDeclarationDescriptions::default();
-    descriptions.selections = validation::checked_selection_requirements(checked);
-    descriptions.evaluation_dependencies =
-        validation::compiler_evaluation::checked_dependencies(checked);
+    let mut descriptions = CheckedDeclarationDescriptions {
+        selections: validation::checked_selection_requirements(checked),
+        evaluation_dependencies: validation::compiler_evaluation::checked_dependencies(checked),
+        ..Default::default()
+    };
     let sidecars = typed_trees::references::MachineSidecarIndex::build(&checked.typed);
     // Invocation summaries are keyed by exact machine, not iteration position.
     // Sort borrowed rows once rather than scanning the whole table per header.
@@ -291,7 +292,7 @@ fn capture(
                 .ok_or("checked capture declaration lost its independent receipt")?;
             let template_identity = checked
                 .type_identities
-                .with_mut(|table| table.intern(&capture.normalized_template_identity));
+                .intern(&capture.normalized_template_identity);
             Ok(CheckedDeclarationCapture {
                 template_identity,
                 template_contract: receipt.template_contract_commitment.as_bytes(),

@@ -323,20 +323,19 @@ impl Substitution<'_> {
         if let Some(literal) = &argument.const_literal {
             return Some(Operand::Integer(literal.clone(), literal.landing()));
         }
-        if argument.type_reference.is_valid() {
-            if let typed_trees::types::TypeReferenceNode::ConstExpression(expression) = self
+        if argument.type_reference.is_valid()
+            && let typed_trees::types::TypeReferenceNode::ConstExpression(expression) = self
                 .program
                 .type_reference_table
                 .type_reference(argument.type_reference)
-            {
-                return ordered_values::operand(
-                    self.program,
-                    self.machine,
-                    self.state?,
-                    *expression,
-                    None,
-                );
-            }
+        {
+            return ordered_values::operand(
+                self.program,
+                self.machine,
+                self.state?,
+                *expression,
+                None,
+            );
         }
         if argument.symbol.is_valid() {
             let state = self.state?;

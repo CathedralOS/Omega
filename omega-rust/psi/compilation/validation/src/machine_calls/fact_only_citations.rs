@@ -34,10 +34,7 @@ use typed_trees::signature::StateParameter;
 use typed_trees::statement::{StatementNode, TableCall};
 use typed_trees::types::TypeReferenceNode;
 
-fn machine_by_target<'program>(
-    program: &'program dyn crate::CheckingInput,
-    target: SymbolHandle,
-) -> Option<&'program Machine> {
+fn machine_by_target(program: &dyn crate::CheckingInput, target: SymbolHandle) -> Option<&Machine> {
     if !target.is_valid() {
         return None;
     }

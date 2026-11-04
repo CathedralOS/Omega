@@ -267,21 +267,21 @@ pub fn can_emit_executable_image(target: NativeTarget) -> bool {
         )
 }
 
-/// Emit and validate one direct executable image: the static lane
-/// [`emit_executable_image`] takes for an object without normalized ELF
-/// imports.
-///
-/// The direct lane admits typed internal calls and exactly retained imports
-/// supported by its target writer. Final-text mutation outside their
-/// architecture-specific immediate bits, unaccounted imports or thunks,
-/// overlapping/missing function spans, and unclassified executable bytes are
-/// hard failures.
-///
-/// This entry carries no bound signing identity: Mach-O output falls back to
-/// the validated executable leaf as its ad-hoc CodeDirectory label. The
-/// build-bound identity enters only through
-/// [`crate::ExecutableImageEmissionRequest::Direct`]
-/// (wiki/spec/build/macos_application.md).
+// Emit and validate one direct executable image: the static lane
+// [`emit_executable_image`] takes for an object without normalized ELF
+// imports.
+//
+// The direct lane admits typed internal calls and exactly retained imports
+// supported by its target writer. Final-text mutation outside their
+// architecture-specific immediate bits, unaccounted imports or thunks,
+// overlapping/missing function spans, and unclassified executable bytes are
+// hard failures.
+//
+// This entry carries no bound signing identity: Mach-O output falls back to
+// the validated executable leaf as its ad-hoc CodeDirectory label. The
+// build-bound identity enters only through
+// [`crate::ExecutableImageEmissionRequest::Direct`]
+// (wiki/spec/build/macos_application.md).
 
 /// `code_signature_identifier` is the build-bound Mach-O signing identity
 /// carried by the image request. It is written verbatim into the emitted

@@ -71,7 +71,7 @@ fn checking_does_not_reopen_typed_preparation() {
         source_root.join("../../04_typed-trees-to-typed-trees/src/monomorphization");
     let mut directories = vec![
         source_root.clone(),
-        source_root.join("../../../checking/src"),
+        source_root.join("../../../validation/src"),
         specialization_root.clone(),
     ];
     while let Some(directory) = directories.pop() {

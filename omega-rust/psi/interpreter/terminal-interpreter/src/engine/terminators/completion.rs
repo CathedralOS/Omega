@@ -67,7 +67,9 @@ impl TerminalExecution<'_> {
                 if let Some(retired) = retired {
                     let origin = self
                         .reference_referents
-                        .get(&crate::boundary::values::StructuralRuntimePlace::from(&retired))
+                        .get(&crate::boundary::values::StructuralRuntimePlace::from(
+                            &retired,
+                        ))
                         .cloned();
                     self.retired_structural_homes
                         .push((*place, retired.clone(), origin));
@@ -183,6 +185,7 @@ impl TerminalExecution<'_> {
             }
             if let Err(error) = self
                 .require_entry_results_complete()
+                .and_then(|()| self.require_scalar_entry_checks_complete())
                 .and_then(|()| self.charge_completed_result(&completed))
             {
                 self.failed_return = Some(FailedReturn {

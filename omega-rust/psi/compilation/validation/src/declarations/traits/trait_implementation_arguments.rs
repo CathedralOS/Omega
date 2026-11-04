@@ -219,7 +219,7 @@ pub(crate) fn validate_implementation_application(
             declaration,
             owner,
             &[AppliedTypeIdentityScope {
-                declaration: declaration,
+                declaration,
                 arguments: &substitutions,
                 lifetimes: &lifetimes,
             }],

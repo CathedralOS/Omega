@@ -267,12 +267,12 @@ fn materializers_reject_layout_identity_aliases_before_observable_work() {
     let aggregate_layout = layout_report(
         vec![
             numbered_layout_field_entry(
-                "legacy_payload".into(),
+                "legacy_payload",
                 9,
                 LayoutPlacementReport::At { offset: 0 },
             ),
             numbered_layout_field_entry(
-                "forged_payload_alias".into(),
+                "forged_payload_alias",
                 9,
                 LayoutPlacementReport::At { offset: 4 },
             ),
@@ -321,8 +321,8 @@ fn normalized_layout_identity_distinguishes_dynamic_from_full_width_size() {
 fn owned_aggregate_materializer_places_complete_values_atomically() {
     let layout = layout_report(
         vec![
-            layout_field_entry("header".into(), LayoutPlacementReport::At { offset: 4 }),
-            layout_field_entry("payload".into(), LayoutPlacementReport::At { offset: 12 }),
+            layout_field_entry("header", LayoutPlacementReport::At { offset: 4 }),
+            layout_field_entry("payload", LayoutPlacementReport::At { offset: 12 }),
         ],
         Some(vec![4, 12]),
         Some(20),
@@ -417,7 +417,7 @@ fn owned_aggregate_materializer_places_complete_values_atomically() {
 fn numbered_aggregate_materialization_rejoins_renamed_fields_by_identity() {
     let layout = layout_report(
         vec![numbered_layout_field_entry(
-            "legacy_payload".into(),
+            "legacy_payload",
             7,
             LayoutPlacementReport::At { offset: 4 },
         )],
@@ -458,11 +458,7 @@ fn numbered_aggregate_materialization_rejoins_renamed_fields_by_identity() {
         entries: [0, 8]
             .into_iter()
             .map(|offset| {
-                numbered_layout_field_entry(
-                    "legacy_items".into(),
-                    9,
-                    LayoutPlacementReport::At { offset },
-                )
+                numbered_layout_field_entry("legacy_items", 9, LayoutPlacementReport::At { offset })
             })
             .collect(),
         offsets: None,
@@ -503,10 +499,7 @@ fn repeated_aggregate_materializer_rejects_invalid_geometry_atomically() {
         entries: offsets
             .iter()
             .map(|offset| {
-                layout_field_entry(
-                    "items".into(),
-                    LayoutPlacementReport::At { offset: *offset },
-                )
+                layout_field_entry("items", LayoutPlacementReport::At { offset: *offset })
             })
             .collect(),
         offsets: None,
@@ -548,17 +541,17 @@ fn aggregate_materialization_applies_scalar_placements_beside_whole_extents() {
     let layout = layout_report(
         vec![
             layout_field_entry(
-                "id".into(),
+                "id",
                 LayoutPlacementReport::IntegerAt {
                     offset: 0,
                     stored_width: 16,
                     interpretation: IntegerInterpretation::Unsigned,
                 },
             ),
-            layout_field_entry("flags".into(), bits!(2 => 16 => 0 => 0 => 10)),
-            layout_field_entry("pair".into(), LayoutPlacementReport::At { offset: 4 }),
-            layout_field_entry("items".into(), LayoutPlacementReport::At { offset: 8 }),
-            layout_field_entry("items".into(), LayoutPlacementReport::At { offset: 10 }),
+            layout_field_entry("flags", bits!(2 => 16 => 0 => 0 => 10)),
+            layout_field_entry("pair", LayoutPlacementReport::At { offset: 4 }),
+            layout_field_entry("items", LayoutPlacementReport::At { offset: 8 }),
+            layout_field_entry("items", LayoutPlacementReport::At { offset: 10 }),
         ],
         None,
         Some(12),
@@ -616,8 +609,8 @@ fn aggregate_materialization_shares_fragment_bytes_but_rejects_bit_drift() {
     // Two fields may tile disjoint destination bits of one container byte.
     let shared = layout_report(
         vec![
-            layout_field_entry("low".into(), bits!(4 => 8 => 0 => 0 => 4)),
-            layout_field_entry("high".into(), bits!(4 => 8 => 4 => 0 => 4)),
+            layout_field_entry("low", bits!(4 => 8 => 0 => 0 => 4)),
+            layout_field_entry("high", bits!(4 => 8 => 4 => 0 => 4)),
         ],
         None,
         Some(8),
@@ -962,10 +955,10 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
 fn numbered_scalar_materialization_and_decode_rejoin_renamed_fields_by_identity() {
     let layout = layout_report(
         vec![
-            numbered_layout_field_entry("legacy_counter".into(), 7, bits!(0 => 8 => 0 => 0 => 8)),
-            numbered_layout_field_entry("legacy_counter".into(), 7, bits!(1 => 8 => 0 => 8 => 8)),
+            numbered_layout_field_entry("legacy_counter", 7, bits!(0 => 8 => 0 => 0 => 8)),
+            numbered_layout_field_entry("legacy_counter", 7, bits!(1 => 8 => 0 => 8 => 8)),
             numbered_layout_field_entry(
-                "legacy_status".into(),
+                "legacy_status",
                 9,
                 LayoutPlacementReport::At { offset: 2 },
             ),
@@ -1047,7 +1040,7 @@ fn ordinary_scalar_materializer_round_trips_stored_integers() {
     let layout = layout_report(
         vec![
             layout_field_entry(
-                "signed".into(),
+                "signed",
                 LayoutPlacementReport::IntegerAt {
                     offset: 0,
                     stored_width: 8,
@@ -1055,7 +1048,7 @@ fn ordinary_scalar_materializer_round_trips_stored_integers() {
                 },
             ),
             layout_field_entry(
-                "unsigned".into(),
+                "unsigned",
                 LayoutPlacementReport::IntegerAt {
                     offset: 1,
                     stored_width: 16,
@@ -1109,7 +1102,7 @@ fn ordinary_scalar_materializer_round_trips_stored_integers() {
 fn ordinary_scalar_stored_integer_write_is_fit_checked_and_atomic() {
     let layout = layout_report(
         vec![layout_field_entry(
-            "value".into(),
+            "value",
             LayoutPlacementReport::IntegerAt {
                 offset: 0,
                 stored_width: 8,
@@ -1146,8 +1139,8 @@ fn ordinary_scalar_stored_integer_write_is_fit_checked_and_atomic() {
 fn scalar_materialization_is_complete_and_atomic() {
     let layout = layout_report(
         vec![
-            layout_field_entry("low".into(), bits!(0 => 8 => 0 => 0 => 4)),
-            layout_field_entry("high".into(), bits!(0 => 8 => 4 => 0 => 4)),
+            layout_field_entry("low", bits!(0 => 8 => 0 => 0 => 4)),
+            layout_field_entry("high", bits!(0 => 8 => 4 => 0 => 4)),
         ],
         None,
         Some(1),
@@ -1189,8 +1182,8 @@ fn scalar_materialization_is_complete_and_atomic() {
 fn symbolic_write_geometry_rejects_before_any_resolver_invocation() {
     let layout = layout_report(
         vec![
-            layout_field_entry("first".into(), LayoutPlacementReport::At { offset: 0 }),
-            layout_field_entry("second".into(), LayoutPlacementReport::At { offset: 16 }),
+            layout_field_entry("first", LayoutPlacementReport::At { offset: 0 }),
+            layout_field_entry("second", LayoutPlacementReport::At { offset: 16 }),
         ],
         Some(vec![0, 16]),
         Some(16),
@@ -1222,10 +1215,10 @@ fn symbolic_value_constraints_reject_before_unrelated_target_resolution() {
     );
     let layout = layout_report(
         vec![
-            layout_field_entry("first".into(), LayoutPlacementReport::At { offset: 0 }),
-            layout_field_entry("unrelated".into(), LayoutPlacementReport::At { offset: 8 }),
+            layout_field_entry("first", LayoutPlacementReport::At { offset: 0 }),
+            layout_field_entry("unrelated", LayoutPlacementReport::At { offset: 8 }),
             layout_field_entry(
-                "narrow".into(),
+                "narrow",
                 LayoutPlacementReport::IntegerAt {
                     offset: 16,
                     stored_width: 8,

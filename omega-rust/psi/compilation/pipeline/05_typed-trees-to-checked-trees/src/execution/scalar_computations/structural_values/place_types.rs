@@ -118,8 +118,7 @@ pub(super) fn readable_place(
         }
         reference = shell.referee;
     }
-    let mut referent_crossings = 0;
-    for _ in 0..64 {
+    for referent_crossings in 0..64 {
         if validation::declared_carriers_match(program, reference, expected) {
             return Some(ReadablePlace {
                 reference,
@@ -133,7 +132,6 @@ pub(super) fn readable_place(
             return None;
         }
         reference = shell.referee;
-        referent_crossings += 1;
     }
     None
 }

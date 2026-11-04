@@ -22,7 +22,7 @@ fn checked_owner(root: &Path) -> PackageKeyIdentity {
 }
 
 fn checked_owner_for(root: &Path, file: &str) -> PackageKeyIdentity {
-    let checked = omega_build::check_source(
+    let checked = orchestration::check_source(
         &mut CompilationSession::default(),
         CheckedCompileRequest::new(&root.join(file), None),
     )
@@ -45,7 +45,7 @@ fn checked_owner_for(root: &Path, file: &str) -> PackageKeyIdentity {
 }
 
 fn artifact(root: &Path) -> std::sync::Arc<CanonicalTerminalArtifact> {
-    omega_build::produce_source(
+    orchestration::produce_source(
         &mut CompilationSession::default(),
         CheckedCompileRequest::new(&root.join("library.omg"), None),
         CompilationProduct::Inspection("library::read".to_owned()),
@@ -211,7 +211,7 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
             &authored,
         );
         let supplied = inputs(&staged, &library, owner, None);
-        let checked = omega_build::check_source(
+        let checked = orchestration::check_source(
             &mut CompilationSession::default(),
             CheckedCompileRequest {
                 package_inputs: Some(supplied.clone()),
@@ -232,7 +232,7 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
         );
         let output = fixture_package_inputs::sealed_fixture_staging::temporary_session_root()
             .join(format!("native-{place}"));
-        let report = omega_build::compile_sources(
+        let report = orchestration::compile_sources(
             &mut compiler::CompilationSession::default(),
             compiler::CompileRequest::new(compiler::CompileOptions {
                 root_path: staged.join("main.omg"),
@@ -294,7 +294,7 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
             &repository,
             &authored.join("invalid"),
         );
-        let failure = omega_build::check_source(
+        let failure = orchestration::check_source(
             &mut CompilationSession::default(),
             CheckedCompileRequest {
                 package_inputs: Some(inputs(&invalid, &library, owner, None)),
@@ -337,7 +337,7 @@ fn equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute() {
         let staged = fixture_package_inputs::sealed_fixture_staging::stage_sealed_snapshot(
             temporary, &authored,
         );
-        let result = omega_build::check_source(
+        let result = orchestration::check_source(
             &mut CompilationSession::default(),
             CheckedCompileRequest {
                 package_inputs: Some(inputs(
@@ -352,8 +352,7 @@ fn equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute() {
         .result;
         if rejects {
             let failure = result
-                .err()
-                .expect("a different anonymous owner cannot supply the original nominal type");
+                .expect_err("a different anonymous owner cannot supply the original nominal type");
             let diagnostic = format!("{:?}", failure.into_diagnostics());
             eprintln!("copied-owner rejection: {diagnostic}");
             assert!(

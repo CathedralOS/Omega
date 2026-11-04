@@ -15,7 +15,7 @@ fail/facts/abi_multi_arg_spill_through_target_body_rejected rejected 724ms expec
 	exact arithmetic in machine `weighted_ten_sum` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `weighted_ten_sum` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `weighted_ten_sum` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/abstract_signature_call_through_target_body_rejected rejected 436ms expected @3c1b7104e4f6+wt
+fail/facts/abstract_signature_call_through_other_target_rejected rejected 436ms expected @3c1b7104e4f6+wt
 	machine `observe` state `entry` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false
 	machine `observe` state `entry` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false
 	machine `observe` state `entry` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false
@@ -1437,7 +1437,7 @@ pass/effects/generic_callback_schema_reach checked 2790ms check-target:macos_arm
 pass/effects/nominal_callback_dependency checked 2804ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @e06334c63dc4+wt
 pass/effects/static_boundary_callback_reach checked 2801ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @e06334c63dc4+wt
 pass/facts/abi_multi_arg_spill_through_target_body_exit checked 4553ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
-pass/facts/abstract_signature_call_through_target_body_exit checked 4004ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
+pass/facts/abstract_signature_call_through_other_target_exit checked 4004ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/additional_input_domain_mutation_through_target_body_exit checked 4727ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/address_count_partition_through_target_body_exit checked 4318ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/affine_discard_root_cleanup_through_target_body_exit checked 4813ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt

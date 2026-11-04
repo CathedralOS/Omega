@@ -24,7 +24,7 @@ impl Expansion<'_> {
     ) -> Result<usize, LoweringError> {
         let statement = u32::try_from(exit.statement_index)
             .map_err(|_| LoweringError::Unsupported("scalar return statement exceeds u32"))?;
-        let mut roots = value_facts(&self.checked)
+        let mut roots = value_facts(self.checked)
             .scalar_computations
             .roots_for_statement_role(exit.state_symbol, statement, role);
         let argument = if let Some(root) = roots.next() {

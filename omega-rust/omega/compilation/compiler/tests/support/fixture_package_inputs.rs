@@ -171,7 +171,7 @@ fn derive_entry_from_inputs(
     };
     // Check the package-owned target contract independently on every derivation;
     // application discovery alone cannot authorize the program-entry role.
-    let checked = omega_build::check_source(
+    let checked = orchestration::check_source(
         &mut compiler::CompilationSession::default(),
         CheckedCompileRequest {
             package_inputs: Some(inputs),
@@ -196,7 +196,7 @@ pub struct ReviewedFixtureCompilation {
     pub root_path: PathBuf,
     pub package_inputs: Option<PackageCompilationInputs>,
     pub execution: Option<package_compilation::BuildExecutionInputs>,
-    pub session: omega_build::BuildSession,
+    pub session: orchestration::BuildSession,
     pub completed: Vec<compiler::CompletedBuild>,
     product: compiler::CompilationProduct,
     plans: Vec<(TargetProfile, compiler::PackageCompilationRequest)>,
@@ -219,7 +219,7 @@ pub fn produce_fixture_products(
             "fixture Product completion already consumed",
         )]
     })?;
-    let outputs = omega_build::compile_packages(
+    let outputs = orchestration::compile_packages(
         prepared.session.compiler(),
         requests,
         &mut prepared.completed,
@@ -270,7 +270,7 @@ pub fn produce_fixture(
         )]
     })?;
     request.optimization_rollback = prepared.product.optimization_rollback();
-    omega_build::produce_source(
+    orchestration::produce_source(
         prepared.session.compiler(),
         request,
         prepared.product.clone(),
@@ -311,7 +311,7 @@ fn observe_failed_scalar_accounting(
         vec![Some(profile)],
     )
     .with_package_inputs(inputs.clone());
-    let outcomes = omega_build::compile_sources(
+    let outcomes = orchestration::compile_sources(
         &mut compiler::CompilationSession::default(),
         request,
     )
@@ -481,7 +481,7 @@ pub struct DiscoveredFixture {
     execution: Option<package_compilation::BuildExecutionInputs>,
     snapshot: Option<package_compilation::BuildSnapshotRequest>,
     execution_profile: TargetProfile,
-    session: omega_build::BuildSession,
+    session: orchestration::BuildSession,
     completed: Vec<compiler::CompletedBuild>,
     pub targets: Vec<String>,
 }
@@ -493,7 +493,7 @@ pub fn discover_fixture(
     let authored_project_root = authored_root_path.parent().expect("fixture project root");
     let directory =
         sealed_fixture_staging::fresh_staging_build_dir(&repo_root(), authored_project_root);
-    let mut session = omega_build::BuildSession::create(&directory)
+    let mut session = orchestration::BuildSession::create(&directory)
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
     let preparation = package_manager::operations::begin_local_project_preparation(
         authored_root_path,
@@ -518,16 +518,16 @@ pub fn discover_fixture(
         });
     };
     let snapshot = execution.snapshot.clone();
-    let resolved = omega_build::resolve_project_sources(
+    let resolved = orchestration::resolve_project_sources(
         &mut session,
-        omega_build::ProjectSourceRequest {
+        orchestration::ProjectSourceRequest {
             preparation,
             execution,
             collect_timings: false,
         },
     )
     .map_err(|error| match error {
-        omega_build::ProjectSourceResolutionError::Compilation(error) => error.into_diagnostics(),
+        orchestration::ProjectSourceResolutionError::Compilation(error) => error.into_diagnostics(),
         other => vec![Diagnostic::error(other.to_string())],
     })?;
     let root_path = resolved.prepared.entry_path().to_path_buf();
@@ -669,7 +669,7 @@ pub fn review_fixture(
             )]);
         };
         root.inputs = inputs.clone().with_semantic_role_discovery(true);
-        let build = omega_build::prepare_package(session.compiler(), discovery, &mut completed)
+        let build = orchestration::prepare_package(session.compiler(), discovery, &mut completed)
             .map_err(|error| error.failure.into_diagnostics())?;
         let preliminary = session
             .compiler()
@@ -823,7 +823,7 @@ pub fn check_fixture(
         for occurrence in &mut occurrences {
             occurrence.set_optimization_rollback(rollback.clone());
         }
-        let build = omega_build::prepare_package(
+        let build = orchestration::prepare_package(
             prepared.session.compiler(),
             occurrences,
             &mut prepared.completed,
@@ -842,7 +842,7 @@ pub fn check_fixture(
             )]
         })?;
         request.optimization_rollback = rollback;
-        omega_build::check_source(prepared.session.compiler(), request)
+        orchestration::check_source(prepared.session.compiler(), request)
             .result
             .map_err(|error| error.into_diagnostics())
     }

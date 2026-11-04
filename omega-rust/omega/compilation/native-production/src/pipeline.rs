@@ -41,19 +41,22 @@ pub(crate) fn lower_to_target(
 ) -> Result<ValidatedOptimizedTargetOperations, TargetLoweringError> {
     phase_profile::scope("omega.native.lower_to_target", || {
         let selections = selections.selections();
-        observation.enter(NativePipelineStage::AbstractOptimization);
-        let optimized = abstract_operations_to_abstract_operations::optimize_abstract_operations(
-            input.into_optimization_input(),
-            selections,
-            &selections.project_psi(),
-            budget,
-        )
-        .map_err(TargetLoweringError::AbstractOptimization)?;
-        observation.enter(NativePipelineStage::AbstractToTarget);
-        let (program, lowering_facts) = optimized.into_lowering_parts();
-        let target = lower_optimized_to_target_operations(program, lowering_facts, request)
-            .map_err(TargetLoweringError::Target)?;
-        Ok(target)
+        let optimized = phase_profile::scope("omega.01", || {
+            observation.enter(NativePipelineStage::AbstractOptimization);
+            abstract_operations_to_abstract_operations::optimize_abstract_operations(
+                input.into_optimization_input(),
+                selections,
+                &selections.project_psi(),
+                budget,
+            )
+            .map_err(TargetLoweringError::AbstractOptimization)
+        })?;
+        phase_profile::scope("omega.02", || {
+            observation.enter(NativePipelineStage::AbstractToTarget);
+            let (program, lowering_facts) = optimized.into_lowering_parts();
+            lower_optimized_to_target_operations(program, lowering_facts, request)
+                .map_err(TargetLoweringError::Target)
+        })
     })
 }
 

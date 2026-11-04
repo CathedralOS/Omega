@@ -6,10 +6,10 @@ use super::{
 };
 use register_model::{RegisterOperandAccess, RegisterViewId};
 use selected_instructions::{
-    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectCatalogValidationError,
-    MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior,
+    AccessorScalarForm, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
+    MachineEffectCatalogValidationError, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
 #[test]
@@ -73,6 +73,26 @@ fn selected_memory_rules(
         .map(move |semantic| (key, semantic))
     }))
     .collect()
+}
+
+/// Exact-width accessor transfers (policy-governed and MMIO access) read or
+/// write through a plain pointer too, one declaration per width on the
+/// selected access-read or access-write row.
+fn accessor_scalar_rules(
+    environment: &crate::ValidatedTargetRegisterEnvironment,
+) -> Vec<(RegisterConstraintKey, MachineSemanticKind)> {
+    let keys = environment.selected_keys();
+    AccessorScalarForm::ALL
+        .into_iter()
+        .flat_map(|form| {
+            if form.write {
+                keys.access_write
+            } else {
+                keys.access_read
+            }
+            .map(|key| (key, MachineSemanticKind::AccessorScalarAccess(form)))
+        })
+        .collect()
 }
 
 /// Control-state envelopes access private frame storage too, but are ordering
@@ -429,9 +449,10 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
             case.convention
         );
 
-        // Plain storage footprints belong exactly to ordinary memory rules
-        // and the separately checked control envelopes above. Hosted I/O has
-        // its own memory shapes; no other declaration may claim this storage.
+        // Plain storage footprints belong exactly to ordinary memory rules,
+        // the accessor transfers, and the separately checked control
+        // envelopes above. Hosted I/O has its own memory shapes; no other
+        // declaration may claim this storage.
         let declared = declared_pairs(&catalog, |declaration| {
             matches!(
                 declaration.memory,
@@ -451,6 +472,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
                 .filter(|(_, semantic)| {
                     memory_contract(*semantic).memory != MachineMemoryEffect::NoneV1
                 })
+                .chain(accessor_scalar_rules(&environment))
                 .chain(floating_control_rules(&environment))
                 .collect::<BTreeSet<_>>(),
             "{}",
@@ -476,7 +498,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
 
         for (key, semantic) in &memory_rules {
             let contract = memory_contract(*semantic);
-            let (row, declaration) = row_and_declaration(&environment, &catalog, *key);
+            let (row, declaration) = row_and_declaration(&environment, &catalog, *key, *semantic);
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::None, "{key:?}");
             assert_eq!(declaration.call, MachineCallEffect::NoneV1, "{key:?}");

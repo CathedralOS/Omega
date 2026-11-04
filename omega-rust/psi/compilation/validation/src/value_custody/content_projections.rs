@@ -740,9 +740,9 @@ fn domain_accepts_projection_carrier(
         })
 }
 
-fn declared_domain_constraints<'a>(
-    program: &'a dyn CheckingInput,
+fn declared_domain_constraints(
+    program: &dyn CheckingInput,
     type_reference: TypeReferenceHandle,
-) -> Vec<&'a typed_trees::types::DomainConstraint> {
+) -> Vec<&typed_trees::types::DomainConstraint> {
     typed_trees::operator::declared_domain_constraints(program.typed_program(), type_reference)
 }

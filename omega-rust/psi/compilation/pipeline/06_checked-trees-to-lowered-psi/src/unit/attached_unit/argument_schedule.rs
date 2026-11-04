@@ -361,10 +361,12 @@ fn append_completions(
     emitted: &mut Vec<usize>,
     steps: &mut Vec<Step>,
 ) -> Result<(), LoweringError> {
-    for index in producer + 1..group.end {
-        if operations[index].call().is_some()
-            || operations[index].structural_result_binding().is_some()
-        {
+    for (index, operation) in operations[..group.end]
+        .iter()
+        .enumerate()
+        .skip(producer + 1)
+    {
+        if operation.call().is_some() || operation.structural_result_binding().is_some() {
             break;
         }
         if emitted.contains(&index) {
@@ -391,14 +393,11 @@ pub(crate) fn recorded_window_endpoint_roots(
     checked_trees::CheckedScalarExpressionRole,
     checked_trees::CheckedScalarComputationHandle,
 )> {
-    let (Ok(call_ordinal), Ok(argument_ordinal)) = (
-        u32::try_from(coordinate.call_ordinal),
-        u32::try_from(argument_ordinal),
-    ) else {
+    let Ok(argument_ordinal) = u32::try_from(argument_ordinal) else {
         return Vec::new();
     };
     let site = checked_trees::CheckedSubsliceSite::CallArgument {
-        call_ordinal,
+        call_ordinal: coordinate.call_ordinal,
         argument_ordinal,
     };
     [

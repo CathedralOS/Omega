@@ -29,13 +29,15 @@ pub(crate) fn instantiate_requirement_applications(
     super::contextual_calls::prepare_conformance_machine_demands(program)?;
     // Closed named maps introduce source scopes after initial callable setup.
     // Their logical signatures must exist before publishing closed instances.
-    program
+    let signatures = program
         .prepare_applied_callable_signatures()
         .map_err(|message| {
             vec![Diagnostic::error(format!(
                 "applied logical signatures: {message}"
             ))]
         })?;
+    super::finalize_callable_signature_identities(program, signatures)
+        .map_err(|diagnostic| vec![diagnostic])?;
     inference::prepare(program)?;
     let demands = demands::collect(program);
     for demand in demands {
@@ -224,22 +226,26 @@ pub(crate) fn instantiate_requirement_applications(
         program
             .prepare_closed_conformance_scopes()
             .map_err(|message| vec![Diagnostic::error(message)])?;
-        program
+        let signatures = program
             .prepare_applied_callable_signatures()
             .map_err(|message| {
                 vec![Diagnostic::error(format!(
                     "applied logical signatures: {message}"
                 ))]
             })?;
+        super::finalize_callable_signature_identities(program, signatures)
+            .map_err(|diagnostic| vec![diagnostic])?;
         if program.prepared_callable_signatures().count() == signature_count {
             break;
         }
     }
     // New executable projections retain their own logical refined views before
     // calls borrow them; the shared nominal contract is never strengthened.
-    program
+    let signatures = program
         .prepare_applied_callable_signatures()
         .map_err(|message| vec![Diagnostic::error(message)])?;
+    super::finalize_callable_signature_identities(program, signatures)
+        .map_err(|diagnostic| vec![diagnostic])?;
     calls::retarget(program)?;
     super::contextual_calls::retain_closed_requirement_demands(program)?;
     Ok(())

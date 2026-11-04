@@ -176,7 +176,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "build-evaluation"
+name = "build-output"
+version = "0.1.0"
+dependencies = [
+ "compiler-storage",
+ "diagnostics",
+ "filesystem-authority",
+ "optimization-core",
+]
+
+[[package]]
+name = "build-settings"
 version = "0.1.0"
 dependencies = [
  "arena",
@@ -215,16 +225,6 @@ dependencies = [
  "trust-model",
  "typed-trees",
  "validation",
-]
-
-[[package]]
-name = "build-output"
-version = "0.1.0"
-dependencies = [
- "compiler-storage",
- "diagnostics",
- "filesystem-authority",
- "optimization-core",
 ]
 
 [[package]]
@@ -440,9 +440,12 @@ dependencies = [
  "component-description",
  "diagnostics",
  "effects",
+ "image",
  "image-emission",
+ "image-macho",
  "language-semantics",
  "native-artifact",
+ "object-file",
  "optimization-core",
  "package-compilation",
  "phase-profile",
@@ -479,8 +482,8 @@ dependencies = [
  "boundary-applications",
  "bounded-process",
  "build-declarations",
- "build-evaluation",
  "build-output",
+ "build-settings",
  "build-time-evaluation",
  "calling-conventions",
  "cap-std",
@@ -498,6 +501,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "layout",
+ "layout-plans",
  "libc",
  "lowered-psi",
  "mimalloc",
@@ -505,9 +509,9 @@ dependencies = [
  "native-production",
  "numerics",
  "object-file",
- "omega-build",
  "optimization",
  "optimization-core",
+ "orchestration",
  "package-compilation",
  "package-evidence",
  "package-manager",
@@ -917,8 +921,8 @@ dependencies = [
  "effects",
  "image-emission",
  "mimalloc",
- "omega-build",
  "optimization-core",
+ "orchestration",
  "package-compilation",
  "package-evidence",
  "package-manager",
@@ -1226,6 +1230,7 @@ dependencies = [
  "function-identity",
  "isa-aarch64",
  "isa-x86_64",
+ "layout-plans",
  "machine-code",
  "optimization-core",
  "optimization-unit",
@@ -1386,7 +1391,7 @@ name = "new087-terminal-validation"
 version = "0.1.0"
 dependencies = [
  "compiler",
- "omega-build",
+ "orchestration",
  "target",
  "terminal-interpreter",
  "terminal-runtime",
@@ -1409,6 +1414,7 @@ version = "0.1.0"
 dependencies = [
  "calling-conventions",
  "function-identity",
+ "layout-plans",
  "legalized-operations",
  "optimization-unit",
  "register-model",
@@ -1433,7 +1439,9 @@ name = "object-file"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "calling-conventions",
  "function-identity",
+ "layout-plans",
  "machine-code",
  "machine-emission",
  "optimization-core",
@@ -1456,7 +1464,7 @@ dependencies = [
  "compiler",
  "diagnostics",
  "mimalloc",
- "omega-build",
+ "orchestration",
  "package-compilation",
  "package-manager",
  "package-source",
@@ -1482,28 +1490,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
-]
-
-[[package]]
-name = "omega-build"
-version = "0.1.0"
-dependencies = [
- "artifacts",
- "build-declarations",
- "build-evaluation",
- "compilation-products",
- "compiler",
- "diagnostics",
- "image-emission",
- "native-production",
- "package-compilation",
- "package-manager",
- "phase-profile",
- "platform-custody",
- "semantic-vocabulary",
- "target",
- "terminal-codec",
- "terminal-runtime",
 ]
 
 [[package]]
@@ -1556,6 +1542,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "orchestration"
+version = "0.1.0"
+dependencies = [
+ "artifacts",
+ "build-declarations",
+ "build-settings",
+ "compilation-products",
+ "compiler",
+ "diagnostics",
+ "image-emission",
+ "native-production",
+ "package-compilation",
+ "package-manager",
+ "phase-profile",
+ "platform-custody",
+ "semantic-vocabulary",
+ "target",
+ "terminal-codec",
+ "terminal-runtime",
+]
+
+[[package]]
 name = "package-compilation"
 version = "0.1.0"
 dependencies = [
@@ -1604,6 +1612,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "layout",
+ "layout-plans",
  "numerics",
  "optimization-core",
  "package-compilation",
@@ -1631,8 +1640,8 @@ dependencies = [
  "artifacts",
  "boundary-applications",
  "build-declarations",
- "build-evaluation",
  "build-output",
+ "build-settings",
  "cap-fs-ext",
  "cap-std",
  "compilation-products",
@@ -2121,7 +2130,7 @@ name = "sample-runner"
 version = "0.1.0"
 dependencies = [
  "bounded-process",
- "omega-build",
+ "orchestration",
  "package-manager",
  "serde_json",
  "sha2",
@@ -2588,6 +2597,7 @@ dependencies = [
  "compiler-storage",
  "layout-plans",
  "numerics",
+ "proof-admission",
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-psi",
@@ -2681,7 +2691,7 @@ dependencies = [
  "native-artifact",
  "native-provider-runtime",
  "numerics",
- "omega-build",
+ "orchestration",
  "platform-custody",
  "runtime-abi",
  "semantic-vocabulary",

@@ -69,6 +69,19 @@ pub struct FactRef {
 pub struct FactContext {
     pub point: ProgramPoint,
     pub facts: HandleSpan<FactRef>,
+    /// The assignment facts among `facts`, sorted by `PlaceRoot::group_key`
+    /// and otherwise in context order. `FactPlan::append_context` builds them
+    /// once; neither facts nor place roots change after that.
+    pub assignments: HandleSpan<AssignedFactRef>,
+}
+
+/// One assignment fact of a context with its place root, so a reader looking
+/// for one place's current value searches the context's assignments by root
+/// instead of reading every fact and place it holds.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct AssignedFactRef {
+    pub root: crate::PlaceRoot,
+    pub fact: FactHandle,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]

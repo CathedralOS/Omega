@@ -12,7 +12,7 @@
 use super::scalar_predicates::{self, PredicateNode, ScalarValue};
 use arena::{Arena, Handle};
 use diagnostics::Diagnostic;
-use numerics::bignum::BigInt;
+use semantic_vocabulary::ScalarConditionRole;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, UnaryOperator};
 
@@ -23,6 +23,7 @@ pub struct ConstantPredicateObligation {
     source_span: source::SourceSpan,
     description: String,
     caller: symbols::SymbolHandle,
+    role: ScalarConditionRole,
     discharged_target: Option<typed_trees::name::Identifier>,
 }
 
@@ -59,6 +60,7 @@ impl ConstantPredicateObligation {
         expression: ExpressionHandle,
         owner: symbols::SymbolHandle,
         caller: symbols::SymbolHandle,
+        role: ScalarConditionRole,
         description: String,
         builtin: &impl Fn(ExpressionHandle) -> bool,
     ) -> Option<Self> {
@@ -134,6 +136,7 @@ impl ConstantPredicateObligation {
             source_span: program.expression_table.source_span(expression),
             description,
             caller,
+            role,
             discharged_target: None,
         })
     }
@@ -147,6 +150,10 @@ impl ConstantPredicateObligation {
     /// called from several differently scoped bodies.
     pub fn caller(&self) -> symbols::SymbolHandle {
         self.caller
+    }
+
+    pub fn role(&self) -> ScalarConditionRole {
+        self.role
     }
 
     pub fn description(&self) -> &str {
@@ -326,6 +333,7 @@ fn capture_predicate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use numerics::bignum::BigInt;
     use numerics::scalar_predicates::PredicateOperator;
 
     #[test]
@@ -357,6 +365,7 @@ mod tests {
             nodes,
             root,
             caller,
+            role: ScalarConditionRole::Prerequisite,
             source_span: source::SourceSpan::default(),
             description: "captured equality".into(),
             discharged_target: None,
@@ -377,6 +386,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(obligation.caller(), caller);
+        assert_eq!(obligation.role(), ScalarConditionRole::Prerequisite);
         assert_eq!(observations, vec![(first, owner), (second, other_owner)]);
         drop(obligation);
         assert_eq!(

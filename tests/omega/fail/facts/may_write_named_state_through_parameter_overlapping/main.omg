@@ -34,8 +34,9 @@ requires chosen < 4 && other < 4
     let zero: u64 in Wrapping = 0;
     let marker: u64 in Wrapping = add(overwrite(relay(chosen, other, false)), zero);
     let index: u64 = other;
-    transition (marker as u64) == 1 && items[index] == 7 {
-        true -> (items[index])
+    let indexed: u8 = items[index];
+    transition (marker as u64) == 1 && indexed == 7 {
+        true -> indexed
         _ -> 0
     }
 }

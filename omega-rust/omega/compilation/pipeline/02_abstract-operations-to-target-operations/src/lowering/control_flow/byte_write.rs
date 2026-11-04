@@ -7,7 +7,6 @@ use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId};
-use std::collections::{BTreeMap, BTreeSet};
 use target_operations::TargetUnitOperation;
 use terminal_psi::StructuralPathSegment;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
@@ -55,7 +54,7 @@ pub(super) fn replace(
                         | StructuralAccess::WriteOnlyBorrow
                 ) || multiplicity != StructuralMultiplicity::Unrestricted
                     || !structural_types
-                        .get(&structural_type)
+                        .get(structural_type)
                         .is_some_and(|declaration| {
                             declaration.shape.is_bounded_owned_byte_sequence()
                         })
@@ -213,7 +212,7 @@ pub(super) fn replace_view_descriptor(
                 || !home.projected_qualifications().is_empty()
                 || !matches!(
                     structural_types
-                        .get(&home.structural_type())
+                        .get(home.structural_type())
                         .map(|declaration| &declaration.shape),
                     Some(declaration) if declaration.is_shared_readable_byte_view()
                 )
@@ -234,7 +233,7 @@ pub(super) fn replace_view_descriptor(
     if source == destination
         || !source_type.is_some_and(|identity| {
             structural_types
-                .get(&identity)
+                .get(identity)
                 .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
         })
     {
@@ -309,13 +308,11 @@ fn writable_byte_field(
             projection_root,
             projection_path,
             structural_types,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
         )?
         .0
     };
     let StructuralTypeShape::Record { fields, .. } = &structural_types
-        .get(&carrier)
+        .get(carrier)
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
         .shape
     else {

@@ -121,7 +121,7 @@ pub use contextual_cleanup::{
     StorageWindowInvocation,
 };
 pub use contract_plans::{
-    CheckedCrashCallSite, CheckedCrashSite, CheckedEntryResourceEnvelope,
+    CheckedBodyCrashSummary, CheckedCrashCallSite, CheckedCrashSite, CheckedEntryResourceEnvelope,
     CheckedMachineResourceEnvelopes, CheckedResourceAxisAnchor,
     CheckedResourceDerivationObligation, CheckedRuntimeMembershipSubject, CheckedTrappingSite,
     ClosedFloatRangeRequirement, ClosedIntegerRangeRequirement, ClosedScalarContractValue,

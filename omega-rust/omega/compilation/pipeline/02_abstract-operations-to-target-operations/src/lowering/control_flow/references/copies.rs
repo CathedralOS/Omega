@@ -117,7 +117,7 @@ pub(super) fn storage_cursor(
                         | StructuralPathSegment::FixedIndex(_)
                 )
             })
-            || !matches!(types.get(&selected).map(|declaration| &declaration.shape),
+            || !matches!(types.get(selected).map(|declaration| &declaration.shape),
                 Some(StructuralTypeShape::Reference { referent, .. }) if *referent == expected)
         {
             return Err(invalid());

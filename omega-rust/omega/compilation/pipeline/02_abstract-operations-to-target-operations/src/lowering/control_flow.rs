@@ -313,7 +313,7 @@ pub(super) fn lower(
                     && !is_owned_byte_parameter(parameter, structural_types)
                     && !abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan(
                         parameter,
-                        |identity| structural_types.get(&identity).copied(),
+                        |identity| structural_types.get(identity).copied(),
                         &structural_types
                             .values()
                             .map(|row| (*row).clone())

@@ -45,6 +45,7 @@ use super::{
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, DataMember,
     DataShapeKind, ExpressionNode, Multiplicity, PrimitiveType, StatementNode, TypeReferenceNode,
 };
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::retain_scalar_field;
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_field_identity};
@@ -711,7 +712,11 @@ fn case_field_store(
         typed_trees::signature::state_parameter_position(source_parameters, value_root)?;
     let _value_state_parameter = source_parameters.get(value_position)?;
 
-    let (projected, value_path) = projected_argument_path(
+    let ProjectedArgumentPath {
+        storage_type: projected,
+        path: value_path,
+        ..
+    } = projected_argument_path(
         program,
         state.symbol,
         statement_index as usize,

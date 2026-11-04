@@ -11,8 +11,9 @@
 //! Consumers request the facts they use. Arrival/value transfer consumes
 //! orderings and result associations; the structural checker consumes captured
 //! scalar reads. Their demands compose in this one traversal and remain part
-//! of its memo identity, so a partial request cannot supply another consumer's
-//! omitted facts. Unknown prefixes remain uncacheable for every demand.
+//! of its row identity, so a partial request cannot supply another consumer's
+//! omitted facts. A prefix whose traversal met an enclosing query's recurrence
+//! cut is recorded for no demand until it completes.
 
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use super::structural_prefix::{
@@ -91,16 +92,16 @@ pub struct NumericObservationDemand {
     pub scalar_associations: bool,
 }
 
-type NumericSite = (
-    SymbolHandle,
-    SymbolHandle,
-    usize,
-    bool,
-    NumericObservationDemand,
-);
 /// Capture the finite integer-read roster once at this executed prefix. The
 /// normal-value owner supplies source ordering, branch joins and call effects;
 /// this adapter neither evaluates a second operand language nor unfolds callees.
+///
+/// One traversal observes every statement-entry position of a state for a
+/// demand, and the invocation's table keeps each position it observed, empty
+/// and incomplete positions included, so a later query reads its row instead
+/// of walking the state again. Only a row from a traversal that met an
+/// enclosing query's recurrence cut stays out unless it completed: the same
+/// query from another ancestry can observe more.
 pub fn captured_numeric_observations(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -117,68 +118,142 @@ pub fn captured_numeric_observations(
                 .state_in_machine(machine, state.symbol)
                 .is_some_and(|stored| std::ptr::eq(stored, state))
     });
-    let site: NumericSite = (
-        machine.symbol,
-        state.symbol,
-        statement_index,
-        in_transition_target,
+    let site = NumericSite {
+        machine: machine.symbol,
+        state: state.symbol,
         demand,
-    );
-    if let Some(memos) = memos
-        && let Ok(completed) = memos.completed_numeric_observations.lock()
-        && let Some(observations) = completed.get(&site)
+        in_transition_target,
+    };
+    if let Some(observed) =
+        memos.and_then(|memos| memos.numeric_observations.observed(site, statement_index))
     {
-        return observations.clone();
+        return observed;
     }
     let Some(query) = CheckingQuery::numeric_observation(program, machine.symbol, state.symbol)
     else {
         return CapturedNumericObservations::default();
     };
-    let program: &dyn crate::CheckingInput = &query;
-    let statement_count = program
+    let input: &dyn crate::CheckingInput = &query;
+    let statement_count = input
         .statement_table
         .statements(state.statement_nodes)
         .len();
-    if let Some(memos) = memos
-        && !in_transition_target
+    // One-shot inputs keep no table, so they keep the exact-prefix selection.
+    let Some(memos) = memos else {
+        return collect_numeric_observations(
+            input,
+            machine,
+            state,
+            statement_index,
+            in_transition_target,
+            demand,
+        )
+        .0;
+    };
+    if !in_transition_target
         && demand.scalar_values != ScalarObservationDemand::StatePrefix
         && statement_index <= statement_count
     {
-        let batch = collect_state_numeric_observations_batch(program, machine, state, demand);
-        let result = batch
-            .get(statement_index)
-            .map(|(observations, _)| observations.clone())
-            .unwrap_or_default();
-        if let Ok(mut completed) = memos.completed_numeric_observations.lock() {
-            for (index, (observations, complete)) in batch.into_iter().enumerate() {
-                if !complete {
-                    continue;
-                }
-                completed.insert(
-                    (machine.symbol, state.symbol, index, false, demand),
-                    observations,
-                );
-            }
-        }
-        return result;
+        let batch = collect_state_numeric_observations_batch(input, machine, state, demand);
+        let observed = batch[statement_index].0.clone();
+        let context_free = !query.met_enclosing_cut();
+        memos.numeric_observations.record(
+            site,
+            batch
+                .into_iter()
+                .enumerate()
+                .filter(|(_, (_, complete))| context_free || *complete)
+                .map(|(index, (observations, _))| (index, observations)),
+        );
+        return observed;
     }
-    // Optional memos change reuse only; one-shot inputs use the same cycle
-    // fence and retain the ordinary exact-prefix selection.
     let (observations, complete) = collect_numeric_observations(
-        program,
+        input,
         machine,
         state,
         statement_index,
         in_transition_target,
         demand,
     );
-    if complete
-        && let Some(memos) = memos
-        && let Ok(mut completed) = memos.completed_numeric_observations.lock()
-    {
-        completed.insert(site, observations.clone());
+    if complete || !query.met_enclosing_cut() {
+        memos.numeric_observations.record(
+            site,
+            std::iter::once((statement_index, observations.clone())),
+        );
     }
     observations
+}
+
+/// The owner of one state's rows: the state, the consumer's demand, and
+/// whether its positions sit at statement entry or inside a transition target.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct NumericSite {
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    demand: NumericObservationDemand,
+    in_transition_target: bool,
+}
+
+/// Observed numeric rows of one invocation's states. The outer index is the
+/// state symbol's arena index; a state carries one entry per (demand, site
+/// kind) it was asked for, so the inner scan is over a few entries.
+#[derive(Default)]
+pub(crate) struct NumericObservationTable {
+    states: std::sync::Mutex<Vec<Vec<StateNumericObservations>>>,
+}
+
+/// One row per statement position, plus the state's end; `None` is a position
+/// no context-free traversal has observed yet.
+struct StateNumericObservations {
+    site: NumericSite,
+    rows: Vec<Option<CapturedNumericObservations>>,
+}
+
+impl NumericObservationTable {
+    fn observed(&self, site: NumericSite, position: usize) -> Option<CapturedNumericObservations> {
+        let states = self.states.lock().ok()?;
+        states
+            .get(site.state.arena_index() as usize)?
+            .iter()
+            .find(|observed| observed.site == site)?
+            .rows
+            .get(position)?
+            .clone()
+    }
+
+    /// A concurrent traversal of the same state observes the same rows; the
+    /// first recorded row stays.
+    fn record(
+        &self,
+        site: NumericSite,
+        rows: impl IntoIterator<Item = (usize, CapturedNumericObservations)>,
+    ) {
+        let Ok(mut states) = self.states.lock() else {
+            return;
+        };
+        let index = site.state.arena_index() as usize;
+        if states.len() <= index {
+            states.resize_with(index + 1, Vec::new);
+        }
+        let observed = &mut states[index];
+        let position = match observed.iter().position(|observed| observed.site == site) {
+            Some(position) => position,
+            None => {
+                observed.push(StateNumericObservations {
+                    site,
+                    rows: Vec::new(),
+                });
+                observed.len() - 1
+            }
+        };
+        let table = &mut observed[position].rows;
+        for (position, observations) in rows {
+            if table.len() <= position {
+                table.resize_with(position + 1, || None);
+            }
+            table[position].get_or_insert(observations);
+        }
+    }
 }
 
 fn finalize_visitor_observations(
@@ -467,19 +542,12 @@ fn collect_numeric_observations(
                 // normal-value owner authenticates them at their exact epoch.
                 // Only scalar snapshot consumers need the whole state's read
                 // roster, including earlier completed observations.
-                let is_candidate = if needs_relations && index == statement_index {
-                    super::observed_projections::integer_storage_read(
+                let is_candidate = ((needs_relations && index == statement_index)
+                    || demand.scalar_values.requested())
+                    && super::observed_projections::integer_storage_read(
                         program, machine, state, expression,
                     )
-                    .is_some()
-                } else if demand.scalar_values.requested() {
-                    super::observed_projections::integer_storage_read(
-                        program, machine, state, expression,
-                    )
-                    .is_some()
-                } else {
-                    false
-                };
+                    .is_some();
                 if is_candidate && !candidates.contains(&expression) {
                     candidates.push(expression);
                 }

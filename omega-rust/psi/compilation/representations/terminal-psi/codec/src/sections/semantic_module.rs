@@ -153,12 +153,11 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // nominal data/field associations and selected Source-v4 slot applications.
 // Record applications also retain the independent semantic-argument identity;
 // private slots cannot infer their owner from another slot's claimed role.
-// Combines physical declaration owners with retained compiler-evaluation facts.
-// Neither standalone 233 nor standalone 234 has this wire layout.
-// Boundary declarations retain complete public returned-borrow regions.
+// Keep scalar prerequisites and public returned-borrow regions explicit.
+// Marker 238 combines both changes; the two earlier 237 layouts are incompatible.
 // Callable headers retain the exact remaining declaration binder count.
-// Neither standalone 236 format has this combined wire layout.
-pub(crate) const FORMAT_MARKER: u16 = 237;
+// Marker 239 retains every placement of a split private callback address.
+pub(crate) const FORMAT_MARKER: u16 = 239;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -306,7 +305,7 @@ fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
     let byte_len =
         u64::try_from(bytes.len()).expect("terminal-Psi bytes fit the u64 digest domain");
     digest.raw(&byte_len.to_le_bytes());
-    digest.raw(&bytes);
+    digest.raw(bytes);
     SemanticFingerprint::from_bytes(digest.finish())
 }
 

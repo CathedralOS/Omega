@@ -10,237 +10,6 @@ impl RecordValue for terminal_psi::TerminalIdentityIndex {
     }
 }
 
-#[cfg(test)]
-mod exact_abi_tests {
-    use super::*;
-    use calling_conventions::{
-        BoundaryCallingApplication, BoundarySignatureGeometry, CallSignature, CallingPolicy,
-    };
-    use semantic_vocabulary::{CallingAbiIdentity, CallingOperandKind, CallingStaticOperand};
-
-    fn application(actual: &str) -> BoundaryCallingApplication {
-        let abi = CallingAbiIdentity {
-            requirement_identity: "Service::call".into(),
-            declaring_application: "Service<u8>".into(),
-            operands: vec![CallingStaticOperand {
-                ordinal: 2,
-                kind: CallingOperandKind::Type,
-                identity: actual.into(),
-            }],
-        };
-        let mut application = BoundaryCallingApplication {
-            requirement_identity: abi.requirement_identity.clone(),
-            abi,
-            target: target::NativeTarget::from_omega_target_name(Some("windows_x86_64")).unwrap(),
-            report_fingerprint: 73,
-            commitment: [0; 32],
-            plan: calling_conventions::evaluate_ordinary_boundary_entry_plan(
-                CallingPolicy::MicrosoftX64,
-                &CallSignature {
-                    parameters: vec![],
-                    result: None,
-                },
-            )
-            .unwrap(),
-            dispatch_only_parameter_count: 0,
-            signature: BoundarySignatureGeometry {
-                shapes: vec![],
-                fields: vec![],
-                parameters: vec![],
-                result: None,
-                native_parameters: Default::default(),
-                native_parameter_rows: Default::default(),
-                callback_layouts: Default::default(),
-                callback_layout_rows: Default::default(),
-                callback_bindings: Default::default(),
-                callback_binding_rows: Default::default(),
-            },
-            opaque_applications: vec![],
-            callback_context: Default::default(),
-            callback_context_closed: false,
-        };
-        application.commitment = application.recomputed_commitment().unwrap();
-        application
-    }
-
-    #[test]
-    fn native_recovery_preserves_same_shape_phantom_applications() {
-        let applications = vec![application("u32"), application("u64")];
-        assert_eq!(applications[0].signature, applications[1].signature);
-        assert_ne!(applications[0].commitment, applications[1].commitment);
-        let mut output = RecordWriter::new(Default::default());
-        applications.write(&mut output).unwrap();
-        let bytes = output.finish();
-        let mut input = RecordReader::new(&bytes, Default::default()).unwrap();
-        let recovered = Vec::<BoundaryCallingApplication>::read(&mut input).unwrap();
-        input.finish().unwrap();
-        assert_eq!(applications, recovered);
-        use effects::provider_plan::{
-            BoundaryCallingPlanCommitment, ProviderIdentityTable, ServiceCallingApplication,
-            ServiceCallingPlan, ServiceMethod, ServiceSchema, ServiceSurface,
-        };
-        let mut identities = ProviderIdentityTable::default();
-        let requirement = identities.intern("Service::call");
-        let schema = ServiceSchema {
-            declaration: std::sync::Arc::new(ServiceSurface {
-                trait_name: identities.intern("Service"),
-                identities,
-                trait_package_identity: None,
-                receiver_applications: vec![],
-                methods: vec![ServiceMethod {
-                    name: "call".into(),
-                    requirement_identity: requirement,
-                    ..Default::default()
-                }],
-            }),
-            calling_applications: applications
-                .iter()
-                .map(|application| ServiceCallingApplication {
-                    requirement,
-                    abi: application.abi.clone(),
-                    plan: ServiceCallingPlan {
-                        report_fingerprint: application.report_fingerprint,
-                        commitment: BoundaryCallingPlanCommitment::from_digest(
-                            application.commitment,
-                        ),
-                    },
-                })
-                .collect(),
-        };
-        let mut output = RecordWriter::new(Default::default());
-        schema.write(&mut output).unwrap();
-        let bytes = output.finish();
-        let mut input = RecordReader::new(&bytes, Default::default()).unwrap();
-        let recovered = ServiceSchema::read(&mut input).unwrap();
-        input.finish().unwrap();
-        assert_eq!(schema, recovered);
-        assert_eq!(recovered.calling_applications.len(), 2);
-        for application in &applications {
-            assert_eq!(
-                recovered
-                    .calling_application(&application.abi)
-                    .unwrap()
-                    .commitment
-                    .as_bytes(),
-                application.commitment
-            );
-        }
-    }
-
-    #[test]
-    fn native_recovery_preserves_dispatch_projection_and_remaining_argument() {
-        use calling_conventions::{
-            BoundaryNativeParameterGeometry, BoundaryNativeParameterOrigin,
-            BoundaryNativeParameterShape, BoundaryValueClass, BoundaryValueShape,
-            NativeParameterId, ValueShape,
-        };
-        let mut application = application("u32");
-        application.signature.shapes = vec![
-            BoundaryValueShape {
-                class: BoundaryValueClass::Reference,
-                byte_size: 8,
-                alignment: 8,
-            },
-            BoundaryValueShape {
-                class: BoundaryValueClass::Integer,
-                byte_size: 8,
-                alignment: 8,
-            },
-        ];
-        application.signature.parameters = vec![0, 1];
-        application.signature.native_parameter_rows = application
-            .signature
-            .native_parameters
-            .insert_many((0..2).map(|ordinal| BoundaryNativeParameterGeometry {
-                identity: NativeParameterId::new(u64::from(ordinal) + 1).unwrap(),
-                native_ordinal: ordinal,
-                shape: BoundaryNativeParameterShape::Semantic(ordinal as u16),
-                origin: BoundaryNativeParameterOrigin::SemanticFormal {
-                    formal_ordinal: ordinal,
-                },
-            }));
-        application.dispatch_only_parameter_count = 1;
-        application.plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
-            CallingPolicy::MicrosoftX64,
-            &CallSignature {
-                parameters: vec![ValueShape::integer(8, 8)],
-                result: None,
-            },
-        )
-        .unwrap();
-        application.commitment = application.recomputed_commitment().unwrap();
-        let round_trip = |application: &BoundaryCallingApplication| {
-            let mut output = RecordWriter::new(Default::default());
-            application.write(&mut output).unwrap();
-            let bytes = output.finish();
-            let mut input = RecordReader::new(&bytes, Default::default()).unwrap();
-            let recovered = BoundaryCallingApplication::read(&mut input);
-            if recovered.is_ok() {
-                input.finish().unwrap();
-            }
-            recovered
-        };
-        let recovered = round_trip(&application).unwrap();
-        assert_eq!(recovered, application);
-        let projection = recovered.call_projection().unwrap();
-        assert_eq!(projection.parameter_ordinal(0).unwrap(), None);
-        assert_eq!(projection.parameter_ordinal(1).unwrap(), Some(0));
-        assert_eq!(recovered.plan.plan().call.parameters.len(), 1);
-
-        let mut changed = application.clone();
-        changed.dispatch_only_parameter_count = 0;
-        // Keep an otherwise valid two-parameter plan. Only the old commitment
-        // can distinguish the substituted public-to-wire relationship.
-        changed.plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
-            CallingPolicy::MicrosoftX64,
-            &CallSignature {
-                parameters: vec![ValueShape::integer(8, 8); 2],
-                result: None,
-            },
-        )
-        .unwrap();
-        assert_ne!(
-            changed.recomputed_commitment().unwrap(),
-            application.commitment
-        );
-        let error = round_trip(&changed).unwrap_err();
-        assert!(error.reason.contains("commitment"), "{error}");
-    }
-
-    #[test]
-    fn native_recovery_rejects_full_key_mutations_with_stale_coordinates() {
-        let application = application("u32");
-        for mutation in 0..3 {
-            let mut changed = application.clone();
-            match mutation {
-                0 => changed.abi.operands[0].identity = "u64".into(),
-                1 => changed.abi.operands[0].ordinal = 3,
-                _ => changed.abi.declaring_application = "Service<u64>".into(),
-            }
-            let mut output = RecordWriter::new(Default::default());
-            changed.write(&mut output).unwrap();
-            let mut bytes = output.finish();
-            // Keep the old compact coordinate as well as the old commitment.
-            bytes[..8].copy_from_slice(&application.abi.id().get().to_le_bytes());
-            assert!(
-                BoundaryCallingApplication::read(
-                    &mut RecordReader::new(&bytes, Default::default()).unwrap()
-                )
-                .is_err()
-            );
-            let mut output = RecordWriter::new(Default::default());
-            changed.write(&mut output).unwrap();
-            assert!(
-                BoundaryCallingApplication::read(
-                    &mut RecordReader::new(&output.finish(), Default::default()).unwrap()
-                )
-                .is_err(),
-                "a recomputed compact coordinate cannot replace the selected full commitment"
-            );
-        }
-    }
-}
-
 impl RecordValue for terminal_psi::TerminalIdentityTable {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         if self.invocation_scope().is_some() {
@@ -497,5 +266,236 @@ impl RecordValue for backend_plan::DirectBoundaryLeaf {
                 .map_err(|reason| input.error(reason))?;
             Ok(value)
         })
+    }
+}
+
+#[cfg(test)]
+mod exact_abi_tests {
+    use super::*;
+    use calling_conventions::{
+        BoundaryCallingApplication, BoundarySignatureGeometry, CallSignature, CallingPolicy,
+    };
+    use semantic_vocabulary::{CallingAbiIdentity, CallingOperandKind, CallingStaticOperand};
+
+    fn application(actual: &str) -> BoundaryCallingApplication {
+        let abi = CallingAbiIdentity {
+            requirement_identity: "Service::call".into(),
+            declaring_application: "Service<u8>".into(),
+            operands: vec![CallingStaticOperand {
+                ordinal: 2,
+                kind: CallingOperandKind::Type,
+                identity: actual.into(),
+            }],
+        };
+        let mut application = BoundaryCallingApplication {
+            requirement_identity: abi.requirement_identity.clone(),
+            abi,
+            target: target::NativeTarget::from_omega_target_name(Some("windows_x86_64")).unwrap(),
+            report_fingerprint: 73,
+            commitment: [0; 32],
+            plan: calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                CallingPolicy::MicrosoftX64,
+                &CallSignature {
+                    parameters: vec![],
+                    result: None,
+                },
+            )
+            .unwrap(),
+            dispatch_only_parameter_count: 0,
+            signature: BoundarySignatureGeometry {
+                shapes: vec![],
+                fields: vec![],
+                parameters: vec![],
+                result: None,
+                native_parameters: Default::default(),
+                native_parameter_rows: Default::default(),
+                callback_layouts: Default::default(),
+                callback_layout_rows: Default::default(),
+                callback_bindings: Default::default(),
+                callback_binding_rows: Default::default(),
+            },
+            opaque_applications: vec![],
+            callback_context: Default::default(),
+            callback_context_closed: false,
+        };
+        application.commitment = application.recomputed_commitment().unwrap();
+        application
+    }
+
+    #[test]
+    fn native_recovery_preserves_same_shape_phantom_applications() {
+        let applications = vec![application("u32"), application("u64")];
+        assert_eq!(applications[0].signature, applications[1].signature);
+        assert_ne!(applications[0].commitment, applications[1].commitment);
+        let mut output = RecordWriter::new(Default::default());
+        applications.write(&mut output).unwrap();
+        let bytes = output.finish();
+        let mut input = RecordReader::new(&bytes, Default::default()).unwrap();
+        let recovered = Vec::<BoundaryCallingApplication>::read(&mut input).unwrap();
+        input.finish().unwrap();
+        assert_eq!(applications, recovered);
+        use effects::provider_plan::{
+            BoundaryCallingPlanCommitment, ProviderIdentityTable, ServiceCallingApplication,
+            ServiceCallingPlan, ServiceMethod, ServiceSchema, ServiceSurface,
+        };
+        let mut identities = ProviderIdentityTable::default();
+        let requirement = identities.intern("Service::call");
+        let schema = ServiceSchema {
+            declaration: std::sync::Arc::new(ServiceSurface {
+                trait_name: identities.intern("Service"),
+                identities,
+                trait_package_identity: None,
+                receiver_applications: vec![],
+                methods: vec![ServiceMethod {
+                    name: "call".into(),
+                    requirement_identity: requirement,
+                    ..Default::default()
+                }],
+            }),
+            calling_applications: applications
+                .iter()
+                .map(|application| ServiceCallingApplication {
+                    requirement,
+                    abi: application.abi.clone(),
+                    plan: ServiceCallingPlan {
+                        report_fingerprint: application.report_fingerprint,
+                        commitment: BoundaryCallingPlanCommitment::from_digest(
+                            application.commitment,
+                        ),
+                    },
+                })
+                .collect(),
+        };
+        let mut output = RecordWriter::new(Default::default());
+        schema.write(&mut output).unwrap();
+        let bytes = output.finish();
+        let mut input = RecordReader::new(&bytes, Default::default()).unwrap();
+        let recovered = ServiceSchema::read(&mut input).unwrap();
+        input.finish().unwrap();
+        assert_eq!(schema, recovered);
+        assert_eq!(recovered.calling_applications.len(), 2);
+        for application in &applications {
+            assert_eq!(
+                recovered
+                    .calling_application(&application.abi)
+                    .unwrap()
+                    .commitment
+                    .as_bytes(),
+                application.commitment
+            );
+        }
+    }
+
+    #[test]
+    fn native_recovery_preserves_dispatch_projection_and_remaining_argument() {
+        use calling_conventions::{
+            BoundaryNativeParameterGeometry, BoundaryNativeParameterOrigin,
+            BoundaryNativeParameterShape, BoundaryValueClass, BoundaryValueShape,
+            NativeParameterId, ValueShape,
+        };
+        let mut application = application("u32");
+        application.signature.shapes = vec![
+            BoundaryValueShape {
+                class: BoundaryValueClass::Reference,
+                byte_size: 8,
+                alignment: 8,
+            },
+            BoundaryValueShape {
+                class: BoundaryValueClass::Integer,
+                byte_size: 8,
+                alignment: 8,
+            },
+        ];
+        application.signature.parameters = vec![0, 1];
+        application.signature.native_parameter_rows = application
+            .signature
+            .native_parameters
+            .insert_many((0..2).map(|ordinal| BoundaryNativeParameterGeometry {
+                identity: NativeParameterId::new(u64::from(ordinal) + 1).unwrap(),
+                native_ordinal: ordinal,
+                shape: BoundaryNativeParameterShape::Semantic(ordinal as u16),
+                origin: BoundaryNativeParameterOrigin::SemanticFormal {
+                    formal_ordinal: ordinal,
+                },
+            }));
+        application.dispatch_only_parameter_count = 1;
+        application.plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8)],
+                result: None,
+            },
+        )
+        .unwrap();
+        application.commitment = application.recomputed_commitment().unwrap();
+        let round_trip = |application: &BoundaryCallingApplication| {
+            let mut output = RecordWriter::new(Default::default());
+            application.write(&mut output).unwrap();
+            let bytes = output.finish();
+            let mut input = RecordReader::new(&bytes, Default::default()).unwrap();
+            let recovered = BoundaryCallingApplication::read(&mut input);
+            if recovered.is_ok() {
+                input.finish().unwrap();
+            }
+            recovered
+        };
+        let recovered = round_trip(&application).unwrap();
+        assert_eq!(recovered, application);
+        let projection = recovered.call_projection().unwrap();
+        assert_eq!(projection.parameter_ordinal(0).unwrap(), None);
+        assert_eq!(projection.parameter_ordinal(1).unwrap(), Some(0));
+        assert_eq!(recovered.plan.plan().call.parameters.len(), 1);
+
+        let mut changed = application.clone();
+        changed.dispatch_only_parameter_count = 0;
+        // Keep an otherwise valid two-parameter plan. Only the old commitment
+        // can distinguish the substituted public-to-wire relationship.
+        changed.plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); 2],
+                result: None,
+            },
+        )
+        .unwrap();
+        assert_ne!(
+            changed.recomputed_commitment().unwrap(),
+            application.commitment
+        );
+        let error = round_trip(&changed).unwrap_err();
+        assert!(error.reason.contains("commitment"), "{error}");
+    }
+
+    #[test]
+    fn native_recovery_rejects_full_key_mutations_with_stale_coordinates() {
+        let application = application("u32");
+        for mutation in 0..3 {
+            let mut changed = application.clone();
+            match mutation {
+                0 => changed.abi.operands[0].identity = "u64".into(),
+                1 => changed.abi.operands[0].ordinal = 3,
+                _ => changed.abi.declaring_application = "Service<u64>".into(),
+            }
+            let mut output = RecordWriter::new(Default::default());
+            changed.write(&mut output).unwrap();
+            let mut bytes = output.finish();
+            // Keep the old compact coordinate as well as the old commitment.
+            bytes[..8].copy_from_slice(&application.abi.id().get().to_le_bytes());
+            assert!(
+                BoundaryCallingApplication::read(
+                    &mut RecordReader::new(&bytes, Default::default()).unwrap()
+                )
+                .is_err()
+            );
+            let mut output = RecordWriter::new(Default::default());
+            changed.write(&mut output).unwrap();
+            assert!(
+                BoundaryCallingApplication::read(
+                    &mut RecordReader::new(&output.finish(), Default::default()).unwrap()
+                )
+                .is_err(),
+                "a recomputed compact coordinate cannot replace the selected full commitment"
+            );
+        }
     }
 }

@@ -75,6 +75,19 @@ pub fn project_provider_instances(
                 _ => continue,
             };
             for application in applications {
+                let receiving = match &application.receiving_application {
+                    Ok(receiving) => receiving,
+                    Err(reason) => {
+                        diagnostics.push(Diagnostic::error(reason.clone()));
+                        continue;
+                    }
+                };
+                if !plan.schema.declaration.matches_receiving_application(
+                    plan.identity_text(row.requirement_identity),
+                    Some(receiving),
+                ) {
+                    continue;
+                }
                 let instance = match application.candidates.as_slice() {
                     [] => continue,
                     [instance] => instance,

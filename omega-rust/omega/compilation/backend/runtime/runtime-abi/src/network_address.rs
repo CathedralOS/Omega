@@ -59,6 +59,9 @@ impl HostInternetAddress {
 ///
 /// The thresholds are the historical class A/B/C cuts, not the witness
 /// constants. Class D and E fall through to `network | host`, matching glibc.
+///
+/// Unix hosts evaluate through libc, so only other hosts and tests call this.
+#[cfg(any(not(unix), test))]
 pub(super) fn classful_internet_address(network: u32, host: u32) -> u32 {
     let host_order = if network < 128 {
         (network << 24) | (host & 0x00ff_ffff)
@@ -75,6 +78,9 @@ pub(super) fn classful_internet_address(network: u32, host: u32) -> u32 {
 /// Inverse of `classful_internet_address`: network-order word back to host
 /// order, then the class mask of that resulting address. The class is read
 /// from the address, not from the network argument that produced it.
+///
+/// Unix hosts evaluate through libc, so only other hosts and tests call this.
+#[cfg(any(not(unix), test))]
 pub(super) fn classful_local_address(stored: u32) -> u32 {
     let value = stored.swap_bytes();
     if value & 0x8000_0000 == 0 {

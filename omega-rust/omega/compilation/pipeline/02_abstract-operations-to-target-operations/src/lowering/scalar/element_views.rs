@@ -57,11 +57,11 @@ impl<'a> ElementViewBackings<'a> {
     /// Rejoin every completed descriptor to its exact unique operation result.
     /// A shared descriptor may keep SSA words without an allocated home; that
     /// changes storage realization, not its producer or declared carrier.
-    pub(in crate::lowering) fn view_result<'function>(
+    pub(in crate::lowering) fn view_result(
         self,
-        function: &'function AbstractFunction,
+        function: &AbstractFunction,
         place: PlaceId,
-    ) -> Option<&'function terminal_psi::StructuralOperationResult> {
+    ) -> Option<&terminal_psi::StructuralOperationResult> {
         let (producer, structural_type) = self.views.get(&place)?;
         let mut results = function.operations.iter().filter_map(|operation| {
             operation
@@ -91,7 +91,7 @@ impl<'a> ElementViewBackings<'a> {
         })?;
         if entry.block == function.entry
             || !is_address_join(parameter, |identity| {
-                structural_types.get(&identity).copied()
+                structural_types.get(identity).copied()
             })
             || (source.access == StructuralAccess::MutableBorrow
                 && parameter.access != StructuralAccess::MutableBorrow)
@@ -153,7 +153,7 @@ pub(in crate::lowering) fn is_element_view_parameter(
     terminal_semantics::view_descriptor_parameter(parameter, structural_types.values().copied())
         && parameter.qualifications.is_empty()
         && structural_types
-            .get(&parameter.structural_type)
+            .get(parameter.structural_type)
             .is_some_and(|declaration| {
                 matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
             })
@@ -211,7 +211,7 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
             backings,
             source,
         )?;
-        if !structural_types.get(&selected).is_some_and(|declaration| {
+        if !structural_types.get(selected).is_some_and(|declaration| {
             matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
         }) {
             return Err(invalid());
@@ -396,7 +396,7 @@ fn element_leaf_offset(
     let StructuralTypeDeclaration {
         shape: StructuralTypeShape::ElementView { element, .. },
         ..
-    } = structural_types.get(&view_structural_type)?
+    } = structural_types.get(view_structural_type)?
     else {
         return None;
     };
@@ -420,18 +420,15 @@ fn scalar_leaf_offset(
     if path.is_empty() {
         return Some(0);
     }
-    let mut cache = BTreeMap::new();
-    let mut active = BTreeSet::new();
     if let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() {
         let (parent, parent_offset) = if prefix.is_empty() {
             (element, 0)
         } else {
             let (parent, _, offset, _) =
-                runtime_projection(element, prefix, structural_types, &mut cache, &mut active)
-                    .ok()?;
+                runtime_projection(element, prefix, structural_types).ok()?;
             (parent, offset)
         };
-        let StructuralTypeShape::Record { fields, .. } = &structural_types.get(&parent)?.shape
+        let StructuralTypeShape::Record { fields, .. } = &structural_types.get(parent)?.shape
         else {
             return None;
         };
@@ -444,7 +441,7 @@ fn scalar_leaf_offset(
             );
         }
     }
-    runtime_projection(element, path, structural_types, &mut cache, &mut active)
+    runtime_projection(element, path, structural_types)
         .ok()
         .map(|(_, _, offset, _)| offset)
 }
@@ -457,7 +454,7 @@ pub(in crate::lowering) fn resolve_element_view(
     values: &BTreeMap<ValueId, KnownScalar>,
     lengths: &BTreeMap<ValueId, PlaceId>,
     place: PlaceId,
-    active: &mut Vec<PlaceId>,
+    active: &mut [PlaceId],
 ) -> Result<(TargetElementView, StructuralTypeId, StructuralAccess), LoweringError> {
     let invalid = || {
         refusal(
@@ -472,7 +469,7 @@ pub(in crate::lowering) fn resolve_element_view(
         super::byte_views::descriptor_result(function, place, structural_types, backings.homes)
         && matches!(
             structural_types
-                .get(&result.structural_type)
+                .get(result.structural_type)
                 .map(|row| &row.shape),
             Some(StructuralTypeShape::ElementView { .. })
         )
@@ -521,7 +518,7 @@ pub(in crate::lowering) fn resolve_element_view(
                 .any(|row| !row.is_element_membership())
             || !result.claims.is_empty()
             || !structural_types
-                .get(&result.structural_type)
+                .get(result.structural_type)
                 .is_some_and(|declaration| match &declaration.shape {
                     StructuralTypeShape::ElementView {
                         element: declared, ..
@@ -529,7 +526,7 @@ pub(in crate::lowering) fn resolve_element_view(
                     StructuralTypeShape::ByteSequence(_) => {
                         declaration.shape.is_borrowed_byte_carrier()
                             && structural_types
-                                .get(element)
+                                .get(*element)
                                 .is_some_and(|element_declaration| {
                                     matches!(
                                         element_declaration.shape,
@@ -617,7 +614,7 @@ pub(in crate::lowering) fn resolve_element_view(
             .ok_or_else(invalid)?;
         if entry.block == function.entry
             || !structural_types
-                .get(&parameter.structural_type)
+                .get(parameter.structural_type)
                 .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
         {
             return Err(invalid());
@@ -642,8 +639,6 @@ pub(in crate::lowering) fn resolve_element_view(
         let referent = crate::lowering::structural_layout::structural_shape(
             semantic.structural_type,
             structural_types,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
         )?;
         let expected_shape =
             crate::lowering::structural_signature::StructuralCallSignature::parameter_shape(
@@ -654,7 +649,7 @@ pub(in crate::lowering) fn resolve_element_view(
                 structural_types,
             );
         if !structural_types
-            .get(&semantic.structural_type)
+            .get(semantic.structural_type)
             .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
             || parameter.structural_type != semantic.structural_type
             || parameter.access != semantic.access
@@ -698,7 +693,7 @@ pub(in crate::lowering) fn resolve_element_view(
             .any(|row| !row.is_element_membership())
         || !result.claims.is_empty()
         || !structural_types
-            .get(&result.structural_type)
+            .get(result.structural_type)
             .is_some_and(|declaration| {
                 matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
             })
@@ -729,8 +724,8 @@ pub(in crate::lowering) fn resolve_element_view(
     // borrowed window may use the canonical presentation of the same element;
     // its loan access was established independently above.
     if !structural_types
-        .get(&source_type)
-        .zip(structural_types.get(&result.structural_type))
+        .get(source_type)
+        .zip(structural_types.get(result.structural_type))
         .is_some_and(|(source, result)| {
             matches!((&source.shape, &result.shape),
             (StructuralTypeShape::ElementView { element: source, .. },
@@ -756,11 +751,11 @@ pub(in crate::lowering) fn resolve_element_view(
     ))
 }
 
-/// Resolve an establishment's collection argument to its exact backing
-/// projection: an all-field path, possibly empty, over a signature parameter
-/// or a local aggregate home whose tip is the fixed array carrying the view's
-/// element type. The backing keeps its storage identity: a parameter lends its
-/// incoming placement and a local home names its one establishing producer.
+// Resolve an establishment's collection argument to its exact backing
+// projection: an all-field path, possibly empty, over a signature parameter
+// or a local aggregate home whose tip is the fixed array carrying the view's
+// element type. The backing keeps its storage identity: a parameter lends its
+// incoming placement and a local home names its one establishing producer.
 
 /// Resolve dominating storage supplied by the graph walk. Its origin
 /// distinguishes a local establishment from an owned state arrival. The caller

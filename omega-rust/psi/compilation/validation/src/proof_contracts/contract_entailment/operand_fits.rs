@@ -60,6 +60,7 @@ impl CarrierFit {
                 let obligation = checked_trees::IntegerRangeObligation::retain_address_fit(
                     expression,
                     owner,
+                    semantic_vocabulary::ScalarConditionRole::Prerequisite,
                     low,
                     high,
                     description.to_owned(),
@@ -227,23 +228,18 @@ fn exact_binary_fit_request(
         if !crate::value_custody::literals::has_anonymous_numeric_results(program, operand) {
             return None;
         }
-        let Some(peer) = references[1 - position].and_then(|reference| {
+        let peer = references[1 - position].and_then(|reference| {
             crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
                 .map(|(primitive, _)| primitive)
-        }) else {
-            return None;
-        };
+        })?;
         let carrier = typed_trees::operator::integer_peer_operand_carrier(
             binary.operator,
             peer,
             position == 1,
         );
-        let Some(atom) = carrier
+        let atom = carrier
             .landed_landing()
-            .map(typed_trees::types::builtin_type_atom)
-        else {
-            return None;
-        };
+            .map(typed_trees::types::builtin_type_atom)?;
         references[position] =
             crate::proof_contracts::bound_expression_meaning::builtin_type_reference(program, atom);
     }
@@ -658,7 +654,7 @@ fn observe_operand_fits_batch(
             super::structural_prefix::observe_runtime_state_prefixes(
                 program,
                 machine,
-                *state,
+                state,
                 &mut visitors,
             )
         };

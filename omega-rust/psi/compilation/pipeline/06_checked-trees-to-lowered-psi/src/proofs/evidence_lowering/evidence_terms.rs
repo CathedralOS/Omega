@@ -571,7 +571,7 @@ fn selected_guarded_evidence_terms(
             (guarantee.machine_symbol == selected_machine)
                 .then_some(guarantee.evidence_term)
                 .flatten()
-                .map(|handle| evidence_term_index(handle))
+                .map(evidence_term_index)
         })
         .collect()
 }

@@ -1,44 +1,28 @@
 //! One prepared module lookup and shared declaration catalog for all functions.
 
-use std::collections::BTreeMap;
 use std::ops::Deref;
 
 use abstract_operations::StructuralTypeCatalog;
-use semantic_vocabulary::StructuralTypeId;
-use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration};
+use calling_conventions::terminal_layout::StructuralLayouts;
+use semantic_vocabulary::{NonDenseIdentities, StructuralTypeId};
+use terminal_psi::StructuralPathSegment;
 
 pub(crate) struct StructuralTypeLookup<'a> {
-    declarations: BTreeMap<StructuralTypeId, &'a StructuralTypeDeclaration>,
-    catalog: StructuralTypeCatalog,
+    layouts: StructuralLayouts<'a>,
+    catalog: &'a StructuralTypeCatalog,
 }
 
 impl<'a> StructuralTypeLookup<'a> {
-    pub(crate) fn new(source: &'a StructuralTypeCatalog) -> Self {
-        let declarations = source
-            .iter()
-            .map(|row| (row.id, row))
-            .collect::<BTreeMap<_, _>>();
-        // Preserve the existing ID-ordered projection on unchecked inputs.
-        // Valid canonical input retains its storage without copying declarations.
-        let catalog = if source
-            .iter()
-            .map(|row| row.id)
-            .eq(declarations.keys().copied())
-        {
-            source.clone()
-        } else {
-            let mut ordered = source.clone();
-            *ordered.make_mut() = declarations.values().map(|row| (*row).clone()).collect();
-            ordered
-        };
-        Self {
-            declarations,
-            catalog,
-        }
+    /// Every structural type's native shape is computed here, once per module.
+    pub(crate) fn new(source: &'a StructuralTypeCatalog) -> Result<Self, NonDenseIdentities> {
+        Ok(Self {
+            layouts: StructuralLayouts::new(source.iter())?,
+            catalog: source,
+        })
     }
 
     pub(super) fn catalog(&self) -> &StructuralTypeCatalog {
-        &self.catalog
+        self.catalog
     }
 
     /// Resolve storage geometry, not canonical ownership. Inline descriptors
@@ -61,15 +45,15 @@ impl<'a> StructuralTypeLookup<'a> {
         }) {
             return None;
         }
-        terminal_semantics::runtime_structural_path_tip(self.values().copied(), root, path)
+        terminal_semantics::runtime_structural_path_tip(self.layouts.values().copied(), root, path)
             .map(|declaration| declaration.id)
     }
 }
 
 impl<'a> Deref for StructuralTypeLookup<'a> {
-    type Target = BTreeMap<StructuralTypeId, &'a StructuralTypeDeclaration>;
+    type Target = StructuralLayouts<'a>;
 
     fn deref(&self) -> &Self::Target {
-        &self.declarations
+        &self.layouts
     }
 }

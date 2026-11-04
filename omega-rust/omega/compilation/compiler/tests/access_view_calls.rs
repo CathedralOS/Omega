@@ -23,7 +23,7 @@ fn produce(machine: &str) -> std::sync::Arc<CanonicalTerminalArtifact> {
         reviewed_repository_fixture_package_inputs(&root, None).expect("sealed fixture inputs");
     let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    omega_build::produce_source(
+    orchestration::produce_source(
         &mut CompilationSession::default(),
         request,
         CompilationProduct::Inspection(machine.to_owned()),
@@ -403,8 +403,7 @@ fn reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors() {
         }
         let bytes = terminal_codec::encode_module(&module).expect("tampered relation encodes");
         let error = terminal_codec::decode_module(&bytes)
-            .err()
-            .expect("tampered relation rejects at external ingress");
+            .expect_err("tampered relation rejects at external ingress");
         assert!(format!("{error:?}").contains("AccessViewInput"));
         eprintln!("tampered formal relation {corruption}: {error:?}");
     }

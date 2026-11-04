@@ -143,9 +143,9 @@ pub(super) fn validate(
     })
 }
 
-fn selected_method<'a>(
-    selected: &'a SelectedProgramStorageEntryPlan,
-) -> Result<&'a ServiceMethod, ProgramStorageEntryDiagnostic> {
+fn selected_method(
+    selected: &SelectedProgramStorageEntryPlan,
+) -> Result<&ServiceMethod, ProgramStorageEntryDiagnostic> {
     let matches = selected
         .schema()
         .declaration

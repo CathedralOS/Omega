@@ -7,7 +7,6 @@ use crate::runtime_structural_path_tip;
 use crate::substitution;
 use crate::substitution::substitute_proposition_values;
 use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
-use std::borrow::Borrow;
 use std::collections::BTreeMap;
 
 pub(super) fn scalar_conjuncts(propositions: &[Proposition]) -> Vec<Proposition> {
@@ -18,48 +17,6 @@ pub(super) fn scalar_conjuncts(propositions: &[Proposition]) -> Vec<Proposition>
             pending.extend(children.iter().rev());
         } else if proposition.visit_value_ids(|_| {}) {
             result.push(proposition.clone());
-        }
-    }
-    result
-}
-
-/// Rebind facts simultaneously. A retired incoming value may only survive as
-/// the new formal receiving it; numeric SSA reuse never equates two iterations.
-pub(super) fn arrival_requirements<Requirement: Borrow<Proposition>>(
-    requirements: &[Requirement],
-    bindings: &[(ValueId, ScalarTerm)],
-    parameters: &[ValueId],
-) -> Vec<Proposition> {
-    let mut substitutions = BTreeMap::new();
-    for (parameter, actual) in bindings {
-        if let ScalarTerm::Value { id, scalar_type } = actual {
-            substitutions
-                .entry(*id)
-                .or_insert_with(|| ScalarTerm::value(*parameter, *scalar_type));
-        }
-    }
-    let surviving = |value| !parameters.contains(&value) || substitutions.contains_key(&value);
-    let mut result = requirements
-        .iter()
-        .map(Borrow::<Proposition>::borrow)
-        .filter(|premise| !premise.any_value_id(|value| !surviving(value)))
-        .map(|premise| substitute_proposition_values(premise, &substitutions))
-        .collect::<Vec<_>>();
-    for (parameter, actual) in bindings {
-        if actual.any_value_id(|value| !surviving(value)) {
-            continue;
-        }
-        let value = substitution::substitute_scalar_term_values(actual, &substitutions);
-        result.push(Proposition::Equal(
-            ScalarTerm::value(*parameter, value.scalar_type()),
-            value,
-        ));
-        // Non-rebound names still denote the same captured incoming value.
-        if !actual.any_value_id(|value| parameters.contains(&value)) {
-            result.push(Proposition::Equal(
-                ScalarTerm::value(*parameter, actual.scalar_type()),
-                actual.clone(),
-            ));
         }
     }
     result

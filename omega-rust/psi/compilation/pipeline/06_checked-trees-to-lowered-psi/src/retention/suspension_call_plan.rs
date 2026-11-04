@@ -29,12 +29,22 @@ pub(crate) fn retain_suspension_call_plans(
     }
 
     let mut plans = Vec::new();
+    // A fused recursive component lowers its member machines' states into the
+    // composed Terminal machine of the component's entry, so those members are
+    // not source machines of their own. Every emitted state still owes its
+    // crossings: a parking call inside a member keeps its plan, and a transfer
+    // between members is recognised below as a fused edge.
     for crossing in checked
         .facts
         .carry
         .suspension_crossings
         .iter()
-        .filter(|crossing| source_machines.contains(&crossing.machine))
+        .filter(|crossing| {
+            source_machines.contains(&crossing.machine)
+                || state_blocks
+                    .iter()
+                    .any(|block| block.state == crossing.state)
+        })
     {
         let mut occurrences = source_calls.iter().filter(|occurrence| {
             occurrence.matches_statement(

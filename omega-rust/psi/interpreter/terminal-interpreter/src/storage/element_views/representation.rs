@@ -115,7 +115,7 @@ impl TerminalExecution<'_> {
         )
         .ok_or_else(malformed)?;
         let stride = usize::try_from(layout.size).map_err(|_| malformed())?;
-        if start > end || end > extent || stride == 0 || (end - start) % stride != 0 {
+        if start > end || end > extent || stride == 0 || !(end - start).is_multiple_of(stride) {
             return Err(malformed());
         }
         let storage = if matches!(
@@ -157,7 +157,7 @@ impl TerminalExecution<'_> {
             )?;
             let values = RuntimeRows::from_rows(self.account.as_ref(), [(source.place, root)])?;
             let referent =
-                resolve_single_structural_argument(&self.structural_types(), &values, &source)?;
+                resolve_single_structural_argument(&self.structural_types(), &values, source)?;
             if referent.structural_type != collection || !referent.qualifications.is_empty() {
                 return Err(malformed());
             }
@@ -244,7 +244,7 @@ impl TerminalExecution<'_> {
         if source.access() != StructuralAccess::SharedBorrow
             || source_layout.size == 0
             || target_layout.size == 0
-            || source_layout.size % target_layout.size != 0
+            || !source_layout.size.is_multiple_of(target_layout.size)
         {
             return Err(malformed());
         }

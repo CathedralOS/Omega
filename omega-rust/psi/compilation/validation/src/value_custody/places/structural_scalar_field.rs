@@ -776,9 +776,7 @@ fn dispatch_case_subject(
     };
     let table = expression_table(program);
     for _ in 0..table.expression_count() {
-        let Some(binary) = table.binary_node(guard) else {
-            return None;
-        };
+        let binary = table.binary_node(guard)?;
         if !matches!(
             binary.operator,
             BinaryOperator::Equal | BinaryOperator::CaseMembership

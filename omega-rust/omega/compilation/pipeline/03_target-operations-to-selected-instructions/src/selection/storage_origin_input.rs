@@ -382,7 +382,7 @@ fn field_coordinate(
     coordinate
         .path
         .push(terminal_psi::StructuralPathSegment::Field(
-            selected.identity.clone(),
+            selected.identity,
         ));
     Ok(coordinate)
 }

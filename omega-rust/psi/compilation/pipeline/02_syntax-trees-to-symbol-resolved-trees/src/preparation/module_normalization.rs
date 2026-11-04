@@ -61,7 +61,7 @@ pub(crate) fn validate_with_const_resolution_mode(
             let Item::Module(module) = item else {
                 return None;
             };
-            syntax_items(&syntax)
+            syntax_items(syntax)
                 .identifier_path_members(module.path)
                 .first()
                 .map(|member| member.source_span().source_id)
@@ -107,7 +107,7 @@ pub(crate) fn validate_with_const_resolution_mode(
             // admits every value after its dependencies have evaluated.
         } else if module_literal_constant(syntax, constant) {
             if matches!(
-                syntax_type_references(&syntax).type_reference(constant.type_reference),
+                syntax_type_references(syntax).type_reference(constant.type_reference),
                 TypeReferenceNode::FixedArray { .. }
             ) {
                 canonicalize_declared_const_definition(syntax, constant).map_err(|reason| {
@@ -231,7 +231,7 @@ fn scalar_literal_tree(syntax: &SyntaxTrees, expression: ExpressionHandle) -> bo
         | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::String(_) => true,
-        ExpressionNode::ArrayLiteral(elements) => syntax_expressions(&syntax)
+        ExpressionNode::ArrayLiteral(elements) => syntax_expressions(syntax)
             .expression_handles(*elements)
             .iter()
             .all(|element| scalar_literal_tree(syntax, *element)),

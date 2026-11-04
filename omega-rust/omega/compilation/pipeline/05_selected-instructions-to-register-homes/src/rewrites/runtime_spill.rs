@@ -323,7 +323,7 @@ pub(crate) fn stored_transport_size(transport: SelectedStructuralTransport) -> O
             source: selected_instructions::SelectedScalarReferenceSource::Descriptor,
             ..
         } => Some(16),
-        SelectedStructuralTransport::WholeValue { byte_size, .. } => Some(u32::from(byte_size)),
+        SelectedStructuralTransport::WholeValue { byte_size, .. } => Some(byte_size),
     }
 }
 

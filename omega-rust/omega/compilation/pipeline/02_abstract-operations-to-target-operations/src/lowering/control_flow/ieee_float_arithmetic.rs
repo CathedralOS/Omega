@@ -89,7 +89,7 @@ pub(super) fn lower(
             return Err(mismatch);
         }
         let layout = types
-            .get(&result.structural_type)
+            .get(result.structural_type)
             .and_then(|declaration| target_operations::conventional_float_class_layout(declaration))
             .ok_or(LoweringError::BoundaryRealizationMismatch(*boundary))?;
         let layout = target_operations::TargetStructuralHomeLayout::Sum(layout);

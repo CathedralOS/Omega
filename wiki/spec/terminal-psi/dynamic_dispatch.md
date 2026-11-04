@@ -73,6 +73,24 @@ parameters remain ineligible except for the closed value families below.
 Boundary-machine requirements use their boundary calling plan, not local
 dynamic tables. Eligibility remains per requirement.
 
+Static machine requirements may bind implementation evidence under
+[generic machine requirements](../language/generics.md#generic-machine-requirements).
+That does not make an unrestricted requirement-local type, machine or evidence
+binder dynamically eligible. Check the attempted dynamic interface use at source
+checking, before native table construction: it must supply eligible concrete
+requirement applications and complete declared row coverage. Reject an open
+generic method surface rather than guessing entries from current callers or
+deferring the missing call shape to a linker or runtime fault.
+
+Generic trait arguments are different: binding them before forming, for example,
+`dyn Worker<u32>` can leave a concrete nongeneric method signature. Runtime
+implementation selection still uses that closed interface's table even though
+its generic arguments are static. A Build-selected generic provider instead
+retains static application and provider selection, not local `dyn` dispatch.
+The finite value families below remain the explicit exception for eligible
+requirement-local value binders; this decision does not extend their roster to
+arbitrary type or evidence applications.
+
 Hiding data types is a separate packaging facility, not part of implementation
 selection. This contract introduces no existential type binder, heterogeneous
 data container, or implicit boxing. A future such facility must preserve the
@@ -85,16 +103,23 @@ resource ceilings, and guarded crash routes. Carry is a property of the dynamic
 value, not one requirement. One selected conformance supplies the whole surface;
 tables cannot combine rows from unrelated conformances.
 
-The envelope is compile-time information and adds no runtime words. Coercion
-retains the selected conformance's exact envelope. At joins, possible demands
+The envelope is compile-time information and adds no runtime words. Under
+[`known-dynamic-contract-narrowing`](../language/effects.md#known-dynamic-selections),
+a check-time coercion retains the selected conformance's available checked
+envelope, not a private-body estimate narrower than its published contract.
+An unknown selection retains the requirement ceiling. At joins, possible demands
 combine by union or maximum and guarantees by conjunction or intersection.
 Carry permissions intersect; termination survives only if every alternative
 guarantees it. `suspend` and `block` acknowledgements use the retained envelope,
-not the wider base declaration.
+not the wider base declaration when narrower evidence is retained. Boundary
+provider selection at Build or run time supplies no such coercion evidence.
 
 An unannotated dynamic parameter is implicitly polymorphic over fitting
 envelopes. Only requirements reachable through its call graph contribute to the
-inferred contract, including forwarding into transitive calls. Storing the value
+inferred contract, including forwarding into transitive calls. Its generic body
+must be valid for every fitting input envelope; one caller's known selection
+does not become an unconditional assumption. Only retained checked dependencies
+or specialization can narrow that application. Storing the value
 instead requires the storage type's bound. This changes static contract checking,
 not runtime representation, and does not require code monomorphization.
 

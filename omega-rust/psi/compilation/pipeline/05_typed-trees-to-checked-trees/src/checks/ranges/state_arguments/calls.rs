@@ -95,7 +95,7 @@ pub(super) fn collect_state_argument_facts_for_call(
                     if !place
                         .segments
                         .iter()
-                        .all(|segment| crate::flow::fixed_selection_segment(segment))
+                        .all(crate::flow::fixed_selection_segment)
                     {
                         return None;
                     }

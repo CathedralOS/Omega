@@ -51,7 +51,7 @@ pub(crate) fn package_build_root(
     // intermediate directory outside the sponsor's creation protocol.
     build_root.join(format!(
         "{}-{}-{}",
-        crate::Hex(&key.identity().digest()).to_string(),
+        crate::Hex(&key.identity().digest()),
         resolution.content().to_hex(),
         purpose.name(),
     ))

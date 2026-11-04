@@ -72,7 +72,7 @@ pub use machine_calls::calls::{
     call_type_arguments, closed_requirement_dispatch_is_valid, machine_has_unit_result,
     named_conformance_target_requirement, nested_boundary_applications_compose,
     requirement_contract_signature, result_initializer_call_is_admitted, selected_call_arguments,
-    selected_requirement_signature, target_family_members,
+    selected_call_result_domain_matches, selected_requirement_signature, target_family_members,
     unit_result_initializer_call_is_admitted, unit_return_call_is_admitted,
     unit_statement_call_is_admitted,
 };
@@ -161,7 +161,7 @@ pub use proof_contracts::domains::{
     scalar_field_restriction, scalar_membership_carrier, scalar_membership_is_tag,
     scalar_membership_predicates, scalar_membership_value_carrier,
     scalar_membership_value_predicates, scalar_predicate_domains, scalar_type_routed_domains,
-    scalar_type_tags, validate_executable_domain_test_carriers,
+    scalar_type_tags, validate_domain_membership_carriers,
 };
 pub use proof_contracts::parameter_domains::parameter_domain_constraints;
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
@@ -478,9 +478,8 @@ pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
 pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use proof_contracts::arithmetic_domains::{OccurrenceIntegerBounds, occurrence_integer_bounds};
 pub use proof_contracts::arithmetic_domains::{
-    StoredIntegerReach, standing_integer_bounds, stored_integer_bounds,
-    stored_integer_source_projection, stored_integer_source_projections,
-    stored_integer_source_reach,
+    StoredIntegerReach, UnestablishedStoredEncoding, standing_integer_bounds,
+    stored_integer_bounds, stored_integer_source_projections, stored_integer_source_reach,
 };
 pub use proof_contracts::arithmetic_domains::{
     occurrence_integer_expression_bounds, occurrence_integer_expression_recipe,
@@ -572,9 +571,8 @@ pub(crate) use optimization::digest_encoder;
 pub use queries::expression_traversal;
 mod frozen_program;
 mod queries;
-pub use queries::layout_checking::{
-    LayoutCheckingContext, layout_checking_targets, pending_layout_geometry,
-};
+pub(crate) use queries::layout_checking::layout_checking_targets;
+pub use queries::layout_checking::{LayoutCheckingContext, pending_layout_geometry};
 mod machine_calls;
 mod program_validation;
 mod proof_contracts;
@@ -594,8 +592,9 @@ pub use program_validation::{
     FrozenDependencyBody, OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,
     ProvenContractExpressions, admit_prepared_program_effects, checking_thread_pool,
     dependency_body_read_totals, dependency_entailment_totals, judge_contract_entailment,
-    prepare_specialized_program, validate_checked_operator_realization_contract,
-    validate_generic_machine_contract_entailment, validate_program,
+    prepare_specialized_program, statement_source_span,
+    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
+    validate_program,
 };
 pub(crate) use program_validation::{DependencyBodyRead, note_dependency_body_read};
 
@@ -641,8 +640,8 @@ pub use value_custody::places::{
     projected_statement_receiver_type_reference, push_field_place_segments,
     qualification_storage_path, receiver_projections, resolve_member_symbol_from_type_symbol,
     runtime_field_subject, source_type_application_from_segments, state_scoped_name_symbol,
-    structural_member_identity, symbol_type_symbol, unique_data_definition_by_symbol,
-    whole_collection_view_source,
+    storage_operand, storage_place_from_expression_in_state, structural_member_identity, symbol_type_symbol,
+    unique_data_definition_by_symbol, whole_collection_view_source,
 };
 
 /// Walk a type-reference table once into a positional row vector: row 0 is
@@ -670,6 +669,7 @@ pub use value_custody::activation_storage::{
     ActivationStorageContract, ActivationStorageOperation,
     activation_accessor_has_empty_write_frame, activation_claim_byte_carrier,
     activation_storage_bound, exact_toolchain_activation_storage_contract,
+    type_carries_activation_claim,
 };
 pub use value_custody::atomic_fences::{
     AtomicFenceContract, exact_toolchain_atomic_fence_contract,

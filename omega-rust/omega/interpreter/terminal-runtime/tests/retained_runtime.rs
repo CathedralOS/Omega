@@ -1,7 +1,7 @@
 //! Build produces one artifact; hosted execution borrows it without source work.
 //! One test owns the process-global decode counter for this binary.
 
-use omega_build::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
+use orchestration::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
 use platform_custody::temporary_directory::TemporaryDirectory;
 use terminal_runtime::{
     TerminalDomainExitDelegation, TerminalExecutionResult, TerminalExecutionStatus,
@@ -13,7 +13,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
     let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../..");
     let directory = TemporaryDirectory::create("retained-runtime", false).unwrap();
     let profile = target::TargetProfile::host_if_supported().expect("supported test host");
-    let outcomes = omega_build::build(BuildRequest {
+    let outcomes = orchestration::build(BuildRequest {
         root_path: repository
             .join("tests/omega/pass/calls/machine_self_call_recursion_compile/main.omg"),
         build_directory: Some(directory.path().to_path_buf()),

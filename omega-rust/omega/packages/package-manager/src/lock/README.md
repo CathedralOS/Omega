@@ -96,9 +96,9 @@ owner validates its own format. The manager checks the joins and outer framing.
 Acceptance children use:
 
 ```text
-acceptance_schema 3
+acceptance_schema 9
 rows <count>
-row <callable|external_supply|dangerous_capability|terminal_permission|restricted_build_request>
+row <callable|terminal_permission|external_supply|dangerous_capability|restricted_build_request|assumed_binding_contract|service_audit|native_binding>
 key <SHA-256 of canonical row coordinate bytes>
 meaning <byte length>
 <complete canonical readable risk-row text>
@@ -153,12 +153,13 @@ identity and semantic bindings stay absent: a historical baseline cannot be
 serialized as version 4 or used for ordinary compilation. Publication requires
 freshly reviewed compilation inputs for every retained target. Other old versions
 reject; recovery never invents missing consent or compilation inputs. The
-compact acceptance child schema is version 5, matching the policy row schema.
-Explicit review also recovers the preceding schema 4's opaque historical rows,
-pins and decisions without inventing authored target context. Ordinary lock
-recovery rejects that child schema; it supplies no compilation inputs or current
-terminal permissions. Fresh checking and decisions replace its consent with
-schema 5 before publication. Unknown schemas still reject.
+compact acceptance child schema is version 9, matching the policy row schema
+(`PACKAGE_POLICY_ROW_VERSION`). Schemas 4 and 5 are historical: explicit review
+also recovers their opaque rows, pins and decisions without inventing authored
+target context. Ordinary lock recovery rejects those child schemas; they supply
+no compilation inputs or current terminal permissions. Fresh checking and
+decisions replace their consent with schema 9 before publication. Unknown
+schemas still reject.
 
 ## Decision history
 
@@ -208,8 +209,13 @@ retain the existing unsupported-format recovery guidance.
 | Source package rows, across target sections | 16,384 |
 | Authored plus selected dependency-request rows | 262,144 |
 | Policy entries, semantic bindings, permissions, and authority classes | 1,048,576 |
-| Semantic identity traversal nodes | 1,048,576 |
+| Semantic identity traversal nodes | 268,435,456 |
 | Historical decisions | 65,536 |
+
+The identity-node ceiling follows the input-text ceiling: each node consumes
+lock text, and a nominal name opens at most two scopes per byte (one for its
+atom and one for its owner), so 128 MiB of text yields at most 268,435,456
+nodes. A fixed 1,048,576-node ceiling refused a 17-package application.
 
 Child format ceilings also apply: source text is at most 64 MiB, each acceptance
 or compilation text at most 32 MiB,

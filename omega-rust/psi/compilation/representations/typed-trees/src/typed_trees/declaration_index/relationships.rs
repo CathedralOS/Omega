@@ -172,11 +172,11 @@ impl crate::TypedTrees {
         head_symbol: SymbolHandle,
     ) -> Option<crate::types::TypeReferenceHandle> {
         self.with_state_declarations(|index| {
-            if symbol.is_valid() && symbol == head_symbol {
-                if let Some((_, type_reference)) = first_symbol_row(&index.parameter_types, symbol)
-                {
-                    return Some(*type_reference);
-                }
+            if symbol.is_valid()
+                && symbol == head_symbol
+                && let Some((_, type_reference)) = first_symbol_row(&index.parameter_types, symbol)
+            {
+                return Some(*type_reference);
             }
             [symbol, head_symbol]
                 .into_iter()

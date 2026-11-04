@@ -195,7 +195,7 @@ impl PackageCommandTransaction {
             .map_or(build_inputs, |proposal| proposal.build_inputs.clone());
         let build_snapshot = build_inputs
             .clone()
-            .map(|inputs| build_evaluation::BuildSnapshotRequest::scoped(Vec::new(), inputs));
+            .map(|inputs| build_settings::BuildSnapshotRequest::scoped(Vec::new(), inputs));
         let stage = stage_build_dependency_edit(
             &replacement,
             storage.resolver(),
@@ -247,7 +247,7 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
         .map_err(failure)
     }
 
-    pub fn build_snapshot(&self) -> Option<&build_evaluation::BuildSnapshotRequest> {
+    pub fn build_snapshot(&self) -> Option<&build_settings::BuildSnapshotRequest> {
         self.build_snapshot.as_ref()
     }
 
@@ -601,7 +601,7 @@ pub fn discard_package_review(
 }
 
 fn digest(bytes: &[u8]) -> [u8; 32] {
-    content_identity(&bytes).into()
+    content_identity(bytes)
 }
 
 fn targets(

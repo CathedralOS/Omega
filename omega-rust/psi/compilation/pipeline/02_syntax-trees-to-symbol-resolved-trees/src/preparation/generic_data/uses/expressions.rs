@@ -77,7 +77,7 @@ pub(in crate::preparation) fn visit_expression_type_inputs(
         }
         ExpressionNode::Cast(cast) => {
             visit(cast.target_type);
-            for &argument in syntax_type_references(&syntax)
+            for &argument in syntax_type_references(syntax)
                 .type_reference_handles(cast.semantic_domain_arguments)
             {
                 visit(argument);

@@ -10,12 +10,12 @@ invocations write a requested-byte/count report to `OMEGA_ALLOCATION_PROFILE`
 when set. Use an uninstrumented retained producer for timing comparisons; see
 the [performance tooling guide](../../../../tools/benchmark/comparison.md).
 
-Project Build is owned by the [compiler's Build coordinator](../../build-system/omega-build/README.md).
+Project Build is owned by the [compiler's Build coordinator](../../build-system/orchestration/README.md).
 The CLI package also exposes execution and inspection through its [library](src/lib.rs):
 
 | Operation | Request and result |
 | --- | --- |
-| [Build a project](../../build-system/omega-build/src/build.rs) | Typed target/product request → ordered reports and published products |
+| [Build a project](../../build-system/orchestration/src/build.rs) | Typed target/product request → ordered reports and published products |
 | [Run a project](src/execution/mod.rs) | Execution/comparison options → report, captured process output, and interpreter comparison |
 | [Inspect a machine](src/inspection/mod.rs) | Source, target, and machine → verified module and fixed-work analysis |
 
@@ -31,14 +31,16 @@ admissions file.
 
 `run_project` owns a distinct temporary directory per invocation. Disposable
 output is cleaned up on success and failure; requested retained output survives,
-including interpreter disagreement. An explicit target compiles without running
-the image. Host execution returns raw stdout/stderr bytes and process status;
+including interpreter disagreement. Native target-only invocations compile without
+running the image. Terminal engine selection retains the target but executes
+through its admitted host adapters. Host execution returns raw stdout/stderr bytes and process status;
 unsupported interpretation is a decline, not an agreement.
 
 Host comparisons accept `--both --terminal-fuel-allowance <positive-u64>`.
 The allowance supplies each Terminal invocation independently, including each
 input case and stdin replay; it defaults to 10,000,000 logical fuel units.
-It requires `--both` without `--target`. Exhaustion remains a declined comparison.
+It requires `--both` without `--target`, or `--engine terminal`. Exhaustion remains
+a declined comparison and stops a Terminal-only run with status 200.
 Native execution receives no fuel counter. Kept single-run artifacts and case
 outputs include `terminal.fuel.tsv` (case-prefixed in batch mode), recording the
 supplied allowance, actual charged units and schedule identity.
@@ -114,6 +116,15 @@ continues to pass representations through ordinary functions.
 The CLI package is **`omega`** (binary `omega`); there is no `omega-cli`
 package.
 
+The [standalone engine contract](../../../../wiki/spec/build/embedding.md#standalone-execution-selection)
+selects execution with `run --engine native|terminal`, defaulting to native.
+Terminal-only execution uses the same admitted Terminal runtime as comparison,
+without emitting or launching a native image. `--both` remains an explicit
+comparison and cannot be combined with `--engine`. Target/provider selection
+remains independent; missing interpreter adapters never trigger native fallback.
+The implementation work is tracked by `UNIVERSAL-INTERPRETER-CLOSURE` in
+[TASKS.md](../../../../TASKS.md#universal-interpreter-cutover).
+
 ```bash
 mbx run -p omega -- update --project samples/cli/basics/cli_mvp --target macos_arm64
 mbx run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
@@ -134,7 +145,7 @@ omega [--check] [--offline] [--timings]
       [--report-file <path>]
       [--build-input <path>]... [--optional-build-input <path>]...
       [--build-dir <dir>] [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>
-omega run [--both] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
+omega run [--engine <native|terminal> | --both] [--terminal-fuel-allowance <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
 omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>
 omega audit source --kind <local|git> <locator> [--rev <rev>]
 omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...
@@ -174,6 +185,21 @@ launch fails, 202 when compilation stopped at a named private provision
 (`Incomplete`), and 201 when `--both` interpretation disagrees or encounters a
 runtime/artifact defect. An explicitly unavailable comparison reports `DECLINED`
 and retains the native program's status; it never reports agreement.
+`--engine terminal` exits with the Terminal program's own status, 203 when the
+Terminal program crashes (the cause is reported; a process cannot present the
+native trap signal without raising it), and 200 otherwise: `UNAVAILABLE` for a
+missing provider, host adapter or interpreter capability refused before the
+guest's first instruction, `FAILED` for an execution error after it (its
+buffered output is lost), or execution that stops without a process result.
+The Terminal engine requests the ordinary native product, which passes the same
+Build, package, trust, provider and entry admission and then stops before any
+object or image is emitted; `--keep` retains `program.oterm` and the Terminal
+streams, fuel and effect receipts, never a native image. Case runs
+(`--inputs`/`--input`) do not yet accept `--engine terminal`. A program that
+binds independently produced components is refused during compilation on this
+engine (`terminal compile FAILED`, status 200), since those components execute
+only as native images. Program streams are forwarded after the Terminal program
+finishes, not interleaved live.
 
 Compilation emits requested products and diagnostics, not debug dumps.
 `--timings` prints command-stage durations and total elapsed time to stderr;

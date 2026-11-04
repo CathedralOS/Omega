@@ -109,9 +109,10 @@ public Wide satisfies Operations<u64> {
     .unwrap();
     let mut request = compiler::CheckedCompileRequest::new(&backing.join("main.omg"), None);
     request.package_inputs = Some(supplier_inputs);
-    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
-        .result
-        .unwrap_or_else(|error| panic!("supplier: {:?}", error.into_diagnostics()));
+    let checked =
+        orchestration::check_source(&mut compiler::CompilationSession::default(), request)
+            .result
+            .unwrap_or_else(|error| panic!("supplier: {:?}", error.into_diagnostics()));
     let produce = |path| {
         psi_compiler::BuildProviderProductionRequest {
             checked: checked.source_inspection().program(),
@@ -174,7 +175,7 @@ public Wide satisfies Operations<u64> {
                     "both inherited and direct slots"
                 );
                 let result = activation.install_provider(
-                    build_evaluation::BuildDependencySelection {
+                    build_settings::BuildDependencySelection {
                         purpose: build_declarations::DependencyPurpose::Build,
                         request_ordinal: 0,
                         package: supplier,
@@ -247,9 +248,10 @@ fn synchronous_host_computation_retains_the_invocation_without_guest_suspension(
         .expect("sealed fixture inputs");
     let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
-        .result
-        .expect("checked ordinary boundary call");
+    let checked =
+        orchestration::check_source(&mut compiler::CompilationSession::default(), request)
+            .result
+            .expect("checked ordinary boundary call");
     let produced = psi_compiler::TerminalProductionRequest::new(
         checked.source_inspection().program(),
         psi_compiler::TerminalMachineSelection::Name("synchronous_entry"),
@@ -349,9 +351,10 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
         .expect("sealed fixture inputs");
     let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
-        .result
-        .expect("checked component readiness fixture");
+    let checked =
+        orchestration::check_source(&mut compiler::CompilationSession::default(), request)
+            .result
+            .expect("checked component readiness fixture");
     for entry in ["component_entry", "component_premature_entry"] {
         let produced = psi_compiler::TerminalProductionRequest::new(
             checked.source_inspection().program(),
@@ -713,11 +716,9 @@ impl TerminalEffectHandler for ControlledImport {
         let [value] = arguments.as_slice() else {
             return Err(TerminalEffectRejection::new("expected one scalar argument"));
         };
-        self.observations.lock().unwrap().push(value.clone());
+        self.observations.lock().unwrap().push(*value);
         Ok(match self.signature.result {
-            terminal_psi::BoundaryMachineResult::Scalar(_) => {
-                TerminalEffectResult::Scalar(value.clone())
-            }
+            terminal_psi::BoundaryMachineResult::Scalar(_) => TerminalEffectResult::Scalar(*value),
             terminal_psi::BoundaryMachineResult::Unit => TerminalEffectResult::Unit,
             _ => return Err(TerminalEffectRejection::new("unexpected result contract")),
         })
@@ -732,9 +733,10 @@ fn readiness_preserves_nested_continuation_and_rejects_unchecked_suspension() {
         .expect("sealed fixture inputs");
     let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
-        .result
-        .expect("checked suspension fixture");
+    let checked =
+        orchestration::check_source(&mut compiler::CompilationSession::default(), request)
+            .result
+            .expect("checked suspension fixture");
     for machine in [
         "main",
         "storage_entry",
@@ -877,4 +879,175 @@ fn readiness_preserves_nested_continuation_and_rejects_unchecked_suspension() {
             instance.close().unwrap();
         }
     }
+}
+
+/// A scheduler whose every `advance` parks twice before answering three times
+/// its argument, as the inline provider of the fact row answers immediately.
+struct ParkingScheduler {
+    signature: TerminalImportSignature,
+    polls_before_ready: u32,
+    parks: Arc<Mutex<u64>>,
+    arguments: Arc<Mutex<Vec<u128>>>,
+}
+
+impl TerminalImportAdapter for ParkingScheduler {
+    fn implemented_signature(&self) -> TerminalImportSignature {
+        self.signature.clone()
+    }
+}
+
+impl TerminalEffectHandler for ParkingScheduler {
+    fn poll_effect_readiness(
+        &mut self,
+        _: &TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        if self.polls_before_ready == 0 {
+            return Ok(true);
+        }
+        self.polls_before_ready -= 1;
+        *self.parks.lock().unwrap() += 1;
+        Ok(false)
+    }
+
+    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        Err(TerminalEffectRejection::new(
+            "use the exact result protocol",
+        ))
+    }
+
+    fn handle_effect_result(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        let TerminalEffect::BoundaryCall { arguments, .. } = effect else {
+            return Err(TerminalEffectRejection::new("expected a boundary call"));
+        };
+        let [
+            TerminalScalarValue::Integer {
+                scalar_type,
+                value: semantic_vocabulary::IntegerValue::Unsigned(value),
+            },
+        ] = arguments.as_slice()
+        else {
+            return Err(TerminalEffectRejection::new("expected one u64 argument"));
+        };
+        self.arguments.lock().unwrap().push(*value);
+        // The next invocation is a new call that must park again.
+        self.polls_before_ready = 2;
+        Ok(TerminalEffectResult::Scalar(TerminalScalarValue::Integer {
+            scalar_type: *scalar_type,
+            value: semantic_vocabulary::IntegerValue::Unsigned(value * 3),
+        }))
+    }
+}
+
+/// Every step of the fused nested-machine cycle in
+/// `samples/cli/facts/nested_machine_invocation/suspending_cycle` really parks:
+/// the activation stops at the checked `Scheduler::advance` crossing, waiting
+/// charges no fuel, and resumption continues the same call. The program's own
+/// oracle (`full == 15000150000 && empty == 7`, else Trap) then holds exactly
+/// as it does with the inline scheduler that never parks.
+#[test]
+fn readiness_parks_every_step_of_a_fused_suspending_cycle() {
+    let root = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/facts/nested_machine_suspending_cycle_local_exit/main.omg");
+    let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(&root, None)
+        .expect("sealed fixture inputs");
+    let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
+    request.package_inputs = prepared.package_inputs;
+    let checked =
+        orchestration::check_source(&mut compiler::CompilationSession::default(), request)
+            .result
+            .expect("checked suspending cycle");
+    let produced = psi_compiler::TerminalProductionRequest::new(
+        checked.source_inspection().program(),
+        psi_compiler::TerminalMachineSelection::Name("main"),
+        checked.sources().exact_toolchain_sources(),
+    )
+    .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+    .expect("Terminal production");
+    let artifact = produced.artifact().expect("portable product");
+    let program = TerminalProgram::borrow(artifact.view());
+    let requirements = program.execution_requirements(None).unwrap();
+    let mut host_imports = requirements.imports;
+    host_imports.extend(requirements.missing_providers);
+    let supplies = program
+        .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+            host_imports: &host_imports,
+            installation: None,
+            entry: None,
+            x86_flags: None,
+            memory_ordering: None,
+            target_machines: None,
+            target_layouts: None,
+        })
+        .unwrap();
+    let mut instance = program
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            installation: Some(&supplies),
+            ..Default::default()
+        })
+        .unwrap();
+    let parks = Arc::new(Mutex::new(0));
+    let arguments = Arc::new(Mutex::new(Vec::new()));
+    let unbound = instance.unbound_imports().collect::<Vec<_>>();
+    assert_eq!(
+        unbound.len(),
+        1,
+        "only Scheduler::advance crosses to the host"
+    );
+    for boundary in unbound {
+        let signature = TerminalImportSignature::from(instance.import(boundary).unwrap());
+        instance
+            .bind_import(
+                boundary,
+                ParkingScheduler {
+                    signature,
+                    polls_before_ready: 2,
+                    parks: Arc::clone(&parks),
+                    arguments: Arc::clone(&arguments),
+                },
+            )
+            .unwrap();
+    }
+    let mut meter = TerminalFuelMeter::unbounded();
+    let mut awaiting = 0u64;
+    let mut previous_awaiting = false;
+    let completed = loop {
+        let charged = meter.usage().total_units();
+        let answered = arguments.lock().unwrap().len();
+        match instance.invoke(&mut meter).unwrap() {
+            TerminalExecutionStatus::AwaitingEffect(_) => {
+                // Still parked at the same call: no answer was delivered.
+                if previous_awaiting && arguments.lock().unwrap().len() == answered {
+                    assert_eq!(
+                        meter.usage().total_units(),
+                        charged,
+                        "a parked call is polled, not re-executed"
+                    );
+                }
+                awaiting += 1;
+                previous_awaiting = true;
+            }
+            other => break other,
+        }
+    };
+    assert_eq!(
+        completed,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit),
+        "the program's own oracle traps on a lost, replayed or replaced answer"
+    );
+    let arguments = arguments.lock().unwrap();
+    assert_eq!(
+        arguments.len(),
+        100_000,
+        "one answer per round, none for the empty run"
+    );
+    assert!(
+        arguments.iter().rev().copied().eq(1..=100_000u128),
+        "rounds park in descending order of `remaining`"
+    );
+    assert_eq!(*parks.lock().unwrap(), 200_000);
+    assert_eq!(awaiting, 200_000);
+    instance.close().unwrap();
 }

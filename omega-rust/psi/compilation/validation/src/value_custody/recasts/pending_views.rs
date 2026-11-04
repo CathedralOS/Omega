@@ -105,10 +105,10 @@ fn formation_obligation<'program>(
 /// Declaration ownership of an exact formation occurrence. A checked callee's
 /// returned reference has already crossed its validity boundary; its original
 /// body must not be reinterpreted under the caller's premises.
-fn formation_owner<'program>(
-    program: &'program dyn crate::CheckingInput,
+fn formation_owner(
+    program: &dyn crate::CheckingInput,
     formation: ExpressionHandle,
-) -> Option<(&'program Machine, &'program State)> {
+) -> Option<(&Machine, &State)> {
     let mut owners =
         program.machines().iter().flat_map(|machine| {
             program

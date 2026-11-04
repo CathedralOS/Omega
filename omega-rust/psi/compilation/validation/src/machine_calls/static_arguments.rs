@@ -346,9 +346,9 @@ fn ordinary_arguments<'program>(
     )
 }
 
-fn expression_call_states<'program>(
-    program: &'program dyn CheckingInput,
-) -> Vec<(typed_trees::expression::ExpressionHandle, &'program State)> {
+fn expression_call_states(
+    program: &dyn CheckingInput,
+) -> Vec<(typed_trees::expression::ExpressionHandle, &State)> {
     let mut states = Vec::new();
     let mut expressions = Vec::new();
     for machine in program.machines() {
@@ -810,17 +810,16 @@ fn validate_arguments(
                 })
         });
         let admitted_runtime = value_parameter && (runtime_expression || runtime_field);
-        if (argument.type_reference.is_valid() && !admitted_runtime) || (named_type && has_types) {
-            if !parameters
+        if ((argument.type_reference.is_valid() && !admitted_runtime) || (named_type && has_types))
+            && !parameters
                 .get(ordinal)
                 .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
-            {
-                return Err(Diagnostic::error(format!(
-                    "machine `{}` static argument {} requires its declared binder kind, not a type argument",
-                    name,
-                    ordinal + 1
-                )));
-            }
+        {
+            return Err(Diagnostic::error(format!(
+                "machine `{}` static argument {} requires its declared binder kind, not a type argument",
+                name,
+                ordinal + 1
+            )));
         }
         if admitted_runtime {
             continue;

@@ -13,6 +13,7 @@ pub fn execute_joined_product(
     output: &std::path::Path,
 ) -> Result<(), compiler::CompilationProductError> {
     let product = compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+        image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
@@ -30,7 +31,7 @@ pub fn execute_joined_product(
         .expect("joined Product batch");
     let (_, outcome) = outcomes.pop().expect("one Product outcome");
     let report = outcome
-        .and_then(omega_build::complete_product)
+        .and_then(orchestration::complete_product)
         .and_then(compiler::CompilationOutput::into_report)?;
     execution::execute_report(report, output);
     Ok(())

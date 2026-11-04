@@ -117,9 +117,9 @@ pub(crate) fn build_affine_array_construction_prefix(
         rows.push((
             CheckedTrivialAffineStructuralLocalPlan {
                 declaration_ordinal: u32::try_from(expected_index).ok()?,
-                type_identity: element_type_identity.clone(),
+                type_identity: element_type_identity,
                 construction: Some(CheckedAffineConstructionElementPlan {
-                    root_type_identity: root_type_identity.clone(),
+                    root_type_identity,
                     index: u64::try_from(expected_index).ok()?,
                 }),
             },

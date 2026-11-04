@@ -204,12 +204,12 @@ pub(crate) fn validate(
         let destination_admitted = match &callback.destination {
             calling_conventions::NativePlace::Parameter(parameter) => {
                 *parameter == callback.application.parameter
-                    && callback.field_byte_offset.is_none()
+                    && callback.field_placements.is_none()
                     && placed
             }
             calling_conventions::NativePlace::Field { parameter, .. } => {
                 *parameter == callback.application.parameter
-                    && callback.field_byte_offset.is_some()
+                    && callback.field_placements.is_some()
                     && placed
                     && matches!(
                         callback.application.placement.locations.as_slice(),
@@ -442,13 +442,12 @@ pub(crate) fn validate(
                 if !admitted_root {
                     return Err(invalid!());
                 }
-                let classified =
-                    calling_conventions::classified_boundary_shape(
-                        projected_type,
-                        &signature.structural_types,
-                        plan.call.policy,
-                    )
-                    .map_err(|_| invalid!())?;
+                let classified = calling_conventions::classified_boundary_shape(
+                    projected_type,
+                    &signature.structural_types,
+                    plan.call.policy,
+                )
+                .map_err(|_| invalid!())?;
                 (projected_shape, classified)
             }
             terminal_psi::StructuralAccess::SharedBorrow
@@ -459,13 +458,12 @@ pub(crate) fn validate(
                         && declaration.shape.is_borrowed_view_byte_sequence()
                 });
                 if descriptor {
-                    let classified =
-                        calling_conventions::classified_boundary_shape(
-                            projected_type,
-                            &signature.structural_types,
-                            plan.call.policy,
-                        )
-                        .map_err(|_| invalid!())?;
+                    let classified = calling_conventions::classified_boundary_shape(
+                        projected_type,
+                        &signature.structural_types,
+                        plan.call.policy,
+                    )
+                    .map_err(|_| invalid!())?;
                     (
                         ValueShape::borrowed_reference(
                             projected_shape.byte_size,

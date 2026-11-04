@@ -59,6 +59,41 @@ postcondition would not establish it. Stronger theorems can be supplied by
 checked machines when automatic reasoning is insufficient; their exact premises
 still need to hold at each use.
 
+## Impossible Paths
+
+If a machine requires `count >= 10`, a branch that requires `count < 5` cannot
+execute for that same value. The checker can prove the conditions contradict
+each other and close that path's obligations. It cannot declare a path impossible
+just because some other proof failed, or export facts from the impossible path
+to a reachable one. The source must still be well-formed.
+
+Such a source-level contradiction produces an unreachable-branch warning by
+default, explaining the conflicting conditions. An alternative removed only by
+generic specialization or compile-time selection normally does not warn. Neither
+the warning nor removal of the dead instructions is needed for the proof to be
+valid. See [unreachable branches](../spec/language/state_contracts.md#unreachable-branches).
+
+## Saved Values And Restored Storage
+
+Overwriting a slot does not change a scalar you already copied from it. Restoring
+that saved scalar gives the slot a newly established relationship to the copy:
+
+```text
+saved = items[index]
+items[index] = 0
+items[index] = saved
+
+if saved >= 48:
+    use_at_least_48(items[index])
+```
+
+This illustrative sequence is valid when checking proves the restoration targets
+the same slot and no later effect breaks the equality. The guard establishes a
+fact about `saved`, and the restored equality transfers it to the current slot.
+Changing the index or writing another unproved value cannot borrow that argument.
+The checker need not retain unlimited history: if it loses the relationship,
+the use needs fresh evidence. See [restored scalar facts](../spec/language/state_contracts.md#restoring-a-saved-scalar-value).
+
 ## Termination Claims
 
 Termination is separate from a postcondition. `ensures` describes a reached

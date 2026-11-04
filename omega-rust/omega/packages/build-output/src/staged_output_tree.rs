@@ -97,7 +97,7 @@ impl PackageGeneratedSource {
     /// digest is recomputed over the supplied bytes, never carried.
     #[doc(hidden)]
     pub fn from_retained_parts(relative_path: Vec<u8>, bytes: Arc<[u8]>) -> Self {
-        let digest: [u8; 32] = crate::digest_encoder::content_identity(bytes.as_ref()).into();
+        let digest: [u8; 32] = crate::digest_encoder::content_identity(bytes.as_ref());
         Self {
             relative_path,
             bytes,
@@ -462,7 +462,7 @@ pub fn select_included_sources(
                 String::from_utf8_lossy(relative_path)
             )));
         }
-        let digest: [u8; 32] = crate::digest_encoder::content_identity(bytes.as_ref()).into();
+        let digest: [u8; 32] = crate::digest_encoder::content_identity(bytes.as_ref());
         selected.push(PackageGeneratedSource {
             relative_path: relative_path.clone(),
             bytes: Arc::clone(bytes),
@@ -514,8 +514,7 @@ pub(crate) fn commitment_for_retained_entries(
                 digest.u32(DIRECTORY_MODE);
             }
             RetainedStagedOutputEntryKind::File { bytes, executable } => {
-                let content_digest: [u8; 32] =
-                    crate::digest_encoder::content_identity(bytes).into();
+                let content_digest: [u8; 32] = crate::digest_encoder::content_identity(bytes);
                 let content_length = u64::try_from(bytes.len()).ok()?;
                 if distinct_content.insert((content_digest, content_length)) {
                     file_bytes = file_bytes
@@ -539,7 +538,7 @@ pub(crate) fn commitment_for_retained_entries(
         }
     }
     Some(BuildStagedOutputTreeCommitment {
-        digest: digest.finish().into(),
+        digest: digest.finish(),
         entry_count,
         file_bytes,
     })

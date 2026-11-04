@@ -178,10 +178,10 @@ impl BoundaryStorageInputs {
                     .ok_or_else(malformed)?;
                 for (relative, index) in (array.offset..end).enumerate() {
                     let current = execution.stored_byte_array_read(&array.array, index)?;
-                    if buffer.access == StructuralAccess::SharedBorrow {
-                        if current != binding.original.bytes()[relative] {
-                            return Err(malformed());
-                        }
+                    if buffer.access == StructuralAccess::SharedBorrow
+                        && current != binding.original.bytes()[relative]
+                    {
+                        return Err(malformed());
                     }
                     if buffer.access == StructuralAccess::MutableBorrow {
                         let storage = PrimitiveStorage {

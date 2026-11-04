@@ -27,7 +27,7 @@ impl IntegerInterpretation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record)]
 pub enum LayoutPlacementReport {
     At {
         offset: u64,
@@ -44,6 +44,12 @@ pub enum LayoutPlacementReport {
         source_lsb: u64,
         width: u64,
     },
+}
+
+impl Default for LayoutPlacementReport {
+    fn default() -> Self {
+        Self::At { offset: 0 }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -285,7 +291,7 @@ impl ConventionalRecursiveRecordSumPathsLayoutReport {
 /// application carries the producer's exact named selection. The payload is
 /// generic so this foundation does not depend on a later representation.
 /// The authoritative layout policy owns
-/// `offset`, but callback-address size/alignment close later with the selected
+/// all placements, but callback-address size/alignment close later with the selected
 /// target calling plan and are deliberately absent here.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PrivateCallbackLayoutDemandReport<SlotApplication> {
@@ -293,7 +299,7 @@ pub struct PrivateCallbackLayoutDemandReport<SlotApplication> {
     pub slot_identity: String,
     pub layout_subject_identity: String,
     pub callback_requirement_identity: String,
-    pub offset: u64,
+    pub placements: Vec<LayoutPlacementReport>,
 }
 
 /// One validated native layout and its compiler-private demand catalog.
@@ -320,7 +326,8 @@ pub fn normalized_layout_plan_report_fingerprint(layout: &LayoutPlanReport) -> u
         member_sort_key(left)
             .cmp(&member_sort_key(right))
             .then_with(|| {
-                placement_sort_key(&left.placement).cmp(&placement_sort_key(&right.placement))
+                layout_placement_sort_key(&left.placement)
+                    .cmp(&layout_placement_sort_key(&right.placement))
             })
     });
 
@@ -560,16 +567,13 @@ pub fn normalized_native_layout_plan_report_fingerprint<SlotApplication>(
 ) -> u64 {
     let mut demands = layout.private_callback_demands.iter().collect::<Vec<_>>();
     demands.sort_unstable_by(|left, right| {
-        left.slot_identity
-            .cmp(&right.slot_identity)
-            .then_with(|| {
-                left.callback_requirement_identity
-                    .cmp(&right.callback_requirement_identity)
-            })
-            .then_with(|| left.offset.cmp(&right.offset))
+        left.slot_identity.cmp(&right.slot_identity).then_with(|| {
+            left.callback_requirement_identity
+                .cmp(&right.callback_requirement_identity)
+        })
     });
     let mut hash = semantic_vocabulary::Fnv1a::new();
-    hash.bytes(b"omega.native-layout-plan.v1");
+    hash.bytes(b"omega.native-layout-plan.v2");
     hash.u64(normalized_layout_plan_report_fingerprint(&layout.layout));
     hash.u64(demands.len() as u64);
     for demand in demands {
@@ -581,7 +585,16 @@ pub fn normalized_native_layout_plan_report_fingerprint<SlotApplication>(
             hash.u64(identity.len() as u64);
             hash.bytes(identity);
         }
-        hash.u64(demand.offset);
+        let mut placements = demand.placements.iter().collect::<Vec<_>>();
+        placements.sort_unstable_by_key(|placement| layout_placement_sort_key(placement));
+        hash.u64(placements.len() as u64);
+        for placement in placements {
+            let (tag, first, second, third, fourth, fifth) = layout_placement_sort_key(placement);
+            hash.u64(u64::from(tag));
+            for value in [first, second, third, fourth, fifth] {
+                hash.u64(value);
+            }
+        }
     }
     hash.finish().max(1)
 }
@@ -612,7 +625,8 @@ pub fn layout_plan_reports_match_for_replay(
         member_sort_key(left)
             .cmp(&member_sort_key(right))
             .then_with(|| {
-                placement_sort_key(&left.placement).cmp(&placement_sort_key(&right.placement))
+                layout_placement_sort_key(&left.placement)
+                    .cmp(&layout_placement_sort_key(&right.placement))
             })
     });
     let mut retained_entries = retained.entries.iter().collect::<Vec<_>>();
@@ -620,7 +634,8 @@ pub fn layout_plan_reports_match_for_replay(
         member_sort_key(left)
             .cmp(&member_sort_key(right))
             .then_with(|| {
-                placement_sort_key(&left.placement).cmp(&placement_sort_key(&right.placement))
+                layout_placement_sort_key(&left.placement)
+                    .cmp(&layout_placement_sort_key(&right.placement))
             })
     });
 
@@ -641,7 +656,9 @@ fn member_sort_key(entry: &LayoutFieldEntryReport) -> (u8, u64, &str) {
     }
 }
 
-fn placement_sort_key(placement: &LayoutPlacementReport) -> (u8, u64, u64, u64, u64, u64) {
+pub fn layout_placement_sort_key(
+    placement: &LayoutPlacementReport,
+) -> (u8, u64, u64, u64, u64, u64) {
     match *placement {
         LayoutPlacementReport::At { offset } => (0, offset, 0, 0, 0, 0),
         LayoutPlacementReport::IntegerAt {

@@ -164,7 +164,7 @@ pub(super) fn validate_catalog_type_shape(
                                     let identity = field.field_type.as_structural()?;
                                     let StructuralTypeShape::PrimitiveScalar(scalar) =
                                         terminal_psi::find_structural_type(
-                                            &module.structural_types,
+                                            module.structural_types,
                                             identity,
                                         )?
                                         .shape
@@ -395,7 +395,7 @@ fn validate_authored_field_extent(
                 return malformed("repeated field requires a fixed array");
             };
             let Some(StructuralTypeShape::FixedArray { element, length }) =
-                terminal_psi::find_structural_type(&module.structural_types, array)
+                terminal_psi::find_structural_type(module.structural_types, array)
                     .map(|declaration| &declaration.shape)
             else {
                 return malformed("repeated field requires a fixed array");
@@ -403,14 +403,12 @@ fn validate_authored_field_extent(
             if let Some((size, alignment)) = terminal_semantics::reference_storage_layout(
                 module.structural_types.iter(),
                 *element,
-            ) {
-                if alignment == 0
-                    || *element_stride < size
-                    || *element_stride % alignment != 0
-                    || *byte_offset % alignment != 0
-                {
-                    return malformed("repeated field stride overlaps or misaligns its elements");
-                }
+            ) && (alignment == 0
+                || *element_stride < size
+                || *element_stride % alignment != 0
+                || *byte_offset % alignment != 0)
+            {
+                return malformed("repeated field stride overlaps or misaligns its elements");
             }
             let length = length
                 .literal()
@@ -506,7 +504,7 @@ fn authored_fragment_source_width(
     let scalar = field.scalar_type().or_else(|| {
         let identity = field.as_structural()?;
         let StructuralTypeShape::PrimitiveScalar(scalar) =
-            terminal_psi::find_structural_type(&module.structural_types, identity)?.shape
+            terminal_psi::find_structural_type(module.structural_types, identity)?.shape
         else {
             return None;
         };

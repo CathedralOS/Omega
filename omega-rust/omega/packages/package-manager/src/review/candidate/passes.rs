@@ -32,7 +32,7 @@ pub(crate) use crate::build_session::PackageSourceBindings;
 #[derive(Clone, Copy)]
 pub(crate) struct CandidateReview<'request, 'closure> {
     pub target_closure: &'request ExactTargetPackageSourceClosure<'closure>,
-    pub root_build_snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
+    pub root_build_snapshot: Option<&'request build_settings::BuildSnapshotRequest>,
 }
 
 /// Review an explicit [`CandidateReview`] with resolved source bindings.
@@ -165,7 +165,7 @@ fn note_pass_accounting(
 fn review_pass(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     bindings: &[ConsumerScopedSemanticBindingReviewInput],
-    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    root_build_snapshot: Option<&build_settings::BuildSnapshotRequest>,
     discovery: TargetEntryDiscovery,
     prior: Option<&RetainedPackageReviews>,
     source_bindings: &mut PackageSourceBindings,

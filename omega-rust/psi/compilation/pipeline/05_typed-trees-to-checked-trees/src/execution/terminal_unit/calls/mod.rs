@@ -90,13 +90,12 @@ impl<'program> CallTarget<'program> {
 
 pub(crate) use affine_locals::build_affine_array_construction_prefix;
 pub(crate) use argument_paths::{
-    borrowed_argument_endpoint, borrowed_index_segment, byte_sequence_literal_argument,
-    projected_argument_path, projected_borrowed_path, projected_observed_path,
-    projected_selected_path,
+    ProjectedArgumentPath, borrowed_argument_endpoint, borrowed_index_segment,
+    byte_sequence_literal_argument, projected_argument_path, projected_borrowed_path,
+    projected_observed_path, projected_selected_path,
 };
 pub(crate) use boundary_admission::{
     boundary_authority_refusal, boundary_trait_receiver_is_namespace,
-    provider_attachment_receiver_field, provider_attachment_receiver_matches,
 };
 pub(in super::super) use call_operations::ExpectedCallValueResult;
 pub(in super::super) use call_operations::build_call_operation;

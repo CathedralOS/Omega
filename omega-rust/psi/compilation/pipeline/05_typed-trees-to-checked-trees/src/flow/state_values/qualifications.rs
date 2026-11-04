@@ -15,7 +15,6 @@ use checked_trees::name::Identifier;
 use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
 };
-use std::hash::{Hash, Hasher};
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -112,11 +111,21 @@ impl CarriedPredicate {
 }
 
 impl QualifiedInput {
-    fn place_fingerprint(&self) -> u64 {
-        let mut fingerprint = std::hash::DefaultHasher::new();
-        self.subject.hash(&mut fingerprint);
-        self.segments.hash(&mut fingerprint);
-        fingerprint.finish()
+    /// One integer per storage place, folded from the root's and segments'
+    /// integer keys: equal subjects get equal keys. Distinct places may share
+    /// a key, so `same_subject` still decides every match.
+    fn subject_key(&self) -> u64 {
+        let mix =
+            |key: u64, part: u64| (key.rotate_left(5) ^ part).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+        let (variant, index, generation) = self.subject.group_key();
+        let root = mix(
+            u64::from(variant),
+            (u64::from(index) << 32) | u64::from(generation),
+        );
+        self.segments.iter().fold(root, |key, segment| {
+            let (variant, first, second) = segment.order_key();
+            mix(mix(mix(key, u64::from(variant)), first), second)
+        })
     }
 
     fn same_subject(&self, other: &Self) -> bool {
@@ -132,22 +141,22 @@ impl QualifiedInput {
     }
 }
 
-/// Scratch positions group a batch by its exact storage subject without
-/// reordering published evidence. Fingerprints only narrow comparisons: the
-/// ordinary subject/evidence checks still decide every match, including collisions.
+/// Scratch positions group a batch by its storage place without reordering
+/// published evidence. Keys only narrow comparisons: the ordinary
+/// subject/evidence checks still decide every match, including shared keys.
 fn subject_positions(inputs: &[QualifiedInput]) -> Vec<(u64, usize)> {
     let mut positions: Vec<_> = inputs
         .iter()
         .enumerate()
-        .map(|(position, input)| (input.place_fingerprint(), position))
+        .map(|(position, input)| (input.subject_key(), position))
         .collect();
     positions.sort_unstable();
     positions
 }
 
-fn matching_positions(positions: &[(u64, usize)], fingerprint: u64) -> &[(u64, usize)] {
-    let start = positions.partition_point(|(candidate, _)| *candidate < fingerprint);
-    let end = positions.partition_point(|(candidate, _)| *candidate <= fingerprint);
+fn matching_positions(positions: &[(u64, usize)], key: u64) -> &[(u64, usize)] {
+    let start = positions.partition_point(|(candidate, _)| *candidate < key);
+    let end = positions.partition_point(|(candidate, _)| *candidate <= key);
     &positions[start..end]
 }
 
@@ -157,7 +166,7 @@ fn deduplicate(inputs: &mut Vec<QualifiedInput>) {
         .iter()
         .enumerate()
         .map(|(position, input)| {
-            !matching_positions(&positions, input.place_fingerprint())
+            !matching_positions(&positions, input.subject_key())
                 .iter()
                 .take_while(|(_, previous)| *previous < position)
                 .any(|(_, previous)| inputs[*previous].same_claim(input))
@@ -188,7 +197,7 @@ pub(super) fn meet(previous: &mut Vec<QualifiedInput>, incoming: &[QualifiedInpu
     let positions = subject_positions(incoming);
     previous.retain_mut(|claim| {
         let mut common: Option<CarriedPredicate> = None;
-        for next in matching_positions(&positions, claim.place_fingerprint())
+        for next in matching_positions(&positions, claim.subject_key())
             .iter()
             .map(|(_, position)| &incoming[*position])
             .filter(|next| claim.same_subject(next))
@@ -280,7 +289,6 @@ fn capture_place(
         return Vec::new();
     };
     let isolated = frames.proof_value_is_caller_isolated(source_type);
-    let source_root = source_root;
     let mut captured = Vec::new();
     for context in flow_context
         .contexts
@@ -434,7 +442,7 @@ pub(in crate::flow) fn capture_argument(
     else {
         return Vec::new();
     };
-    let Some(parameter) = program.state_parameters(destination).iter().nth(ordinal) else {
+    let Some(parameter) = program.state_parameters(destination).get(ordinal) else {
         return Vec::new();
     };
     let Some(source) =

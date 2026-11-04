@@ -6,27 +6,26 @@ use crate::lowering::structural_layout::primitive_read_projection;
 use crate::lowering::unit::known_integers::insert_scalar_home;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
+use calling_conventions::terminal_layout::StructuralLayouts;
 use semantic_vocabulary::{IntegerSign, IntegerType, OperationId, ScalarType, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
 use target_operations::{TargetUnitOperation, TargetUnitScalarHomeRequirement};
 use terminal_psi::{
-    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralTypeShape,
 };
 use terminal_semantics::observed_field_declaration;
 use terminal_semantics::projected_field_declaration;
 
 pub(super) fn is_primitive_reference(
     parameter: &terminal_psi::StructuralParameterDeclaration,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &StructuralLayouts<'_>,
 ) -> bool {
     parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.access != StructuralAccess::Owned
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
         && types
-            .get(&parameter.structural_type)
+            .get(parameter.structural_type)
             .is_some_and(|declaration| {
                 matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar)
                 if native_shape(scalar).is_some())
@@ -114,7 +113,7 @@ pub(super) fn field_root(
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if matches!(
         types
-            .get(&structural_type)
+            .get(structural_type)
             .map(|declaration| &declaration.shape),
         Some(StructuralTypeShape::ElementView { .. })
     ) {
@@ -166,13 +165,8 @@ pub(super) fn field_indices(
     let regions =
         crate::lowering::structural_layout::reference_projection_regions(root, carrier_path, types)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-    let (_, _, _, leaf_indices) = crate::lowering::structural_layout::runtime_projection(
-        regions.root,
-        regions.path,
-        types,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-    )?;
+    let (_, _, _, leaf_indices) =
+        crate::lowering::structural_layout::runtime_projection(regions.root, regions.path, types)?;
     let runs = regions.selector_runs(leaf_indices);
     super::scalar_sources::runtime_indices(
         runs,
@@ -192,7 +186,7 @@ pub(super) fn retain_result(
         scalar_type: result.scalar_type,
         shape: shape(result)?,
     };
-    insert_scalar_home(&mut live.integers, &mut live.scalar_homes, home.clone())?;
+    insert_scalar_home(&mut live.integers, &mut live.scalar_homes, home)?;
     Ok(home)
 }
 
@@ -204,7 +198,7 @@ pub(super) fn lower(
 ) -> Result<(), LoweringError> {
     let (function, types, live, operations, provenance) = site.parts();
     let scalar_matches = |identity, scalar_type| {
-        types.get(&identity).is_some_and(|declaration|
+        types.get(identity).is_some_and(|declaration|
             matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(expected) if expected == scalar_type))
     };
     let (identity, lowered) = match operation {
@@ -325,7 +319,7 @@ pub(super) fn lower(
                         .get(&(place, Vec::new()))
                         .and_then(|descriptor| {
                             match types
-                                .get(&descriptor.carrier_type)
+                                .get(descriptor.carrier_type)
                                 .map(|declaration| &declaration.shape)
                             {
                                 Some(StructuralTypeShape::Reference {
@@ -340,7 +334,7 @@ pub(super) fn lower(
                     // possible backing; choosing a static origin would lose a callee's
                     // runtime selection among several admissible referents.
                     let (referent, access) = match types
-                        .get(&descriptor.carrier_type)
+                        .get(descriptor.carrier_type)
                         .map(|declaration| &declaration.shape)
                     {
                         Some(StructuralTypeShape::Reference { referent, access }) => {

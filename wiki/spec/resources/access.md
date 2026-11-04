@@ -248,6 +248,12 @@ inferred multi-object algebra. `Vacant` means no established live value on that
 range; it says nothing about zeroing, readability, allocation strategy, or
 capacity, and cannot be inferred from the absence of an active view.
 
+[Dense owned runs](typed_runs.md) provide the explicit runtime-count counterpart:
+`Run<P, T>` under `Live<P, T>` owns ordered established cells with their custody.
+Its checked typed-cell split/merge is not ordinary splitting of a `Resident`.
+Singleton conversion must preserve the resident's field-view, footprint and
+non-runtime custody semantics before the two can share an implementation.
+
 These protected qualifications must declare their authorized establishment
 routes under [ordinary domain rules](../language/domains.md#declaration-and-membership).
 `Extent` being linear supplies no implicit route restriction, and neither the

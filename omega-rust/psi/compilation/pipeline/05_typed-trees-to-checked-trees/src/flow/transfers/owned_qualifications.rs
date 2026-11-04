@@ -66,6 +66,9 @@ pub(in crate::flow) fn append_owned_qualification_transfer(
                     .is_some_and(|place| semantic.places.get(place).root == source.root)
         });
     for fact in candidates {
+        // A cast's target describes the whole value, so it erases only the
+        // source's own membership; a field keeps its declared domains.
+        let mut erased = false;
         let payload = if let Some((_, domain, domain_symbol, semantic_domain)) =
             fact.payload.domain_membership()
         {
@@ -74,6 +77,7 @@ pub(in crate::flow) fn append_owned_qualification_transfer(
             {
                 continue;
             }
+            erased = explicitly_erased(program, source_expression, domain_symbol, semantic_domain);
             FactPayload::DomainMembership {
                 value: typed_trees::expression::ExpressionHandle::invalid(),
                 domain,
@@ -104,6 +108,9 @@ pub(in crate::flow) fn append_owned_qualification_transfer(
             continue;
         }
         let relative_path = &segments[source_segments.len()..];
+        if erased && relative_path.is_empty() {
+            continue;
+        }
         // A copied reference is not a copy of its referent's qualifications.
         // Those remain tied to the independently checked reference origins;
         // freezing them under the new slot would survive source invalidation.
@@ -181,4 +188,20 @@ pub(in crate::flow) fn append_owned_qualification_transfer(
         });
         semantic.append_ref(references, transferred);
     }
+}
+
+/// Whether an erasing cast in the source's cast chain drops this membership
+/// before the value reaches its new place.
+pub(super) fn explicitly_erased(
+    program: &dyn ::validation::CheckingInput,
+    source_expression: typed_trees::expression::ExpressionHandle,
+    domain_symbol: symbols::SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+) -> bool {
+    validation::field_domains::expression_erases_membership(
+        program,
+        source_expression,
+        domain_symbol,
+        semantic_domain,
+    )
 }

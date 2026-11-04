@@ -3,11 +3,13 @@ use super::{identity_text, normalized_id, plan_diagnostic};
 use crate::*;
 use diagnostics::Diagnostic;
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::*;
 
 pub(super) struct TaskStorage {
-    shapes: BTreeMap<semantic_vocabulary::StructuralTypeId, calling_conventions::ValueShape>,
+    shapes: semantic_vocabulary::IdTable<
+        semantic_vocabulary::StructuralTypeId,
+        Option<calling_conventions::ValueShape>,
+    >,
     pointer: (u64, u64),
 }
 impl TaskStorage {
@@ -46,9 +48,13 @@ impl TaskStorage {
                 *storage = StructuralRecordStorage::Authored(row.storage);
             }
         }
-        let catalog = declarations.iter().map(|row| (row.id, row)).collect();
-        let mut shapes = BTreeMap::new();
-        let mut active = BTreeSet::new();
+        let layouts =
+            calling_conventions::terminal_layout::StructuralLayouts::new(declarations.iter())
+                .map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "task structural types are not one dense identity run: {error:?}"
+                    ))]
+                })?;
         for demand in &demands.demands {
             let signature = demand
                 .signature_arguments
@@ -68,13 +74,7 @@ impl TaskStorage {
                 .map(|value| value.value_type);
             for value in signature.chain(frames) {
                 if let TerminalTaskValueType::Structural(identity) = value {
-                    calling_conventions::terminal_layout::structural_shape(
-                        identity,
-                        &catalog,
-                        &mut shapes,
-                        &mut active,
-                    )
-                    .map_err(|error| {
+                    layouts.shape(identity).map_err(|error| {
                         vec![Diagnostic::error(format!(
                             "task storage geometry: {error:?}"
                         ))]
@@ -84,7 +84,7 @@ impl TaskStorage {
         }
         let target = profile.native_target();
         Ok(Self {
-            shapes,
+            shapes: layouts.map(|identity, _| layouts.shape(identity).ok()),
             pointer: (target.pointer_size as u64, target.pointer_alignment as u64),
         })
     }
@@ -98,13 +98,16 @@ impl TaskStorage {
             TerminalTaskValueType::Scalar(scalar) => {
                 calling_conventions::terminal_layout::scalar_shape(scalar)
             }
-            TerminalTaskValueType::Structural(identity) => {
-                *self.shapes.get(&identity).ok_or_else(|| {
+            TerminalTaskValueType::Structural(identity) => self
+                .shapes
+                .get(identity)
+                .copied()
+                .flatten()
+                .ok_or_else(|| {
                     vec![Diagnostic::error(
                         "task value is absent from its realized storage catalog",
                     )]
-                })?
-            }
+                })?,
         };
         Ok((u64::from(shape.byte_size), u64::from(shape.alignment)))
     }

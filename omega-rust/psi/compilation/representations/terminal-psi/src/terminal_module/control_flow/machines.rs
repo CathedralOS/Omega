@@ -114,6 +114,28 @@ impl Block {
 }
 
 impl TerminalMachine {
+    /// Guard proofs at invocation may name incoming values and storage, before
+    /// any body operation has run. Local results cannot justify admission.
+    pub fn entry_proposition_context(
+        &self,
+    ) -> Result<semantic_vocabulary::PropositionContext, semantic_vocabulary::PropositionError>
+    {
+        semantic_vocabulary::PropositionContext::from_value_types_and_places(
+            self.parameters
+                .iter()
+                .chain(&self.contract.erased_scalar_formals)
+                .map(|value| (value.id, value.scalar_type)),
+            self.structural_places
+                .iter()
+                .filter(|place| {
+                    matches!(
+                        place.kind,
+                        semantic_vocabulary::StructuralPlaceKind::Parameter { .. }
+                    )
+                })
+                .map(|place| (place.id, place.kind)),
+        )
+    }
     /// The carrier declared by a signature, block parameter, result or local
     /// producer. Provider attachments are not physical storage declarations.
     pub fn structural_place_type(&self, place: PlaceId) -> Option<StructuralTypeId> {

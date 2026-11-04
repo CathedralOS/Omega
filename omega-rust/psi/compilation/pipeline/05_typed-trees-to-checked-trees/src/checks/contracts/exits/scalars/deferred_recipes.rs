@@ -202,6 +202,7 @@ fn congruent(
             conditions.push(
                 ConstantRecipeObligation::retain(
                     evaluator.machine.symbol,
+                    semantic_vocabulary::ScalarConditionRole::Result,
                     left,
                     ConstantRecipeRequirement::EqualRecipe(right),
                     expressions.source_span(goal),

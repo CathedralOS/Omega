@@ -15,6 +15,7 @@ use super::{
     Builder, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType,
     SymbolHandle, TypeReferenceNode,
 };
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::calls::byte_sequence_literal_argument;
 use crate::execution::terminal_unit::calls::projected_argument_path;
 use crate::execution::terminal_unit::control::checked_structural_result_type;
@@ -84,10 +85,7 @@ impl Builder<'_, '_> {
         &self,
         place: &validation::CanonicalPlace,
         selectors: &[ProjectionSelector],
-    ) -> Option<(
-        TypeReferenceHandle,
-        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-    )> {
+    ) -> Option<ProjectedArgumentPath> {
         projected_argument_path(
             self.program,
             self.state,

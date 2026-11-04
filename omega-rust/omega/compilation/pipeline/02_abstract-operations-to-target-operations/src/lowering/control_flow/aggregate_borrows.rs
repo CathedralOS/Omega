@@ -5,7 +5,6 @@ use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_layout::structural_shape;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetStructuralArgument, TargetStructuralParameter};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
 
@@ -21,7 +20,7 @@ pub(super) fn is_reference(
     ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && matches!(
             types
-                .get(&parameter.structural_type)
+                .get(parameter.structural_type)
                 .map(|declaration| &declaration.shape),
             Some(StructuralTypeShape::Record { .. } | StructuralTypeShape::Sum { .. })
         )
@@ -83,7 +82,7 @@ pub(super) fn argument(
     let (selected, shape, offset, indices) = if argument.path.is_empty() {
         (
             root_type,
-            structural_shape(root_type, types, &mut BTreeMap::new(), &mut BTreeSet::new())?,
+            structural_shape(root_type, types)?,
             0,
             Vec::new(),
         )
@@ -97,8 +96,6 @@ pub(super) fn argument(
                 root_type,
                 &argument.path,
                 types,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
             )?;
         (selected, shape, offset, Vec::new())
     } else {
@@ -111,8 +108,6 @@ pub(super) fn argument(
                 root_type,
                 &argument.path,
                 types,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
             )?;
         let indices = super::scalar_sources::runtime_indices(
             runs,

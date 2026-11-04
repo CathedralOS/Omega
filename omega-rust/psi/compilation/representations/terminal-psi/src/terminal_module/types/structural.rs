@@ -146,19 +146,19 @@ pub struct StructuralFieldDeclaration {
 }
 
 /// The field carrying `identity` on a declaration roster, live or erased.
-pub fn field_by_identity<'fields>(
-    fields: &'fields [StructuralFieldDeclaration],
+pub fn field_by_identity(
+    fields: &[StructuralFieldDeclaration],
     identity: TerminalIdentityIndex,
-) -> Option<&'fields StructuralFieldDeclaration> {
+) -> Option<&StructuralFieldDeclaration> {
     fields.iter().find(|field| field.identity == identity)
 }
 
 /// The field carrying `identity` on a declaration roster, when it is not
 /// erased.
-pub fn live_field_by_identity<'fields>(
-    fields: &'fields [StructuralFieldDeclaration],
+pub fn live_field_by_identity(
+    fields: &[StructuralFieldDeclaration],
     identity: TerminalIdentityIndex,
-) -> Option<&'fields StructuralFieldDeclaration> {
+) -> Option<&StructuralFieldDeclaration> {
     fields
         .iter()
         .find(|field| field.identity == identity && !field.relevance.is_erased())
@@ -687,10 +687,10 @@ pub fn structural_children(
 
 /// The unique live field `identity` names on a field roster — absent when
 /// the name is missing, erased, or ambiguous.
-pub fn live_field<'a>(
-    fields: &'a [StructuralFieldDeclaration],
+pub fn live_field(
+    fields: &[StructuralFieldDeclaration],
     identity: TerminalIdentityIndex,
-) -> Option<&'a StructuralFieldDeclaration> {
+) -> Option<&StructuralFieldDeclaration> {
     let mut matching = fields.iter().filter(|field| field.identity == identity);
     let field = matching.next()?;
     if matching.next().is_some()
@@ -707,10 +707,10 @@ pub fn live_field<'a>(
 }
 
 /// The structural type declaration keyed `id` in a declaration roster.
-pub fn find_structural_type<'types>(
-    types: &'types [StructuralTypeDeclaration],
+pub fn find_structural_type(
+    types: &[StructuralTypeDeclaration],
     id: StructuralTypeId,
-) -> Option<&'types StructuralTypeDeclaration> {
+) -> Option<&StructuralTypeDeclaration> {
     types.iter().find(|declaration| declaration.id == id)
 }
 
@@ -829,28 +829,28 @@ fn structural_type_contains_by<'types>(
 }
 
 /// The case declaration carrying `identity` on a declaration roster.
-pub fn structural_case_by_identity<'cases>(
-    cases: &'cases [StructuralCaseDeclaration],
+pub fn structural_case_by_identity(
+    cases: &[StructuralCaseDeclaration],
     identity: TerminalIdentityIndex,
-) -> Option<&'cases StructuralCaseDeclaration> {
+) -> Option<&StructuralCaseDeclaration> {
     cases.iter().find(|case| case.identity == identity)
 }
 
 /// The type declaration carrying `identity` on a declaration roster.
-pub fn structural_type_by_identity<'types>(
-    types: &'types [StructuralTypeDeclaration],
+pub fn structural_type_by_identity(
+    types: &[StructuralTypeDeclaration],
     identity: TerminalIdentityIndex,
-) -> Option<&'types StructuralTypeDeclaration> {
+) -> Option<&StructuralTypeDeclaration> {
     types
         .iter()
         .find(|declaration| declaration.identity == identity)
 }
 
 /// The field keyed `id` on a declaration roster, when it is not erased.
-pub fn live_field_by_id<'fields>(
-    fields: &'fields [StructuralFieldDeclaration],
+pub fn live_field_by_id(
+    fields: &[StructuralFieldDeclaration],
     id: StructuralFieldId,
-) -> Option<&'fields StructuralFieldDeclaration> {
+) -> Option<&StructuralFieldDeclaration> {
     fields
         .iter()
         .find(|field| field.id == id && !field.relevance.is_erased())
@@ -859,10 +859,10 @@ pub fn live_field_by_id<'fields>(
 /// The live-field position and declaration `identity` names on a field
 /// roster — absent when no live field carries it. Position counts live
 /// fields only, so callers can index a parallel live-only layout roster.
-pub fn live_field_entry<'fields>(
-    fields: &'fields [StructuralFieldDeclaration],
+pub fn live_field_entry(
+    fields: &[StructuralFieldDeclaration],
     identity: TerminalIdentityIndex,
-) -> Option<(usize, &'fields StructuralFieldDeclaration)> {
+) -> Option<(usize, &StructuralFieldDeclaration)> {
     fields
         .iter()
         .filter(|field| !field.relevance.is_erased())
@@ -871,10 +871,10 @@ pub fn live_field_entry<'fields>(
 }
 
 /// The structural case declaration keyed `id` in a case roster.
-pub fn find_structural_case<'cases>(
-    cases: &'cases [StructuralCaseDeclaration],
+pub fn find_structural_case(
+    cases: &[StructuralCaseDeclaration],
     id: StructuralCaseId,
-) -> Option<&'cases StructuralCaseDeclaration> {
+) -> Option<&StructuralCaseDeclaration> {
     cases.iter().find(|case| case.id == id)
 }
 
@@ -924,6 +924,47 @@ pub fn structural_case_position(
     id: StructuralCaseId,
 ) -> Option<usize> {
     cases.iter().position(|case| case.id == id)
+}
+
+/// The record-or-mixed field roster: record and mixed shapes carry the same
+/// `fields` table, so consumers that only need the field set match the pair
+/// with one spelling instead of duplicating both alternatives.
+#[macro_export]
+macro_rules! record_or_mixed_shape_pattern {
+    ($fields:ident) => {
+        $crate::StructuralTypeShape::Record {
+            fields: $fields,
+            ..
+        } | $crate::StructuralTypeShape::Mixed {
+            fields: $fields,
+            ..
+        }
+    };
+}
+
+/// The record-or-fixed-array shape roster and the two byte-sequence view
+/// carriers: verbatim or-pattern pairs consumers match with no bindings.
+#[macro_export]
+macro_rules! record_or_fixed_array_shape_pattern {
+    () => {
+        $crate::StructuralTypeShape::Record { .. } | $crate::StructuralTypeShape::FixedArray { .. }
+    };
+}
+
+#[macro_export]
+macro_rules! byte_sequence_view_carrier_pattern {
+    () => {
+        $crate::ByteSequenceCarrier::BorrowedView { .. }
+            | $crate::ByteSequenceCarrier::BoundedView { .. }
+    };
+}
+
+/// The sum-or-mixed shape roster consumers match with no bindings.
+#[macro_export]
+macro_rules! sum_or_mixed_shape_pattern {
+    () => {
+        $crate::StructuralTypeShape::Sum { .. } | $crate::StructuralTypeShape::Mixed { .. }
+    };
 }
 
 #[cfg(test)]
@@ -1001,45 +1042,4 @@ mod tests {
         assert!(structural_type_contains_reference(&types, reference));
         assert!(!structural_type_contains_reference(&types, array));
     }
-}
-
-/// The record-or-mixed field roster: record and mixed shapes carry the same
-/// `fields` table, so consumers that only need the field set match the pair
-/// with one spelling instead of duplicating both alternatives.
-#[macro_export]
-macro_rules! record_or_mixed_shape_pattern {
-    ($fields:ident) => {
-        $crate::StructuralTypeShape::Record {
-            fields: $fields,
-            ..
-        } | $crate::StructuralTypeShape::Mixed {
-            fields: $fields,
-            ..
-        }
-    };
-}
-
-/// The record-or-fixed-array shape roster and the two byte-sequence view
-/// carriers: verbatim or-pattern pairs consumers match with no bindings.
-#[macro_export]
-macro_rules! record_or_fixed_array_shape_pattern {
-    () => {
-        $crate::StructuralTypeShape::Record { .. } | $crate::StructuralTypeShape::FixedArray { .. }
-    };
-}
-
-#[macro_export]
-macro_rules! byte_sequence_view_carrier_pattern {
-    () => {
-        $crate::ByteSequenceCarrier::BorrowedView { .. }
-            | $crate::ByteSequenceCarrier::BoundedView { .. }
-    };
-}
-
-/// The sum-or-mixed shape roster consumers match with no bindings.
-#[macro_export]
-macro_rules! sum_or_mixed_shape_pattern {
-    () => {
-        $crate::StructuralTypeShape::Sum { .. } | $crate::StructuralTypeShape::Mixed { .. }
-    };
 }

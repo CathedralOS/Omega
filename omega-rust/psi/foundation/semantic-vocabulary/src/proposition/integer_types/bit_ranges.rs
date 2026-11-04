@@ -12,69 +12,6 @@ struct KnownBits {
     zeros: u128,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{IntegerSign, IntegerType, IntegerValue};
-
-    #[test]
-    fn bitwise_bounds_cover_every_small_signed_and_unsigned_interval() {
-        for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
-            let integer = IntegerType::new(sign, 4).unwrap();
-            let (minimum, maximum) = match sign {
-                IntegerSign::Signed => (-8, 7),
-                IntegerSign::Unsigned => (0, 15),
-            };
-            let value = |number| match sign {
-                IntegerSign::Signed => IntegerValue::Signed(number),
-                IntegerSign::Unsigned => IntegerValue::Unsigned(number as u128),
-            };
-            for left_low in minimum..=maximum {
-                for left_high in left_low..=maximum {
-                    for right_low in minimum..=maximum {
-                        for right_high in right_low..=maximum {
-                            let left = (value(left_low), value(left_high));
-                            let right = (value(right_low), value(right_high));
-                            let bounds = [
-                                integer.bitwise_and_bounds(left, right).unwrap(),
-                                integer.bitwise_or_bounds(left, right).unwrap(),
-                                integer.bitwise_xor_bounds(left, right).unwrap(),
-                            ];
-                            for left in left_low..=left_high {
-                                for right in right_low..=right_high {
-                                    let results = [
-                                        integer.bitwise_and(value(left), value(right)).unwrap(),
-                                        integer.bitwise_or(value(left), value(right)).unwrap(),
-                                        integer.bitwise_xor(value(left), value(right)).unwrap(),
-                                    ];
-                                    for ((low, high), result) in bounds.iter().zip(results) {
-                                        assert!(!integer.compare(*low, result).unwrap().is_gt());
-                                        assert!(!integer.compare(result, *high).unwrap().is_gt());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn byte_mask_retains_ascii_prefix_and_full_width_constants() {
-        let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-        let value = IntegerValue::Unsigned;
-        assert_eq!(
-            integer.bitwise_and_bounds((value(48), value(57)), (value(255), value(255))),
-            Some((value(48), value(63)))
-        );
-        let integer = IntegerType::new(IntegerSign::Unsigned, 128).unwrap();
-        assert_eq!(
-            integer.bitwise_and_bounds((value(0), value(u128::MAX)), (value(255), value(255))),
-            Some((value(0), value(255)))
-        );
-    }
-}
-
 impl IntegerType {
     pub fn bitwise_and_bounds(
         self,
@@ -175,5 +112,68 @@ impl IntegerType {
                 IntegerValue::Signed(extended as i128)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{IntegerSign, IntegerType, IntegerValue};
+
+    #[test]
+    fn bitwise_bounds_cover_every_small_signed_and_unsigned_interval() {
+        for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+            let integer = IntegerType::new(sign, 4).unwrap();
+            let (minimum, maximum) = match sign {
+                IntegerSign::Signed => (-8, 7),
+                IntegerSign::Unsigned => (0, 15),
+            };
+            let value = |number| match sign {
+                IntegerSign::Signed => IntegerValue::Signed(number),
+                IntegerSign::Unsigned => IntegerValue::Unsigned(number as u128),
+            };
+            for left_low in minimum..=maximum {
+                for left_high in left_low..=maximum {
+                    for right_low in minimum..=maximum {
+                        for right_high in right_low..=maximum {
+                            let left = (value(left_low), value(left_high));
+                            let right = (value(right_low), value(right_high));
+                            let bounds = [
+                                integer.bitwise_and_bounds(left, right).unwrap(),
+                                integer.bitwise_or_bounds(left, right).unwrap(),
+                                integer.bitwise_xor_bounds(left, right).unwrap(),
+                            ];
+                            for left in left_low..=left_high {
+                                for right in right_low..=right_high {
+                                    let results = [
+                                        integer.bitwise_and(value(left), value(right)).unwrap(),
+                                        integer.bitwise_or(value(left), value(right)).unwrap(),
+                                        integer.bitwise_xor(value(left), value(right)).unwrap(),
+                                    ];
+                                    for ((low, high), result) in bounds.iter().zip(results) {
+                                        assert!(!integer.compare(*low, result).unwrap().is_gt());
+                                        assert!(!integer.compare(result, *high).unwrap().is_gt());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn byte_mask_retains_ascii_prefix_and_full_width_constants() {
+        let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let value = IntegerValue::Unsigned;
+        assert_eq!(
+            integer.bitwise_and_bounds((value(48), value(57)), (value(255), value(255))),
+            Some((value(48), value(63)))
+        );
+        let integer = IntegerType::new(IntegerSign::Unsigned, 128).unwrap();
+        assert_eq!(
+            integer.bitwise_and_bounds((value(0), value(u128::MAX)), (value(255), value(255))),
+            Some((value(0), value(255)))
+        );
     }
 }

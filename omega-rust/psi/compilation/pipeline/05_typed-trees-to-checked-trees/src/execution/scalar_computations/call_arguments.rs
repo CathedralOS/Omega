@@ -299,7 +299,8 @@ impl Builder<'_, '_> {
                     let retained =
                         self.retain_structural_argument(*argument, parameter.type_reference);
                     let argument_ordinal = u32::try_from(structural_arguments.len()).ok()?;
-                    let argument_plan = if let Some(value) = retained {
+
+                    if let Some(value) = retained {
                         self.retained_call_argument(
                             source_call,
                             operand,
@@ -372,8 +373,7 @@ impl Builder<'_, '_> {
                         )
                     })
                     ?
-                    };
-                    argument_plan
+                    }
                 };
                 structural_actuals.push(*argument);
                 structural_arguments.push(

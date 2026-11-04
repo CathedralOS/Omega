@@ -51,67 +51,90 @@ pub(super) struct CallPreparation<'program> {
     pub(super) storage_writes: Option<Option<Rc<super::call_phases::CallStorageWrites>>>,
 }
 
-/// Source-only answers for one place occurrence. The outer option records
-/// whether entry provenance was queried; its inner absence is an unproved
-/// origin. Neither result says whether the current evaluated prefix wrote it.
-struct PlacePreparation {
-    place: Option<validation::CanonicalPlace>,
-    entry_subject: Option<
-        Option<(
-            u32,
-            Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
-        )>,
-    >,
+/// Where each machine and state sits in the program's tables, indexed by the
+/// symbol's arena position. A row keeps its symbol so another generation at
+/// the same position finds nothing; a later duplicate replaces an earlier one.
+#[derive(Default)]
+struct SymbolPositions {
+    machines: Vec<(SymbolHandle, usize)>,
+    states: Vec<(SymbolHandle, (usize, usize))>,
 }
 
-impl PlacePreparation {
-    fn new(
-        program: &dyn validation::CheckingInput,
-        state: SymbolHandle,
-        statement: usize,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> Self {
-        Self {
-            place: place_at(program, state, statement, expression),
-            entry_subject: None,
+impl SymbolPositions {
+    fn build(program: &dyn ::validation::CheckingInput) -> Self {
+        fn place<T: Copy + Default>(
+            rows: &mut Vec<(SymbolHandle, T)>,
+            symbol: SymbolHandle,
+            value: T,
+        ) {
+            let index = symbol.arena_index() as usize;
+            if rows.len() <= index {
+                rows.resize(index + 1, (SymbolHandle::invalid(), T::default()));
+            }
+            rows[index] = (symbol, value);
         }
+        let mut positions = Self::default();
+        for (machine_index, machine) in program.machines().iter().enumerate() {
+            place(&mut positions.machines, machine.symbol, machine_index);
+            for (state_index, state) in program.machine_states(machine).iter().enumerate() {
+                place(
+                    &mut positions.states,
+                    state.symbol,
+                    (machine_index, state_index),
+                );
+            }
+        }
+        positions
+    }
+
+    fn find<T: Copy>(rows: &[(SymbolHandle, T)], symbol: SymbolHandle) -> Option<T> {
+        let (stored, value) = rows.get(symbol.arena_index() as usize)?;
+        (symbol.is_valid() && *stored == symbol).then_some(*value)
     }
 }
 
-/// Program shape lookups indexed once per context: every machine, state, and
-/// their in-machine positions. All values are table positions, so the map is
-/// lifetime-free and rebuilds lazily on the first query of a fresh context.
-struct SymbolIndex {
-    machine_index: HashMap<SymbolHandle, usize>,
-    state_index_in_machine: HashMap<(SymbolHandle, SymbolHandle), usize>,
-    state_location: HashMap<SymbolHandle, (usize, usize)>,
+/// Every machine's parameter-origin fixed point, solved once before the flow
+/// groups fan out and indexed by machine position. Storage origins also
+/// follow writes through calls, so they exist only with a call-frame resolver.
+struct MachineOrigins {
+    parameters: Vec<std::sync::Arc<entry_origins::MachineParameterOrigins>>,
+    storage: Vec<std::sync::Arc<entry_origins::MachineParameterOrigins>>,
 }
 
-impl SymbolIndex {
-    fn build(program: &dyn ::validation::CheckingInput) -> Self {
-        let mut index = Self {
-            machine_index: HashMap::default(),
-            state_index_in_machine: HashMap::default(),
-            state_location: HashMap::default(),
-        };
-        for (machine_index, machine) in program.machines().iter().enumerate() {
-            index.machine_index.insert(machine.symbol, machine_index);
-            for (state_index, state) in program.machine_states(machine).iter().enumerate() {
-                index
-                    .state_index_in_machine
-                    .insert((machine.symbol, state.symbol), state_index);
-                index
-                    .state_location
-                    .insert(state.symbol, (machine_index, state_index));
-            }
+impl MachineOrigins {
+    fn solve(
+        program: &dyn ::validation::CheckingInput,
+        call_frames: Option<&validation::CallFrameResolver<'_>>,
+    ) -> Self {
+        use rayon::prelude::*;
+        let machines = program.machines();
+        let parameters = machines
+            .par_iter()
+            .map(|machine| {
+                std::sync::Arc::new(entry_origins::machine_parameter_origins(program, machine))
+            })
+            .collect();
+        let storage = call_frames.map_or_else(Vec::new, |frames| {
+            machines
+                .par_iter()
+                .map(|machine| {
+                    std::sync::Arc::new(entry_origins::machine_storage_origins(
+                        program, frames, machine,
+                    ))
+                })
+                .collect()
+        });
+        Self {
+            parameters,
+            storage,
         }
-        index
     }
 }
 
 pub(super) struct SharedFlowTables {
     dynamic_conformances: Option<std::sync::Arc<checked_trees::DynamicConformanceFacts>>,
-    symbol_index: SymbolIndex,
+    symbol_positions: SymbolPositions,
+    machine_origins: MachineOrigins,
     scalar_bindings_by_site: HashMap<
         (SymbolHandle, u32),
         Vec<arena::Handle<checked_trees::CheckedScalarExpressionBindings>>,
@@ -124,6 +147,7 @@ impl SharedFlowTables {
     pub(super) fn new(
         program: &dyn ::validation::CheckingInput,
         scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
+        call_frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Self {
         let mut scalar_bindings_by_site = HashMap::default();
         for (handle, binding) in scalar_expressions.source_bindings.iter() {
@@ -143,7 +167,8 @@ impl SharedFlowTables {
             dynamic_conformances: build_dynamic_conformance_facts(program)
                 .ok()
                 .map(std::sync::Arc::new),
-            symbol_index: SymbolIndex::build(program),
+            symbol_positions: SymbolPositions::build(program),
+            machine_origins: MachineOrigins::solve(program, call_frames),
             scalar_bindings_by_site,
             scalar_expressions_by_site,
             integer_literal_thresholds: std::sync::OnceLock::new(),
@@ -187,13 +212,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// does not imply the same applied local index tuple.
     pub(super) call_result_identities: HashMap<
         (SymbolHandle, usize, typed_trees::types::TypeReferenceHandle),
-        Rc<
-            Vec<(
-                Vec<facts::PlaceSegment>,
-                SymbolHandle,
-                language_semantics::SemanticDomainId,
-            )>,
-        >,
+        Rc<Vec<validation::field_domains::FieldDomainContract>>,
     >,
     /// The type-driven half of `call_result_qualification_identities`:
     /// owned-field and constraint domain rows keyed by return type, shared
@@ -201,13 +220,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// pays the scan once rather than each distinct target.
     pub(super) result_identity_domain_rows: HashMap<
         typed_trees::types::TypeReferenceHandle,
-        Rc<
-            Vec<(
-                Vec<facts::PlaceSegment>,
-                SymbolHandle,
-                language_semantics::SemanticDomainId,
-            )>,
-        >,
+        Rc<Vec<validation::field_domains::FieldDomainContract>>,
     >,
     /// Out-parameter `ensures <parameter> in D` rows per invocation: the same
     /// program-pure contract collection as `call_result_identities`.
@@ -223,61 +236,6 @@ pub(super) struct FlowBuildContext<'plans> {
     pub(super) referent_type_paths: HashMap<
         typed_trees::types::TypeReferenceHandle,
         Option<Rc<Vec<validation::field_domains::FieldDomainIdentity>>>,
-    >,
-    /// Program-pure per-site answers repeated on every pass: canonical
-    /// places, expression result types, transition call targets, entry
-    /// parameter origin chains, and reference-local candidate places. The
-    /// program cannot change mid-build, so each memoized value is final.
-    canonical_places: HashMap<
-        (
-            SymbolHandle,
-            usize,
-            typed_trees::expression::ExpressionHandle,
-        ),
-        PlacePreparation,
-    >,
-    expression_result_types: HashMap<
-        (
-            SymbolHandle,
-            SymbolHandle,
-            typed_trees::expression::ExpressionHandle,
-        ),
-        Option<typed_trees::types::TypeReferenceHandle>,
-    >,
-    transition_call_targets: HashMap<
-        (SymbolHandle, SymbolHandle, usize, usize),
-        Option<typed_trees::statement::TransitionTargetHandle>,
-    >,
-    entry_origin_chains:
-        HashMap<(SymbolHandle, SymbolHandle), Rc<Vec<(SymbolHandle, SymbolHandle)>>>,
-    /// One solved parameter-origin fixed point per machine, shared by every
-    /// state's `entry_origin_chains` row.
-    machine_parameter_origins: HashMap<SymbolHandle, Rc<entry_origins::MachineParameterOrigins>>,
-    /// Physical origins are distinct from typed value forwarding: a recast
-    /// can retain its backing without becoming the original formal's type.
-    machine_storage_origins: Vec<(SymbolHandle, Rc<entry_origins::MachineParameterOrigins>)>,
-    /// Statement storage-write places per site: the answer is program-pure on
-    /// (state, statement index) -- the machine and statement are implied by
-    /// the key and the shared call-frame resolver is the same `call_frames`
-    /// the whole build shares -- so the enumeration runs at most once per
-    /// site rather than once per pass.
-    statement_storage_writes:
-        HashMap<(SymbolHandle, usize), Option<Rc<Vec<validation::CanonicalPlace>>>>,
-    /// Declared root type for a transfer-correspondence place: another
-    /// program-immutable lookup over machines, states, and statement tables.
-    pub(super) correspondence_root_types: HashMap<
-        (SymbolHandle, SymbolHandle, usize, SymbolHandle),
-        Option<typed_trees::types::TypeReferenceHandle>,
-    >,
-    /// Expression sub-occurrences extracted per operand on every pass --
-    /// program-pure walks over the expression table.
-    expression_occurrences: HashMap<
-        typed_trees::expression::ExpressionHandle,
-        Rc<Vec<typed_trees::expression::ExpressionHandle>>,
-    >,
-    proof_fact_occurrences: HashMap<
-        arena::Handle<typed_trees::domain::ProofFact>,
-        Rc<Vec<typed_trees::expression::ExpressionHandle>>,
     >,
     /// Sorted by exact source occurrence, populated only for guards reached by
     /// flow. Retain unsuccessful source binding as well as successful binding.
@@ -356,7 +314,11 @@ impl<'plans> FlowBuildContext<'plans> {
         call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
         state_mutation_summary_cache: &'plans StateMutationSummaryCache,
     ) -> Self {
-        let shared_tables = std::sync::Arc::new(SharedFlowTables::new(program, scalar_expressions));
+        let shared_tables = std::sync::Arc::new(SharedFlowTables::new(
+            program,
+            scalar_expressions,
+            call_frames,
+        ));
         Self::with_shared_tables(
             program,
             borrow,
@@ -404,16 +366,6 @@ impl<'plans> FlowBuildContext<'plans> {
             result_identity_domain_rows: HashMap::default(),
             call_parameter_identities: HashMap::default(),
             referent_type_paths: HashMap::default(),
-            canonical_places: HashMap::default(),
-            expression_result_types: HashMap::default(),
-            transition_call_targets: HashMap::default(),
-            entry_origin_chains: HashMap::default(),
-            machine_parameter_origins: HashMap::default(),
-            machine_storage_origins: Vec::new(),
-            statement_storage_writes: HashMap::default(),
-            correspondence_root_types: HashMap::default(),
-            expression_occurrences: HashMap::default(),
-            proof_fact_occurrences: HashMap::default(),
             guard_predicates: Vec::new(),
             state_mutation_summary_cache,
             assignment_observations: Default::default(),
@@ -423,10 +375,6 @@ impl<'plans> FlowBuildContext<'plans> {
             boundaries: FlowBoundaryFacts::default(),
             control: FlowControlFacts::default(),
         }
-    }
-
-    fn symbol_index(&self) -> &SymbolIndex {
-        &self.shared_tables.symbol_index
     }
 
     /// Publish one already-appended semantic context to both evidence lists a
@@ -477,23 +425,21 @@ impl<'plans> FlowBuildContext<'plans> {
         _program: &dyn ::validation::CheckingInput,
         machine_symbol: SymbolHandle,
     ) -> Option<usize> {
-        self.symbol_index()
-            .machine_index
-            .get(&machine_symbol)
-            .copied()
+        SymbolPositions::find(
+            &self.shared_tables.symbol_positions.machines,
+            machine_symbol,
+        )
     }
 
     /// Position of `state_symbol` inside `machine_symbol`'s state list.
     pub(super) fn state_index_in_machine(
         &self,
-        _program: &dyn ::validation::CheckingInput,
+        program: &dyn ::validation::CheckingInput,
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
     ) -> Option<usize> {
-        self.symbol_index()
-            .state_index_in_machine
-            .get(&(machine_symbol, state_symbol))
-            .copied()
+        let (machine, state) = self.state_location(program, state_symbol)?;
+        (program.machines()[machine].symbol == machine_symbol).then_some(state)
     }
 
     /// `(machines index, in-machine state index)` of a state symbol anywhere
@@ -503,10 +449,7 @@ impl<'plans> FlowBuildContext<'plans> {
         _program: &dyn ::validation::CheckingInput,
         state_symbol: SymbolHandle,
     ) -> Option<(usize, usize)> {
-        self.symbol_index()
-            .state_location
-            .get(&state_symbol)
-            .copied()
+        SymbolPositions::find(&self.shared_tables.symbol_positions.states, state_symbol)
     }
 
     pub(super) fn guard_expression_at(
@@ -670,19 +613,13 @@ impl<'plans> FlowBuildContext<'plans> {
     }
 
     pub(super) fn canonical_place_at(
-        &mut self,
+        &self,
         program: &dyn ::validation::CheckingInput,
         state_symbol: SymbolHandle,
         statement_index: usize,
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Option<validation::CanonicalPlace> {
-        self.canonical_places
-            .entry((state_symbol, statement_index, expression))
-            .or_insert_with(|| {
-                PlacePreparation::new(program, state_symbol, statement_index, expression)
-            })
-            .place
-            .clone()
+        place_at(program, state_symbol, statement_index, expression)
     }
 
     /// Reuse the source provenance, never a previous prefix's admission. The
@@ -690,7 +627,7 @@ impl<'plans> FlowBuildContext<'plans> {
     /// integer from float meaning, so keep each callback and its live check.
     /// Its own path validation and work budget still run after this returns.
     pub(super) fn entry_subject_at(
-        &mut self,
+        &self,
         program: &dyn validation::CheckingInput,
         state: SymbolHandle,
         statement: usize,
@@ -701,151 +638,104 @@ impl<'plans> FlowBuildContext<'plans> {
         u32,
         Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
     )> {
-        let prepared = self
-            .canonical_places
-            .entry((state, statement, expression))
-            .or_insert_with(|| PlacePreparation::new(program, state, statement, expression));
-        let place = prepared.place.as_ref()?;
+        let place = place_at(program, state, statement, expression)?;
         if !super::entry_origin_is_stable(
             program,
             &self.control,
             entry_writes,
             entry_unknown_write,
-            place,
+            &place,
         ) {
             return None;
         }
-        prepared
-            .entry_subject
-            .get_or_insert_with(|| {
-                let (machine, _) = validation::find_state(program, state)?;
-                entry_parameter_place_before_statement(
-                    program,
-                    machine.symbol,
-                    state,
-                    statement,
-                    place,
-                )
-            })
-            .clone()
+        let (machine, _) = validation::find_state(program, state)?;
+        entry_parameter_place_before_statement(program, machine.symbol, state, statement, &place)
     }
 
     pub(super) fn expression_result_type_at(
-        &mut self,
+        &self,
         program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
-        *self
-            .expression_result_types
-            .entry((machine.symbol, state.symbol, expression))
-            .or_insert_with(|| {
-                validation::expression_result_type_reference(program, machine, state, expression)
-            })
+        validation::expression_result_type_reference(program, machine, state, expression)
     }
 
     pub(super) fn transition_call_target_at(
-        &mut self,
+        &self,
         program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statement_index: usize,
         call_ordinal: usize,
     ) -> Option<typed_trees::statement::TransitionTargetHandle> {
-        *self
-            .transition_call_targets
-            .entry((machine.symbol, state.symbol, statement_index, call_ordinal))
-            .or_insert_with(|| {
-                validation::transition_call_target(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    call_ordinal,
-                )
-            })
+        validation::transition_call_target(program, machine, state, statement_index, call_ordinal)
     }
 
-    /// Entry-parameter origin chain for one state -- the whole-machine
-    /// reachability fixpoint in `entry_origins`, memoized because its inputs
-    /// are all program-immutable.
+    /// The solved origins of `machine` in `solved`, the table the flow build
+    /// prepared by machine position. A machine outside that roster, or one
+    /// whose states the table does not cover, is solved on the spot.
+    fn machine_origins(
+        &self,
+        solved: &[std::sync::Arc<entry_origins::MachineParameterOrigins>],
+        machine: &typed_trees::machine::Machine,
+    ) -> Option<std::sync::Arc<entry_origins::MachineParameterOrigins>> {
+        let program = self.program;
+        let position = self.machine_index(program, machine.symbol)?;
+        let origins = solved.get(position)?;
+        origins.covers(program, machine).then(|| origins.clone())
+    }
+
+    /// Entry-parameter origin chain for one state, read from its machine's
+    /// prepared parameter-origin fixed point.
     pub(super) fn entry_origin_chain_at(
-        &mut self,
+        &self,
         program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
-    ) -> Rc<Vec<(SymbolHandle, SymbolHandle)>> {
-        if let Some(chain) = self
-            .entry_origin_chains
-            .get(&(machine.symbol, state.symbol))
-        {
-            return chain.clone();
-        }
-        let solved = match self.machine_parameter_origins.get(&machine.symbol) {
-            Some(solved) if solved.covers(program, machine) => solved.clone(),
-            _ => {
-                let solved = Rc::new(entry_origins::machine_parameter_origins(program, machine));
-                self.machine_parameter_origins
-                    .insert(machine.symbol, solved.clone());
-                solved
-            }
-        };
-        let chain = Rc::new(entry_origins::state_origins(
-            program, machine, state, &solved,
-        ));
-        self.entry_origin_chains
-            .insert((machine.symbol, state.symbol), chain.clone());
-        chain
+    ) -> Vec<(SymbolHandle, SymbolHandle)> {
+        let solved = self
+            .machine_origins(&self.shared_tables.machine_origins.parameters, machine)
+            .unwrap_or_else(|| {
+                std::sync::Arc::new(entry_origins::machine_parameter_origins(program, machine))
+            });
+        entry_origins::state_origins(program, machine, state, &solved)
     }
 
     pub(super) fn storage_origins_at(
-        &mut self,
+        &self,
         machine: SymbolHandle,
-    ) -> Option<Rc<entry_origins::MachineParameterOrigins>> {
+    ) -> Option<std::sync::Arc<entry_origins::MachineParameterOrigins>> {
         let program = self.program;
         let machine = program.machine_by_symbol(machine)?;
-        if let Some((_, solved)) = self
-            .machine_storage_origins
-            .iter()
-            .find(|(owner, solved)| *owner == machine.symbol && solved.covers(program, machine))
-        {
-            return Some(solved.clone());
-        }
-        let solved = Rc::new(entry_origins::machine_storage_origins(
-            program,
-            self.call_frames?,
-            machine,
-        ));
-        self.machine_storage_origins
-            .push((machine.symbol, solved.clone()));
-        Some(solved)
+        let frames = self.call_frames?;
+        Some(
+            self.machine_origins(&self.shared_tables.machine_origins.storage, machine)
+                .unwrap_or_else(|| {
+                    std::sync::Arc::new(entry_origins::machine_storage_origins(
+                        program, frames, machine,
+                    ))
+                }),
+        )
     }
 
     pub(super) fn expression_occurrences_at(
-        &mut self,
+        &self,
         program: &dyn ::validation::CheckingInput,
         expression: typed_trees::expression::ExpressionHandle,
-    ) -> Rc<Vec<typed_trees::expression::ExpressionHandle>> {
-        self.expression_occurrences
-            .entry(expression)
-            .or_insert_with(|| {
-                let mut occurrences = Vec::new();
-                append_expression_occurrences(program, expression, &mut occurrences);
-                Rc::new(occurrences)
-            })
-            .clone()
+    ) -> Vec<typed_trees::expression::ExpressionHandle> {
+        let mut occurrences = Vec::new();
+        append_expression_occurrences(program, expression, &mut occurrences);
+        occurrences
     }
 
     pub(super) fn proof_fact_occurrences_at(
-        &mut self,
+        &self,
         program: &dyn ::validation::CheckingInput,
         fact: arena::Handle<typed_trees::domain::ProofFact>,
-    ) -> Rc<Vec<typed_trees::expression::ExpressionHandle>> {
-        self.proof_fact_occurrences
-            .entry(fact)
-            .or_insert_with(|| Rc::new(fact_referenced_occurrences(program, fact)))
-            .clone()
+    ) -> Vec<typed_trees::expression::ExpressionHandle> {
+        fact_referenced_occurrences(program, fact)
     }
 
     /// The program's sorted integer-literal widening thresholds. The authored
@@ -923,27 +813,21 @@ impl<'plans> FlowBuildContext<'plans> {
     /// that state, its machine is implied, and the call-frame resolver is
     /// the shared one the whole build carries.
     pub(super) fn statement_storage_writes_at(
-        &mut self,
+        &self,
         program: &dyn ::validation::CheckingInput,
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
         statement_index: usize,
         statement: &checked_trees::statement::StatementNode,
-    ) -> Option<Rc<Vec<validation::CanonicalPlace>>> {
-        self.statement_storage_writes
-            .entry((state_symbol, statement_index))
-            .or_insert_with(|| {
-                crate::flow::statement_storage_writes(
-                    program,
-                    machine_symbol,
-                    state_symbol,
-                    statement_index,
-                    statement,
-                    self.call_frames,
-                )
-                .map(Rc::new)
-            })
-            .clone()
+    ) -> Option<Vec<validation::CanonicalPlace>> {
+        crate::flow::statement_storage_writes(
+            program,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            statement,
+            self.call_frames,
+        )
     }
 
     /// Discard a complete unpublished sweep, retaining only reusable storage.
@@ -1256,16 +1140,7 @@ mod tests {
                 });
             }
             let context = FlowBuildContext::new(
-                &program,
-                &borrow,
-                &proof,
-                &semantic,
-                &plans,
-                &operators,
-                &[],
-                &[],
-                None,
-                &mutation,
+                &program, &borrow, &proof, &semantic, &plans, &operators, None, &mutation,
             );
             let actual = context
                 .selected_scalar_at(state, 0, |binding| binding.role == role)

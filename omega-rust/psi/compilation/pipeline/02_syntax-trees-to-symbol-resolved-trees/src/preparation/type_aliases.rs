@@ -312,10 +312,9 @@ fn definition_reference_spans(
             && !parameters
                 .iter()
                 .any(|parameter| parameter.name.as_str(forest) == name.as_str(forest))
+            && !references.contains(&name.source_span())
         {
-            if !references.contains(&name.source_span()) {
-                references.push(name.source_span());
-            }
+            references.push(name.source_span());
         }
     }
     references
@@ -836,14 +835,10 @@ impl Expansion<'_, '_> {
                     .conformance_members(definition.members)
                     .to_vec();
                 for member in members {
-                    match member {
-                        ConformanceMember::Machine(machine)
-                        | ConformanceMember::Synthesized(machine)
-                        | ConformanceMember::TraitDefault { machine, .. } => {
-                            self.machine(syntax, &machine, &bound)?
-                        }
-                        _ => {}
-                    }
+                    let (ConformanceMember::Machine(machine)
+                    | ConformanceMember::Synthesized(machine)
+                    | ConformanceMember::TraitDefault { machine, .. }) = member;
+                    self.machine(syntax, &machine, &bound)?;
                 }
             }
             Item::Const(definition) => {

@@ -36,7 +36,7 @@ pub struct CompilationSession {
     source_graph_changed: bool,
     preparation: compilation_products::SourcePreparation,
     sources: Vec<PreparedSource>,
-    pure_builds: build_evaluation::PureBuildCompilation,
+    pure_builds: build_settings::PureBuildCompilation,
     checks: RetainedCompilationChecks,
     component_products: Vec<Arc<compilation_products::IndependentComponentProduct>>,
     pub(crate) selections: psi_compiler::ProductSelections,
@@ -149,7 +149,7 @@ impl CompilationSession {
     pub fn complete_source_check(
         &mut self,
         source: SourceCompilation,
-        returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
+        returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
     ) -> CheckedCompileOutcome {
         run_on_compile_thread(|| {
             Ok::<_, CompileFailure>(
@@ -165,7 +165,7 @@ impl CompilationSession {
     pub fn complete_source_product(
         &mut self,
         source: SourceCompilation,
-        returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
+        returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
         product: crate::CompilationProduct,
     ) -> Result<crate::CompilationOutput, crate::CompilationProductError> {
         run_on_compile_thread(|| {
@@ -199,7 +199,7 @@ impl CompilationSession {
     fn select_completed_source(
         &mut self,
         source: SourceCompilation,
-        returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
+        returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
     ) -> SelectedCompileOutcome {
         let mut outcome = match source.select(returned, &mut self.selections) {
             Ok(outcome) => outcome,
@@ -225,7 +225,7 @@ impl CompilationSession {
     pub(super) fn complete_build(
         &mut self,
         invocation: super::checking::PreparedPackageInvocation,
-        returned: Option<build_evaluation::ReturnedBuild>,
+        returned: Option<build_settings::ReturnedBuild>,
     ) -> Result<PreparedPackageBuild, CompileFailure> {
         let settled = self.settle_build(invocation, returned)?;
         let target = settled.target;
@@ -236,7 +236,7 @@ impl CompilationSession {
     pub(super) fn settle_build(
         &mut self,
         invocation: super::checking::PreparedPackageInvocation,
-        returned: Option<build_evaluation::ReturnedBuild>,
+        returned: Option<build_settings::ReturnedBuild>,
     ) -> Result<compilation_products::SettledPackageBuild, CompileFailure> {
         let settled = invocation.settle(returned)?;
         if let Some(check) = &settled.source.evaluated.retained_check {
@@ -359,7 +359,7 @@ impl CompilationSession {
     pub(crate) fn check_completed_source(
         &mut self,
         source: SourceCompilation,
-        returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
+        returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
     ) -> Result<compilation_products::CheckedProductSource, Vec<diagnostics::Diagnostic>> {
         let checked = source.check(returned, &mut self.selections)?;
         self.retain(&checked.retained_checks);

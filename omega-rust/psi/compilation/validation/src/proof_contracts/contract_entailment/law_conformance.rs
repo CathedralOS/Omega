@@ -250,9 +250,7 @@ pub(crate) fn check_law_conformance(
             ) {
                 return None;
             }
-            let Some(proven_binary) = program.expression_table.binary_node(*proven) else {
-                return None;
-            };
+            let proven_binary = program.expression_table.binary_node(*proven)?;
             let provider_scope = Some((machine.symbol, program.state_parameters(entry_state)));
             let (Some(proven_left), Some(proven_right)) = (
                 structural_term(program, None, provider_scope, proven_binary.left, None),

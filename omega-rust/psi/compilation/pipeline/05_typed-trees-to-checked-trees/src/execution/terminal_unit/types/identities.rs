@@ -109,12 +109,12 @@ pub(in crate::execution::terminal_unit) fn is_unit(
     }
 }
 
-/// The structural plan identity a call operand, formal or result of
-/// `type_reference` joins, offered only when the storage beneath its loan and
-/// qualification shells is a nominal, a slice or a literal-extent array: the
-/// carriers a call presents. Other storage declines. The identity itself is
-/// the rule `validation::structural_type_identity` owns, so a bounded byte
-/// owner keeps its qualification here exactly as its registered plan does.
+// The structural plan identity a call operand, formal or result of
+// `type_reference` joins, offered only when the storage beneath its loan and
+// qualification shells is a nominal, a slice or a literal-extent array: the
+// carriers a call presents. Other storage declines. The identity itself is
+// the rule `validation::structural_type_identity` owns, so a bounded byte
+// owner keeps its qualification here exactly as its registered plan does.
 
 /// The same identity under a call edge's checked generic substitutions: the
 /// callee's `Type` parameters resolve to the actuals its admitted

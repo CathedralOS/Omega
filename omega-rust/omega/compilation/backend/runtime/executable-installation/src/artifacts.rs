@@ -142,6 +142,10 @@ impl AdmittedArtifact {
 /// The audience binds into placement evidence, so a receipt minted for one
 /// audience cannot satisfy a validated placement scoped to another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[expect(
+    dead_code,
+    reason = "spec audiences (executable_installation.md#visibility-and-retirement) await TASKS.md COMPONENT-SUBSTRATE"
+)]
 pub(crate) enum InstallationAudience {
     /// Local installation completion only: the realization has no remote
     /// fetcher and no current executor.

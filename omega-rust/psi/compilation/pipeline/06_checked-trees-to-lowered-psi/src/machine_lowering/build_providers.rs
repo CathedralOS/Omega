@@ -86,7 +86,7 @@ pub(super) fn retain(
             }
         }
         requirements.push(LoweredBuildProviderRequirement {
-            selection: selection,
+            selection,
             source_state: site.state,
             declaration,
             application: identities.intern(&application),

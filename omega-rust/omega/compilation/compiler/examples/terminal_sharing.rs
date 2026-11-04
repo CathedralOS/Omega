@@ -117,7 +117,7 @@ fn main() {
     let checks_before = counters::settled_check_totals().0;
     let terminals_before = counters::terminal_production_count();
     let outcomes =
-        omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
+        orchestration::compile_sources(&mut compiler::CompilationSession::default(), request)
             .expect("request admission")
             .into_outcomes();
     assert_eq!(outcomes.len(), target_names.len());
@@ -309,11 +309,13 @@ fn main() {
             if let Some(inputs) = &prepared.package_inputs {
                 request = request.with_package_inputs(inputs.clone());
             }
-            let single =
-                omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
-                    .expect("single target admission")
-                    .into_single_report()
-                    .expect("single target production");
+            let single = orchestration::compile_sources(
+                &mut compiler::CompilationSession::default(),
+                request,
+            )
+            .expect("single target admission")
+            .into_single_report()
+            .expect("single target production");
             let shared = &shared
                 .retained_native_artifact()
                 .expect("shared native")

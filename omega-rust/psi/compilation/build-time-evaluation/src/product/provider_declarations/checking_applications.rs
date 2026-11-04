@@ -66,9 +66,21 @@ pub(crate) fn source_checking_applications(
     // Finish every ordinary body assignment before classifying declaration
     // roots. A target-scoped fallback body may supply its global data only on
     // that target; visiting another scope first cannot erase that assignment.
+    //
+    // A body or declaration with no authored target context owes Source
+    // judgment only under targets that supply representation facts.
+    // A selected scope without facts (`cross_platform_cli`, `local_unchecked`,
+    // `alpha_bootstrap`) cannot form a fixed layout its closure reaches, so it
+    // receives unscoped work only when no scope supplies facts at all; then
+    // the refusal stands rather than leaving that work unchecked.
+    let facts_available = scopes.iter().any(|scope| scope.facts.is_some());
+    let receives_unscoped =
+        |request: &crate::FixedLayoutTargetScope| request.facts.is_some() || !facts_available;
     if !unscoped.is_empty() {
-        for (scope, work) in prepared.iter().zip(&mut work) {
-            *work = scope.work(typed, &applications, &unscoped);
+        for ((scope, request), work) in prepared.iter().zip(scopes).zip(&mut work) {
+            if receives_unscoped(request) {
+                *work = scope.work(typed, &applications, &unscoped);
+            }
         }
     }
     // A field or declaration telescope can itself choose LayoutStorage even
@@ -95,12 +107,13 @@ pub(crate) fn source_checking_applications(
         }
         declaration_roots.push(occurrence.lexical_owner);
     }
-    for (scope, work) in prepared.iter().zip(&mut work) {
+    for ((scope, request), work) in prepared.iter().zip(scopes).zip(&mut work) {
         let roots = declaration_roots
             .iter()
             .copied()
-            .filter(|owner| {
-                declaration_target(typed, *owner).is_none_or(|target| target == scope.target)
+            .filter(|owner| match declaration_target(typed, *owner) {
+                Some(target) => target == scope.target,
+                None => receives_unscoped(request),
             })
             .collect::<Vec<_>>();
         for owner in topology.declaration_closure(&roots) {

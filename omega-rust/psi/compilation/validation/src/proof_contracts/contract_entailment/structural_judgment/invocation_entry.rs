@@ -9,7 +9,7 @@ use typed_trees::{machine::Machine, signature::StateParameter, state::State};
 
 impl<'program> StructuralJudge<'program> {
     pub(in crate::proof_contracts::contract_entailment) fn entry_argument_value(
-        &self,
+        &mut self,
         parameter: &StateParameter,
         value: &StructuralTerm,
         subject: Option<&InvocationEntrySubject>,

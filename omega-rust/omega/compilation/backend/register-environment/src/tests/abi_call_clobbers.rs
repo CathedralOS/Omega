@@ -154,12 +154,12 @@ fn scalar_abi_cases() -> Vec<ScalarAbiCase> {
 
 /// The validated physical model, preservation convention, effect catalog, and
 /// constraint keys one ABI case expands to.
-fn abi_case_context<'a>(
-    environment: &'a super::super::ValidatedTargetRegisterEnvironment,
+fn abi_case_context(
+    environment: &super::super::ValidatedTargetRegisterEnvironment,
     case: ScalarAbiCase,
 ) -> (
-    &'a register_model::PhysicalRegisterModel,
-    &'a PreservationConvention,
+    &register_model::PhysicalRegisterModel,
+    &PreservationConvention,
     ValidatedMachineEffectCatalog,
     selected_instructions::SelectedConstraintKeys,
 ) {
@@ -234,10 +234,7 @@ fn produced_effects(
 }
 
 /// The stack-pointer view the ABI matrix names for this target.
-fn stack_pointer_view<'m>(
-    model: &'m PhysicalRegisterModel,
-    case: ScalarAbiCase,
-) -> &'m RegisterView {
+fn stack_pointer_view(model: &PhysicalRegisterModel, case: ScalarAbiCase) -> &RegisterView {
     named_view(
         model,
         case.target,
@@ -248,7 +245,7 @@ fn stack_pointer_view<'m>(
 }
 
 /// The condition-codes view the ABI matrix names for this target.
-fn flags_view<'m>(model: &'m PhysicalRegisterModel, case: ScalarAbiCase) -> &'m RegisterView {
+fn flags_view(model: &PhysicalRegisterModel, case: ScalarAbiCase) -> &RegisterView {
     named_view(
         model,
         case.target,
@@ -277,11 +274,11 @@ fn binds_catalog_provenance(
 
 /// The one canonical alternative a rule declares, bound to its own family and
 /// admitted by the always-applicable window.
-fn sole_alternative<'a>(
-    declaration: &'a MachineEffectDeclaration,
+fn sole_alternative(
+    declaration: &MachineEffectDeclaration,
     semantic: MachineSemanticKind,
     key: RegisterConstraintKey,
-) -> &'a MachineAlternative {
+) -> &MachineAlternative {
     assert_eq!(declaration.alternatives.len(), 1, "{key:?}");
     let alternative = &declaration.alternatives[0];
     assert_eq!(alternative.key.family, semantic.into(), "{key:?}");
@@ -296,11 +293,14 @@ fn sole_alternative<'a>(
 
 /// The selected constraint row and the effect declaration one selected rule
 /// is checked through: the environment owns the row, the produced catalog the
-/// declaration, both addressed by the same key.
+/// declaration. Several semantics share one constraint key (see
+/// [`declaration_mut`]), so the declaration is addressed by the key and the
+/// semantic the rule realizes; the row by the key alone.
 fn row_and_declaration<'a>(
     environment: &'a ValidatedTargetRegisterEnvironment,
     catalog: &'a ValidatedMachineEffectCatalog,
     key: RegisterConstraintKey,
+    semantic: MachineSemanticKind,
 ) -> (
     &'a RegisterInstructionConstraint,
     &'a MachineEffectDeclaration,
@@ -310,8 +310,10 @@ fn row_and_declaration<'a>(
         .unwrap_or_else(|| panic!("environment selects no constraint row {key:?}"));
     let declaration = catalog
         .catalog()
-        .declaration(key)
-        .unwrap_or_else(|| panic!("effect catalog declares no rule for {key:?}"));
+        .declarations
+        .iter()
+        .find(|declaration| declaration.constraint == key && declaration.semantic == semantic)
+        .unwrap_or_else(|| panic!("effect catalog declares no {semantic:?} rule for {key:?}"));
     (row, declaration)
 }
 
@@ -334,12 +336,12 @@ fn declared_pairs(
 /// One alternative's encoded effects inside a catalog a test is corrupting:
 /// the declaration is addressed by its key and semantic, the alternative by
 /// its ordinal.
-fn encoded_mut<'a>(
-    catalog: &'a mut MachineEffectCatalog,
+fn encoded_mut(
+    catalog: &mut MachineEffectCatalog,
     key: RegisterConstraintKey,
     semantic: MachineSemanticKind,
     index: usize,
-) -> &'a mut MachineEncodedEffects {
+) -> &mut MachineEncodedEffects {
     &mut declaration_mut(catalog, key, semantic).alternatives[index].encoded
 }
 

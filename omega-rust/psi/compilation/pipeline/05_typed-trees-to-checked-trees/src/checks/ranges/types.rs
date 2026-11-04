@@ -258,9 +258,9 @@ fn dependent_range_substituted(
     (minimum <= substituted_high).then_some((minimum, substituted_high))
 }
 
-/// A Range constraint whose minimum literal-folds and whose maximum is the
-/// R1a-admissible symbolic shape, under Exact shells only (mirrors
-/// `enforced_range_of_type_reference`'s domain kill).
+// A Range constraint whose minimum literal-folds and whose maximum is the
+// R1a-admissible symbolic shape, under Exact shells only (mirrors
+// `enforced_range_of_type_reference`'s domain kill).
 
 /// A shell's constraint set spells a non-Exact arithmetic domain — a
 /// deliberately permissive layer neither dependent-range nor exact-shell
