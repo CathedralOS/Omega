@@ -154,9 +154,17 @@ slice package review and execution also agree at 70. The audit verifies 451
 distinct source/oracle/library inputs and the original retained binary profiles.
 The earlier timeout remains a failed observation, not a passing report.
 
-The three required other-host fact checks are running at the same fixed
-compiler `059fb0b41d8`. Their results and current four-host completion remain
-pending; no other-host result is inferred from Linux.
+The same fixed compiler `059fb0b41d8` completes the fact on
+[Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/41823218447),
+[macOS ARM64](https://github.com/CathedralOS/Omega/actions/runs/41823222419) and
+[Windows x86-64](https://github.com/CathedralOS/Omega/actions/runs/41823226523).
+Each host checks all 14 local-storage twins and executes all 15 positive examples
+with native and Terminal exits of 0 through both corpus and ordinary commands.
+The missing-provider control also executes at 0 on its supplied Linux ARM64
+target; macOS and Windows refuse publication as authored. Each saved report,
+optimized producer profile and all 274 frozen inputs have been verified.
+Together with Linux x86-64, these observations complete this borrowing fact
+across the four hosted targets; the parent outcomes remain open.
 
 The earlier failed corpus reports remain retained. Separate case-descriptor
 and nested-view programs also refuse on published compiler `9566f10e0d29`.
