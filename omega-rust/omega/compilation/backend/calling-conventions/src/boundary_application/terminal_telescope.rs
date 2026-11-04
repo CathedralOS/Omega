@@ -187,6 +187,99 @@ mod tests {
     use crate::{BoundarySignatureGeometry, CallSignature, CallingPolicy};
     use semantic_vocabulary::{BoundaryMachineId, CallingOperandKind, CallingSignatureId};
 
+    fn application() -> BoundaryCallingApplication {
+        let plan = crate::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: vec![],
+                result: None,
+            },
+        )
+        .unwrap();
+        BoundaryCallingApplication {
+            calling_owner_application: None,
+            abi: semantic_vocabulary::CallingAbiIdentity {
+                requirement_identity: "package::Service::call".into(),
+                declaring_application: "package::Service<u8>".into(),
+                operands: vec![semantic_vocabulary::CallingStaticOperand {
+                    ordinal: 0,
+                    kind: CallingOperandKind::Type,
+                    identity: "u32".into(),
+                }],
+            },
+            requirement_identity: "package::Service::call".into(),
+            target: target::NativeTarget::from_omega_target_name(Some("windows_x86_64")).unwrap(),
+            report_fingerprint: 1,
+            commitment: [0; 32],
+            plan,
+            dispatch_only_parameter_count: 0,
+            signature: BoundarySignatureGeometry {
+                shapes: vec![],
+                fields: vec![],
+                parameters: vec![],
+                result: None,
+                native_parameters: Default::default(),
+                native_parameter_rows: Default::default(),
+                callback_layouts: Default::default(),
+                callback_layout_rows: Default::default(),
+                callback_bindings: Default::default(),
+                callback_binding_rows: Default::default(),
+            },
+            opaque_applications: vec![],
+            callback_context: Default::default(),
+            callback_context_closed: false,
+        }
+    }
+
+    #[test]
+    fn selected_calling_owner_is_part_of_recovered_application_identity() {
+        let default = application();
+        let mut first = default.clone();
+        first.calling_owner_application = Some("package::First<u8>".into());
+        first.commitment = first.recomputed_commitment().unwrap();
+        let mut sibling = first.clone();
+        sibling.calling_owner_application = Some("package::Second<u8>".into());
+
+        // The ABI and all physical placements stay identical. Selection of
+        // another child still produces a different application commitment.
+        assert_eq!(first.abi, sibling.abi);
+        assert_eq!(first.plan, sibling.plan);
+        assert_ne!(first.commitment, sibling.recomputed_commitment().unwrap());
+        assert_ne!(first.commitment, default.recomputed_commitment().unwrap());
+
+        let recover = |owner: Option<String>| {
+            super::super::BoundaryCallingApplicationCandidate {
+                calling_owner_application: owner,
+                abi: first.abi.clone(),
+                requirement_identity: first.requirement_identity.clone(),
+                target: first.target,
+                report_fingerprint: first.report_fingerprint,
+                commitment: first.commitment,
+                plan: first.plan.plan().clone(),
+                dispatch_only_parameter_count: first.dispatch_only_parameter_count,
+                signature: first.signature.clone(),
+                opaque_applications: first.opaque_applications.clone(),
+                callback_context: first.callback_context.clone(),
+                callback_context_closed: first.callback_context_closed,
+            }
+            .validate()
+        };
+        assert_eq!(
+            recover(first.calling_owner_application.clone()).unwrap(),
+            first
+        );
+        for changed_owner in [sibling.calling_owner_application, None] {
+            assert_eq!(
+                recover(changed_owner).unwrap_err(),
+                "recovered calling application commitment does not match its complete payload"
+            );
+        }
+        assert_eq!(
+            recover(Some(String::new())).unwrap_err(),
+            "calling application has an empty selected owner"
+        );
+    }
+
     #[test]
     fn phantom_local_application_cannot_borrow_equal_geometry() {
         let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
@@ -274,46 +367,8 @@ mod tests {
                 owning_service: None,
                 published_service_ceiling: vec![],
             });
-        let plan = crate::evaluate_ordinary_boundary_entry_plan(
-            CallingPolicy::MicrosoftX64,
-            &CallSignature {
-                parameters: vec![],
-                result: None,
-            },
-        )
-        .unwrap();
-        let application = BoundaryCallingApplication {
-            abi: semantic_vocabulary::CallingAbiIdentity {
-                requirement_identity: "package::Service::call".into(),
-                declaring_application: "package::Service<u8>".into(),
-                operands: vec![semantic_vocabulary::CallingStaticOperand {
-                    ordinal: 0,
-                    kind: CallingOperandKind::Type,
-                    identity: "u32".into(),
-                }],
-            },
-            requirement_identity: "package::Service::call".into(),
-            target: target::NativeTarget::from_omega_target_name(Some("windows_x86_64")).unwrap(),
-            report_fingerprint: 1,
-            commitment: [0; 32],
-            plan,
-            dispatch_only_parameter_count: 0,
-            signature: BoundarySignatureGeometry {
-                shapes: vec![],
-                fields: vec![],
-                parameters: vec![],
-                result: None,
-                native_parameters: Default::default(),
-                native_parameter_rows: Default::default(),
-                callback_layouts: Default::default(),
-                callback_layout_rows: Default::default(),
-                callback_bindings: Default::default(),
-                callback_binding_rows: Default::default(),
-            },
-            opaque_applications: vec![],
-            callback_context: Default::default(),
-            callback_context_closed: false,
-        };
+        let application = application();
+
         assert!(TerminalCallingTelescope::for_application(&module, boundary, &application).is_ok());
         module.calling_signatures[0].application = Ok(second);
         assert!(
@@ -339,6 +394,7 @@ mod tests {
                 _ => abi.declaring_application = "package::Service<u64>".into(),
             }
             let candidate = super::super::BoundaryCallingApplicationCandidate {
+                calling_owner_application: application.calling_owner_application.clone(),
                 abi,
                 requirement_identity: application.requirement_identity.clone(),
                 target: application.target,

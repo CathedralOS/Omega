@@ -40,21 +40,63 @@ pass/domains/erasing_cast_keeps_field_facts_exit built 8678ms exit:0 interpreter
 pass/domains/erasing_cast_keeps_predicates_and_named_domains_exit built 8206ms exit:0 interpreter-exit:0 interpreter:agrees @f2672d675498
 pass/domains/linear_routed_erasure_keeps_storage_exit built 7909ms exit:0 interpreter-exit:0 interpreter:agrees @f2672d675498
 pass/facts/build_activation_borrow_entry_return_exit built 11951ms exit:0 interpreter-exit:0 interpreter:agrees @b208ceef9bc2
+pass/facts/checked_predicate_disjoint_loans_boolean_guard_operand_snapshot_exit built 11166ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_control_runtime_index_array_path_exit built 11101ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_control_runtime_index_operand_snapshot_exit built 10361ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_control_runtime_index_record_root_exit built 10076ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
 pass/facts/checked_predicate_disjoint_loans_record_exclusive_call_exit built 10659ms exit:0 interpreter-exit:0 interpreter:agrees @2e27303617ea
 pass/facts/checked_predicate_disjoint_loans_record_nested_path_exit built 10348ms exit:0 interpreter-exit:0 interpreter:agrees @2e27303617ea
 pass/facts/checked_predicate_disjoint_loans_record_operand_snapshot_exit built 10350ms exit:0 interpreter-exit:0 interpreter:agrees @2e27303617ea
 pass/facts/checked_predicate_disjoint_loans_record_sibling_write_exit built 10230ms exit:0 interpreter-exit:0 interpreter:agrees @2e27303617ea
 pass/facts/checked_predicate_disjoint_loans_record_snapshot_exit built 10112ms exit:0 interpreter-exit:0 interpreter:agrees @2e27303617ea
 pass/facts/checked_predicate_disjoint_loans_record_two_roots_exit built 9806ms exit:0 interpreter-exit:0 interpreter:agrees @2e27303617ea
+pass/facts/checked_predicate_disjoint_loans_through_call_result_boolean_guard_predicate_exit rejected 9604ms interpreter:unchecked @3b8a34eae310
+	cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/checked_predicate_disjoint_loans_through_call_result_composed_runtime_predicate_exit rejected 8376ms interpreter:unchecked @3b8a34eae310
+	cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/facts/checked_predicate_disjoint_loans_through_call_result_record_predicate_exit built 9744ms exit:0 interpreter-exit:0 interpreter:agrees @2e27303617ea
+pass/facts/checked_predicate_disjoint_loans_through_call_result_runtime_index_predicate_exit rejected 8491ms interpreter:unchecked @3b8a34eae310
+	cannot prove requires contract for call replace from main: distinct(indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/checked_predicate_disjoint_loans_through_const_name_boolean_guard_predicate_exit built 11722ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_through_const_name_composed_runtime_predicate_exit built 9756ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
 pass/facts/checked_predicate_disjoint_loans_through_const_name_record_predicate_exit built 9804ms exit:0 interpreter-exit:0 interpreter:agrees @2e27303617ea
+pass/facts/checked_predicate_disjoint_loans_through_const_name_runtime_index_predicate_exit built 10363ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_through_field_boolean_guard_predicate_exit built 10143ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_through_field_composed_runtime_predicate_exit built 10948ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
 pass/facts/checked_predicate_disjoint_loans_through_field_record_predicate_exit built 9203ms exit:0 interpreter-exit:0 interpreter:agrees @2e27303617ea
+pass/facts/checked_predicate_disjoint_loans_through_field_runtime_index_predicate_exit built 9664ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_through_local_boolean_guard_predicate_exit built 9935ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_through_local_composed_runtime_predicate_exit built 9934ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
 pass/facts/checked_predicate_disjoint_loans_through_local_record_predicate_exit built 8929ms exit:0 interpreter-exit:0 interpreter:agrees @2e27303617ea
+pass/facts/checked_predicate_disjoint_loans_through_local_runtime_index_predicate_exit built 9552ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_through_match_join_boolean_guard_predicate_exit rejected 8772ms interpreter:unchecked @3b8a34eae310
+	cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/checked_predicate_disjoint_loans_through_match_join_composed_runtime_predicate_exit rejected 9275ms interpreter:unchecked @3b8a34eae310
+	cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/facts/checked_predicate_disjoint_loans_through_match_join_record_predicate_exit built 10057ms exit:0 interpreter-exit:0 interpreter:agrees @2e27303617ea
+pass/facts/checked_predicate_disjoint_loans_through_match_join_runtime_index_predicate_exit rejected 9093ms interpreter:unchecked @3b8a34eae310
+	cannot prove requires contract for call replace from main: distinct(first) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call replace from main: distinct(second) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/checked_predicate_disjoint_loans_through_other_machine_boolean_guard_predicate_exit built 10842ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_through_other_machine_composed_runtime_predicate_exit built 9839ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
 pass/facts/checked_predicate_disjoint_loans_through_other_machine_record_predicate_exit built 10109ms exit:0 interpreter-exit:0 interpreter:agrees @2e27303617ea
+pass/facts/checked_predicate_disjoint_loans_through_other_machine_runtime_index_predicate_exit built 9412ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_through_other_state_boolean_guard_predicate_exit built 13956ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_through_other_state_composed_runtime_predicate_exit built 11740ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
 pass/facts/checked_predicate_disjoint_loans_through_other_state_record_predicate_exit built 9344ms exit:0 interpreter-exit:0 interpreter:agrees @2e27303617ea
+pass/facts/checked_predicate_disjoint_loans_through_other_state_runtime_index_predicate_exit built 8767ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_through_parameter_boolean_guard_predicate_exit built 12200ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_through_parameter_composed_runtime_predicate_exit built 11266ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
 pass/facts/checked_predicate_disjoint_loans_through_parameter_record_predicate_exit built 10146ms exit:0 interpreter-exit:0 interpreter:agrees @2e27303617ea
+pass/facts/checked_predicate_disjoint_loans_through_parameter_runtime_index_predicate_exit built 8348ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_through_target_body_boolean_guard_predicate_exit built 12794ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
+pass/facts/checked_predicate_disjoint_loans_through_target_body_composed_runtime_predicate_exit built 12508ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
 pass/facts/checked_predicate_disjoint_loans_through_target_body_record_predicate_exit built 10038ms exit:0 interpreter-exit:0 interpreter:agrees @2e27303617ea
+pass/facts/checked_predicate_disjoint_loans_through_target_body_runtime_index_predicate_exit built 10642ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
 pass/facts/computed_subslice_extent_shared_predicate_inputs_exit built 9406ms exit:0 interpreter-exit:0 interpreter:agrees @93ac4da811fe
 pass/facts/data_where_standing_nested_borrowed_field_call_result built 10659ms exit:0 interpreter-exit:0 interpreter:agrees @d3679195288a
 pass/facts/data_where_standing_nested_borrowed_field_const_name built 10613ms exit:0 interpreter-exit:0 interpreter:agrees @d3679195288a
@@ -945,7 +987,7 @@ pass/calls/runtime_call_carrier_partition_exit built 2431ms exit:0 interpreter-e
 pass/calls/runtime_call_result_element_guard_exit built 6373ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/runtime_call_statement_before_state_return_exit built 6329ms exit:42 interpreter-exit:42 interpreter:agrees @a92f16431042
 pass/calls/runtime_case_payload_indexed_calls_exit built 6253ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/calls/runtime_case_payload_scalar_array_read_exit built 3848ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/calls/runtime_case_payload_scalar_array_read_exit built 11279ms exit:0 interpreter-exit:0 interpreter:agrees @3b8a34eae310
 pass/calls/runtime_case_record_return_exit built 6147ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/runtime_case_terminal_payload_result_exit built 2175ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/calls/runtime_closed_constructor_requires_exit built 5493ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
@@ -6497,6 +6539,7 @@ pass/operators/core_operator_spelling_surface built 2475ms @a92f16431042
 pass/operators/crash_routes built 2458ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/operators/division_value_entry_selection built 5569ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/operators/domain_operator_overload_signature_compile checked 1554ms @a92f16431042
+pass/operators/domain_qualified_boundary_operator_exit built 5957ms exit:0 interpreter-exit:0 interpreter:agrees @18fc751d0060+wt
 pass/operators/fixed_token_operators checked 1700ms @a92f16431042
 pass/operators/fixed_use_survives_division_and_call_exit built 4897ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a92f16431042
 pass/operators/float_operator_identities built 15539ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042

@@ -161,7 +161,7 @@ pub use proof_contracts::domains::{
     scalar_field_restriction, scalar_membership_carrier, scalar_membership_is_tag,
     scalar_membership_predicates, scalar_membership_value_carrier,
     scalar_membership_value_predicates, scalar_predicate_domains, scalar_type_routed_domains,
-    scalar_type_tags, validate_executable_domain_test_carriers,
+    scalar_type_tags, validate_domain_membership_carriers,
 };
 pub use proof_contracts::parameter_domains::parameter_domain_constraints;
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;

@@ -245,9 +245,11 @@ pub(super) fn prepare(catalog: &mut PreparedBoundarySignatures, typed: &TypedTre
         });
     }
 
-    // An opaque `satisfies Requirement via binding` leaf inherits its governing
-    // requirement's admitted contract, declaration ABI included
-    // (language/effects.md, "Opaque supplies inherit"). A provider that calls
+    // An opaque `satisfies Requirement` leaf inherits its governing
+    // requirement's admitted contract, declaration ABI included, however the
+    // realization is owned: authored `via`, a build-owned native binding, or
+    // toolchain inference (language/effects.md, "Opaque supplies inherit").
+    // A provider that calls
     // the leaf directly, rather than the trait member whose invocation edge its
     // own requirement does not publish, reaches the same exact ABI row. A
     // target family's synthesized interface is the boundary its callers see;
@@ -298,6 +300,7 @@ pub(super) fn prepare(catalog: &mut PreparedBoundarySignatures, typed: &TypedTre
         } else if matches!(
             machine.supply_mode,
             language_semantics::MachineSupplyMode::ExternalRealization { .. }
+                | language_semantics::MachineSupplyMode::Boundary
         ) {
             governing_application(machine)
         } else {
