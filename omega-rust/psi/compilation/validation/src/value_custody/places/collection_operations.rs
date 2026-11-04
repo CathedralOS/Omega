@@ -59,6 +59,32 @@ pub fn collection_measure_member(
     CollectionMeasure::from_authored_spelling(member.member.as_str())
 }
 
+/// `len` and `capacity` on the core `Vec<T>` carrier are the same `u64`
+/// measures as on a slice. The nominal vector has no stored fields; the
+/// trait contracts in `vec.omg` name these measures directly.
+pub fn core_vector_measure_member(
+    program: &dyn crate::CheckingInput,
+    member: &typed_trees::expression::TableMemberExpression,
+    receiver: TypeReferenceHandle,
+) -> bool {
+    if member.case_variant.is_some()
+        || CollectionMeasure::from_authored_spelling(member.member.as_str()).is_none()
+    {
+        return false;
+    }
+    let Some(carrier) =
+        crate::value_custody::reference_shells::carrier_beneath_borrows(program, receiver)
+    else {
+        return false;
+    };
+    let symbol = match program.type_reference_table.type_reference(carrier) {
+        TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+        TypeReferenceNode::Named { symbol, .. } => *symbol,
+        _ => return false,
+    };
+    crate::declarations::standard_declarations::is_core_vector(program, symbol)
+}
+
 /// Whether a declared type reference names a collection carrier: a fixed
 /// array or slice, reached through references and constraint shells.
 pub fn type_reference_is_collection(
