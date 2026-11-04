@@ -2,12 +2,27 @@
 
 Owning task: **FINITE-GENERIC-DISPATCH** in [TASKS.md](../../../../TASKS.md).
 
-Fact: A runtime-selected family calls its const-only method through the declared width list and returns the selected row's value.
+Fact: A runtime-selected family calls its const-only method through the declared width list, retains its required target call, and returns the selected row's value.
 
 `RuntimeFamily` accepts a runtime width of 16 or 32. Its `BridgeToConst`
 implementation calls the const-only `Family` method. The compiler must generate
 and check the closed bodies before that call; proving that an ordinary runtime
 argument belongs to the list does not itself make it constant.
+
+The current programs also require `WideRowTarget::preserve` in row 32.
+`HostedWideRow` preserves the input, and explicit Build rows select it for each
+hosted target. Both original widths and all four expected results remain the
+same. The nine strict runtime-to-const twins retain their original failure.
+
+The focused [uncalled-row program](../../../../tests/omega/pass/traits/finite_family_uncalled_target/main.omg)
+requests only width 16 but retains the complete declared family. Its
+[missing-supply control](../../../../tests/omega/pass/traits/finite_family_uncalled_target_missing_supply/main.omg)
+has identical Main source and removes only the four target-provider selections.
+That source is valid; native publication must refuse the missing requirement
+before either engine runs. The control uses an authored native-error oracle.
+
+These target-call additions are awaiting qualification. The earlier const-only
+bridge evidence below belongs to its recorded program revisions.
 
 Every positive transports both `Selected` and `Other` through its named place.
 It calls each at both widths. Their results are 16/17 at width 16 and 32/33 at
