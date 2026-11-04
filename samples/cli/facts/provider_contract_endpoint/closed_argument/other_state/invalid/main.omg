@@ -1,0 +1,41 @@
+// The selected provider makes limit() equal to 7; requires value <= limit() preserves the bound needed to prove 7 - value.
+// Expected exit: 0
+public boundary trait Endpoint {
+    machine upper<const Nonce: u64>() -> u64 reaches terminates;
+}
+public Actual satisfies Endpoint {
+    machine upper<const Nonce: u64>() -> u64 { 6 }
+}
+machine wrapping_endpoint(value: u8 in Wrapping) -> u64 { (value + 2) as u64 }
+machine argument_result(flag: bool) -> u64 {
+    wrapping_endpoint((match flag { true -> 254, false -> 0 }) + 1)
+}
+machine upper_bound<const N: u64>(value: u64) -> u64
+requires value <= N
+{ N }
+machine match_wrapping_policy_bound(value: u64) -> u64
+requires value <= wrapping_endpoint((match true { true -> 254, false -> 0 }) + 1)
+{ upper_bound<257>(value) }
+machine limit() -> u64 invokes Endpoint {
+    let admitted: u64 = match_wrapping_policy_bound(1);
+    Endpoint::upper<13u64>()
+}
+machine bounded(value: u64) -> u64 invokes Endpoint
+requires value <= limit()
+ensures result <= limit()
+{ value }
+public machine main() invokes Endpoint crashes Trap {
+    let produced: u64 = bounded(7);
+    let value: u64 = nested(produced);
+    let difference: u64 = 7u64 - value;
+    transition difference == 0 && limit() == 7u64  && match_wrapping_policy_bound(1) == 257 && argument_result(true) == 1 && argument_result(false) == 3 {
+        true -> done()
+        false -> bad()
+    }
+    machine nested(input: u64) -> u64
+    requires input <= limit()
+    ensures result <= limit()
+    { input }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

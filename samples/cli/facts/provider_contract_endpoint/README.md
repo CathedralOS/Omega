@@ -17,6 +17,12 @@ the helper first makes a call with its own requirement. Its twins require that
 same pending helper result to admit the call. All nine positives run with
 native/Terminal agreement, and every circular twin rejects during checking.
 
+The [closed-argument production](closed_argument/README.md) retains the same
+bound when a prerequisite's input condition contains arithmetic around a match.
+Its runtime assertions distinguish both Wrapping results. A separate control
+requires an out-of-range initial u8 landing to reject before evaluation.
+Qualification is still pending.
+
 The [guarded-crash production](guarded_crash/README.md) keeps the same bound
 when its helper has a guarded crash contract. It requires the compiler to prove
 the invocation safe before running the helper; changing only the divisor to zero
