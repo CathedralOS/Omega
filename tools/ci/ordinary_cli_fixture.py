@@ -134,7 +134,11 @@ def observe(root, producer, fixture, output):
         stdin = input_file if input_file is not None else subprocess.DEVNULL
         try:
             with (output / f"{stage}.stdout").open("wb") as out, (output / f"{stage}.stderr").open("wb") as err:
-                command_env = dict(env, OMEGA_REVIEW_TIMINGS="1") if stage in ("update", "resume") else env
+                command_env = (
+                    dict(env, OMEGA_REVIEW_TIMINGS="1", OMEGA_STRUCT_TRACE="1")
+                    if stage in ("update", "resume")
+                    else env
+                )
                 result = subprocess.run(arguments, cwd=cwd, env=command_env, stdin=stdin,
                                         stdout=out, stderr=err, timeout=timeout)
             event["exit_code"] = result.returncode
