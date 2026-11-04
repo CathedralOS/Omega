@@ -129,20 +129,17 @@ impl CompletedProviderDefaults {
                 }
             }
         }
-        for file in typed
-            .symbols
-            .source_files()
-            .into_iter()
-            // Compiler-generated Build protocol sources have their own checked
-            // custody. The core capture owns physical core files only; every
-            // source actually named by a selection was checked above.
-            .filter(|file| {
-                file.origin == SourceOrigin::Toolchain
-                    && file.path.starts_with(capture.canonical_live_root())
-            })
-        {
+        for file in typed.symbols.source_files() {
+            if crate::source::source_assembly::is_build_prelude_source(file)
+                && file.package_root == capture.canonical_live_root()
+            {
+                continue;
+            }
+            // A helper read outside core would not belong to the observation's
+            // captured inventory, even if none of its declarations was selected.
             admit_toolchain_source(&capture, &capture, file)?;
         }
+
         Ok(Self {
             supplier: ProviderDefaultSupplier::CapturedToolchain {
                 capture,
@@ -222,12 +219,11 @@ impl CompletedProviderDefaults {
                 .typed()
                 .symbols
                 .source_files()
-                .into_iter()
-                .filter(|file| {
-                    file.origin == SourceOrigin::Toolchain
-                        && file.path.starts_with(current.canonical_live_root())
-                })
+                .filter(|file| file.origin == SourceOrigin::Toolchain)
             {
+                if crate::source::source_assembly::is_build_prelude_source(file) {
+                    continue;
+                }
                 admit_toolchain_source(current, current, file)?;
             }
             if capture.tree() != current.tree() {
