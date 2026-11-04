@@ -841,6 +841,26 @@ fn same_custody(expected: &ConstInitializerCustody, actual: &ConstInitializerCus
             .all(|value| actual.call_selections.contains(value))
 }
 
+/// Describe a failed inventory comparison without printing constant payloads.
+/// Counts stay complete; only the first four source coordinates are retained.
+fn missing_dependency_prefix<Value: PartialEq, Description>(
+    required: &[Value],
+    available: &[Value],
+    mut describe: impl FnMut(&Value) -> Description,
+) -> (usize, Vec<Description>) {
+    let mut count = 0usize;
+    let mut prefix = Vec::new();
+    for value in required {
+        if !available.contains(value) {
+            count += 1;
+            if prefix.len() < 4 {
+                prefix.push(describe(value));
+            }
+        }
+    }
+    (count, prefix)
+}
+
 pub(crate) fn finalize(
     program: &mut SymbolResolvedTrees,
     records: &[PendingInitializer],
@@ -948,9 +968,26 @@ pub(crate) fn finalize(
                 .iter()
                 .any(|value| !preparation.call_selections.contains(value))
         {
+            let missing_selections = missing_dependency_prefix(
+                &realized.selections,
+                &preparation.selections,
+                |origin| (origin.reference, origin.declaration, origin.initializer),
+            );
+            let missing_operators = missing_dependency_prefix(
+                &realized.builtin_operators,
+                &preparation.builtin_operators,
+                |source| *source,
+            );
+            let missing_calls = missing_dependency_prefix(
+                &realized.call_selections,
+                &preparation.call_selections,
+                |call| *call,
+            );
             return Err(error(
                 record.declaration,
-                "realized custody has no exact source preparation dependency",
+                &format!(
+                    "realized custody has no exact source preparation dependency: missing selections (count, source prefix) {missing_selections:?}; missing operators (count, source prefix) {missing_operators:?}; missing calls (count, source prefix) {missing_calls:?}"
+                ),
             ));
         }
         roots.push(attach_custody(
