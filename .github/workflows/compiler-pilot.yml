@@ -20,6 +20,10 @@ on:
         description: Check only the exact fixtures and rejection controls, without repeating runtime observations
         type: boolean
         default: false
+      compiler_diagnostics:
+        description: Enable verbose compiler diagnostics for a focused run
+        type: boolean
+        default: false
       samples:
         description: Optional comma-separated exact samples/cli/facts project paths (with descendants); replaces smoke
         type: string
@@ -142,6 +146,9 @@ jobs:
       - name: Observe public Build consent and filesystem isolation
         if: github.event_name == 'workflow_dispatch' && inputs.build_consent
         run: python tools/ci/build_consent_controls.py
+      - name: Enable requested compiler diagnostics
+        if: github.event_name == 'workflow_dispatch' && inputs.compiler_diagnostics
+        run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_PROVIDER_DEBUG=1\nOMEGA_COMPILER_CHECK_SITES=1\n')"
       - name: Optional executable observations
         if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
         env:
