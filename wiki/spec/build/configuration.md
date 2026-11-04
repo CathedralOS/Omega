@@ -168,9 +168,17 @@ parsing, resolution, typing, checking, proof, and Terminal Psi production do
 not observe a selected target. Every supplied named implementation is resolved,
 typed, checked, and published under its ordinary declaration identity, including
 implementations not selected for realization. A Windows realization therefore
-does not hide an error in a supplied macOS implementation. Target-prefixed
+does not hide a source error in a supplied macOS implementation. Target-prefixed
 machine declarations and implicit same-path target-body families are retired;
 targets are Build/toolchain data, not source declaration modifiers.
+
+Universal source checking does not instantiate every unused target layout.
+[Demand-driven layout formation](../layouts/plans.md#layout-demand-and-validation)
+evaluates concrete geometry only for its actual consumers, entries and selected
+Build-row closures. A declared row for a target outside the realization set
+still demands its applicable layouts; a body reached by no row or entry does
+not acquire every supplied target merely because it was source-checked.
+Any later consumer must validate the exact application before use.
 
 Build evaluation runs once for the whole compilation. It does not observe a
 single selected target and cannot branch on one; target-dependent selections

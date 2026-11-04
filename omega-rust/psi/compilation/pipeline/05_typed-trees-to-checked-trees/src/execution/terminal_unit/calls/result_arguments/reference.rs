@@ -15,7 +15,6 @@ use facts::PlaceRoot;
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
-use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::TypeReferenceHandle;
@@ -38,7 +37,7 @@ pub(crate) fn argument(
     owner: PlaceRoot,
     reference: TypeReferenceHandle,
     result: &CheckedUnitStructuralResultBindingPlan,
-    parameter: &StateParameter,
+    parameter: TypeReferenceHandle,
     target_identity: TypeIdentityId,
     trace: &LocalConstructionTrace,
     selectors: Option<&dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>>,
@@ -51,7 +50,7 @@ pub(crate) fn argument(
     let (referent, carrier_access) =
         reference_result_custody::stored_loan_parts(program, reference)?;
     phase("result reference argument: formal access");
-    let access = structural_access_for_type_reference(program, parameter.type_reference)?;
+    let access = structural_access_for_type_reference(program, parameter)?;
     phase("stored reference argument: access");
     if access == CheckedStructuralAccess::Owned
         || (carrier_access != CheckedStructuralAccess::MutableBorrow && carrier_access != access)
@@ -79,8 +78,7 @@ pub(crate) fn argument(
         // This operand owns its selector evaluation. Stored-reference roots
         // use that occurrence's captured scalar slots just like other result
         // projections, rather than reloading an invocation-entry parameter.
-        let (_, prefix) =
-            borrowed_argument_endpoint(program, referent, path, parameter.type_reference)?;
+        let (_, prefix) = borrowed_argument_endpoint(program, referent, path, parameter)?;
         path = prefix;
         let ProjectedArgumentPath {
             storage_type: selected,
@@ -98,8 +96,7 @@ pub(crate) fn argument(
         selected
     };
     phase("stored reference argument: lent endpoint");
-    let (selected, path) =
-        borrowed_argument_endpoint(program, selected, path, parameter.type_reference)?;
+    let (selected, path) = borrowed_argument_endpoint(program, selected, path, parameter)?;
     phase("stored reference argument: receiving identity");
     if stored_structural_type_identity(program, selected, &[], &[]) != target_identity {
         return None;

@@ -5,13 +5,15 @@ public data Counter [copy] requires self.cell.value <= 60 && self.peer <= 60 { b
 public machine fill(counter: &write Counter, replacement: i32)
 requires replacement <= 60
 {
+    counter.cell.value = 61;
     counter.cell.value = replacement;
 }
 machine produce(replacement: i32) -> Counter
 requires replacement <= 60
 {
     let mut counter: Counter = Counter { before: 31, cell: Cell { left: 17, value: 0, right: 53 }, peer: 13, after: 47 };
-    fill(&write counter, replacement);
+    let selected: &write Counter = &write counter;
+    fill(&write selected, replacement);
     counter
 }
 

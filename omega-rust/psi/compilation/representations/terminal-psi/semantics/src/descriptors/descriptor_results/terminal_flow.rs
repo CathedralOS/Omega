@@ -307,6 +307,13 @@ pub(super) fn adapt(
             };
             let mut payload_writes = Vec::new();
             match &operation.kind {
+                OperationKind::GlobalDescriptorTable {
+                    operation: terminal_psi::GlobalDescriptorTableOperation::Store,
+                    source,
+                    ..
+                } => {
+                    payload_writes.push(payload_query(source.place, &source.path, None));
+                }
                 OperationKind::WriteOnlyPrimitiveStore {
                     destination, path, ..
                 } => {

@@ -3255,9 +3255,9 @@ pass/facts/match_join_multi_variant_bound_through_call_result_exit built 3053ms 
 pass/facts/match_join_multi_variant_bound_through_const_name_exit built 2695ms exit:0 @a92f16431042
 pass/facts/match_join_multi_variant_bound_through_field_exit built 2514ms exit:0 @a92f16431042
 pass/facts/match_join_multi_variant_bound_through_local_exit built 3144ms exit:0 @a92f16431042
-pass/facts/match_join_multi_variant_bound_through_match_join_exit built 2477ms exit:0 @a92f16431042
+pass/facts/match_join_multi_variant_bound_through_match_join_exit built 10067ms exit:0 @98d86c84991c
 pass/facts/match_join_multi_variant_bound_through_other_machine_exit built 2486ms exit:0 @a92f16431042
-pass/facts/match_join_multi_variant_bound_through_other_state_exit built 2987ms exit:0 @a92f16431042
+pass/facts/match_join_multi_variant_bound_through_other_state_exit built 10460ms exit:0 @d89ddb8f4ce9+wt
 pass/facts/match_join_multi_variant_bound_through_parameter_exit built 2976ms exit:0 @a92f16431042
 pass/facts/match_join_multi_variant_bound_through_target_body_exit built 2690ms exit:0 @a92f16431042
 pass/facts/match_join_place_read_through_call_result_exit built 2668ms exit:0 @a92f16431042
@@ -5732,6 +5732,7 @@ pass/operators/core_operator_spelling_surface built 4841ms @a92f16431042
 pass/operators/crash_routes built 5454ms exit:0 @a92f16431042
 pass/operators/division_value_entry_selection built 19089ms exit:70 @a92f16431042
 pass/operators/domain_operator_overload_signature_compile checked 2846ms @a92f16431042
+pass/operators/domain_qualified_boundary_operator_exit built 6368ms exit:0 @18fc751d0060+wt
 pass/operators/fixed_token_operators checked 4578ms @a92f16431042
 pass/operators/fixed_use_survives_division_and_call_exit built 19325ms exit:0 stdout:match stderr:match @a92f16431042
 pass/operators/float_operator_identities built 23758ms exit:70 @a92f16431042

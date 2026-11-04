@@ -939,6 +939,7 @@ fn image_fixture() -> (Vec<StructuralTypeDeclaration>, TerminalAccessLifecyclePl
         // These identities are deliberately inert here: a codec test grants
         // neither an extent nor a selected-provider settlement.
         storage: TerminalAccessStorage {
+            owner: terminal_psi::TerminalAccessOwner::Extent,
             carrier: StructuralTypeId::new(4).unwrap(),
             base: StructuralFieldId::new(5).unwrap(),
             length: StructuralFieldId::new(6).unwrap(),

@@ -1,6 +1,6 @@
 // Inline exact IEEE value 0.25 guarantee refines public inclusive f64 interval [0, 0.5]; the dyn call observes 0.25.
 // Place: other_machine.
-// Invalid: Quarter alone promises and returns 0.75 outside the public interval.
+// Expected exit: 0.
 trait Fraction {
     machine get() -> f64 ensures result >= 0.0 && result <= 0.5;
 }

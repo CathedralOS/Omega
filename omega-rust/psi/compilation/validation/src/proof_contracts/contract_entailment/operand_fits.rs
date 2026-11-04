@@ -1280,6 +1280,34 @@ impl StructuralPrefixVisitor for OperandFit {
                     let judgment = entry
                         .judge
                         .integer_term_fit_judgment(result.clone(), self.request.target);
+                    // A completed operand keeps the range its producer recorded,
+                    // such as a call result inferred from the callee's returns.
+                    // The premise judgment does not read that range; composing
+                    // the operands' recorded ranges does. When the composed
+                    // range is closed and inside the target, the operation fits.
+                    // Only an undecided fit may be settled this way: a refuted
+                    // or pending fit stays as judged. An address's limit is the
+                    // target model's `addr::Bound`, not its carrier width, so
+                    // address results keep the model judgment.
+                    let judgment = if !matches!(judgment, CarrierFit::Unknown)
+                        || self.request.target == PrimitiveType::Addr
+                    {
+                        judgment
+                    } else if let Some((low, high)) = self.request.target.integer_bounds()
+                        && entry
+                            .judge
+                            .completed_integer_range_recipe(&result)
+                            .as_ref()
+                            .and_then(checked_trees::IntegerRangeRecipe::ground_bounds)
+                            .is_some_and(|(minimum, maximum)| {
+                                &BigInt::from_i128(low) <= minimum
+                                    && maximum <= &BigInt::from_i128(high)
+                            })
+                    {
+                        CarrierFit::Proven
+                    } else {
+                        judgment
+                    };
                     let recipe = if matches!(judgment, CarrierFit::Proven) {
                         // A proved path already establishes the result carrier.
                         // Re-expanding loose operand intervals must not undo it.

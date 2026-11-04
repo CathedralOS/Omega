@@ -246,7 +246,7 @@ fn access_coordinates(
         .ok_or(SelectedInstructionError::custody())?;
     let coordinates = match &row.kind {
         I::ByteSequenceRead { source, .. } => vec![whole(*source)],
-        I::StorageAddress { source, path, .. } => {
+        I::StorageAddress { source, path, .. } | I::GlobalDescriptorTable { source, path, .. } => {
             let signature = function
                 .structural
                 .as_ref()

@@ -589,6 +589,23 @@ pub(super) fn encode(
                     super::structural_types::encode_structural_place(bytes, *place);
                     super::structural_types::encode_structural_type(bytes, structural_type);
                 }
+                LegalizedScalarInstructionKind::GlobalDescriptorTable {
+                    service,
+                    operation,
+                    source,
+                    path,
+                    indices,
+                } => {
+                    bytes.push(130);
+                    bytes.extend_from_slice(&service.get().to_le_bytes());
+                    bytes.push(match operation {
+                        terminal_psi::GlobalDescriptorTableOperation::Store => 0,
+                        terminal_psi::GlobalDescriptorTableOperation::Load => 1,
+                    });
+                    bytes.extend_from_slice(&source.get().to_le_bytes());
+                    super::structural_types::encode_structural_path(bytes, path);
+                    encode_runtime_indices(bytes, indices);
+                }
                 LegalizedScalarInstructionKind::StorageAddress {
                     source,
                     path,
