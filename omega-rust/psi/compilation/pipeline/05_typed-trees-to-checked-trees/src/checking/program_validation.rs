@@ -91,14 +91,6 @@ pub(crate) fn entailment_errors_first(
     deferred: validation::DeferredEntailment,
     errors: Vec<Diagnostic>,
 ) -> Vec<Diagnostic> {
-    if std::env::var_os("OMEGA_PRIMARY_REFUSAL_TRACE").is_some() {
-        for diagnostic in &errors {
-            eprintln!(
-                "CHECK primary-refusal storage_graph={} diagnostic={diagnostic}",
-                program.storage_graph().is_some()
-            );
-        }
-    }
     match validation::judge_contract_entailment(program, deferred) {
         Ok(_) => errors,
         Err(entailment) => entailment,
