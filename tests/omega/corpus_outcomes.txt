@@ -312,6 +312,8 @@ fail/domains/routed_qualification_erased_reference_annotation rejected 6811ms ex
 	cannot prove initializer of `held` in main is in domain `Ticket::Held`; an annotation cannot establish routed qualification
 fail/domains/routed_qualification_erased_return rejected 6034ms expected @f2672d675498
 	cannot prove default-domain field requirement for return from forward, state entry, at statement 0: t as Ticket  requires Ticket::Held
+fail/domains/routed_qualification_erased_stored_reference_field rejected 19630ms expected @a609da6cfce8+wt
+	cannot prove requires contract for call observe from main: v.t in Ticket::Held in state `entry`
 fail/domains/routed_qualification_erased_transition_argument rejected 4714ms expected @f2672d675498
 	cannot prove requires contract for call next from main: issued as Ticket in Ticket::Held in state `entry`
 fail/drops/retired_attached_drop rejected 2739ms expected @ee4dbb4b2d56
@@ -4846,10 +4848,8 @@ pass/build/runtime_main_source_builder_is_ordinary_exit checked 16326ms check-ta
 pass/build/runtime_opaque_by_value_selected_exit checked 16099ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/runtime_retained_const_application_exit checked 4046ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/runtime_static_service_exclusion_exit checked 4365ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/same_leaf_runner_entry_left_exit rejected 973ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	product entry `left::Runner::run` is incompatible with slot `macos_arm64::ProgramEntry`: hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `runner`
-pass/build/same_leaf_runner_entry_right_exit rejected 771ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	product entry `right::Runner::run` is incompatible with slot `macos_arm64::ProgramEntry`: hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `runner`
+pass/build/same_leaf_runner_entry_left_exit checked 137629ms check-target:macos_arm64 @05cd26b99f66
+pass/build/same_leaf_runner_entry_right_exit checked 120183ms check-target:macos_arm64 @05cd26b99f66
 pass/build/selected_const_array_length_exit rejected 6094ms regressed-from:checked+check-target:macos_arm64 @b23365ced206+wt
 	fixed-array length `[u8; slot_count()]`: const evaluation of `slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-61` has non-hermetic source origin `User`"))
 	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-64` has non-hermetic source origin `User`"))
@@ -17489,8 +17489,9 @@ fail/build/product_selection_repeated_helper rejected 432ms expected @ccdb99ca22
 	build selects opaque representation `Token` more than once
 fail/build/product_selection_unused_invalid_carrier rejected 487ms expected @ccdb99ca2214
 	opaque representation carrier graph at `TokenBytes` is affine; a copyable opaque datum requires every carrier declaration to be structurally `[copy]`; v1 carriers must be inert storage
-fail/build/program_entry_binding_outside_build rejected 115ms unexpected @ccdb99ca2214
-	Build selection requires its exact toolchain protocol
+fail/build/program_entry_binding_outside_build rejected 1936ms expected @05cd26b99f66
+	argument `builder` for state `prepare` expects `&Build`, got `named value`; expected carrier `ref(named(name(nominal\\(toolchain-owner\\,path\\(Build\\)\\))))`, declared place carrier `named(name(nominal\\(package-owner\\(32:787872d1d8981bd28a9b55962ada1d6d09dbb87a2a3ab944cefe773b82514a48\\)\\,path\\(Main\\)\\)))`
+	argument `builder` for state `prepare` expects the `Build` data type but got `Main` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/build/program_entry_receiver_not_zii rejected 2046ms expected @911f6617ba9e
 	machine `entry_start` state `entry` statement 1: reading `entry_storage.<whole value>` crosses an open default-domain invariant window before data `Application` is established: the zeroed representation is not yet a `Application` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/build/program_entry_returns_value rejected 3446ms expected @ccdb99ca2214

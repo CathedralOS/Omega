@@ -56,7 +56,7 @@ pub fn admit_build_machine(
     prepared: &PreparedBuildMachineProgram,
     machine_symbol: SymbolHandle,
     service_reach_plan: &flow_effects::ServiceReachInferencePlan,
-    filesystem_scope: &BuildMachineFilesystemScope,
+    filesystem_scope: &mut BuildMachineFilesystemScope,
 ) -> Result<SelectedBuildMachine, Vec<Diagnostic>> {
     let typed = prepared.typed();
     let machine = typed.machine(machine_symbol).ok_or_else(|| {
