@@ -20080,17 +20080,13 @@ pass/borrows/suspension_saved_reference_view_source_replaced_exit checked 5500ms
 pass/borrows/tagged_scalar_field_live_copy_exit checked 3101ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/target_family_backing_alternatives_exit checked 3334ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/terminal_call_loan_completion_exit checked 3580ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/transition_shared_borrow_result rejected 53533ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @779f5c77adcc
-	machine `result_place` state `entry` statement 5: reading `plan` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut BoundaryEntryPlan`
-	machine `result_place` state `entry` statement 5: the next whole-value read of `plan` occurs inside an OPEN invariant window: a prior write left data `CallPlan`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 6 in machine `result_place` state `entry`: this write left the `requires` facts of `plan.call` (data `CallPlan`) unproved; restore them first
+pass/borrows/transition_shared_borrow_result rejected 0ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
 pass/borrows/view_field_record_exit_disposal checked 2706ms @ccdb99ca2214
 pass/borrows/view_local_rebind_keeps_alias_exit checked 173205ms check-target:macos_arm64 @7a2c1562808d
 pass/borrows/write_projection_loan checked 3150ms @ccdb99ca2214
-pass/borrows/writeonly_record_field_store rejected 53561ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @779f5c77adcc
-	machine `result_place` state `entry` statement 5: reading `plan` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut BoundaryEntryPlan`
-	machine `result_place` state `entry` statement 5: the next whole-value read of `plan` occurs inside an OPEN invariant window: a prior write left data `CallPlan`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 6 in machine `result_place` state `entry`: this write left the `requires` facts of `plan.call` (data `CallPlan`) unproved; restore them first
+pass/borrows/writeonly_record_field_store rejected 0ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
 pass/borrows/writeonly_record_field_store_variants checked 18054ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/interleaved_structural_crash_formal_exit checked 4048ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/later_state_requirement_scalar_result_exit rejected 16018ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -20692,29 +20688,19 @@ pass/collections/contract_length_qualified_result_cast_exit checked 3326ms check
 pass/collections/contract_length_results_exit checked 6891ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/cyclic_shared_plain_array_parameter_exit checked 35589ms check-target:macos_arm64 @1e29a538216e
 pass/collections/element_policy_array_literal_store checked 16905ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/element_view_borrow_local rejected 45691ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @779f5c77adcc
-	machine `result_place` state `entry` statement 5: reading `plan` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut BoundaryEntryPlan`
-	machine `result_place` state `entry` statement 5: the next whole-value read of `plan` occurs inside an OPEN invariant window: a prior write left data `CallPlan`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 6 in machine `result_place` state `entry`: this write left the `requires` facts of `plan.call` (data `CallPlan`) unproved; restore them first
-pass/collections/element_view_edge_loan rejected 46556ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @779f5c77adcc
-	machine `result_place` state `entry` statement 5: reading `plan` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut BoundaryEntryPlan`
-	machine `result_place` state `entry` statement 5: the next whole-value read of `plan` occurs inside an OPEN invariant window: a prior write left data `CallPlan`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 6 in machine `result_place` state `entry`: this write left the `requires` facts of `plan.call` (data `CallPlan`) unproved; restore them first
+pass/collections/element_view_borrow_local rejected 0ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
+pass/collections/element_view_edge_loan rejected 12ms regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
+	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
 pass/collections/element_view_field_write checked 17975ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/element_view_indexed_read checked 18486ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/element_view_indexed_write checked 22124ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/element_view_runtime_field_write rejected 46489ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @779f5c77adcc
-	machine `result_place` state `entry` statement 5: reading `plan` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut BoundaryEntryPlan`
-	machine `result_place` state `entry` statement 5: the next whole-value read of `plan` occurs inside an OPEN invariant window: a prior write left data `CallPlan`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 6 in machine `result_place` state `entry`: this write left the `requires` facts of `plan.call` (data `CallPlan`) unproved; restore them first
-pass/collections/element_view_runtime_loan_read rejected 46684ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @779f5c77adcc
-	machine `result_place` state `entry` statement 5: reading `plan` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut BoundaryEntryPlan`
-	machine `result_place` state `entry` statement 5: the next whole-value read of `plan` occurs inside an OPEN invariant window: a prior write left data `CallPlan`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 6 in machine `result_place` state `entry`: this write left the `requires` facts of `plan.call` (data `CallPlan`) unproved; restore them first
-pass/collections/element_view_whole_write rejected 46604ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @779f5c77adcc
-	machine `result_place` state `entry` statement 5: reading `plan` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut BoundaryEntryPlan`
-	machine `result_place` state `entry` statement 5: the next whole-value read of `plan` occurs inside an OPEN invariant window: a prior write left data `CallPlan`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 6 in machine `result_place` state `entry`: this write left the `requires` facts of `plan.call` (data `CallPlan`) unproved; restore them first
+pass/collections/element_view_runtime_field_write rejected 0ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
+pass/collections/element_view_runtime_loan_read rejected 0ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
+pass/collections/element_view_whole_write rejected 0ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
 pass/collections/element_view_write_transition checked 11948ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/empty_record_array_borrow_exit checked 3012ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/float_array_completed_call_store_exit checked 22636ms check-target:macos_arm64 @ccdb99ca2214
@@ -20728,10 +20714,8 @@ pass/collections/integer_index_every_width checked 1969ms @ccdb99ca2214
 pass/collections/local_byte_array_input_state_loan_exit checked 17121ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/mutable_slice_view_edge_release checked 17361ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/mutable_slice_view_establishment checked 11878ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/named_transition_completion rejected 45275ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @118d54dc5f50
-	machine `result_place` state `entry` statement 5: reading `plan` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut BoundaryEntryPlan`
-	machine `result_place` state `entry` statement 5: the next whole-value read of `plan` occurs inside an OPEN invariant window: a prior write left data `CallPlan`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 6 in machine `result_place` state `entry`: this write left the `requires` facts of `plan.call` (data `CallPlan`) unproved; restore them first
+pass/collections/named_transition_completion rejected 0ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
 pass/collections/nested_empty_record_array_borrow_exit checked 3226ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/nested_runtime_indexed_successor_argument_exit checked 16621ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/owned_array_scalar_comparisons checked 2641ms @ccdb99ca2214
@@ -20835,10 +20819,8 @@ pass/collections/runtime_three_indexed_record_float_read_exit checked 17197ms ch
 pass/collections/runtime_vec_u32_growth_exit checked 37271ms check-target:macos_arm64 @66ee9999011e+wt
 pass/collections/runtime_view_element_structural_replacement_exit checked 2994ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/runtime_whole_array_value_copy_exit checked 5630ms check-target:macos_arm64 @27c558b731f4
-pass/collections/shared_slice_view_dropped_receiver rejected 45856ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @779f5c77adcc
-	machine `result_place` state `entry` statement 5: reading `plan` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut BoundaryEntryPlan`
-	machine `result_place` state `entry` statement 5: the next whole-value read of `plan` occurs inside an OPEN invariant window: a prior write left data `CallPlan`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 6 in machine `result_place` state `entry`: this write left the `requires` facts of `plan.call` (data `CallPlan`) unproved; restore them first
+pass/collections/shared_slice_view_dropped_receiver rejected 0ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
 pass/collections/std_option_runtime_match_exit checked 17317ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/std_option_surface checked 2089ms @ccdb99ca2214
 pass/collections/view_record_element_member_read_exit checked 20495ms check-target:macos_arm64 @ccdb99ca2214
@@ -27776,16 +27758,8 @@ pass/recast/returned_same_type_view_capture_exit checked 3563ms check-target:mac
 pass/recast/returned_view_state_and_record_composition_exit checked 3840ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_aggregate_slice_representation_recast_exit checked 82004ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_authored_toolchain_type_shadow_exit checked 3041ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/runtime_bool_representation_recast_exit rejected 46707ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @779f5c77adcc
-	machine `result_place` state `entry` statement 5: reading `plan` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut BoundaryEntryPlan`
-	machine `result_place` state `entry` statement 5: the next whole-value read of `plan` occurs inside an OPEN invariant window: a prior write left data `CallPlan`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 6 in machine `result_place` state `entry`: this write left the `requires` facts of `plan.call` (data `CallPlan`) unproved; restore them first
-	machine `mutate` state `entry` statement 3: reading `main` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Main`
-	machine `mutate` state `entry` statement 3: the next whole-value read of `main` occurs inside an OPEN invariant window: a prior write left data `Main`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 4 in machine `mutate` state `entry`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
-	machine `mutate` state `entry` statement 3: reading `main` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Main`
-	machine `mutate` state `entry` statement 3: the next whole-value read of `main` occurs inside an OPEN invariant window: a prior write left data `Main`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 4 in machine `mutate` state `entry`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
+pass/recast/runtime_bool_representation_recast_exit rejected 6ms regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
+	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
 pass/recast/runtime_boolean_view_decision_exit checked 11185ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_byte_region_state_transfer_exit checked 3561ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_captured_guard_conjunction_exit checked 4074ms check-target:macos_arm64 @ccdb99ca2214
@@ -27813,10 +27787,8 @@ pass/recast/runtime_nested_scalar_view_loan_exit checked 3302ms check-target:mac
 pass/recast/runtime_nested_view_subregion_forwarding_exit checked 3688ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_offset_byte_recast_mutable_write_exit rejected 17004ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
 	cannot establish assignment invariants: source storage interpretation is unavailable
-pass/recast/runtime_recast_record_view_indexed_write_exit rejected 46661ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @779f5c77adcc
-	machine `result_place` state `entry` statement 5: reading `plan` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut BoundaryEntryPlan`
-	machine `result_place` state `entry` statement 5: the next whole-value read of `plan` occurs inside an OPEN invariant window: a prior write left data `CallPlan`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 6 in machine `result_place` state `entry`: this write left the `requires` facts of `plan.call` (data `CallPlan`) unproved; restore them first
+pass/recast/runtime_recast_record_view_indexed_write_exit rejected 0ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
 pass/recast/runtime_record_array_view_mutable_write_exit rejected 22967ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
 	cannot establish assignment invariants: source storage interpretation is unavailable
 	cannot establish assignment invariants: source storage interpretation is unavailable
@@ -28341,10 +28313,8 @@ pass/termination/rank_arrival_captured_record_fields_exit checked 4431ms check-t
 pass/termination/rank_arrival_fresh_nested_owner checked 4903ms check-target:macos_arm64 @d352d5e8e77e
 pass/termination/rank_arrival_same_carrier_fields_exit checked 4555ms check-target:macos_arm64 @d352d5e8e77e
 pass/termination/rank_arrival_unobserved_array_extent_compile checked 4028ms check-target:macos_arm64 @d352d5e8e77e
-pass/termination/rank_endpoint_borrows_recovery rejected 40845ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @779f5c77adcc
-	machine `result_place` state `entry` statement 5: reading `plan` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut BoundaryEntryPlan`
-	machine `result_place` state `entry` statement 5: the next whole-value read of `plan` occurs inside an OPEN invariant window: a prior write left data `CallPlan`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 6 in machine `result_place` state `entry`: this write left the `requires` facts of `plan.call` (data `CallPlan`) unproved; restore them first
+pass/termination/rank_endpoint_borrows_recovery rejected 5ms regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
+	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
 pass/termination/rank_range_call_component checked 3522ms check-target:macos_arm64 @ccdb99ca2214
 pass/termination/rank_range_call_declared_step_copy checked 2127ms @ccdb99ca2214
 pass/termination/rank_range_declared_step_copies checked 3634ms @d352d5e8e77e
