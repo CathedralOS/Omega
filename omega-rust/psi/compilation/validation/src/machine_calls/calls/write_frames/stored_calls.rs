@@ -78,9 +78,6 @@ fn call_effects(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<SlotRelationTransfer> {
-    if crate::compiler_operations::expression_call_only_observes_operands(program, call) {
-        return Some(SlotRelationTransfer::complete(Vec::new()));
-    }
     invocation_effects(
         program,
         machine,
