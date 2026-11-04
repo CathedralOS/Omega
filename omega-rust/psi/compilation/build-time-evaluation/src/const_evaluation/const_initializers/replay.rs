@@ -143,9 +143,9 @@ pub(crate) fn validate(
                     "floating constant result encoding lost its exact declared format",
                 )
             })?;
+            validate_replay_roots(typed, declaration, retained_call || authored_call)
+                .map_err(|reason| super::failure(reference, reason))?;
             if retained_call || authored_call {
-                validate_replay_roots(typed, declaration, true)
-                    .map_err(|reason| super::failure(reference, reason))?;
                 replay_declarations.push(declaration);
                 floating_declarations.push((declaration, destination));
             } else {
@@ -458,6 +458,18 @@ fn validate_replay_roots(
     declaration: &typed_trees::constant::ConstDeclaration,
     has_calls: bool,
 ) -> Result<(), String> {
+    // Check ownership while the complete source roster is still available.
+    // Private execution projections may later omit this declaration, so carry
+    // the same validated declaration through both receiving custody checks.
+    let retained = program
+        .const_declaration_by_symbol(declaration.symbol)
+        .ok_or("constant call receipt has no exact source declaration")?;
+    if retained.authored_initializer != declaration.authored_initializer
+        || retained.materialized_initializer != declaration.materialized_initializer
+        || retained.declared_type != declaration.declared_type
+    {
+        return Err("constant call receipt names another declaration's initializer roots".into());
+    }
     let table = &program.expression_table;
     if !table.expression_is_valid(declaration.authored_initializer)
         || !table.expression_is_valid(declaration.materialized_initializer)

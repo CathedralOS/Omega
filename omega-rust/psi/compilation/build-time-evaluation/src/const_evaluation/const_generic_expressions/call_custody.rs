@@ -352,15 +352,6 @@ fn validate(
     declaration: &typed_trees::constant::ConstDeclaration,
     specialized_calls: bool,
 ) -> Result<Vec<DependencyValue>, String> {
-    let retained = program
-        .const_declaration_by_symbol(declaration.symbol)
-        .ok_or("constant call receipt has no exact source declaration")?;
-    if retained.authored_initializer != declaration.authored_initializer
-        || retained.materialized_initializer != declaration.materialized_initializer
-        || retained.declared_type != declaration.declared_type
-    {
-        return Err("constant call receipt names another declaration's initializer roots".into());
-    }
     let root = declaration.authored_initializer;
     let materialized = declaration.materialized_initializer;
     if !program.expression_table.expression_is_valid(materialized) {
@@ -388,8 +379,9 @@ fn validate(
         let target = (selection.source_span(), selected.selected_symbol());
         push_unique(&mut expected, target);
     }
-    // Receiving replay uses a private machine, but these roots still belong
-    // to the exact source declaration checked above. Keep both identities.
+    // Source replay authenticated this declaration before execution projection.
+    // Its roots keep that source owner even when the private program omits the
+    // declaration root. The execution machine and state remain independent.
     let actual = collect_in_context(
         program,
         Context {
