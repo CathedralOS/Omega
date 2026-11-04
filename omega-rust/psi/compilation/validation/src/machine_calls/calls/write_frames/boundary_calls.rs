@@ -657,13 +657,27 @@ fn boundary_written_argument_paths(
     written: &mut Vec<String>,
     bindings: &[(SymbolHandle, TypeReferenceHandle)],
     inference: &mut FrameInference,
+    argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<()> {
-    for (parameter, argument) in parameters.into_iter().zip(arguments) {
+    if parameters.len() != arguments.len()
+        || argument_origins.is_some_and(|origins| origins.len() != arguments.len())
+    {
+        return None;
+    }
+    for (index, (parameter, argument)) in parameters.into_iter().zip(arguments).enumerate() {
         let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
         let parameter_type = substituted_head(program, parameter_type, bindings);
         let TypeReferenceNode::Reference { access, .. } =
             program.type_reference_table.type_reference(parameter_type)
         else {
+            // A copied carrier keeps the references captured with that value.
+            // Unknown operand contents cannot be reconstructed from a later
+            // spelling, even when its containing home is still known.
+            if super::type_capabilities::type_may_carry_write(program, parameter_type)
+                && let Some(origins) = argument_origins
+            {
+                origins.get(index)?.as_ref()?;
+            }
             for path in super::path_instantiation::aggregate_arguments::written_paths(
                 program,
                 current_machine,
@@ -682,14 +696,24 @@ fn boundary_written_argument_paths(
         if !access.is_exclusive() {
             continue;
         }
-        for origin in boundary_argument_origins(
-            program,
-            current_machine,
-            machine_symbols,
-            symbols,
-            *argument,
-            inference,
-        )? {
+        let origins = match argument_origins {
+            Some(origins) => origins.get(index)?.clone(),
+            None => boundary_argument_origins(
+                program,
+                current_machine,
+                machine_symbols,
+                symbols,
+                *argument,
+                inference,
+            ),
+        };
+        if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+            eprintln!(
+                "CALLWRITE boundary-argument caller={} parameter={:?} argument={argument:?} origins={origins:?}",
+                current_machine.name, parameter.symbol
+            );
+        }
+        for origin in origins? {
             let path = super::place_paths::project_write_path(program, &origin, "");
             if !written.contains(&path) {
                 written.push(path);
@@ -802,6 +826,7 @@ pub(super) fn known_requirement_call_written_paths_for_parts(
     site: CallerWriteSite<'_>,
     arguments: &[ExpressionHandle],
     inference: &mut FrameInference,
+    argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
     // A selector call targets its instantiated slot: the requirement with its
     // trait arguments substituted and the selector as operand 0. Dispatch
@@ -812,6 +837,10 @@ pub(super) fn known_requirement_call_written_paths_for_parts(
     {
         let leading = slot.parameters.len() - slot.data_parameters().len();
         let data_arguments = arguments.get(leading..)?;
+        let data_origins = match argument_origins {
+            Some(origins) => Some(origins.get(leading..)?),
+            None => None,
+        };
         if arguments.len() != slot.parameters.len() {
             return None;
         }
@@ -823,6 +852,7 @@ pub(super) fn known_requirement_call_written_paths_for_parts(
             slot.data_parameters(),
             data_arguments,
             inference,
+            data_origins,
         );
         return outcome;
     }
@@ -852,6 +882,7 @@ pub(super) fn known_requirement_call_written_paths_for_parts(
         &mut written,
         &bindings,
         inference,
+        argument_origins,
     )?;
     Some(written)
 }
@@ -875,6 +906,7 @@ pub(super) fn signature_state_call_written_paths(
     callee_state: &typed_trees::state::State,
     arguments: &[ExpressionHandle],
     inference: &mut FrameInference,
+    argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
     if !program.machine_type_parameters(callee_machine).is_empty()
         || !callee_machine.lifetime_parameters.is_empty()
@@ -889,6 +921,7 @@ pub(super) fn signature_state_call_written_paths(
         program.state_parameters(callee_state),
         arguments,
         inference,
+        argument_origins,
     )
 }
 
@@ -905,6 +938,7 @@ pub(super) fn signature_parameters_written_paths(
     parameters: &[StateParameter],
     arguments: &[ExpressionHandle],
     inference: &mut FrameInference,
+    argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
     let paired = parameters.iter().collect::<Vec<_>>();
     if paired.len() != arguments.len() {
@@ -921,6 +955,7 @@ pub(super) fn signature_parameters_written_paths(
         &mut written,
         &[],
         inference,
+        argument_origins,
     )?;
     Some(written)
 }
@@ -1007,9 +1042,18 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     site: CallerWriteSite<'_>,
     arguments: &[ExpressionHandle],
     inference: &mut FrameInference,
+    argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
     let selected =
-        boundary_write_signature_and_receiver(program, current_machine, receiver, target, site)?;
+        boundary_write_signature_and_receiver(program, current_machine, receiver, target, site);
+    if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+        eprintln!(
+            "CALLWRITE boundary-signature caller={} receiver={receiver:?} target={target} selected={}",
+            current_machine.name,
+            selected.is_some()
+        );
+    }
+    let selected = selected?;
     let BoundaryWriteSignature {
         signature,
         has_runtime_receiver,
@@ -1020,17 +1064,25 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     } else {
         Vec::new()
     };
-    let AppliedCallWriteSignature {
-        signature,
-        bindings,
-    } = super::type_instantiation::applied_call_write_signature(
+    let applied = super::type_instantiation::applied_call_write_signature(
         program,
         current_machine,
         signature,
         site,
         arguments,
         bindings,
-    )?;
+    );
+    if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+        eprintln!(
+            "CALLWRITE boundary-application caller={} target={target} selected={}",
+            current_machine.name,
+            applied.is_some()
+        );
+    }
+    let AppliedCallWriteSignature {
+        signature,
+        bindings,
+    } = applied?;
     let parameters =
         super::type_instantiation::signature_arity_parameters(program, signature, arguments)?;
 
@@ -1044,6 +1096,7 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
         &mut written,
         &bindings,
         inference,
+        argument_origins,
     )?;
     Some(written)
 }

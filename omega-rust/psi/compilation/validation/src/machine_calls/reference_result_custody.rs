@@ -1663,6 +1663,10 @@ fn replaced_stored_reference_carrier(
     Some(group.clone())
 }
 
+/// A saved reference's cleanup must account for the inputs it keeps borrowed.
+/// A shared pointer may retain an original mutable input obligation, so only
+/// physical pointer rows must match the descriptor's access. Keep every input's
+/// own access and ending obligation in the group used to schedule release.
 /// Loan rows for one descriptor are contiguous in the producer's arena, even
 /// when that descriptor retains several possible origins. The checked captured
 /// roster owns residency: declarations enumerate possible slots, not loans for
@@ -1701,6 +1705,7 @@ fn record_leaf_loan_groups(
         let access = source.source.access.borrow_access_kind()?;
         let mut group = arena::HandleSpan::empty();
         let mut formation = None;
+        let mut has_pointer = false;
         for handle in loans.iter().copied() {
             let loan = facts.borrow.loans.get(handle);
             if crate::corresponding_loan_owner_path(
@@ -1711,13 +1716,15 @@ fn record_leaf_loan_groups(
             {
                 continue;
             }
+            let dependency = loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency;
             if loan.storage_owner != owner
-                || loan.kind != access
+                || (!dependency && loan.kind != access)
                 || formation.is_some_and(|statement| statement != loan.statement_index)
                 || (!group.is_empty() && !group.is_followed_by(handle))
             {
                 return None;
             }
+            has_pointer |= !dependency;
             formation = Some(loan.statement_index);
             let start = if group.is_empty() {
                 handle
@@ -1729,6 +1736,9 @@ fn record_leaf_loan_groups(
         }
         if group.is_empty() {
             continue;
+        }
+        if !has_pointer {
+            return None; // Input obligations cannot supply a descriptor leaf.
         }
         output.push((source, group));
     }

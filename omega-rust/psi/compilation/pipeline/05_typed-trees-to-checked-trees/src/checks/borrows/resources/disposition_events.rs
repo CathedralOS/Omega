@@ -43,7 +43,17 @@ pub(crate) fn plan_reborrow_disposition_events(
         crate::shared::collections::push_unique(&mut states, (machine, state));
     }
 
-    let mut statuses = EphemeralStatuses::new(direct.len(), reborrows.len());
+    for (_, resource) in borrow.supplied_output_resources.iter() {
+        crate::shared::collections::push_unique(
+            &mut states,
+            (resource.machine_symbol, resource.state_symbol),
+        );
+    }
+    let mut statuses = EphemeralStatuses::new(
+        direct.len(),
+        reborrows.len(),
+        borrow.supplied_output_resources.len(),
+    );
     let mut dispositions = Vec::new();
     for (machine_symbol, state_symbol) in states {
         let mut events = Vec::new();
@@ -101,6 +111,44 @@ pub(crate) fn plan_reborrow_disposition_events(
                 },
             });
         }
+        for (index, (_, resource)) in
+            borrow
+                .supplied_output_resources
+                .iter()
+                .enumerate()
+                .filter(|(_, (_, resource))| {
+                    resource.machine_symbol == machine_symbol
+                        && resource.state_symbol == state_symbol
+                })
+        {
+            let actual = flow.control.calls.get(resource.call);
+            events.push(LifecycleEvent {
+                boundary: super::lifecycle::normal_completion_boundary(actual.statement_index),
+                resource: ParentResourceIndex::Supplied(index),
+                loan_order: resource.loan.arena_index(),
+                kind: LifecycleEventKind::CompleteOutput {
+                    call: resource.call,
+                },
+            });
+            if flow
+                .borrow_lifetimes
+                .weakenings
+                .is_valid(resource.holder_weakening)
+            {
+                let end = flow
+                    .borrow_lifetimes
+                    .weakenings
+                    .get(resource.holder_weakening);
+                events.push(LifecycleEvent {
+                    boundary: weakening_event_boundary(end.source, end.reason)?,
+                    resource: ParentResourceIndex::Supplied(index),
+                    loan_order: resource.loan.arena_index(),
+                    kind: LifecycleEventKind::Weaken {
+                        weakening: resource.holder_weakening,
+                    },
+                });
+            }
+        }
         events.sort_by_key(|event| (event.boundary, event.loan_order));
 
         let mut start = 0usize;
@@ -111,7 +159,10 @@ pub(crate) fn plan_reborrow_disposition_events(
                 end += 1;
             }
             let batch = &events[start..end];
-            if boundary.phase == LifecyclePhase::Activation {
+            if matches!(
+                boundary.phase,
+                LifecyclePhase::Activation | LifecyclePhase::NormalCompletion
+            ) {
                 apply_activation_batch(&mut statuses, batch, installation, reborrows)?;
             } else {
                 let completed = apply_weakening_batch(&mut statuses, batch)?;
@@ -257,6 +308,12 @@ fn resolve_disposition_event(
                 parent = *installation
                     .get(index)
                     .ok_or_else(reborrow_disposition_drift)?;
+            }
+            ParentResourceIndex::Supplied(index) => {
+                break (
+                    ResourceDisposition::CascadeThroughRetiredParent,
+                    TargetIndex::CompletedOutput(index),
+                );
             }
         }
     };

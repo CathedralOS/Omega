@@ -121,6 +121,9 @@ use stored_origins::StoredLocalOrigins;
 use transparent_effects::expression_is_effectful_for_transparent_result;
 use type_capabilities::{type_may_carry_write, type_reference_is_reference};
 
+#[cfg(test)]
+mod captured_write_tests;
+
 /// Instantiate the conservative may-write set of a resolved internal call in
 /// the caller's place namespace. `None` means the summary is not complete and
 /// the caller must invalidate every flow fact. Internal acyclic calls and
@@ -228,6 +231,7 @@ fn known_call_written_paths_for_parts(
             program.state_signature_parameters(signature),
             arguments,
             inference,
+            argument_origins,
         );
     }
     if let Some(operator) = program.operator_definition_by_symbol(target_symbol) {
@@ -247,6 +251,7 @@ fn known_call_written_paths_for_parts(
             program.operator_parameters(operator),
             arguments,
             inference,
+            argument_origins,
         );
     }
     let exact_callee = machine_state_by_symbol(program, target_symbol);
@@ -358,6 +363,7 @@ fn known_call_written_paths_for_parts(
             callee_state,
             arguments,
             inference,
+            argument_origins,
         );
     }
     if inference.active_states.contains(&callee_state.symbol) {
@@ -398,6 +404,7 @@ fn known_call_written_paths_for_parts(
             callee_state,
             arguments,
             inference,
+            argument_origins,
         )?;
         let plans = operand_call_plans(program, None);
         let reach = plans.1.for_machine(callee_machine.symbol)?;
@@ -464,6 +471,12 @@ fn summarize_resolved_call(
             )
         });
     inference.active_states.pop();
+    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        eprintln!(
+            "STRUCT resolved-call-write-summary caller={} callee={} state={:?} relative={relative_paths:?} arguments={argument_origins:?}",
+            caller_machine.name, callee_machine.name, callee_state.symbol
+        );
+    }
     // Actual expressions run in the caller, not recursively inside this
     // callee body. A producer may call this same consumer in a finite tree;
     // only enclosing body guards belong to that actual's origin proof.

@@ -116,6 +116,17 @@ pub enum SuspensionCrossingLoanSource {
     CapturedActual {
         resource: Handle<crate::CheckedCallBorrowLoanResource>,
     },
+    /// An obligation carried beside a reference, not another pointer leaf.
+    LifetimeDependency {
+        loan: Handle<crate::BorrowLoanFact>,
+        resource: Handle<crate::CheckedOutputLifetimeDependencyResource>,
+    },
+    /// The exact input captured by an earlier normally completed output call.
+    /// Its selected value survives replacement of the original input slot.
+    OutputInput {
+        owner: Handle<crate::BorrowLoanFact>,
+        input: Handle<crate::CheckedOutputBorrowInput>,
+    },
 }
 
 impl Default for SuspensionCrossingLoanSource {
@@ -130,8 +141,10 @@ impl Default for SuspensionCrossingLoanSource {
 impl SuspensionCrossingLoanFact {
     pub fn stored_loan(&self) -> Handle<crate::BorrowLoanFact> {
         match self.source {
-            SuspensionCrossingLoanSource::Stored { loan, .. } => loan,
+            SuspensionCrossingLoanSource::Stored { loan, .. }
+            | SuspensionCrossingLoanSource::LifetimeDependency { loan, .. } => loan,
             SuspensionCrossingLoanSource::CapturedActual { .. }
+            | SuspensionCrossingLoanSource::OutputInput { .. }
             | SuspensionCrossingLoanSource::Incoming { .. } => Handle::invalid(),
         }
     }
@@ -151,6 +164,13 @@ pub enum SuspensionCrossingLoanBacking {
     IncomingReferent {
         identity: Handle<crate::IncomingReferenceIdentity>,
     },
+    /// The provider's completed output permission has its own opaque backing.
+    /// Its input obligations are separate edges, never an owned output slot.
+    CompletedOutput {
+        resource: Handle<crate::CheckedSuppliedOutputBorrowResource>,
+    },
+    /// Nonspatial obligations have no physical referent of their own.
+    InputDependencies,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]

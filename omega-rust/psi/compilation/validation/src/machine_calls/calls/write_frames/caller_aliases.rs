@@ -576,6 +576,7 @@ pub(super) fn assignment_storage_origins(
             program,
             &source,
             &evidence.aliases,
+            &evidence.divergent,
             &evidence.stored,
         )
         .into_iter()
@@ -938,20 +939,49 @@ impl CallOriginContext<'_> {
                     *argument,
                     self.divergent,
                 )?;
-                let origins = super::alias_origins::stable_alias_initializer_origins(
-                    program,
-                    machine,
-                    machine_symbols,
-                    inference,
-                    *argument,
-                    self.parameters,
-                    self.isolated_locals,
-                    self.aliases,
-                    self.divergent,
-                    symbols,
-                    true,
-                    self.stored,
-                );
+                let storage = crate::reference_formation_source(program, *argument)
+                    .filter(|formation| {
+                        formation.interpretation
+                            == crate::ReferenceFormationInterpretation::Declared
+                    })
+                    .filter(|formation| {
+                        argument_types.get(index).is_some_and(|required| {
+                        crate::value_custody::expression_types::borrow_selects_reference_storage(
+                            program, formation.source, *required, &[],
+                        )
+                    })
+                    });
+                let origins = if let Some(storage) = storage {
+                    // The callee replaces this pointer slot. Following its old
+                    // alias would invalidate the old pointee while leaving
+                    // observations through the changed pointer alive.
+                    super::frame_place_path(program, storage.source).and_then(|source| {
+                        super::stored_origins::canonical_storage_origins(
+                            program,
+                            &source,
+                            self.aliases,
+                            self.divergent,
+                            self.stored,
+                        )
+                        .into_iter()
+                        .collect::<Option<Vec<_>>>()
+                    })
+                } else {
+                    super::alias_origins::stable_alias_initializer_origins(
+                        program,
+                        machine,
+                        machine_symbols,
+                        inference,
+                        *argument,
+                        self.parameters,
+                        self.isolated_locals,
+                        self.aliases,
+                        self.divergent,
+                        symbols,
+                        true,
+                        self.stored,
+                    )
+                };
                 // The initializer owner has already captured reference
                 // contents at this exact prefix. Resolving them again can
                 // load a replacement slot twice or reject an already-resolved

@@ -404,6 +404,7 @@ pub use proof_contracts::quotients::{
 };
 pub use value_custody::constants::completed_integer_constant;
 pub use value_custody::expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
+pub use value_custody::expression_types::borrow_selects_reference_storage;
 pub use value_custody::expression_types::bounded_byte_buffer_capacity;
 pub use value_custody::expression_types::match_subject_primitive_type;
 pub use value_custody::expression_types::validate_match_dispatch;

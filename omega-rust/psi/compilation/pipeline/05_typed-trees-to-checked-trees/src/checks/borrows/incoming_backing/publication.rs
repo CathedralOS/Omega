@@ -112,15 +112,17 @@ fn retained_requirement(
     let loan = facts.borrow.loans.get(row.loan);
     let load = control.operands.get(row.load);
     let store = control.operands.get(row.store_target);
-    if load.descriptor_read != row.read
+    let descriptor_read = load.descriptor_permission.loaded_read();
+    let descriptor_loan = load.descriptor_permission.loaded_loan();
+    if descriptor_read != row.read
         || load.state_symbol != row.state_symbol
         || store.state_symbol != row.state_symbol
         || store.statement_index != row.statement_index
-        || !facts.borrow.loans.is_valid(load.descriptor_loan)
+        || !facts.borrow.loans.is_valid(descriptor_loan)
         || facts
             .borrow
             .loans
-            .get(load.descriptor_loan)
+            .get(descriptor_loan)
             .incoming_reference
             != loan.incoming_reference
     {

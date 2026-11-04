@@ -239,7 +239,14 @@ fn lower_store(
     {
         return Err(invalid("stored value lacks required child memberships"));
     }
-    if !root_window_loan(&destination, path, field) {
+    // A declared owned home receives its first whole value without lending
+    // its contents. Vacancy is already checked in Terminal custody; retain
+    // the owned root rather than inventing a whole-referent loan.
+    let whole_owned_store = path.is_empty()
+        && field.is_none()
+        && destination.parameter().is_none()
+        && disposition == terminal_psi::StructuralStoreDisposition::Vacant;
+    if !root_window_loan(&destination, path, field) && !whole_owned_store {
         return Err(invalid(
             "store has no admitted child or whole-referent loan",
         ));
