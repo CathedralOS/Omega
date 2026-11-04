@@ -133,8 +133,10 @@ atomic/activation positives, and every selected authority rejection.
 
 Main then changed how borrowed records establish entry facts and how completed
 records supply field information. Those changes affect this row, so they were
-integrated as `b0fa0866008` and require fresh observations. All nine places, the copied-region snapshot and the dormant cycle now execute
-at zero in both engines on all four matching hosts. All 24 ordinary projects
+integrated as `b0fa0866008` and replayed on all four matching hosts.
+
+All nine places, the copied-region snapshot and the dormant cycle now execute
+at zero in both engines. All 24 ordinary projects
 per host meet their authored oracles: 12 actual zero agreements and 12 intended
 Source rejections. The 36 native-layout Source pins check or reject for their
 intended obligation.
@@ -168,8 +170,7 @@ executes neither engine for that case. Its original zero-exit oracle remains
 unmet; this row does not claim atomic support on that target. The atomic
 positive does execute at zero on the other three hosts, and the forged-outcome
 and activation conservation/lifetime controls retain their intended Source
-refusals. Older optional queries count only on targets for which
-they actually supply an entry.
+refusals.
 
 ## Requirements and remaining acceptance
 
