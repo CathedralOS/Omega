@@ -147,7 +147,7 @@ pub enum StoredReferenceRelationRefusal {
 
 /// A failed invocation remains an obligation even if a later call overwrites
 /// every affected slot. Declaration dependence is recorded separately.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StoredReferenceCallFailure {
     pub target: SymbolHandle,
     pub requires_relation: bool,
