@@ -268,7 +268,10 @@ compiler phase profiler during consumers. It is off by default and changes no
 compiler acceptance rule or fixture timeout. Completed scopes remain in the job
 log if a corpus fixture reaches its existing time cap: the corpus gate forwards
 the profiler's existing checkpoint, timing and counter rows when requested.
-Unrelated compiler stderr keeps its ordinary buffering. Use one selected fixture
+Requested `CHECKSITE` diagnostics also remain visible when
+`OMEGA_COMPILER_CHECK_SITES` is enabled, even if the runner exits normally after
+recording a rejected fixture. Other compiler stderr keeps its ordinary
+buffering. Use one selected fixture
 to keep concurrent work out of that measurement.
 
 The plan records the original producer commit, tree, target, toolchain,
