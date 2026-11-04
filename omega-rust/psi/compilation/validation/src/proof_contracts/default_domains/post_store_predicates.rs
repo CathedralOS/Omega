@@ -296,7 +296,7 @@ pub(super) fn post_store_predicate_holds(
             })
         })
         .collect::<Vec<_>>();
-    let arithmetic = scoped_arithmetic_implication(
+    scoped_arithmetic_implication(
         program,
         machine,
         &hypotheses,
@@ -305,14 +305,7 @@ pub(super) fn post_store_predicate_holds(
             expression: predicate,
             bindings: fields,
         },
-    );
-    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-        eprintln!(
-            "DEFAULT scalar-store machine={} state={} statement={statement_index} data={} field={written_field:?} predicate={predicate:?} written={written_value:?} bounds={written_bounds:?} arithmetic={arithmetic:?}",
-            machine.name, state.name, place.definition.name
-        );
-    }
-    arithmetic == StrictArithmeticImplicationJudgment::Proven
+    ) == StrictArithmeticImplicationJudgment::Proven
         || crate::proof_contracts::contract_entailment::captured_data_predicate_holds(
             program,
             machine,
