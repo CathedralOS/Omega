@@ -57,6 +57,8 @@ pass/domains/erasing_cast_keeps_predicates_and_named_domains_exit built 8206ms e
 pass/domains/float_conversion_qualification_transport_exit built 11872ms exit:0 interpreter-exit:0 interpreter:agrees @30013776d577
 pass/domains/linear_routed_erasure_keeps_storage_exit built 7909ms exit:0 interpreter-exit:0 interpreter:agrees @f2672d675498
 pass/domains/mutable_domain_parameter_exit built 6259ms exit:0 interpreter-exit:0 interpreter:agrees @18fc751d0060+wt
+pass/domains/qualified_fixed_byte_array_ensured_mutation_exit built 8773ms exit:0 interpreter-exit:0 interpreter:agrees @29c0122d09c2
+pass/domains/qualified_fixed_byte_array_ensured_no_nul_store_exit built 8857ms exit:0 interpreter-exit:0 interpreter:agrees @c0f1dbfc2dfd
 pass/effects/optional_reach_declared_slack_exit built 6541ms exit:0 interpreter-exit:0 interpreter:agrees @d68d95fa82f8
 pass/effects/optional_reach_generic_narrow_exit built 6746ms exit:0 interpreter-exit:0 interpreter:agrees @d68d95fa82f8
 pass/effects/optional_reach_recursive_foreign_exit built 6590ms exit:0 interpreter-exit:0 interpreter:agrees @d68d95fa82f8
