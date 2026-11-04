@@ -223,6 +223,16 @@ fn invocation_reference_effects(
             crate::CallSite::Expression { expression, call }
                 .parameters(program, machine.symbol)
                 .or_else(|| {
+                    // The applied logical signature can be absent while the
+                    // selected requirement still names its public contract.
+                    // That contract classifies caller slots; a private
+                    // satisfier body does not.
+                    let dispatch = call.static_requirement_dispatch.as_ref()?;
+                    let (_, signature) =
+                        program.trait_machine_signature(dispatch.contract_symbol())?;
+                    Some(program.state_signature_parameters(signature))
+                })
+                .or_else(|| {
                     trace_refusal("expression-parameters");
                     None
                 })?
