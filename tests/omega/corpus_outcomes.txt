@@ -2260,25 +2260,37 @@ fail/facts/nested_machine_suspending_cycle_target_body_rejected rejected 7657ms 
 	call to `sum` has operational envelope `suspend` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/facts/open_array_const_implementation_element_outside_extent_rejected rejected 4086ms expected @7da38832cb0e
 	cannot form specification index in trait `Reading` state `read` ensures contract: independent collection bounds are not established by preceding formed facts
-fail/facts/open_array_const_implementation_other_element_mismatch_rejected rejected 3116ms expected @7da38832cb0e
+fail/facts/open_array_const_implementation_other_element_mismatch_rejected rejected 2878ms expected @8c54a442521e
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_array_const_implementation_through_call_result_rejected rejected 3064ms expected @7da38832cb0e
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_array_const_implementation_through_const_name_rejected rejected 6612ms expected @7da38832cb0e
+fail/facts/open_array_const_implementation_specialization_agreement_rejected rejected 2507ms expected @8c54a442521e
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_array_const_implementation_through_field_rejected rejected 4688ms expected @7da38832cb0e
+fail/facts/open_array_const_implementation_through_call_result_rejected rejected 2507ms expected @8c54a442521e
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_array_const_implementation_through_local_rejected rejected 6397ms expected @7da38832cb0e
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_array_const_implementation_through_match_join_rejected rejected 2561ms expected @7da38832cb0e
+fail/facts/open_array_const_implementation_through_const_name_rejected rejected 916ms expected @8c54a442521e
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_array_const_implementation_through_other_machine_rejected rejected 3382ms expected @7da38832cb0e
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_array_const_implementation_through_other_state_rejected rejected 3431ms expected @7da38832cb0e
+fail/facts/open_array_const_implementation_through_field_rejected rejected 2507ms expected @8c54a442521e
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_array_const_implementation_through_parameter_rejected rejected 3119ms expected @7da38832cb0e
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_array_const_implementation_through_target_body_rejected rejected 3061ms expected @7da38832cb0e
+fail/facts/open_array_const_implementation_through_local_rejected rejected 2680ms expected @8c54a442521e
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_array_const_implementation_through_match_join_rejected rejected 2738ms expected @8c54a442521e
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_array_const_implementation_through_other_machine_rejected rejected 3030ms expected @8c54a442521e
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_array_const_implementation_through_other_state_rejected rejected 2740ms expected @8c54a442521e
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_array_const_implementation_through_parameter_rejected rejected 2366ms expected @8c54a442521e
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_array_const_implementation_through_target_body_rejected rejected 2578ms expected @8c54a442521e
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/facts/open_array_const_implementation_wrong_element_count_rejected rejected 1356ms expected @7da38832cb0e
 	const array recipe has the wrong element count
@@ -2291,6 +2303,8 @@ fail/facts/open_const_implementation_private_result_guarantee rejected 4568ms ex
 	cannot prove ensures contract for exit from selected at statement 0: result == Minimum
 fail/facts/open_const_implementation_return_write_output rejected 701ms expected @ea132c1fff8b
 	cannot prove ensures contract for exit from selected at statement 2: destination >= Minimum
+fail/facts/open_const_implementation_specialization_agreement_rejected rejected 2557ms expected @8c54a442521e
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/facts/open_const_implementation_statement_const_result_rejected rejected 333ms expected @ea132c1fff8b
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
@@ -2372,6 +2386,8 @@ fail/facts/open_record_const_closed_call_target_body_rejected rejected 1839ms ex
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/facts/open_record_const_closed_call_wrong_carrier_rejected rejected 689ms expected @e9f492c5ccc6+wt
 	const-generic application evaluation failed: constant initializer result does not match its declared carrier
+fail/facts/open_record_const_implementation_specialization_agreement_rejected rejected 2560ms expected @8c54a442521e
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/facts/owned_semantic_schema_call_result rejected 3702ms expected @63af67b94f91
 	semantic schema cannot select the subject from its lexical author's scope
 fail/facts/owned_semantic_schema_field rejected 2609ms expected @6b1e6a51ea70
@@ -12551,6 +12567,7 @@ pass/generics/nominal_machine_parameter_satisfaction_compile checked 2272ms @ccd
 pass/generics/omitted_data_binder_range_equation checked 65952ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/omitted_fixed_domain_array_equation checked 7865ms @911f6617ba9e
 pass/generics/open_computed_quantity_result checked 108679ms check-target:macos_arm64 @c2cfe5f3dece+wt
+pass/generics/open_const_bare_binder_forwarding checked 13489ms check-target:macos_arm64 @8c54a442521e
 pass/generics/open_const_completed_exit_positive checked 6864ms check-target:macos_arm64 @ea132c1fff8b
 pass/generics/open_const_distinct_applications checked 6663ms check-target:macos_arm64 @ea132c1fff8b
 pass/generics/open_const_float_owned_dependency checked 7295ms check-target:macos_arm64 @ccdb99ca2214
