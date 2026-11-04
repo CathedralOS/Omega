@@ -99,16 +99,20 @@ report remains failed; those two places are unfinished. The artifact records
 the compiler and program-input identities separately, with unchanged compiler,
 library, tooling and configuration bytes.
 
-Checkpoint `0253ef7cc691` records the atomic result's automatic-disposal
-schedule in the shared value owner and passes it through lowering. Its new
-qualification also includes the discarded-result control. This source is being
-measured; no successful new execution is claimed. The match diagnostic may name
-a stale phase, so no descriptor-catalog cause is established from it alone.
-Earlier missing-caller and dependency compile failures remain retained and
-supply no program observations.
+At compiler and input source `0253ef7cc691`, the
+[completed Linux qualification](https://github.com/CathedralOS/Omega/actions/runs/41841737327)
+checks all 17 selected positives and rejects all 19 intended controls. All 17
+runtime fixtures agree at exit zero, including the frozen field and match-join
+programs and the unused-result control. Ordinary package review records 12
+exit-zero agreements and 15 intended refusals. The compiler records the atomic
+result's disposal schedule in the same result owner used by other affine
+values; lowering reads that schedule. No descriptor admission guard changed.
 
-All nine places, their controls, ordinary package review and four-host
-execution remain unfinished until the actual reports meet these obligations.
+PR #1815 published that repair. Its final Source records do not establish the
+missing host executions. The Windows, macOS and Linux ARM64 qualifications,
+current publication checks and final records remain unfinished. The earlier
+failed reports retain their original source stamps and outcomes.
+
 Formal concurrency, forced Uncommitted outcomes, affine/linear residents,
 arbitrary-key laws, contention and target-refinement proofs remain open in the
 parent task.

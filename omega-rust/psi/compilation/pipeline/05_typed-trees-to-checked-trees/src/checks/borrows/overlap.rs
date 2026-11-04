@@ -195,6 +195,97 @@ pub(super) fn captured_place_compatibility<'p>(
     }
 }
 
+/// Lifetime retention can forbid an access without identifying the saved
+/// pointer's address. Return only interference: input windows cannot supply
+/// containment, a lending parent, or any other spatial authority.
+pub(super) fn retained_debt_non_interfering<'p>(
+    program: &'p dyn validation::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
+    loan: arena::Handle<checked_trees::BorrowLoanFact>,
+    place: &checked_trees::CapturedPlace,
+    access: &checked_trees::BorrowAccessKind,
+    premises: &[StatedOrderingPremise],
+    lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+) -> Option<bool> {
+    let windows = super::resources::supplied_permissions::debt_windows(borrow, loan)?;
+    // Bare exclusive parameters always name their ingress referent. They do
+    // not own an outer descriptor slot, even with a mutable binding spelling.
+    // Restore that declaration namespace before comparing retained windows;
+    // a symbol without this identity is not an independent permission.
+    let incoming_place = if !place.incoming_reference.is_valid() {
+        place.root.as_symbol().and_then(|symbol| {
+            let state_symbol = program.symbols.get(symbol).parent;
+            let state = program.state_by_symbol(state_symbol)?;
+            let parameter = program.state_parameter_by_symbol(state, symbol)?;
+            let shell = validation::reference_shell(program, parameter.type_reference)?;
+            if !shell.access.is_exclusive() { return None; }
+            let (owner, _) = validation::find_state(program, state_symbol)?;
+            let (_, scope) = borrow.first_state_borrow(owner.symbol, state_symbol)?;
+            let mut identities = scope.incoming_references.handles().filter(|identity| {
+                borrow.state_owns_incoming_reference(scope, *identity)
+                    && matches!(borrow.incoming_references.get(*identity).origin,
+                        checked_trees::IncomingReferenceOrigin::ParameterReferent { symbol: supplied }
+                            if supplied == symbol)
+            });
+            let identity = identities.next()?;
+            if identities.next().is_some() { return None; }
+            Some(checked_trees::CapturedPlace { incoming_reference: identity, ..place.clone() })
+        })
+    } else {
+        None
+    };
+    let place = incoming_place.as_ref().unwrap_or(place);
+    Some(windows.is_ok_and(|windows| {
+        windows.iter().all(|window| {
+            captured_place_compatibility(
+                program,
+                borrow,
+                place,
+                access,
+                &window.place,
+                &window.access,
+                premises,
+                lookup,
+            )
+            .non_interfering
+        })
+    }))
+}
+
+pub(super) fn canonical_place_non_interfering<'p>(
+    program: &'p dyn validation::CheckingInput,
+    place: &validation::CanonicalPlace,
+    loan: arena::Handle<checked_trees::BorrowLoanFact>,
+    borrow: &checked_trees::BorrowFacts,
+    premises: &[StatedOrderingPremise],
+    lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+) -> bool {
+    retained_debt_non_interfering(
+        program,
+        borrow,
+        loan,
+        &checked_trees::CapturedPlace {
+            root: place.root,
+            segments: place.segments.clone(),
+            ..Default::default()
+        },
+        &checked_trees::BorrowAccessKind::Mutable,
+        premises,
+        lookup,
+    )
+    .unwrap_or_else(|| {
+        canonical_place_loan_compatibility(
+            program,
+            place,
+            borrow.loans.get(loan),
+            borrow,
+            premises,
+            lookup,
+        )
+        .non_interfering
+    })
+}
+
 /// Borrow access places capture a direct `self.field` at the attached field's
 /// own root, while a bare `self` operand captures the machine root: the whole
 /// receiver. When one place is rooted at an attached machine and the other at

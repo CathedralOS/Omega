@@ -667,6 +667,54 @@ pub(in crate::execution::terminal_unit) fn retain_parameter_arrival_domains(
     Ok(())
 }
 
+fn cast_is_borrowed_in_statement(
+    program: &dyn ::validation::CheckingInput,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    cast_expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let Some(state_node) = program.state_by_symbol(state) else {
+        return false;
+    };
+    let Some(statement) = crate::flow::state_statements(program, state_node.statement_nodes)
+        .get(statement_index)
+    else {
+        return false;
+    };
+    let mut is_borrowed = false;
+    ::validation::visit_statement_value_occurrences(
+        program,
+        machine,
+        state,
+        statement_index,
+        statement,
+        &mut |expr, _origin, _primitive| {
+            if is_borrowed {
+                return;
+            }
+            if let Some(borrow) = program.expression_table.borrow_expression(expr) {
+                let mut target = borrow.target;
+                while target.is_valid() {
+                    if target == cast_expression {
+                        is_borrowed = true;
+                        break;
+                    }
+                    if let Some(inner_cast) = program.expression_table.cast_node(target) {
+                        if inner_cast.form.is_recast() {
+                            break;
+                        }
+                        target = inner_cast.value;
+                    } else {
+                        break;
+                    }
+                }
+            }
+        },
+    );
+    is_borrowed
+}
+
 /// Body commitments whose theory belongs to structural carriers. Classify
 /// normalized domain instances by their carrier, not by their predicates or
 /// the arrangement of an authored cast. Scalar computations retain scalar
@@ -773,6 +821,13 @@ pub(in crate::execution::terminal_unit) fn body_structural_qualifications(
                         && node.statement_index == *statement
                         && node.expression == *expression
                 })
+                || cast_is_borrowed_in_statement(
+                    program,
+                    machine,
+                    *state,
+                    *statement as usize,
+                    *expression,
+                )
         });
     domains.retain(|domain| {
         !owned

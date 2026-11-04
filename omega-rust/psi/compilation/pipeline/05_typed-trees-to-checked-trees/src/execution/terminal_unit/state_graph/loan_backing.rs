@@ -1537,7 +1537,8 @@ impl Dependencies<'_> {
                             .control
                             .operands
                             .get(activation.formation_value)
-                            .descriptor_loan
+                            .descriptor_permission
+                            .loaded_loan()
                             == activation.loan
                 });
             let Some(activation) = completions.next() else {
@@ -1559,7 +1560,9 @@ impl Dependencies<'_> {
                 .control
                 .operands
                 .get(activation.formation_value);
-            if capture.expression != expression || capture.descriptor_loan != activation.loan {
+            if capture.expression != expression
+                || capture.descriptor_permission.loaded_loan() != activation.loan
+            {
                 return false;
             }
             let Some(roots) = shared_leaf_lifetime_roots(self.program, self.facts, capture, &[])

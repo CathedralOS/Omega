@@ -1,4 +1,6 @@
-//! Validate typed programs and retain the analyses consumed by checking.
+//! Validate typed declarations, then finish proofs that need storage history.
+//! Pending storage proofs remain obligations until the shared graph is ready.
+//! All must succeed before checked publication; they never justify their own result.
 
 use crate::declarations::standard_declarations;
 use crate::declarations::state_signatures::validate_callable_state_signatures;
@@ -64,6 +66,7 @@ use crate::proof_contracts::arithmetic_domains::ExpressionInterval;
 pub struct ProgramValidationFacts {
     pending_integer_formations:
         Vec<arithmetic_domains::storage_formations::PendingIntegerFormation>,
+    pending_construction_predicates: Vec<struct_literals::PendingConstructionPredicates>,
     pub quotient_formations: Vec<quotients::ValidatedQuotientFormation>,
     pub integer_range_obligations: Vec<checked_trees::IntegerRangeObligation>,
     pub static_machine_selections: machine_parameters::PreparedStaticMachineSelections,
@@ -107,11 +110,16 @@ impl ProgramValidationFacts {
             program,
             &self.pending_integer_formations,
         )?;
+        struct_literals::discharge_pending_predicates(
+            program,
+            &self.pending_construction_predicates,
+        )?;
         self.decided_formations.extend(proven);
         self.decided_formations
             .sort_by_key(|expression| checked_trees::operators::handle_position(*expression));
         self.decided_formations.dedup();
         self.pending_integer_formations.clear();
+        self.pending_construction_predicates.clear();
         Ok(())
     }
 }
@@ -283,6 +291,7 @@ fn validate<'program>(
     record_dependency_bodies: bool,
 ) -> Result<ProgramValidation, Vec<Diagnostic>> {
     let mut formation_obligations = Vec::new();
+    let mut pending_construction_predicates = Vec::new();
     let pre_machine_guard =
         phase_profile::guard("psi.05.prepare_typed_program.validate.pre_machine_validators");
     let mut diagnostics = Vec::new();
@@ -522,11 +531,13 @@ fn validate<'program>(
             phase_profile::scope(
                 "psi.05.prepare_typed_program.validate.constants_and_literals.struct_literals",
                 || {
-                    stored_integer_writes.extend(struct_literals::validate_struct_literal_fields(
+                    let literals = struct_literals::validate_struct_literal_fields(
                         program,
                         &mut diagnostics,
                         &mut formation_obligations,
-                    ));
+                    );
+                    stored_integer_writes.extend(literals.stored_integer_writes);
+                    pending_construction_predicates.extend(literals.pending_predicates);
                 },
             );
             // Record patterns in LET (owner spec 2026-07-18): the exhaustiveness
@@ -922,6 +933,12 @@ fn validate<'program>(
                 // resolver's empty value-call frame would. An unresolved
                 // value call still clears mutable-storage facts; direct writes and calls
                 // remain the statement validator's responsibility below.
+                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    eprintln!(
+                        "STRUCT completed-value-writes caller={} state={} statement={} written={value_written:?}",
+                        machine.name, state.name, statement_index
+                    );
+                }
                 if let Some(written) = value_written {
                     value_environment.invalidate_call_paths(program, Some(state), &written);
                 } else if call_frames.is_some()
@@ -1187,6 +1204,7 @@ fn validate<'program>(
         service_reaches: conformance_service_reaches,
         facts: ProgramValidationFacts {
             pending_integer_formations,
+            pending_construction_predicates,
             quotient_formations,
             integer_range_obligations,
             static_machine_selections,

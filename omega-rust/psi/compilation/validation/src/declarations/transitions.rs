@@ -174,6 +174,7 @@ pub(crate) fn validate_transition_target_node(
             writable_roots.statements,
             false,
             argument_environments,
+            &[],
             |argument, required| {
                 crate::value_custody::expression_types::argument_matches_carrier(
                     program,
@@ -227,6 +228,7 @@ fn validate_transition_arguments_handles(
         writable_roots.statements,
         false,
         argument_environments,
+        &[],
         |argument, required| {
             crate::value_custody::expression_types::argument_matches_carrier(
                 program,

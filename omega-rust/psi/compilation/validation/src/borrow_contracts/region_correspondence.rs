@@ -259,7 +259,7 @@ fn contract_scope<'scope>(
 }
 
 /// Format only premises already computed by this refinement, on refusal.
-fn region_context(
+pub(super) fn region_context(
     program: &dyn CheckingInput,
     contract: &CallableBorrowContract<'_>,
     regions: &CallableRegions,

@@ -394,6 +394,7 @@ pub(super) fn check_suspension_carry(
             resolve_crossing_carry(
                 program,
                 &facts.borrow,
+                &facts.flow,
                 &suspension_loans,
                 &suspension_value_loans,
                 state_borrows,
@@ -700,6 +701,7 @@ fn collect_value_carry_obligation(
 fn resolve_crossing_carry(
     program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
+    flow: &checked_trees::FlowFacts,
     loans: &arena::Arena<checked_trees::SuspensionCrossingLoanFact>,
     value_loans: &arena::Arena<arena::Handle<checked_trees::SuspensionCrossingLoanFact>>,
     state: &checked_trees::StateBorrowFact,
@@ -714,6 +716,7 @@ fn resolve_crossing_carry(
         .map(|live| {
             loans::retained_lifetime_demand(
                 borrow,
+                flow,
                 loans,
                 value_loans,
                 state,

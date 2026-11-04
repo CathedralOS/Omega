@@ -14,9 +14,8 @@
 //! nested calls are closed by provider planning; the review still refuses any
 //! reachable requirement without a row.
 
-use language_semantics::type_identity::callable_display_path as requirement_path;
-
 use ::diagnostics::Diagnostic;
+use language_semantics::type_identity::callable_display_path as requirement_path;
 
 use super::diagnostics::realization_error;
 use super::terminal_authority_review::reachability::AuthorityGraph;

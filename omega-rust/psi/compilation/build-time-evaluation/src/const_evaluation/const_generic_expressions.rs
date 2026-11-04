@@ -735,13 +735,13 @@ fn inherits_normalized_constant_call(
         })
 }
 
-/// Every authored call expression surviving inside detached initializer
-/// expression roots, in deterministic walk order.
-pub(super) fn call_expressions(
+/// Calls whose arguments this expression context must admit. Nested calls
+/// are handled by their argument owner.
+pub(super) fn immediate_call_expressions(
     program: &typed_trees::TypedTrees,
     roots: &[typed_trees::expression::ExpressionHandle],
 ) -> Result<Vec<typed_trees::expression::ExpressionHandle>, String> {
-    call_custody::call_expressions(program, roots)
+    call_custody::immediate_call_expressions(program, roots)
 }
 
 /// Selected-constant origins, builtin-operator receipts, and the exact call
@@ -905,10 +905,9 @@ pub(crate) fn validate_retained_initializer_call_custody(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    root: typed_trees::expression::ExpressionHandle,
-    materialized: typed_trees::expression::ExpressionHandle,
+    declaration: &typed_trees::constant::ConstDeclaration,
 ) -> Result<Vec<DependencyValue>, String> {
-    call_custody::validate_retained(program, machine, state, root, materialized)
+    call_custody::validate_retained(program, machine, state, declaration)
 }
 
 /// Recheck the source-owned recipe before a private probe specializes it.
@@ -916,10 +915,9 @@ pub(crate) fn validate_authored_initializer_call_custody(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    root: typed_trees::expression::ExpressionHandle,
-    materialized: typed_trees::expression::ExpressionHandle,
+    declaration: &typed_trees::constant::ConstDeclaration,
 ) -> Result<Vec<DependencyValue>, String> {
-    call_custody::validate_authored(program, machine, state, root, materialized)
+    call_custody::validate_authored(program, machine, state, declaration)
 }
 
 /// Evaluate a call-free source-owned scalar probe.

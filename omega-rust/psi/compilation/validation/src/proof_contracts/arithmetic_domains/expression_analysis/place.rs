@@ -99,6 +99,19 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
             interval,
         )
     });
+    if std::env::var_os("OMEGA_REFERENCE_SLOT_TRACE").is_some()
+        && crate::reference_shell(program, handle).is_some()
+    {
+        eprintln!(
+            "SLOT integer-read machine={:?} expression={expression:?} path={:?} interval={interval:?} direct={:?} captured={:?}",
+            walk.machine.map(|machine| machine.name.as_str()),
+            place_path(program, expression),
+            place_path(program, expression).and_then(|path| walk.environment.get(&path)),
+            walk.state.and_then(|state| walk
+                .environment
+                .captured_integer_interval(state.symbol, expression))
+        );
+    }
     // Atomic integer types (AtomicU32, ...) have hardware wrap-around semantics,
     // so their arithmetic is Wrapping, not Exact -- a `fetch_add` never raises
     // an overflow proof obligation.

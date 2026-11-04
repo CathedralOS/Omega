@@ -58,6 +58,7 @@ impl<'program> StructuralJudge<'program> {
                         };
                         Some(NormalReturnPath {
                             value: result.value.clone(),
+                            source: None,
                             observation: result.observation,
                             value_requested: matches!(demand, NormalValueDemand::Value),
                             judge,
