@@ -86,15 +86,13 @@ pub(super) fn retain(
     if members.is_empty() {
         return Ok(());
     }
-    let provider = program
-        .applied_machine_callable(
-            invocation,
-            ordinal,
-            selected,
-            head.parameter,
-            &head.signature,
-        )
-        .map(|view| view.provider);
+    let provider = program.applied_machine_provider(
+        invocation,
+        ordinal,
+        selected,
+        head.parameter,
+        &head.signature,
+    );
     let Some(provider) = provider else {
         if program.has_applied_machine_selection(invocation, ordinal, selected) {
             return Err(failure(

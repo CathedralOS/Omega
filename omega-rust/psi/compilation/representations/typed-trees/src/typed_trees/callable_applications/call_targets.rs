@@ -1,8 +1,10 @@
-//! Use the helper selected by a trait in that trait’s contracts.
+//! Keep a chosen helper and its arguments when copying a contract.
 //!
-//! Selecting a named helper changes the call target, not the source binder’s
-//! contract or the call’s own arguments. The existing checker still verifies
-//! that the helper satisfies the binder’s contract.
+//! The original binder still owns the promise that checking must verify. Its
+//! selected helper owns a separate call application, including configured
+//! arguments and their supplying scope.
+
+mod applications;
 
 use super::CallableApplication;
 use crate::{TypedTrees, expression, name::Identifier};
@@ -13,6 +15,8 @@ pub(super) struct AppliedCallTarget {
     target: SymbolHandle,
     name: Identifier,
     attached_data: Option<(SymbolHandle, Identifier)>,
+    supplied: Option<expression::StaticMachineArgument>,
+    provider: Option<crate::static_applications::StaticMachineApplicationHandle>,
 }
 
 impl CallableApplication {
@@ -26,35 +30,58 @@ impl CallableApplication {
         {
             return Ok(None);
         }
-        // The trait parameter bindings supply named declarations. Executable
-        // application bindings retain their separate complete selection and
-        // are not projected here.
-        let Some((_, reference)) = self
-            .types
+        let supplied = self
+            .static_arguments
             .iter()
             .rev()
             .find(|(symbol, _)| *symbol == parameter)
-        else {
-            return Ok(None);
+            .map(|(_, argument)| argument.clone());
+        let provider = self
+            .selected_providers
+            .iter()
+            .find(|(binder, _)| *binder == parameter)
+            .map(|(_, provider)| *provider);
+        let (selected, name) = if let Some(provider) = provider {
+            let record = program.static_machine_application(provider);
+            (record.registration_operation, record.target.clone())
+        } else if let Some(argument) = &supplied {
+            let name = argument
+                .path
+                .last()
+                .cloned()
+                .ok_or("selected contract helper lost its diagnostic name")?;
+            (argument.symbol, name)
+        } else {
+            let Some((_, reference)) = self
+                .types
+                .iter()
+                .rev()
+                .find(|(symbol, _)| *symbol == parameter)
+            else {
+                return Ok(None);
+            };
+            let crate::types::TypeReferenceNode::Named { symbol, name } =
+                program.type_reference_table.type_reference(*reference)
+            else {
+                return Err("applied contract call needs an exact named callable declaration");
+            };
+            (*symbol, name.clone())
         };
-        let crate::types::TypeReferenceNode::Named { symbol, name } =
-            program.type_reference_table.type_reference(*reference)
-        else {
-            return Err("applied contract call needs an exact named callable declaration");
-        };
-        if !symbol.is_valid()
+        if !selected.is_valid()
             || !matches!(
-                program.symbols.get(*symbol).kind,
+                program.symbols.get(selected).kind,
                 SymbolKind::Machine | SymbolKind::State | SymbolKind::MachineParameter
             )
         {
-            return Err("applied contract call lost its named callable declaration");
+            return Err("applied contract call lost its selected callable declaration");
         }
-        if *symbol == parameter {
+        if selected == parameter
+            && supplied
+                .as_ref()
+                .is_none_or(|argument| argument.application.is_none())
+        {
             return Ok(None);
         }
-        let selected = *symbol;
-        let name = name.clone();
         let machine = program
             .machine_by_symbol(selected)
             .or_else(|| program.machine_holding_state(selected));
@@ -83,6 +110,8 @@ impl CallableApplication {
             target,
             name,
             attached_data,
+            supplied,
+            provider,
         }))
     }
 
@@ -91,9 +120,20 @@ impl CallableApplication {
         program: &mut TypedTrees,
         call: &mut expression::TableCallExpression,
         selected: AppliedCallTarget,
-    ) {
+    ) -> Result<(), &'static str> {
         if !call.static_machine_parameter.is_valid() {
             call.static_machine_parameter = self.symbol(selected.parameter);
+        }
+        if let Some(provider) = selected.provider {
+            self.retain_prepared_call_application(program, call, provider)?;
+        } else if let Some(argument) = &selected.supplied {
+            self.retain_selected_call_application(
+                program,
+                call,
+                selected.target,
+                &selected.name,
+                argument,
+            )?;
         }
         call.target_symbol = selected.target;
         call.target = selected.name;
@@ -104,5 +144,6 @@ impl CallableApplication {
                     expression::NamePath::resolved_from_iter([name], symbol, symbol),
                 ));
         }
+        Ok(())
     }
 }

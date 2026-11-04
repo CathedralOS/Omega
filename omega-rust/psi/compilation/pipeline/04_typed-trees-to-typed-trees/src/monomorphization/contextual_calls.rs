@@ -146,6 +146,9 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
             expressions_of_mut(program)
                 .set_static_machine_application_selected_machines(application, &selected);
         }
+        program
+            .prepare_selected_machine_contracts(application)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
         if invocation.use_site == invocations::InvocationUse::RetainedEvaluation {
             // The overlay is ordinary checking custody. Its source recipe and
             // explicit tuple remain intact; only an active executable call

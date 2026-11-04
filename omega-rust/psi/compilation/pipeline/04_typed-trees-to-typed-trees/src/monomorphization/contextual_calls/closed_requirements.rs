@@ -54,15 +54,13 @@ pub(in super::super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagn
                 .ok_or_else(|| {
                     failed("closed requirement demand lost its source machine binder")
                 })?;
-            let retained = program
-                .applied_machine_callable(
-                    application,
-                    ordinal,
-                    argument.symbol,
-                    source.parameter,
-                    &source.signature,
-                )
-                .map(|view| view.provider);
+            let retained = program.applied_machine_provider(
+                application,
+                ordinal,
+                argument.symbol,
+                source.parameter,
+                &source.signature,
+            );
             let Some(provider) = retained else {
                 if program.has_applied_machine_selection(application, ordinal, argument.symbol) {
                     return Err(vec![Diagnostic::error(
@@ -120,6 +118,9 @@ pub(in super::super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagn
                 )
                 .map_err(|message| vec![Diagnostic::error(message)])?;
         }
+        program
+            .prepare_selected_machine_contracts(application)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
     }
     Ok(())
 }
