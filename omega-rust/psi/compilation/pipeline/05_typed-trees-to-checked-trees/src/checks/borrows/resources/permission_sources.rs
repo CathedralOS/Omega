@@ -419,19 +419,6 @@ pub(super) fn collect(
                 }
             }
         }
-    } else if let Some(complete) = collect_reborrow_sources(
-        program,
-        facts,
-        state,
-        call,
-        source,
-        projection,
-        output_access,
-        active,
-        output,
-        parents,
-    ) {
-        complete
     } else if let Some(suppliers) = retained_suppliers {
         !suppliers.is_empty()
             && suppliers.iter().all(|supplier| {
@@ -449,6 +436,19 @@ pub(super) fn collect(
                     true,
                 )
             })
+    } else if let Some(complete) = collect_reborrow_sources(
+        program,
+        facts,
+        state,
+        call,
+        source,
+        projection,
+        output_access,
+        active,
+        output,
+        parents,
+    ) {
+        complete
     } else {
         match collect_invocation_accesses(
             program,
