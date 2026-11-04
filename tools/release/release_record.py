@@ -188,6 +188,11 @@ FILTER_ENVIRONMENT = (
 # nextest names skipped tests only at the `skip` status level; without the
 # names a skip count cannot be reconciled with the expected-skip list.
 NAMED_SKIP_ENVIRONMENT = {"NEXTEST_STATUS_LEVEL": "skip"}
+# A release record is the full sweep by contract: the corpus and sample gates
+# refuse selections past their iteration budget unless the run says a user or
+# scheduled job started it, and recording a lane is exactly that. Without this
+# every corpus gate exited with a usage error before building anything.
+SWEEP_ENVIRONMENT = {"OMEGA_CORPUS_SWEEP": "1"}
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 TARGET_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 # Captured output is evidence, not a log store: keep the tail bounded.
@@ -407,7 +412,7 @@ def run_command(command, selected_runner, timeout=None, log_path=None):
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             encoding="utf-8", errors="replace",
             start_new_session=(os.name != "nt"),
-            env={**os.environ, **NAMED_SKIP_ENVIRONMENT},
+            env={**os.environ, **NAMED_SKIP_ENVIRONMENT, **SWEEP_ENVIRONMENT},
         ) as process:
             try:
                 stdout, _ = process.communicate(timeout=timeout)
