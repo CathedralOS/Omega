@@ -15,6 +15,7 @@ terminates by countdown -> Countdown::Remaining in 0..=5 {
         false -> countdown.remaining
     }
     machine iterate(pending: Countdown) -> u64
+    terminates by pending -> Countdown::Remaining in 0..=5
     {
         transition pending.remaining > 0 {
             true -> iterate(Countdown {

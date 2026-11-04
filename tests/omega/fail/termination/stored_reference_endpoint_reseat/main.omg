@@ -8,6 +8,7 @@ terminates by remaining -> Nat::Descending in 0..=indirect.target.remaining {
 
     machine iterate(held: Indirect, pending: u64, spare: Indirect) -> u64
         requires 0 <= pending && pending <= 4
+    terminates by pending -> Nat::Descending in 0..=indirect.target.remaining
     {
         transition pending > 0 {
             // Equal declared bounds do not preserve the original endpoint.

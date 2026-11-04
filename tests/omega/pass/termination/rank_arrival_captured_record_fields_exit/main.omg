@@ -4,7 +4,9 @@ machine walk(remaining: u32) -> u32
 requires remaining <= 5
 terminates by remaining in 0..=5 {
     transition { _ -> iterate(Pair { left: remaining, right: 4 }) }
-    machine iterate(pending: Pair) -> u32 {
+    machine iterate(pending: Pair) -> u32
+    terminates by pending.left in 0..=5
+    {
         let captured: Pair = pending;
         transition captured.left > 0 {
             true -> iterate(Pair { left: captured.left - 1, right: captured.right })

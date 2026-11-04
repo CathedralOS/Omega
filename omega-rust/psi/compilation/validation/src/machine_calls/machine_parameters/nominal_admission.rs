@@ -17,10 +17,10 @@ pub(super) struct AdmittedNominalSelection {
     pub(super) canonical_requirement_overload: String,
 }
 
-/// Evidence binders live beside Type/Const bindings in the same retained
-/// application. Their nominal operands are simultaneous substitutions, never
-/// inference variables reconstructed from a selected provider's body.
-fn retain_conformance_operands<'a>(
+/// A validator may be promised for another helper selected by the same call.
+/// Keep those complete Machine and Conformance selections beside Type/Const
+/// bindings; a provider's body cannot supply a missing selection.
+fn retain_selected_operands<'a>(
     program: &'a dyn crate::CheckingInput,
     application: typed_trees::static_applications::StaticMachineApplicationHandle,
     operands: &mut Vec<(
@@ -32,7 +32,8 @@ fn retain_conformance_operands<'a>(
         return;
     }
     for binding in expression_table(program).static_machine_application_bindings(application) {
-        if let typed_trees::static_applications::StaticMachineBindingValue::Conformance(argument) =
+        if let typed_trees::static_applications::StaticMachineBindingValue::Machine(argument)
+        | typed_trees::static_applications::StaticMachineBindingValue::Conformance(argument) =
             &binding.value
             && !operands
                 .iter()
@@ -109,10 +110,11 @@ pub(super) fn validate_nominal_machine_selection(
                 _ => None,
             })
             .collect::<Vec<_>>();
-        retain_conformance_operands(program, provider, &mut operands);
+        retain_selected_operands(program, provider, &mut operands);
         operands
     });
     let mut operand_mismatch = None::<String>;
+    let mut helper_mismatch = None::<String>;
     let mut arguments_match = |actual: &[typed_trees::types::TypeReferenceHandle],
                                actual_owner: SymbolHandle,
                                actual_scope: Option<&AppliedTraitScope<'_>>,
@@ -190,7 +192,7 @@ pub(super) fn validate_nominal_machine_selection(
                     (binding.symbol, value)
                 })
                 .collect::<Vec<_>>();
-            retain_conformance_operands(program, application, &mut operands);
+            retain_selected_operands(program, application, &mut operands);
             let receiving = program.symbols.get(parameter.symbol).parent;
             let lifetimes = match program
                 .static_application_lifetimes_for_declaration(application, receiving)
@@ -263,7 +265,13 @@ pub(super) fn validate_nominal_machine_selection(
                 .zip(program.trait_type_parameters(definition))
                 .enumerate()
                 .all(|(ordinal, ((actual, required), parameter))| {
-                    let (actual, required) = if parameter.kind.is_const_or_value() {
+                    let actual_reference = *actual;
+                    let required_reference = *required;
+                    let (actual, required) = if parameter.kind.is_const_or_value()
+                        || matches!(
+                            parameter.kind,
+                            typed_trees::data::TypeParameterKind::Machine { .. }
+                        ) {
                         (
                             applied_index_identity(
                                 program,
@@ -291,11 +299,20 @@ pub(super) fn validate_nominal_machine_selection(
                         .zip(required)
                         .is_some_and(|(actual, required)| actual == required);
                     if !matches && operand_mismatch.is_none() {
-                        operand_mismatch = Some(format!(
-                            "actual index/type identity {:?}, required {:?}",
-                            actual.and_then(|identity| program.type_identity_text(identity)),
-                            required.and_then(|identity| program.type_identity_text(identity))
-                        ));
+                        operand_mismatch = Some(if matches!(parameter.kind, typed_trees::data::TypeParameterKind::Machine { .. }) {
+                            let message = format!("helper `{}` requires `{}`, but the implementation promises `{}`",
+                                parameter.name,
+                                selected_operand_description(program, required_reference, &operands),
+                                selected_operand_description(program, actual_reference, provider_operands.as_deref().unwrap_or(&[])));
+                            helper_mismatch = Some(message.clone());
+                            message
+                        } else {
+                            format!(
+                                "actual index/type identity {:?}, required {:?}",
+                                actual.and_then(|identity| program.type_identity_text(identity)),
+                                required.and_then(|identity| program.type_identity_text(identity))
+                            )
+                        });
                     }
                     matches
                 });
@@ -361,7 +378,7 @@ pub(super) fn validate_nominal_machine_selection(
                 (operand.parameter, argument)
             })
             .collect::<Vec<_>>();
-        retain_conformance_operands(program, application, &mut caller_operands);
+        retain_selected_operands(program, application, &mut caller_operands);
         let caller_scope = AppliedTypeIdentityScope {
             declaration: program.symbols.get(parameter.symbol).parent,
             arguments: &caller_operands,
@@ -378,7 +395,13 @@ pub(super) fn validate_nominal_machine_selection(
                 .zip(parameters)
                 .enumerate()
                 .all(|(ordinal, ((actual, required), parameter))| {
-                    let (actual, required) = if parameter.kind.is_const_or_value() {
+                    let actual_reference = *actual;
+                    let required_reference = *required;
+                    let (actual, required) = if parameter.kind.is_const_or_value()
+                        || matches!(
+                            parameter.kind,
+                            typed_trees::data::TypeParameterKind::Machine { .. }
+                        ) {
                         (
                             applied_index_identity(
                                 program,
@@ -416,11 +439,20 @@ pub(super) fn validate_nominal_machine_selection(
                         .zip(required)
                         .is_some_and(|(actual, required)| actual == required);
                     if !matches && operand_mismatch.is_none() {
-                        operand_mismatch = Some(format!(
-                            "actual index/type identity {:?}, required {:?}",
-                            actual.and_then(|identity| program.type_identity_text(identity)),
-                            required.and_then(|identity| program.type_identity_text(identity))
-                        ));
+                        operand_mismatch = Some(if matches!(parameter.kind, typed_trees::data::TypeParameterKind::Machine { .. }) {
+                            let message = format!("helper `{}` requires `{}`, but the implementation promises `{}`",
+                                parameter.name,
+                                selected_operand_description(program, required_reference, &caller_operands),
+                                selected_operand_description(program, actual_reference, provider_operands));
+                            helper_mismatch = Some(message.clone());
+                            message
+                        } else {
+                            format!(
+                                "actual index/type identity {:?}, required {:?}",
+                                actual.and_then(|identity| program.type_identity_text(identity)),
+                                required.and_then(|identity| program.type_identity_text(identity))
+                            )
+                        });
                     }
                     matches
                 })
@@ -584,6 +616,15 @@ pub(super) fn validate_nominal_machine_selection(
     {
         *bindings = admitted;
     }
+    if matching_rows == 0
+        && let Some(reason) = helper_mismatch
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "`{selected_name}` does not satisfy `{}::{}`: {reason}",
+            trait_definition.name, requirement.name
+        )));
+        return Err(());
+    }
     if matching_rows != 1 {
         let provider_tuple = provider_application
             .map(|handle| {
@@ -670,10 +711,21 @@ fn receiving_application_identity(
     };
     let lifetimes =
         program.static_application_lifetimes_for_declaration(application, declaration)?;
-    let arguments = bindings
+    let mut arguments = bindings
         .iter()
-        .map(|binding| (binding.symbol, binding.actual))
+        .map(|binding| {
+            let argument = if program
+                .data_type_parameter_by_symbol(binding.symbol)
+                .is_some_and(|parameter| parameter.kind.is_const_or_value())
+            {
+                typed_trees::type_identity::IndexIdentityArgument::TypeReference(binding.actual)
+            } else {
+                typed_trees::type_identity::IndexIdentityArgument::TypeArgument(binding.actual)
+            };
+            (binding.symbol, argument)
+        })
         .collect::<Vec<_>>();
+    retain_selected_operands(program, application, &mut arguments);
     program
         .trait_definition_by_symbol(receiving_trait)
         .and_then(|receiving| {
@@ -689,10 +741,35 @@ fn receiving_application_identity(
             )
         })
         .and_then(|scope| {
-            scope.under_invocation(program, declaration, caller, &arguments, &lifetimes)
+            scope.portable_application_identity_under_invocation(
+                program,
+                declaration,
+                caller,
+                &arguments,
+                &lifetimes,
+            )
         })
-        .and_then(|scope| scope.portable_application_identity(program))
         .and_then(|identity| program.type_identity_text(identity))
         .filter(|identity| !identity.is_empty())
         .ok_or_else(|| "callback binder lost its complete receiving trait application".to_owned())
+}
+
+fn selected_operand_description(
+    program: &dyn crate::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    bindings: &[(
+        SymbolHandle,
+        typed_trees::type_identity::IndexIdentityArgument<'_>,
+    )],
+) -> String {
+    if let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+        && let Some((
+            _,
+            typed_trees::type_identity::IndexIdentityArgument::StaticArgument(argument),
+        )) = bindings.iter().find(|(parameter, _)| parameter == symbol)
+    {
+        return argument.display_name();
+    }
+    program.display_type_reference(reference)
 }
