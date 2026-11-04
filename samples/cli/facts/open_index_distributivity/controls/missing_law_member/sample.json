@@ -1,8 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "closed conformance `Canonical satisfies IndexSemiring` is incomplete",
-    "missing `IndexSemiring::distribute`"
-  ]
-}

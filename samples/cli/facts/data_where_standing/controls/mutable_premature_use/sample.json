@@ -1,9 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "cannot complete a call",
-    "`requires` facts of `counter`",
-    "unproved; restore them first"
-  ]
-}

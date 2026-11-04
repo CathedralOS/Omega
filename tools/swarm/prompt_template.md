@@ -97,8 +97,11 @@ an unfinished board-item assignment; continue its remaining requirements.
 
 ## Landing
 
-Follow `tools/landing.md`: validate and review the submitted source, push its
-branch, open a PR, then `python3 tools/landing.py enqueue NUMBER --expected-head
+Follow `tools/landing.md` and `.agents/skills/coordinator-review/SKILL.md`:
+validate the submitted source, push its branch, and open a draft PR (`gh pr create --draft`).
+When controlled by a coordinator session, stop at the draft PR and report `candidate_ready`
+so the coordinator can review the diff before landing. Only when running standalone without
+a coordinator, run `python3 tools/landing.py enqueue NUMBER --expected-head
 FULL_SOURCE_SHA`. GitHub checks integration and squash-merges; never push main.
 Release local build slots before waiting. Do not rebase, rebuild or repeat
 review merely because main advances. Resolve actual conflicts and failed checks.

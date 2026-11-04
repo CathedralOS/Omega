@@ -13,7 +13,8 @@ from check_rules import (
     CACHE_STATE_NAMES, DENSE_ID_MAPS, RATCHETS, SHAPE_GATES, SOURCE_CONTEXT_READS,
     SOURCE_READS, STAGE06_ROOT, STATUS_PHRASES,
     board_task_ids, changed_golden_rows, citing_documents, count_source_reads,
-    count_status_phrases, dangling_task_ids, dangling_task_violations, fact_row_violations,
+    count_status_phrases, dangling_task_ids, dangling_task_violations,
+    diff_hygiene_violations, fact_row_violations,
     golden_row_quality_violations, golden_rows, golden_violations, lanes,
     measurement_violations, nearest_rows,
     program_shingles, ratchet_counts, ratchet_violations, read_baseline,
@@ -322,6 +323,27 @@ class GoldenTests(unittest.TestCase):
         self.assertIn("broken_pass is a pass/run fixture recorded as rejected", violations[1])
         self.assertIn("wrong_fail is a fail fixture recorded as unexpected", violations[2])
         self.assertIn("lost_fail is a fail fixture recorded as checked", violations[3])
+
+    def test_diff_hygiene_blocks_fact_additions_excessive_omg_new_corpus_and_wave_dumps(self):
+        self.assertEqual(diff_hygiene_violations([
+            ("A", "tests/omega/pass/borrows/focused_ok/main.omg"),
+            ("A", "tests/omega/fail/borrows/focused_bad/main.omg"),
+            ("M", "samples/cli/facts/length/local/main.omg"),
+            ("D", "tools/swarm/waves/old.json"),
+        ]), [])
+        violations = diff_hygiene_violations([
+            ("A", "samples/cli/facts/length/sub/main.omg"),
+            ("A", "tests/omega/pass/facts/length_sub_exit/main.omg"),
+            ("A", "tests/omega/corpus_extra.txt"),
+            ("A", "tools/swarm/waves/w99.json"),
+            *[("A", f"tests/omega/pass/borrows/f{i}/main.omg") for i in range(6)],
+        ])
+        self.assertEqual(len(violations), 5, violations)
+        self.assertTrue(any("samples/cli/facts/length/sub/main.omg" in v for v in violations))
+        self.assertTrue(any("tests/omega/pass/facts/length_sub_exit/main.omg" in v for v in violations))
+        self.assertTrue(any("tests/omega/corpus_extra.txt" in v for v in violations))
+        self.assertTrue(any("tools/swarm/waves/w99.json" in v for v in violations))
+        self.assertTrue(any("PR adds 8 .omg files (limit is 6)" in v for v in violations))
 
 
 class MeasurementTests(unittest.TestCase):

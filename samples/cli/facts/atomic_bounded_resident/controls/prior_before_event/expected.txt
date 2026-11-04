@@ -1,1 +1,0 @@
-cannot consume its atomic result before the event completes

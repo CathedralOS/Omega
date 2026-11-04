@@ -94,6 +94,7 @@ FIXTURE_TIERS = ("tests/omega/pass/", "tests/omega/fail/", "tests/omega/run/")
 FACTS_ROOT = "samples/cli/facts/"
 MEASUREMENTS_ROOT = "wiki/drafts/measurements/"
 MEASUREMENT_LINE_LIMIT = 300
+MAX_NEW_OMG_FILES = 6
 NEAR_DUPLICATE = 0.8
 SUBJECT_LIMIT = 85
 
@@ -635,6 +636,39 @@ def show(revision: str, path: str, root: Path = ROOT) -> str:
         return ""
 
 
+def diff_hygiene_violations(changes: list) -> list:
+    """Enforce repository organization and anti-bloat guardrails on added files:
+    1. No new .omg files under samples/cli/facts/ or tests/omega/{pass,fail,run}/facts/.
+    2. At most MAX_NEW_OMG_FILES (6) new .omg files in a single PR across the tree.
+    3. No new tests/omega/corpus_*.txt files.
+    4. No new tools/swarm/waves/ files committed to git (use build/swarm/<wave>/)."""
+    violations = []
+    added_omg = []
+    for status, path in changes:
+        if status != "A":
+            continue
+        if path.endswith(".omg"):
+            added_omg.append(path)
+            if path.startswith(FACTS_ROOT) or path.startswith(
+                ("tests/omega/pass/facts/", "tests/omega/fail/facts/", "tests/omega/run/facts/")
+            ):
+                violations.append(
+                    f"{path}: adding new .omg files under facts/ is frozen to prevent corpus bloat; "
+                    f"pin the repair by flipping existing regressions in {GOLDEN} or adding a "
+                    "focused fixture pair under tests/omega/{pass,fail,run}/<behavior>/")
+        elif path.startswith("tests/omega/corpus_") and path.endswith(".txt"):
+            violations.append(
+                f"{path}: do not add new corpus_*.txt files; record outcomes in {GOLDEN}")
+        elif path.startswith("tools/swarm/waves/"):
+            violations.append(
+                f"{path}: swarm wave state belongs in ignored build/swarm/<wave>/, not tools/swarm/waves/")
+    if len(added_omg) > MAX_NEW_OMG_FILES:
+        violations.append(
+            f"PR adds {len(added_omg)} .omg files (limit is {MAX_NEW_OMG_FILES}); "
+            "pin repairs with at most a focused positive/negative fixture pair, never a combinatorial matrix")
+    return violations
+
+
 def diff_checks(base: str, root: Path = ROOT) -> list:
     changes = []
     for line in git("diff", "--name-status", "--no-renames", base, "HEAD", root=root).splitlines():
@@ -651,6 +685,7 @@ def diff_checks(base: str, root: Path = ROOT) -> list:
     violations += golden_row_quality_violations(golden_diff)
     violations += measurement_violations(
         changes, lambda path: len(show("HEAD", path, root).splitlines()))
+    violations += diff_hygiene_violations(changes)
     base_folders = {path.split("/")[3] for path in
                     git("ls-tree", "-r", "--name-only", base, FACTS_ROOT, root=root).split()
                     if path.count("/") >= 4}
@@ -662,15 +697,6 @@ def diff_checks(base: str, root: Path = ROOT) -> list:
             f"{FACTS_ROOT}{name}: new fact folders are frozen to prevent corpus bloat; "
             f"pin the repair by flipping existing regressions in {GOLDEN} or adding a "
             "focused fixture pair under tests/omega/{pass,fail,run}/<behavior>/")
-    for status, path in changes:
-        if status == "A" and path.endswith(".omg") and (
-            path.startswith(FACTS_ROOT)
-            or path.startswith(("tests/omega/pass/facts/", "tests/omega/fail/facts/", "tests/omega/run/facts/"))
-        ):
-            violations.append(
-                f"{path}: adding new .omg files under facts/ is frozen to prevent corpus bloat; "
-                f"pin the repair by flipping existing regressions in {GOLDEN} or adding a "
-                "focused fixture pair under tests/omega/{pass,fail,run}/<behavior>/")
     return violations
 
 
