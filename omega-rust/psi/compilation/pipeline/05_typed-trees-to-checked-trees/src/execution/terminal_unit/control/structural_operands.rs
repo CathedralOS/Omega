@@ -283,6 +283,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
     Vec<checked_trees::CheckedStructuralValueCall>,
     checked_trees::CheckedValueCompletion,
 )> {
+    let caller_trace = trace.mark();
     let plans = &facts.values.structural_values;
     let binders = machine_binders(program, machine);
     let mut scoped_results = results.to_vec();
@@ -574,7 +575,19 @@ pub(in crate::execution::terminal_unit) fn value_calls(
         subject_completions
             .iter()
             .find_map(|(root, completion)| (*root == value).then_some(*completion))
-    })?;
+    });
+    if completion.is_none() && std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+        eprintln!(
+            "CHECKSITE completion-value-summary machine={} state={} root={:?} value={:?} calls={:?}",
+            machine.name,
+            state.name,
+            root,
+            plans.nodes.get(root),
+            output,
+        );
+    }
+    let completion = completion?;
+    trace.restore(&caller_trace);
     Some((output, completion))
 }
 
