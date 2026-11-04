@@ -130,35 +130,46 @@ recording a value grants no extra access or lifetime.
 
 The complete checked call, family table, selected Build row and result survive
 Terminal production, interpretation, calling plans and native execution on the
-two measured hosts. The focused scope includes this row's 12 positive projects
+four hosted targets measured below. The focused scope includes this row's 12 positive projects
 and 13 reject controls, plus the existing static inline-result target and twin.
 
-At exact source `6877d16bd42c53f2c3dd9a9cf4f733a6ffdbd550`,
-[Linux qualification](https://github.com/CathedralOS/Omega/actions/runs/41813105626)
-and the [macOS replay](https://github.com/CathedralOS/Omega/actions/runs/41817261002)
-each observe 13 checked positives, 14 intended corpus refusals and 13 actual
-native/Terminal exit-zero agreements. All 27 ordinary projects meet their
-expectations: 13 zero agreements and 14 intended refusals. The selected-target
-program now completes ordinary package review and executes at zero.
+The [Windows x86-64 replay](https://github.com/CathedralOS/Omega/actions/runs/41830011701)
+and [Linux ARM64 replay](https://github.com/CathedralOS/Omega/actions/runs/41827408170)
+now complete the remaining hosts at compiler source
+`2dcf275fa50f3b59a0700b391bd84c2f187b48b5`. Each checks 13 positives and
+14 intended refusals, observes 13 native/Terminal exit-zero agreements, and
+passes all 27 ordinary projects: 13 zero agreements and 14 intended refusals.
+This includes every place and existing composition control, plus the unchanged
+const-parameter control for the shared package-review check.
 
-Both compiler profiles use optimization level 1. The macOS replay authenticates
-the exact binaries from its [two-case seed](https://github.com/CathedralOS/Omega/actions/runs/41813109293);
-it performs no second compiler build and changes no gate limits. The
-[source archive](https://github.com/CathedralOS/Omega/pull/1805) retains that
-measured compiler independently of later metadata and publication.
+Each replay authenticates the exact optimized binaries from its small
+[Windows seed](https://github.com/CathedralOS/Omega/actions/runs/41823975939) or
+[ARM seed](https://github.com/CathedralOS/Omega/actions/runs/41823980405).
+The selected-target program completes ordinary package review and executes at
+zero on both hosts. The full replays perform no second compiler build and
+change no gate limits. The [compiler source archive](https://github.com/CathedralOS/Omega/pull/1808)
+retains the measured source; compiler profiles use optimization level 1.
 
-The final follow-up also includes an already published floating-point proof
-repair. Independent review verified that this additional change affects only
-sealed floating-point catalog selection; this row's integer, Boolean, index and
-selector consumers are unchanged. These results remain observations at
-`6877d16bd42`, with that applicability argument. They are not a new-head replay.
-Published corpus records remain unchanged because their status, facts and
-diagnostics match the actual focused observations; new CLI evidence is retained
-separately.
+The earlier [Linux x86-64 qualification](https://github.com/CathedralOS/Omega/actions/runs/41813105626)
+and [macOS ARM64 replay](https://github.com/CathedralOS/Omega/actions/runs/41817261002)
+observe the same outcomes at compiler source
+`6877d16bd42c53f2c3dd9a9cf4f733a6ffdbd550`. The later source adds an already
+published floating-point proof repair. Independent review verified that it
+affects only floating-point catalog selection; this row's integer, Boolean,
+index and selector consumers are unchanged. Those earlier results retain their
+actual source and profiles, with that applicability argument. They are not
+new-source executions. Their [measured source archive](https://github.com/CathedralOS/Omega/pull/1805)
+and macOS [binary seed](https://github.com/CathedralOS/Omega/actions/runs/41813109293)
+remain available.
 
-This completes the selected-relay migration and its ordinary package-review
-repair on Linux x86-64 and macOS ARM64. Windows, Linux ARM64, Product producer
-parity and the broader acceptance of both parent tasks remain open.
+Only the Windows and ARM corpus records change for this completion. Source,
+Linux and macOS records remain unchanged; their actual focused observations
+and ordinary CLI results are retained separately.
+
+The selected-relay migration, ordinary package-review repair and this fact's
+matching-host acceptance are now observed across all four hosted targets.
+Product producer parity and the broader acceptance of both parent tasks remain
+open.
 
 <details>
 <summary>Earlier source and measurements</summary>

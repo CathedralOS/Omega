@@ -4135,24 +4135,15 @@ pass/facts/finite_family_exclusive_result/parameter rejected 817ms interpreter:u
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_exclusive_result/target_body rejected 809ms interpreter:unchecked @6e42425cd720
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/call_result rejected 808ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/const_name rejected 826ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/field rejected 823ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/local rejected 826ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/match_join rejected 824ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/other_machine rejected 761ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/other_state rejected 759ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/parameter rejected 846ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/target_body rejected 847ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+pass/facts/finite_family_input_index/call_result built 5734ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/const_name built 5825ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/field built 5997ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/local built 6003ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/match_join built 6016ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/other_machine built 5921ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/other_state built 5873ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/parameter built 5921ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/target_body built 6005ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_returned_descriptor/call_result rejected 827ms interpreter:unchecked @6e42425cd720
 	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_returned_descriptor/const_name rejected 825ms interpreter:unchecked @6e42425cd720
@@ -4225,11 +4216,7 @@ pass/facts/finite_family_static_inline_result/parameter rejected 817ms interpret
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_static_inline_result/stale_input rejected 716ms interpreter:unchecked @6e42425cd720
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/target_body rejected 887ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+pass/facts/finite_family_static_inline_result/target_body built 6182ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_static_inline_result/uncalled_target built 5925ms exit:0 interpreter-exit:0 interpreter:agrees @b31668d9a31f
 pass/facts/finite_family_static_inline_result/uncalled_target_missing_supply built 5998ms exit:0 interpreter-exit:0 interpreter:agrees @b31668d9a31f
 pass/facts/five_variant_enum_payload_bound_through_call_result_exit built 2213ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -10964,11 +10951,14 @@ pass/traits/runtime_dyn_byte_record_result built 2249ms exit:0 interpreter-exit:
 pass/traits/runtime_dyn_byte_result_candidates built 2159ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/traits/runtime_dyn_byte_subview_join built 2114ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/traits/runtime_dyn_data_argument_counts_exit built 7919ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
+pass/traits/runtime_dyn_family_local_width_exit built 5979ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/traits/runtime_dyn_family_nested_result rejected 5662ms interpreter:unchecked @6e42425cd720
 	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
 	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
 	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 19499, generation: 1 }, but its retained targets are [(Handle { arena_index: 19499, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 	retained requirement tuple lost its exact source call application: call `code` in `nested_read` binds declaration Handle { arena_index: 19499, generation: 1 }, but its retained targets are [(Handle { arena_index: 19499, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
+pass/traits/runtime_dyn_family_reordered_roster_exit built 6003ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/traits/runtime_dyn_family_replaced_width_exit built 5918ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/traits/runtime_dyn_family_scalar_continuation rejected 617ms interpreter:unchecked @6e42425cd720
 	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
 	retained requirement tuple lost its exact source call application: call `code` in `compare` binds declaration Handle { arena_index: 1470, generation: 1 }, but its retained targets are [(Handle { arena_index: 1470, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
