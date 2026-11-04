@@ -236,7 +236,7 @@ impl StructuralJudge<'_> {
             .captured_result_equations
             .iter()
             .filter(|equation| {
-                equation.completed_call_identity
+                equation.is_completed_call_identity()
                     && self.same_completed_denotation(&equation.right, subject)
             })
             .map(|equation| &equation.left);
