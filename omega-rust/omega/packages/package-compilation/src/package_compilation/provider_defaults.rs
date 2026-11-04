@@ -269,6 +269,91 @@ impl CompletedProviderDefaults {
         Ok(selections)
     }
 
+    /// Rejoin completed core choices in an independently checked Build view.
+    /// Only exact captured declarations cross the scope boundary. Their original
+    /// selection activation and author remain unchanged.
+    pub fn rejoin_build(
+        &self,
+        program: &mut typed_trees::TypedTrees,
+    ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+        let ProviderDefaultSupplier::CapturedToolchain {
+            capture,
+            selections,
+        } = &self.supplier
+        else {
+            return Err(wrong_supplier());
+        };
+        self.admit_activation(ProviderDefaultsAdmission::CapturedToolchain(capture))?;
+        for file in program
+            .symbols
+            .source_files()
+            .filter(|file| file.path.starts_with(capture.canonical_live_root()))
+        {
+            admit_toolchain_source(capture, capture, file)?;
+        }
+        let mut joined = Vec::new();
+        for selection in selections.iter() {
+            let subject = rejoin_build_declaration(
+                capture,
+                program,
+                &selection.subject,
+                &selection.subject_identity,
+            )?;
+            let provider = rejoin_build_declaration(
+                capture,
+                program,
+                &selection.provider,
+                &selection.provider_identity,
+            )?;
+            let (subject, provider) = match (subject, provider) {
+                (None, None) => continue,
+                (Some(subject), Some(provider)) => (subject, provider),
+                _ => {
+                    return Err(vec![Diagnostic::error(
+                        "completed core default has only one declaration in the receiving Build",
+                    )]);
+                }
+            };
+            let mut selected = selection.clone();
+            selected.subject = subject;
+            selected.provider = provider;
+            for application in [
+                &mut selected.subject_application,
+                &mut selected.provider_application,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                let needed = application
+                    .declaration_spans()
+                    .map(|span| span.source_id)
+                    .collect::<Vec<_>>();
+                let files = application
+                    .sources
+                    .files()
+                    .map(|file| {
+                        if !needed.contains(&file.source_id) {
+                            return Ok(file.clone());
+                        }
+                        let mut current = receiving_build_source(capture, program, file)?
+                        .ok_or_else(|| vec![Diagnostic::error(
+                            "completed core default application is absent from the receiving Build",
+                        )])?;
+                        current.source_id = file.source_id;
+                        Ok(current)
+                    })
+                    .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+                application.sources = Arc::new(source::SourceMap::from_files(files));
+            }
+            joined.push(
+                selected
+                    .rejoin(program, source::DependencyScope::Build, &joined)
+                    .map_err(|error| vec![error])?,
+            );
+        }
+        Ok(joined)
+    }
+
     fn admit_activation(
         &self,
         admission: ProviderDefaultsAdmission<'_>,
@@ -329,6 +414,72 @@ impl CompletedProviderDefaults {
             _ => Err(wrong_supplier()),
         }
     }
+}
+
+fn receiving_build_source(
+    capture: &CapturedLocalSource,
+    program: &typed_trees::TypedTrees,
+    original: &SourceFile,
+) -> Result<Option<SourceFile>, Vec<Diagnostic>> {
+    let original = admit_toolchain_source(capture, capture, original)?;
+    let mut matching = program.symbols.source_files().filter(|file| {
+        file.path == original.path && file.dependency_scope == source::DependencyScope::Build
+    });
+    let current = matching.next().cloned();
+    if matching.next().is_some() {
+        return Err(vec![Diagnostic::error(
+            "completed core default has ambiguous receiving Build source custody",
+        )]);
+    }
+    current
+        .map(|file| admit_toolchain_source(capture, capture, &file))
+        .transpose()
+}
+
+fn rejoin_build_declaration(
+    capture: &CapturedLocalSource,
+    program: &typed_trees::TypedTrees,
+    original: &RetainedDeclaration,
+    identity: &str,
+) -> Result<Option<RetainedDeclaration>, Vec<Diagnostic>> {
+    let Some(file) = receiving_build_source(capture, program, original.source())? else {
+        return Ok(None);
+    };
+    let anchor = RetainedDeclaration::from_retained_parts(file, original.span(), original.kind())
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let candidates = program
+        .symbols
+        .symbols()
+        .nodes()
+        .iter()
+        .map(|(symbol, _)| symbol)
+        .filter(|symbol| {
+            program
+                .symbols
+                .symbol_source_span(*symbol)
+                .is_some_and(|span| {
+                    span.span == anchor.span()
+                        && program.symbols.source_file(span).is_some_and(|file| {
+                            file.path == anchor.source().path
+                                && file.dependency_scope == source::DependencyScope::Build
+                        })
+                })
+        })
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return Ok(None);
+    }
+    anchor
+        .rejoin(
+            &program.symbols,
+            candidates.into_iter().filter(|symbol| {
+                program
+                    .normalized_hermetic_symbol_identity(*symbol)
+                    .is_ok_and(|actual| actual == identity)
+            }),
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    Ok(Some(anchor))
 }
 
 fn admit_toolchain_source(
