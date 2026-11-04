@@ -64,6 +64,11 @@ fn predicate(
         ExpressionNode::Binary(binary)
             if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
         {
+            // Connectives need the same authenticated meaning as comparisons;
+            // a syntax tag alone cannot make two selected operations equal.
+            if !engine.selected_binary_meaning(expression, binary) {
+                return None;
+            }
             let left = Box::new(predicate(program, engine, binary.left, depth + 1)?);
             let right = Box::new(predicate(program, engine, binary.right, depth + 1)?);
             Some(if binary.operator == BinaryOperator::And {
