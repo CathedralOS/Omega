@@ -50,7 +50,23 @@ pub fn contains_owned_boundary(
     active: &mut BTreeSet<StructuralTypeId>,
     structural_type: StructuralTypeId,
 ) -> Option<bool> {
-    if boundaries.contains(&structural_type) {
+    contains_boundary(
+        &|identity| types.get(&identity).copied(),
+        &|identity| boundaries.contains(&identity),
+        cache,
+        active,
+        structural_type,
+    )
+}
+
+fn contains_boundary<'types>(
+    declaration: &dyn Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
+    boundary: &dyn Fn(StructuralTypeId) -> bool,
+    cache: &mut BTreeMap<StructuralTypeId, bool>,
+    active: &mut BTreeSet<StructuralTypeId>,
+    structural_type: StructuralTypeId,
+) -> Option<bool> {
+    if boundary(structural_type) {
         return Some(true);
     }
     if let Some(result) = cache.get(&structural_type) {
@@ -60,8 +76,8 @@ pub fn contains_owned_boundary(
         return None;
     }
     let mut result = false;
-    for child in child_types(types.get(&structural_type)?) {
-        result |= contains_owned_boundary(types, boundaries, cache, active, child)?;
+    for child in child_types(declaration(structural_type)?) {
+        result |= contains_boundary(declaration, boundary, cache, active, child)?;
     }
     active.remove(&structural_type);
     cache.insert(structural_type, result);
@@ -222,9 +238,8 @@ pub fn selected_contains_owned_boundary(
 /// ledger. Execution admits its stored tag; static replay retains every case
 /// not independently excluded at this occurrence. This check introduces no tag
 /// evidence or storage authority.
-pub fn validate_owned_claim_frontier(
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    nominal: &BTreeSet<StructuralTypeId>,
+pub fn validate_owned_claim_frontier<'types>(
+    declaration: &dyn Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
     selected_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     accounted: impl IntoIterator<Item = Vec<StructuralPathSegment>>,
@@ -277,21 +292,28 @@ pub fn validate_owned_claim_frontier(
                 continue;
             }
         };
-        if nominal.contains(&current) {
+        let current_type = declaration(current).ok_or("owned value type is absent")?;
+        if current_type.owns_linear_claim {
             if !remaining.remove(&path) {
                 return Err("owned value has no exact live nominal claim");
             }
             continue;
         }
-        if !contains_owned_boundary(types, nominal, &mut cache, &mut BTreeSet::new(), current)
-            .ok_or("owned value claim graph is unresolved")?
+        let nominal = |identity| declaration(identity).is_some_and(|value| value.owns_linear_claim);
+        if !contains_boundary(
+            declaration,
+            &nominal,
+            &mut cache,
+            &mut BTreeSet::new(),
+            current,
+        )
+        .ok_or("owned value claim graph is unresolved")?
         {
             continue;
         }
         // A selected empty case can owe no claim. Stream relevant arrays
         // through their actual tags rather than bound them by claim count.
-        let declaration = types.get(&current).ok_or("owned value type is absent")?;
-        if let StructuralTypeShape::FixedArray { element, length } = &declaration.shape {
+        if let StructuralTypeShape::FixedArray { element, length } = &current_type.shape {
             pending.push(Pending::Array {
                 path,
                 element: *element,
@@ -317,7 +339,7 @@ pub fn validate_owned_claim_frontier(
                     }
                 }
             };
-        match &declaration.shape {
+        match &current_type.shape {
             StructuralTypeShape::Record { fields: common, .. } => fields(&path, common),
             StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
                 let mut payload_required = false;
@@ -327,9 +349,9 @@ pub fn validate_owned_claim_frontier(
                     .filter(|field| !field.relevance.is_erased())
                     .filter_map(|field| field.field_type.as_structural())
                 {
-                    payload_required |= contains_owned_boundary(
-                        types,
-                        nominal,
+                    payload_required |= contains_boundary(
+                        declaration,
+                        &nominal,
                         &mut cache,
                         &mut BTreeSet::new(),
                         child,
@@ -348,7 +370,7 @@ pub fn validate_owned_claim_frontier(
                         return Err("owned value has no admitted payload case");
                     }
                 }
-                if let StructuralTypeShape::Mixed { fields: common, .. } = &declaration.shape {
+                if let StructuralTypeShape::Mixed { fields: common, .. } = &current_type.shape {
                     fields(&path, common);
                 }
             }

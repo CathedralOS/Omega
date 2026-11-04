@@ -83,15 +83,6 @@ pub(crate) fn require_owned_value_claims(
         return Ok(());
     }
     let selected = resolve_structural_path_type(structural_types, root_type, &argument.path)?;
-    let types = structural_types
-        .values()
-        .map(|declaration| (declaration.id, declaration))
-        .collect::<BTreeMap<_, _>>();
-    let nominal = types
-        .values()
-        .filter(|declaration| declaration.owns_linear_claim)
-        .map(|declaration| declaration.id)
-        .collect::<BTreeSet<_>>();
     let claims = live_claims.values().filter(|claim| {
         claim.place == Some(argument.place)
             && (claim.path.starts_with(&argument.path) || argument.path.starts_with(&claim.path))
@@ -103,8 +94,7 @@ pub(crate) fn require_owned_value_claims(
         return Err(TerminalInterpretError::ClaimTransferMismatch);
     }
     terminal_semantics::owned_structure::validate_owned_claim_frontier(
-        &types,
-        &nominal,
+        &|identity| structural_types.get(&identity),
         selected,
         &argument.path,
         claims.map(|claim| claim.path.clone()),

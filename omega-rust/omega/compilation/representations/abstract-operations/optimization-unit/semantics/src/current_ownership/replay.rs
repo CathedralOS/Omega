@@ -229,11 +229,6 @@ pub(super) fn validate_current_ownership_cfg(
     Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement>,
     OptimizationUnitValidationError,
 > {
-    let nominal = structural_types
-        .values()
-        .filter(|declaration| declaration.owns_linear_claim)
-        .map(|declaration| declaration.id)
-        .collect::<BTreeSet<_>>();
     let pins = super::address_joins::AddressJoinPins::new(
         function,
         functions,
@@ -613,8 +608,7 @@ pub(super) fn validate_current_ownership_cfg(
                     ));
                 }
                 terminal_semantics::owned_structure::validate_owned_claim_frontier(
-                    structural_types,
-                    &nominal,
+                    &|identity| structural_types.get(&identity).copied(),
                     selected.id,
                     &argument.path,
                     claims.map(|claim| claim.path.clone()),
