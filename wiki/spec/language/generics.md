@@ -401,6 +401,17 @@ parameter must match consistently; stronger proof automation must not change an
 application's inferred constants, storage layout, or public identity. Separately
 proved relationships may establish compatibility without renaming either index.
 
+[Bounded canonical index normalization](../proofs/contracts.md#bounded-canonical-index-normalization)
+uses a shared published encoding independently of each compiler's in-memory
+storage. The canonical pre-expansion form determines the 64-summand expansion
+decision; a retained unexpanded form is not a proof of inequality. At an
+unresolved compatibility check, retained cutoff evidence supplies the budget
+diagnostic. Exact local equalities and checked theorem guarantees remain
+available. Generic compatibility derivations transport through specialization
+without another attempt to prove the same equality; separately closed keys
+still use admitted concrete evaluation. Call and formation obligations are not
+waived by transporting that evidence.
+
 Explicitly uninhabited domains remain legal. Matching that lacks a unique index
 rejects; emptiness cannot choose an arbitrary capacity. An opaque domain or an
 unbounded classification does not implicitly expose a finite bound. Domain

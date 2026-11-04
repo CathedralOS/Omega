@@ -56,6 +56,25 @@ names both the opening write or storage cast and the consuming use. Machine
 arrivals prove their own contracts; a backedge cannot reuse entry facts invalidated
 by its writes.
 
+## Lending Does Not Erase The Owner's Domain
+
+Suppose a library declares `Ascii` as a domain whose predicate excludes bytes
+above 127. A local `bytes: [u8; 2] in Ascii` must still satisfy that predicate
+when a mutable loan returns its storage. A helper may temporarily break it under
+the ordinary window rules, but returning 255 in the array without restoration
+is invalid. Giving the helper an unqualified view does not erase that debt.
+
+This differs from an unqualified array lent to a machine that merely requires
+ASCII contents on entry. That extra input fact may expire unless the machine
+promises to preserve it. The original storage declaration determines what must
+be restored; neither `Ascii` nor any other encoding name is a compiler builtin.
+
+A domain without predicates has no predicate to restore. If its correctness
+depends on controlled establishment or mutation, its declared routes and access
+policy enforce that protocol and cannot be bypassed by a cast. An empty,
+unrestricted tag by itself makes no such promise. See
+[lender-domain restoration](../spec/language/dependent_values.md#lent-storage-retains-its-declared-domains).
+
 ## Failure Does Not Cancel A Window
 
 Recoverable failure is an ordinary outcome, not permission to discard proof

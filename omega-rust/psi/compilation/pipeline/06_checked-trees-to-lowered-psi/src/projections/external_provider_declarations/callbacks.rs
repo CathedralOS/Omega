@@ -18,6 +18,7 @@ use terminal_psi::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RequirementCorrespondence {
+    receiving_application: Result<String, String>,
     owner: SymbolHandle,
     member: SymbolHandle,
     declaration: CallbackRequirementId,
@@ -54,6 +55,7 @@ impl PreparedCallbackDeclarations {
                 match prepared.requirements.iter().find(|association| {
                     association.owner == usage.satisfaction_trait
                         && association.member == usage.satisfaction_requirement
+                        && association.receiving_application == usage.receiving_application
                 }) {
                     Some(association) => association.declaration,
                     None => {
@@ -88,6 +90,7 @@ impl PreparedCallbackDeclarations {
                             },
                         );
                         prepared.requirements.push(RequirementCorrespondence {
+                            receiving_application: usage.receiving_application.clone(),
                             owner: usage.satisfaction_trait,
                             member: usage.satisfaction_requirement,
                             declaration,
@@ -162,19 +165,21 @@ impl PreparedCallbackDeclarations {
         prepared
     }
 
-    /// Close exact source owner/member associations in this product's namespace.
-    /// Callers supply only unapplied calling declarations, preserving the existing
-    /// empty-boundary-argument rule. Unrelated plans cannot introduce new uses.
-    pub fn calling_requirements(
+    /// Match the child selected by the binder as well as the inherited member.
+    /// Matching only the parent would let a sibling's policy admit this callback.
+    pub fn calling_requirements<'a>(
         &self,
-        declarations: impl IntoIterator<Item = (SymbolHandle, SymbolHandle)>,
+        declarations: impl IntoIterator<Item = (&'a str, SymbolHandle)>,
     ) -> Vec<CallbackRequirementId> {
         declarations
             .into_iter()
-            .filter_map(|(owner, member)| {
+            .filter_map(|(receiving_application, member)| {
                 self.requirements
                     .iter()
-                    .find(|association| association.owner == owner && association.member == member)
+                    .find(|association| {
+                        association.receiving_application.as_deref() == Ok(receiving_application)
+                            && association.member == member
+                    })
                     .map(|association| association.declaration)
             })
             .collect()

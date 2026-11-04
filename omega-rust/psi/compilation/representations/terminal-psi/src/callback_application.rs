@@ -9,6 +9,9 @@ pub struct TerminalCallbackApplication {
     pub registrar: semantic_vocabulary::OperationId,
     pub static_machine_ordinal: u32,
     pub requirement: String,
+    /// Complete binder-selected receiving application, which can differ from
+    /// the parent that declares the requirement and its ABI signature.
+    pub calling_owner_application: String,
     /// Exact inbound declaration, not an inverse lookup by overload spelling.
     /// Unadmitted nominal uses can lack an emitted entry; they remain only so
     /// a selected foreign registrar can report its missing Calling obligation.

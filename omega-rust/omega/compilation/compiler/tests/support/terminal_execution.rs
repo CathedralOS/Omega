@@ -181,6 +181,7 @@ pub(super) fn target_installations(
             }
         };
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
+            native_image: None,
             entry: None,
             filesystem: Default::default(),
             // Target installations supply no clock or streams; they grant no
@@ -303,6 +304,7 @@ impl Observation {
 
 pub(super) fn interpret(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
+    native_image: Option<&compilation_products::RetainedNativeArtifact>,
     provisions: Option<&compilation_products::TerminalRuntimeProvisions>,
     target: Option<&str>,
     fixture_dir: &std::path::Path,
@@ -325,6 +327,7 @@ pub(super) fn interpret(
         Err(error) => return Observation::failure(format!("native sponsor executable: {error}")),
     };
     let result = match terminal_runtime::execute(TerminalRuntimeRequest {
+        native_image,
         entry: None,
         filesystem: Default::default(),
         // The native leg runs this same product on this host; package-owned

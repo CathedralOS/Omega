@@ -65,6 +65,22 @@ pub(crate) fn assemble_labeled_stream<L: Copy + Eq, I: Copy>(
     Ok(bytes)
 }
 
+/// Materialize one checked condition in a fully defined integer register.
+/// REX keeps low-byte registers distinct from AH/CH/DH/BH; MOVZX through the
+/// 32-bit view then defines every bit of the 64-bit result.
+pub(crate) fn append_boolean(bytes: &mut Vec<u8>, destination: u8, condition: u8) {
+    bytes.extend([
+        0x40 | (destination >> 3),
+        0x0f,
+        0x90 | condition,
+        0xc0 | (destination & 7),
+        0x40 | ((destination >> 3) << 2) | (destination >> 3),
+        0x0f,
+        0xb6,
+        0xc0 | ((destination & 7) << 3) | (destination & 7),
+    ]);
+}
+
 fn append_register_binary(bytes: &mut Vec<u8>, opcode: u8, source: u8, destination: u8) {
     bytes.extend([
         rex(source, 0, destination),
@@ -568,19 +584,7 @@ pub(crate) fn encode_unchecked(
                 Kind::MaterializeBooleanI64LessOrEqual => 14,
                 _ => unreachable!("Boolean condition arm"),
             };
-            let destination = registers[0];
-            // Always carry REX so low-byte views never name AH/CH/DH/BH.
-            // MOVZX into the 32-bit view then defines all 64 result bits.
-            bytes.extend([
-                0x40 | (destination >> 3),
-                0x0f,
-                0x90 | condition,
-                0xc0 | (destination & 7),
-                0x40 | ((destination >> 3) << 2) | (destination >> 3),
-                0x0f,
-                0xb6,
-                0xc0 | ((destination & 7) << 3) | (destination & 7),
-            ]);
+            append_boolean(&mut bytes, registers[0], condition);
         }
         Kind::ZeroExtendU8 => {
             bytes.extend([

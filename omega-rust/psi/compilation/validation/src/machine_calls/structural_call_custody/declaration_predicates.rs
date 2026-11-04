@@ -1,53 +1,31 @@
-//! The declaration predicate roster: the `where` facts of every data
-//! declaration a state's parameters reach, spelled in the Terminal
-//! requirement vocabulary over exact parameter paths.
+//! A helper may update several fields before restoring a record's predicate.
+//! During that update, each field must still satisfy its own scalar type. Carry
+//! the record predicate in the checked entry and return contracts rather than
+//! imposing it on every store.
 //!
-//! [Mutable arguments and declared field domains](../../../../../../../wiki/spec/language/dependent_values.md#mutable-arguments-and-declared-field-domains):
-//! an ordinary `value: &mut T` argument carries the declared default-domain
-//! obligations of `T` at call, entry and return. The caller establishes them,
-//! the callee assumes them, and returning execution restores them under the
-//! ordinary [invariant-window](../../../../../../../wiki/spec/language/dependent_values.md#invariant-windows)
-//! rules. Checking proves those obligations over the authored facts; this
-//! roster is how Terminal carries them. Each row observes one parameter's
-//! storage and is published three ways: as a call-entry requirement, as a
-//! state-arrival obligation, and, for an exclusive borrow, as a normal-return
-//! guarantee. Terminal re-proves every row at each consumption point it owns;
-//! naming the roster grants no fact.
+//! An ordinary `value: &mut T` parameter requires a valid `T` on entry and
+//! return. The caller establishes the requirements, the helper may assume them
+//! on entry, and the helper restores them before returning. Source checking
+//! proves these obligations. Lowering carries the checked rows into Terminal
+//! call-entry, state-arrival and normal-return contracts. Each row names the
+//! exact parameter and field path it observes.
 //!
-//! A definition's facts are carried in these forms:
+//! See [mutable arguments and declared field domains](../../../../../../../wiki/spec/language/dependent_values.md#mutable-arguments-and-declared-field-domains)
+//! and [temporary invariant violations](../../../../../../../wiki/spec/language/dependent_values.md#invariant-windows).
 //!
-//! - An interval-only fact set bounds each field's own Terminal carrier
-//!   (`data_where_field_intervals`), which every store proves and every read
-//!   assumes. It occupies no row.
-//! - A complete case-dependent predicate implied by every selected payload's
-//!   retained field carriers also occupies no row. The implication check must
-//!   cover every case; independently constrained fields do not discharge an
-//!   additional coupling, an excluded case, or an unsupported predicate.
-//! - A fact the bounded vocabulary spells directly (integer, Boolean and IEEE
-//!   comparisons over field leaves and literals, and their connectives) is one
-//!   row with the same meaning.
-//! - A [collection-predicate](../../../../../../../wiki/spec/language/dependent_values.md#collection-invariants)
-//!   application `P(&field, ..) == true` contributes its checked elementwise
-//!   consequence: one row per element bounding it to the interval it holds on
-//!   every path of `P`'s own body that returns `true`. Naming `P` grants
-//!   nothing; exploring its checked states does.
+//! `declaration_facts_carried` reports whether every requirement can be
+//! represented by these rows. Collection-derived rows count only when they are
+//! equivalent to the complete predicate. Completeness of this representation
+//! does not establish a value's validity or authorize a write: source checking
+//! proves the full default domain, including mathematical facts this module
+//! cannot represent. Supported rows retain each comparison and connective's
+//! exact meaning.
 //!
-//! A definition is *carried* (`declaration_facts_carried`) when every fact
-//! has one of these forms and each collection consequence is exact: exploring
-//! `P` again over the consequence intervals decides `true`, so the rows imply
-//! the fact. This reports completeness of this bounded roster, not whether
-//! checked storage may be written: source checking proves the full default
-//! domain, including mathematical facts outside this spelling. Machines
-//! publish supported rows independently of their body topology. A consumer
-//! relying on such a row still owes its exact arrival/call/return obligation;
-//! the roster does not replace source invariant-window restoration checking.
-//! Zero-excluding definitions carry the same obligations once established;
-//! zero provisioning remains a separate construction judgment. A conservative
-//! declaration flag cannot erase an incoming value's default domain or refuse
-//! its replacement. Static subjects read the exact retained argument tuple;
-//! zero qualification and Terminal spelling share that readonly join.
-//! The authored template is never rewritten for a caller. Descent continues
-//! beneath definitions, and through literal-length arrays at each exact index.
+//! Zero-filled storage is not necessarily a valid value. Its construction is
+//! checked separately and cannot erase an incoming value's requirements. Static
+//! parameters use their exact retained arguments; the authored declaration is
+//! never rewritten for a caller. Traversal follows owned child records and each
+//! element of a fixed array, preserving their exact paths.
 
 use super::super::super::proof_contracts::collection_predicates;
 use crate::frozen_program::expression_table;
@@ -234,7 +212,7 @@ fn complete_definition_storage<'program>(
     // equal nominal/application identities can retain different field views.
     // Never reuse subtree completion: every visit still checks its active
     // cycle context and walks every owned child in the original order.
-    if !definition.where_facts.is_empty()
+    if definition_emits_rows(program, operators, definition)
         && !checked_own_facts
             .iter()
             .any(|known| std::ptr::eq(*known, definition))
@@ -295,28 +273,48 @@ fn complete_owned_storage<'program>(
     }
 }
 
+/// Traverse common requirements and each reachable case's own requirements in
+/// declaration order. Emission and completeness must inspect the same list.
+fn definition_fact_spans<'a>(
+    program: &'a dyn crate::CheckingInput,
+    definition: &'a DataDefinition,
+) -> impl Iterator<
+    Item = (
+        Option<&'a DataVariant>,
+        arena::HandleSpan<typed_trees::domain::ProofFact>,
+    ),
+> {
+    std::iter::once((None, definition.where_facts)).chain(
+        program
+            .data_members(definition)
+            .iter()
+            .filter_map(move |member| {
+                let case = member.as_variant()?;
+                (!crate::impossible_variant(program, case))
+                    .then_some((Some(case), case.where_facts))
+            }),
+    )
+}
+
 fn definition_own_facts_carried(
     program: &dyn crate::CheckingInput,
     operators: &CheckedOperatorFacts,
     definition: &DataDefinition,
 ) -> bool {
-    if !definition_emits_rows(program, operators, definition) {
-        return true;
-    }
-    program
-        .conjunctive_proof_facts(definition.where_facts)
-        .all(|fact| {
+    definition_fact_spans(program, definition).all(|(case, facts)| {
+        let spelling = FactSpelling {
+            program,
+            operators,
+            parameter_position: 0,
+            prefix: &[],
+            definition,
+            selected_case: case,
+        };
+        program.conjunctive_proof_facts(facts).all(|fact| {
             let Some(expression) = fact.as_expression() else {
                 return false;
             };
-            let spelled = FactSpelling {
-                program,
-                operators,
-                parameter_position: 0,
-                prefix: &[],
-                definition,
-            };
-            spelled.boolean(*expression).is_some()
+            spelling.boolean(*expression).is_some()
                 || collection_predicates::data_fact_element_consequences(
                     program,
                     definition,
@@ -324,6 +322,7 @@ fn definition_own_facts_carried(
                 )
                 .is_some_and(|consequence| consequence.exact)
         })
+    })
 }
 
 struct RowEmitter<'a, 'program> {
@@ -428,14 +427,42 @@ impl RowEmitter<'_, '_> {
         if !definition_emits_rows(self.program, self.operators, definition) {
             return;
         }
+        for (case, facts) in definition_fact_spans(self.program, definition) {
+            if let Some(case) = case {
+                self.case_guards
+                    .push(CheckedBooleanExpression::StructuralCaseMembership {
+                        subject: checked_trees::CheckedStructuralCaseSubject {
+                            root: checked_trees::CheckedStructuralCaseRoot::Parameter {
+                                position: self.parameter_position,
+                            },
+                            path: prefix.to_vec(),
+                        },
+                        case: CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
+                    });
+            }
+            self.requirement_rows(prefix, definition, case, facts);
+            if case.is_some() {
+                self.case_guards.pop();
+            }
+        }
+    }
+
+    fn requirement_rows(
+        &mut self,
+        prefix: &[CheckedStructuralPredicatePathSegment],
+        definition: &DataDefinition,
+        selected_case: Option<&DataVariant>,
+        facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
+    ) {
         let spelling = FactSpelling {
             program: self.program,
             operators: self.operators,
             parameter_position: self.parameter_position,
             prefix,
             definition,
+            selected_case,
         };
-        for fact in self.program.conjunctive_proof_facts(definition.where_facts) {
+        for fact in self.program.conjunctive_proof_facts(facts) {
             let Some(expression) = fact.as_expression() else {
                 continue;
             };
@@ -581,17 +608,18 @@ fn carrier_bounds(primitive: PrimitiveType) -> Option<(i128, i128)> {
     })
 }
 
-/// Whether `definition` contributes rows of its own: it has facts that are
-/// not already implied by its retained field carriers. Zero provisioning
-/// does not change the obligations of an established value.
+/// Whether this value carries declaration requirements independent of its
+/// physical field types. Zero provisioning does not erase those requirements.
 fn definition_emits_rows(
     program: &dyn crate::CheckingInput,
     operators: &CheckedOperatorFacts,
     definition: &DataDefinition,
 ) -> bool {
-    !(definition.where_facts.is_empty()
-        || crate::data_where_field_intervals(program, definition).is_some()
-        || field_carriers::imply_declaration(program, operators, definition))
+    definition_fact_spans(program, definition).any(|(case, facts)| {
+        !facts.is_empty()
+            && (case.is_some()
+                || !field_carriers::imply_declaration(program, operators, definition))
+    })
 }
 
 /// The relevant fields whose storage `definition` owns inline. A borrowed
@@ -734,6 +762,7 @@ struct FactSpelling<'a> {
     parameter_position: u32,
     prefix: &'a [CheckedStructuralPredicatePathSegment],
     definition: &'a DataDefinition,
+    selected_case: Option<&'a DataVariant>,
 }
 
 impl FactSpelling<'_> {
@@ -1163,7 +1192,41 @@ impl FactSpelling<'_> {
                         .get(index)
                         .copied()
                         .unwrap_or_else(SymbolHandle::invalid);
-                    let field = find_data_field(self.program, owner, symbol, member.as_str())?;
+                    let field = if let Some(field) =
+                        find_data_field(self.program, owner, symbol, member.as_str())
+                    {
+                        field
+                    } else {
+                        // A case condition can relate a common field to a
+                        // payload. Only the payload receives the case path;
+                        // placing the whole prefix there would misname common fields.
+                        let case = self.selected_case.filter(|_| index == 0)?;
+                        let symbol = if symbol.is_valid()
+                            && let Some(application) = owner.generic_instance
+                        {
+                            self.program
+                                .data_constructor_field(application, owner.symbol, symbol)?
+                                .symbol
+                        } else {
+                            symbol
+                        };
+                        let field =
+                            self.program
+                                .data_payload_fields(case)
+                                .iter()
+                                .find(|field| {
+                                    !field.relevance.is_erased()
+                                        && if symbol.is_valid() {
+                                            field.symbol == symbol
+                                        } else {
+                                            field.name.as_str() == member.as_str()
+                                        }
+                                })?;
+                        path.push(CheckedStructuralPredicatePathSegment::Case(
+                            CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
+                        ));
+                        field
+                    };
                     path.push(CheckedStructuralPredicatePathSegment::Field(
                         CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                     ));

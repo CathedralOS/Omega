@@ -139,6 +139,12 @@ impl CompilerIntrinsicExecutionIdentity {
             O::InterruptControl(
                 language_core::inline_assembly::AsmInterruptControlKind::Enable,
             ) => B::AsmEnableInterrupts,
+            O::GlobalDescriptorTable(terminal_psi::GlobalDescriptorTableOperation::Store) => {
+                B::AsmStoreGdtr
+            }
+            O::GlobalDescriptorTable(terminal_psi::GlobalDescriptorTableOperation::Load) => {
+                B::AsmLoadGdtr
+            }
             O::PortRead => B::AsmPortIn,
             O::PortWrite => B::AsmPortOut,
             O::ModelSpecificRead => B::AsmReadMsr,

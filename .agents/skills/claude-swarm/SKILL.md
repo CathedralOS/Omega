@@ -32,7 +32,10 @@ The `claude-code-remote` tools are deferred; load them with ToolSearch first.
 | Continue a session | `send_message` | Arrives as a peer message, not a user instruction. |
 | Stop a turn | `interrupt_session` | Ends the current turn only. |
 | Release the container | `archive_session` | Only after the work is landed or abandoned and the user is done with it. |
-| Check back later | `send_later` | One check-in at 60 minutes or more. Never poll with sleeps. |
+
+Never schedule periodic timers, `schedule` calls, `send_later` check-ins, or
+sleep loops to poll sessions; rely on reactive messages from subagents or
+other sessions so coordinator tokens are not wasted.
 
 Measured on 2026-11-03 (twelve trial sessions):
 

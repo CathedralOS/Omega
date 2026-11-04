@@ -49,29 +49,29 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Verify move count is 5.
     transition main.board.move_count == 5 {
-        true -> check_winner(main)
-        _ -> bad_count(main)
+        true -> block check_winner(main)
+        _ -> block bad_count(main)
     }
 
     machine check_winner(main: &mut Main) {
         // Check top row: cells 0, 1, 2 all == 1 means X won.
         transition main.board.cells[0] == 1 {
-            true -> check_row_mid(main)
-            _ -> bad_winner(main)
+            true -> block check_row_mid(main)
+            _ -> block bad_winner(main)
         }
     }
 
     machine check_row_mid(main: &mut Main) {
         transition main.board.cells[1] == 1 {
-            true -> check_row_right(main)
-            _ -> bad_winner(main)
+            true -> block check_row_right(main)
+            _ -> block bad_winner(main)
         }
     }
 
     machine check_row_right(main: &mut Main) {
         transition main.board.cells[2] == 1 {
-            true -> check_o_did_not_win(main)
-            _ -> bad_winner(main)
+            true -> block check_o_did_not_win(main)
+            _ -> block bad_winner(main)
         }
     }
 
@@ -79,8 +79,8 @@ machine Main::main(main: &mut Main) reaches Console {
         // Verify O did not somehow win: board[3] and board[4] are O's but
         // board[5] is empty (0), so O's middle row is incomplete.
         transition main.board.cells[5] == 0 {
-            true -> good(main)
-            _ -> bad_winner(main)
+            true -> block good(main)
+            _ -> block bad_winner(main)
         }
     }
 

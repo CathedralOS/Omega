@@ -183,6 +183,19 @@ pub(super) fn read_geometry(
     source: &LegalizedScalarFunction,
     row: &legalized_operations::LegalizedScalarInstruction,
 ) -> Option<(PlaceId, u32, Vec<PointerSlot>)> {
+    if let Instruction::GlobalDescriptorTable {
+        source: place,
+        path,
+        indices,
+        ..
+    } = &row.kind
+    {
+        let signature = source.structural.as_ref()?;
+        let root = super::reference_input::root_type(source, *place)?;
+        let geometry = storage_address_geometry(root, path, &signature.structural_types)?;
+        return crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
+            .then_some((*place, geometry.byte_offset, geometry.pointer_slots));
+    }
     let scalar = row.result?.scalar_type;
     match &row.kind {
         Instruction::ByteSequenceLength {

@@ -11,6 +11,7 @@
 //! `execution_projection.rs` selects executable declaration contexts without
 //! granting a checked judgment; compile-time evaluation and checking share it.
 
+pub use declarations::data_queries::data_field_is_where_independent;
 pub use declarations::traits::conformance_applications;
 pub mod compiler_evaluation;
 pub use queries::execution_projection;
@@ -161,7 +162,7 @@ pub use proof_contracts::domains::{
     scalar_field_restriction, scalar_membership_carrier, scalar_membership_is_tag,
     scalar_membership_predicates, scalar_membership_value_carrier,
     scalar_membership_value_predicates, scalar_predicate_domains, scalar_type_routed_domains,
-    scalar_type_tags, validate_executable_domain_test_carriers,
+    scalar_type_tags, validate_domain_membership_carriers,
 };
 pub use proof_contracts::parameter_domains::parameter_domain_constraints;
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
@@ -226,7 +227,7 @@ pub use value_custody::atomic_operations::{
     AtomicCarrierAccess, atomic_assignment_carrier, atomic_execution_children, atomic_load_carrier,
     atomic_once_carrier, atomic_once_operands, atomic_once_result_type, atomic_once_write_place,
     atomic_resident_type_reference, atomic_result_placeholder, atomic_value_operands,
-    place_is_atomic_storage,
+    is_atomic_type, place_is_atomic_storage,
 };
 pub use value_custody::places::{
     AttachedStorageRoot, ScalarCoordinateProjection, StructuralCoordinate,
@@ -640,8 +641,8 @@ pub use value_custody::places::{
     projected_statement_receiver_type_reference, push_field_place_segments,
     qualification_storage_path, receiver_projections, resolve_member_symbol_from_type_symbol,
     runtime_field_subject, source_type_application_from_segments, state_scoped_name_symbol,
-    structural_member_identity, symbol_type_symbol, unique_data_definition_by_symbol,
-    whole_collection_view_source,
+    storage_operand, storage_place_from_expression_in_state, structural_member_identity,
+    symbol_type_symbol, unique_data_definition_by_symbol, whole_collection_view_source,
 };
 
 /// Walk a type-reference table once into a positional row vector: row 0 is

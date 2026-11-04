@@ -129,6 +129,7 @@ fn terminal_selected_keys(
             system_register_write: keys.system_register_write,
             control_register_read: keys.control_register_read,
             control_register_write: keys.control_register_write,
+            global_descriptor_table: keys.global_descriptor_table,
             port_register_read: keys.port_register_read,
             port_register_write: keys.port_register_write,
             model_specific_read: keys.model_specific_read,
@@ -144,6 +145,7 @@ fn terminal_selected_keys(
             atomic_update: keys.atomic_update,
             atomic_bitwise_update: keys.atomic_bitwise_update,
             atomic_compare_exchange: keys.atomic_compare_exchange,
+            atomic_compare_exchange_once: keys.atomic_compare_exchange_once,
             crash: keys.crash,
             hosted_write_byte_i32: keys.hosted_write_byte_i32,
             save_floating_control: keys.save_floating_control,
@@ -339,6 +341,12 @@ pub fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSemanticKi
     match kind {
         SelectedInstructionKind::InvokeNoNormal { .. } => MachineSemanticKind::InvokeNoNormal,
         SelectedInstructionKind::RegisterAccess { operation } => match operation {
+            selected_instructions::RegisterOperation::GlobalDescriptorTable(
+                selected_instructions::GlobalDescriptorTableOperation::Store,
+            ) => MachineSemanticKind::GlobalDescriptorTableStore,
+            selected_instructions::RegisterOperation::GlobalDescriptorTable(
+                selected_instructions::GlobalDescriptorTableOperation::Load,
+            ) => MachineSemanticKind::GlobalDescriptorTableLoad,
             selected_instructions::RegisterOperation::SystemRead(
                 selected_instructions::SystemRegister::Control(_),
             ) => MachineSemanticKind::ControlRegisterRead,

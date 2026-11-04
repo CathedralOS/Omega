@@ -16,7 +16,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
     let standards: Number = block number(&mut application.reader);
     let unknowns: Number = block number(&mut application.reader);
     transition standards.valid && unknowns.valid && standards.value >= 3.0 && standards.value <= 8.0 && unknowns.value >= 0.0 && unknowns.value <= 8.0 {
-        true -> counts(application, standards.value, unknowns.value) _ -> invalid(application)
+        true -> block counts(application, standards.value, unknowns.value) _ -> invalid(application)
     }
     machine invalid(application: &mut Application) {
         Console::write_line("ERROR malformed or out-of-range input"); Console::exit_process(10);
@@ -31,7 +31,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         let count: i32 in Saturating = I32::from_f64(standards);
         let unknown_count: i32 in Saturating = I32::from_f64(unknowns);
         transition F64::from_i32(count as i32) == standards && F64::from_i32(unknown_count as i32) == unknowns {
-            true -> configure(application, count as i32 in Wrapping, unknown_count as i32 in Wrapping) _ -> invalid(application)
+            true -> block configure(application, count as i32 in Wrapping, unknown_count as i32 in Wrapping) _ -> invalid(application)
         }
     }
     machine configure(application: &mut Application, count: i32 in Wrapping, unknowns: i32 in Wrapping) {
@@ -39,15 +39,15 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.index = 0; application.mean_x = 0.0; application.mean_y = 0.0;
         application.minimum_x = 6.0; application.maximum_x = 0.0;
         application.minimum_y = 50.0; application.maximum_y = 0.0;
-        transition { _ -> read_standard(application) }
+        transition { _ -> block read_standard(application) }
     }
     machine read_standard(application: &mut Application) {
-        transition application.index >= 0 && application.index < application.standards && application.index < 8 { true -> standard(application) _ -> unknown_start(application) }
+        transition application.index >= 0 && application.index < application.standards && application.index < 8 { true -> block standard(application) _ -> block unknown_start(application) }
     }
     machine standard(application: &mut Application) {
         let copies: Number = block number(&mut application.reader);
         let cq: Number = block number(&mut application.reader);
-        transition copies.valid && cq.valid && copies.value >= 1.0 && copies.value <= 1000000.0 && cq.value >= 0.0 && cq.value <= 50.0 { true -> store_standard(application, copies.value, cq.value) _ -> invalid(application) }
+        transition copies.valid && cq.valid && copies.value >= 1.0 && copies.value <= 1000000.0 && cq.value >= 0.0 && cq.value <= 50.0 { true -> block store_standard(application, copies.value, cq.value) _ -> invalid(application) }
     }
     machine store_standard(application: &mut Application, copies: f64, cq: f64) {
         let logarithm: f64 = logarithm(copies);
@@ -57,19 +57,19 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.maximum_x = match logarithm > application.maximum_x { true -> logarithm _ -> application.maximum_x };
         application.minimum_y = match cq < application.minimum_y { true -> cq _ -> application.minimum_y };
         application.maximum_y = match cq > application.maximum_y { true -> cq _ -> application.maximum_y };
-        application.index = application.index + 1; transition { _ -> read_standard(application) }
+        application.index = application.index + 1; transition { _ -> block read_standard(application) }
     }
-    machine unknown_start(application: &mut Application) { application.index = 0; transition { _ -> read_unknown(application) } }
+    machine unknown_start(application: &mut Application) { application.index = 0; transition { _ -> block read_unknown(application) } }
     machine read_unknown(application: &mut Application) {
-        transition application.index >= 0 && application.index < application.unknown_count && application.index < 8 { true -> unknown(application) _ -> finish_input(application) }
+        transition application.index >= 0 && application.index < application.unknown_count && application.index < 8 { true -> block unknown(application) _ -> block finish_input(application) }
     }
     machine unknown(application: &mut Application) {
         let cq: Number = block number(&mut application.reader); let margin: Number = block number(&mut application.reader);
-        transition cq.valid && margin.valid && cq.value >= 0.0 && cq.value <= 50.0 && margin.value >= 0.0 { true -> store_unknown(application, cq.value, margin.value) _ -> invalid(application) }
+        transition cq.valid && margin.valid && cq.value >= 0.0 && cq.value <= 50.0 && margin.value >= 0.0 { true -> block store_unknown(application, cq.value, margin.value) _ -> invalid(application) }
     }
     machine store_unknown(application: &mut Application, cq: f64, margin: f64) {
         application.unknowns[application.index] = cq; application.margins[application.index] = margin;
-        application.index = application.index + 1; transition { _ -> read_unknown(application) }
+        application.index = application.index + 1; transition { _ -> block read_unknown(application) }
     }
     machine finish_input(application: &mut Application) {
         let complete: bool = block ended(&mut application.reader);

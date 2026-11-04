@@ -96,6 +96,69 @@ impl Capture {
         Ok(())
     }
 
+    /// Export native entries at the addresses chosen by the image writer so
+    /// an external CPU harness can execute the actual compiled bodies.
+    pub(super) fn observe_native_entries(
+        &self,
+        report: &compilation_products::CompileReport,
+    ) -> Result<(), String> {
+        if std::env::var_os("OMEGA_CORPUS_CAPTURE_NATIVE_ENTRIES").is_none() {
+            return Ok(());
+        }
+        let (object, image) = if let Some(artifact) = report.retained_native_artifact() {
+            (artifact.object(), artifact.image().output())
+        } else if let Some(artifact) = report.retained_dynamic_elf_artifact() {
+            (artifact.object(), artifact.image().output())
+        } else {
+            return Err("native entry capture requires a retained native image".to_owned());
+        };
+        self.observe("native-image.bin", &image.bytes)?;
+        self.observe(
+            "private-entry-count.txt",
+            object.private_functions().len().to_string().as_bytes(),
+        )?;
+        for (ordinal, entry) in object.private_functions().iter().enumerate() {
+            let end = entry
+                .function
+                .text_offset
+                .checked_add(entry.function.byte_count)
+                .ok_or("private entry text extent overflow")?;
+            if end > image.final_text_bytes.len() {
+                return Err("private entry lies outside the emitted text".to_owned());
+            }
+            let address = image
+                .final_image_layout
+                .text_address
+                .checked_add(entry.function.text_offset as u64)
+                .ok_or("private entry address overflow")?;
+            let bridge = entry.entry_bridge.as_ref();
+            let identity = entry
+                .identity
+                .private_symbol()
+                .ok_or("private entry capture lacks its exact private identity")?;
+            let record = format!(
+                "entry_address={address:#x}\ntext_address={:#x}\ntext_offset={}\nbyte_count={}\nidentity={}\nsource_psi={:?}\nentry_control={:?}\nbody_footprint={:?}\nbody_functions={}\nbody_unit_calls={}\nbody_foreign_calls={}\n",
+                image.final_image_layout.text_address,
+                entry.function.text_offset,
+                entry.function.byte_count,
+                identity,
+                entry.source_psi,
+                bridge.map(|bridge| bridge.request().inbound.call.entry_control),
+                bridge.and_then(|bridge| bridge.request().body_footprint.as_ref()),
+                entry.body.functions().len(),
+                entry
+                    .body
+                    .functions()
+                    .iter()
+                    .map(|function| function.internal_unit_calls.len())
+                    .sum::<usize>(),
+                entry.body.foreign_calls().len(),
+            );
+            self.observe(&format!("private-entry-{ordinal}.txt"), record.as_bytes())?;
+        }
+        Ok(())
+    }
+
     fn compare(&self, name: &str, bytes: &[u8]) -> Result<(), String> {
         let path = self.directory.join(name);
         let retained = fs::read(&path).map_err(|error| {

@@ -29,7 +29,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.mode = main.mode | 8;  // + STICKY              -> 14
     main.mode = main.mode ^ 2;  // toggle WRITE off      -> 12
 
-    transition { _ -> emit(main) }
+    transition { _ -> block emit(main) }
 
     machine emit(main: &mut Main) {
         Console::write_line("result: the final mode bits r-- +s, 12 for this sequence (the exit code)");

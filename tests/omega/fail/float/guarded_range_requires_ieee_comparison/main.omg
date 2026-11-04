@@ -1,4 +1,6 @@
 // A selected boundary with the same token and carrier supplies no IEEE law.
+// Bare primitive operands give these bindings no declared home, so they now
+// reject at the declaration: an authored primitive meaning cannot be selected.
 public boundary machine < Unrelated::less(left: f64, right: f64) -> bool;
 public boundary machine + Unrelated::add(left: u64, right: u64) -> u64
     ensures result < 2;

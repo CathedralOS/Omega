@@ -1,0 +1,1 @@
+asm instruction `sgdt`: descriptor must be exactly [u8; 10]
