@@ -1,2 +1,0 @@
-requires contract for call bounded_endpoint
-0 >= 1

@@ -1,0 +1,31 @@
+// Each call independently violates one restored input condition. All four refusals are required.
+machine upper_bound<const N: u64>(value: u64) -> u64 requires value <= N { N }
+
+machine exclusive_upper_bound<const N: u64>(value: u64) -> u64 requires value < N { N }
+
+machine bounded_endpoint(value: u64) -> u64
+requires value >= 1 && value <= later_limit()
+ensures result <= later_limit()
+{ value }
+
+machine bounded_value() -> u64 ensures result <= 256 { 256 }
+
+machine bounded_wide(value: u64) -> u64
+requires value >= 9223372036854775808u64
+{ value }
+
+machine later_limit() -> u64 { 256 }
+
+machine wrapping_endpoint(value: u8 in Wrapping) -> u64 { (value + 2) as u64 }
+machine argument_result(flag: bool) -> u64 {
+    wrapping_endpoint((match flag { true -> 254, false -> 0 }) + 1)
+}
+machine match_wrapping_policy_bound(value: u64) -> u64
+requires value <= wrapping_endpoint((match true { true -> 254, false -> 0 }) + 1)
+{ upper_bound<257>(value) }
+
+machine below_named_floor() -> u64 { bounded_endpoint(0) }
+machine below_unsigned_floor() -> u64 { bounded_wide(9223372036854775807u64) }
+machine at_exclusive_upper_bound() -> u64 { exclusive_upper_bound<256>(256) }
+machine above_calculated_prerequisite() -> u64 { match_wrapping_policy_bound(2) }
+machine main() {}

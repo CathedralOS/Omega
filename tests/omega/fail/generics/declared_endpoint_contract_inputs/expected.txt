@@ -1,0 +1,7 @@
+requires contract for call bounded_endpoint
+0 >= 1
+requires contract for call bounded_wide
+9223372036854775807 >= 9223372036854775808
+requires contract for call exclusive_upper_bound
+256 < 256
+requires contract for call match_wrapping_policy_bound

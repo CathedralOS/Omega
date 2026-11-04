@@ -17,11 +17,31 @@ the helper first makes a call with its own requirement. Its twins require that
 same pending helper result to admit the call. All nine positives run with
 native/Terminal agreement, and every circular twin rejects during checking.
 
-The [closed-argument production](closed_argument/README.md) retains the same
-bound when a prerequisite's input condition contains arithmetic around a match.
-Its runtime assertions distinguish both Wrapping results. A separate control
-requires an out-of-range initial u8 landing to reject before evaluation.
-Qualification is still pending.
+The nine programs above also make `limit()` admit input 1 against a calculated
+prerequisite. The matching branch supplies anonymous `254 + 1 = 255`; that value
+must fit `u8` before Wrapping addition produces 1. The fallback supplies 0,
+so its result is 3. Each `main()` checks both results, the admitted call's result
+257, and the selected provider limit 7. `limit()` itself checks the matching
+calculation before choosing the provider endpoint; this is not a caller guard
+used to justify an earlier partial operation.
+
+The existing Endpoint declarations, provider 7/6 twins, input 7, and subtraction
+`7u64 - value` remain. The field program checks neighbors 31 and 47. The match
+program retains its original two bound-7 cases and adds bound-7/bound-3 cases
+whose differences are 0 and 4. The selected-target tags remain 17 and 29.
+These extended sources still need fresh qualification; the earlier separate
+`closed_argument` observations do not qualify the current programs.
+
+Two focused controls retain the missing obligations without duplicating the
+nine-place row:
+
+- [Input conditions](../../../../tests/omega/fail/generics/declared_endpoint_contract_inputs/main.omg)
+  require four distinct refusals: zero below the named floor, 2^63 - 1 below
+  the unsigned floor, 256 at an exclusive upper bound, and input 2 above the
+  calculated prerequisite 1.
+- [Initial integer fit](../../../../tests/omega/fail/arithmetic/anonymous_matched_argument_initial_fit/main.omg)
+  changes 254 to 255. Anonymous addition then produces 256, which must reject
+  before entering the Wrapping `u8` helper.
 
 The [guarded-crash production](guarded_crash/README.md) keeps the same bound
 when its helper has a guarded crash contract. It requires the compiler to prove

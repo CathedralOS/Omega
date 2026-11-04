@@ -32,13 +32,16 @@ It exits 70 on success and 71 on a mismatch. It does not execute every helper,
 so runtime success alone is not evidence for every restored clause. Source
 checking also owes each helper's complete contract.
 
-The private `restored_endpoint_inputs` helper checks the valid boundary inputs
-1, 2^63 and 255 at source checking. Its three exact copies change only one
-actual input and must reject:
-
-- [`bounded_endpoint(0)`](../../../fail/generics/declared_endpoint_named_input_zero/main.omg)
-- [`bounded_wide(2^63 - 1)`](../../../fail/generics/declared_endpoint_unsigned_lower_bound/main.omg)
-- [`exclusive_upper_bound<256>(256)`](../../../fail/generics/declared_endpoint_exclusive_input_equal/main.omg)
+The private `restored_endpoint_inputs` helper checks valid inputs 1, 2^63 and
+255 during source checking. The [input-condition control](../../../fail/generics/declared_endpoint_contract_inputs/main.omg)
+retains these helper definitions and separately calls `bounded_endpoint(0)`,
+`bounded_wide(2^63 - 1)`, and `exclusive_upper_bound<256>(256)`. Its oracle requires
+the distinct missing condition for every call. The same control rejects input 2
+against the calculated prerequisite 1 used by the
+[provider-endpoint row](../../../../../samples/cli/facts/provider_contract_endpoint/README.md).
+It avoids importing the standard library four times merely to check these input
+conditions. Fresh qualification of the consolidated control is pending; earlier
+observations of separate copies remain historical evidence.
 
 The related existing rejection controls retain ordinary bounded-call admission,
 explicit generic call requirements and result proof:

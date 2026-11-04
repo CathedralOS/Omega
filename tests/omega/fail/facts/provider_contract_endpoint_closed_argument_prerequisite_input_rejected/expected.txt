@@ -1,4 +1,0 @@
-machine `limit`
-value call to `match_wrapping_policy_bound`
-violates required fact `value <= wrapping_endpoint
-the instantiated fact is structurally false
