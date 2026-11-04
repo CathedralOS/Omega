@@ -245,6 +245,9 @@ the replay authenticates their hashes before querying their profiles, then
 keeps immutable copies. A missing or different executable refuses without a
 Cargo build fallback. Records retain the original producer revision separately
 from the current consumer revision and the originating run/cache reference.
+The validated plan's original key selects the exact cache before Cargo checking;
+a missing entry stops the job without trying a newer branch cache. Replays do
+not replace that cache. Fresh compiler builds keep their ordinary cache path.
 
 A failed fixture or oracle leaves the run red, while independent ordinary CLI
 and sample consumers still record their own outcomes. A changed source or

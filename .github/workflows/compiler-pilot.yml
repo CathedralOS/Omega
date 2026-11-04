@@ -95,8 +95,29 @@ jobs:
       - name: Provision Windows rooted temporary directory for hosted applications
         if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && inputs.cli_fixtures != ''
         run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
+      - name: Select the retained compiler cache from its validated plan
+        id: replay-cache
+        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
+        env:
+          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
+        run: python -c "import os; from tools.ci import compiler_pilot; compiler_pilot.write_replay_cache_key(os.environ['OMEGA_COMPILER_PILOT_FIXTURES'], os.environ['GITHUB_OUTPUT'])"
+      - name: Restore the exact retained compiler cache
+        id: replay-build-cache
+        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ env.CARGO_TARGET_DIR }}
+          key: ${{ steps.replay-cache.outputs.key }}
+          fail-on-cache-miss: true
+      - name: Refuse an absent or partial retained compiler cache
+        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@') && steps.replay-build-cache.outputs.cache-hit != 'true'
+        run: python -c "raise SystemExit('The exact retained compiler cache was not restored; no rebuild was attempted')"
       - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         id: build-cache
+        if: github.event_name != 'workflow_dispatch' || !startsWith(inputs.fixtures, '@')
         with:
           path: |
             ~/.cargo/registry
@@ -143,7 +164,7 @@ jobs:
       # A source/runtime fixture failure does not invalidate compiled Cargo
       # objects. Retain them for the next correction; check outcomes stay red.
       - name: Save build cache after fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
+        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
