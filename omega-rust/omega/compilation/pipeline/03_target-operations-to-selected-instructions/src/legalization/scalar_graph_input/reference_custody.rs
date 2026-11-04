@@ -1120,9 +1120,36 @@ fn storage_access_conflicts(
     path: &[StructuralPathSegment],
     requested: StructuralAccess,
 ) -> bool {
-    custody.leaves.values().any(|reference| {
-        leaf_storage_access_conflicts(function, custody, types, reference, place, path, requested)
+    custody.leaves.iter().any(|(location, reference)| {
+        let conflicts = leaf_storage_access_conflicts(
+            function, custody, types, reference, place, path, requested,
+        );
+        if conflicts {
+            trace_storage_conflict(
+                function, custody, place, path, requested, location, reference,
+            );
+        }
+        conflicts
     })
+}
+
+/// Report the first leaf selected by the existing interference judgment.
+/// Logging uses its retained state and never repeats the permission query.
+fn trace_storage_conflict(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    access: StructuralAccess,
+    location: &(PlaceId, Vec<StructuralPathSegment>),
+    reference: &Leaf,
+) {
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        eprintln!(
+            "CHECKSITE custody-storage-conflict machine={:?} position={:?} place={place:?} path={path:?} access={access:?} conflicting_carrier={location:?} leaf={reference:?}",
+            function.machine, custody.reference_position,
+        );
+    }
 }
 
 /// As [`storage_access_conflicts`], ignoring the leaves that spell the access
@@ -1148,10 +1175,9 @@ fn storage_access_conflicts_beneath_argument(
         .contains_key(&argument.place)
         .then(|| normalized_source(function, custody, types, argument))
         .transpose()?;
-    Ok(custody
-        .leaves
-        .iter()
-        .any(|((leaf_place, leaf_path), reference)| {
+    Ok(custody.leaves.iter().any(|(location, reference)| {
+        let (leaf_place, leaf_path) = location;
+        let conflict = || {
             let own_key = *leaf_place == argument.place && leaf_path.as_slice() == argument.path;
             let owned_alias = leaf_path.as_slice() == argument.path
                 && matches!(
@@ -1214,7 +1240,21 @@ fn storage_access_conflicts_beneath_argument(
                 &argument.path,
                 argument.access,
             )
-        }))
+        };
+        let conflicts = conflict();
+        if conflicts {
+            trace_storage_conflict(
+                function,
+                custody,
+                argument.place,
+                &argument.path,
+                argument.access,
+                location,
+                reference,
+            );
+        }
+        conflicts
+    }))
 }
 
 /// Interference is a property of retained backing, not the path spelling used
@@ -1473,9 +1513,8 @@ fn call_arguments(
             ));
             continue;
         }
-        if source_contract(function, custody, argument.place)
-            .is_some_and(|contract| contains_reference(types, contract))
-        {
+        let argument_contract = source_contract(function, custody, argument.place);
+        if argument_contract.is_some_and(|contract| contains_reference(types, contract)) {
             let authority = function
                 .arrival_parameter(argument.place)
                 .map(|parameter| parameter.access)
@@ -1521,6 +1560,16 @@ fn call_arguments(
                 &argument.path,
                 argument.access,
             ) {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE custody-call-conflict machine={:?} position={:?} kind=carrier-storage argument={argument_position} place={:?} path={:?} access={:?} selected_type={selected:?}",
+                        function.machine,
+                        custody.reference_position,
+                        argument.place,
+                        argument.path,
+                        argument.access,
+                    );
+                }
                 return Err(invalid());
             }
             normalized.push((
@@ -1593,6 +1642,16 @@ fn call_arguments(
         // which names the place this access path resolves to). A genuinely
         // distinct overlapping leaf still refuses here.
         if storage_access_conflicts_beneath_argument(function, custody, types, argument)? {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE custody-call-conflict machine={:?} position={:?} kind=argument-storage argument={argument_position} place={:?} path={:?} access={:?} root_type={argument_contract:?}",
+                    function.machine,
+                    custody.reference_position,
+                    argument.place,
+                    argument.path,
+                    argument.access,
+                );
+            }
             return Err(invalid());
         }
         let (root, _) = normalized_source(function, custody, types, argument)?;
@@ -2063,16 +2122,34 @@ fn discard_residual(
     event: retirements::DisposalEvent,
 ) -> Result<(), LegalizationError> {
     let root = source_contract(function, custody, discard.place).ok_or(invalid())?;
-    if leaf_type(types, root, &discard.path) != Some(discard.structural_type)
-        || storage_access_conflicts(
-            function,
-            custody,
-            types,
-            discard.place,
-            &discard.path,
-            StructuralAccess::Owned,
-        )
-    {
+    let selected = leaf_type(types, root, &discard.path);
+    if selected != Some(discard.structural_type) {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE custody-discard-conflict machine={:?} position={:?} kind=type-path place={:?} path={:?} selected_type={selected:?} expected_type={:?} event={event:?}",
+                function.machine,
+                custody.reference_position,
+                discard.place,
+                discard.path,
+                discard.structural_type,
+            );
+        }
+        return Err(invalid());
+    }
+    if storage_access_conflicts(
+        function,
+        custody,
+        types,
+        discard.place,
+        &discard.path,
+        StructuralAccess::Owned,
+    ) {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE custody-discard-conflict machine={:?} position={:?} kind=storage place={:?} path={:?} access=Owned selected_type={selected:?} event={event:?}",
+                function.machine, custody.reference_position, discard.place, discard.path,
+            );
+        }
         return Err(invalid());
     }
     discard_subtree(
