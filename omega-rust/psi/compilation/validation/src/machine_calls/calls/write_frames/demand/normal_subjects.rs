@@ -31,6 +31,33 @@ impl InvocationEntrySubject {
                 .any(|source| source.representation.is_some())
     }
 
+    /// Resolve every possible supplier of one schema-derived scalar field.
+    /// Missing geometry or an unsupported interpretation withholds the field;
+    /// selecting only one supplier would hide an unsafe alternative.
+    pub(crate) fn scalar_projection_coordinates(
+        &self,
+        program: &dyn crate::CheckingInput,
+        state: &typed_trees::state::State,
+        path: &[facts::PlaceSegment],
+    ) -> Option<Vec<super::super::ScalarStorageCoordinate>> {
+        if self.sources.is_empty() {
+            return None;
+        }
+        self.sources
+            .iter()
+            .map(|source| {
+                if source.invocation_output.is_some() || source.is_image_storage {
+                    return None;
+                }
+                let mut origin = source.frame_origin();
+                origin.source = origin.source.append_segments(path);
+                let projected = LocalWriteSource::from(origin);
+                let scalar = projected.scalar_storage_coordinate(program, state)?;
+                (scalar.preserves_scalar_value || scalar.preserves_primitive_bits).then_some(scalar)
+            })
+            .collect()
+    }
+
     /// The borrowed declaration and its scalar presentation share storage,
     /// not necessarily numerical values. The existing recast owner authenticates
     /// the complete chain before either direction can transfer observations.

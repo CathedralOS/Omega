@@ -243,7 +243,7 @@ pub struct CheckingContext<'program> {
     retained_borrows: Arc<[checked_trees::RetainedBorrowCustodyFact]>,
     finalized_selections: Option<&'program AuthoredDeclarationSelections>,
     prepared_effects: Option<&'program PreparedEffectPlans>,
-    storage_graph: OnceLock<Arc<checked_trees::FlowFacts>>,
+    storage_graph: Option<Arc<checked_trees::FlowFacts>>,
     expression_intervals: OnceLock<Arc<[crate::ExpressionInterval]>>,
     prepared_mathematics:
         Option<crate::mathematical_applications::PreparedMathematicalView<'program>>,
@@ -293,7 +293,7 @@ impl<'program> CheckingContext<'program> {
             retained_borrows: Arc::from([]),
             finalized_selections: None,
             prepared_effects: None,
-            storage_graph: OnceLock::new(),
+            storage_graph: None,
             expression_intervals: OnceLock::new(),
             prepared_mathematics: None,
             opaque_selections: None,
@@ -318,11 +318,26 @@ impl<'program> CheckingContext<'program> {
         self
     }
 
-    /// Attach the storage graph that checking judgments read storage history
-    /// from, once, before they run. It changes no memoized typed-tree or
-    /// effect answer, so borrowers of this context keep their views.
-    pub fn attach_storage_graph(&self, graph: Arc<checked_trees::FlowFacts>) {
-        let _ = self.storage_graph.set(graph);
+    /// The completed storage stage supplies a new checking input. Early
+    /// observations lacked that history, so only typed-tree indexes survive;
+    /// later queries belong to this context and its published graph.
+    pub fn clone_with_storage_graph(
+        &self,
+        graph: Arc<checked_trees::FlowFacts>,
+    ) -> CheckingContext<'program> {
+        CheckingContext {
+            defer_layout_geometry: self.defer_layout_geometry,
+            program: self.program,
+            retained_borrows: self.retained_borrows.clone(),
+            finalized_selections: self.finalized_selections,
+            prepared_effects: self.prepared_effects,
+            storage_graph: Some(graph),
+            expression_intervals: self.expression_intervals.clone(),
+            prepared_mathematics: self.prepared_mathematics,
+            opaque_selections: self.opaque_selections,
+            memos: Arc::new(self.memos.clone_typed_tree_memos()),
+            call_frame_tables: self.call_frame_tables.clone(),
+        }
     }
 
     /// Attach validation's expression intervals, once, before the checks that
@@ -458,7 +473,7 @@ impl CheckingInput for CheckingContext<'_> {
     }
 
     fn storage_graph(&self) -> Option<&checked_trees::FlowControlFacts> {
-        self.storage_graph.get().map(|graph| &graph.control)
+        self.storage_graph.as_ref().map(|graph| &graph.control)
     }
 
     fn expression_interval(

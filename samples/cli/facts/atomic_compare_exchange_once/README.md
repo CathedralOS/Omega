@@ -1,120 +1,132 @@
 # Single-attempt observing atomic exchange
 
-Parent: `ATOMIC-MEMORY-MODEL`. One exact-cell observing
-`CompareExchangeOnce` event establishes the canonical `Mismatched(observed)`,
-`Exchanged`, or `Uncommitted(observed)` result without changing its location,
-operands, ordering or observation identity.
+A single compare-and-exchange attempt must report whether its store committed.
+These programs keep that result together with the value the instruction
+observed, while preserving the selected cell and its untouched neighbor.
 
-The unchanged [local witness](local/main.omg) attempts expected 10 → replacement
-99 at resident 10 and checks that sibling storage stays 17. Its expected-9
-attempt must return `Mismatched(10)` without writing. A legitimate uncommitted
-attempt must carry observed 10 and leave both cells unchanged. Serial execution
-and bounded x86 CMPXCHG / admitted ARM LSE CAS need not produce spurious failure;
-these programs never invent one.
+Owning task: **ATOMIC-MEMORY-MODEL** in [TASKS.md](../../../../TASKS.md).
+Every standard place copies this fact:
 
-Fresh baseline `53cd2938437a29356a48d6eaf29f14de07a4bb99`, optimized Rust
-producer (level 3), Linux x86-64: `omega run --both local/main.omg` exited 200
-because neither `compare_exchange_once` call resolved. Neither engine ran.
-The frozen source SHA-256 is
-`feb3b6a54389d3bdd0312936e908a89284ee63db337ed1d00310f71183027636`.
-Both engines exit 0 on all six positive programs with the integrated optimized producer.
+> A single-attempt exchange reports success or the instruction-observed failure value at its exact atomic cell.
 
-| Place / Program | Witness (`main.omg`) | Reject twin (`invalid/main.omg`) | Distinct mechanism exercised |
-| --- | --- | --- | --- |
-| root | [`main.omg`](main.omg) | - | Root package probe exercising single-attempt `CompareExchangeOnce` (`Exchanged`, `Mismatched`, `Uncommitted`) and sibling preservation. |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | Success, mismatch, exact selected cell, untouched sibling, inline selected-arm atomic loads. |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | Whole `AtomicCompareExchangeOnceOutcome<u32>` carried through nominal record field `Held.outcome`. |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Whole `AtomicCompareExchangeOnceOutcome<u32>` passed as a machine parameter to `inspect_param`. |
-| call_result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Helper machine `attempt` returns `AtomicCompareExchangeOnceOutcome<u32>` to caller. |
-| match_join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `AtomicCompareExchangeOnceOutcome<u32>` joined across conditional `match` branches before inspection. |
-| const_name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Named constants (`EXPECTED_MATCH`, `EXPECTED_MISMATCH`, `REPLACEMENT`, `SIBLING_INIT`) supply operands and expected observations. |
-| other_state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | State transition carries `AtomicCompareExchangeOnceOutcome<u32>` into successor `state inspect`. |
-| other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Cross-machine call `Inspector::check` receives and verifies `AtomicCompareExchangeOnceOutcome<u32>`. |
-| target_body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | The same operation in separately selected hosted-target bodies, with outcome transport. |
-| operand_effect | [`operand_effect/main.omg`](operand_effect/main.omg) | [`operand_effect/invalid/main.omg`](operand_effect/invalid/main.omg) | Replacement helper writes 20 before the attempt, which must report mismatch 20; earlier scalar snapshot remains 10. |
-| composition | [`composition/main.omg`](composition/main.omg) | [`composition/invalid/main.omg`](composition/invalid/main.omg) | Whole outcome crosses a call return, record field, parameter/return, match join and a nested machine; named constant supplies replacement. |
-| high_bit | [`high_bit/main.omg`](high_bit/main.omg) | [`high_bit/invalid/main.omg`](high_bit/invalid/main.omg) | Unsigned 32-bit resident with bit 31 set and replacement u32 maximum, testing observed-value zero extension. |
-| wide | [`wide/main.omg`](wide/main.omg) | [`wide/invalid/main.omg`](wide/invalid/main.omg) | 64-bit resident values above 32 bits and whole 16-byte outcome return. |
+The selected cell starts at 10 and its sibling at 17. An expected-10 attempt
+may exchange 99 or report a legitimate failed commit; an expected-9 attempt
+must report `Mismatched(10)` without writing. The serial programs check the
+resident and sibling after every outcome. They allow `Uncommitted(10)` when
+appropriate rather than inventing a spurious failure. Concurrent observation
+and contention remain separate acceptance.
 
-Run each positive with `omega run --both <place>/main.omg < /dev/null`.
-Perturbing a single token in the root oracle (`cells.selected.load(NoOrdering) == 99` -> `cells.selected.load(NoOrdering) == 98`) causes both engines to fail closed with `crash Trap` (`interp crash: Trap`, `native exit -1073741795`).
-Each has an `invalid/main.omg` twin changing only the first failure ordering to
-`Publish`. [Stronger failure](controls/stronger_failure/main.omg) changes one
-ordering pair to `Receive, GlobalOrder`. [Forged outcome](controls/forged_outcome/main.omg)
-uses an authored same-shaped result family, and [wrong resident](controls/wrong_resident/main.omg)
-receives an AtomicU32 attempt as the u64 outcome family. All controls
-must reject at their respective ordering or sealed exact-resident obligation.
-All programs are pinned under `tests/omega/{pass,fail}/facts/`.
+## Places and controls
 
-## Pinned fixtures
+| Place | Positive | Fact-sensitive twin |
+| --- | --- | --- |
+| Local | [program](local/main.omg) | [reject](local/invalid/main.omg) |
+| Field | [program](field/main.omg) | [reject](field/invalid/main.omg) |
+| Parameter | [program](parameter/main.omg) | [reject](parameter/invalid/main.omg) |
+| Call result | [program](call_result/main.omg) | [reject](call_result/invalid/main.omg) |
+| Match join | [program](match_join/main.omg) | [reject](match_join/invalid/main.omg) |
+| Const name | [program](const_name/main.omg) | [reject](const_name/invalid/main.omg) |
+| Nested machine | [program](other_state/main.omg) | [reject](other_state/invalid/main.omg) |
+| Other machine | [program](other_machine/main.omg) | [reject](other_machine/invalid/main.omg) |
+| Selected target body | [program](target_body/main.omg) | [reject](target_body/invalid/main.omg) |
 
-- Standard 9-place positive fixtures (9):
-  - `tests/omega/pass/facts/atomic_compare_exchange_once_through_local_exit`
-  - `tests/omega/pass/facts/atomic_compare_exchange_once_through_field_exit`
-  - `tests/omega/pass/facts/atomic_compare_exchange_once_through_parameter_exit`
-  - `tests/omega/pass/facts/atomic_compare_exchange_once_through_call_result_exit`
-  - `tests/omega/pass/facts/atomic_compare_exchange_once_through_match_join_exit`
-  - `tests/omega/pass/facts/atomic_compare_exchange_once_through_const_name_exit`
-  - `tests/omega/pass/facts/atomic_compare_exchange_once_through_other_state_exit`
-  - `tests/omega/pass/facts/atomic_compare_exchange_once_through_other_machine_exit`
-  - `tests/omega/pass/facts/atomic_compare_exchange_once_through_target_body_exit`
-- Standard 9-place reject fixtures (9):
-  - `tests/omega/fail/facts/atomic_compare_exchange_once_through_local_rejected`
-  - `tests/omega/fail/facts/atomic_compare_exchange_once_through_field_rejected`
-  - `tests/omega/fail/facts/atomic_compare_exchange_once_through_parameter_rejected`
-  - `tests/omega/fail/facts/atomic_compare_exchange_once_through_call_result_rejected`
-  - `tests/omega/fail/facts/atomic_compare_exchange_once_through_match_join_rejected`
-  - `tests/omega/fail/facts/atomic_compare_exchange_once_through_const_name_rejected`
-  - `tests/omega/fail/facts/atomic_compare_exchange_once_through_other_state_rejected`
-  - `tests/omega/fail/facts/atomic_compare_exchange_once_through_other_machine_rejected`
-  - `tests/omega/fail/facts/atomic_compare_exchange_once_through_target_body_rejected`
-- Additional mechanism & control fixtures:
-  - `tests/omega/pass/facts/atomic_compare_exchange_once_{local,operand_effect,composition,high_bit,wide,target_body}_exit`
-  - `tests/omega/fail/facts/atomic_compare_exchange_once_{local,operand_effect,composition,high_bit,wide,target_body,stronger_failure,forged_outcome,wrong_resident}_rejected`
+Every twin changes only the first failure ordering from `Receive` to `Publish`.
+Failure cannot publish or exceed the success ordering. The matching pins are
+`tests/omega/{pass,fail}/facts/atomic_compare_exchange_once_through_<place>_{exit,rejected}`.
+Each positive has four hosted entry bindings and expects exit 0.
 
-| Obligation Class | How This Fact Row Establishes It |
-|---|---|
-| **Establishment** | `compare_exchange_once(expected, replacement, ReceivePublish, Receive)` on an exact `AtomicU32`/`AtomicU64` cell establishes the canonical sealed `AtomicCompareExchangeOnceOutcome<T>` (`Exchanged`, `Mismatched { observed }`, `Uncommitted { observed }`) with exact resident type and ordering obligations ([concurrency](../../../../wiki/spec/language/concurrency.md), [access policies](../../../../wiki/spec/resources/access.md#atomic-compare-exchange-outcomes)). |
-| **Identity and lifetime** | The `AtomicCompareExchangeOnceOutcome<T>` value carrier is copyable (`copyable`) and independent of the borrowed `Cells` storage lifetime; writes to `cells.selected` never disturb `cells.untouched` ([ownership](../../../../wiki/spec/language/ownership.md), [structural access](../../../../wiki/spec/terminal-psi/structural_access.md)). |
-| **Composition** | Across all nine standard transport places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`), the tagged outcome payload preserves its discriminant and observed scalar value through calls, record fields, branch joins, and state/machine transitions ([expressions](../../../../wiki/spec/language/expressions.md)). |
-| **Soundness boundaries** | Each `<place>/invalid/main.omg` changes only the failure ordering to `Publish` and rejects with `failure cannot publish or be stronger than success`; `stronger_failure`, `forged_outcome`, and `wrong_resident` reject invalid ordering pairs and unsealed/mismatched outcome carriers. |
-| **Checked-to-Terminal Psi lowering (`Psi 06–08`)** | `CompareExchangeOnce` lowers into canonical `PSITERM\0` atomic observation instructions and executes in the Terminal Psi interpreter (`omega run --both`). |
-| **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)** | `ProgramEntry` settles for `windows_x86_64`, `linux_x86_64`, `linux_arm64`, and `macos_arm64`; `Cells` and tagged `AtomicCompareExchangeOnceOutcome<T>` layout plans and aggregate calling/return plans validate without reopening source. |
-| **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)** | Backend lowering selects atomic compare-exchange (`lock cmpxchg` on `x86_64`, LL/SC or admitted LSE CAS on `arm64`) with zero-extended 32-bit and full 64-bit observed values and bounded activation frames. |
-| **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)** | Native PE/ELF/Mach-O images emit and execute on `windows_x86_64` and `linux_x86_64` with exit code `0`, agreeing with Terminal Psi (`omega run --both`). |
+The match program runs both Boolean choices for success and mismatch. One arm
+writes an independently checked path marker, so always choosing one arm cannot
+satisfy the oracle. The complete outcome still crosses the join.
 
-The repair preserves a structural event from parsing and checked evaluation
-through Terminal semantics, serialization/admission, abstract coherence,
-legalization and native selection. Runtime operands execute once before the
-instruction observes the resident. The canonical library outcome explicitly
-requests checked copyability. General compositional loads retain their authored
-evaluation point; scalar-only owned outcomes do not lend separate atomic
-backing merely because disposal authority permits descriptor retirement.
+The [root](main.omg), [composition](composition/main.omg),
+[operand-effect](operand_effect/main.omg), [high-bit](high_bit/main.omg) and
+[wide](wide/main.omg) programs retain the original runtime checks. The wide
+case crosses the 64-bit payload and aggregate-return boundary. The
+[bounded production](bounded/README.md) preserves the standing resident bound,
+including replacement helpers and earlier/later operand snapshots.
+[Stronger failure](controls/stronger_failure/main.omg),
+[forged outcome](controls/forged_outcome/main.omg) and
+[wrong resident](controls/wrong_resident/main.omg) reject their own ordering,
+sealed-family or exact-resident obligation.
 
-Governing contracts are [concurrency](../../../../wiki/spec/language/concurrency.md),
-[canonical result/custody](../../../../wiki/spec/resources/access.md#atomic-compare-exchange-outcomes),
-[evaluation order](../../../../wiki/spec/language/expressions.md),
-[declared copyability](../../../../wiki/spec/language/ownership.md), and
-[structural storage/descriptor authority](../../../../wiki/spec/terminal-psi/structural_access.md).
-The qualification packet retains the exact passages and source blob identities.
+## Compiler requirements
 
-Runtime evidence is from Linux x86-64 only. Windows x86-64 and Apple Silicon
-ARM64 image validation exercise their distinct ABI/instruction paths without
-foreign execution. Linux ARM64's existing catalog does not admit LSE atomic
-forms without explicit feature custody; its refusal remains a limitation.
-Signed and 8/16-bit observing source atomics are not admitted by the current source vocabulary; those runtime paths are not claimed.
-Broader concurrent relation axioms and contention execution, placed/bounded-field
-production, non-observing try-exchange, and additional target refinement proof
-remain requirements of the parent outcome.
+The native form carries two outputs: the observed resident and the actual
+commit outcome. Result construction consumes both; matching values alone do
+not prove that an exclusive store committed. ARM64 uses one acquire-exclusive
+load and at most one release-exclusive store, with full-system barriers and no
+retry loop or optional LSE extension requirement. A failed store produces
+`Uncommitted`; a mismatch clears the reservation without writing. x86-64
+records the actual CMPXCHG result. Both independent instruction decoders check
+the complete sequence and register effects.
 
-## Build-owned target-body migration
+A call that writes a separate ordinary scalar must not erase the atomic cell's
+known preceding write. The common analysis uses checked simultaneous argument
+compatibility and the scalar storage's complete type. Reference-bearing,
+atomic-bearing, unknown and indirect storage stay conservative. This changes
+neither access authority nor the requirement for a unanimous coherence frontier.
 
-The `target_body` place and its twin carry no source target prefix.
-`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
-implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
-by explicit target-keyed Build rows. The operation, inputs, contracts and exit
-oracle are unchanged. The entry wrapper and each implementation check a tag
-(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
-Linux x86-64 native and Terminal Psi agreement for the positive and source
-rejection for the twin; the other hosted targets keep their authored rows,
-unexecuted here.
+| Requirement | Evidence supplied here |
+| --- | --- |
+| Establishment | Dedicated atomic cells, exact operands and legal orderings introduce the canonical three-case result. Ordering, forged-family and wrong-resident controls reject. |
+| Identity and lifetime | Exact root/path/field, observed-value checks, untouched sibling 17 and operand-effect snapshots preserve the intended cell and value versions. |
+| Composition | The complete outcome crosses all nine places, nested calls and the selected target body. The match oracle distinguishes both paths. |
+| Soundness | Source checks retain atomic storage authority and resident validity. Existing shared non-atomic and unreadable stored-pointer controls remain rejected; the latter rejects at address formation. |
+| Psi 05–07 | The same target-neutral `AtomicAccess` and canonical outcome execute in Terminal Psi. No target choice is moved into source checking. |
+| Omega 00–02 | Explicit Build rows select the target-body providers. Tags 17 and 29 challenge a wrong provider. Checked layouts retain the complete 32/64-bit result and ordinary calling plans. |
+| Omega 03–06 | Both result registers, input separation and exact clobbers survive selection and allocation. Narrow expected representations are compared at their stored width. |
+| Omega 07–09 | Independent decoded forms, native exit validation and actual image execution preserve all outputs. The existing Boolean-store row exercises baseline ARM byte loads/stores, and a native-layout neighbor checks the shared artifact route. |
+
+The governing contracts are [concurrency](../../../../wiki/spec/language/concurrency.md),
+[atomic outcomes](../../../../wiki/spec/resources/access.md#atomic-compare-exchange-outcomes),
+[ownership](../../../../wiki/spec/language/ownership.md),
+[loan compatibility](../../../../wiki/spec/terminal-psi/loans.md),
+[structural access](../../../../wiki/spec/terminal-psi/structural_access.md) and
+[machine-state evidence](../../../../wiki/spec/build/machine_state_evidence.md).
+
+## Validation and remaining scope
+
+All results below used optimized source `1ee74504bebfd3a945fc250a58abdfeb474f4a5a` and real native/Terminal execution.
+
+| Target | Hosted run | Source checks | Pinned engine agreements | Ordinary projects |
+| --- | --- | --- | --- | --- |
+| `linux_arm64` | [run 41770758593](https://github.com/CathedralOS/Omega/actions/runs/41770758593) | 39 checked; 43 intended rejections | 39 native 0 / Terminal 0 | 40 engine agreements; 29 intended rejections |
+| `linux_x86_64` | [run 41772734408](https://github.com/CathedralOS/Omega/actions/runs/41772734408) | 39 checked | 39 native 0 / Terminal 0 | 40 engine agreements; 29 intended rejections |
+| `macos_arm64` | [run 41772737441](https://github.com/CathedralOS/Omega/actions/runs/41772737441) | 39 checked | 39 native 0 / Terminal 0 | 40 engine agreements; 29 intended rejections |
+| `windows_x86_64` | [run 41772740528](https://github.com/CathedralOS/Omega/actions/runs/41772740528) | 39 checked | 39 native 0 / Terminal 0 | 40 engine agreements; 29 intended rejections |
+
+The corpus scope includes all nine places and twins, the existing bounded and
+operand-snapshot productions, the Boolean-store row and authority controls.
+The ordinary projects also include both roots and composition programs. Ten
+pure ISA encoder/catalog tests passed in the preceding focused probe; their
+implementation bytes are unchanged in this source.
+
+The exact source is preserved in the published archive linked from
+[PR #1784](https://github.com/CathedralOS/Omega/pull/1784). Final documentation
+and owned records do not change compiler, library, program, Build or oracle
+bytes. Recorded rows retain the source that actually produced them.
+
+The source vocabulary here admits observing `u32` and `u64` attempts. The pure
+ISA encoder/vector checks also cover the existing 8/16-bit target forms; they
+do not claim signed narrow source execution. Serial execution does not prove
+concurrent relation axioms, contention behavior or a mechanical target-refinement
+theorem. Non-observing exchanges and the remaining operations and task runtime
+requirements stay with **ATOMIC-MEMORY-MODEL**; the parent task is open.
+
+<details>
+<summary>Baseline and earlier observations</summary>
+
+At fixed source `b53634abd0c42b8d175d5d99ddf32010845f14c7`,
+[run 41759507931](https://github.com/CathedralOS/Omega/actions/runs/41759507931)
+checked all nine standard positives and rejected all nine invalid orderings.
+Every Linux ARM64 execution attempt stopped at missing instruction selection,
+with neither engine run. That baseline did not measure the bounded production.
+
+Earlier source `53cd2938437a29356a48d6eaf29f14de07a4bb99` and the original
+Linux x86-64 and selected-target migration records remain historical. The
+intermediate byte-count, catalog-output, native-exit and match-coherence failures
+are retained in the PR evidence with their actual source identities. None is
+reported as a successful execution.
+
+</details>

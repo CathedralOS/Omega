@@ -49,6 +49,29 @@ impl StructuralJudge<'_> {
         observed
     }
 
+    /// Recover this occurrence's constructor and, inside it, the constructor
+    /// each owned child construction evaluated. A nested `Outer { inner:
+    /// Inner { .. } }` publishes a fresh value per construction, so projecting
+    /// `inner.field` needs every receipt on that path, not only the root's.
+    /// Each receipt is keyed by its own capture identity; an equal
+    /// constructor elsewhere still supplies nothing.
+    pub(in crate::proof_contracts::contract_entailment) fn completed_nominal_observation_tree(
+        &self,
+        value: &StructuralTerm,
+    ) -> StructuralTerm {
+        match self.completed_nominal_observation(value) {
+            StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
+                data,
+                case,
+                fields: fields
+                    .into_iter()
+                    .map(|(name, field)| (name, self.completed_nominal_observation_tree(&field)))
+                    .collect(),
+            },
+            observed => observed,
+        }
+    }
+
     /// Follow owned capture identities without equating reconstructed values.
     /// Membership can follow a captured field back to its admitted subject,
     /// but two equal constructors cannot share an establishment receipt.

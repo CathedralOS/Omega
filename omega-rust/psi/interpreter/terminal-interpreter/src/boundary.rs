@@ -8,6 +8,7 @@ pub(crate) mod effects;
 pub(crate) mod entry_results;
 pub(crate) mod errors;
 pub(crate) mod memory_ordering;
+pub(crate) mod native_code_layouts;
 pub(crate) mod result_custody;
 pub(crate) mod results;
 pub(crate) mod structural_inputs;
