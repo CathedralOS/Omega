@@ -1221,9 +1221,6 @@ defines the complete product bar.
     correspondence"), and `look(&(issued as Ticket))` fails with "completed
     projection has no exact consumer capture", so no erasure positive can
     lend a cast at run time.
-  - Stop a stored reference to an erasing cast from supplying its erased
-    domain: `View { t: &(issued as Ticket) }`, then `observe(v.t)`, passes
-    checking because the requirement reads `v.t`'s referent, `issued`.
   - **DOMAIN-ISSUER-ROUTES:** extend same-project checked ordinary
     issuance/forwarding to cross-package private routes and selected structural
     payloads in
