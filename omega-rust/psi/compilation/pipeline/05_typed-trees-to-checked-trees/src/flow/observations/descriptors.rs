@@ -384,27 +384,28 @@ fn observation_agrees(
     if !same_retention(program, control, observed, consumer) {
         return Err(DescriptorObservationRefusal::DifferentRetention);
     }
-    // Full applied types retain declaration, dependent and region operands.
-    // Readability is checked independently by descriptor_capture above.
+    // A shared reborrow can change the outer reference's access or lifetime
+    // without changing the value being observed. Compare complete referee
+    // applications: nominal, dependent, region and nested-reference differences
+    // still matter. Both captures already establish readable access, and the
+    // source and retention checks above remain independent requirements.
     let machine = program
         .machine_holding_state(observed.state_symbol)
         .ok_or(DescriptorObservationRefusal::UnavailableType)?
         .symbol;
-    if typed_trees::type_identity::applied_type_identity(
-        program.typed_program(),
-        observed.type_reference,
-        machine,
-        &[],
-    )
-    .ok_or(DescriptorObservationRefusal::UnavailableType)?
-        != typed_trees::type_identity::applied_type_identity(
+    let contents_type = |reference| {
+        let shell = validation::reference_shell(program, reference)
+            .filter(|shell| shell.access.is_readable())
+            .ok_or(DescriptorObservationRefusal::UnavailableType)?;
+        typed_trees::type_identity::applied_type_identity(
             program.typed_program(),
-            consumer.type_reference,
+            shell.referee,
             machine,
             &[],
         )
-        .ok_or(DescriptorObservationRefusal::UnavailableType)?
-    {
+        .ok_or(DescriptorObservationRefusal::UnavailableType)
+    };
+    if contents_type(observed.type_reference)? != contents_type(consumer.type_reference)? {
         return Err(DescriptorObservationRefusal::DifferentType);
     }
     let statements = if observed.statement_index == consumer.statement_index {
