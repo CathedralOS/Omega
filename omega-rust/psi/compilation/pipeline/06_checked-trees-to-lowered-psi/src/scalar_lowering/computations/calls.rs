@@ -522,15 +522,18 @@ impl Expansion<'_> {
                 });
             }
         }
-        // A direct callee's scalar formals as its body receives them; each
-        // actual arrives as `received_scalar_type` says.
+        // A direct callee's scalar formals as its body or boundary declaration
+        // receives them; each actual arrives as `received_scalar_type` says.
         let arrival_types = match callee.static_target() {
-            Some(_) if !signature.boundary => Some(
+            Some(_) if signature.boundary => self
+                .qualifications
+                .boundary_scalar_formals(self.checked, target_machine),
+            Some(_) => Some(
                 self.qualifications
                     .scalar_state_types(self.checked, target_state)?
                     .0,
             ),
-            _ => None,
+            None => None,
         };
         let mut prefixes = vec![input_types.to_vec()];
         let mut scalar_actuals = vec![None; scalars.len()];
