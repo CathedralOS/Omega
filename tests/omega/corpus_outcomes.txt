@@ -200,6 +200,26 @@ fail/dependent/declaration_predicate_requires_unproved rejected 951ms expected @
 fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch rejected 4053ms expected @68b6f6ba6c2f
 	machine `forward` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/domains/carrier_exact_data_predicate rejected 561ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/domains/carrier_exact_domain_predicate rejected 549ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/domains/carrier_exact_ensures_result rejected 604ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/domains/carrier_exact_indexed_application rejected 602ms expected @288072bee333
+	domain membership `AtMost` expects subject carrier `u16`, got `u8`
+fail/domains/carrier_exact_nominal rejected 596ms expected @288072bee333
+	domain membership `Meters::Short` expects subject carrier `Meters`, got `Feet`
+fail/domains/carrier_exact_signedness rejected 598ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `i16`
+fail/domains/carrier_exact_specialized_generic rejected 1054ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/domains/carrier_exact_suffixed_literal rejected 590ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/domains/carrier_exact_trait_contract rejected 596ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/domains/carrier_exact_unrelated_declaration rejected 625ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
 fail/domains/case_payload_widened_call_result_rejected rejected 5280ms expected @03bcba3fe16d
 	data `ByteRead` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/domains/float_conversion_qualification_wrong_domain_rejected rejected 9740ms expected @30013776d577
@@ -221,6 +241,8 @@ fail/domains/routed_qualification_cast_computed_operand rejected 9135ms expected
 	cannot prove scalar result domain for return from counterfeit at statement 0: i32::Issued
 fail/domains/routed_qualification_erased_array_element rejected 5639ms expected @f2672d675498
 	cannot prove requires contract for call consume from main: tickets[0] in Ticket::Held in state `entry`
+fail/domains/routed_qualification_erased_borrow_argument rejected 6650ms expected @f8e80b0c32b0
+	cannot prove requires contract for call observe from main: issued in Ticket::Held in state `entry`
 fail/domains/routed_qualification_erased_call_argument rejected 5889ms expected @f2672d675498
 	cannot prove requires contract for call consume from main: issued as Ticket in Ticket::Held in state `entry`
 fail/domains/routed_qualification_erased_case_payload rejected 5653ms expected @f2672d675498
@@ -743,6 +765,24 @@ fail/facts/dependency_type_qualified_call_through_parameter_rejected rejected 48
 fail/facts/dependency_type_qualified_call_through_target_body_rejected rejected 6611ms expected @900e2e7ae6af
 	cannot prove requires contract for call describe from X86Observe::observe: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`
 	cannot prove requires contract for call describe from ArmObserve::observe: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`
+fail/facts/domain_carrier_identity_through_call_result_rejected rejected 686ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_const_name_rejected rejected 626ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_field_rejected rejected 602ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_local_rejected rejected 674ms expected @288072bee333
+	executable domain test `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_match_join_rejected rejected 677ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_other_machine_rejected rejected 672ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_other_state_rejected rejected 603ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_parameter_rejected rejected 589ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_target_body_rejected rejected 617ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
 fail/facts/domain_predicate_call_through_call_result_rejected rejected 1895ms expected @8515a99cf21b+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/domain_predicate_call_through_const_name_rejected rejected 1684ms expected @8515a99cf21b+wt
@@ -3389,6 +3429,12 @@ fail/float/finite_return_arm_guard_misses_bound rejected 4813ms expected @661073
 fail/float/private_arrival_unguarded_exact_coercion_rejected rejected 3862ms expected @18fc751d0060+wt
 	machine `convert` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/float/ieee_collection_call_write_retires_guard rejected 3800ms expected @085f035b8b6e+wt
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/float/ieee_collection_index_rewrite_retires_guard rejected 3499ms expected @085f035b8b6e+wt
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[slot]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/float/ieee_collection_other_element_write_retires_guard rejected 2367ms expected @085f035b8b6e+wt
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/specification_index_reference_selector_unbounded rejected 4743ms expected @e8827ad1dd64+wt
 	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
 	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
@@ -3486,6 +3532,9 @@ fail/memory/bump_allocator_reset_with_live_resident rejected 5195ms expected @2c
 	implicit domain weakening in argument `retired` for state `reset::entry` drops `Resident<Policy, Word>`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/modules/package_qualified_scalar_access_denied rejected 5391ms expected @97115d9cab54
 	accessor write application: the access plan does not permit this operation
+fail/operators/domain_qualified_boundary_operator_unestablished_literal rejected 4073ms expected @18fc751d0060+wt
+	cannot prove requires contract for call equal from nested: 7 in i32::Counted in state `entry`
+	cannot prove requires contract for call equal from statement: 7 in i32::Counted in state `entry`
 fail/ownership/completed_case_claim_return_double_consume rejected 9313ms expected @ee4dbb4b2d56
 	cannot use `pair.first` in machine `retire_pair` state `entry` (statement 1) after `pair.first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `pair.first` first
 fail/ownership/nonreturning_claim_alternative_double_consume rejected 6667ms expected @ee4dbb4b2d56
@@ -3585,6 +3634,9 @@ fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expect
 	machine call cycle: `walk_flat` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/forwarding_state_in_ranked_loop rejected 1682ms expected @a9ae30e1c334+wt
 fail/termination/nested_helper_field_rank_subject_not_decreasing rejected 9094ms expected @7fc524eaec1a+wt
+	terminating machine iterate: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/nested_helper_nested_field_rank_subject_not_decreasing rejected 7221ms expected @39f3b68ee83e
 	terminating machine iterate: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/nested_machine_computed_distance_indexed_upper_rejected rejected 4231ms expected @6c0b29931314
@@ -4201,7 +4253,7 @@ pass/borrows/runtime_independent_qualified_owner_reference_exit checked 6375ms c
 pass/borrows/runtime_index_mut_loan_write_exit checked 16911ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit checked 9511ms check-target:macos_arm64 @21213f5ea3d3
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit checked 52817ms check-target:macos_arm64 @911f6617ba9e
-pass/borrows/runtime_indexed_carrier_conditional_exit checked 3561ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_indexed_carrier_conditional_exit checked 7856ms check-target:macos_arm64 @6eeb3152e0f8
 pass/borrows/runtime_indexed_carrier_reference_read_exit checked 112356ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_indexed_carrier_repeated_exit checked 3651ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_indexed_primitive_loan_current_selector_exit checked 33661ms check-target:macos_arm64 @911f6617ba9e
@@ -5767,6 +5819,8 @@ pass/domains/captured_predicate_readonly_call_exit checked 3825ms check-target:m
 pass/domains/carried_indexed_payload_qualification checked 2653ms check-target:macos_arm64 @f68e855c45d4+wt
 pass/domains/carried_nested_payload_qualification checked 2606ms check-target:macos_arm64 @4f49785bc6c0+wt
 pass/domains/carried_runtime_index_payload_qualification checked 2760ms check-target:macos_arm64 @f68e855c45d4+wt
+pass/domains/carrier_exact_converted_contract checked 7591ms @288072bee333
+pass/domains/carrier_exact_same_carrier_exit checked 8941ms check-target:macos_arm64 @288072bee333
 pass/domains/case_payload_call_restore_exit checked 11230ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/case_payload_guarded_domain_exit checked 3726ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/case_payload_predicate_domain_member_exit checked 16634ms check-target:macos_arm64 @ccdb99ca2214
@@ -7668,6 +7722,15 @@ pass/facts/disjoint_windows_through_other_machine_exit checked 3439ms check-targ
 pass/facts/disjoint_windows_through_other_state_exit checked 3864ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/disjoint_windows_through_parameter_exit checked 3937ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/disjoint_windows_through_target_body_exit checked 4516ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/facts/domain_carrier_identity_through_call_result_exit checked 7666ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_const_name_exit checked 7856ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_field_exit checked 8137ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_local_exit checked 7829ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_match_join_exit checked 7608ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_other_machine_exit checked 7914ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_other_state_exit checked 7862ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_parameter_exit checked 9302ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_target_body_exit checked 7837ms check-target:macos_arm64 @288072bee333
 pass/facts/domain_geometry_conserved_result_exit checked 18858ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/domain_geometry_projected_conserved_result_exit checked 16678ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/domain_geometry_through_call_result_exit checked 4114ms check-target:macos_arm64 @ccdb99ca2214
@@ -12481,8 +12544,7 @@ pass/float/runtime_float_predicate_domain_exit checked 14633ms check-target:maco
 pass/float/runtime_format_conversion_result_bounds_exit checked 6477ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_generic_constructor_literal_landing_exit checked 15759ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_guarded_float_capture_exit checked 5942ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/runtime_ieee_collection_disjoint_exit rejected 2778ms check-target:macos_arm64 @ccdb99ca2214
-	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/float/runtime_ieee_collection_disjoint_exit checked 11402ms check-target:macos_arm64 @085f035b8b6e+wt
 pass/float/runtime_ieee_saved_boolean_epochs_exit rejected 2236ms check-target:macos_arm64 @ccdb99ca2214
 	machine `disjoint` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 	machine `snapshot` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
@@ -13282,6 +13344,7 @@ pass/operators/core_operator_spelling_surface checked 4264ms check-target:macos_
 pass/operators/crash_routes checked 3630ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/division_value_entry_selection checked 12016ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/domain_operator_overload_signature_compile checked 2641ms @ccdb99ca2214
+pass/operators/domain_qualified_boundary_operator_exit checked 6439ms check-target:macos_arm64 @18fc751d0060+wt
 pass/operators/fixed_token_operators checked 2848ms @ccdb99ca2214
 pass/operators/fixed_use_survives_division_and_call_exit checked 12082ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/float_operator_identities checked 16714ms check-target:macos_arm64 @ccdb99ca2214
@@ -14609,6 +14672,7 @@ pass/termination/native_layout_family_premises checked 3817ms check-target:linux
 pass/termination/native_layout_ordinary_progress checked 4103ms check-target:linux_x86_64 @ccdb99ca2214
 pass/termination/natural_call_variable_step checked 2302ms @ccdb99ca2214
 pass/termination/nested_helper_field_rank_subject_exit checked 13418ms check-target:macos_arm64 @7fc524eaec1a+wt
+pass/termination/nested_helper_nested_field_rank_subject_exit checked 9507ms check-target:macos_arm64 @39f3b68ee83e
 pass/termination/nested_leaf_rank checked 2841ms @ccdb99ca2214
 pass/termination/nested_machine_computed_distance_indexed_upper_exit checked 4191ms check-target:macos_arm64 @6c0b29931314
 pass/termination/nested_machine_computed_distance_narrow_inputs_exit checked 3895ms check-target:macos_arm64 @6c0b29931314
@@ -16444,7 +16508,7 @@ fail/borrows/incoming_carrier_duplicate_exclusive_leaf rejected 2033ms expected 
 	machine `duplicate` returns `carrier` as mutable more than once
 fail/borrows/indexed_carrier_case_neighbor_stays_borrowed rejected 2946ms expected @ccdb99ca2214
 	statement 4 mutates `neighbor.value` while local borrow `slots` is still active (borrowed at statement 2; its last use is at statement 8 and it is released at state exit)
-fail/borrows/indexed_carrier_conditional_retains_backing rejected 1870ms expected @ccdb99ca2214
+fail/borrows/indexed_carrier_conditional_retains_backing rejected 6080ms expected @6eeb3152e0f8
 	statement 5 mutates `original.value` while local borrow `slots` is still active (borrowed at statement 4; its last use is at statement 6 and it is released at state exit)
 fail/borrows/indexed_carrier_detached_child_stays_borrowed rejected 2203ms expected @ccdb99ca2214
 	statement 6 mutates `original.value` while local borrow `detached` is still active (borrowed at statement 4; its last use is at statement 7 and it is released at state exit)
@@ -17011,21 +17075,21 @@ fail/borrows/stored_reference_write_only_array_copy rejected 2130ms expected @cc
 	cannot use `windows` in machine `main` state `entry` (statement 3) after `windows` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `windows` first
 fail/borrows/stored_returned_reference_live_source_write rejected 2402ms expected @ccdb99ca2214
 	statement 2 mutates `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/stored_subview_live_child rejected 1906ms expected @ccdb99ca2214
+fail/borrows/stored_subview_live_child rejected 3975ms expected @6eeb3152e0f8
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
-fail/borrows/stored_subview_live_exclusive_child rejected 1862ms expected @ccdb99ca2214
+fail/borrows/stored_subview_live_exclusive_child rejected 4051ms expected @6eeb3152e0f8
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
-fail/borrows/stored_subview_new_backing_write rejected 2536ms expected @ccdb99ca2214
+fail/borrows/stored_subview_new_backing_write rejected 4116ms expected @6eeb3152e0f8
 	statement 4 mutates `cells[1].value` while local borrow `window` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 	statement 4 mutates `cells[1].value` while local borrow `window` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 	statement 4 mutates `cells[1].value` while local borrow `window` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
-fail/borrows/stored_subview_preserved_backing_write rejected 2523ms expected @ccdb99ca2214
+fail/borrows/stored_subview_preserved_backing_write rejected 4249ms expected @6eeb3152e0f8
 	statement 3 mutates `cells[0].value` while local borrow `window` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 mutates `cells[0].value` while local borrow `window` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/stored_writeonly_carrier_descriptor_replacement rejected 675ms expected @ccdb99ca2214
@@ -31728,8 +31792,8 @@ fail/float/guarded_range_requires_ordered_value rejected 4216ms expected @ccdb99
 	cannot prove requires contract for call bounded from narrow_negation: unordered >= 0.0 && unordered <= 1.0 (needs fact `narrow >= 0.0 && narrow <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call bounded from wrong_subject: unordered >= 0.0 && unordered <= 1.0 (needs fact `other >= 0.0 && other <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call bounded from integer_view: unordered >= 0.0 && unordered <= 1.0 (needs fact `recast >= 0.0 && recast <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/float/ieee_collection_write_retires_guard rejected 2660ms unexpected @ccdb99ca2214
-	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/ieee_collection_write_retires_guard rejected 2246ms expected @085f035b8b6e+wt
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/indexed_ieee_i64_upper_ceiling_rejected rejected 2275ms unexpected @ccdb99ca2214
 	machine `convert` state `entry`: value call `I64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 fail/float/indexed_ieee_u64_upper_ceiling_rejected rejected 2162ms unexpected @ccdb99ca2214
