@@ -2,7 +2,7 @@
 //! extent may depend on a constant even when its initializer is never read as
 //! an expression. Discover that dependency before probe placeholders exist.
 
-use super::Collector;
+use super::{Collector, DependencyWork};
 use arena::{Handle, HandleSpan};
 use source::SourceSpan;
 use symbol_resolved_trees::{
@@ -41,30 +41,45 @@ impl<'program> Collector<'program, '_> {
         }
         if self.follow_dependencies && !self.expanded_constants.contains(&symbol) {
             self.expanded_constants.push(symbol);
-            self.types.push(&declaration.declared_type);
+            self.types.push(DependencyWork {
+                value: &declaration.declared_type,
+                lexical_owner: symbol,
+            });
             let initializer = if declaration.authored_initializer.is_valid() {
                 declaration.authored_initializer
             } else {
                 declaration.initializer
             };
-            self.expressions.push(initializer);
-            if !self.initializer_expressions.contains(&initializer) {
-                self.initializer_expressions.push(initializer);
+            self.expressions.push(DependencyWork {
+                value: initializer,
+                lexical_owner: symbol,
+            });
+            let work = DependencyWork {
+                value: initializer,
+                lexical_owner: symbol,
+            };
+            if !self.initializer_expressions.contains(&work) {
+                self.initializer_expressions.push(work);
             }
         }
         Ok(())
     }
 
     pub(super) fn type_child(&mut self, handle: Handle<TypeReference>) -> Result<(), String> {
-        if !self.follow_dependencies || self.visited_type_children.contains(&handle) {
+        if !self.follow_dependencies
+            || self
+                .visited_type_children
+                .contains(&(handle, self.lexical_owner))
+        {
             return Ok(());
         }
         let children = &self.program.tables.declarations.child_type_references;
         if !children.is_valid(handle) {
             return Err("constant dependency has a stale child type reference".to_owned());
         }
-        self.visited_type_children.push(handle);
-        self.types.push(children.get(handle));
+        self.visited_type_children
+            .push((handle, self.lexical_owner));
+        self.queue_type(children.get(handle));
         Ok(())
     }
 
@@ -95,8 +110,8 @@ impl<'program> Collector<'program, '_> {
                 application,
                 ..
             } => {
-                self.types.push(expansion);
-                self.types.push(application);
+                self.queue_type(expansion);
+                self.queue_type(application);
             }
             TypeReference::Reference(reference) => self.type_child(reference.referee)?,
             TypeReference::Slice(reference) => self.type_child(reference.element_type)?,
@@ -134,7 +149,7 @@ impl<'program> Collector<'program, '_> {
                         TypeConstraint::Range {
                             minimum, maximum, ..
                         } => {
-                            self.expressions.extend(
+                            self.queue_expressions(
                                 [*minimum, *maximum]
                                     .into_iter()
                                     .filter(|expression| expression.is_valid()),
@@ -158,7 +173,7 @@ impl<'program> Collector<'program, '_> {
                 self.type_declaration(*symbol)?;
             }
             TypeReference::ConstExpression(expression) => {
-                self.expressions.push(expression.expression)
+                self.queue_expression(expression.expression)
             }
             TypeReference::DynamicTrait { .. } | TypeReference::Unit => {}
         }
@@ -166,6 +181,14 @@ impl<'program> Collector<'program, '_> {
     }
 
     pub(super) fn type_declaration(&mut self, symbol: SymbolHandle) -> Result<(), String> {
+        let previous = self.lexical_owner;
+        self.lexical_owner = symbol;
+        let result = self.type_declaration_in_scope(symbol);
+        self.lexical_owner = previous;
+        result
+    }
+
+    fn type_declaration_in_scope(&mut self, symbol: SymbolHandle) -> Result<(), String> {
         if self.program.symbols.get(symbol).kind == SymbolKind::Conformance {
             return self.conformance_declaration(symbol);
         }
@@ -189,7 +212,7 @@ impl<'program> Collector<'program, '_> {
             for bound in &alias.conformance_bounds {
                 self.type_arguments(bound.arguments)?;
             }
-            self.types.push(&alias.expansion);
+            self.queue_type(&alias.expansion);
             return Ok(());
         }
         if !self.follow_dependencies
@@ -221,12 +244,12 @@ impl<'program> Collector<'program, '_> {
             // origin before comparing readiness receipts; specialization is
             // neither a new declaration nor permission to drop dependencies.
             if let Some(application) = &definition.generic_instance {
-                self.types.push(application);
+                self.queue_type(application);
             }
             self.predicate_facts(definition.where_facts)?;
         }
         if let Some(quotient) = &definition.quotient {
-            self.types.push(&quotient.carrier);
+            self.queue_type(&quotient.carrier);
         }
         let members = self.program.data_members(definition.members);
         if members.len() != definition.members.len() {
@@ -234,7 +257,7 @@ impl<'program> Collector<'program, '_> {
         }
         for member in members {
             match member {
-                DataMember::Field(field) => self.types.push(&field.type_reference),
+                DataMember::Field(field) => self.queue_type(&field.type_reference),
                 DataMember::Variant(variant) => {
                     if self.purpose == super::DependencyPurpose::DeclarationReadiness {
                         self.predicate_facts(variant.where_facts)?;
@@ -243,8 +266,7 @@ impl<'program> Collector<'program, '_> {
                     if fields.len() != variant.payload.len() {
                         return Err("constant dependency has stale variant fields".to_owned());
                     }
-                    self.types
-                        .extend(fields.iter().map(|field| &field.type_reference));
+                    self.queue_types(fields.iter().map(|field| &field.type_reference));
                 }
             }
         }
@@ -303,7 +325,7 @@ impl<'program> Collector<'program, '_> {
         for parameter in parameters_slice {
             match &parameter.kind {
                 TypeParameterKind::Const { type_reference }
-                | TypeParameterKind::Value { type_reference } => self.types.push(type_reference),
+                | TypeParameterKind::Value { type_reference } => self.queue_type(type_reference),
                 TypeParameterKind::Machine {
                     contract: MachineParameterContract::Structural(signature),
                 } => {
@@ -311,7 +333,7 @@ impl<'program> Collector<'program, '_> {
                     self.type_parameters(signature.type_parameters)?;
                     self.state_parameters(signature.parameters)?;
                     if let Some(reference) = &signature.return_type {
-                        self.types.push(reference);
+                        self.queue_type(reference);
                     }
                 }
                 TypeParameterKind::Proposition { contract } => {
@@ -338,7 +360,7 @@ impl<'program> Collector<'program, '_> {
         if parameters_slice.len() != parameters.len() {
             return Err("constant dependency has stale state parameters".to_owned());
         }
-        self.types.extend(
+        self.queue_types(
             parameters_slice
                 .iter()
                 .map(|parameter| &parameter.type_reference),
