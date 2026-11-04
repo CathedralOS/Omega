@@ -12971,6 +12971,7 @@ pass/host/runtime_foreign_scalar_loan_writeback_exit rejected 17200ms check-targ
 pass/host/runtime_foreign_zero_argument_import_exit checked 16999ms check-target:windows_x86_64 @ccdb99ca2214
 pass/host/runtime_gui_foreground_window_exit checked 12325ms check-target:windows_x86_64 @ccdb99ca2214
 pass/host/runtime_gui_window_lifecycle_exit checked 16186ms check-target:windows_x86_64 @ccdb99ca2214
+pass/host/runtime_macos_image_snapshot_exit checked 179455ms check-target:macos_arm64 @761dca3ff6ca+wt
 pass/host/runtime_native_scalar_reference_ingress_exit checked 4001ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_returned_scalar_field_reference_sibling_exit checked 3596ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_scalar_reference_backing_export_exit checked 4123ms check-target:linux_x86_64 @ccdb99ca2214
@@ -12988,6 +12989,7 @@ pass/host/std_clock_explicit_override_exit checked 8639ms check-target:macos_arm
 pass/host/std_clock_sleep_exit checked 11855ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/user32_window_procedure_registration rejected 31989ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @ee4dbb4b2d56
 	fixed representation application `LayoutStorage<ClassHeader, ClassLayout>` requires unavailable representation facts for `cross_platform_cli`
+pass/host/wincheck_probe checked 168755ms check-target:windows_x86_64 @761dca3ff6ca+wt
 pass/inline_asm/asm_aarch64_system_registers_compile checked 4578ms check-target:macos_arm64 @0af7c594a1c0
 pass/inline_asm/asm_block_jmp_state checked 3230ms check-target:macos_arm64 @ccdb99ca2214
 pass/inline_asm/asm_exact_clobbers checked 4527ms @0af7c594a1c0
@@ -35466,8 +35468,8 @@ fail/targets/single_target_internal_package_statement_caller_rejected rejected 1
 	machine `Main::main` state `main` calls `Helper::record_paradigm_event`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::record_paradigm_event` for the target being built.
 fail/targets/single_target_internal_statement_caller_rejected rejected 10121ms expected @ccdb99ca2214
 	machine `Main::main` state `main` calls `Helper::record_paradigm_event`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::record_paradigm_event` for the target being built.
-fail/targets/target_body_call_to_unimported_std_leaf_named rejected 9290ms unexpected @ccdb99ca2214
-	call `entry` has an invalid argument correspondence: call has no retained parameter telescope
+fail/targets/target_body_call_to_unimported_std_leaf_named rejected 85955ms expected @761dca3ff6ca+wt
+	machine `pace` state `entry`: value call `darwin_poll(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
 fail/targets/target_local_precondition_rejected rejected 1530ms expected @ccdb99ca2214
 	machine `read` state `entry` value call to `private_value` violates required fact `input == 2`: the instantiated fact is structurally false (`1 == 2`)
 fail/targets/target_machine_duplicate_rejected rejected 6723ms expected @ccdb99ca2214
