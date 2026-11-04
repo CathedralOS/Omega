@@ -328,10 +328,9 @@ pub(super) fn validate_retained(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    root: ExpressionHandle,
-    materialized: ExpressionHandle,
+    declaration: &typed_trees::constant::ConstDeclaration,
 ) -> Result<Vec<DependencyValue>, String> {
-    validate(program, machine, state, root, materialized, true)
+    validate(program, machine, state, declaration, true)
 }
 
 /// Before private specialization, the retained recipe must still select its
@@ -341,20 +340,29 @@ pub(super) fn validate_authored(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    root: ExpressionHandle,
-    materialized: ExpressionHandle,
+    declaration: &typed_trees::constant::ConstDeclaration,
 ) -> Result<Vec<DependencyValue>, String> {
-    validate(program, machine, state, root, materialized, false)
+    validate(program, machine, state, declaration, false)
 }
 
 fn validate(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    root: ExpressionHandle,
-    materialized: ExpressionHandle,
+    declaration: &typed_trees::constant::ConstDeclaration,
     specialized_calls: bool,
 ) -> Result<Vec<DependencyValue>, String> {
+    let retained = program
+        .const_declaration_by_symbol(declaration.symbol)
+        .ok_or("constant call receipt has no exact source declaration")?;
+    if retained.authored_initializer != declaration.authored_initializer
+        || retained.materialized_initializer != declaration.materialized_initializer
+        || retained.declared_type != declaration.declared_type
+    {
+        return Err("constant call receipt names another declaration's initializer roots".into());
+    }
+    let root = declaration.authored_initializer;
+    let materialized = declaration.materialized_initializer;
     if !program.expression_table.expression_is_valid(materialized) {
         return Err("constant call receipt has a stale materialized root".into());
     }
@@ -380,10 +388,16 @@ fn validate(
         let target = (selection.source_span(), selected.selected_symbol());
         push_unique(&mut expected, target);
     }
-    let actual = collect_internal(
+    // Receiving replay uses a private machine, but these roots still belong
+    // to the exact source declaration checked above. Keep both identities.
+    let actual = collect_in_context(
         program,
-        machine,
-        state,
+        Context {
+            machine,
+            state,
+            lexical_owner: declaration.symbol,
+            initializer: true,
+        },
         &[root],
         false,
         None,
@@ -419,6 +433,26 @@ fn collect_internal(
         lexical_owner: machine.symbol,
         initializer: true,
     };
+    collect_in_context(
+        program,
+        context,
+        roots,
+        public,
+        syntax,
+        specialized_calls,
+        expand_callees,
+    )
+}
+
+fn collect_in_context<'program>(
+    program: &'program TypedTrees,
+    context: Context<'program>,
+    roots: &[ExpressionHandle],
+    public: bool,
+    syntax: Option<&'program SyntaxTrees>,
+    specialized_calls: bool,
+    expand_callees: bool,
+) -> Result<Custody, String> {
     let mut collector = Collector {
         program,
         syntax,
@@ -1071,7 +1105,17 @@ impl<'program> Collector<'program> {
             return Ok(());
         }
         self.expanded_constants.push(symbol);
+        // A referenced constant owns its initializer and type even when another
+        // declaration's probe discovers it. The current execution frame stays.
+        let context = Context {
+            lexical_owner: declaration.symbol,
+            ..context
+        };
         self.type_dependencies(types::Root::Type(declaration.declared_type), context)?;
+        let context = Context {
+            initializer: true,
+            ..context
+        };
         if self.specialized_calls && declaration.authored_initializer.is_valid() {
             // This ready declaration owns another normalization job. Its
             // materialized capsule supplies that job's retained realized roster;
@@ -1114,21 +1158,10 @@ impl<'program> Collector<'program> {
                 )?;
                 push_unique(&mut self.custody.call_occurrences, occurrence);
             }
-            self.expressions.push((
-                materialized,
-                Context {
-                    initializer: true,
-                    ..context
-                },
-            ));
+            self.expressions.push((materialized, context));
         } else if declaration.authored_initializer.is_valid() {
-            self.expressions.push((
-                declaration.authored_initializer,
-                Context {
-                    initializer: true,
-                    ..context
-                },
-            ));
+            self.expressions
+                .push((declaration.authored_initializer, context));
         }
         Ok(())
     }

@@ -321,12 +321,7 @@ pub(crate) fn validate(
             .1;
         let dependencies = checked
             .calls_for_symbol(owner)
-            .and_then(|calls| {
-                calls.validate_custody(
-                    declaration.authored_initializer,
-                    declaration.materialized_initializer,
-                )
-            })
+            .and_then(|calls| calls.validate_custody(declaration))
             .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
         for dependency in &dependencies {
             let owner = program
@@ -492,8 +487,7 @@ fn validate_authored_custody(
         program,
         machine,
         state,
-        declaration.authored_initializer,
-        declaration.materialized_initializer,
+        declaration,
     )
     .map(|_| ())
 }
@@ -581,7 +575,7 @@ fn validate_anonymous_float(
         return Err("floating constant lost its receiving expression state".into());
     };
     let dependencies =
-        validate_retained_initializer_call_custody(&probe, machine, state, original, materialized)?;
+        validate_retained_initializer_call_custody(&probe, machine, state, declaration)?;
     validate_float_value(
         &probe,
         declaration,

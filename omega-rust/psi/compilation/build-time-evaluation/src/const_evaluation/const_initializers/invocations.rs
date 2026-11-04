@@ -251,16 +251,14 @@ impl Invocation<'_> {
 
     pub(super) fn validate_custody(
         &self,
-        original: ExpressionHandle,
-        materialized: ExpressionHandle,
+        declaration: &typed_trees::constant::ConstDeclaration,
     ) -> Result<Vec<crate::const_evaluation::const_generic_expressions::DependencyValue>, String>
     {
         crate::const_evaluation::const_generic_expressions::validate_retained_initializer_call_custody(
             self.program.typed(),
             self.machine,
             self.state,
-            original,
-            materialized,
+            declaration,
         )
     }
 
