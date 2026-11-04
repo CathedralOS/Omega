@@ -5819,6 +5819,7 @@ pass/domains/carried_nested_payload_qualification checked 2606ms check-target:ma
 pass/domains/carried_runtime_index_payload_qualification checked 2760ms check-target:macos_arm64 @f68e855c45d4+wt
 pass/domains/carrier_exact_converted_contract checked 7591ms @288072bee333
 pass/domains/carrier_exact_same_carrier_exit checked 8941ms check-target:macos_arm64 @288072bee333
+pass/domains/case_membership_domain_predicate_exit checked 9999ms check-target:macos_arm64 @e5fc7ee70064
 pass/domains/case_payload_call_restore_exit checked 11230ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/case_payload_guarded_domain_exit checked 3726ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/case_payload_predicate_domain_member_exit checked 16634ms check-target:macos_arm64 @ccdb99ca2214
