@@ -17,7 +17,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
     let width: Number = block number(&mut application.reader);
     let regularization: Number = block number(&mut application.reader);
     transition length.valid && width.valid && regularization.valid && length.value >= 8.0 && length.value <= 32.0 && (width.value == 1.0 || width.value == 3.0 || width.value == 5.0) && regularization.value >= 0.0001 && regularization.value <= 100.0 {
-        true -> configure(application, length.value, width.value, regularization.value)
+        true -> block configure(application, length.value, width.value, regularization.value)
         _ -> invalid(application)
     }
     machine configure(application: &mut Application, length: f64, width: f64, regularization: f64) {
@@ -26,34 +26,34 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.length = count as i32 in Wrapping; application.width = taps as i32 in Wrapping; application.regularization = regularization;
         application.index = 0; application.kernel_sum = 0.0;
         let recovered: f64 = F64::from_i32(count as i32);
-        transition recovered == length { true -> kernel(application) _ -> invalid(application) }
+        transition recovered == length { true -> block kernel(application) _ -> invalid(application) }
     }
     machine kernel(application: &mut Application) {
-        transition application.index >= 0 && application.index < application.width && application.index < 5 { true -> read_kernel(application) _ -> normalized(application) }
+        transition application.index >= 0 && application.index < application.width && application.index < 5 { true -> block read_kernel(application) _ -> block normalized(application) }
     }
     machine read_kernel(application: &mut Application) {
         let value: Number = block number(&mut application.reader);
-        transition value.valid && value.value >= 0.0 && value.value <= 1.0 { true -> store_kernel(application, value.value) _ -> invalid(application) }
+        transition value.valid && value.value >= 0.0 && value.value <= 1.0 { true -> block store_kernel(application, value.value) _ -> invalid(application) }
     }
     machine store_kernel(application: &mut Application, value: f64) {
         application.kernel[application.index] = value; application.kernel_sum = application.kernel_sum + value; application.index = application.index + 1;
-        transition { _ -> kernel(application) }
+        transition { _ -> block kernel(application) }
     }
     machine normalized(application: &mut Application) {
         application.index = 0; application.sum = 0.0;
-        transition application.kernel_sum >= 0.999999999999 && application.kernel_sum <= 1.000000000001 { true -> measurement(application) _ -> invalid(application) }
+        transition application.kernel_sum >= 0.999999999999 && application.kernel_sum <= 1.000000000001 { true -> block measurement(application) _ -> invalid(application) }
     }
     machine measurement(application: &mut Application) {
-        transition application.index >= 0 && application.index < application.length && application.index < 32 { true -> read_measurement(application) _ -> complete(application) }
+        transition application.index >= 0 && application.index < application.length && application.index < 32 { true -> block read_measurement(application) _ -> block complete(application) }
     }
     machine read_measurement(application: &mut Application) {
         let value: Number = block number(&mut application.reader);
-        transition value.valid && value.value >= 0.0 { true -> store_measurement(application, value.value) _ -> invalid(application) }
+        transition value.valid && value.value >= 0.0 { true -> block store_measurement(application, value.value) _ -> invalid(application) }
     }
     machine store_measurement(application: &mut Application, value: f64) {
         application.measurements[application.index] = value;
         application.sum = application.sum + value; application.index = application.index + 1;
-        transition { _ -> measurement(application) }
+        transition { _ -> block measurement(application) }
     }
     machine complete(application: &mut Application) {
         let end: bool = block ended(&mut application.reader);

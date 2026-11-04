@@ -322,6 +322,35 @@ fn balanced_temporary_stack(
     if architecture != Architecture::X86_64 {
         return false;
     }
+    if matches!(
+        kind,
+        SelectedInstructionKind::RegisterAccess {
+            operation: selected_instructions::RegisterOperation::TaskRegisterActivate
+        }
+    ) {
+        let stack_pointer = isa_x86_64::validated_x86_64_physical_register_model()
+            .model()
+            .view_named("rsp")
+            .expect("canonical x86 stack pointer")
+            .id;
+        return effects.memory
+            == MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
+                table_pointer_operand: 0,
+                task_pointer_operand: 1,
+                selector_operand: 2,
+                scratch_pointer_operand: 3,
+                table_byte_count_operand: 4,
+                stack_pointer,
+            }
+            && effects.stack
+                == MachineEncodedStackEffect::TemporaryBytesV1 {
+                    stack_pointer,
+                    byte_count: 8,
+                }
+            && effects.external_operand_reads == [0, 1, 2, 3, 4]
+            && effects.external_operand_writes == [5]
+            && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+    }
     let (bytes, operands_match) = match kind {
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form }
             if form.operation.rounding_direction().is_some() =>
@@ -464,6 +493,42 @@ pub(in crate::exit_contract) fn validate_non_return(
     let memory_matches = match (kind, effects.memory, encoding.address()) {
         (
             SelectedInstructionKind::RegisterAccess {
+                operation: selected_instructions::RegisterOperation::TaskRegisterActivate,
+            },
+            MachineEncodedMemoryEffect::TaskRegisterActivationV1 { .. },
+            None,
+        ) => temporary_stack,
+
+        (
+            SelectedInstructionKind::RegisterAccess {
+                operation:
+                    selected_instructions::RegisterOperation::GlobalDescriptorTable(operation),
+            },
+            memory,
+            None,
+        ) => {
+            let expected = match operation {
+                selected_instructions::GlobalDescriptorTableOperation::Store => {
+                    MachineEncodedMemoryEffect::WriteFixedPointerV1 {
+                        pointer_operand: 0,
+                        byte_count: 10,
+                    }
+                }
+                selected_instructions::GlobalDescriptorTableOperation::Load => {
+                    MachineEncodedMemoryEffect::ReadPointerV1 {
+                        pointer_operand: 0,
+                        byte_count: 10,
+                    }
+                }
+            };
+            memory == expected
+                && effects.external_operand_reads == [0]
+                && effects.external_operand_writes.is_empty()
+                && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+        }
+
+        (
+            SelectedInstructionKind::RegisterAccess {
                 operation: selected_instructions::RegisterOperation::MemoryFence(_),
             },
             MachineEncodedMemoryEffect::CatalogFenceV1,
@@ -510,7 +575,7 @@ pub(in crate::exit_contract) fn validate_non_return(
                     .external_operand_writes
                     .iter()
                     .copied()
-                    .eq(form.observed_operand())
+                    .eq(form.output_operands())
         }
         (
             SelectedInstructionKind::SaveFloatingControl { slot },

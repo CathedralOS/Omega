@@ -51,6 +51,13 @@ pub(super) fn decode_register_access(
         ));
     }
     let event = match operation {
+        terminal_psi::RegisterOperation::GlobalDescriptorTable(_)
+        | terminal_psi::RegisterOperation::TaskRegisterActivate
+        | terminal_psi::RegisterOperation::TaskRegisterRead => {
+            return Err(CodecError::MalformedStructuralFoundation(
+                "descriptor-table operations require a checked structural operand",
+            ));
+        }
         terminal_psi::RegisterOperation::MemoryFence(kind) => {
             terminal_psi::RegisterAccessEvent::MemoryFence { kind }
         }

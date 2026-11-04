@@ -48,8 +48,8 @@ machine Main::main(main: &mut Main) reaches Console {
     main.tracker.total = main.scores[0] + main.scores[1];
 
     transition main.tracker.total == 70 {
-        true -> good(main)
-        _ -> bad(main)
+        true -> block good(main)
+        _ -> block bad(main)
     }
 
     machine good(main: &mut Main) {

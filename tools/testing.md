@@ -100,6 +100,21 @@ honestly without describing the whole compiler or release as qualified.
 The [PR #730 retrospective](../wiki/drafts/measurements/merge_validation_2026_10_31/README.md)
 records the cost and failure pattern behind this rule.
 
+### Source-produced Build consent on a hosted pilot
+
+The same manual `Compiler queue pilot` accepts `-f build_consent=true` with
+`native_host=windows_x86_64`, `macos_arm64`, `linux_arm64`, or `linux_x86_64`.
+It checks Omega, then runs the public source-produced SDK consent control and
+the captured/live filesystem isolation controls on that actual host. A missing
+consent stops before guest execution; an exact grant reads bytes changed after
+admission. Unix also checks root-name substitution and descendant symlinks.
+
+SDK-only selection builds its optimized example and filesystem test executable
+without an unused CLI or corpus runner. The existing pilot artifacts retain
+actual test events, both SDK observations, executable profiles and hashes, and
+source identity in `build-consent-controls.json`. Empty or incomplete test runs
+cannot pass. Each attempt keeps a separate directory, including failures.
+
 ### Exact fixtures on a hosted pilot
 
 The existing `Compiler queue pilot` manual dispatch accepts a comma-separated
@@ -467,35 +482,6 @@ and package crates carry no behavior tests; do not add them back. A test that
 scans a crate's own sources as an architecture guard is the one exception. The `compiler`
 crate's only test target is `corpus_runner`; see
 `omega-rust/omega/compilation/compiler/tests/README.md`.
-
-## Cache independence
-
-`cache_gate.py` compares warm and empty-cache CLI invocations on disposable
-projects, using child-process cache directories rather than the user's cache.
-Supply two optimized producers with different compiler input identities:
-
-```bash
-python tools/build_slot.py --slots 2 -- python tools/cache_gate.py \
-  --cli /path/to/current/omega --other-cli /path/to/previous/omega \
-  --output build/cache-independence
-```
-
-The output directory must be new. The gate requires observed retained-check
-hits before mutation. It changes bodies, same-size/timestamp-preserving
-contracts, declared path dependencies, transitive modules, module existence,
-and the selected build entry. Stale locked compilations must refuse; explicit
-updates must agree with fresh compilation. It also corrupts or removes retained
-records, leaves incomplete temporary records, terminates its own writer during
-record staging, and switches compiler identities. If it misses the interruption
-window, the gate fails rather than counting interruption coverage.
-
-Accepted pairs must produce byte-identical native images and matching native
-exit/stdout/stderr; invalid pairs must reject with the intended diagnostic and
-publish no image. Logs, source snapshots, artifact digests, producer profiles,
-and comparison results remain under the output directory. Test fixtures alone
-receive automatic review decisions. These checks cover the native host and
-named mutations, not every dependency kind, power-loss behavior, or malicious
-cache forgery. They are correctness checks, not compilation benchmarks.
 
 ## Corpus outcome gate
 

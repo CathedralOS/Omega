@@ -820,6 +820,13 @@ are byte-sensitive.
 - The session that starts work finishes it. A claim records what a session
   is doing so other sessions can see it; it grants nothing and blocks nothing.
   Parked work is available to any session once its prerequisite is met.
+- You still own your open PRs after a session ends or changes. At startup
+  and resumption, check the PRs you opened, including earlier sessions, against
+  retained worktree and claim records. Keep each PR's URL, submitted head,
+  remaining acceptance or failure, and next action in its existing claim note.
+  Resume the unfinished work and carry authorized publication through verified
+  merge. Close a PR only when its work is deliberately withdrawn or superseded,
+  with the disposition recorded; age alone does not end ownership.
 - A sample's work includes the complete application and the compiler repairs
   it needs to run; carry it through source, native/Terminal execution, invalid
   controls and publication. Several failing samples with one demonstrated root
@@ -965,6 +972,11 @@ not a completed launch preflight.
   carries authorized work through implementation, testing, review, normal
   main landing and remote verification, and keeps working until it is
   complete.
+- **Never schedule timers or polling check-ins during coordination.** After
+  launching background tasks or subagents, stop calling tools and let
+  reactive wakeups (subagent messages and background task completion events)
+  resume execution. Periodic timers (`schedule`, cron, `send_later`, or sleep
+  loops) burn coordinator context and tokens without advancing work.
 - Dot-created Omega cloud sessions and their native workers default to
   **GPT 6.1 Sol, medium reasoning** (`gpt-6.1-sol`, `medium`), unless the user
   specifies another model or effort. Select them through the runtime's exposed

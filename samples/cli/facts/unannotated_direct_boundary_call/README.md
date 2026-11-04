@@ -83,16 +83,22 @@ still requires that direct contribution to fit the authored row.
 ## Pinned fixtures
 
 `tests/omega/pass/facts/unannotated_direct_boundary_call_through_<place>_exit`
-copies each positive place, including `build.omg`, and records native exit 0.
-`tests/omega/fail/facts/unannotated_direct_boundary_call_through_<place>_rejected`
-copies each reject twin's `main.omg` and the diagnostic fragment. Fail
-fixtures have no `build.omg`.
+copies each positive place's `main.omg` and `build.omg`.
+`tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_<place>_rejected`
+copies each `invalid_missing_requirement` control's two source files and its
+expected rejection reason. These controls remove the boundary requirement's
+explicit ceiling. The separate `<place>/invalid` controls keep that requirement
+and declare an empty caller ceiling.
+
+The Build companions explicitly select `MarkerMark` for their existing entry
+targets. The implementation still returns 7; these choices preserve the
+programs' calls, contracts and expected results.
 
 ## Requirements and evidence
 
 1. **Establishment.** `Mark::read` is a boundary requirement whose authored
-   ceiling is `reaches Mark`. The unique covering provider `MarkerMark`
-   returns 7. The calling machine omits `reaches`, so the derived row is the
+   ceiling is `reaches Mark`. Build selects `MarkerMark`, which returns 7.
+   The calling machine omits `reaches`, so the derived row is the
    published reach for that private checked body. The exit test compares the
    returned value with 7; it does not substitute for the reach rule. The
    invalid twin writes the empty ceiling on that same caller, so the direct

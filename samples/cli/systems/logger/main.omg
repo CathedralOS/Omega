@@ -96,29 +96,29 @@ machine Main::main(main: &mut Main) reaches Console {
     let score: i32 in Saturating = info_part + warn_part + error_part;
 
     transition score == 70 {
-        true -> check_counts(main)
-        _ -> bad_score(main)
+        true -> block check_counts(main)
+        _ -> block bad_score(main)
     }
 
     // Also verify the per-level counts as a sanity check.
     machine check_counts(main: &mut Main) {
         transition main.logger.info_count == 5 {
-            true -> check_warn(main)
-            _ -> bad_info(main)
+            true -> block check_warn(main)
+            _ -> block bad_info(main)
         }
     }
 
     machine check_warn(main: &mut Main) {
         transition main.logger.warn_count == 4 {
-            true -> check_error(main)
-            _ -> bad_warn(main)
+            true -> block check_error(main)
+            _ -> block bad_warn(main)
         }
     }
 
     machine check_error(main: &mut Main) {
         transition main.logger.error_count == 1 {
-            true -> good(main)
-            _ -> bad_error(main)
+            true -> block good(main)
+            _ -> block bad_error(main)
         }
     }
 

@@ -38,13 +38,13 @@ machine Main::main(main: &mut Main) reaches Console {
     main.data[9] = 127;
     main.i = 0;
     transition {
-        _ -> hex_loop(main)
+        _ -> block hex_loop(main)
     }
 
     machine hex_loop(main: &mut Main) {
         transition main.i < 16 {
-            true -> read_byte(main)
-            _ -> gutter_start(main)
+            true -> block read_byte(main)
+            _ -> block gutter_start(main)
         }
     }
 
@@ -54,56 +54,56 @@ machine Main::main(main: &mut Main) reaches Console {
         main.hi = main.bw / 16;
         main.lo = main.bw - (main.hi * 16);
         transition {
-            _ -> hi_digit(main)
+            _ -> block hi_digit(main)
         }
     }
 
     machine hi_digit(main: &mut Main) {
         transition main.hi < 10 {
-            true -> hi_num(main)
-            _ -> hi_alpha(main)
+            true -> block hi_num(main)
+            _ -> block hi_alpha(main)
         }
     }
 
     machine hi_num(main: &mut Main) {
         main.chi = narrow_u32_to_i32_trapping((main.hi + 48) as u32);
         transition {
-            _ -> write_hi(main)
+            _ -> block write_hi(main)
         }
     }
 
     machine hi_alpha(main: &mut Main) {
         main.chi = narrow_u32_to_i32_trapping((main.hi + 87) as u32);
         transition {
-            _ -> write_hi(main)
+            _ -> block write_hi(main)
         }
     }
 
     machine write_hi(main: &mut Main) {
         Console::write_byte(main.chi);
         transition {
-            _ -> lo_digit(main)
+            _ -> block lo_digit(main)
         }
     }
 
     machine lo_digit(main: &mut Main) {
         transition main.lo < 10 {
-            true -> lo_num(main)
-            _ -> lo_alpha(main)
+            true -> block lo_num(main)
+            _ -> block lo_alpha(main)
         }
     }
 
     machine lo_num(main: &mut Main) {
         main.chi = narrow_u32_to_i32_trapping((main.lo + 48) as u32);
         transition {
-            _ -> write_lo(main)
+            _ -> block write_lo(main)
         }
     }
 
     machine lo_alpha(main: &mut Main) {
         main.chi = narrow_u32_to_i32_trapping((main.lo + 87) as u32);
         transition {
-            _ -> write_lo(main)
+            _ -> block write_lo(main)
         }
     }
 
@@ -112,7 +112,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_byte(32);
         main.i = main.i + 1;
         transition {
-            _ -> hex_loop(main)
+            _ -> block hex_loop(main)
         }
     }
 
@@ -120,13 +120,13 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write(" ");
         main.i = 0;
         transition {
-            _ -> gutter_loop(main)
+            _ -> block gutter_loop(main)
         }
     }
 
     machine gutter_loop(main: &mut Main) {
         transition main.i < 16 {
-            true -> read_glyph(main)
+            true -> block read_glyph(main)
             _ -> finish(main)
         }
     }
@@ -144,7 +144,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_byte(main.b as i32);
         main.i = main.i + 1;
         transition {
-            _ -> gutter_loop(main)
+            _ -> block gutter_loop(main)
         }
     }
 
@@ -152,7 +152,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_byte(46);
         main.i = main.i + 1;
         transition {
-            _ -> gutter_loop(main)
+            _ -> block gutter_loop(main)
         }
     }
 

@@ -55,8 +55,9 @@ impl RankValue {
         // This legacy adapter substitutes a fresh invocation's scalar inputs.
         // It has no completed destination record. Re-expressing the old read
         // roster cannot replace whole-value identity: fields absent from the
-        // public contract may have changed too. Record arrivals use the normal
-        // operand capture path, which supplies their fresh complete snapshot.
+        // public contract may have changed too. Record arrivals apply the
+        // declaration again to the call's own actual and its fresh snapshot
+        // (`record_ranks`).
         if self.application.as_ref().is_some_and(|application| {
             matches!(application.input, IntegerApplicationInput::Record { .. })
         }) {

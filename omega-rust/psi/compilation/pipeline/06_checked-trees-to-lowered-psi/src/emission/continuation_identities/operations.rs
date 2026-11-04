@@ -324,6 +324,9 @@ pub(crate) fn map_obligations(
         | OperationKind::SelectImplementation { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::RegisterAccess { .. }
+        | OperationKind::ActivateTaskRegister { .. }
+        | OperationKind::ReadTaskRegister { .. }
+        | OperationKind::GlobalDescriptorTable { .. }
         | OperationKind::IntegerConstant { .. }
         | OperationKind::BooleanConstant { .. }
         | OperationKind::IeeeFloatConstant { .. }

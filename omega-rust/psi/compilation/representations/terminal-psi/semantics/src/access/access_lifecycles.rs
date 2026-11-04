@@ -241,6 +241,7 @@ pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'
                 || earlier.storage.granted != plan.storage.granted
                 || (earlier.operation != TerminalAccessLifecycleOperation::View
                     && plan.operation != TerminalAccessLifecycleOperation::View
+                    && earlier.storage.owner_carrier() == plan.storage.owner_carrier()
                     && earlier.storage.owned_content()? != plan.storage.owned_content()?)
                 || earlier.policy_plan_machine_identity != plan.policy_plan_machine_identity
                 || earlier.placement != plan.placement
@@ -364,7 +365,63 @@ fn validate_storage(
         storage.base,
         storage.length,
     )?;
-    let mut domains = vec![storage.granted];
+    let backing_path = match storage.owner {
+        terminal_psi::TerminalAccessOwner::Extent => Vec::new(),
+        terminal_psi::TerminalAccessOwner::Run {
+            carrier,
+            storage: backing,
+            count,
+            singleton,
+        } => {
+            if plan.operation == TerminalAccessLifecycleOperation::View
+                || singleton.is_some()
+                    != (plan.operation == TerminalAccessLifecycleOperation::Initialize)
+            {
+                return Err("typed run owner disagrees with its lifecycle operation");
+            }
+            let owner = module
+                .structural_type(carrier)
+                .ok_or("typed run owner is absent")?;
+            let StructuralTypeShape::Record { fields, .. } = &owner.shape else {
+                return Err("typed run owner must be a linear record");
+            };
+            let backing = fields
+                .iter()
+                .find(|field| field.id == backing)
+                .ok_or("typed run backing field is absent")?;
+            let count = fields
+                .iter()
+                .find(|field| field.id == count)
+                .ok_or("typed run count field is absent")?;
+            if !owner.owns_linear_claim
+                || backing.id == count.id
+                || backing.relevance.is_erased()
+                || count.relevance.is_erased()
+                || backing.field_type.as_structural() != Some(storage.carrier)
+                || count
+                    .field_type
+                    .scalar_type()
+                    .and_then(|scalar| scalar.as_integer())
+                    .is_none_or(|integer| {
+                        integer.is_address()
+                            || integer.sign() != semantic_vocabulary::IntegerSign::Unsigned
+                            || integer.bits() != 64
+                    })
+            {
+                return Err("typed run changed its owned backing or u64 count roles");
+            }
+            if let Some(singleton) = singleton
+                && !module
+                    .structural_domains
+                    .iter()
+                    .any(|domain| domain.id == singleton && domain.carrier == carrier)
+            {
+                return Err("typed run singleton qualification belongs to another carrier");
+            }
+            vec![terminal_psi::StructuralPathSegment::Field(backing.identity)]
+        }
+    };
+    let mut domains = vec![(storage.granted, storage.carrier)];
     let content = match plan.operation {
         TerminalAccessLifecycleOperation::View => {
             if storage.vacant.is_some() || storage.resident.is_some() {
@@ -374,7 +431,10 @@ fn validate_storage(
         }
         operation => {
             let (vacant, resident) = storage.owned_content()?;
-            domains.extend([vacant, resident]);
+            domains.extend([
+                (vacant, storage.carrier),
+                (resident, storage.owner_carrier()),
+            ]);
             Some(
                 if operation == TerminalAccessLifecycleOperation::Initialize {
                     vacant
@@ -384,17 +444,16 @@ fn validate_storage(
             )
         }
     };
-    if domains
-        .iter()
-        .enumerate()
-        .any(|(position, identity)| domains[..position].contains(identity))
-        || domains.iter().any(|identity| {
-            !module
-                .structural_domains
-                .iter()
-                .any(|domain| domain.id == *identity && domain.carrier == storage.carrier)
-        })
-    {
+    if domains.iter().enumerate().any(|(position, (identity, _))| {
+        domains[..position]
+            .iter()
+            .any(|(previous, _)| previous == identity)
+    }) || domains.iter().any(|(identity, carrier)| {
+        !module
+            .structural_domains
+            .iter()
+            .any(|domain| domain.id == *identity && domain.carrier == *carrier)
+    }) {
         return Err("placement extent qualification roles are absent or aliased");
     }
     let boundary = module
@@ -409,9 +468,20 @@ fn validate_storage(
         TerminalAccessLifecycleOperation::Initialize
         | TerminalAccessLifecycleOperation::MoveOut => StructuralMultiplicity::Linear,
     };
-    if parameter.structural_type != storage.carrier
+    let extracting = plan.operation == TerminalAccessLifecycleOperation::MoveOut;
+    let input_carrier = if extracting {
+        storage.owner_carrier()
+    } else {
+        storage.carrier
+    };
+    let (backing_qualifications, _) = terminal_psi::StructuralPathQualification::select(
+        &parameter.qualifications,
+        &parameter.projected_qualifications,
+        if extracting { &backing_path } else { &[] },
+    );
+    if parameter.structural_type != input_carrier
         || parameter.multiplicity != input_multiplicity
-        || !parameter.qualifications.contains(&storage.granted)
+        || !backing_qualifications.contains(&storage.granted)
         || content.is_some_and(|content| !parameter.qualifications.contains(&content))
     {
         return Err("placement extent input does not retain its exact grant and content");

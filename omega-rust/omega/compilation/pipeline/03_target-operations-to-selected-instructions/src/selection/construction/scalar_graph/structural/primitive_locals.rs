@@ -233,15 +233,76 @@ pub(super) fn address(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let address = projected_address(source, builder, row)?;
+    let result = row.result.ok_or_else(|| {
+        SelectedInstructionError::custody_because("storage address lost its declared addr result")
+    })?;
+    let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
+    // ABI pointers use their transport carrier internally. The representation
+    // query publishes those bits as its declared addr value, not a value cast.
+    builder.emit_copy_i64(address, output, super::provenance(row))?;
+    Ok(output)
+}
+
+fn projected_address(
+    source: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let (place, byte_offset, slots) = read_geometry(source, row).ok_or_else(|| {
         SelectedInstructionError::custody_because(
             "storage address lost its checked referent geometry",
         )
     })?;
-    let LegalizedScalarInstructionKind::StorageAddress { indices, .. } = &row.kind else {
-        return Err(invalid());
+    let indices = match &row.kind {
+        LegalizedScalarInstructionKind::StorageAddress { indices, .. }
+        | LegalizedScalarInstructionKind::GlobalDescriptorTable { indices, .. } => indices,
+        _ => return Err(invalid()),
     };
-    let (pointer, slots) = projection_origin(source, builder, row, place, byte_offset, &slots)?;
+    resolve_projected_address(source, builder, row, place, byte_offset, indices, &slots)
+}
+
+pub(super) fn borrowed_storage_address(
+    source: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    argument: &terminal_psi::StructuralArgument,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+) -> Result<(VirtualRegisterId, u32), SelectedInstructionError> {
+    let signature = source.structural.as_ref().ok_or_else(invalid)?;
+    let root =
+        crate::selection::reference_input::root_type(source, argument.place).ok_or_else(invalid)?;
+    let geometry = crate::structural_inputs::structural_reference_input::storage_address_geometry(
+        root,
+        &argument.path,
+        &signature.structural_types,
+    )
+    .ok_or_else(invalid)?;
+    if !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements) {
+        return Err(invalid());
+    }
+    let address = resolve_projected_address(
+        source,
+        builder,
+        row,
+        argument.place,
+        geometry.byte_offset,
+        indices,
+        &geometry.pointer_slots,
+    )?;
+    Ok((address, geometry.byte_offset))
+}
+
+fn resolve_projected_address(
+    source: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: semantic_vocabulary::PlaceId,
+    byte_offset: u32,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    slots: &[crate::structural_inputs::structural_reference_input::PointerSlot],
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let (pointer, slots) = projection_origin(source, builder, row, place, byte_offset, slots)?;
     let pointer = match pointer {
         Some(pointer) => pointer,
         // The common resolver authenticates a completed local home. It cannot
@@ -260,12 +321,44 @@ pub(super) fn address(
         let pointer = scale(builder, row, place, byte_offset, pointer, &indices[leaf..])?;
         super::encoded_scalar::backing_address(builder, row, place, pointer, byte_offset)?
     };
-    let result = row.result.ok_or_else(|| {
-        SelectedInstructionError::custody_because("storage address lost its declared addr result")
-    })?;
-    let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
-    // ABI pointers use their transport carrier internally. The representation
-    // query publishes those bits as its declared addr value, not a value cast.
-    builder.emit_copy_i64(address, output, super::provenance(row))?;
-    Ok(output)
+    Ok(address)
+}
+
+pub(in crate::selection::construction::scalar_graph) fn global_descriptor_table(
+    source: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<bool, SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::GlobalDescriptorTable {
+        operation,
+        source: place,
+        ..
+    } = row.kind
+    else {
+        return Ok(false);
+    };
+    if row.result.is_some() {
+        return Err(invalid());
+    }
+    let key = builder
+        .constraints
+        .keys
+        .global_descriptor_table
+        .ok_or_else(invalid)?;
+    let address = projected_address(source, builder, row)?;
+    let (_, offset, _) = read_geometry(source, row).ok_or_else(invalid)?;
+    let role = match operation {
+        terminal_psi::GlobalDescriptorTableOperation::Store => SelectedMemoryAccessRole::WritePlace,
+        terminal_psi::GlobalDescriptorTableOperation::Load => SelectedMemoryAccessRole::ReadPlace,
+    };
+    memory(builder, row, place, offset, 10, role)?;
+    builder.emit(
+        selected_instructions::SelectedInstructionKind::RegisterAccess {
+            operation: terminal_psi::RegisterOperation::GlobalDescriptorTable(operation),
+        },
+        key,
+        &[address],
+        super::provenance(row),
+    )?;
+    Ok(true)
 }
