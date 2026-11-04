@@ -72,6 +72,37 @@ pub(crate) fn retain_pending_const_inputs(
     }
 }
 
+/// Original declarations and the private forest used to select their inputs.
+/// Discovery can append type handles, so both forests must retain that same
+/// argument inventory before resolution assigns any declaration identity.
+pub(crate) struct InitializerSelectionInputs {
+    pub(crate) authored: syntax_trees::SyntaxTrees,
+    pub(crate) probe: syntax_trees::SyntaxTrees,
+}
+
+pub(crate) fn initializer_selection_inputs(
+    mut authored: syntax_trees::SyntaxTrees,
+    context: &crate::BuildTimeSources<'_>,
+) -> Result<InitializerSelectionInputs, Vec<Diagnostic>> {
+    let arguments = syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
+        &mut authored,
+        context.sources.clone(),
+        context.source_scoped_top_level_bindings.to_vec(),
+        context.retained_base(),
+        context.declaration_syntax,
+    )?;
+    let mut probe = authored.clone();
+    crate::const_evaluation::const_qualifications::defer_unproved(&mut probe);
+    retain_pending_const_inputs(
+        &mut probe,
+        &arguments
+            .iter()
+            .map(|(argument, _, _)| *argument)
+            .collect::<Vec<_>>(),
+    );
+    Ok(InitializerSelectionInputs { authored, probe })
+}
+
 pub(crate) fn normalize_type_aliases(
     syntax: syntax_trees::SyntaxTrees,
     context: &crate::build_time_evaluation::BuildTimeSources<'_>,

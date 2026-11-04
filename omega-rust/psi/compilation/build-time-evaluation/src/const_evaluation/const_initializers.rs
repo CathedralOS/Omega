@@ -279,28 +279,11 @@ pub(crate) fn evaluate(
     }) {
         return Ok(syntax);
     }
-    // Selection discovery cannot prove a literal declaration's qualification
-    // while its index still depends on another initializer. Keep its actual
-    // value and carrier in this private forest, but defer that qualification
-    // just as the later typed probes do for provisional indices.
-    let selection_arguments =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
-            &mut syntax,
-            sources.clone(),
-            bindings.to_vec(),
-            context.retained_base(), context.declaration_syntax,
-        )?;
-    // Discovery may append type inputs. Clone afterward so the private
-    // selection retains those exact argument handles and their owners.
-    let mut selection_syntax = syntax.clone();
-    super::const_qualifications::defer_unproved(&mut selection_syntax);
-    crate::syntax_probes::retain_pending_const_inputs(
-        &mut selection_syntax,
-        &selection_arguments
-            .iter()
-            .map(|(argument, _, _)| *argument)
-            .collect::<Vec<_>>(),
-    );
+    let crate::syntax_probes::InitializerSelectionInputs {
+        authored,
+        probe: selection_syntax,
+    } = crate::syntax_probes::initializer_selection_inputs(syntax, context)?;
+    syntax = authored;
     let preparation =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::prepare_const_initializer_selection(
             context.resolution_request(selection_syntax),
