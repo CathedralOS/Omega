@@ -1,1 +1,1 @@
-return value expects `u64`, but the value is delivered as `bool`
+const-generic application evaluation failed: constant expression differs from its destination carrier

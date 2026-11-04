@@ -57,6 +57,23 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
             declaration.symbol,
         )
     }));
+    for machine in program.machines() {
+        applications.extend(
+            program
+                .machine_trait_conformances(machine)
+                .iter()
+                .map(|edge| {
+                    (
+                        edge.symbol,
+                        program
+                            .type_reference_table
+                            .type_reference_handles(edge.arguments)
+                            .to_vec(),
+                        machine.symbol,
+                    )
+                }),
+        );
+    }
     for declaration in program.traits() {
         applications.extend(
             program
