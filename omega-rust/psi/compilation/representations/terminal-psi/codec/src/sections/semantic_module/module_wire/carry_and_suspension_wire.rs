@@ -249,7 +249,7 @@ fn validate_loan_coordinates(
     live_values: &[TerminalSuspensionLiveValue],
 ) -> Result<(), CodecError> {
     for (_, link) in loans.value_links.iter() {
-        if !loans.occurrences.is_valid(*link) {
+        if !physical_loan(loans, *link) {
             return Err(CodecError::NonCanonicalEncoding);
         }
     }
@@ -266,7 +266,7 @@ fn validate_loan_coordinates(
         }
     }
     for (_, loan) in loans.occurrences.iter() {
-        if (loan.parent.is_valid() && !loans.occurrences.is_valid(loan.parent))
+        if (loan.parent.is_valid() && !physical_loan(loans, loan.parent))
             || loans.supplier_links.span(loan.suppliers).is_none()
             || loans.input_links.span(loan.inputs).is_none()
         {
@@ -355,6 +355,15 @@ fn validate_loan_coordinates(
         if !valid_role {
             return Err(CodecError::NonCanonicalEncoding);
         }
+        if matches!(
+            loan.backing,
+            TerminalSuspensionLoanBacking::InputDependencies
+        ) && loan.resource != TerminalSuspensionLoanResource::LifetimeDependency
+            || matches!(loan.backing, TerminalSuspensionLoanBacking::CapturedInput)
+                && loan.resource != TerminalSuspensionLoanResource::OutputInput
+        {
+            return Err(CodecError::NonCanonicalEncoding);
+        }
         if let TerminalSuspensionLoanBacking::CompletedOutput { loan: output } = loan.backing
             && (!loans.occurrences.is_valid(output)
                 || loans.occurrences.get(output).resource
@@ -376,6 +385,17 @@ fn validate_loan_coordinates(
         }
     }
     Ok(())
+}
+
+// Debts retain inputs without denoting another pointer. Foreign coordinates
+// cannot turn those obligations into a value's reference leaf or its parent.
+fn physical_loan(loans: &TerminalSuspensionLoans, loan: Handle<TerminalSuspensionLoan>) -> bool {
+    loans.occurrences.is_valid(loan)
+        && !matches!(
+            loans.occurrences.get(loan).resource,
+            TerminalSuspensionLoanResource::LifetimeDependency
+                | TerminalSuspensionLoanResource::OutputInput
+        )
 }
 
 #[cfg(test)]
@@ -614,6 +634,90 @@ mod tests {
         let mut selectors = Vec::new();
         decoded.visit_value_ids(|value| selectors.push(value));
         assert_eq!(selectors, vec![selector]);
+        let mut output_plan = plan.clone();
+        let call = OperationId::new(11).expect("completed helper call");
+        let argument = StructuralArgument {
+            place: PlaceId::new(12).expect("original evaluated output argument"),
+            path: vec![],
+            access: StructuralAccess::MutableBorrow,
+        };
+        let input = output_plan
+            .loans
+            .occurrences
+            .insert(TerminalSuspensionLoan {
+                capture: TerminalSuspensionLoanCapture::CallInput {
+                    call,
+                    argument: argument.clone(),
+                    path,
+                    stored: true,
+                },
+                backing: TerminalSuspensionLoanBacking::CapturedInput,
+                resource: TerminalSuspensionLoanResource::OutputInput,
+                ..Default::default()
+            });
+        let inputs = output_plan.loans.input_links.insert_many([input]);
+        let output = output_plan
+            .loans
+            .occurrences
+            .insert(TerminalSuspensionLoan {
+                capture: TerminalSuspensionLoanCapture::CompletedOutput {
+                    call,
+                    argument,
+                    path: HandleSpan::empty(),
+                },
+                inputs,
+                resource: TerminalSuspensionLoanResource::CompletedOutput,
+                ..Default::default()
+            });
+        output_plan.loans.occurrences.get_mut(output).backing =
+            TerminalSuspensionLoanBacking::CompletedOutput { loan: output };
+        let debt = output_plan
+            .loans
+            .occurrences
+            .insert(TerminalSuspensionLoan {
+                capture: TerminalSuspensionLoanCapture::InputDependencies,
+                backing: TerminalSuspensionLoanBacking::InputDependencies,
+                resource: TerminalSuspensionLoanResource::LifetimeDependency,
+                inputs,
+                ..Default::default()
+            });
+        let output_links = output_plan.loans.value_links.insert_many([output]);
+        output_plan.live_values[0].loans = TerminalSuspensionValueLoans::Retained {
+            links: output_links,
+        };
+        let encode = |plan: &TerminalSuspensionCallPlan| {
+            let mut writer = Writer::default();
+            encode_suspension_call_plan(&mut writer, plan).expect("encode completed output graph");
+            writer.finish()
+        };
+        assert_eq!(
+            decode_suspension_call_plan(&mut Reader::new(&encode(&output_plan)))
+                .expect("decode completed output graph"),
+            output_plan
+        );
+        let output_commitment = suspension_frontier_commitment(&table, &output_plan);
+        for nonphysical in [input, debt] {
+            let mut invalid = output_plan.clone();
+            *invalid.loans.value_links.get_mut(output_links.start()) = nonphysical;
+            assert!(decode_suspension_call_plan(&mut Reader::new(&encode(&invalid))).is_err());
+            let mut invalid = output_plan.clone();
+            invalid.loans.occurrences.get_mut(child).parent = nonphysical;
+            assert!(decode_suspension_call_plan(&mut Reader::new(&encode(&invalid))).is_err());
+        }
+        let mut changed_input = output_plan.clone();
+        let TerminalSuspensionLoanCapture::CallInput { stored, .. } =
+            &mut changed_input.loans.occurrences.get_mut(input).capture
+        else {
+            unreachable!()
+        };
+        *stored = false;
+        assert_ne!(
+            suspension_frontier_commitment(&table, &changed_input),
+            output_commitment
+        );
+        let mut absent_input = output_plan.clone();
+        *absent_input.loans.input_links.get_mut(inputs.start()) = parent;
+        assert!(decode_suspension_call_plan(&mut Reader::new(&encode(&absent_input))).is_err());
         let commitment = suspension_frontier_commitment(&table, &plan);
         let mut changed = plan.clone();
         changed.loans.occurrences.get_mut(child).suppliers = Default::default();

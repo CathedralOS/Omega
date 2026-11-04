@@ -1169,8 +1169,11 @@ fn captured_call_leaf(
     let occurrence = occurrences.next().ok_or(LoweringError::Unsupported(
         "captured output/input call has no emitted occurrence",
     ))?;
-    if occurrences.next().is_some() {
-        return unsupported("captured output/input call is ambiguous");
+    if occurrences.next().is_some()
+        || owning_callable_symbol(checked, occurrence.source_target)
+            != owning_callable_symbol(checked, call.target_symbol)
+    {
+        return unsupported("captured output/input call is ambiguous or redirected");
     }
     let operation = occurrence
         .terminal_site

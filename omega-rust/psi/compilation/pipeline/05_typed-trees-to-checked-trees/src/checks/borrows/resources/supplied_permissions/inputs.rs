@@ -273,7 +273,12 @@ fn append_borrowed(
         operand,
         path,
         &access,
-    )?;
+    ).map_err(|reason| {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!("CHECKSITE completed-output-input-refused source={source:?} stored={stored:?} owner={owner:?} operand={operand:?} original_call={original:?} lending_call={lending_call:?} path={path:?} access={access:?} reason={reason}");
+        }
+        reason
+    })?;
     if suppliers.is_empty() {
         return Err("completed input has no selected lending permission");
     }
