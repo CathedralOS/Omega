@@ -42,7 +42,10 @@ impl Evaluator<'_> {
             let Some(primitive) = self.program.primitive_type_reference(declared) else {
                 return unsupported("atomic attempt lost its scalar resident");
             };
-            if !validation::atomic_once_result_type(self.program, destination, primitive) {
+            let Some(custody) = carrier.operation.single_attempt_custody() else {
+                return unsupported("atomic attempt lost its selected outcome contract");
+            };
+            if !validation::atomic_once_result_type(self.program, destination, primitive, custody) {
                 return unsupported("atomic attempt has no exact canonical outcome type");
             }
             let Some(data) = self.program.closed_data_definition(destination) else {
@@ -60,17 +63,25 @@ impl Evaluator<'_> {
                 return unsupported("atomic attempt needs integer resident and operands");
             };
             let matched = observed == expected;
-            let payload = if matched {
-                Vec::new()
-            } else {
-                vec![("observed".into(), self.allocate_cell(prior)?)]
+            let case = custody.outcome_identity.cases()[usize::from(matched)];
+            let payload = match case.payload {
+                None => Vec::new(),
+                Some(role) => {
+                    use language_core::atomic::AtomicCompareExchangeOutcomePayload;
+                    let value = match role {
+                        AtomicCompareExchangeOutcomePayload::Observed
+                        | AtomicCompareExchangeOutcomePayload::Displaced => prior,
+                        AtomicCompareExchangeOutcomePayload::Proposed => replacement.clone(),
+                    };
+                    vec![(role.field_name().into(), self.allocate_cell(value)?)]
+                }
             };
             if matched {
                 *cell.borrow_mut() = replacement;
             }
             return Ok(Value::Enum {
                 type_symbol,
-                variant_name: if matched { "Exchanged" } else { "Mismatched" }.into(),
+                variant_name: case.case.name().into(),
                 payload,
             });
         }
