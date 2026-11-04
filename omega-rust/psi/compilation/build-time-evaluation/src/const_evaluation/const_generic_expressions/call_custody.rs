@@ -51,33 +51,14 @@ struct Context<'program> {
     initializer: bool,
 }
 
-/// Every authored call expression surviving inside detached initializer
-/// expression roots, in deterministic walk order. Aggregate-producing leaf
-/// probes discharge each of these invocations individually before
-/// interpretation; hoisted probe bodies contribute one root per statement.
-pub(super) fn call_expressions(
-    program: &TypedTrees,
-    roots: &[ExpressionHandle],
-) -> Result<Vec<ExpressionHandle>, String> {
-    let mut calls = Vec::new();
-    for_each_initializer_expression(program, roots, |expression| {
-        if matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::Call(_)
-        ) {
-            calls.push(expression);
-        }
-    })?;
-    Ok(calls)
-}
-
 pub(super) fn contains_call(program: &TypedTrees, root: ExpressionHandle) -> Result<bool, String> {
     let mut contains_call = false;
-    for_each_initializer_expression(program, &[root], |expression| {
+    for_each_initializer_expression(program, &[root], expression_children, |expression| {
         contains_call |= matches!(
             program.expression_table.expression(expression),
             ExpressionNode::Call(_)
         );
+        true
     })?;
     Ok(contains_call)
 }
@@ -90,7 +71,8 @@ pub(super) fn contains_call(program: &TypedTrees, root: ExpressionHandle) -> Res
 fn for_each_initializer_expression(
     program: &TypedTrees,
     roots: &[ExpressionHandle],
-    mut visit: impl FnMut(ExpressionHandle),
+    children_at: impl Fn(&TypedTrees, ExpressionHandle) -> Result<Vec<ExpressionHandle>, String>,
+    mut visit: impl FnMut(ExpressionHandle) -> bool,
 ) -> Result<(), String> {
     let mut pending: Vec<(ExpressionHandle, bool)> =
         roots.iter().rev().map(|root| (*root, false)).collect();
@@ -110,16 +92,53 @@ fn for_each_initializer_expression(
         if complete.contains(&expression) {
             continue;
         }
-        let children = expression_children(program, expression)?;
-        visit(expression);
+        let children = children_at(program, expression)?;
+        let descend = visit(expression);
         active.push(expression);
         pending.push((expression, true));
-        pending.extend(children.into_iter().rev().map(|child| (child, false)));
+        if descend {
+            pending.extend(children.into_iter().rev().map(|child| (child, false)));
+        }
     }
     Ok(())
 }
 
+/// Calls own validation of their argument expressions. Stop at that boundary
+/// so a caller does not recursively revisit a flat list of all descendants.
+/// Authored recipes remain with the full custody walk above; this query follows
+/// only the current expression's executable operands.
+pub(super) fn immediate_call_expressions(
+    program: &TypedTrees,
+    roots: &[ExpressionHandle],
+) -> Result<Vec<ExpressionHandle>, String> {
+    let mut calls = Vec::new();
+    for_each_initializer_expression(program, roots, expression_operand_children, |expression| {
+        if matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Call(_)
+        ) {
+            calls.push(expression);
+            false
+        } else {
+            true
+        }
+    })?;
+    Ok(calls)
+}
+
 fn expression_children(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Result<Vec<ExpressionHandle>, String> {
+    let mut children = expression_operand_children(program, expression)?;
+    let authored = program.expression_table.materialization_source(expression);
+    if authored.is_valid() {
+        children.insert(0, authored);
+    }
+    Ok(children)
+}
+
+fn expression_operand_children(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Result<Vec<ExpressionHandle>, String> {
@@ -128,10 +147,6 @@ fn expression_children(
         return Err("constant initializer contains a stale expression".into());
     }
     let mut children = Vec::new();
-    let authored = table.materialization_source(expression);
-    if authored.is_valid() {
-        children.push(authored);
-    }
     match table.expression(expression) {
         ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Call(call) => {

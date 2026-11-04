@@ -735,13 +735,13 @@ fn inherits_normalized_constant_call(
         })
 }
 
-/// Every authored call expression surviving inside detached initializer
-/// expression roots, in deterministic walk order.
-pub(super) fn call_expressions(
-    program: &typed_trees::TypedTrees,
-    roots: &[typed_trees::expression::ExpressionHandle],
-) -> Result<Vec<typed_trees::expression::ExpressionHandle>, String> {
-    call_custody::call_expressions(program, roots)
+/// Calls whose arguments this expression context must admit. Nested calls
+/// are handled by their argument owner.
+pub(super) fn immediate_call_expressions(
+    program: &TypedTrees,
+    roots: &[ExpressionHandle],
+) -> Result<Vec<ExpressionHandle>, String> {
+    call_custody::immediate_call_expressions(program, roots)
 }
 
 /// Selected-constant origins, builtin-operator receipts, and the exact call
