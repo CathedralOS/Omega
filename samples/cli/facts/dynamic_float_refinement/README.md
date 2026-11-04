@@ -65,11 +65,43 @@ Pins are `tests/omega/{pass,fail}/facts/dynamic_float_refinement_through_<place>
 Every positive, including [the root program](main.omg), binds all four hosted
 targets and declares exit zero. Run a place with `omega run --both <place>/main.omg`.
 
-The migrated programs have not yet been qualified. Historical Linux baseline
-[run 41475899137](https://github.com/CathedralOS/Omega/actions/runs/41475899137)
-checked both nine-place productions and their eighteen intended refusals, then
-observed eighteen native/Terminal exit-zero pairs. That run used recording
-checkout `c98fe475c9a7` and the verified optimized producer `1f3c4da0217e`;
-it is not a run of the migrated source or current main. Current scoped checking,
-execution, independent review and landing remain open. Broader dynamic dispatch
-and target-selection acceptance stays on the task board.
+Linux x86-64 qualification is complete for both nine-place rows. Exact source
+`51ca56236d0f` has eighteen accepted corpus positives, eighteen intended corpus
+refusals and eighteen actual native/Terminal exit-zero pairs. The ordinary
+project checks cover eighteen passes and twenty-seven intended refusals,
+including the nine existing nested controls. The two complementary runs are
+[41754435705](https://github.com/CathedralOS/Omega/actions/runs/41754435705) and
+[41756155191](https://github.com/CathedralOS/Omega/actions/runs/41756155191).
+
+The nested controls were then migrated to match their adjacent invalid twins.
+[Run 41756934771](https://github.com/CathedralOS/Omega/actions/runs/41756934771)
+checks all nine corrected controls for their intended refusal and runs both
+root programs with native/Terminal exit-zero agreement at `0f3013a5e471`.
+Its verified CLI binary has the same digest as the earlier Linux producer.
+No positive, pinned fixture, compiler or library input changed in that edit.
+The records keep the source revision at which each observation was made.
+
+The complete macOS ARM64 selection remains active in
+[run 41756122501](https://github.com/CathedralOS/Omega/actions/runs/41756122501).
+No macOS result is claimed here, and its existing rows remain unchanged.
+The four ProgramEntry and provider bindings do not establish native execution
+on Windows x86-64 or Linux ARM64. Final review and remote-main publication
+verification remain open. Broader dynamic dispatch and target-selection
+acceptance stays on the task board.
+
+<details><summary>Historical baseline and retained source</summary>
+
+[Baseline run 41475899137](https://github.com/CathedralOS/Omega/actions/runs/41475899137)
+checked both original nine-place productions and their eighteen intended
+refusals, then observed eighteen native/Terminal exit-zero pairs. The recording
+checkout was `c98fe475c9a7`; the actual verified optimized producer was
+`1f3c4da0217e`. It is not a run of the migrated source or current main.
+
+The measured current core source is retained as a verified Git bundle in
+[PR #1486](https://github.com/CathedralOS/Omega/pull/1486#issuecomment-6620126120),
+with all thirteen posted parts read back and decoded. Raw reports, producer
+profiles and authored input hashes are retained in
+`build/dynamic-float-selected-20261104`. No execution is attributed to a later
+metadata-only commit.
+
+</details>

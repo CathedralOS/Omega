@@ -29,7 +29,11 @@ the fact. Selector identity, checking of unselected implementations, portable
 Terminal Psi, provider selection, calling plans and actual native/Terminal
 agreement follow the [parent requirements](../README.md).
 
-The migrated source remains unqualified. The parent's historical Linux baseline
-covers the original nine positives and nine twins in this production; it does
-not establish the current migration or another host. Fresh focused evidence,
-review and landing remain open, along with the broader parent acceptance.
+All nine positives and nine intended refusals have current Linux x86-64
+qualification at `51ca56236d0f`. Each positive actually runs with native and
+Terminal exit zero; its constrained consumer accepts the public named interval.
+The [parent evidence](../README.md) identifies the two complementary Linux
+runs and the separately observed root programs at `0f3013a5e471`.
+
+The full macOS ARM64 run is still active and supplies no completed result yet.
+Other hosts, final publication and the broader parent acceptance remain open.
