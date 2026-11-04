@@ -26,8 +26,11 @@ sys.path.insert(0, str(ROOT / "tools"))
 import corpus_gate
 from sample_projects import discover as discover_samples
 if __package__:
-    from . import ordinary_cli_fixture
+    from . import compiler_replay_plan, ordinary_cli_fixture
+    from . import compiler_source_export
 else:
+    import compiler_replay_plan
+    import compiler_source_export
     import ordinary_cli_fixture
 
 POSITIVES = (
@@ -54,6 +57,9 @@ def select_fixtures(request):
     """
     if not isinstance(request, str):
         raise ValueError("fixtures must be a comma-separated string")
+    if request.startswith("@"):
+        plan = compiler_replay_plan.load(ROOT, request)
+        return select_fixtures(",".join(plan.fixtures)) if plan.fixtures else ((), ())
     fixtures = tuple(part.strip() for part in request.split(","))
     if not fixtures or any(not fixture for fixture in fixtures):
         raise ValueError("fixtures must be nonempty comma-separated corpus IDs")
@@ -222,6 +228,9 @@ class CompilerProducer:
     runner: Optional[Path]
     cli_profile: dict
     runner_profile: Optional[dict]
+    consumer_revision: Optional[str] = None
+    compiler_inputs: Optional[dict] = None
+    replay_origin: Optional[dict] = None
 
     def _artifacts(self):
         if (self.runner is None) != (self.runner_profile is None):
@@ -230,11 +239,16 @@ class CompilerProducer:
         return cli if self.runner is None else cli + ((self.runner, self.runner_profile),)
 
     def verify(self):
-        if (command(["git", "rev-parse", "HEAD"]) != self.revision
-                or command(["git", "rev-parse", "HEAD^{tree}"]) != self.tree
+        consumer = self.consumer_revision or self.revision
+        expected_tree = (self.tree if self.consumer_revision is None else
+                         command(["git", "rev-parse", consumer + "^{tree}"]))
+        if (command(["git", "rev-parse", "HEAD"]) != consumer
+                or command(["git", "rev-parse", "HEAD^{tree}"]) != expected_tree
                 or command(["git", "status", "--porcelain"])
-                or os.environ.get("GITHUB_SHA", self.revision) != self.revision):
+                or os.environ.get("GITHUB_SHA", consumer) != consumer):
             raise ValueError("producer source revision, tree or working inputs changed")
+        if self.consumer_revision is not None:
+            compiler_replay_plan.check_inputs(ROOT, consumer, self.compiler_inputs)
         if corpus_gate.host_target() != self.target or command(["rustc", "-Vv"]) != self.toolchain:
             raise ValueError("producer host or Rust toolchain changed")
         for binary, expected in self._artifacts():
@@ -242,9 +256,32 @@ class CompilerProducer:
                 raise ValueError(f"retained producer identity/profile changed: {binary}")
 
     def record(self):
-        return dict(revision=self.revision, tree=self.tree, target=self.target, toolchain=self.toolchain,
+        record = dict(revision=self.revision, tree=self.tree, target=self.target, toolchain=self.toolchain,
                     cli=str(self.cli), runner=None if self.runner is None else str(self.runner),
                     cli_profile=self.cli_profile, runner_profile=self.runner_profile)
+        if self.consumer_revision is not None:
+            record.update(consumer_revision=self.consumer_revision, compiler_inputs=self.compiler_inputs,
+                          replay_origin=self.replay_origin)
+        return record
+
+
+def retained_producer(output, plan):
+    """Authenticate the restored cache without invoking a compiler build."""
+    expected = plan.producer
+    if command(["git", "status", "--porcelain"]):
+        raise ValueError("retained producer requires clean consumer inputs")
+    if corpus_gate.host_target() != expected["target"] or command(["rustc", "-Vv"]) != expected["toolchain"]:
+        raise ValueError("retained producer belongs to another host or toolchain")
+    revision = command(["git", "rev-parse", "HEAD"])
+    paths, profiles = compiler_replay_plan.materialize(ROOT, output, plan, corpus_gate.require_optimized)
+    producer = CompilerProducer(
+        expected["revision"], expected["tree"], expected["target"], expected["toolchain"],
+        paths["cli"], paths["runner"], profiles["cli"], profiles["runner"], revision,
+        expected["input_objects"], dict(run=expected["origin_run"], cache_key=expected["cache_key"],
+                                       plan=plan.path, transport="existing workflow cache"))
+    producer.verify()
+    (output / "retained-producer.json").write_text(json.dumps(producer.record(), indent=2) + "\n", encoding="utf-8")
+    return producer
 
 
 def write_new_record(path, record):
@@ -262,8 +299,23 @@ def load_producer(path):
     record = manifest["producer"]
     fields = {"revision", "tree", "target", "toolchain", "cli", "runner",
               "cli_profile", "runner_profile"}
-    if not isinstance(record, dict) or set(record) != fields:
+    replay_fields = {"consumer_revision", "compiler_inputs", "replay_origin"}
+    if not isinstance(record, dict) or set(record) not in (fields, fields | replay_fields):
         raise ValueError("prepared compiler manifest has incomplete producer identity")
+    replay = None
+    if set(record) == fields | replay_fields:
+        origin = record["replay_origin"]
+        if (not isinstance(record["consumer_revision"], str)
+                or not re.fullmatch(r"[0-9a-f]{40}", record["consumer_revision"])
+                or not isinstance(origin, dict) or set(origin) != {"run", "cache_key", "plan", "transport"}
+                or type(origin["run"]) is not int or origin["run"] <= 0
+                or not isinstance(origin["cache_key"], str) or not origin["cache_key"]
+                or not isinstance(origin["plan"], str) or origin["transport"] != "existing workflow cache"):
+            raise ValueError("prepared replay has incomplete original-source custody")
+        replay = compiler_replay_plan.load(ROOT, "@" + origin["plan"])
+        if (origin["run"] != replay.producer["origin_run"] or origin["cache_key"] != replay.producer["cache_key"]
+                or record["compiler_inputs"] != replay.producer["input_objects"]):
+            raise ValueError("prepared replay differs from its authored producer plan")
     if any(not isinstance(record[field], str) or not record[field]
            for field in ("revision", "tree", "target", "toolchain", "cli")):
         raise ValueError("prepared compiler identity fields must be nonempty strings")
@@ -276,13 +328,29 @@ def load_producer(path):
         raise ValueError("prepared executable paths must be absolute")
     producer = CompilerProducer(record["revision"], record["tree"], record["target"],
                                 record["toolchain"], cli, runner,
-                                record["cli_profile"], record["runner_profile"])
+                                record["cli_profile"], record["runner_profile"],
+                                record.get("consumer_revision"), record.get("compiler_inputs"),
+                                record.get("replay_origin"))
     for _, profile in producer._artifacts():
         if (not isinstance(profile, dict) or not isinstance(profile.get("sha256"), str)
                 or not re.fullmatch(r"[0-9a-f]{64}", profile["sha256"])):
             raise ValueError("prepared executable lacks its verified digest/profile")
+    if replay is not None:
+        require_plan_producer(producer, replay)
     producer.verify()
     return producer
+
+
+def require_plan_producer(producer, plan):
+    """A selected replay cannot silently use another prepared compiler."""
+    expected = plan.producer
+    if any(getattr(producer, key) != expected[key] for key in ("revision", "tree", "target", "toolchain")):
+        raise ValueError("prepared compiler differs from the selected replay producer")
+    for kind in ("cli", "runner"):
+        profile = getattr(producer, kind + "_profile")
+        identity = None if profile is None else {key: profile.get(key) for key in ("sha256", "profile")}
+        if identity != expected["executables"][kind]:
+            raise ValueError("prepared executable differs from the selected replay producer")
 
 
 def prepare_producer(output, *, need_runner=True):
@@ -296,15 +364,20 @@ def prepare_producer(output, *, need_runner=True):
     tool = "mbx" if shutil.which("mbx") else "cargo"
     arguments = [tool, "build", "--locked", "-p", "omega", "--message-format=json"]
     import build_slot
-    with build_slot.hold(ROOT):
+    # Retain diagnostics while the compiler runs. A failed build can exhaust
+    # storage or be interrupted before a later buffered-output write succeeds.
+    stdout_path = retained / "cli-build.jsonl"
+    stderr_path = retained / "cli-build.stderr"
+    with stdout_path.open("w", encoding="utf-8") as stdout, \
+            stderr_path.open("w", encoding="utf-8") as stderr, build_slot.hold(ROOT):
         result = subprocess.run(arguments, cwd=ROOT, stdin=subprocess.DEVNULL,
-                                capture_output=True, text=True, env=corpus_gate.optimized_environment())
-    (retained / "cli-build.jsonl").write_text(result.stdout, encoding="utf-8")
-    (retained / "cli-build.stderr").write_text(result.stderr, encoding="utf-8")
+                                stdout=stdout, stderr=stderr, text=True,
+                                env=corpus_gate.optimized_environment())
     if result.returncode:
-        sys.stderr.write(result.stderr[-8000:])
+        sys.stderr.write(stderr_path.read_text(encoding="utf-8")[-8000:])
         raise ValueError(f"CLI build failed ({result.returncode}); raw build receipt retained")
-    artifacts = [json.loads(line) for line in result.stdout.splitlines() if line.strip().startswith("{")]
+    artifacts = [json.loads(line) for line in stdout_path.read_text(encoding="utf-8").splitlines()
+                 if line.strip().startswith("{")]
     binaries = [row["executable"] for row in artifacts if row.get("reason") == "compiler-artifact"
                 and row.get("target", {}).get("name") == "omega" and row.get("executable")]
     if not binaries or not artifacts[-1].get("success"):
@@ -372,10 +445,12 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
             result["seconds"] = round(time.monotonic() - started, 3)
 
     need_runner = bool(positives or negatives or checking_only)
+    revisions = (revision,) if producer is None else (revision, producer.revision)
+    summary["source_exports"] = stage("retain measured source", lambda: compiler_source_export.export(output, revisions))
     if producer is None:
         producer = stage("prepare optimized compiler", lambda: prepare_producer(output, need_runner=need_runner))
     stage("authenticate optimized producer", producer.verify)
-    if producer.revision != revision or producer.target != summary["target"]:
+    if (producer.consumer_revision or producer.revision) != revision or producer.target != summary["target"]:
         raise ValueError("producer belongs to another source or host")
     summary["producer"] = producer.record()
     if need_runner and (producer.runner is None or producer.runner_profile is None):
@@ -413,6 +488,8 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
             # Independent consumers can still produce useful evidence from
             # this compiler. Keep every failure and leave the run red.
             refusals.append(f"{name}: {error}")
+            summary["consumer_errors"] = list(refusals)
+            summary["consumer_errors"] = list(refusals)
         # A failed fixture does not invalidate the compiler. Changed compiler
         # bytes do: stop before another consumer uses an unauthenticated file.
         producer.verify()
@@ -425,6 +502,7 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
     if cli_fixtures:
         def ordinary_cli():
             rows = []
+            errors = []
             summary["cli_observations"] = rows
             for fixture in cli_fixtures:
                 row = ordinary_cli_fixture.observe(ROOT, producer, fixture, output / "ordinary-cli" / fixture)
@@ -435,8 +513,11 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
                 compact["full_observation"] = str(output / "ordinary-cli" / fixture / "observation.json")
                 rows.append(compact)
                 (output / "cli.json").write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+                producer.verify()
                 if row.get("passed") is not True:
-                    raise ValueError(f"{fixture}: {row.get('error', 'ordinary CLI observation failed')}")
+                    errors.append(f"{fixture}: {row.get('error', 'ordinary CLI observation failed')}")
+            if errors:
+                raise ValueError("; ".join(errors))
         observe("ordinary CLI package admission and native/Terminal execution", ordinary_cli)
     if samples:
         def fact_samples():
@@ -460,6 +541,15 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
 
 def selected_consumers(positives, negatives, checking_only, *, fixtures, samples, cli_fixtures, check_only):
     """Resolve the complete request before either preparing or using a compiler."""
+    replay = None
+    if isinstance(fixtures, str) and fixtures.startswith("@"):
+        if samples is not None or cli_fixtures is not None or check_only:
+            raise ValueError("a replay plan owns its producer and complete consumer selection")
+        replay = compiler_replay_plan.load(ROOT, fixtures)
+        fixtures = ",".join(replay.fixtures) if replay.fixtures else None
+        samples = ",".join(replay.samples) if replay.samples else None
+        cli_fixtures = ",".join(replay.cli_fixtures) if replay.cli_fixtures else None
+        positives, negatives, checking_only = (), (), ()
     if check_only and (fixtures is None or samples is not None or cli_fixtures is not None):
         raise ValueError("checking-only requires exact fixtures without samples or ordinary CLI projects")
     selected_samples = select_samples(samples) if samples is not None else ()
@@ -473,8 +563,10 @@ def selected_consumers(positives, negatives, checking_only, *, fixtures, samples
         checking_only, positives = positives, ()
     if not (positives or negatives or checking_only or selected_samples or selected_cli):
         raise ValueError("pilot requires at least one fixture")
-    return dict(positives=positives, negatives=negatives, checking_only=checking_only,
-                samples=selected_samples, cli_fixtures=selected_cli)
+    if replay is not None and replay.source_only:
+        checking_only, positives = positives, ()
+    return (dict(positives=positives, negatives=negatives, checking_only=checking_only,
+                 samples=selected_samples, cli_fixtures=selected_cli), replay)
 
 
 def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fixtures=None, samples=None, cli_fixtures=None, check_only=False, phase="all"):
@@ -494,20 +586,31 @@ def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fi
     try:
         if phase not in ("all", "prepare", "consume") or (phase != "all" and producer is not None):
             raise ValueError("separate phases require their recorded producer, not an in-memory override")
-        selected = selected_consumers(positives, negatives, checking_only, fixtures=fixtures,
-                                      samples=samples, cli_fixtures=cli_fixtures, check_only=check_only)
+        selected, replay = selected_consumers(positives, negatives, checking_only, fixtures=fixtures,
+                                             samples=samples, cli_fixtures=cli_fixtures, check_only=check_only)
+        if replay is not None:
+            if producer is not None:
+                raise ValueError("a replay plan owns its producer and complete consumer selection")
+            summary["replay_plan"] = replay.path
         if preparing:
-            summary.update(candidate=command(["git", "rev-parse", "HEAD"]),
-                           tree=command(["git", "rev-parse", "HEAD^{tree}"]),
+            revision = command(["git", "rev-parse", "HEAD"])
+            summary.update(candidate=revision, tree=command(["git", "rev-parse", "HEAD^{tree}"]),
                            target=corpus_gate.host_target(), toolchain=command(["rustc", "-Vv"]),
                            consumers=selected)
-            producer = prepare_producer(output, need_runner=bool(
+            revisions = (revision,) if replay is None else (revision, replay.producer["revision"])
+            summary["source_exports"] = compiler_source_export.export(output, revisions)
+            producer = (prepare_producer(output, need_runner=bool(
                 selected["positives"] or selected["negatives"] or selected["checking_only"]))
+                if replay is None else retained_producer(output, replay))
             write_new_record(manifest, dict(schema="omega-compiler-producer-v1", producer=producer.record()))
             summary["producer"] = producer.record()
         else:
             if phase == "consume":
                 producer = load_producer(manifest)
+                if replay is not None:
+                    require_plan_producer(producer, replay)
+            elif replay is not None:
+                producer = retained_producer(output, replay)
             execute(output, summary, producer=producer, **selected)
         summary["passed"] = True
         return 0
@@ -528,7 +631,7 @@ def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase", choices=("all", "prepare", "consume"), default="all",
                         help="prepare and retain the compiler, consume its manifest without building, or do both")
-    parser.add_argument("--fixtures", help="comma-separated exact pass/... or fail/... fixture IDs")
+    parser.add_argument("--fixtures", help="exact pass/... or fail/... IDs, or @tracked/replay-plan.json")
     parser.add_argument("--samples", help="comma-separated exact samples/cli/facts project paths (includes descendants)")
     parser.add_argument("--cli-fixtures", help="exact pass/... normal-exit projects through ordinary CLI review/run")
     parser.add_argument("--checking-only", action="store_true",
