@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "const binder `Capacity` holds a non-integer argument"
+    "const-generic application evaluation failed: constant expression differs from its destination carrier"
   ]
 }
