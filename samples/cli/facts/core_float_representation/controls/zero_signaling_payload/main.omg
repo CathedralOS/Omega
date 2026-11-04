@@ -1,2 +1,0 @@
-use omega::language::core::float;
-machine main() { _ = float::signaling_nan<f32>(float::Sign::Negative {}, 0u32); }

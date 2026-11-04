@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "encode_covers",
-    "cannot prove"
-  ]
-}

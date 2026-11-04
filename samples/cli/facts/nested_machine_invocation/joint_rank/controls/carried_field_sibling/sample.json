@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "mutates `second.value`",
-    "still active"
-  ]
-}

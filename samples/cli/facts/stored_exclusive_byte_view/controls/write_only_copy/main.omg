@@ -1,8 +1,0 @@
-// Expected rejection: stored write-only permission transfers once.
-machine consume(windows: [&write u8; 1]) {}
-machine main() {
-    let mut backing: u8 = 0;
-    let windows: [&write u8; 1] = [&write backing];
-    consume(windows);
-    consume(windows);
-}

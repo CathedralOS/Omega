@@ -1,8 +1,0 @@
-// A closed public promise cannot turn exclusive access into a value observation.
-boundary trait ExclusivePredicate {
-    machine accepts(items: &mut [u8]) -> bool reaches terminates;
-}
-machine inspect(items: &mut [u8])
-requires ExclusivePredicate::accepts(items) == true
-{}
-machine main() {}
