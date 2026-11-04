@@ -164,34 +164,64 @@ pub(crate) fn value_shape(
     None
 }
 
-/// This interpreter binds only ordinary integer/Boolean carriers and readable
-/// integer collections. A declaration call has no checked caller admission:
-/// neither a legacy range nor a domain qualification may disappear when its
-/// formal is viewed through `value_shape`'s representation-only projection.
+/// This interpreter binds only ordinary integer/Boolean carriers, readable
+/// integer collections, and records built from them. A declaration call has no
+/// checked caller admission: neither a legacy range, a domain qualification
+/// nor a data default-domain fact may disappear when a formal or one of its
+/// fields is viewed through `value_shape`'s representation-only projection.
 fn has_only_carrier_parameters(program: &dyn CheckingInput, entry: &State) -> bool {
-    program.state_parameters(entry).iter().all(|parameter| {
-        let mut reference = parameter.type_reference;
-        for _ in 0..8 {
-            match program.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Reference {
-                    referee,
-                    access: ReferenceAccess::Shared,
-                    ..
-                } => reference = *referee,
-                TypeReferenceNode::FixedArray { element_type, .. }
-                | TypeReferenceNode::Slice { element_type } => {
-                    return super::bare_integer_parameter_type(program, *element_type).is_some();
-                }
-                TypeReferenceNode::Named { .. } => {
-                    return super::bare_integer_parameter_type(program, reference).is_some()
-                        || program.primitive_type_reference(reference)
-                            == Some(PrimitiveType::Bool);
-                }
-                _ => return false,
+    program
+        .state_parameters(entry)
+        .iter()
+        .all(|parameter| is_carrier_type(program, parameter.type_reference, 0))
+}
+
+fn is_carrier_type(
+    program: &dyn CheckingInput,
+    mut reference: TypeReferenceHandle,
+    depth: usize,
+) -> bool {
+    if depth >= 8 {
+        return false;
+    }
+    for _ in 0..8 {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference {
+                referee,
+                access: ReferenceAccess::Shared,
+                ..
+            } => reference = *referee,
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type } => {
+                return super::bare_integer_parameter_type(program, *element_type).is_some();
             }
+            TypeReferenceNode::Named { .. } => {
+                if super::bare_integer_parameter_type(program, reference).is_some()
+                    || program.primitive_type_reference(reference) == Some(PrimitiveType::Bool)
+                {
+                    return true;
+                }
+                let Some(definition) =
+                    crate::value_custody::places::data_definition_for_type(program, reference)
+                else {
+                    return false;
+                };
+                // A quotient's equivalence is not a field-by-field reading.
+                return definition.quotient.is_none()
+                    && program
+                        .proof_facts
+                        .span_or_empty(definition.where_facts)
+                        .is_empty()
+                    && program.data_members(definition).iter().all(|member| {
+                        member.as_field().is_some_and(|field| {
+                            is_carrier_type(program, field.type_reference, depth + 1)
+                        })
+                    });
+            }
+            _ => return false,
         }
-        false
-    })
+    }
+    false
 }
 
 /// The index of a free predicate machine the explorer may enter, selected by
