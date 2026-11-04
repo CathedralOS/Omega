@@ -551,12 +551,18 @@ fn collect_descriptor_captures(
         projection,
         capture.storage_snapshot,
     )?;
+    let selection_kind = match &selected {
+        validation::completed_storage::StoredOperand::Unavailable => "unavailable",
+        validation::completed_storage::StoredOperand::Incoming(_) => "incoming",
+        validation::completed_storage::StoredOperand::Alternatives(_) => "alternatives",
+        validation::completed_storage::StoredOperand::Value { .. } => "value",
+    };
     let Some(selected) = selected.captures() else {
         if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
             eprintln!(
-                "STRUCT descriptor-capture-frontier-unavailable source={source:?} path={projection:?} permission={:?}",
-                capture.descriptor_permission
+                "STRUCT descriptor-capture-frontier-unavailable source={source:?} path={projection:?} kind={selection_kind} capture={capture:?}"
             );
+            trace_descriptor_storage(program, facts, capture, projection);
         }
         return Some(false);
     };
@@ -593,6 +599,114 @@ fn collect_descriptor_captures(
                 )
             }),
     )
+}
+
+fn trace_descriptor_storage(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    capture: &FlowOperandFact,
+    projection: &[facts::PlaceSegment],
+) {
+    let Some(mut place) = place_at(
+        program,
+        capture.state_symbol,
+        capture.statement_index,
+        capture.expression,
+    ) else {
+        return;
+    };
+    place.segments.extend_from_slice(projection);
+    let root_type = validation::canonical_place_type_reference(
+        program,
+        capture.state_symbol,
+        capture.statement_index,
+        &validation::CanonicalPlace {
+            root: place.root,
+            segments: Vec::new(),
+        },
+    );
+    eprintln!("STRUCT descriptor-storage-query place={place:?} root_type={root_type:?}");
+    let mut pending = vec![capture.storage_snapshot];
+    let mut visited = Vec::new();
+    while let Some(snapshot) = pending.pop() {
+        if visited.contains(&snapshot) || !facts.flow.control.storage_snapshots.is_valid(snapshot) {
+            continue;
+        }
+        visited.push(snapshot);
+        let event = facts.flow.control.storage_snapshots.get(snapshot);
+        match event.operation {
+            checked_trees::FlowStorageOperation::Store {
+                destination,
+                value,
+                projection,
+            } if destination.root == place.root => {
+                eprintln!(
+                    "STRUCT descriptor-storage-store at={snapshot:?} root={:?} path={:?} value={value:?} value_type={:?} permission={:?} projection={:?}",
+                    destination.root,
+                    facts
+                        .flow
+                        .control
+                        .operand_referent_segments
+                        .span(destination.segments),
+                    facts.flow.control.operands.is_valid(value).then(|| facts
+                        .flow
+                        .control
+                        .operands
+                        .get(value)
+                        .type_reference),
+                    facts.flow.control.operands.is_valid(value).then(|| facts
+                        .flow
+                        .control
+                        .operands
+                        .get(value)
+                        .descriptor_permission),
+                    facts.flow.control.operand_retained_paths.span(projection)
+                );
+            }
+            checked_trees::FlowStorageOperation::Writes {
+                bindings,
+                contents,
+                bindings_complete,
+                contents_complete,
+            } => {
+                for (kind, rows, complete) in [
+                    ("binding", bindings, bindings_complete),
+                    ("contents", contents, contents_complete),
+                ] {
+                    let writes = facts
+                        .flow
+                        .control
+                        .operand_origin_writes
+                        .span_or_empty(rows)
+                        .iter()
+                        .filter(|write| write.root == place.root)
+                        .map(|write| {
+                            facts
+                                .flow
+                                .control
+                                .operand_referent_segments
+                                .span(write.segments)
+                        })
+                        .collect::<Vec<_>>();
+                    if !writes.is_empty() || !complete {
+                        eprintln!(
+                            "STRUCT descriptor-storage-writes at={snapshot:?} kind={kind} complete={complete} paths={writes:?}"
+                        );
+                    }
+                }
+            }
+            checked_trees::FlowStorageOperation::Join { predecessors } => pending
+                .extend_from_slice(
+                    facts
+                        .flow
+                        .control
+                        .storage_predecessors
+                        .span_or_empty(predecessors),
+                ),
+            _ => {}
+        }
+        pending.push(event.previous);
+    }
 }
 
 /// Resolve the installed descriptor generation before joining a loan. A later
