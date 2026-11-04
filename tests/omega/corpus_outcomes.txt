@@ -982,16 +982,10 @@ fail/borrow/undeclared_lifetime_tag rejected 864ms expected @ccdb99ca2214
 	data `Bad` field `body` uses undeclared lifetime `'ghost'; declare it in the owner's generic parameter list
 fail/borrow/unknown_selector_replacement_retires_entry_bound rejected 1645ms expected @ccdb99ca2214
 	cannot prove index `other` is within length 4 in main::entry
-fail/borrow/vec_view_invalidated_by_push rejected 691ms unexpected @ccdb99ca2214
-	cannot form specification operator `>=` in trait `VecAccess` state `Capacity` ensures contract: no exact selected meaning
-	cannot form specification operator `<` in trait `VecAccess` state `index` requires contract: no exact selected meaning
-	cannot form specification operator `<` in trait `VecAccess` state `index_mut` requires contract: no exact selected meaning
-	cannot form specification operator `==` in trait `VecAccess` state `as_slice` ensures contract: no exact selected meaning
-	cannot form specification operator `==` in trait `VecAccess` state `as_mut_slice` ensures contract: no exact selected meaning
-	cannot form specification operator `<` in trait `VecAccess` state `push` requires contract: no exact selected meaning
-	cannot form specification operator `>` in trait `VecAccess` state `pop` requires contract: no exact selected meaning
-	machine `Vec::as_slice` state `as_slice` declares a return type but its body is empty -- return a value or drop the `-> T`
-	machine `Vec::as_slice$specialized$eaa08a41a88f01dd$0` state `as_slice` declares a return type but its body is empty -- return a value or drop the `-> T`
+fail/borrow/vec_view_invalidated_by_push rejected 3409ms expected @386d219ef1ee
+	state `push` receives `main.items` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+	statement 1 borrows `main.items` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit) in machine `Main::main`, state `main`, statement 1
+	statement 1 mutates `main.items` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrow/view_field_store_parameter_view_outlives_call rejected 1679ms expected @ccdb99ca2214
 	assignment stores a borrow-carrying value in persistent field `label` of machine `Main::keep`; persistent loans must be propagated through graph-state transitions before this write can be admitted
 fail/borrow/view_return_ambiguous_ref_inputs rejected 15571ms expected @ccdb99ca2214
@@ -6408,39 +6402,39 @@ fail/facts/call_result_bound_discharge_through_target_body_rejected rejected 208
 	cannot prove requires contract for call take from Main::main: s <= 5 (needs fact `scale <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 	cannot prove requires contract for call take from Main::main: s <= 5 (needs fact `scale <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 	cannot prove requires contract for call take from Main::main: s <= 5 (needs fact `scale <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-fail/facts/captured_storage_bounds_through_call_result_rejected rejected 3919ms expected @fa9b94b8573c
+fail/facts/captured_storage_bounds_through_call_result_rejected rejected 3579ms expected @aa3f3437505e
 	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
 	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/captured_storage_bounds_through_const_name_rejected rejected 3872ms expected @fa9b94b8573c
+fail/facts/captured_storage_bounds_through_const_name_rejected rejected 3733ms expected @aa3f3437505e
 	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
 	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/captured_storage_bounds_through_field_rejected rejected 3957ms expected @fa9b94b8573c
+fail/facts/captured_storage_bounds_through_field_rejected rejected 3728ms expected @aa3f3437505e
 	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
 	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/captured_storage_bounds_through_local_rejected rejected 3904ms expected @fa9b94b8573c
+fail/facts/captured_storage_bounds_through_local_rejected rejected 3523ms expected @aa3f3437505e
 	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
 	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/captured_storage_bounds_through_match_join_rejected rejected 3655ms expected @fa9b94b8573c
+fail/facts/captured_storage_bounds_through_match_join_rejected rejected 3765ms expected @aa3f3437505e
 	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
 	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/captured_storage_bounds_through_other_machine_rejected rejected 3600ms expected @fa9b94b8573c
+fail/facts/captured_storage_bounds_through_other_machine_rejected rejected 3763ms expected @aa3f3437505e
 	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
 	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/captured_storage_bounds_through_other_state_rejected rejected 3862ms expected @fa9b94b8573c
+fail/facts/captured_storage_bounds_through_other_state_rejected rejected 3654ms expected @aa3f3437505e
 	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
 	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/captured_storage_bounds_through_parameter_rejected rejected 3633ms expected @fa9b94b8573c
+fail/facts/captured_storage_bounds_through_parameter_rejected rejected 3688ms expected @aa3f3437505e
 	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
 	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/captured_storage_bounds_through_target_body_rejected rejected 3843ms expected @fa9b94b8573c
+fail/facts/captured_storage_bounds_through_target_body_rejected rejected 3696ms expected @aa3f3437505e
 	machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
 	machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
@@ -6598,23 +6592,23 @@ fail/facts/case_payload_stored_loan_through_parameter_rejected rejected 2936ms e
 fail/facts/case_payload_stored_loan_through_target_body_rejected rejected 3670ms expected @ccdb99ca2214
 	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
 	statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
-fail/facts/case_payload_transport_through_call_result_rejected rejected 3843ms expected @fa9b94b8573c
+fail/facts/case_payload_transport_through_call_result_rejected rejected 3810ms expected @aa3f3437505e
 	cannot prove ensures contract for exit from eval at statement 2: result <= 60
-fail/facts/case_payload_transport_through_const_name_rejected rejected 3950ms expected @fa9b94b8573c
+fail/facts/case_payload_transport_through_const_name_rejected rejected 3993ms expected @aa3f3437505e
 	cannot prove ensures contract for exit from eval at statement 1: result <= 60
-fail/facts/case_payload_transport_through_field_rejected rejected 3735ms expected @fa9b94b8573c
+fail/facts/case_payload_transport_through_field_rejected rejected 3845ms expected @aa3f3437505e
 	cannot prove ensures contract for exit from eval at statement 2: result <= 60
-fail/facts/case_payload_transport_through_local_rejected rejected 4063ms expected @fa9b94b8573c
+fail/facts/case_payload_transport_through_local_rejected rejected 3935ms expected @aa3f3437505e
 	cannot prove ensures contract for exit from eval at statement 2: result <= 60
-fail/facts/case_payload_transport_through_match_join_rejected rejected 4050ms expected @fa9b94b8573c
+fail/facts/case_payload_transport_through_match_join_rejected rejected 3945ms expected @aa3f3437505e
 	cannot prove ensures contract for exit from eval at statement 1: result <= 60
-fail/facts/case_payload_transport_through_other_machine_rejected rejected 3816ms expected @fa9b94b8573c
+fail/facts/case_payload_transport_through_other_machine_rejected rejected 3850ms expected @aa3f3437505e
 	cannot prove ensures contract for exit from inspect at statement 1: result <= 60
-fail/facts/case_payload_transport_through_other_state_rejected rejected 3822ms expected @fa9b94b8573c
+fail/facts/case_payload_transport_through_other_state_rejected rejected 3898ms expected @aa3f3437505e
 	cannot prove ensures contract for exit from eval at statement 0: result <= 60
-fail/facts/case_payload_transport_through_parameter_rejected rejected 3953ms expected @fa9b94b8573c
+fail/facts/case_payload_transport_through_parameter_rejected rejected 3922ms expected @aa3f3437505e
 	cannot prove ensures contract for exit from eval at statement 1: result <= 60
-fail/facts/case_payload_transport_through_target_body_rejected rejected 4000ms expected @fa9b94b8573c
+fail/facts/case_payload_transport_through_target_body_rejected rejected 3915ms expected @aa3f3437505e
 	cannot prove ensures contract for exit from X86Eval::eval at statement 2: result <= 60
 	cannot prove ensures contract for exit from ArmEval::eval at statement 2: result <= 60
 fail/facts/case_predicate_alias_sibling_restore_rejected rejected 5283ms expected @ff6d0a18a03d
@@ -10216,50 +10210,23 @@ fail/facts/method_array_operand_inference_through_parameter_rejected rejected 34
 	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
 fail/facts/method_array_operand_inference_through_target_body_rejected rejected 4000ms expected @c79bb8268163+wt
 	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
-fail/facts/named_conformance_dispatch_through_call_result_rejected rejected 1527ms unexpected @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-fail/facts/named_conformance_dispatch_through_const_name_rejected rejected 1388ms unexpected @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
+fail/facts/named_conformance_dispatch_through_call_result_rejected rejected 3748ms expected @6618a8c606d6
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2689 from probe: 0 <= supply(b) && supply(b) <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/named_conformance_dispatch_through_const_name_rejected rejected 3625ms expected @6618a8c606d6
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2687 from probe: 0 <= a && a <= 50 (needs fact `0 <= left && left <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2687 from probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/named_conformance_dispatch_through_field_rejected rejected 7308ms expected @911f6617ba9e
 	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= operands.right && operands.right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/named_conformance_dispatch_through_local_rejected rejected 1465ms unexpected @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-fail/facts/named_conformance_dispatch_through_match_join_rejected rejected 1486ms unexpected @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-fail/facts/named_conformance_dispatch_through_other_machine_rejected rejected 1453ms unexpected @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-fail/facts/named_conformance_dispatch_through_other_state_rejected rejected 1152ms unexpected @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-fail/facts/named_conformance_dispatch_through_parameter_rejected rejected 1774ms unexpected @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
+fail/facts/named_conformance_dispatch_through_local_rejected rejected 4423ms expected @6618a8c606d6
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2688 from probe: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/named_conformance_dispatch_through_match_join_rejected rejected 4171ms expected @6618a8c606d6
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2689 from probe: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/named_conformance_dispatch_through_other_machine_rejected rejected 3640ms expected @6618a8c606d6
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2690 from forward: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/named_conformance_dispatch_through_other_state_rejected rejected 3469ms expected @6618a8c606d6
+	cannot prove requires contract for call step from probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/named_conformance_dispatch_through_parameter_rejected rejected 3541ms expected @6618a8c606d6
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2686 from probe: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/named_conformance_dispatch_through_target_body_rejected rejected 30764ms expected @b9580c0cab21+wt
 	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2704 from X86Probe::probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
 	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2704 from ArmProbe::probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
@@ -22327,15 +22294,15 @@ pass/facts/callee_saved_across_nested_calls_through_other_machine_exit checked 3
 pass/facts/callee_saved_across_nested_calls_through_other_state_exit checked 4105ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/callee_saved_across_nested_calls_through_parameter_exit checked 3175ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/callee_saved_across_nested_calls_through_target_body_exit checked 4126ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/captured_storage_bounds_through_call_result_exit checked 5274ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/captured_storage_bounds_through_const_name_exit checked 5333ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/captured_storage_bounds_through_field_exit checked 5268ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/captured_storage_bounds_through_local_exit checked 5257ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/captured_storage_bounds_through_match_join_exit checked 5260ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/captured_storage_bounds_through_other_machine_exit checked 5271ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/captured_storage_bounds_through_other_state_exit checked 5121ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/captured_storage_bounds_through_parameter_exit checked 5251ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/captured_storage_bounds_through_target_body_exit checked 5162ms check-target:macos_arm64 @fa9b94b8573c
+pass/facts/captured_storage_bounds_through_call_result_exit checked 5326ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_const_name_exit checked 5325ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_field_exit checked 5187ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_local_exit checked 5129ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_match_join_exit checked 5137ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_other_machine_exit checked 5148ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_other_state_exit checked 5229ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_parameter_exit checked 5161ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/captured_storage_bounds_through_target_body_exit checked 5407ms check-target:macos_arm64 @aa3f3437505e
 pass/facts/captured_window_slot_retirement_through_call_result_exit checked 1089ms check-target:macos_arm64 @04f5793fae62
 pass/facts/captured_window_slot_retirement_through_const_name_exit checked 1118ms check-target:macos_arm64 @04f5793fae62
 pass/facts/captured_window_slot_retirement_through_field_exit checked 1018ms check-target:macos_arm64 @04f5793fae62
@@ -22414,15 +22381,15 @@ pass/facts/case_payload_stored_loan_through_other_machine_exit checked 3364ms ch
 pass/facts/case_payload_stored_loan_through_other_state_exit checked 4737ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_payload_stored_loan_through_parameter_exit checked 3495ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_payload_stored_loan_through_target_body_exit checked 3698ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_transport_through_call_result_exit checked 5001ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/case_payload_transport_through_const_name_exit checked 5086ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/case_payload_transport_through_field_exit checked 5083ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/case_payload_transport_through_local_exit checked 5171ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/case_payload_transport_through_match_join_exit checked 5162ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/case_payload_transport_through_other_machine_exit checked 5236ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/case_payload_transport_through_other_state_exit checked 5220ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/case_payload_transport_through_parameter_exit checked 5427ms check-target:macos_arm64 @fa9b94b8573c
-pass/facts/case_payload_transport_through_target_body_exit checked 5478ms check-target:macos_arm64 @fa9b94b8573c
+pass/facts/case_payload_transport_through_call_result_exit checked 5252ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_const_name_exit checked 5176ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_field_exit checked 5047ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_local_exit checked 5112ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_match_join_exit checked 5144ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_other_machine_exit checked 5268ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_other_state_exit checked 5314ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_parameter_exit checked 5296ms check-target:macos_arm64 @aa3f3437505e
+pass/facts/case_payload_transport_through_target_body_exit checked 5239ms check-target:macos_arm64 @aa3f3437505e
 pass/facts/case_tag_discriminant_layout_through_call_result_exit checked 4330ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_tag_discriminant_layout_through_const_name_exit checked 4341ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_tag_discriminant_layout_through_field_exit checked 2876ms check-target:macos_arm64 @ccdb99ca2214
@@ -24082,49 +24049,14 @@ pass/facts/mutable_slice_element_write_bound_through_other_machine_exit checked 
 pass/facts/mutable_slice_element_write_bound_through_other_state_exit checked 3850ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/mutable_slice_element_write_bound_through_parameter_exit checked 3889ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/mutable_slice_element_write_bound_through_target_body_exit checked 3862ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/named_conformance_dispatch_through_call_result_exit rejected 1399ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-pass/facts/named_conformance_dispatch_through_const_name_exit rejected 1259ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
+pass/facts/named_conformance_dispatch_through_call_result_exit checked 5163ms check-target:macos_arm64 @6618a8c606d6
+pass/facts/named_conformance_dispatch_through_const_name_exit checked 5160ms check-target:macos_arm64 @6618a8c606d6
 pass/facts/named_conformance_dispatch_through_field_exit checked 7485ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/named_conformance_dispatch_through_local_exit rejected 1342ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-pass/facts/named_conformance_dispatch_through_match_join_exit rejected 1320ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-pass/facts/named_conformance_dispatch_through_other_machine_exit rejected 1623ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-pass/facts/named_conformance_dispatch_through_other_state_exit rejected 1462ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-pass/facts/named_conformance_dispatch_through_parameter_exit rejected 1275ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
+pass/facts/named_conformance_dispatch_through_local_exit checked 5002ms check-target:macos_arm64 @6618a8c606d6
+pass/facts/named_conformance_dispatch_through_match_join_exit checked 5042ms check-target:macos_arm64 @6618a8c606d6
+pass/facts/named_conformance_dispatch_through_other_machine_exit checked 4925ms check-target:macos_arm64 @6618a8c606d6
+pass/facts/named_conformance_dispatch_through_other_state_exit checked 4932ms check-target:macos_arm64 @6618a8c606d6
+pass/facts/named_conformance_dispatch_through_parameter_exit checked 5050ms check-target:macos_arm64 @6618a8c606d6
 pass/facts/named_conformance_dispatch_through_target_body_exit checked 38632ms check-target:macos_arm64 @b9580c0cab21+wt
 pass/facts/named_const_callable_family_through_call_result_exit checked 8445ms check-target:macos_arm64 @75dd4e483f7a
 pass/facts/named_const_callable_family_through_const_name_exit checked 8726ms check-target:macos_arm64 @75dd4e483f7a
