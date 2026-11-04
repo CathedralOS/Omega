@@ -150,19 +150,39 @@ pub(in crate::flow) fn sources(
             }
             let mut restored = RetainedSources::default();
             for supplier in sources {
-                let bound = crate::borrow::lifetime_contract::source_type(
+                for input in crate::borrow::lifetime_contract::retained_inputs(
                     program, borrow, control, supplier,
-                )?;
-                let supplied = super::captured_sources(
-                    program,
-                    borrow,
-                    control,
-                    control.operands.get(supplier.operand),
-                    control.operand_retained_paths.span(supplier.projection)?,
-                    bound,
-                    stable_name,
-                )?;
-                restored.append(supplied);
+                )? {
+                    match input {
+                        crate::borrow::lifetime_contract::RetainedLifetimeInput::Value {
+                            operand,
+                            path,
+                            bound,
+                        } => {
+                            if !control.operands.is_valid(operand) {
+                                return None;
+                            }
+                            restored.append(super::captured_sources(
+                                program,
+                                borrow,
+                                control,
+                                control.operands.get(operand),
+                                path,
+                                bound,
+                                stable_name,
+                            )?);
+                        }
+                        crate::borrow::lifetime_contract::RetainedLifetimeInput::Incoming {
+                            bound,
+                        } => {
+                            if crate::checks::contracts::exclusive_referent_type(program, bound)
+                                .is_valid()
+                            {
+                                return None;
+                            }
+                        }
+                    }
+                }
             }
             restored.borrows.retain(|returned| {
                 debts.iter().any(|handle| {

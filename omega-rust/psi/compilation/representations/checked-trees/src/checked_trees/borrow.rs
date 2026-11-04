@@ -564,7 +564,32 @@ impl Default for CheckedOutputLifetimeDependencySource {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedOutputBorrowInput {
     pub source: Handle<crate::FlowOperandRetainedSupplier>,
-    pub resource: Handle<CheckedCallBorrowLoanResource>,
+    pub stored: Handle<crate::FlowOperandStoredSource>,
+    pub permission: CheckedOutputBorrowInputPermission,
+}
+
+/// An unchanged incoming descriptor owes lifetime retention without creating
+/// a new call-access loan. Produced descriptors retain their real permission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedOutputBorrowInputPermission {
+    Borrowed {
+        resource: Handle<CheckedCallBorrowLoanResource>,
+    },
+    Incoming {
+        identity: Handle<IncomingReferenceIdentity>,
+        access: language_core::ReferenceAccess,
+        root: facts::PlaceRoot,
+        path: HandleSpan<facts::PlaceSegment>,
+        owner_path: HandleSpan<facts::PlaceSegment>,
+    },
+}
+
+impl Default for CheckedOutputBorrowInputPermission {
+    fn default() -> Self {
+        Self::Borrowed {
+            resource: Handle::invalid(),
+        }
+    }
 }
 
 /// Checked-only resource closure for one state-local loan captured directly

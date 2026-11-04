@@ -28,6 +28,37 @@ pub(super) struct CompletedDescriptorBackings {
     pub(super) forwarded_inputs: Vec<Handle<FlowOperandFact>>,
 }
 
+/// An unchanged slot still names an exact entry descriptor. Use the same
+/// typed namespace lookup for saved input obligations and ordinary loads;
+/// the reference used to reach the slot does not lend its pointee's access.
+pub(in crate::checks::borrows) fn incoming_sources(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
+    source: validation::CanonicalPlace,
+) -> Result<Vec<ResolvedAlias>, &'static str> {
+    if let Some(places) =
+        super::aliases::unchanged_incoming_leaf(program, facts, state, constraints, &source)?
+    {
+        return Ok(places);
+    }
+    super::access_sources::resolve_descriptor_all(
+        program,
+        facts,
+        state,
+        statement_index,
+        constraints,
+        CapturedPlace {
+            root: source.root,
+            segments: source.segments,
+            ..Default::default()
+        },
+    )
+    .ok_or("the incoming descriptor has no retained loan occurrence")
+}
+
 pub(super) fn resolve(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
@@ -834,31 +865,15 @@ impl Resolver<'_> {
         use validation::completed_storage::StoredOperand;
         match source {
             StoredOperand::Unavailable => Err("the stored descriptor has no current value source"),
-            StoredOperand::Incoming(source) => {
-                if let Some(places) = super::aliases::unchanged_incoming_leaf(
-                    self.program,
-                    self.facts,
-                    self.state,
-                    operand.constraints,
-                    &source,
-                )? {
-                    return Ok(BackingFrontier::borrowed(places));
-                }
-                super::access_sources::resolve_descriptor_all(
-                    self.program,
-                    self.facts,
-                    self.state,
-                    operand.statement_index,
-                    operand.constraints,
-                    CapturedPlace {
-                        root: source.root,
-                        segments: source.segments,
-                        ..Default::default()
-                    },
-                )
-                .map(BackingFrontier::borrowed)
-                .ok_or("the incoming descriptor has no retained loan occurrence")
-            }
+            StoredOperand::Incoming(source) => incoming_sources(
+                self.program,
+                self.facts,
+                self.state,
+                operand.statement_index,
+                operand.constraints,
+                source,
+            )
+            .map(BackingFrontier::borrowed),
             StoredOperand::Value {
                 capture,
                 projection,

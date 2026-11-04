@@ -61,6 +61,63 @@ pub fn reference_sources_at_path(
     stored_selection(resolver.select(value, path))
 }
 
+/// Save the descriptor inside an input, rather than the pointer used to reach
+/// it. An empty path still crosses a reference input once: `&mut &Cell` lends
+/// the stored `&Cell`, while a Referent edge keeps the outer pointer itself.
+/// The pointer was captured earlier; its contents are observed at this cut.
+pub fn stored_reference_sources_at_path(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    value: Handle<FlowOperandFact>,
+    path: &[PlaceSegment],
+    current: Handle<FlowStorageSnapshot>,
+) -> StoredOperand {
+    if !control.operands.is_valid(value) {
+        return StoredOperand::Unavailable;
+    }
+    let operand = control.operands.get(value);
+    let Some(shell) = crate::reference_shell(program, operand.type_reference) else {
+        return reference_sources_at_path(program, control, value, path, current);
+    };
+    if !path.is_empty() {
+        return reference_sources_at_path(program, control, value, path, current);
+    }
+    if crate::reference_shell(program, shell.referee).is_none() {
+        return StoredOperand::Unavailable;
+    }
+    let Some(places) = super::projectable_reference_places(program, control, value, &[]) else {
+        return StoredOperand::Unavailable;
+    };
+    if places.is_empty() {
+        return StoredOperand::Unavailable;
+    }
+    let mut resolver = Resolver::new(program, control, current);
+    stored_selection(join(
+        places
+            .into_iter()
+            .map(|place| {
+                let place = crate::CanonicalPlace {
+                    root: place.root,
+                    segments: place.segments,
+                };
+                match super::at_snapshot(
+                    program,
+                    control,
+                    current,
+                    &place,
+                    StoredObservation::Binding,
+                ) {
+                    Some(stored) => resolver.stored(stored, &[]),
+                    None => Selection::Sources {
+                        incoming: vec![place],
+                        values: Vec::new(),
+                    },
+                }
+            })
+            .collect(),
+    ))
+}
+
 /// Follow the saved completed-value association of an owned observation.
 /// A reference's stored_value describes its pointee and must never substitute
 /// for its descriptor. None means no owned association; an explicitly unknown

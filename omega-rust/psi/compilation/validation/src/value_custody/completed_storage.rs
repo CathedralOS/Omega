@@ -82,6 +82,7 @@ pub use captures::{
 pub use descriptor_suppliers::descriptor_suppliers;
 pub use reference_captures::{
     owned_profile_reference_sources, reference_captures_at_path, reference_sources_at_path,
+    stored_reference_sources_at_path,
 };
 
 mod frozen_references;

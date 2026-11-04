@@ -76,7 +76,12 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
             .supplied_output_inputs
             .span_or_empty(output.inputs)
         {
-            let input = facts.borrow.call_loan_resources.get(input.resource);
+            let checked_trees::CheckedOutputBorrowInputPermission::Borrowed { resource } =
+                input.permission
+            else {
+                continue; // Entry namespaces have no caller-owned restoration interval.
+            };
+            let input = facts.borrow.call_loan_resources.get(resource);
             let mut sources = Vec::new();
             match input.source {
                 checked_trees::CheckedCallBorrowLoanSource::StoredLoan { loan } => {
@@ -223,7 +228,12 @@ fn close_output_descendants(
             .supplied_output_inputs
             .span_or_empty(output.inputs)
         {
-            let input = facts.borrow.call_loan_resources.get(input.resource);
+            let checked_trees::CheckedOutputBorrowInputPermission::Borrowed { resource } =
+                input.permission
+            else {
+                continue;
+            };
+            let input = facts.borrow.call_loan_resources.get(resource);
             let sources = match input.source {
                 checked_trees::CheckedCallBorrowLoanSource::StoredLoan { loan } => vec![loan],
                 checked_trees::CheckedCallBorrowLoanSource::CallAccess { parents, .. } => facts

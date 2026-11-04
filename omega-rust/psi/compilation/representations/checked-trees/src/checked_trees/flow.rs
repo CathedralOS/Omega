@@ -118,8 +118,9 @@ pub use operand::{
     FlowOperandAlternative, FlowOperandChild, FlowOperandCompletion, FlowOperandFact,
     FlowOperandLifetimeContract, FlowOperandReborrowSource, FlowOperandReferent,
     FlowOperandRetainedLeaf, FlowOperandRetainedRegion, FlowOperandRetainedSupplier,
-    FlowOperandRetention, FlowOutputLifetimeSources, FlowReferentFormation,
-    FlowReferentFormationEvidence, FlowValueObservationFact, ViewReturnInputSource,
+    FlowOperandRetention, FlowOperandStoredSource, FlowOutputLifetimeSources,
+    FlowReferentFormation, FlowReferentFormationEvidence, FlowValueObservationFact,
+    ViewReturnInputSource,
 };
 pub use ownership::{
     FlowBorrowClaimFact, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource,

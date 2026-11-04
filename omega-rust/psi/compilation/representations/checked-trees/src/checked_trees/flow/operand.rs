@@ -173,6 +173,25 @@ pub struct FlowOperandLifetimeContract {
     pub source_type: typed_trees::types::TypeReferenceHandle,
     pub source_path: HandleSpan<facts::PlaceSegment>,
     pub owner_path: HandleSpan<facts::PlaceSegment>,
+    /// The complete contents selected before this invocation writes. Stored
+    /// edges keep produced descriptors and unchanged incoming slots together;
+    /// a later read of the output variable cannot reconstruct this list.
+    pub stored_sources: HandleSpan<FlowOperandStoredSource>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum FlowOperandStoredSource {
+    Value {
+        path: HandleSpan<facts::PlaceSegment>,
+        operand: Handle<FlowOperandFact>,
+        reference: typed_trees::types::TypeReferenceHandle,
+        projection: HandleSpan<facts::PlaceSegment>,
+        slot: Option<FlowOperandReferent>,
+    },
+    Incoming {
+        path: HandleSpan<facts::PlaceSegment>,
+        slot: FlowOperandReferent,
+    },
 }
 
 /// Nonspatial input obligations of one admitted parameter-output generation.

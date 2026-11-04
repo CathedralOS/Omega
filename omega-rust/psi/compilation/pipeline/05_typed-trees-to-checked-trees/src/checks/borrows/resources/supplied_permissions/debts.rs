@@ -225,7 +225,7 @@ fn resolve_windows(
         .span(row.inputs)
         .ok_or("output debt's captured input roster is unavailable")?
         .iter()
-        .map(|input| input.resource)
+        .map(|input| input.permission)
         .collect::<Vec<_>>();
     let mut input_seen = Vec::new();
     let mut loans = Vec::new();
@@ -237,6 +237,40 @@ fn resolve_windows(
                 continue;
             }
             input_seen.push(input);
+            let input = match input {
+                checked_trees::CheckedOutputBorrowInputPermission::Borrowed { resource } => {
+                    resource
+                }
+                checked_trees::CheckedOutputBorrowInputPermission::Incoming {
+                    identity,
+                    access,
+                    root,
+                    path,
+                    owner_path,
+                } => {
+                    if !borrow.incoming_references.is_valid(identity) {
+                        return Err("output debt lost its exact incoming permission");
+                    }
+                    result.push(HeldInput {
+                        place: CapturedPlace {
+                            incoming_reference: identity,
+                            incoming_owner_path: borrow
+                                .call_loan_backing_paths
+                                .span(owner_path)
+                                .ok_or("output debt lost its incoming owner path")?
+                                .to_vec(),
+                            root,
+                            segments: borrow
+                                .call_loan_backing_paths
+                                .span(path)
+                                .ok_or("output debt lost its incoming input path")?
+                                .to_vec(),
+                        },
+                        access: access.into(),
+                    });
+                    continue;
+                }
+            };
             if !borrow.call_loan_resources.is_valid(input) {
                 return Err("output debt names an unavailable input permission");
             }
@@ -292,7 +326,7 @@ fn resolve_windows(
                     .span(output.inputs)
                     .ok_or("earlier output's captured inputs are unavailable")?
                     .iter()
-                    .map(|input| input.resource),
+                    .map(|input| input.permission),
             );
         }
         if let Some(debt) = resource(borrow, loan) {
@@ -303,7 +337,7 @@ fn resolve_windows(
                     .span(borrow.output_lifetime_dependencies.get(debt).inputs)
                     .ok_or("earlier debt's captured inputs are unavailable")?
                     .iter()
-                    .map(|input| input.resource),
+                    .map(|input| input.permission),
             );
         } else if row.lineage == BorrowLoanLineage::LifetimeDependency {
             return Err("earlier input debt has no complete captured lifetime resource");

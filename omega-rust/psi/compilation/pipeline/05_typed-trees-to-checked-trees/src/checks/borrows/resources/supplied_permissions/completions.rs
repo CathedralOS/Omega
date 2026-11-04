@@ -130,26 +130,47 @@ pub(in crate::checks::borrows::resources) fn install(
         .reset_retain_capacity();
     for (mut output, inputs, debts) in plans {
         let mut handles = Vec::with_capacity(inputs.resources.len());
-        for mut input in inputs.resources {
-            if let CheckedCallBorrowLoanSource::CallAccess { parents, .. } =
-                &mut input.resource.resource.source
-            {
-                let recorded = inputs.parents.span(*parents).ok_or_else(|| {
-                    diagnostic("completed input lost its exact borrowing parents")
-                })?;
-                *parents = facts
-                    .borrow
-                    .call_loan_parents
-                    .insert_many(recorded.iter().copied());
-            }
-            let handle =
-                super::super::call_operands::install_resource(program, facts, input.resource)
-                    .ok_or_else(|| {
-                        diagnostic("completed input permission has no typed capture path")
-                    })?;
+        for input in inputs.resources {
+            let permission = match input.permission {
+                super::inputs::InputPermissionDraft::Borrowed(mut draft) => {
+                    if let CheckedCallBorrowLoanSource::CallAccess { parents, .. } =
+                        &mut draft.resource.source
+                    {
+                        let recorded = inputs.parents.span(*parents).ok_or_else(|| {
+                            diagnostic("completed input lost its exact borrowing parents")
+                        })?;
+                        *parents = facts
+                            .borrow
+                            .call_loan_parents
+                            .insert_many(recorded.iter().copied());
+                    }
+                    let resource =
+                        super::super::call_operands::install_resource(program, facts, draft)
+                            .ok_or_else(|| {
+                                diagnostic("completed input permission has no typed capture path")
+                            })?;
+                    checked_trees::CheckedOutputBorrowInputPermission::Borrowed { resource }
+                }
+                super::inputs::InputPermissionDraft::Incoming { place, access } => {
+                    checked_trees::CheckedOutputBorrowInputPermission::Incoming {
+                        identity: place.incoming_reference,
+                        access,
+                        root: place.root,
+                        path: facts
+                            .borrow
+                            .call_loan_backing_paths
+                            .insert_many(place.segments),
+                        owner_path: facts
+                            .borrow
+                            .call_loan_backing_paths
+                            .insert_many(place.incoming_owner_path),
+                    }
+                }
+            };
             handles.push(checked_trees::CheckedOutputBorrowInput {
                 source: input.source,
-                resource: handle,
+                stored: input.stored,
+                permission,
             });
         }
         output.inputs = facts.borrow.supplied_output_inputs.insert_many(handles);

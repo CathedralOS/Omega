@@ -76,28 +76,15 @@ pub(crate) fn source_type(
     let source_path = control.operand_retained_paths.span(contract.source_path)?;
     let owner_path = control.operand_retained_paths.span(contract.owner_path)?;
     let projection = control.operand_retained_paths.span(supplier.projection)?;
-    let (expected_operand, mut expected_projection) = if contract.source
-        == ViewReturnInputSource::Stored
-        && validation::reference_shell(program, input.type_reference).is_some()
-    {
-        if !control.operand_retentions.is_valid(input.retention) {
-            return None;
-        }
-        let profile = control.operand_retentions.get(input.retention);
-        (
-            profile.stored_value,
-            control
-                .operand_retained_paths
-                .span(profile.stored_projection)?
-                .to_vec(),
-        )
-    } else {
-        (contract.input, Vec::new())
-    };
-    expected_projection.extend_from_slice(source_path);
-    if expected_operand != supplier.operand || !same_path(program, projection, &expected_projection)
-    {
+    if supplier.operand != contract.input || !same_path(program, projection, source_path) {
         return None;
+    }
+    match contract.source {
+        ViewReturnInputSource::Stored => {
+            validate_stored_sources(program, control, &contract, actual.invocation_storage)?;
+        }
+        ViewReturnInputSource::Referent if !contract.stored_sources.is_empty() => return None,
+        ViewReturnInputSource::Referent => {}
     }
     let identity_type = program.normalized_type_identity(contract.source_type);
     if !identity_type.is_valid() {
@@ -182,6 +169,197 @@ pub(crate) fn source_type(
         }
     };
     validation::project_type_reference_from_segments(program, carrier, path)
+}
+
+/// Rejoin every frozen member to the same immutable invocation-entry cut.
+/// This checks which value was selected; its borrowing permission is checked
+/// by the source consumer, independently of the declared lifetime edge.
+fn validate_stored_sources(
+    program: &dyn validation::CheckingInput,
+    control: &FlowControlFacts,
+    contract: &checked_trees::FlowOperandLifetimeContract,
+    snapshot: arena::Handle<checked_trees::FlowStorageSnapshot>,
+) -> Option<()> {
+    use checked_trees::FlowOperandStoredSource;
+    let input = control.operands.get(contract.input);
+    let carrier =
+        validation::reference_result_custody::input_carrier_type(program, input.type_reference)?;
+    let path = validation::corresponding_place_projection(
+        program,
+        carrier,
+        control.operand_retained_paths.span(contract.source_path)?,
+    )?;
+    let selected = validation::project_type_reference_from_segments(program, carrier, &path)?;
+    let leaves = if validation::reference_shell(program, selected).is_some() {
+        vec![Vec::new()]
+    } else {
+        validation::borrow_contracts::carried_reference_paths(program, selected)?
+            .into_iter()
+            .map(|(path, _)| crate::borrow::owner_place_segments(&path))
+            .collect()
+    };
+    let mut recorded = control
+        .operand_stored_sources
+        .span(contract.stored_sources)?
+        .iter();
+    if leaves.is_empty() {
+        return None;
+    }
+    for leaf in leaves {
+        let mut full_path = path.clone();
+        full_path.extend_from_slice(&leaf);
+        let sources = validation::completed_storage::stored_reference_sources_at_path(
+            program,
+            control,
+            contract.input,
+            &full_path,
+            snapshot,
+        );
+        let mut expected = Vec::new();
+        flatten_stored_sources(sources, &mut expected)?;
+        if expected.is_empty() {
+            return None;
+        }
+        for expected in expected {
+            let recorded = recorded.next()?;
+            let (FlowOperandStoredSource::Value { path, .. }
+            | FlowOperandStoredSource::Incoming { path, .. }) = recorded;
+            if !same_path(program, control.operand_retained_paths.span(*path)?, &leaf) {
+                return None;
+            }
+            match (*recorded, expected) {
+                (
+                    FlowOperandStoredSource::Value {
+                        operand,
+                        reference,
+                        projection,
+                        slot,
+                        ..
+                    },
+                    validation::completed_storage::StoredOperand::Value {
+                        capture,
+                        reference: expected_reference,
+                        projection: expected_projection,
+                        slot: expected_slot,
+                    },
+                ) => {
+                    if operand != capture
+                        || reference != expected_reference
+                        || !same_path(
+                            program,
+                            control.operand_retained_paths.span(projection)?,
+                            &expected_projection,
+                        )
+                    {
+                        return None;
+                    }
+                    match (slot, expected_slot) {
+                        (Some(slot), Some(expected))
+                            if stored_slot_matches(program, control, slot, &expected) => {}
+                        (None, None) => {}
+                        _ => return None,
+                    }
+                }
+                (
+                    FlowOperandStoredSource::Incoming { slot, .. },
+                    validation::completed_storage::StoredOperand::Incoming(expected),
+                ) if stored_slot_matches(program, control, slot, &expected) => {}
+                _ => return None,
+            }
+        }
+    }
+    recorded.next().is_none().then_some(())
+}
+
+fn flatten_stored_sources(
+    source: validation::completed_storage::StoredOperand,
+    output: &mut Vec<validation::completed_storage::StoredOperand>,
+) -> Option<()> {
+    use validation::completed_storage::StoredOperand;
+    match source {
+        StoredOperand::Unavailable => return None,
+        StoredOperand::Alternatives(sources) => {
+            if sources.is_empty() {
+                return None;
+            }
+            for source in sources {
+                flatten_stored_sources(source, output)?;
+            }
+        }
+        source => output.push(source),
+    }
+    Some(())
+}
+
+fn stored_slot_matches(
+    program: &dyn validation::CheckingInput,
+    control: &FlowControlFacts,
+    slot: checked_trees::FlowOperandReferent,
+    expected: &validation::CanonicalPlace,
+) -> bool {
+    slot.root == expected.root
+        && control
+            .operand_referent_segments
+            .span(slot.segments)
+            .is_some_and(|path| same_path(program, path, &expected.segments))
+}
+
+pub(crate) enum RetainedLifetimeInput<'a> {
+    Value {
+        operand: arena::Handle<checked_trees::FlowOperandFact>,
+        path: &'a [facts::PlaceSegment],
+        bound: TypeReferenceHandle,
+    },
+    Incoming {
+        bound: TypeReferenceHandle,
+    },
+}
+
+/// Read the full saved edge without flattening its alternatives into separate
+/// declarations or substituting an enclosing pointer for a stored descriptor.
+pub(crate) fn retained_inputs<'a>(
+    program: &dyn validation::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
+    control: &'a FlowControlFacts,
+    supplier: &FlowOperandRetainedSupplier,
+) -> Option<Vec<RetainedLifetimeInput<'a>>> {
+    let bound = source_type(program, borrow, control, supplier)?;
+    let contract = supplier.contract?;
+    if contract.source == ViewReturnInputSource::Referent {
+        return Some(vec![RetainedLifetimeInput::Value {
+            operand: supplier.operand,
+            path: control.operand_retained_paths.span(supplier.projection)?,
+            bound,
+        }]);
+    }
+    let mut inputs = Vec::new();
+    for member in control
+        .operand_stored_sources
+        .span(contract.stored_sources)?
+    {
+        use checked_trees::FlowOperandStoredSource;
+        let (FlowOperandStoredSource::Value { path, .. }
+        | FlowOperandStoredSource::Incoming { path, .. }) = member;
+        let path = validation::corresponding_place_projection(
+            program,
+            bound,
+            control.operand_retained_paths.span(*path)?,
+        )?;
+        let bound = validation::project_type_reference_from_segments(program, bound, &path)?;
+        inputs.push(match *member {
+            FlowOperandStoredSource::Value {
+                operand,
+                projection,
+                ..
+            } => RetainedLifetimeInput::Value {
+                operand,
+                path: control.operand_retained_paths.span(projection)?,
+                bound,
+            },
+            FlowOperandStoredSource::Incoming { .. } => RetainedLifetimeInput::Incoming { bound },
+        });
+    }
+    (!inputs.is_empty()).then_some(inputs)
 }
 
 fn same_path(

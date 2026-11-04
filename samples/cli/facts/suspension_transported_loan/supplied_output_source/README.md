@@ -68,13 +68,21 @@ and Terminal exits 0. The canonical ordinary-helper and selected-provider probes
 wrongly refuse at the pause for an unavailable loan resource. The provider also
 reports an incomplete stored-leaf frontier on its output record.
 
-All nine canonical positives have recorded source-check refusals; their runtime
-oracles have not yet been qualified. Eight initial policy twins name both
+On that fixed baseline, all nine canonical positives refuse source checking;
+their runtime oracles are unqualified. Eight initial policy twins name both
 forbidden backings alongside the unrelated resource failure. The parameter twin
-currently reaches only the unrelated call-resource fence. The strengthened match
-join has its own corrected baseline. Reference-slot controls currently refuse
-earlier at mutable-source admission; those refusals are not arithmetic or final
-carry-policy evidence.
+reaches only the unrelated call-resource fence. The strengthened match join has
+its own corrected baseline. Reference-slot controls refuse earlier at
+mutable-source admission; those refusals are not arithmetic or final carry-policy
+evidence.
+
+The tested repair at 825d8c8c315d5acc56f444dbb21b7a71b943e062 lets the
+reference-slot controls run and read the replacement while numbers read before
+replacement keep their original values. Twelve focused programs pass native and Terminal
+execution. A compatible view of the supplied reference now gets past the earlier
+lookup error, but still fails lifetime checks at the pause. Calls whose later
+argument returns an output slot still lack a complete record of that slot's
+borrowed inputs. The nine-place production remains unfinished.
 
 Sources, hashes and raw observations are retained in build/supplied-output-loan/.
 The 54-file row was frozen before compiler edits. The two match-join mains were

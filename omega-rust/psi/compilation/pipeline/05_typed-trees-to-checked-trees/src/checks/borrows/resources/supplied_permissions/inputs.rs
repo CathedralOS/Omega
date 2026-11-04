@@ -1,20 +1,28 @@
-//! Keep the inputs promised by a completed output at their original captures.
-//! A stored reference comes from the captured contents, so its lifetime does
-//! not turn the short loan of the output slot into a long exclusive borrow.
-
+//! A saved output keeps the references selected before its helper writes.
+//! The short borrow used to reach a slot is separate from a stored reference's
+//! own backing. Preserve every frozen member and its declared access ceiling.
 use super::super::call_operands::ResourceDraft;
 use super::super::permission_sources;
 use arena::{Arena, Handle, HandleSpan};
 use checked_trees::{
-    BorrowLoanFact, CheckFacts, CheckedCallBorrowLoanResource, CheckedCallBorrowLoanSource,
-    CheckedDirectBorrowParentLifetime, FlowCallFact, FlowOperandRetainedSupplier, FlowStateFact,
+    BorrowLoanFact, CapturedPlace, CheckFacts, CheckedCallBorrowLoanResource,
+    CheckedCallBorrowLoanSource, CheckedDirectBorrowParentLifetime, FlowCallFact,
+    FlowOperandRetainedSupplier, FlowOperandStoredSource, FlowStateFact,
 };
+use language_semantics::ReferenceAccess;
 
+pub(super) enum InputPermissionDraft {
+    Borrowed(ResourceDraft),
+    Incoming {
+        place: CapturedPlace,
+        access: ReferenceAccess,
+    },
+}
 pub(super) struct InputResourceDraft {
     pub(super) source: Handle<FlowOperandRetainedSupplier>,
-    pub(super) resource: ResourceDraft,
+    pub(super) stored: Handle<FlowOperandStoredSource>,
+    pub(super) permission: InputPermissionDraft,
 }
-
 pub(super) struct InputPlan {
     pub(super) resources: Vec<InputResourceDraft>,
     pub(super) parents: Arena<Handle<BorrowLoanFact>>,
@@ -26,13 +34,12 @@ pub(super) fn plan(
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
     sources: HandleSpan<FlowOperandRetainedSupplier>,
-    ceilings: &[language_semantics::ReferenceAccess],
+    ceilings: &[ReferenceAccess],
 ) -> Result<InputPlan, &'static str> {
     let mut resources = Vec::new();
     let mut parents = Arena::new();
-    let recorded = facts
-        .flow
-        .control
+    let control = &facts.flow.control;
+    let recorded = control
         .operand_retained_suppliers
         .span(sources)
         .ok_or("completed output lifetime inputs are unavailable")?;
@@ -46,22 +53,14 @@ pub(super) fn plan(
         let source_type = crate::borrow::lifetime_contract::source_type(
             program,
             &facts.borrow,
-            &facts.flow.control,
+            control,
             supplier,
         )
         .ok_or("completed output lifetime input does not match its captured call argument")?;
-        let projection = facts
-            .flow
-            .control
-            .operand_retained_paths
-            .span(supplier.projection)
-            .ok_or("completed output lifetime input lost its captured projection")?;
-        let source_path = facts
-            .flow
-            .control
+        let source_path = control
             .operand_retained_paths
             .span(contract.source_path)
-            .ok_or("completed output lifetime input lost its declared source path")?;
+            .ok_or("completed output input lost its declared source path")?;
         let leaves = if let Some(shell) = validation::reference_shell(program, source_type) {
             vec![(
                 Vec::new(),
@@ -70,78 +69,233 @@ pub(super) fn plan(
         } else {
             validation::borrow_contracts::carried_reference_paths(program, source_type)
                 .ok_or("completed output input has an unresolved reference frontier")?
+                .into_iter()
+                .map(|(path, access)| (crate::borrow::owner_place_segments(&path), access))
+                .collect()
         };
         for (leaf, access) in leaves {
-            let mut captured_path = projection.to_vec();
-            captured_path.extend(crate::borrow::owner_place_segments(&leaf));
+            let access = bounded_access(*ceiling, access)?;
             let mut owner_path =
                 crate::borrow::owner_path_from_place_segments(program, source_path);
-            owner_path.extend_from_slice(&leaf);
-            let access = match (*ceiling, access) {
-                (
-                    language_semantics::ReferenceAccess::Shared,
-                    checked_trees::BorrowAccessKind::WriteOnly,
-                )
-                | (
-                    language_semantics::ReferenceAccess::WriteOnly,
-                    checked_trees::BorrowAccessKind::Read,
-                ) => {
-                    return Err(
-                        "completed input's access ceiling permits no requested leaf access",
-                    );
+            owner_path.extend(crate::borrow::owner_path_from_place_segments(
+                program, &leaf,
+            ));
+            if contract.source == checked_trees::ViewReturnInputSource::Referent {
+                let mut captured_path = control
+                    .operand_retained_paths
+                    .span(supplier.projection)
+                    .ok_or("completed output input lost its captured projection")?
+                    .to_vec();
+                captured_path.extend_from_slice(&leaf);
+                append_borrowed(
+                    program,
+                    facts,
+                    state,
+                    call,
+                    handle,
+                    Handle::invalid(),
+                    contract.input,
+                    supplier.operand,
+                    &captured_path,
+                    &owner_path,
+                    access,
+                    &mut parents,
+                    &mut resources,
+                )?;
+                continue;
+            }
+            let selected = control
+                .operand_stored_sources
+                .span(contract.stored_sources)
+                .ok_or("completed output input lost its frozen stored frontier")?;
+            let mut count = 0;
+            for (stored, member) in contract.stored_sources.handles().zip(selected) {
+                let (FlowOperandStoredSource::Value { path, .. }
+                | FlowOperandStoredSource::Incoming { path, .. }) = member;
+                let path = control
+                    .operand_retained_paths
+                    .span(*path)
+                    .ok_or("stored input lost its selected leaf path")?;
+                let corresponding =
+                    validation::corresponding_place_projection(program, source_type, path)
+                        .ok_or("stored input leaf has no applied member correspondence")?;
+                let expected =
+                    validation::corresponding_place_projection(program, source_type, &leaf)
+                        .ok_or("declared input leaf has no applied member correspondence")?;
+                if corresponding != expected {
+                    continue;
                 }
-                (language_semantics::ReferenceAccess::Shared, _)
-                | (_, checked_trees::BorrowAccessKind::Read) => {
-                    checked_trees::BorrowAccessKind::Read
-                }
-                (language_semantics::ReferenceAccess::WriteOnly, _)
-                | (_, checked_trees::BorrowAccessKind::WriteOnly) => {
-                    checked_trees::BorrowAccessKind::WriteOnly
-                }
-                _ => checked_trees::BorrowAccessKind::Mutable,
-            };
-            let (suppliers, captured_parents) = permission_sources::lending_sources(
-                program,
-                facts,
-                state,
-                call,
-                supplier.operand,
-                &captured_path,
-                &access,
-            )?;
-            for mut selected in suppliers {
-                if let CheckedCallBorrowLoanSource::CallAccess { parents: old, .. } =
-                    &mut selected.source
-                {
-                    let retained = captured_parents
-                        .span(*old)
-                        .ok_or("completed input permission has an unavailable parent roster")?;
-                    *old = parents.insert_many(retained.iter().copied());
-                }
-                resources.push(InputResourceDraft {
-                    source: handle,
-                    resource: ResourceDraft {
-                        resource: CheckedCallBorrowLoanResource {
-                            machine_symbol: state.machine_symbol,
-                            state_symbol: state.state_symbol,
+                count += 1;
+                match *member {
+                    FlowOperandStoredSource::Value {
+                        operand,
+                        projection,
+                        ..
+                    } => {
+                        let projection = control
+                            .operand_retained_paths
+                            .span(projection)
+                            .ok_or("stored input lost its original captured projection")?;
+                        append_borrowed(
+                            program,
+                            facts,
+                            state,
                             call,
-                            owner_operand: contract.input,
-                            operand: supplier.operand,
-                            source: selected.source,
-                            access: access.clone(),
-                            parent_lifetime: CheckedDirectBorrowParentLifetime {
-                                machine_symbol: state.machine_symbol,
-                                state_symbol: state.state_symbol,
-                                root: selected.backing.root,
+                            handle,
+                            stored,
+                            contract.input,
+                            operand,
+                            projection,
+                            &owner_path,
+                            access.clone(),
+                            &mut parents,
+                            &mut resources,
+                        )?;
+                    }
+                    FlowOperandStoredSource::Incoming { slot, .. } => {
+                        let call_row = control.calls.get(call);
+                        let aliases = crate::checks::borrows::completed_backings::incoming_sources(
+                            program,
+                            facts,
+                            state,
+                            call_row.statement_index,
+                            call_row.entry_constraints,
+                            validation::CanonicalPlace {
+                                root: slot.root,
+                                segments: control
+                                    .operand_referent_segments
+                                    .span(slot.segments)
+                                    .ok_or("stored input lost its original incoming slot")?
+                                    .to_vec(),
                             },
-                            ..Default::default()
-                        },
-                        path: owner_path.clone(),
-                        backing: selected.backing,
-                    },
-                });
+                        )?;
+                        if aliases.is_empty() {
+                            return Err("stored input has no incoming authority alternatives");
+                        }
+                        for alias in aliases {
+                            let identity = alias.place.incoming_reference;
+                            let (_, owner) = facts
+                                .borrow
+                                .first_state_borrow(state.machine_symbol, state.state_symbol)
+                                .ok_or("stored input has no owning borrow state")?;
+                            if !facts.borrow.state_owns_incoming_reference(owner, identity) {
+                                return Err("stored input has no exact incoming entry permission");
+                            }
+                            let incoming = facts.borrow.incoming_references.get(identity);
+                            let owner = facts
+                                .borrow
+                                .owner_segments
+                                .span(incoming.owner_path)
+                                .ok_or("stored input has no declared incoming path")?;
+                            let reference = validation::owned_projection_type_reference(
+                                program,
+                                incoming.carrier_type,
+                                &crate::borrow::owner_place_segments(owner),
+                            )
+                            .and_then(|reference| validation::reference_shell(program, reference))
+                            .ok_or("stored input's incoming identity is not a reference")?;
+                            if reference.access != ReferenceAccess::Mutable
+                                && reference.access != reference_access(&access)
+                            {
+                                return Err(
+                                    "stored input's incoming permission cannot provide the declared access",
+                                );
+                            }
+                            resources.push(InputResourceDraft {
+                                source: handle,
+                                stored,
+                                permission: InputPermissionDraft::Incoming {
+                                    place: alias.place,
+                                    access: reference_access(&access),
+                                },
+                            });
+                        }
+                    }
+                }
+            }
+            if count == 0 {
+                return Err("stored input does not cover a declared reference leaf");
             }
         }
     }
     Ok(InputPlan { resources, parents })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_borrowed(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: Handle<FlowCallFact>,
+    source: Handle<FlowOperandRetainedSupplier>,
+    stored: Handle<FlowOperandStoredSource>,
+    owner: Handle<checked_trees::FlowOperandFact>,
+    operand: Handle<checked_trees::FlowOperandFact>,
+    path: &[facts::PlaceSegment],
+    owner_path: &[checked_trees::BorrowLoanOwnerSegment],
+    access: checked_trees::BorrowAccessKind,
+    parents: &mut Arena<Handle<BorrowLoanFact>>,
+    resources: &mut Vec<InputResourceDraft>,
+) -> Result<(), &'static str> {
+    let (suppliers, captured_parents) =
+        permission_sources::lending_sources(program, facts, state, call, operand, path, &access)?;
+    if suppliers.is_empty() {
+        return Err("completed input has no selected lending permission");
+    }
+    for mut selected in suppliers {
+        if let CheckedCallBorrowLoanSource::CallAccess { parents: old, .. } = &mut selected.source {
+            let retained = captured_parents
+                .span(*old)
+                .ok_or("completed input permission has an unavailable parent roster")?;
+            *old = parents.insert_many(retained.iter().copied());
+        }
+        resources.push(InputResourceDraft {
+            source,
+            stored,
+            permission: InputPermissionDraft::Borrowed(ResourceDraft {
+                resource: CheckedCallBorrowLoanResource {
+                    machine_symbol: state.machine_symbol,
+                    state_symbol: state.state_symbol,
+                    call,
+                    owner_operand: owner,
+                    operand,
+                    source: selected.source,
+                    access: access.clone(),
+                    parent_lifetime: CheckedDirectBorrowParentLifetime {
+                        machine_symbol: state.machine_symbol,
+                        state_symbol: state.state_symbol,
+                        root: selected.backing.root,
+                    },
+                    ..Default::default()
+                },
+                path: owner_path.to_vec(),
+                backing: selected.backing,
+            }),
+        });
+    }
+    Ok(())
+}
+fn reference_access(access: &checked_trees::BorrowAccessKind) -> ReferenceAccess {
+    match access {
+        checked_trees::BorrowAccessKind::Read => ReferenceAccess::Shared,
+        checked_trees::BorrowAccessKind::Mutable => ReferenceAccess::Mutable,
+        checked_trees::BorrowAccessKind::WriteOnly => ReferenceAccess::WriteOnly,
+    }
+}
+fn bounded_access(
+    ceiling: ReferenceAccess,
+    access: checked_trees::BorrowAccessKind,
+) -> Result<checked_trees::BorrowAccessKind, &'static str> {
+    use checked_trees::BorrowAccessKind;
+    Ok(match (ceiling, access) {
+        (ReferenceAccess::Shared, BorrowAccessKind::WriteOnly)
+        | (ReferenceAccess::WriteOnly, BorrowAccessKind::Read) => {
+            return Err("completed input's access ceiling permits no requested leaf access");
+        }
+        (ReferenceAccess::Shared, _) | (_, BorrowAccessKind::Read) => BorrowAccessKind::Read,
+        (ReferenceAccess::WriteOnly, _) | (_, BorrowAccessKind::WriteOnly) => {
+            BorrowAccessKind::WriteOnly
+        }
+        _ => BorrowAccessKind::Mutable,
+    })
 }
