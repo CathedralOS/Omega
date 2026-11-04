@@ -297,8 +297,8 @@ pub(super) struct Retirement<'a> {
     pub(super) returned: Option<&'a CheckedUnitStructuralReturnPlan>,
     /// A function's final expression can still use its local values. Exit
     /// cleanup must wait for those uses before releasing the data they need.
-    pub(super) scalar_completion:
-        Option<crate::execution::terminal_unit::storage_transfers::ScalarCompletion<'a>>,
+    pub(super) completion:
+        Option<&'a crate::execution::terminal_unit::storage_transfers::PreparedCompletion<'a>>,
     pub(super) transported_loans: &'a transport::TransportedLoans,
 }
 
@@ -1096,7 +1096,18 @@ impl Retirement<'_> {
             }
             found = true;
             let (destination, mut path) = match &transfer.destination {
-                Destination::Unknown => return false,
+                Destination::Unknown | Destination::RetainedBySuccessor => return false,
+                Destination::Outgoing => {
+                    // The completion captures this descriptor before cleanup.
+                    // Its backing still belongs to the outgoing loan, so a
+                    // pending backing-owner death cannot use this as release.
+                    if exit.is_none()
+                        || self.uncommitted_owner != PlaceRoot::Symbol(Default::default())
+                    {
+                        return false;
+                    }
+                    continue;
+                }
                 Destination::Backing(value, path) => {
                     let mut path = path.clone();
                     path.extend_from_slice(&owner_path[selected.len()..]);

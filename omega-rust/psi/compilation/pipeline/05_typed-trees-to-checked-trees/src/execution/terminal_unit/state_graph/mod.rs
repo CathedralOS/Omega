@@ -313,6 +313,17 @@ pub(super) fn build_traced(
         signatures.push((structural, scalar));
     }
     drop(_sig_guard);
+    let completion_signatures = fused
+        .iter()
+        .zip(&signatures)
+        .map(
+            |((_, state), (structural, scalar))| super::storage_transfers::CompletionSignature {
+                state: state.symbol,
+                structural,
+                scalar,
+            },
+        )
+        .collect::<Vec<_>>();
     let mut planned = Vec::new();
     for (state_index, &(owner, state)) in fused.iter().enumerate() {
         let _seq_guard = phase_profile::guard(
@@ -485,6 +496,12 @@ pub(super) fn build_traced(
             owner,
             state,
             returned,
+            Some(super::storage_transfers::ComposedCompletion {
+                state: state.symbol,
+                terminator: &terminator,
+                selected_exit,
+                signatures: &completion_signatures,
+            }),
             trace,
         )?;
         let mut operations = sequence.operations;

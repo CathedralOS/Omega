@@ -103,6 +103,9 @@ impl StatementSequence {
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         returned: Option<&CheckedUnitStructuralReturnPlan>,
+        composed: Option<
+            crate::execution::terminal_unit::storage_transfers::ComposedCompletion<'_>,
+        >,
         trace: &LocalConstructionTrace,
     ) -> Option<()> {
         if self
@@ -135,7 +138,14 @@ impl StatementSequence {
             machine.symbol,
             state.symbol,
             returned,
-            self.scalar_control.as_ref(),
+            composed.map_or(
+                crate::execution::terminal_unit::storage_transfers::CompletionPlan::Body {
+                    state: state.symbol,
+                    scalar_control: self.scalar_control.as_ref(),
+                    returned,
+                },
+                crate::execution::terminal_unit::storage_transfers::CompletionPlan::Composed,
+            ),
             &self.structural_results,
             &mut self.operations,
             trace,

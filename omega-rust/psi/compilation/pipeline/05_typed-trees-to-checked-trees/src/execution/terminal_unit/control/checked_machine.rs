@@ -197,6 +197,7 @@ pub(crate) fn build_checked_machine_residual_parts(
         machine,
         state,
         returned.as_ref(),
+        None,
         trace,
     )?;
     // This owner publishes a normal completion. Abnormal terminators belong

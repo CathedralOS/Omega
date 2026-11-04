@@ -4,8 +4,7 @@
 
 use super::{BorrowLoanFact, Handle, Retirement, RetirementNode};
 use checked_trees::{
-    CheckedScalarBranchDestination, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment, FlowClaimJoinExit, FlowClaimJoinExitKind,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment, FlowClaimJoinExit,
 };
 use language_semantics::PermissionEventSource;
 use typed_trees::types::TypeReferenceHandle;
@@ -243,10 +242,10 @@ impl Retirement<'_> {
         reference: TypeReferenceHandle,
         active: &mut Vec<RetirementNode>,
     ) -> bool {
-        let Some(completion) = self.scalar_completion.filter(|_| self.at_exit) else {
+        let Some(completion) = self.completion.filter(|_| self.at_exit) else {
             if self.at_exit {
                 self.completion_refusal(
-                    "completion cleanup: the body has no planned scalar completion",
+                    "completion cleanup: the body has no prepared completion plan",
                     loan,
                 );
             }
@@ -269,9 +268,9 @@ impl Retirement<'_> {
                 return false;
             }
         };
-        if transfers.returns.is_empty() {
+        if transfers.exits.is_empty() {
             self.trace
-                .phase("completion cleanup: the return plan has no branches");
+                .phase("completion cleanup: the completion plan has no normal exits");
             return false;
         }
         let Ok(exits) = crate::execution::terminal_unit::cleanup::normal_edges::state_exits(
@@ -281,42 +280,22 @@ impl Retirement<'_> {
             self.state,
         ) else {
             self.trace
-                .phase("completion cleanup: the body has no checked return exits");
+                .phase("completion cleanup: the body has no checked normal exits");
             return false;
         };
-        transfers.returns.iter().all(|(destination, returned)| {
-            let CheckedScalarBranchDestination::Return {
-                statement_ordinal,
-                is_continuation,
-            } = destination
-            else {
-                return false;
-            };
-            let mut matching = exits.iter().filter(|exit| {
-                exit.statement_index == *statement_ordinal as usize
-                    && if *is_continuation {
-                        exit.kind == FlowClaimJoinExitKind::TransitionContinuation
-                    } else {
-                        matches!(
-                            exit.kind,
-                            FlowClaimJoinExitKind::TransitionTarget
-                                | FlowClaimJoinExitKind::FinalExpression
-                        )
-                    }
-            });
-            let Some(exit) = matching.next() else {
+        transfers.exits.iter().all(|(exit, selected)| {
+            if !exits.contains(exit) {
                 self.trace
-                    .phase("completion cleanup: the selected return has no checked exit");
+                    .phase("completion cleanup: the selected completion has no exact checked exit");
                 return false;
-            };
-            matching.next().is_none()
-                && self.transferred_holder_retired(
-                    loan,
-                    reference,
-                    &[&transfers.prefix, returned],
-                    Some(*exit),
-                    active,
-                )
+            }
+            self.transferred_holder_retired(
+                loan,
+                reference,
+                &[&transfers.prefix, selected],
+                Some(*exit),
+                active,
+            )
         })
     }
 
