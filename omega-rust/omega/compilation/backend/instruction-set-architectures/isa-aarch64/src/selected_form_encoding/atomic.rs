@@ -57,7 +57,7 @@ pub(crate) fn declaration(
         MachineBarrier::ExternalEffect,
         MachineAlternativeFamily::AtomicAccess(form),
         MachineSizeKnowledge::ExactBytes(if form.outcome_operand().is_some() {
-            compare_exchange_once::BYTE_COUNT
+            compare_exchange_once::byte_count(form.width)
         } else if has_prefix(form.operation) {
             8
         } else {
@@ -308,15 +308,41 @@ mod tests {
 
     #[test]
     fn single_attempt_words_match_baseline_armv8_assembler_vectors() {
-        // clang -target aarch64-linux-gnu -march=armv8-a: the words include
-        // both exact forward branches, CLREX on mismatch and the status tag.
-        for (width, load, comparison, store) in [
-            (AtomicWidth::Bits32, 0x885f_fc03, 0x6b01_007f, 0x8804_fc02),
-            (AtomicWidth::Bits64, 0xc85f_fc03, 0xeb01_007f, 0xc804_fc02),
+        // clang -target aarch64-linux-gnu -march=armv8-a. Narrow cases must
+        // truncate a sign-extended expected carrier before raw comparison.
+        for (width, load, normalization, comparison, store) in [
+            (
+                AtomicWidth::Bits8,
+                0x085f_fc03,
+                Some(0x5300_1c24),
+                0x6b04_007f,
+                0x0804_fc02,
+            ),
+            (
+                AtomicWidth::Bits16,
+                0x485f_fc03,
+                Some(0x5300_3c24),
+                0x6b04_007f,
+                0x4804_fc02,
+            ),
+            (
+                AtomicWidth::Bits32,
+                0x885f_fc03,
+                None,
+                0x6b01_007f,
+                0x8804_fc02,
+            ),
+            (
+                AtomicWidth::Bits64,
+                0xc85f_fc03,
+                None,
+                0xeb01_007f,
+                0xc804_fc02,
+            ),
         ] {
-            let words: [u32; 10] = [
-                0xd503_3fbf,
-                load,
+            let mut words: Vec<u32> = vec![0xd503_3fbf, load];
+            words.extend(normalization);
+            words.extend([
                 comparison,
                 0x5400_0081,
                 store,
@@ -325,7 +351,7 @@ mod tests {
                 0xd503_3f5f,
                 0x5280_0004,
                 0xd503_3fbf,
-            ];
+            ]);
             let expected = words
                 .into_iter()
                 .flat_map(u32::to_le_bytes)

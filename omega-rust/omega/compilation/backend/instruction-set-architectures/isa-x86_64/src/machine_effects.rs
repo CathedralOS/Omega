@@ -588,12 +588,11 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
         Semantic::FloatResultPolicy(form) => {
             return crate::selected_form_encoding::float_result_policy::effects(form);
         }
-        // LOCK-prefixed atomic forms read their address plus operation
-        // inputs and write the observed-prior output alone.
-        Semantic::AtomicAccess(form) => (
-            (0..form.operation.input_count()).collect(),
-            form.observed_operand().into_iter().collect(),
-        ),
+        // The atomic encoder owns both explicit results and implicit effects.
+        // Its outcome tag is a real output, alongside the observed resident.
+        Semantic::AtomicAccess(form) => {
+            return crate::selected_form_encoding::atomic::effects(form);
+        }
         Semantic::NearestIeeeFloatArithmetic(_) => {
             unreachable!("float arithmetic effects returned above")
         }
@@ -788,18 +787,6 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
                     },
                     MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
                     MachineEncodedControlEffect::ReturnFromActivationStackV1,
-                )
-            }
-            Semantic::AtomicAccess(form) => {
-                let encoded = crate::selected_form_encoding::atomic::effects(form);
-                (
-                    encoded.implicit_unit_uses,
-                    encoded.implicit_unit_defs,
-                    encoded.implicit_unit_clobbers,
-                    encoded.memory,
-                    encoded.stack,
-                    encoded.trap,
-                    encoded.control,
                 )
             }
             // The xor-zero idiom defines its destination from no input and
