@@ -47,7 +47,7 @@ pub fn bind_pre_specialization_authored_selections(
     // query in a single pass instead of a whole-program rescan each.
     let owner_index =
         validation::expression_owners::OwnerEnvironmentIndex::for_preparation(program);
-    validation::validate_executable_domain_test_carriers(program, &contract_facts, &owner_index)?;
+    validation::validate_domain_membership_carriers(program, &contract_facts, &owner_index)?;
     for (expression, node) in expressions_of(program).iter_expressions() {
         for occurrence in expressions_of(program).authored_selection_occurrences(expression) {
             let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
