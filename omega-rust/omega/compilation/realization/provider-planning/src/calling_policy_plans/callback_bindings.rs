@@ -78,6 +78,7 @@ impl BoundaryCallingPlanRealization {
         let mut application = source_free_application(
             &self.materialized_signature,
             &self.validated_boundary_entry_plan,
+            &self.calling_owner_application,
         )?;
         application.report_fingerprint = self.report_fingerprint;
         application.commitment = self.commitment.as_bytes();
@@ -172,9 +173,12 @@ impl BoundaryCallingPlanRealization {
                     ))
                 })?;
         }
-        let (report_fingerprint, commitment) =
-            boundary_plan_application_identity(&self.materialized_signature, &validated)
-                .map_err(calling_conventions::PlanDiagnostic)?;
+        let (report_fingerprint, commitment) = boundary_plan_application_identity(
+            &self.materialized_signature,
+            &validated,
+            &self.calling_owner_application,
+        )
+        .map_err(calling_conventions::PlanDiagnostic)?;
         Ok((
             validated,
             report_fingerprint,
@@ -249,10 +253,12 @@ pub(crate) fn callback_materialization_context(
 pub(super) fn source_free_application(
     signature: &MaterializedBoundarySignature,
     validated: &ValidatedBoundaryEntryPlan,
+    calling_owner_application: &str,
 ) -> Result<calling_conventions::BoundaryCallingApplication, String> {
     let policy = signature.policy_signature()?;
     Ok(calling_conventions::BoundaryCallingApplication {
         abi: signature.abi.clone(),
+        calling_owner_application: Some(calling_owner_application.to_owned()),
         requirement_identity: signature.owner_requirement_identity().to_owned(),
         target: policy.target, report_fingerprint: 0, commitment: [0;32],
         plan: validated.clone(),

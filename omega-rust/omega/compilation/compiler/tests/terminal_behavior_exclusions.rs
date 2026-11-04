@@ -191,13 +191,18 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
     }
 }
 
-fn assert_calling_review_outlives_source(
+struct ReplayedCallingPolicies {
+    code: std::sync::Arc<provider_planning::calling_policy_plans::CallingProgram>,
+    target: target::TargetProfile,
+    realizations: Vec<provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
+    native: Vec<calling_conventions::BoundaryCallingApplication>,
+    plans: Vec<effects::provider_plan::ProviderPlan>,
+}
+
+fn replay_calling_review(
     relative: &str,
     physical_refusal: Option<&str>,
-) -> (
-    Vec<provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
-    Vec<effects::provider_plan::ProviderPlan>,
-) {
+) -> ReplayedCallingPolicies {
     use std::sync::Arc;
 
     let (
@@ -363,6 +368,30 @@ fn assert_calling_review_outlives_source(
         actual, expected,
         "Source release cannot change the complete native applications"
     );
+    ReplayedCallingPolicies {
+        code,
+        target,
+        realizations,
+        native: actual,
+        plans,
+    }
+}
+
+fn assert_calling_review_outlives_source(
+    relative: &str,
+    physical_refusal: Option<&str>,
+) -> (
+    Vec<provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
+    Vec<effects::provider_plan::ProviderPlan>,
+) {
+    use std::sync::Arc;
+    let ReplayedCallingPolicies {
+        code,
+        target,
+        realizations,
+        native: actual,
+        plans,
+    } = replay_calling_review(relative, physical_refusal);
     let recovered = provider_planning::calling_policy_plans::CallingProgram {
         source_owner: std::sync::Weak::new(),
         artifact: Arc::new(
@@ -521,6 +550,36 @@ fn private_callback_policy_review_activates_after_source_drop() {
     assert_calling_review_outlives_source(
         "tests/omega/pass/build/terminal_private_callback_calling/main.omg",
         None,
+    );
+}
+
+#[test]
+fn inherited_callback_policy_retains_selected_child_after_source_drop() {
+    // A callback's inbound plan is selected by its registrar occurrence;
+    // it is not a component export selected by a provider row.
+    let replayed = replay_calling_review(
+        "tests/omega/pass/layouts/private_callback_inherited_policy_exit/main.omg",
+        None,
+    );
+    let realizations = replayed.realizations;
+    assert!(
+        realizations.iter().any(|selected| {
+            realizations.iter().any(|sibling| {
+                selected.calling_owner_application() != sibling.calling_owner_application()
+                    && selected.materialized_signature().abi()
+                        == sibling.materialized_signature().abi()
+                    && selected.boundary_entry_plan != sibling.boundary_entry_plan
+                    && selected
+                        .native_application()
+                        .unwrap()
+                        .calling_owner_application
+                        != sibling
+                            .native_application()
+                            .unwrap()
+                            .calling_owner_application
+            })
+        }),
+        "both child policies must actually evaluate, sharing one inherited ABI"
     );
 }
 
