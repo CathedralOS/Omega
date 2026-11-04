@@ -1250,11 +1250,6 @@ defines the complete product bar.
     `samples/cli/facts/additional_input_domain_mutation` retain entry-only fact
     expiration over storage that owes no such domain. Preserve restored-call
     positives and declared-field rejection controls; no encoding-specific check.
-  - Lower a borrow of a same-carrier cast: `observe(&(issued as Ticket in
-    Ticket::Held))` checks but has no executable body ("earlier whole local
-    correspondence"), and `look(&(issued as Ticket))` fails with "completed
-    projection has no exact consumer capture", so no erasure positive can
-    lend a cast at run time.
   - **DOMAIN-ISSUER-ROUTES:** extend same-project checked ordinary
     issuance/forwarding to cross-package private routes and selected structural
     payloads in
