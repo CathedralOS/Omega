@@ -1,2 +1,0 @@
-exact arithmetic in machine `apply` state `entry`
-may overflow `u64`

@@ -1,6 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "reaches undeclared service `Mark`"
-  ]
-}

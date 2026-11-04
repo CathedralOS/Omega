@@ -167,11 +167,9 @@ retired-syntax deletions to completion.
     owned copies from borrowed outer input homes, runtime-selected stored-reference
     call operands (captured-loan access), other remaining declared body forms,
     nonscalar orders beyond fixed-integer
-    lexicographic products, or an unranked helper whose computed rank endpoint,
-    such as `items.len - 1`, reads a formal the helper supplies through a field
-    projection or computed argument rather than a whole parameter; the
-    whole-parameter case [runs in the parameter place](samples/cli/facts/nested_machine_invocation/joint_rank/parameter/bounded_distance/computed_length/README.md)
-    and its other eight places are unwritten).
+    lexicographic products,     or an unranked helper whose computed rank endpoint,
+    such as `items.len - 1`, reads a formal the helper supplies through a
+    computed argument rather than a whole parameter or a field projection).
   - Bring the composed state-graph planner
     (`omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph`)
     to parity with the ordinary call plan, starting with temporary cleanup
@@ -1162,8 +1160,7 @@ defines the complete product bar.
   Owners:
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization/dynamic_families.rs`
   and `omega-rust/psi/compilation/validation/src/machine_calls/calls/dynamic_requirement.rs`.
-  - Complete structural field reads rooted in entry content claims and
-    target-ineligible/const-only bridge qualification.
+  - Complete target-ineligible/const-only bridge qualification.
   Acceptance: pass/fail/run finite-family fixtures execute via `omega run --both`
   preserving effects, index identity, and once-only moves/cleanup across
   selection, forwarding, and storage, while unproved membership, missing/wrong
@@ -1355,7 +1352,8 @@ defines the complete product bar.
     decisive/single-attempt behavior, failure ordering, `Uncommitted` custody,
     and target retry-work attribution).
   - Produce source/Terminal events for bounded atomic fields, non-observing
-    single-attempt exchange, and the location-free fence event and its ordering
+    single-attempt exchange beyond dedicated u32/u64 builtin storage, and the
+    location-free fence event and its ordering
     through target refinement.
   - Check `sequenced_before`, `reads_from`, `modification_order`,
     `synchronizes_with`, `happens_before`, `global_sequential_order`, fence
@@ -2005,6 +2003,29 @@ defines the complete product bar.
   00–09`) under
   [component publication](wiki/spec/build/component_publication.md) and
   [executable installation](wiki/spec/build/executable_installation.md).
+  - Wire [consumer acceptance and Build attenuation](wiki/spec/build/component_publication.md#consumer-acceptance-and-build-attenuation)
+    through canonical package acceptance/lock rows and exact compiler admission
+    inputs to component verification. Preserve readable assumption meaning and
+    component/subject, profile, occurrence, purpose, and target scope; existing
+    root grants remain distinct. The current checked Build evaluator discards
+    the digest and leaves `EvaluatedBuild.accepted_component_assumptions`
+    without a producer; do not restore a source harvester or make Build approval
+    a second authority path.
+  - Retire `Build::accept_component_assumption` across the prelude, evaluator,
+    reports, and consumers, and migrate or retire its digest/arity/reborrow
+    controls in `tests/omega/{pass,fail}/build/component_assumption_*` and the
+    two component-assumption samples. Move missing/changed/correct approval
+    distinctions into ordinary consumer-policy controls; a same-named user
+    declaration must supply no authority. Re-record changed corpus rows and
+    replace obsolete observer claims rather than presenting them as current
+    evidence. No new digest-spelling policy language is needed.
+  - Carry optional checked Build attenuation to the selected per-target product:
+    omitted restriction inherits the accepted ceiling, explicit empty permits
+    none in the category, widening rejects, and every possible selected demand
+    must fit. Cover callbacks, initialization, cleanup, retained dependencies,
+    and private helpers without treating unused library code or an expected
+    runtime workload as a narrowed verified inventory. Missing/stale/wrong-scope
+    acceptance rejects, and approval grants no installation or host authority.
   - Rejoin physical stack demand, provider plans, root imports, and runtime
     products before publication across Linux ELF, macOS Mach-O dylib, and
     Windows PE, extending `samples/cli/facts/opaque_closed_carrier_exchange`
@@ -2025,8 +2046,12 @@ defines the complete product bar.
     `tests/omega/pass/providers/phantom_local_calling_applications`.
   Acceptance: a two-package `Independent` build and an installed-image customer
   execute crossing calls, placement-independent invocation, new-era routing, and
-  old-era drain on matching hosts, while omitted/duplicate assumptions,
-  substituted bytes, and premature retirement reject.
+  old-era drain on matching hosts. Component-assumption customers pass through
+  normal accepted policy with `omega run --both`; missing, changed, stale, and
+  wrong-scope rows, exceeded Build restrictions, dependency self-approval,
+  omitted/duplicate assumptions, substituted bytes, and premature retirement
+  reject. Omitted versus explicit-empty attenuation and a genuinely smaller
+  selected closure retain distinct outcomes.
 
 - **TR3-TR8.** (Also covers **`BLOCKEXEC`**.) Execute ordinary named machines
   through a selected task runtime and deliver the `source/library/blocking-executor/`

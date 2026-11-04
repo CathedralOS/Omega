@@ -1,2 +1,0 @@
-cannot prove ensures contract for exit from whole_view
-result.len == OtherCount

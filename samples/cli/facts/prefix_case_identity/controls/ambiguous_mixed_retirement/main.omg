@@ -1,2 +1,0 @@
-data Bad { #1 common: u64; #90 case First; #7 case Later; retired #2; }
-machine main() {}

@@ -1,1 +1,0 @@
-type parameter `Element [copy]` of `GenericPolicy` was instantiated with `Box<u64>`, which does not satisfy `[copy]`

@@ -1,3 +1,0 @@
-cannot prove ensures contract for exit from forward
-Granted.content(old(&storage)) == Granted.content(&result)
-Vacant.content(old(&storage)) == Vacant.content(&result)

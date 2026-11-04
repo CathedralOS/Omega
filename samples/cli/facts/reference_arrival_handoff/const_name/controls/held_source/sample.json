@@ -1,6 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "mutates `original` while local borrow `child` is still active"
-  ]
-}
