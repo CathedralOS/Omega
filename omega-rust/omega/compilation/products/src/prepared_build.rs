@@ -63,6 +63,9 @@ impl SettledPackageBuild {
 /// completes. Pending authored bodies and generated sources grant no execution.
 #[derive(Clone)]
 pub struct BuiltTypedProgram {
+    /// The source assembly that produced this Product declaration context,
+    /// separate from the input capture consumed by its earlier Build.
+    pub anonymous_source: Option<package_compilation::AnonymousSourceCapture>,
     pub preparation: crate::SourcePreparation,
     pub source: psi_compiler::SourceContinuation,
     pub base_sources: Arc<source::SourceMap>,

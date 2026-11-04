@@ -437,6 +437,7 @@ impl SourceStorage {
                 .chain(contracts.into_iter().map(|(_, identity)| identity))
                 .collect(),
             sources: std::sync::Arc::new(std::mem::take(&mut self.sources)),
+            toolchain_contract_custody: self.toolchain_contract_custody.clone(),
         }))
     }
 

@@ -141,7 +141,17 @@ impl SourceBuild {
             )]
             .into());
         };
+        let original_sources = invocation.anonymous_source().cloned().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "core Build has no original source capture",
+            )]
+        })?;
         let completed = invocation.complete(returned?, None, None)?;
+        let product_sources = completed.built.anonymous_source.as_ref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "core Product declarations have no source capture",
+            )]
+        })?;
         let configuration = &completed.built.computed_build_config;
         let observation = configuration.observation_summary.as_ref().ok_or_else(|| {
             vec![Diagnostic::error(
@@ -150,6 +160,8 @@ impl SourceBuild {
         })?;
         let defaults = CompletedProviderDefaults::from_captured_toolchain(
             capture,
+            &original_sources,
+            product_sources,
             completed.built.source.typed(),
             &configuration.config.provider_selections,
             observation,

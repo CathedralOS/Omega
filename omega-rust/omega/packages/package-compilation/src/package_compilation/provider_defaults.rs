@@ -54,6 +54,8 @@ impl CompletedProviderDefaults {
     /// A retained row's source spelling cannot establish toolchain custody.
     pub fn from_captured_toolchain(
         capture: CapturedLocalSource,
+        build_sources: &crate::AnonymousSourceCapture,
+        product_sources: &crate::AnonymousSourceCapture,
         typed: &typed_trees::TypedTrees,
         selections: &[ProviderSelection],
         observation: &BuildObservationSummary,
@@ -63,6 +65,26 @@ impl CompletedProviderDefaults {
             return Err(refuse(
                 "toolchain defaults do not use the captured core root".into(),
             ));
+        }
+        for sources in [build_sources, product_sources] {
+            if sources.root() != capture.canonical_live_root()
+                || sources.capture.as_ref() != capture.tree().as_ref()
+            {
+                return Err(refuse(
+                    "core defaults have a different source assembly capture".into(),
+                ));
+            }
+        }
+        if !observation.included_source_handoffs().is_empty() {
+            return Err(refuse(
+                "captured core defaults cannot include generated or staged helper sources".into(),
+            ));
+        }
+        for file in build_sources.sources().selected_files() {
+            if crate::source::source_assembly::is_build_prelude_source(file)? {
+                continue;
+            }
+            admit_toolchain_source(&capture, &capture, file)?;
         }
         if observation.activation().root_package_identity().is_some()
             || observation.activation().root_role().is_some()
@@ -130,11 +152,22 @@ impl CompletedProviderDefaults {
             }
         }
         for file in typed.symbols.source_files() {
-            if crate::source::source_assembly::is_build_prelude_source(file)? {
+            if product_sources.sources().get(file.source_id) != Some(file)
+                || !product_sources.sources().source_is_selected(file.source_id)
+            {
+                return Err(refuse(
+                    "core default declaration context lost its exact source assembly".into(),
+                ));
+            }
+        }
+        for file in product_sources.sources().selected_files() {
+            if crate::source::source_assembly::is_build_prelude_source(file)?
+                || product_sources.is_admitted_toolchain_contract_source(file)
+            {
                 continue;
             }
-            // A helper read outside core would not belong to the observation's
-            // captured inventory, even if none of its declarations was selected.
+            // Every other admitted Product input still belongs to the closed
+            // core. An unused foreign helper cannot disappear in projection.
             admit_toolchain_source(&capture, &capture, file)?;
         }
 

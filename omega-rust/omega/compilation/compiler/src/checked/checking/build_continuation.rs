@@ -118,6 +118,10 @@ pub(super) fn prepare_build_invocation(
 }
 
 impl BuildSourceInvocation {
+    pub(super) fn anonymous_source(&self) -> Option<&package_compilation::AnonymousSourceCapture> {
+        self.frontier.anonymous_source.as_ref()
+    }
+
     pub(super) fn product_queries(&self) -> super::ProductQueries {
         super::ProductQueries::new(
             &self.frontier,
@@ -309,7 +313,7 @@ fn complete_build_source(
     let TypedCompilationFrontier {
         preparation,
         mut source,
-        anonymous_source: _,
+        mut anonymous_source,
         product_sources,
         build_source: _,
         mut source_file_count,
@@ -365,6 +369,7 @@ fn complete_build_source(
             None => None,
         };
         source = product.source;
+        anonymous_source = product.anonymous_source;
         base_sources = product.base_sources;
         source_file_count = product.source_file_count;
         generated_source_custody = product.generated_source_custody;
@@ -409,6 +414,7 @@ fn complete_build_source(
     };
     Ok((
         BuiltTypedProgram {
+            anonymous_source,
             preparation,
             source,
             base_sources,
@@ -494,6 +500,7 @@ pub(super) fn complete_product_frontend(
 > {
     artifacts::compile_timings::counters::record_product_source_completion();
     let BuiltTypedProgram {
+        anonymous_source: _,
         preparation,
         source,
         base_sources,
