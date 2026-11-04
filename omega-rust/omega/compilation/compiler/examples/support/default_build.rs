@@ -74,6 +74,7 @@ fn inherited(role: BuildDeclarationKind, marker: u8) {
             ..CheckedCompileRequest::new(&root, Some(host.target_name()))
         })
         .unwrap();
+    super::build_sequence::prepare_package_root(&mut invocation);
     let mut returned = execute(invocation.execution());
     assert!(
         returned
@@ -135,6 +136,7 @@ fn anonymous() {
     let mut invocation = session
         .begin_source_compilation(CheckedCompileRequest::new(&root, Some(host.target_name())))
         .unwrap();
+    super::build_sequence::prepare_source_root(&mut invocation);
     let mut returned = execute(invocation.execution());
     assert!(
         returned

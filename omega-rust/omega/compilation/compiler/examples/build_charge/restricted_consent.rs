@@ -102,6 +102,7 @@ machine build(builder: &mut Build) crashes Trap {
         let admitted = build_settings::prepare_build_evaluation(
             build_settings::BuildEvaluationRequest {
                 pure_build_compilation: None,
+                toolchain_defaults: None,
                 root_path: &entry,
                 typed: input.typed,
                 pre_checks: input.pre_checks,

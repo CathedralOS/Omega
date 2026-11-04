@@ -21,6 +21,9 @@ use typed_trees::TypedTrees;
 /// Inputs to one activation. Source assembly and typing have already finished;
 /// this operation neither discovers source nor compiles generated continuations.
 pub struct BuildEvaluationRequest<'request> {
+    /// Completed core selections for this Build's own admitted execution scope.
+    /// These are defaults; its unfinished Product choices supply no authority.
+    pub toolchain_defaults: Option<&'request package_compilation::CompletedProviderDefaults>,
     pub pure_build_compilation: Option<&'request PureBuildCompilation>,
     pub root_path: &'request Path,
     pub typed: &'request mut TypedTrees,
@@ -137,6 +140,7 @@ pub fn prepare_build_evaluation(
 ) -> Result<PreparedBuildEvaluation, CompileFailure> {
     let BuildEvaluationRequest {
         pure_build_compilation,
+        toolchain_defaults,
         root_path,
         typed,
         pre_checks,
@@ -208,6 +212,7 @@ pub fn prepare_build_evaluation(
         pre_checks,
         selected_machine,
         package_inputs,
+        toolchain_defaults,
         execution_profile,
         timings,
         &prior_checks,

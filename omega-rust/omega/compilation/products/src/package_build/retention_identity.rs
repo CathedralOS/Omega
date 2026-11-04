@@ -101,20 +101,17 @@ impl BuildOutputIdentity<'_> {
             behavior_exclusion_requests,
             project_declaration,
             optimization_report_request,
-            // These are fresh execution receipts, not native Product choices.
+            // These are fresh execution receipts and supplier custody. The
+            // joined default choices are already bound by config below.
             // The caller has already admitted/charged this activation; a cache
             // hit must never replace its observations or sponsor accounting.
             evaluation_usage: _,
             observation_summary: _,
-            toolchain_provider_defaults,
+            toolchain_provider_defaults: _,
             selected_build_machine_symbol,
             generated_sources,
         } = value;
         self.config(config)?;
-        self.digest.bool(toolchain_provider_defaults.is_some());
-        if let Some(defaults) = toolchain_provider_defaults {
-            self.digest.raw(defaults.observation());
-        }
         self.digest.len(root_binding_requests.len());
         for request in root_binding_requests {
             let language_semantics::declaration_selection::ExecutedRootBinding {

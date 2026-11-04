@@ -36,6 +36,7 @@ pub(super) fn prepare_build_invocation(
     frontier: TypedCompilationFrontier,
     mut timings: CompileTimings,
     pure_build_compilation: Option<&build_settings::PureBuildCompilation>,
+    toolchain_defaults: Option<&package_compilation::CompletedProviderDefaults>,
 ) -> Result<BuildSourceInvocation, CompileFailure> {
     let started = std::time::Instant::now();
     let CheckedExecutionRequest {
@@ -61,6 +62,7 @@ pub(super) fn prepare_build_invocation(
     let evaluation = build_settings::prepare_build_evaluation(
         build_settings::BuildEvaluationRequest {
             pure_build_compilation,
+            toolchain_defaults,
             root_path,
             typed: build_input.typed,
             pre_checks: build_input.pre_checks,

@@ -57,10 +57,9 @@ impl SourceBuild {
     ) -> Result<Self, CompileFailure> {
         child.admit_package_inputs()?;
         let core_root = package_compilation::source_imports::bundled_core_root()?;
-        let core_entry = core_root.join("float_operations.omg");
-        let capture = package_compilation::capture_anonymous_compilation_source(&core_entry)?;
+        let capture = package_compilation::capture_anonymous_compilation_source(&core_root)?;
         let core_source = prepare_checked_source(
-            &core_entry,
+            &core_root,
             None,
             Some(&capture),
             false,
@@ -77,10 +76,11 @@ impl SourceBuild {
             settled_check_reuse: Default::default(),
         };
         let invocation = prepare_build_source_invocation(
-            &core_entry,
+            &core_root,
             core_source,
             core_child,
             Some(compilation),
+            None,
         )?;
         Ok(Self {
             state: State::Defaults {
@@ -171,6 +171,7 @@ impl SourceBuild {
                 settled_check_reuse: reuse,
             },
             Some(&compilation),
+            Some(&defaults),
         )?;
         self.state = State::Root {
             invocation: Box::new(invocation),

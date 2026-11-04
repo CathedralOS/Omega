@@ -27,6 +27,7 @@ pub(crate) fn prepare_checked_build(
     pre_checks: &mut Vec<build_time_evaluation::PreCheckEvaluation>,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
+    toolchain_defaults: Option<&package_compilation::CompletedProviderDefaults>,
     execution_profile: Option<target::TargetProfile>,
     timings: &mut artifacts::compile_timings::CompileTimings,
     priors: &[&RetainedCheck],
@@ -55,13 +56,27 @@ pub(crate) fn prepare_checked_build(
             pending.push(continuation);
         }
     }
-    let provisional = if pre_checks.is_empty() {
+    let mut provisional = if pre_checks.is_empty() {
         projection
     } else {
         validation::execution_projection::project_build_program(typed, entry)?
     };
+    let completed_defaults = toolchain_defaults
+        .map(|defaults| defaults.rejoin_build(&mut provisional))
+        .transpose()?
+        .unwrap_or_default();
     let context = ProviderPlanningContext::new(&provisional, DependencyScope::Build);
-    let defaults = build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
+    let mut defaults =
+        build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
+    defaults.extend(completed_defaults.into_iter().map(|selection| {
+        build_time_evaluation::provider_declarations::TargetProviderDefaults {
+            target: selection
+                .target
+                .map(|target| target.canonical_name().to_owned()),
+            machines: Vec::new(),
+            selections: vec![selection],
+        }
+    }));
     let declarations = provider_planning::target_machines::settle_provider_defaults(
         &typed_trees::provider_declarations::provider_target_declarations(
             context.typed,

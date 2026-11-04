@@ -1,4 +1,6 @@
 //! A pure Build cache hit owes the current occurrence its recorded logical charge.
+#[path = "../tests/support/build_sequence.rs"]
+mod build_sequence;
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 #[path = "../tests/support/joined_product_native.rs"]
@@ -937,6 +939,7 @@ fn terminal_build_filesystem() {
         .begin_package_build(first_request)
         .expect("generator admission");
     assert!(!guard_dropped.load(std::sync::atomic::Ordering::Acquire));
+    build_sequence::prepare_package_root(&mut invocation);
     let returned = {
         let execution = invocation.execution().expect("authored Build");
         let host = execution.host().expect("generator host");
@@ -2319,7 +2322,7 @@ fn package_invocation_requests(fixture: &str) -> impl Fn() -> CheckedCompileRequ
 fn return_build(
     invocation: &mut compiler::PackageBuildInvocation,
 ) -> Option<build_settings::ReturnedBuild> {
-    return_execution(invocation.execution())
+    build_sequence::return_package(invocation)
 }
 
 fn return_execution(
@@ -2344,7 +2347,9 @@ fn foreign_source_return_refuses() {
         .begin_source_compilation(request())
         .expect("second source admission");
     assert_eq!(counters::build_execution_count(), before);
+    build_sequence::prepare_source_root(&mut first);
     let first_returned = return_execution(first.execution());
+    build_sequence::prepare_source_root(&mut second);
     let second_returned = return_execution(second.execution());
     for (source, returned) in [(first, second_returned), (second, first_returned)] {
         let failure = session
@@ -2403,6 +2408,7 @@ fn interleaved_build_invocations() {
             .contains("cannot replace its admitted Product target")
     }));
     assert_eq!(counters::build_execution_count(), before);
+    build_sequence::prepare_package_root(&mut first);
     let first_returned = {
         let host = first
             .execution()
