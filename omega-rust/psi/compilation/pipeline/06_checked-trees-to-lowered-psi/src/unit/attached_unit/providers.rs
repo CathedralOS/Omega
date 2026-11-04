@@ -30,6 +30,7 @@ use super::{
     unique_unit_boundary, unsupported,
 };
 use crate::expression_preparation::computation_graph::boundary_targets;
+use checked_trees::machine::Machine;
 
 mod selection_coordinates;
 
