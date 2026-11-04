@@ -5,7 +5,6 @@
 //! The caller separately rules out carrying local loans into the successor.
 use checked_trees::{BorrowCallFact, BorrowLoanFact, CheckFacts, FlowStateFact};
 use language_semantics::PermissionEventSource;
-use typed_trees::statement::TransitionTargetNode;
 
 pub(super) fn disposes_loan(
     program: &dyn validation::CheckingInput,
@@ -15,9 +14,6 @@ pub(super) fn disposes_loan(
     loan: &BorrowLoanFact,
 ) -> bool {
     let Some(jump) = super::statements::local_jump(program, flow, call) else {
-        return false;
-    };
-    let validation::CallSite::TransitionNamed { path, .. } = jump.site else {
         return false;
     };
     let Some(source) = program.state_by_symbol(flow.state_symbol) else {
@@ -34,13 +30,10 @@ pub(super) fn disposes_loan(
         .into_iter()
         .filter(|target| target.is_valid())
         .any(|target| {
-            let TransitionTargetNode::Named { path: selected, .. } =
-                program.statement_table.transition_target(target)
-            else {
-                return false;
-            };
-            // Exact immutable source occurrence, not an equal callee label.
-            std::ptr::eq(path, selected)
+            // Match the invocation that completes this exact arm, including
+            // nested-machine calls represented as expressions. Calls in its
+            // arguments run before cleanup and cannot borrow its disposition.
+            jump.site.completes_transition(program, target)
                 && disposes_loan_on_target(program, facts, flow, call.statement_index, target, loan)
         })
 }
