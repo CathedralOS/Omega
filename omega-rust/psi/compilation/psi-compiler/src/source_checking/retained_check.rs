@@ -12,8 +12,6 @@
 //! The comparison data never authorizes anything: the predicate is compared
 //! through its exported scope (`RecordedDeclarationAuthority`), and the request
 //! still admits its own representations, declarations and access lifecycles.
-//! The stored record carries only the judgment, so a decoded judgment is
-//! matched after evaluation, as before.
 
 use build_time_evaluation::FixedLayoutTargetScope;
 use std::sync::Arc;
@@ -73,35 +71,9 @@ impl LayoutEvaluationInput {
 }
 
 impl RetainedCheck {
-    pub(super) fn new(judgment: typed_trees_to_checked_trees::RetainedCheck) -> Self {
-        Self {
-            judgment,
-            layout_evaluation: None,
-        }
-    }
-
-    pub fn is_current_strict_judgment(&self) -> bool {
-        self.judgment.is_current_strict_judgment()
-    }
-
     /// Identity of an already-issued language judgment; see the Psi judgment.
     pub fn same_judgment(&self, other: &Self) -> bool {
         self.judgment.same_judgment(&other.judgment)
-    }
-}
-
-impl compiler_storage::Record for RetainedCheck {
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        self.judgment.write(output)
-    }
-
-    fn read<Context>(
-        input: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        Ok(Self::new(compiler_storage::Record::read(input)?))
     }
 }
 

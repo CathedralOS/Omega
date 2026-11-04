@@ -2,10 +2,12 @@
 //! body signature. Scalar codecs come from the exact Terminal referent and the
 //! runtime ABI's default scalar storage, never from pointer width or debug names.
 
+mod body_footprint;
+
 use std::sync::Arc;
 
 use crate::{FunctionFragmentObjectArtifactError as Error, ObjectArtifact, PrivateFunctionObject};
-use calling_conventions::{CallPlan, ValueClass};
+use calling_conventions::{BoundaryEntryPlan, EntryControl, ValueClass};
 use function_identity::MachineFunctionIdentity;
 use machine_emission::native_entry_bridge::{
     NativeEntryBridgeRequest, NativeEntryParameter, emit_native_entry_bridge,
@@ -16,7 +18,7 @@ use machine_emission::native_entry_bridge::{
 pub fn create_private_function_object(
     identity: MachineFunctionIdentity,
     body: Arc<ObjectArtifact>,
-    inbound: &CallPlan,
+    inbound: &BoundaryEntryPlan,
     inbound_ordinals: &[u32],
 ) -> Result<PrivateFunctionObject, Error> {
     let entry_bridge = create_callable_entry_transport(&body, inbound, inbound_ordinals)?;
@@ -32,7 +34,7 @@ pub fn create_private_function_object(
 /// component entry. Both publication owners retain their own exact custody.
 pub fn create_callable_entry_transport(
     body: &ObjectArtifact,
-    inbound: &CallPlan,
+    inbound: &BoundaryEntryPlan,
     inbound_ordinals: &[u32],
 ) -> Result<Option<machine_emission::native_entry_bridge::NativeEntryBridge>, Error> {
     let request = native_entry_request(body, inbound, inbound_ordinals)?;
@@ -50,7 +52,7 @@ pub fn create_callable_entry_transport(
 /// or installation authority.
 pub(crate) fn native_entry_request(
     body: &ObjectArtifact,
-    inbound: &CallPlan,
+    inbound: &BoundaryEntryPlan,
     inbound_ordinals: &[u32],
 ) -> Result<NativeEntryBridgeRequest, Error> {
     let replay = body
@@ -73,7 +75,7 @@ pub(crate) fn native_entry_request(
         .graph
         .call_plan;
     if inbound_ordinals.len() != internal.parameters.len()
-        || inbound.parameters.len() != internal.parameters.len()
+        || inbound.call.parameters.len() != internal.parameters.len()
     {
         return Err(Error::Mismatch("callable entry formal count differs"));
     }
@@ -94,7 +96,7 @@ pub(crate) fn native_entry_request(
         internal.parameters.iter().zip(inbound_ordinals).enumerate()
     {
         let ordinal_index = usize::try_from(*ordinal).map_err(|_| Error::Overflow)?;
-        if used.contains(&ordinal_index) || inbound.parameters.get(ordinal_index).is_none() {
+        if used.contains(&ordinal_index) || inbound.call.parameters.get(ordinal_index).is_none() {
             return Err(Error::Mismatch(
                 "callable entry ordinals are not a permutation",
             ));
@@ -139,13 +141,19 @@ pub(crate) fn native_entry_request(
         target: body.target,
         internal: internal.clone(),
         inbound: inbound.clone(),
+        body_footprint: match inbound.call.entry_control {
+            EntryControl::InterruptReturn => {
+                Some(body_footprint::collect(body, inbound.state.preemption)?)
+            }
+            _ => None,
+        },
         parameters,
     })
 }
 
 fn identity_transport(request: &NativeEntryBridgeRequest) -> bool {
     let internal = &request.internal;
-    let inbound = &request.inbound;
+    let inbound = &request.inbound.call;
     // An identity transport can alias the ordinary entry. This is an optional
     // zero-work optimization; differing transport is emitted, never relabeled.
     internal.policy == inbound.policy
