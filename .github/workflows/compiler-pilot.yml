@@ -97,7 +97,7 @@ jobs:
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
         run: python -c "from tools.ci.compiler_pilot import select_cli_fixtures; import os; print(select_cli_fixtures(os.environ['OMEGA_COMPILER_PILOT_CLI_FIXTURES']))"
       - name: Provision Windows rooted temporary directory for hosted applications
-        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && inputs.cli_fixtures != ''
+        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
       - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         id: build-cache
@@ -113,6 +113,35 @@ jobs:
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
+      - name: Prepare and retain the optimized producer
+        id: producer-preparation
+        if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
+        env:
+          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
+          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
+          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
+          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
+        run: python tools/ci/compiler_pilot.py --phase prepare
+      - name: Upload the prepared producer and build receipts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
+        with:
+          name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: build/compiler-pilot/
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 7
+      # Save compiled objects before any program consumer can use the job budget.
+      # A failed preparation still retains useful objects and keeps the job red.
+      - name: Save build cache before fixture observations
+        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ env.CARGO_TARGET_DIR }}
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
       - name: Observe public Build consent and filesystem isolation
         if: github.event_name == 'workflow_dispatch' && inputs.build_consent
         run: python tools/ci/build_consent_controls.py
@@ -120,21 +149,23 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.compiler_diagnostics
         run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_PROVIDER_DEBUG=1\nOMEGA_COMPILER_CHECK_SITES=1\n')"
       - name: Optional executable observations
-        if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
+        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
         env:
           OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py
+        run: python tools/ci/compiler_pilot.py --phase consume
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
+        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('preparation.json', 'summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         with:
-          name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/
+          name: compiler-pilot-observations-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/compiler-pilot/
+            !build/compiler-pilot/producer-*/**
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
@@ -147,14 +178,3 @@ jobs:
           path: build/compiler-pilot/*.json
           if-no-files-found: warn
           retention-days: 7
-      # A source/runtime fixture failure does not invalidate compiled Cargo
-      # objects. Retain them for the next correction; check outcomes stay red.
-      - name: Save build cache after fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
