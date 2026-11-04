@@ -1,153 +1,997 @@
-name: Compiler queue pilot
-
+name: Observe inferred-array programs with the retained compiler
 on:
-  pull_request:
-    branches: [integration-pilot]
-  merge_group:
-    branches: [integration-pilot]
-    types: [checks_requested]
   workflow_dispatch:
-    inputs:
-      smoke:
-        description: Also build executables and run the native/Terminal smoke (not admission)
-        type: boolean
-        default: false
-      fixtures:
-        description: Optional comma-separated exact pass/group/name and fail/group/name IDs; replaces smoke
-        type: string
-        default: ''
-      checking_only:
-        description: Check only the exact fixtures and rejection controls, without repeating runtime observations
-        type: boolean
-        default: false
-      samples:
-        description: Optional comma-separated exact samples/cli/facts project paths (with descendants); replaces smoke
-        type: string
-        default: ''
-      cli_fixtures:
-        description: Optional exact pass/... or samples/cli/... normal-exit projects through ordinary CLI package review and both engines
-        type: string
-        default: ''
-      build_consent:
-        description: Run public source-produced Build consent and filesystem isolation controls
-        type: boolean
-        default: false
-      native_host:
-        description: Matching native host for manual executable observations
-        type: choice
-        options:
-          - linux_x86_64
-          - linux_arm64
-          - windows_x86_64
-          - macos_arm64
-        default: linux_x86_64
-
 permissions:
   contents: read
-
-# A new PR revision supersedes its old check; never cancel a merge-group check
-# merely because another PR entered the queue.
-concurrency:
-  group: compiler-pilot-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
+  actions: read
 jobs:
-  compiler-pilot:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","linux_arm64":"ubuntu-24.04-arm","windows_x86_64":"windows-2022","macos_arm64":"macos-15"}')[inputs.native_host] || 'ubuntu-24.04' }}
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     env:
-      CARGO_BUILD_JOBS: '2'
-      CARGO_INCREMENTAL: '0'
-      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
-      CARGO_BUILD_FINGERPRINT: content
-      # Large calling-policy checks use about 2.8 GiB each. Run one fixture
-      # at a time to reduce concurrent memory pressure.
-      OMEGA_CORPUS_JOBS: '1'
+      GH_TOKEN: ${{ github.token }}
       RUST_MIN_STACK: '67108864'
-      # Match Linux/macOS post-merge storage; Windows keeps its short target path.
-      CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: 83e3d72bad8bd79a17111831811aaf3b975af8ab
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Test the gate's refusal paths
-        run: python tools/tests/test_compiler_pilot.py -v
-      - name: Test Build control evidence refusal paths
-        run: python tools/tests/test_build_consent_controls.py -v
-      - name: Validate exact fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_fixtures; import os; print(select_fixtures(os.environ['OMEGA_COMPILER_PILOT_FIXTURES']))"
-      - name: Validate exact fact sample selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.samples != ''
-        env:
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-        run: python -c "from tools.ci.compiler_pilot import select_samples; import os; print(select_samples(os.environ['OMEGA_COMPILER_PILOT_SAMPLES']))"
-      - name: Validate exact ordinary CLI fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.cli_fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_cli_fixtures; import os; print(select_cli_fixtures(os.environ['OMEGA_COMPILER_PILOT_CLI_FIXTURES']))"
-      - name: Provision Windows rooted temporary directory for hosted applications
-        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && inputs.cli_fixtures != ''
-        run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        id: build-cache
+      - name: Authenticate the retained compiler and check the frozen inferred-array programs
+        shell: bash
+        run: |
+          python3 - <<'REPLAY'
+          from pathlib import Path
+          from types import SimpleNamespace
+          import hashlib,json,os,subprocess,sys
+          settings={'label': 'inferred-array-baseline-83e',
+           'run': 41874695966,
+           'artifact': 'compiler-regression-Linux-X64-83e3d72bad8bd79a17111831811aaf3b975af8ab-1',
+           'producer_source': '83e3d72bad8bd79a17111831811aaf3b975af8ab',
+           'producer_tree': 'da8cb6538e3275b3c3db293eb6e759a2c7c9ce1d',
+           'program_source': '83e3d72bad8bd79a17111831811aaf3b975af8ab',
+           'program_tree': 'da8cb6538e3275b3c3db293eb6e759a2c7c9ce1d',
+           'original_producer': {'revision': '83e3d72bad8bd79a17111831811aaf3b975af8ab',
+                                 'tree': 'da8cb6538e3275b3c3db293eb6e759a2c7c9ce1d',
+                                 'target': 'linux_x86_64',
+                                 'toolchain': 'rustc 1.100.0-nightly (a69a63265 2026-09-03)\n'
+                                              'binary: rustc\n'
+                                              'commit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\n'
+                                              'commit-date: 2026-09-03\n'
+                                              'host: x86_64-unknown-linux-gnu\n'
+                                              'release: 1.100.0-nightly\n'
+                                              'LLVM version: 23.1.1',
+                                 'cli': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-tte2ebq8/omega',
+                                 'runner': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-tte2ebq8/corpus_runner',
+                                 'cli_profile': {'binary': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-tte2ebq8/omega',
+                                                 'sha256': '9162b8cf05bd198c98d050020313325337bb4c40c9b06a794e2f5a3f4bbb0ced',
+                                                 'profile': {'schema': 'omega-compiler-build-profile-v1',
+                                                             'opt_level': '1'}},
+                                 'runner_profile': {'binary': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-tte2ebq8/corpus_runner',
+                                                    'sha256': '5fdd1a44f3d57caa4124a4bf09c3f6716a52f75e6a959bde38f9986008fa517c',
+                                                    'profile': {'schema': 'omega-compiler-build-profile-v1',
+                                                                'opt_level': '1'}}},
+           'objects': {'omega-rust': '2ae0641a6a5e281ecd5cc6980e68ee885fa72647',
+                       'source/library': 'c0f12a0920db3e54ed7efba46f5b8ec1a6d29765',
+                       'tools': '68dd6fda8c6761a0adca970813d6429f695b9545',
+                       '.github': 'bae01e4f85b7173fa6cce374bf7bc9a924654a71',
+                       'Cargo.toml': '2699e0a8d0be49c789639cbd3c603521634145d9',
+                       'Cargo.lock': 'b9590ac649fdf234e519f0197a05372d3fe65df5',
+                       'rust-toolchain.toml': '34677fc928123970d13e8b81641724e2a9e6f929'},
+           'program_objects': {'omega-rust': '2ae0641a6a5e281ecd5cc6980e68ee885fa72647',
+                               'source/library': 'c0f12a0920db3e54ed7efba46f5b8ec1a6d29765',
+                               'tools': '68dd6fda8c6761a0adca970813d6429f695b9545',
+                               '.github': 'bae01e4f85b7173fa6cce374bf7bc9a924654a71',
+                               'Cargo.toml': '2699e0a8d0be49c789639cbd3c603521634145d9',
+                               'Cargo.lock': 'b9590ac649fdf234e519f0197a05372d3fe65df5',
+                               'rust-toolchain.toml': '34677fc928123970d13e8b81641724e2a9e6f929'},
+           'baseline': False,
+           'input_hashes': {'samples/cli/facts/inferred_array_equation_call/call_result/invalid/build.omg': '7a9e2d0199b5649ecceff1eab550173ce28c7093494ab4946015143289577822',
+                            'samples/cli/facts/inferred_array_equation_call/call_result/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/call_result/invalid/main.omg': 'aa4d5144ca43c4fa38fba5f78fadd8e107687e4c587ddaaebab674049f23535a',
+                            'samples/cli/facts/inferred_array_equation_call/call_result/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/call_result/build.omg': 'd2e6f5b79512e8f76f889ef41a1d0d73d96fa7563aa7bb3c25892a9851e4b609',
+                            'samples/cli/facts/inferred_array_equation_call/call_result/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/call_result/main.omg': '1a22e76a08ab2c327386d5dc96a98fac14dbd7598d36fab204f6ee7cf2bb835b',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/invalid/build.omg': 'a05f45cfee038fc52d2bbf08160fc911f78018602457c7bcd22860af146989ab',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/invalid/main.omg': 'cc6ffabfbd9b8c9e8bf4db26e93b524c2b35830f42a80a7a83115413f472837f',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/build.omg': 'd01a27c0cc349c8f4a473aab3c3f903547da07facd68d7dfb4b96b50f65ff7e5',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/main.omg': '1db17fbb9d51c2531acdeb0a3d4edcf809488102722c765cc81c86d19f8a827c',
+                            'samples/cli/facts/inferred_array_equation_call/field/invalid/build.omg': '97166c1d056f666a56ff19e9621a519dd53531025a1b6f56ec64ab1e8de3cb02',
+                            'samples/cli/facts/inferred_array_equation_call/field/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/field/invalid/main.omg': '81885ab92aaeaec0dae3cdafb76c6be29f4c83c1927cf4467f455253def3d80d',
+                            'samples/cli/facts/inferred_array_equation_call/field/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/field/build.omg': '66d2bda366df9d01a3948e5ab4563b49b5705f28d07071921eaf373ebd70ea63',
+                            'samples/cli/facts/inferred_array_equation_call/field/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/field/main.omg': '4149f6b2b4202004f4bc386483a190215de2f655789516a3a0268e55dddb6841',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/call_result/invalid/build.omg': '7a9e2d0199b5649ecceff1eab550173ce28c7093494ab4946015143289577822',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/call_result/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/call_result/invalid/main.omg': 'f2f95634732dc99ba2ee36c1ed2a901125b8e3bc53c4c377669413ccee6d56fe',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/call_result/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/call_result/build.omg': 'd2e6f5b79512e8f76f889ef41a1d0d73d96fa7563aa7bb3c25892a9851e4b609',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/call_result/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/call_result/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/call_result/main.omg': '214f17fca2b6fe9aecd65300d50331bdb55c7746ad5ba1e9d7673106d48be095',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/const_name/invalid/build.omg': 'a05f45cfee038fc52d2bbf08160fc911f78018602457c7bcd22860af146989ab',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/const_name/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/const_name/invalid/main.omg': 'a5dd54e199fc5caab34fce185f3b99ed21e37b31a9e919c7e6b22188090904f4',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/const_name/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/const_name/build.omg': 'd01a27c0cc349c8f4a473aab3c3f903547da07facd68d7dfb4b96b50f65ff7e5',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/const_name/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/const_name/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/const_name/main.omg': 'd284a7f2eafec91e9302d3d5292bd5dc6cf39371f333751a88ac888cc7283d09',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/field/invalid/build.omg': '97166c1d056f666a56ff19e9621a519dd53531025a1b6f56ec64ab1e8de3cb02',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/field/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/field/invalid/main.omg': 'f6b0aae004053a690f07738fce48d20acc70ebd533e4d01f06133bd78e4f95b3',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/field/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/field/build.omg': '66d2bda366df9d01a3948e5ab4563b49b5705f28d07071921eaf373ebd70ea63',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/field/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/field/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/field/main.omg': 'c69a07a22edda6dc5c1e23c3cf6da1a232ca2fd8cbd290233edab1ffec917065',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/invalid/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/invalid/main.omg': '8a223d012bd1d290f8d3e6365e3fab3135bc2a81b97cd6622239d9d6ee62bc2c',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/local/invalid/build.omg': '8363028b409d9f4fdf467f39033b0f7661ccc8fc5853cca7415fb13da51bff04',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/local/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/local/invalid/main.omg': '4178a2934daf71e31131f4c087a64ffd66e7c5592cceac1da95d4a7c6c38c774',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/local/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/local/build.omg': 'a5b05cdea23e2c56876e6883b9d3c445384f1cc77b9b93e55d20db6248ffb113',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/local/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/local/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/local/main.omg': '9cffb9fe7fa58031887ccc001f405dd1a2dbaf389d76fe60879bc99dce68c8cb',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/main.omg': '06291c8d1943b098b88edb72e8ffd424d0f794cbb7d40086446fc18cd8449d3e',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/match_join/invalid/build.omg': '6cd2584752c0a3c537bb39056f24bcefc8462decc06cc291739f81dc9eff335b',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/match_join/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/match_join/invalid/main.omg': '411e3193ebf020e7a46d78fb33f7779bc701356bad7ee1c565ce3b8cd9b2d403',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/match_join/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/match_join/build.omg': '618affb18220d137055a7a87eff3261a3f7710b8eb41eb34951668a11d4206a3',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/match_join/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/match_join/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/match_join/main.omg': 'b7f9b933d26918ca4fee7982c226e6d63c97b344fc50f3c72dc66450ed58bdda',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_machine/invalid/build.omg': 'e6ea54b2858c2d14fa077f317c8771865681f2431f37c3719533feaf9bb574b9',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_machine/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_machine/invalid/main.omg': 'c91fb44b1451d06630a98a642779c510a310712329da7d44eb53f22663d51ff6',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_machine/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_machine/build.omg': '29098e438e0e9435eaf15a804879a65d4787b449905a2083b5360b43aee051d5',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_machine/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_machine/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_machine/main.omg': '0f15b3125217b488d8c905f2725c8345369add22012e4a53dccbd09963cb247e',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_state/invalid/build.omg': '2ec3ff302cb25165253bce017d06870c13f41da7c50d2795d0b36563ed92519e',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_state/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_state/invalid/main.omg': '36cfb2b11210e82cbe3f0301786b1bdb25b9a2e442094887d167d1dd53188052',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_state/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_state/build.omg': 'aa61c16d4bfc0cff0ce447470d456499d515085b2d0089d1f954960785f56432',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_state/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_state/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_state/main.omg': '27231b2316ddc571ddf79b22c03c2763fcb966451a1a918c839f6b5acf9c99c9',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/parameter/invalid/build.omg': '105e50a47dc41c87300ae41fb288f329b9c67db353b3551d720c24715d498131',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/parameter/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/parameter/invalid/main.omg': '9b521851245c05c5ebf1db24712df59e810d4841b9de3e5c8521614e152c2808',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/parameter/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/parameter/build.omg': 'ebacaf057572492a65e9d18e4b4aabd9d52fa6c26fd675d7df9a36e423f16dc8',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/parameter/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/parameter/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/parameter/main.omg': '2714ddd10d9bd76c37b6eb8219aeeeda104edf9896947c0d921ae98ea7b5ae14',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/target_body/invalid/build.omg': 'd667364c07543667bda444240482b94dfabc446a135c498612876cd85f5f62c5',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/target_body/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/target_body/invalid/main.omg': '684fc55259d845b88e51faadc0bb6233fdfa362f96c727f1cea2410ca3738af4',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/target_body/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/target_body/build.omg': '80af602363cb125e0ee0f72ae89dbb89ba9157812213a5b9a1d9be9b81ab1e2f',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/target_body/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/target_body/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/target_body/main.omg': '2b893969535b5f1f2927d4f8bdde1beb5731272b1169f54b2f8fba9de109264d',
+                            'samples/cli/facts/inferred_array_equation_call/invalid/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/invalid/main.omg': '97df6a2a1474c93ac3e4693c491d33e22c9d5a54706d3a1efed837b72c81c672',
+                            'samples/cli/facts/inferred_array_equation_call/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/local/invalid/build.omg': '8363028b409d9f4fdf467f39033b0f7661ccc8fc5853cca7415fb13da51bff04',
+                            'samples/cli/facts/inferred_array_equation_call/local/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/local/invalid/main.omg': 'ba87486e9d76267d98cce16c2ae0bb607620c526ee0fe95c5137047abf1ab856',
+                            'samples/cli/facts/inferred_array_equation_call/local/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/local/build.omg': 'a5b05cdea23e2c56876e6883b9d3c445384f1cc77b9b93e55d20db6248ffb113',
+                            'samples/cli/facts/inferred_array_equation_call/local/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/local/main.omg': 'e490834b3e129322735e2e597385f143d0ec0b4fa244a97ff893183c0259abf3',
+                            'samples/cli/facts/inferred_array_equation_call/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/main.omg': 'fd2f636f4ea67a9bd673f7910e5c44f429017f0f234ed04495a57a0ac0ba16ec',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/invalid/build.omg': '6cd2584752c0a3c537bb39056f24bcefc8462decc06cc291739f81dc9eff335b',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/invalid/main.omg': '9b7417ad1711932be0190a555127f8c824626abc52d85e98a8f19468c72568b0',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/build.omg': '618affb18220d137055a7a87eff3261a3f7710b8eb41eb34951668a11d4206a3',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/main.omg': '170d1dee3af53e816464fc3f72f94dc0fe94f4dd1e695b8f203f2ac62d626f70',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/call_result/invalid/build.omg': 'd2e6f5b79512e8f76f889ef41a1d0d73d96fa7563aa7bb3c25892a9851e4b609',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/call_result/invalid/main.omg': 'a4de6c040c64f28483ad5b0473d4a6095efb8c61ebfa7e9706500bfc600ef593',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/call_result/invalid/sample.json': 'dc8cd7767737050875badaf8511fec8ae3a0b216e7097d6af023e579482b01a4',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/call_result/build.omg': 'd2e6f5b79512e8f76f889ef41a1d0d73d96fa7563aa7bb3c25892a9851e4b609',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/call_result/main.omg': '0b632b47fca27b6ecb1d8999f3e43c5170a8609a1599ba6258c3826ad2da0ac2',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_contract_mismatch/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_contract_mismatch/main.omg': 'ed5d0871c07fdb5bc702a3f6177c839b0a21a2ea4bad306eada45618ddcfe120',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_contract_mismatch/sample.json': '50515f46852df10979ebc6033f65bd5951c2315c3191bafcb8b7fa3a7ee31bee',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_expression_shadow/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_expression_shadow/main.omg': 'e426f5c0d14d7b48390847b7c7b3783f1f42b68d29bbec53e5a7f0438ccba778',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_expression_shadow/sample.json': '786b31d39b55b660cf13f89a16adf33a816d6e47b72e3b65257fc4ccb002cfc1',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_formal_shadow/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_formal_shadow/main.omg': '53230bbd2afcccb19770d5f34820b3506064f14d21e8da871f9118020f761c73',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_formal_shadow/sample.json': '786b31d39b55b660cf13f89a16adf33a816d6e47b72e3b65257fc4ccb002cfc1',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_result_shadow/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_result_shadow/main.omg': '071d21ce21f13b6d0b0936b57391d6748f5fa0e9f9bcaa6d91452726c735d4d9',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_result_shadow/sample.json': '786b31d39b55b660cf13f89a16adf33a816d6e47b72e3b65257fc4ccb002cfc1',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_static_argument_shadow/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_static_argument_shadow/main.omg': '445b0bed1a62824504788dc2bf9abd1d3de7d8963fe294ea62a4dc1602c41216',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_static_argument_shadow/sample.json': '786b31d39b55b660cf13f89a16adf33a816d6e47b72e3b65257fc4ccb002cfc1',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/const_name/invalid/build.omg': 'd01a27c0cc349c8f4a473aab3c3f903547da07facd68d7dfb4b96b50f65ff7e5',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/const_name/invalid/main.omg': '85a122efdc8502642ab588674f6fe6b8f26322b78225274509c3f8aaec2bedaa',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/const_name/invalid/sample.json': 'dc8cd7767737050875badaf8511fec8ae3a0b216e7097d6af023e579482b01a4',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/const_name/build.omg': 'd01a27c0cc349c8f4a473aab3c3f903547da07facd68d7dfb4b96b50f65ff7e5',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/const_name/main.omg': '02d84b4aa26a78c2f98b619cb430e28e761a6854ea38f655ffbe3e58443b10f4',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_application_mismatch/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_application_mismatch/main.omg': '88acacd7f05d6f249adcdfed8c401ad6693354521e4bba7a94baa96b27859223',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_application_mismatch/sample.json': '6bdea39257373244cf0ec54b6a88b82001bfe2a458b82787e96a23560d57cd64',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_domain_shadow/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_domain_shadow/main.omg': '4000cc30d20b756f8b1f3a91b6880f072f4c88853e8a3daa5af300ce88855846',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_domain_shadow/sample.json': 'fd367cbceceae490c40c59309f3a958660382f70e2deb8c062961ed823fd8f64',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_equation_shadow/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_equation_shadow/main.omg': 'cd73adc3628a1a81fda7f5722e8b6b32d33c078cb0c7ca8e8b2aba5558aa8823',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_equation_shadow/sample.json': 'fd367cbceceae490c40c59309f3a958660382f70e2deb8c062961ed823fd8f64',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_formal_shadow/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_formal_shadow/main.omg': '18fdfdffce1e6ae45721fb31690c1e654da4c23d7dc51856ca8744e147e80677',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_formal_shadow/sample.json': 'fd367cbceceae490c40c59309f3a958660382f70e2deb8c062961ed823fd8f64',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_name_shadow/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_name_shadow/main.omg': 'b67dab730615813f76dfadc6284eb9938a1e41fcb310373ba081208eb19afb08',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_name_shadow/sample.json': 'fd367cbceceae490c40c59309f3a958660382f70e2deb8c062961ed823fd8f64',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/field/invalid/build.omg': '66d2bda366df9d01a3948e5ab4563b49b5705f28d07071921eaf373ebd70ea63',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/field/invalid/main.omg': '6b7920adb85feb53c22e9054207c1abd137344ef18a7beb51d8926b69e7aba7b',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/field/invalid/sample.json': 'dc8cd7767737050875badaf8511fec8ae3a0b216e7097d6af023e579482b01a4',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/field/build.omg': '66d2bda366df9d01a3948e5ab4563b49b5705f28d07071921eaf373ebd70ea63',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/field/main.omg': 'c33118ddcbceb01666938f9f973aa5b82cce0a6b6cbb63d689ca68620a38a6c6',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/invalid/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/invalid/main.omg': '6b0568bc66f989fe73443f3ef4862ed5e801e93ced2099e7381e008c82036848',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/invalid/sample.json': 'dc8cd7767737050875badaf8511fec8ae3a0b216e7097d6af023e579482b01a4',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/local/invalid/build.omg': 'a5b05cdea23e2c56876e6883b9d3c445384f1cc77b9b93e55d20db6248ffb113',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/local/invalid/main.omg': '4b3ba47fde09318acfdf0ea9b5cc9f07eb1e2873afdd1253ebf7132e8a86b6ac',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/local/invalid/sample.json': 'dc8cd7767737050875badaf8511fec8ae3a0b216e7097d6af023e579482b01a4',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/local/build.omg': 'a5b05cdea23e2c56876e6883b9d3c445384f1cc77b9b93e55d20db6248ffb113',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/local/main.omg': 'bfccc9590a48974681b47033ff0da8b889cf1a2ff136d438e7669a110b18cd18',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/main.omg': 'bb2b62cf45abdba784932b2acf809fe6b7a80f41eb2a3ee90c199d479e46d355',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/match_join/invalid/build.omg': '618affb18220d137055a7a87eff3261a3f7710b8eb41eb34951668a11d4206a3',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/match_join/invalid/main.omg': 'a13dca4ccf7e42729e362bcc24a97bedf5adfbbf8ff70bf03f0b03f6a21ef95b',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/match_join/invalid/sample.json': 'dc8cd7767737050875badaf8511fec8ae3a0b216e7097d6af023e579482b01a4',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/match_join/build.omg': '618affb18220d137055a7a87eff3261a3f7710b8eb41eb34951668a11d4206a3',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/match_join/main.omg': 'ebfbefe0e612ab154d38e3866a5c8f6f50d93ccfff5136bdb0eb9959283fcefa',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_machine/invalid/build.omg': '29098e438e0e9435eaf15a804879a65d4787b449905a2083b5360b43aee051d5',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_machine/invalid/main.omg': '7b7672f9ea42554726998c3a8f7f8d9debd2a92cc78192afcaafcfe6ed1393a1',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_machine/invalid/sample.json': 'dc8cd7767737050875badaf8511fec8ae3a0b216e7097d6af023e579482b01a4',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_machine/build.omg': '29098e438e0e9435eaf15a804879a65d4787b449905a2083b5360b43aee051d5',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_machine/main.omg': 'e5eb9970195d9a711a0280352d9ab774bcf0b662970e653c264ccefd6745350c',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_state/invalid/build.omg': 'aa61c16d4bfc0cff0ce447470d456499d515085b2d0089d1f954960785f56432',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_state/invalid/main.omg': '2b688c293ed2a063adec76713404d6d1426deefd6c545b1fe8fc5ade2060f96a',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_state/invalid/sample.json': 'dc8cd7767737050875badaf8511fec8ae3a0b216e7097d6af023e579482b01a4',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_state/build.omg': 'aa61c16d4bfc0cff0ce447470d456499d515085b2d0089d1f954960785f56432',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_state/main.omg': '8f105197cb3407ad8ddc49fdc305bf2087d66eaf9d08e61f0289a6b5f9d61e41',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/parameter/invalid/build.omg': 'ebacaf057572492a65e9d18e4b4aabd9d52fa6c26fd675d7df9a36e423f16dc8',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/parameter/invalid/main.omg': 'a672af6426ac77bacc9a925d1a803b69908430f772091fe9d9c353266d5292eb',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/parameter/invalid/sample.json': 'dc8cd7767737050875badaf8511fec8ae3a0b216e7097d6af023e579482b01a4',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/parameter/build.omg': 'ebacaf057572492a65e9d18e4b4aabd9d52fa6c26fd675d7df9a36e423f16dc8',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/parameter/main.omg': 'ddc03fb99c17ceb3e0a04155af5a6f788e8dafb0426a67efa21189a65111d3ff',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/target_body/invalid/build.omg': '80af602363cb125e0ee0f72ae89dbb89ba9157812213a5b9a1d9be9b81ab1e2f',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/target_body/invalid/main.omg': '932756c6010419341250bb2c9236fb5a7deee891d3f65f06c22f76c8c847a6ac',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/target_body/invalid/sample.json': 'dc8cd7767737050875badaf8511fec8ae3a0b216e7097d6af023e579482b01a4',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/target_body/build.omg': '80af602363cb125e0ee0f72ae89dbb89ba9157812213a5b9a1d9be9b81ab1e2f',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/target_body/main.omg': '37e115ff8f29f27bf619e89a7cb703f5da48b22b94e54a662013b5a52dd2ecd5',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_carrier_mismatch/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_carrier_mismatch/main.omg': '3d62591fe377c5af8888171d00f87044203558f93259ed65dc60a203a8a8cbc3',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_carrier_mismatch/sample.json': '058b8dcbf19b3a6fd2fafa07cae6bfd18f9eaddba189084c963d6568bece275c',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_index/invalid/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_index/invalid/main.omg': '33e8e18fac7f6d2036a756b78354b8264cc4e57cfa1a5dea4029b1074db3dc19',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_index/invalid/sample.json': 'cb39cf748c24d2e3ed4680e433411ae0f946e72287209853b43076fe75d33fb2',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_index/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_index/main.omg': 'bca78adbd7930478e857e75e649a752e72e9903c0f80318e293f44bad532f1b8',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_type_shadow/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_type_shadow/main.omg': 'd26080203b977321df0a5cf409d05c588cfe80a0a6ab2b938e000e6bc5c6268d',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_type_shadow/sample.json': '515e58bf45360dfde01be72717609f01895130495cff62c1c13cd7efbab916bd',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/invalid/build.omg': 'e6ea54b2858c2d14fa077f317c8771865681f2431f37c3719533feaf9bb574b9',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/invalid/main.omg': '797389917b97377e540cc18a52f730e369882be38d2dd0f6688f83299740f2a8',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/build.omg': '29098e438e0e9435eaf15a804879a65d4787b449905a2083b5360b43aee051d5',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/main.omg': 'f04f0e32e11e6532276a3b0c9f62c8828fd18e062804da4d34f8c902bc46d18c',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/invalid/build.omg': '2ec3ff302cb25165253bce017d06870c13f41da7c50d2795d0b36563ed92519e',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/invalid/main.omg': 'ebc5a656d12c64e6a36d8488ac3070f317e5bc3fad030856fb1fd10e720b2c4f',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/build.omg': 'aa61c16d4bfc0cff0ce447470d456499d515085b2d0089d1f954960785f56432',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/main.omg': 'e595f9bc4cfeb8dd238caa60edf0a718d784d8e51b23c5fd1a932206677cf1a3',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/invalid/build.omg': '105e50a47dc41c87300ae41fb288f329b9c67db353b3551d720c24715d498131',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/invalid/main.omg': '9c3a607fffb0f0ea1bfa0b860abc14ee83922c5beee57c33397b50512291a255',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/build.omg': 'ebacaf057572492a65e9d18e4b4aabd9d52fa6c26fd675d7df9a36e423f16dc8',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/main.omg': '87f98048502f1164220283f01c7c253ba124bbd5570506e4e325e068455ebf41',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/invalid/build.omg': 'd667364c07543667bda444240482b94dfabc446a135c498612876cd85f5f62c5',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/invalid/main.omg': 'fbfbdafd0ae26749aef460540ad3b846b5fd3945f58130b63d7859e87fe12dee',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/build.omg': '80af602363cb125e0ee0f72ae89dbb89ba9157812213a5b9a1d9be9b81ab1e2f',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/main.omg': 'cae8ea2d1f60950298e7ea00aaced7e24a3d89391dbcecd4557c3f6f2a557311',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/call_result/invalid/build.omg': '7a9e2d0199b5649ecceff1eab550173ce28c7093494ab4946015143289577822',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/call_result/invalid/main.omg': 'ce01777c804cd24c634323b197df64def214bb1a565ef7db141f165482b1c3af',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/call_result/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/call_result/build.omg': 'd2e6f5b79512e8f76f889ef41a1d0d73d96fa7563aa7bb3c25892a9851e4b609',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/call_result/main.omg': '7160f6ecf02a33afbacfe797f62afd95753e1f44df7044b244bad1e642528049',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/const_name/invalid/build.omg': 'a05f45cfee038fc52d2bbf08160fc911f78018602457c7bcd22860af146989ab',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/const_name/invalid/main.omg': 'fb8c45541db633674327322ab01a9247a39c6055c18d211fe6e2a3135de09a9b',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/const_name/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/const_name/build.omg': 'd01a27c0cc349c8f4a473aab3c3f903547da07facd68d7dfb4b96b50f65ff7e5',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/const_name/main.omg': '67980da17814394e9ad22ad5b2f4549b8b004ba1d846b7a02a927104913c2fca',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/field/invalid/build.omg': '97166c1d056f666a56ff19e9621a519dd53531025a1b6f56ec64ab1e8de3cb02',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/field/invalid/main.omg': 'dd6095ee2a9313670d0ce1157b58098c7cb27cb2fb206fcacfb5222c3994222e',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/field/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/field/build.omg': '66d2bda366df9d01a3948e5ab4563b49b5705f28d07071921eaf373ebd70ea63',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/field/main.omg': '5523d4263436683604f30b8e6c45047779c352e296f2a1cec21602948f052d96',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/invalid/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/invalid/main.omg': '43ab23308b22742f7b2ddd78ab5e3482581acf4092982680c2dc56141754106b',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/local/invalid/build.omg': '8363028b409d9f4fdf467f39033b0f7661ccc8fc5853cca7415fb13da51bff04',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/local/invalid/main.omg': 'b47116f0e1fa0f066ffa4ea90620ed006339092c9bd107affe91eee70da70ae0',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/local/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/local/build.omg': 'a5b05cdea23e2c56876e6883b9d3c445384f1cc77b9b93e55d20db6248ffb113',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/local/main.omg': '21e89d14f6b1e97c3df5b2f5ea2f6e40363c24c0824d36d7abad61b803302352',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/main.omg': '1fae86982978f0b4355e07e6cac2759acddfc848a3d6ae1b18458640bf2498e6',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/match_join/invalid/build.omg': '6cd2584752c0a3c537bb39056f24bcefc8462decc06cc291739f81dc9eff335b',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/match_join/invalid/main.omg': 'a69e280aa3da043a4b91eb9149ca5b962498031e1a30758056944a68a1b57e35',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/match_join/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/match_join/build.omg': '618affb18220d137055a7a87eff3261a3f7710b8eb41eb34951668a11d4206a3',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/match_join/main.omg': 'fa53927c36ade9ba42b915f5f6b6bdfdbe9929ccc8282f96b0919dac448c25fc',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_machine/invalid/build.omg': 'e6ea54b2858c2d14fa077f317c8771865681f2431f37c3719533feaf9bb574b9',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_machine/invalid/main.omg': '8c850993fbe744550b8e459b7685ff18c7ea59879b585eac5bc5b326beb03699',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_machine/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_machine/build.omg': '29098e438e0e9435eaf15a804879a65d4787b449905a2083b5360b43aee051d5',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_machine/main.omg': '5f3e983a657612d2cc15843a7364bd8b185e89d72de5e40ada10ea009f22f0b2',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_state/invalid/build.omg': '2ec3ff302cb25165253bce017d06870c13f41da7c50d2795d0b36563ed92519e',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_state/invalid/main.omg': '273aa46ceb9891a8ad7fea7d1c059aa8d9d35e6b3bb4a642e30549044617dadc',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_state/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_state/build.omg': 'aa61c16d4bfc0cff0ce447470d456499d515085b2d0089d1f954960785f56432',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_state/main.omg': '1777e03568f18670192430aea4598b3350fa81da60ca120a544940b8935496b2',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/parameter/invalid/build.omg': '105e50a47dc41c87300ae41fb288f329b9c67db353b3551d720c24715d498131',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/parameter/invalid/main.omg': '42d930b709e588419810481bf8c12b5b95f347cfb06dc7749c307de422936e07',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/parameter/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/parameter/build.omg': 'ebacaf057572492a65e9d18e4b4aabd9d52fa6c26fd675d7df9a36e423f16dc8',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/parameter/main.omg': 'ef581d5b13746feb2fab7f645629fc85b77be02862166d7347f64a08cc1713ad',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/target_body/invalid/build.omg': 'd667364c07543667bda444240482b94dfabc446a135c498612876cd85f5f62c5',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/target_body/invalid/main.omg': '1a1896675a7bade9f319f36d9a127061504579c430a733fb82b6e19bc802e5ff',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/target_body/invalid/sample.json': '0adb69f56b9db99d663eea93bbd2fa1d12e3fa17601a68c5e6424c4d8af4caa5',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/target_body/build.omg': 'a019f3592349bf034f84b8414c511f05b4240b834c4b50f17db4bbb3b809ec3e',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/target_body/main.omg': '92e06ced56ee784570199cede8411974440454aa4ac21dc765338d1d6797e35d',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_contract_mismatch_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_contract_mismatch_rejected/expected.txt': 'a3bbbff9bf0802bca00634c97ee7ffb22f3f392cdba9196a7fd2be2d893b984e',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_contract_mismatch_rejected/main.omg': 'ed5d0871c07fdb5bc702a3f6177c839b0a21a2ea4bad306eada45618ddcfe120',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_expression_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_expression_shadow_rejected/expected.txt': 'da9e941486eb3361d89ec04f9699c2435c7ba016356bd7f9b22ae49d052d3a9a',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_expression_shadow_rejected/main.omg': 'e426f5c0d14d7b48390847b7c7b3783f1f42b68d29bbec53e5a7f0438ccba778',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_formal_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_formal_shadow_rejected/expected.txt': 'da9e941486eb3361d89ec04f9699c2435c7ba016356bd7f9b22ae49d052d3a9a',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_formal_shadow_rejected/main.omg': '53230bbd2afcccb19770d5f34820b3506064f14d21e8da871f9118020f761c73',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_result_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_result_shadow_rejected/expected.txt': 'da9e941486eb3361d89ec04f9699c2435c7ba016356bd7f9b22ae49d052d3a9a',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_result_shadow_rejected/main.omg': '071d21ce21f13b6d0b0936b57391d6748f5fa0e9f9bcaa6d91452726c735d4d9',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_static_argument_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_static_argument_shadow_rejected/expected.txt': 'da9e941486eb3361d89ec04f9699c2435c7ba016356bd7f9b22ae49d052d3a9a',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_static_argument_shadow_rejected/main.omg': '445b0bed1a62824504788dc2bf9abd1d3de7d8963fe294ea62a4dc1602c41216',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_application_mismatch_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_application_mismatch_rejected/expected.txt': 'ab7d06befeef59f2cbc5b5d09c8461db8391e6cc7b72a77f4e935f6ceba211b6',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_application_mismatch_rejected/main.omg': '88acacd7f05d6f249adcdfed8c401ad6693354521e4bba7a94baa96b27859223',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_domain_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_domain_shadow_rejected/expected.txt': '95125cc26b4a269ef5a89e583617b43472677d7fa6ceba28bb977b357836e2f0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_domain_shadow_rejected/main.omg': '4000cc30d20b756f8b1f3a91b6880f072f4c88853e8a3daa5af300ce88855846',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_equation_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_equation_shadow_rejected/expected.txt': '95125cc26b4a269ef5a89e583617b43472677d7fa6ceba28bb977b357836e2f0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_equation_shadow_rejected/main.omg': 'cd73adc3628a1a81fda7f5722e8b6b32d33c078cb0c7ca8e8b2aba5558aa8823',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_formal_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_formal_shadow_rejected/expected.txt': '95125cc26b4a269ef5a89e583617b43472677d7fa6ceba28bb977b357836e2f0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_formal_shadow_rejected/main.omg': '18fdfdffce1e6ae45721fb31690c1e654da4c23d7dc51856ca8744e147e80677',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_name_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_name_shadow_rejected/expected.txt': '95125cc26b4a269ef5a89e583617b43472677d7fa6ceba28bb977b357836e2f0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_name_shadow_rejected/main.omg': 'b67dab730615813f76dfadc6284eb9938a1e41fcb310373ba081208eb19afb08',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_call_result_rejected/build.omg': 'd2e6f5b79512e8f76f889ef41a1d0d73d96fa7563aa7bb3c25892a9851e4b609',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_call_result_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_call_result_rejected/main.omg': 'a4de6c040c64f28483ad5b0473d4a6095efb8c61ebfa7e9706500bfc600ef593',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_const_name_rejected/build.omg': 'd01a27c0cc349c8f4a473aab3c3f903547da07facd68d7dfb4b96b50f65ff7e5',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_const_name_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_const_name_rejected/main.omg': '85a122efdc8502642ab588674f6fe6b8f26322b78225274509c3f8aaec2bedaa',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_field_rejected/build.omg': '66d2bda366df9d01a3948e5ab4563b49b5705f28d07071921eaf373ebd70ea63',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_field_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_field_rejected/main.omg': '6b7920adb85feb53c22e9054207c1abd137344ef18a7beb51d8926b69e7aba7b',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_local_rejected/build.omg': 'a5b05cdea23e2c56876e6883b9d3c445384f1cc77b9b93e55d20db6248ffb113',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_local_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_local_rejected/main.omg': '4b3ba47fde09318acfdf0ea9b5cc9f07eb1e2873afdd1253ebf7132e8a86b6ac',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_match_join_rejected/build.omg': '618affb18220d137055a7a87eff3261a3f7710b8eb41eb34951668a11d4206a3',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_match_join_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_match_join_rejected/main.omg': 'a13dca4ccf7e42729e362bcc24a97bedf5adfbbf8ff70bf03f0b03f6a21ef95b',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_other_machine_rejected/build.omg': '29098e438e0e9435eaf15a804879a65d4787b449905a2083b5360b43aee051d5',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_other_machine_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_other_machine_rejected/main.omg': '7b7672f9ea42554726998c3a8f7f8d9debd2a92cc78192afcaafcfe6ed1393a1',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_other_state_rejected/build.omg': 'aa61c16d4bfc0cff0ce447470d456499d515085b2d0089d1f954960785f56432',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_other_state_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_other_state_rejected/main.omg': '2b688c293ed2a063adec76713404d6d1426deefd6c545b1fe8fc5ade2060f96a',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_parameter_rejected/build.omg': 'ebacaf057572492a65e9d18e4b4aabd9d52fa6c26fd675d7df9a36e423f16dc8',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_parameter_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_parameter_rejected/main.omg': 'a672af6426ac77bacc9a925d1a803b69908430f772091fe9d9c353266d5292eb',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_target_body_rejected/build.omg': '80af602363cb125e0ee0f72ae89dbb89ba9157812213a5b9a1d9be9b81ab1e2f',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_target_body_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_target_body_rejected/main.omg': '932756c6010419341250bb2c9236fb5a7deee891d3f65f06c22f76c8c847a6ac',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_carrier_mismatch_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_carrier_mismatch_rejected/expected.txt': '43cffae785e66cbf927ae4e53185dc6eac7632a738c1eb5877131bb71ff095bc',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_carrier_mismatch_rejected/main.omg': '3d62591fe377c5af8888171d00f87044203558f93259ed65dc60a203a8a8cbc3',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_index_invalid_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_index_invalid_rejected/expected.txt': '42ba49d64c0b85fea584222c296e282d23c0a9a685903ded4a57b103225338d4',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_index_invalid_rejected/main.omg': '33e8e18fac7f6d2036a756b78354b8264cc4e57cfa1a5dea4029b1074db3dc19',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_type_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_type_shadow_rejected/expected.txt': '53947e51bffb95f30ccfd886006e453d88618a55c2a8b678f2e471f0a4c4414f',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_type_shadow_rejected/main.omg': 'd26080203b977321df0a5cf409d05c588cfe80a0a6ab2b938e000e6bc5c6268d',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_call_result_rejected/build.omg': '7a9e2d0199b5649ecceff1eab550173ce28c7093494ab4946015143289577822',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_call_result_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_call_result_rejected/main.omg': 'aa4d5144ca43c4fa38fba5f78fadd8e107687e4c587ddaaebab674049f23535a',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_const_name_rejected/build.omg': 'a05f45cfee038fc52d2bbf08160fc911f78018602457c7bcd22860af146989ab',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_const_name_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_const_name_rejected/main.omg': 'cc6ffabfbd9b8c9e8bf4db26e93b524c2b35830f42a80a7a83115413f472837f',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_field_rejected/build.omg': '97166c1d056f666a56ff19e9621a519dd53531025a1b6f56ec64ab1e8de3cb02',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_field_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_field_rejected/main.omg': '81885ab92aaeaec0dae3cdafb76c6be29f4c83c1927cf4467f455253def3d80d',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_local_rejected/build.omg': '8363028b409d9f4fdf467f39033b0f7661ccc8fc5853cca7415fb13da51bff04',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_local_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_local_rejected/main.omg': 'ba87486e9d76267d98cce16c2ae0bb607620c526ee0fe95c5137047abf1ab856',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_match_join_rejected/build.omg': '6cd2584752c0a3c537bb39056f24bcefc8462decc06cc291739f81dc9eff335b',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_match_join_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_match_join_rejected/main.omg': '9b7417ad1711932be0190a555127f8c824626abc52d85e98a8f19468c72568b0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_other_machine_rejected/build.omg': 'e6ea54b2858c2d14fa077f317c8771865681f2431f37c3719533feaf9bb574b9',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_other_machine_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_other_machine_rejected/main.omg': '797389917b97377e540cc18a52f730e369882be38d2dd0f6688f83299740f2a8',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_other_state_rejected/build.omg': '2ec3ff302cb25165253bce017d06870c13f41da7c50d2795d0b36563ed92519e',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_other_state_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_other_state_rejected/main.omg': 'ebc5a656d12c64e6a36d8488ac3070f317e5bc3fad030856fb1fd10e720b2c4f',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_parameter_rejected/build.omg': '105e50a47dc41c87300ae41fb288f329b9c67db353b3551d720c24715d498131',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_parameter_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_parameter_rejected/main.omg': '9c3a607fffb0f0ea1bfa0b860abc14ee83922c5beee57c33397b50512291a255',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_target_body_rejected/build.omg': 'd667364c07543667bda444240482b94dfabc446a135c498612876cd85f5f62c5',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_target_body_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_target_body_rejected/main.omg': 'fbfbdafd0ae26749aef460540ad3b846b5fd3945f58130b63d7859e87fe12dee',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_call_result_rejected/build.omg': '7a9e2d0199b5649ecceff1eab550173ce28c7093494ab4946015143289577822',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_call_result_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_call_result_rejected/main.omg': 'f2f95634732dc99ba2ee36c1ed2a901125b8e3bc53c4c377669413ccee6d56fe',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_const_name_rejected/build.omg': 'a05f45cfee038fc52d2bbf08160fc911f78018602457c7bcd22860af146989ab',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_const_name_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_const_name_rejected/main.omg': 'a5dd54e199fc5caab34fce185f3b99ed21e37b31a9e919c7e6b22188090904f4',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_field_rejected/build.omg': '97166c1d056f666a56ff19e9621a519dd53531025a1b6f56ec64ab1e8de3cb02',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_field_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_field_rejected/main.omg': 'f6b0aae004053a690f07738fce48d20acc70ebd533e4d01f06133bd78e4f95b3',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_local_rejected/build.omg': '8363028b409d9f4fdf467f39033b0f7661ccc8fc5853cca7415fb13da51bff04',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_local_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_local_rejected/main.omg': '4178a2934daf71e31131f4c087a64ffd66e7c5592cceac1da95d4a7c6c38c774',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_match_join_rejected/build.omg': '6cd2584752c0a3c537bb39056f24bcefc8462decc06cc291739f81dc9eff335b',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_match_join_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_match_join_rejected/main.omg': '411e3193ebf020e7a46d78fb33f7779bc701356bad7ee1c565ce3b8cd9b2d403',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_other_machine_rejected/build.omg': 'e6ea54b2858c2d14fa077f317c8771865681f2431f37c3719533feaf9bb574b9',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_other_machine_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_other_machine_rejected/main.omg': 'c91fb44b1451d06630a98a642779c510a310712329da7d44eb53f22663d51ff6',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_other_state_rejected/build.omg': '2ec3ff302cb25165253bce017d06870c13f41da7c50d2795d0b36563ed92519e',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_other_state_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_other_state_rejected/main.omg': '36cfb2b11210e82cbe3f0301786b1bdb25b9a2e442094887d167d1dd53188052',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_parameter_rejected/build.omg': '105e50a47dc41c87300ae41fb288f329b9c67db353b3551d720c24715d498131',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_parameter_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_parameter_rejected/main.omg': '9b521851245c05c5ebf1db24712df59e810d4841b9de3e5c8521614e152c2808',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_target_body_rejected/build.omg': 'd667364c07543667bda444240482b94dfabc446a135c498612876cd85f5f62c5',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_target_body_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_forwarded_result_through_target_body_rejected/main.omg': '684fc55259d845b88e51faadc0bb6233fdfa362f96c727f1cea2410ca3738af4',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_call_result_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_call_result_conflict/main.omg': 'ce01777c804cd24c634323b197df64def214bb1a565ef7db141f165482b1c3af',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_const_name_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_const_name_conflict/main.omg': 'fb8c45541db633674327322ab01a9247a39c6055c18d211fe6e2a3135de09a9b',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_field_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_field_conflict/main.omg': 'dd6095ee2a9313670d0ce1157b58098c7cb27cb2fb206fcacfb5222c3994222e',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_local_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_local_conflict/main.omg': 'b47116f0e1fa0f066ffa4ea90620ed006339092c9bd107affe91eee70da70ae0',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_match_join_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_match_join_conflict/main.omg': 'a69e280aa3da043a4b91eb9149ca5b962498031e1a30758056944a68a1b57e35',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_other_machine_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_other_machine_conflict/main.omg': '8c850993fbe744550b8e459b7685ff18c7ea59879b585eac5bc5b326beb03699',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_other_state_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_other_state_conflict/main.omg': '273aa46ceb9891a8ad7fea7d1c059aa8d9d35e6b3bb4a642e30549044617dadc',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_parameter_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_parameter_conflict/main.omg': '42d930b709e588419810481bf8c12b5b95f347cfb06dc7749c307de422936e07',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_target_body_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_target_body_conflict/main.omg': '1a1896675a7bade9f319f36d9a127061504579c430a733fb82b6e19bc802e5ff',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_call_result_exit/build.omg': 'd2e6f5b79512e8f76f889ef41a1d0d73d96fa7563aa7bb3c25892a9851e4b609',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_call_result_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_call_result_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_call_result_exit/main.omg': '0b632b47fca27b6ecb1d8999f3e43c5170a8609a1599ba6258c3826ad2da0ac2',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_const_name_exit/build.omg': 'd01a27c0cc349c8f4a473aab3c3f903547da07facd68d7dfb4b96b50f65ff7e5',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_const_name_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_const_name_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_const_name_exit/main.omg': '02d84b4aa26a78c2f98b619cb430e28e761a6854ea38f655ffbe3e58443b10f4',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_field_exit/build.omg': '66d2bda366df9d01a3948e5ab4563b49b5705f28d07071921eaf373ebd70ea63',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_field_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_field_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_field_exit/main.omg': 'c33118ddcbceb01666938f9f973aa5b82cce0a6b6cbb63d689ca68620a38a6c6',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_local_exit/build.omg': 'a5b05cdea23e2c56876e6883b9d3c445384f1cc77b9b93e55d20db6248ffb113',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_local_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_local_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_local_exit/main.omg': 'bfccc9590a48974681b47033ff0da8b889cf1a2ff136d438e7669a110b18cd18',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_match_join_exit/build.omg': '618affb18220d137055a7a87eff3261a3f7710b8eb41eb34951668a11d4206a3',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_match_join_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_match_join_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_match_join_exit/main.omg': 'ebfbefe0e612ab154d38e3866a5c8f6f50d93ccfff5136bdb0eb9959283fcefa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_machine_exit/build.omg': '29098e438e0e9435eaf15a804879a65d4787b449905a2083b5360b43aee051d5',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_machine_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_machine_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_machine_exit/main.omg': 'e5eb9970195d9a711a0280352d9ab774bcf0b662970e653c264ccefd6745350c',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_state_exit/build.omg': 'aa61c16d4bfc0cff0ce447470d456499d515085b2d0089d1f954960785f56432',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_state_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_state_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_state_exit/main.omg': '8f105197cb3407ad8ddc49fdc305bf2087d66eaf9d08e61f0289a6b5f9d61e41',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_parameter_exit/build.omg': 'ebacaf057572492a65e9d18e4b4aabd9d52fa6c26fd675d7df9a36e423f16dc8',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_parameter_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_parameter_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_parameter_exit/main.omg': 'ddc03fb99c17ceb3e0a04155af5a6f788e8dafb0426a67efa21189a65111d3ff',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_target_body_exit/build.omg': '80af602363cb125e0ee0f72ae89dbb89ba9157812213a5b9a1d9be9b81ab1e2f',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_target_body_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_target_body_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_target_body_exit/main.omg': '37e115ff8f29f27bf619e89a7cb703f5da48b22b94e54a662013b5a52dd2ecd5',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_value_index_exit/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_value_index_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_value_index_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_value_index_exit/main.omg': 'bca78adbd7930478e857e75e649a752e72e9903c0f80318e293f44bad532f1b8',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_call_result_exit/build.omg': 'd2e6f5b79512e8f76f889ef41a1d0d73d96fa7563aa7bb3c25892a9851e4b609',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_call_result_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_call_result_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_call_result_exit/main.omg': '1a22e76a08ab2c327386d5dc96a98fac14dbd7598d36fab204f6ee7cf2bb835b',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_const_name_exit/build.omg': 'd01a27c0cc349c8f4a473aab3c3f903547da07facd68d7dfb4b96b50f65ff7e5',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_const_name_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_const_name_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_const_name_exit/main.omg': '1db17fbb9d51c2531acdeb0a3d4edcf809488102722c765cc81c86d19f8a827c',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_field_exit/build.omg': '66d2bda366df9d01a3948e5ab4563b49b5705f28d07071921eaf373ebd70ea63',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_field_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_field_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_field_exit/main.omg': '4149f6b2b4202004f4bc386483a190215de2f655789516a3a0268e55dddb6841',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_local_exit/build.omg': 'a5b05cdea23e2c56876e6883b9d3c445384f1cc77b9b93e55d20db6248ffb113',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_local_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_local_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_local_exit/main.omg': 'e490834b3e129322735e2e597385f143d0ec0b4fa244a97ff893183c0259abf3',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_match_join_exit/build.omg': '618affb18220d137055a7a87eff3261a3f7710b8eb41eb34951668a11d4206a3',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_match_join_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_match_join_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_match_join_exit/main.omg': '170d1dee3af53e816464fc3f72f94dc0fe94f4dd1e695b8f203f2ac62d626f70',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_machine_exit/build.omg': '29098e438e0e9435eaf15a804879a65d4787b449905a2083b5360b43aee051d5',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_machine_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_machine_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_machine_exit/main.omg': 'f04f0e32e11e6532276a3b0c9f62c8828fd18e062804da4d34f8c902bc46d18c',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_state_exit/build.omg': 'aa61c16d4bfc0cff0ce447470d456499d515085b2d0089d1f954960785f56432',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_state_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_state_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_state_exit/main.omg': 'e595f9bc4cfeb8dd238caa60edf0a718d784d8e51b23c5fd1a932206677cf1a3',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_parameter_exit/build.omg': 'ebacaf057572492a65e9d18e4b4aabd9d52fa6c26fd675d7df9a36e423f16dc8',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_parameter_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_parameter_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_parameter_exit/main.omg': '87f98048502f1164220283f01c7c253ba124bbd5570506e4e325e068455ebf41',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_target_body_exit/build.omg': '80af602363cb125e0ee0f72ae89dbb89ba9157812213a5b9a1d9be9b81ab1e2f',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_target_body_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_target_body_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_target_body_exit/main.omg': 'cae8ea2d1f60950298e7ea00aaced7e24a3d89391dbcecd4557c3f6f2a557311',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_call_result_exit/build.omg': 'd2e6f5b79512e8f76f889ef41a1d0d73d96fa7563aa7bb3c25892a9851e4b609',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_call_result_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_call_result_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_call_result_exit/main.omg': '214f17fca2b6fe9aecd65300d50331bdb55c7746ad5ba1e9d7673106d48be095',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_const_name_exit/build.omg': 'd01a27c0cc349c8f4a473aab3c3f903547da07facd68d7dfb4b96b50f65ff7e5',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_const_name_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_const_name_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_const_name_exit/main.omg': 'd284a7f2eafec91e9302d3d5292bd5dc6cf39371f333751a88ac888cc7283d09',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_field_exit/build.omg': '66d2bda366df9d01a3948e5ab4563b49b5705f28d07071921eaf373ebd70ea63',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_field_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_field_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_field_exit/main.omg': 'c69a07a22edda6dc5c1e23c3cf6da1a232ca2fd8cbd290233edab1ffec917065',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_local_exit/build.omg': 'a5b05cdea23e2c56876e6883b9d3c445384f1cc77b9b93e55d20db6248ffb113',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_local_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_local_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_local_exit/main.omg': '9cffb9fe7fa58031887ccc001f405dd1a2dbaf389d76fe60879bc99dce68c8cb',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_match_join_exit/build.omg': '618affb18220d137055a7a87eff3261a3f7710b8eb41eb34951668a11d4206a3',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_match_join_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_match_join_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_match_join_exit/main.omg': 'b7f9b933d26918ca4fee7982c226e6d63c97b344fc50f3c72dc66450ed58bdda',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_other_machine_exit/build.omg': '29098e438e0e9435eaf15a804879a65d4787b449905a2083b5360b43aee051d5',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_other_machine_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_other_machine_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_other_machine_exit/main.omg': '0f15b3125217b488d8c905f2725c8345369add22012e4a53dccbd09963cb247e',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_other_state_exit/build.omg': 'aa61c16d4bfc0cff0ce447470d456499d515085b2d0089d1f954960785f56432',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_other_state_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_other_state_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_other_state_exit/main.omg': '27231b2316ddc571ddf79b22c03c2763fcb966451a1a918c839f6b5acf9c99c9',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_parameter_exit/build.omg': 'ebacaf057572492a65e9d18e4b4aabd9d52fa6c26fd675d7df9a36e423f16dc8',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_parameter_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_parameter_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_parameter_exit/main.omg': '2714ddd10d9bd76c37b6eb8219aeeeda104edf9896947c0d921ae98ea7b5ae14',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_target_body_exit/build.omg': '80af602363cb125e0ee0f72ae89dbb89ba9157812213a5b9a1d9be9b81ab1e2f',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_target_body_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_target_body_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_forwarded_result_through_target_body_exit/main.omg': '2b893969535b5f1f2927d4f8bdde1beb5731272b1169f54b2f8fba9de109264d',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_call_result_exit/build.omg': 'd2e6f5b79512e8f76f889ef41a1d0d73d96fa7563aa7bb3c25892a9851e4b609',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_call_result_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_call_result_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_call_result_exit/main.omg': '7160f6ecf02a33afbacfe797f62afd95753e1f44df7044b244bad1e642528049',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_const_name_exit/build.omg': 'd01a27c0cc349c8f4a473aab3c3f903547da07facd68d7dfb4b96b50f65ff7e5',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_const_name_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_const_name_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_const_name_exit/main.omg': '67980da17814394e9ad22ad5b2f4549b8b004ba1d846b7a02a927104913c2fca',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_field_exit/build.omg': '66d2bda366df9d01a3948e5ab4563b49b5705f28d07071921eaf373ebd70ea63',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_field_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_field_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_field_exit/main.omg': '5523d4263436683604f30b8e6c45047779c352e296f2a1cec21602948f052d96',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_local_exit/build.omg': 'a5b05cdea23e2c56876e6883b9d3c445384f1cc77b9b93e55d20db6248ffb113',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_local_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_local_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_local_exit/main.omg': '21e89d14f6b1e97c3df5b2f5ea2f6e40363c24c0824d36d7abad61b803302352',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_match_join_exit/build.omg': '618affb18220d137055a7a87eff3261a3f7710b8eb41eb34951668a11d4206a3',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_match_join_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_match_join_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_match_join_exit/main.omg': 'fa53927c36ade9ba42b915f5f6b6bdfdbe9929ccc8282f96b0919dac448c25fc',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_machine_exit/build.omg': '29098e438e0e9435eaf15a804879a65d4787b449905a2083b5360b43aee051d5',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_machine_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_machine_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_machine_exit/main.omg': '5f3e983a657612d2cc15843a7364bd8b185e89d72de5e40ada10ea009f22f0b2',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_state_exit/build.omg': 'aa61c16d4bfc0cff0ce447470d456499d515085b2d0089d1f954960785f56432',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_state_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_state_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_state_exit/main.omg': '1777e03568f18670192430aea4598b3350fa81da60ca120a544940b8935496b2',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_parameter_exit/build.omg': 'ebacaf057572492a65e9d18e4b4aabd9d52fa6c26fd675d7df9a36e423f16dc8',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_parameter_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_parameter_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_parameter_exit/main.omg': 'ef581d5b13746feb2fab7f645629fc85b77be02862166d7347f64a08cc1713ad',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_target_body_exit/build.omg': 'a019f3592349bf034f84b8414c511f05b4240b834c4b50f17db4bbb3b809ec3e',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_target_body_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_target_body_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_target_body_exit/main.omg': '92e06ced56ee784570199cede8411974440454aa4ac21dc765338d1d6797e35d'},
+           'fixtures': ['fail/facts/inferred_array_equation_call_mixed_binders_callback_contract_mismatch_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_callback_expression_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_callback_formal_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_callback_result_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_callback_static_argument_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_evidence_application_mismatch_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_evidence_domain_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_evidence_equation_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_evidence_formal_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_evidence_name_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_call_result_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_const_name_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_field_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_local_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_match_join_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_other_machine_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_other_state_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_parameter_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_target_body_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_value_carrier_mismatch_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_value_index_invalid_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_value_type_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_through_call_result_rejected',
+                        'fail/facts/inferred_array_equation_call_through_const_name_rejected',
+                        'fail/facts/inferred_array_equation_call_through_field_rejected',
+                        'fail/facts/inferred_array_equation_call_through_local_rejected',
+                        'fail/facts/inferred_array_equation_call_through_match_join_rejected',
+                        'fail/facts/inferred_array_equation_call_through_other_machine_rejected',
+                        'fail/facts/inferred_array_equation_call_through_other_state_rejected',
+                        'fail/facts/inferred_array_equation_call_through_parameter_rejected',
+                        'fail/facts/inferred_array_equation_call_through_target_body_rejected',
+                        'fail/facts/inferred_array_equation_forwarded_result_through_call_result_rejected',
+                        'fail/facts/inferred_array_equation_forwarded_result_through_const_name_rejected',
+                        'fail/facts/inferred_array_equation_forwarded_result_through_field_rejected',
+                        'fail/facts/inferred_array_equation_forwarded_result_through_local_rejected',
+                        'fail/facts/inferred_array_equation_forwarded_result_through_match_join_rejected',
+                        'fail/facts/inferred_array_equation_forwarded_result_through_other_machine_rejected',
+                        'fail/facts/inferred_array_equation_forwarded_result_through_other_state_rejected',
+                        'fail/facts/inferred_array_equation_forwarded_result_through_parameter_rejected',
+                        'fail/facts/inferred_array_equation_forwarded_result_through_target_body_rejected',
+                        'fail/generics/inferred_equation_typed_const_call_result_conflict',
+                        'fail/generics/inferred_equation_typed_const_const_name_conflict',
+                        'fail/generics/inferred_equation_typed_const_field_conflict',
+                        'fail/generics/inferred_equation_typed_const_local_conflict',
+                        'fail/generics/inferred_equation_typed_const_match_join_conflict',
+                        'fail/generics/inferred_equation_typed_const_other_machine_conflict',
+                        'fail/generics/inferred_equation_typed_const_other_state_conflict',
+                        'fail/generics/inferred_equation_typed_const_parameter_conflict',
+                        'fail/generics/inferred_equation_typed_const_target_body_conflict',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_call_result_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_const_name_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_field_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_local_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_match_join_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_other_machine_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_other_state_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_parameter_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_target_body_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_value_index_exit',
+                        'pass/facts/inferred_array_equation_call_through_call_result_exit',
+                        'pass/facts/inferred_array_equation_call_through_const_name_exit',
+                        'pass/facts/inferred_array_equation_call_through_field_exit',
+                        'pass/facts/inferred_array_equation_call_through_local_exit',
+                        'pass/facts/inferred_array_equation_call_through_match_join_exit',
+                        'pass/facts/inferred_array_equation_call_through_other_machine_exit',
+                        'pass/facts/inferred_array_equation_call_through_other_state_exit',
+                        'pass/facts/inferred_array_equation_call_through_parameter_exit',
+                        'pass/facts/inferred_array_equation_call_through_target_body_exit',
+                        'pass/facts/inferred_array_equation_forwarded_result_through_call_result_exit',
+                        'pass/facts/inferred_array_equation_forwarded_result_through_const_name_exit',
+                        'pass/facts/inferred_array_equation_forwarded_result_through_field_exit',
+                        'pass/facts/inferred_array_equation_forwarded_result_through_local_exit',
+                        'pass/facts/inferred_array_equation_forwarded_result_through_match_join_exit',
+                        'pass/facts/inferred_array_equation_forwarded_result_through_other_machine_exit',
+                        'pass/facts/inferred_array_equation_forwarded_result_through_other_state_exit',
+                        'pass/facts/inferred_array_equation_forwarded_result_through_parameter_exit',
+                        'pass/facts/inferred_array_equation_forwarded_result_through_target_body_exit',
+                        'pass/generics/inferred_equation_typed_const_call_result_exit',
+                        'pass/generics/inferred_equation_typed_const_const_name_exit',
+                        'pass/generics/inferred_equation_typed_const_field_exit',
+                        'pass/generics/inferred_equation_typed_const_local_exit',
+                        'pass/generics/inferred_equation_typed_const_match_join_exit',
+                        'pass/generics/inferred_equation_typed_const_other_machine_exit',
+                        'pass/generics/inferred_equation_typed_const_other_state_exit',
+                        'pass/generics/inferred_equation_typed_const_parameter_exit',
+                        'pass/generics/inferred_equation_typed_const_target_body_exit'],
+           'samples': ['samples/cli/facts/inferred_array_equation_call/call_result/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/call_result',
+                       'samples/cli/facts/inferred_array_equation_call/const_name/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/const_name',
+                       'samples/cli/facts/inferred_array_equation_call/field/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/field',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/call_result/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/call_result',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/const_name/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/const_name',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/field/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/field',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/local/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/local',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/match_join/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/match_join',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_machine/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_machine',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_state/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_state',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/parameter/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/parameter',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/target_body/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/forwarded_result/target_body',
+                       'samples/cli/facts/inferred_array_equation_call/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/local/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/local',
+                       'samples/cli/facts/inferred_array_equation_call',
+                       'samples/cli/facts/inferred_array_equation_call/match_join/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/match_join',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/call_result/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/call_result',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_contract_mismatch',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_expression_shadow',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_formal_shadow',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_result_shadow',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_static_argument_shadow',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/const_name/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/const_name',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_application_mismatch',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_domain_shadow',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_equation_shadow',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_formal_shadow',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_name_shadow',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/field/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/field',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/local/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/local',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/match_join/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/match_join',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_machine/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_machine',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_state/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_state',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/parameter/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/parameter',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/target_body/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/target_body',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_carrier_mismatch',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_index/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_index',
+                       'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_type_shadow',
+                       'samples/cli/facts/inferred_array_equation_call/other_machine/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/other_machine',
+                       'samples/cli/facts/inferred_array_equation_call/other_state/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/other_state',
+                       'samples/cli/facts/inferred_array_equation_call/parameter/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/parameter',
+                       'samples/cli/facts/inferred_array_equation_call/target_body/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/target_body',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/call_result/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/call_result',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/const_name/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/const_name',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/field/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/field',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/local/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/local',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/match_join/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/match_join',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_machine/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_machine',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_state/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_state',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/parameter/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/parameter',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/target_body/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/typed_const_argument/target_body'],
+           'sample_roles': {'samples/cli/facts/inferred_array_equation_call/call_result/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/call_result': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/const_name': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/field/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/field': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/call_result/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/call_result': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/const_name/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/const_name': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/field/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/field': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/local/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/local': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/match_join/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/match_join': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_machine/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_machine': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_state/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/other_state': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/parameter/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/parameter': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/target_body/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/forwarded_result/target_body': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/local/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/local': 'program',
+                            'samples/cli/facts/inferred_array_equation_call': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/match_join': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/call_result/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/call_result': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_contract_mismatch': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_expression_shadow': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_formal_shadow': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_result_shadow': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/callback_static_argument_shadow': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/const_name/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/const_name': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_application_mismatch': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_domain_shadow': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_equation_shadow': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_formal_shadow': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/evidence_name_shadow': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/field/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/field': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/local/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/local': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/match_join/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/match_join': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_machine/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_machine': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_state/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/other_state': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/parameter/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/parameter': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/target_body/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/target_body': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_carrier_mismatch': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_index/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_index': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/mixed_binders/value_type_shadow': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/other_state': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/parameter': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/target_body': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/call_result/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/call_result': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/const_name/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/const_name': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/field/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/field': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/local/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/local': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/match_join/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/match_join': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_machine/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_machine': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_state/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/other_state': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/parameter/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/parameter': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/target_body/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/typed_const_argument/target_body': 'program'},
+           'sample_root': 'samples/cli/facts/inferred_array_equation_call',
+           'meaning': 'Freeze all94 existing projects and86 body-equal pins across four existing productions. Root '
+                      'entry projects have no distinct pin. Actual83e fixed source is used for baseline; all inputs '
+                      'are byte-identical at warm1f7. No source migration or Rust build performed.'}
+          root=Path.cwd();out=root/'build'/settings['label'];out.mkdir(parents=True,exist_ok=True)
+          def git(*args):return subprocess.check_output(['git',*args],text=True).strip()
+          assert git('rev-parse','HEAD')==settings['program_source']
+          assert git('rev-parse','HEAD^{tree}')==settings['program_tree']
+          assert not git('status','--porcelain')
+          subprocess.run(['git','fetch','--no-tags','--depth=1','origin',settings['producer_source']],check=True)
+          objects={p:git('rev-parse',settings['producer_source']+':'+p) for p in settings['objects']}
+          assert objects==settings['objects']
+          for p,expected in settings['program_objects'].items():assert git('rev-parse','HEAD:'+p)==expected
+          run=json.loads(subprocess.check_output(['gh','api','repos/CathedralOS/Omega/actions/runs/'+str(settings['run'])],text=True))
+          assert run['head_sha']==settings['producer_source'] and run['status']=='completed'
+          retained=out/'retained';subprocess.run(['gh','run','download',str(settings['run']),'--name',settings['artifact'],'--dir',str(retained)],check=True)
+          records=list(retained.rglob('producer.json'));assert len(records)==1
+          original=json.loads(records[0].read_text());assert original==settings['original_producer']
+          assert original['revision']==settings['producer_source'] and original['tree']==settings['producer_tree'] and original['target']=='linux_x86_64'
+          sys.path.insert(0,'tools/ci');import compiler_pilot
+          cli=(records[0].parent/Path(original['cli']).name).resolve();runner=(records[0].parent/Path(original['runner']).name).resolve()
+          for p in [cli,runner]:p.chmod(0o755)
+          tracked=sorted(set(settings['input_hashes']) | set(subprocess.check_output(['git','ls-files','source/library'],text=True).splitlines()))
+          inputs={p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in tracked}
+          for p,h in settings['input_hashes'].items():assert inputs[p]==h,p
+          actual_profiles={key:compiler_pilot.corpus_gate.require_optimized(binary) for binary,key in [(cli,'cli_profile'),(runner,'runner_profile')]}
+          def profile_identity(profile):
+              identity={k:v for k,v in profile.items() if k!='binary'}
+              if isinstance(identity.get('build_receipt'),dict):
+                  identity['build_receipt']={k:v for k,v in identity['build_receipt'].items() if k!='path'}
+              return identity
+          for key,observed in actual_profiles.items():
+              assert profile_identity(observed)==profile_identity(original[key])
+          def verify():
+              assert git('rev-parse','HEAD')==settings['program_source'] and not git('status','--porcelain')
+              for binary,key in [(cli,'cli_profile'),(runner,'runner_profile')]:assert compiler_pilot.corpus_gate.require_optimized(binary)==actual_profiles[key]
+              for p,h in inputs.items():assert hashlib.sha256(Path(p).read_bytes()).hexdigest()==h,p
+          verify()
+          producer=SimpleNamespace(cli=cli,runner=runner,target='linux_x86_64',verify=verify,record=lambda:original)
+          (out/'retained-origin.json').write_text(json.dumps({'settings':settings,'driver':os.environ['GITHUB_SHA'],'program_source':settings['program_source'],'original_producer':original,'original_run_conclusion':run['conclusion'],'actual_cli':str(cli),'actual_runner':str(runner),'actual_profiles':actual_profiles,'inputs':inputs,'builds_rust':False},indent=2)+'\n')
+          refusals=[]
+          fixtures=tuple(settings['fixtures'])
+          positives=tuple(p for p in fixtures if p.startswith('pass/'))
+          for leg,selection,both in [('checking',fixtures,False),('both',positives,True)]:
+              report=out/(leg+'.json')
+              command=[sys.executable,'tools/corpus_gate.py','--runner',str(runner),'--filter',','.join(selection),'--json',str(report),'--golden',str(compiler_pilot.observation_golden(out,both=both,target='linux_x86_64'))]
+              if both:command.append('--both')
+              result=subprocess.run(command,env=dict(os.environ,OMEGA_CORPUS_JOBS='1',OMEGA_CORPUS_SWEEP='1',OMEGA_CORPUS_CAPTURE_ARTIFACTS=str(out/(leg+'-artifacts'))))
+              try:
+                  assert result.returncode in [0,1]
+                  compiler_pilot.validate_report(json.loads(report.read_text()),selection,both=both,revision=settings['program_source'],target='linux_x86_64')
+              except (AssertionError,ValueError,OSError) as error:refusals.append(leg+': '+str(error))
+              verify()
+          report=out/'samples.json'
+          result=subprocess.run([sys.executable,'tools/sample_native_gate.py','--cli',str(cli),'--facts','--jobs','1','--target','linux_x86_64','--filter',','.join(settings['samples']),'--write-results',str(report)])
+          try:
+              rows=json.loads(report.read_text());assert result.returncode==0 and len(rows)==len(settings['samples']) and {r['sample'] for r in rows}==set(settings['samples'])
+              for row in rows:
+                  if settings['sample_roles'][row['sample']]=='intended-invalid':
+                      assert row.get('role')=='intended-invalid' and row.get('state')=='rejected' and row.get('detail')=='intended rejection matched' and 'execution' not in row
+                  else:
+                      assert row.get('state')=='pass' and row.get('execution')=={'native_exit':0,'interpreter_exit':0}
+          except (AssertionError,ValueError,OSError) as error:refusals.append('Samples: '+str(error))
+          verify()
+          (out/'summary.json').write_text(json.dumps({'passed':not refusals,'refusals':refusals,'program_source':settings['program_source'],'producer_source':settings['producer_source'],'producer':original,'driver':os.environ['GITHUB_SHA'],'input_count':len(inputs),'builds_rust':False},indent=2)+'\n')
+          raise SystemExit(bool(refusals))
+          REPLAY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
+          name: inferred-array-baseline-83e-${{ github.run_id }}
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
-      - name: Check the exact integration candidate
-        id: compiler-check
-        run: cargo check --locked -p omega
-      - name: Observe public Build consent and filesystem isolation
-        if: github.event_name == 'workflow_dispatch' && inputs.build_consent
-        run: python tools/ci/build_consent_controls.py
-      - name: Optional executable observations
-        if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py
-      - name: Report actual producer and fixture observations
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        with:
-          name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/
-          if-no-files-found: warn
-          compression-level: 0
+            build/inferred-array-baseline-83e/*.json
+            build/inferred-array-baseline-83e/checking-artifacts/
+            build/inferred-array-baseline-83e/both-artifacts/
           retention-days: 7
-      # The corpus reports alone, so `corpus_gate.py --compare --remote` reads
-      # rows without downloading the retained producer (350-520 MB).
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        with:
-          name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/*.json
-          if-no-files-found: warn
-          retention-days: 7
-      # A source/runtime fixture failure does not invalidate compiled Cargo
-      # objects. Retain them for the next correction; check outcomes stay red.
-      - name: Save build cache after fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
