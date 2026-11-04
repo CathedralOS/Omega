@@ -121,6 +121,11 @@ missing static type or bounds guarantee.
 
 ## Validation and remaining scope
 
+A later record conflict required integrating main `d9a17196e2da`. Its shared
+checking and library changes are being qualified with the same focused cases.
+All 343 program and oracle inputs remain fixed. The table below retains the
+completed `163` measurements while the new source awaits its own observations.
+
 A real Mac-record conflict required merging main `fa33c81d5ef2` into measured
 source `16349300ab357c3f9093da63293e33af256d5c67`. All 343 authored inputs and
 58 matching Main/Build pairs remain unchanged. Main changed the Terminal format
