@@ -114,7 +114,11 @@ authored rows, unexecuted here.
   parameter, its referent, or a field path below either. Still rejected:
   `ensures` clauses (a true clause cannot yet be proved at exit), contracts on
   trait requirements (so a per-target implementation cannot carry the clause),
-  and slices in any contract.
+  and slices, elements or case payload fields in any contract.
+- Case payload fields: a body query on `s.x` where `x` is a case payload is
+  rejected, because the query does not carry the active-case proof an
+  ordinary read owes; it would otherwise report the first matching case's
+  field type.
 - Stronger-than-type alignment from placement or allocator contracts, and
   runtime computation of a location's alignment, are not implemented; the
   result is always the type minimum.

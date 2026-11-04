@@ -285,6 +285,18 @@ fn observed_storage_type(
             .ok_or(
                 "`align_of(value)` observes an addressable storage place; this operand is a value with no storage location",
             )?;
+    // A case payload field is selected by its name, not by a proof that the
+    // case is active; its storage type would be the first matching case's.
+    // An ordinary read owes that case proof, but this query never reads.
+    if canonical
+        .segments
+        .iter()
+        .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+    {
+        return Err(
+            "`align_of(value)` on a case payload field needs a proof that the case is active, which the query does not yet carry; query a field outside the case",
+        );
+    }
     // A field inside an explicit representation (`LayoutStorage<T, Policy>`)
     // sits wherever that policy placed it, so the field type's default
     // minimum is no guarantee for it. Reject rather than overstate it.
