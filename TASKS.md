@@ -1121,6 +1121,36 @@ defines the complete product bar.
   rows, and escaping variable-shaped results without an authored sum/descriptor
   reject.
 
+- **DOMAIN-CARRIER-FORMATION.** Enforce
+  [carrier-exact membership](wiki/spec/language/domains.md#carrier-exact-membership)
+  through proof formation, executable tests, qualification, and published
+  evidence. On fixed base `79eb08a76a7`, an optimized exact-source compiler
+  accepts `machine guarded(value: u8) -> u16 requires value in Small { 3 }`
+  under `domain u16::Small requires self <= 10;`. Hosted checking observations
+  `41656219861` and `41657251758` also accepted a suffixed `7u8` with and without
+  an unrelated declaration mentioning `u8`.
+  - Make the exact resolved applied carrier a formation obligation before
+    predicate substitution or mathematical-value projection. The domain already
+    retains a `TypeReferenceHandle`; reconcile proof-fact validation with the
+    executable carrier check through the owning type-correspondence boundary,
+    not a spelling-based lookup or another value-only acceptance path.
+  - Preserve nominal data identities, generic substitutions and declared type
+    equations, qualified carriers, and normal borrow/projection semantics.
+    Cover domain/data predicates, callable and trait contracts, statement facts,
+    literals, fields, call results, and specialized domain applications without
+    per-source-shape exceptions or accepting absent type information as a match.
+  - Preserve same-carrier membership, explicit exact conversions, anonymous
+    literal landing, generic family applications, and cross-width numeric
+    comparisons. Reject typed cross-width, signedness, nominal, and applied
+    carrier mismatches even when predicate values coincide; an unrelated type
+    declaration must not affect the result. Migrate any source this rejects.
+  Acceptance: one carrier-identity fact runs through all nine transport places
+  with `omega run --both` and authored outcomes on the four hosted targets;
+  fact-sensitive wrong-carrier twins and focused formation controls reject and
+  are pinned in the corpus. Predicate, policy, provenance, ownership, and access
+  obligations remain intact. Arbitrary-width integers and integer-family
+  constraint syntax are not prerequisites.
+
 - **NOMINAL-FIELD-FLOW.** Close the Dungeon Crawler's field-domain execution and
   [representation-erased domain qualification](wiki/spec/language/domains.md)
   end to end under
@@ -1179,6 +1209,10 @@ defines the complete product bar.
     [temporary qualified-view retirement](wiki/spec/language/domains.md#temporary-qualified-views)
     across loan cohorts, and scalar reads/results under
     [copy and publication rules](wiki/spec/language/domains.md#establishment-transport-and-helper-calls).
+  - Stop a borrow of an erasing cast from recovering its routed membership:
+    `observe(&(issued as Ticket))` with `observe(t: &Ticket in Ticket::Held)`
+    passes checking, because a borrow names its operand's storage, and then
+    fails in lowering ("completed projection has no exact consumer capture").
   - **DOMAIN-ISSUER-ROUTES:** extend same-project checked ordinary
     issuance/forwarding to cross-package private routes and selected structural
     payloads in
@@ -2010,7 +2044,7 @@ defines the complete product bar.
   [review cache](omega-rust/omega/packages/package-manager/src/review/candidate/review_cache.rs)
   is a different artifact. Layouts used only inside unselected library code
   are a separate share of the cost, covered by the
-  [layout-demand question](OWNER_QUESTIONS.md#3-is-a-layout-used-only-inside-unselected-library-code-a-psi-obligation-under-every-target).
+  [layout formation scope](wiki/spec/layouts/plans.md#compile-time-journey-and-build).
   - Persist an admitted dependency's checked representation under its exact
     identity. Bind it to an applicability proof over the premises the
     specification lists: the target, the provider closure, root-sensitive
