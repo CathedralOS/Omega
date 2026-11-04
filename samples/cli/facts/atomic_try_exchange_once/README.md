@@ -41,7 +41,7 @@ request failed during workflow setup and supplies no compiler evidence.
 
 The complete row is authored, with matching positive and negative pins:
 
-| Place | Transport of the complete outcome |
+| Place | What the example checks |
 | --- | --- |
 | [Local](local/main.omg) | Bind the direct operation result. |
 | [Field](field/main.omg) | Move it into a record and select its field. |
@@ -77,8 +77,11 @@ with the same spelling ordinary. Additional invalid controls require exact
 
 The first repair checkpoint `51f6a69e720` failed Rust checking because one
 checked-interpreter caller still used the old validator API. It produced no
-program observations. The corrected checkpoint `83cf72e8e8e` is under the same
-small hosted qualification; no current compile or runtime success is claimed.
+program observations. The next checkpoint `83cf72e8e8e` exposed a missing direct dependency in
+native selection during Rust checking. Neither failure supplies program
+observations. Compiler `33dbcf476f87` corrects that dependency and is under the
+same small hosted qualification; no current compile or runtime success is
+claimed.
 All nine places, the controls, ordinary package review and four-host execution
 remain unfinished until their actual reports meet these obligations. Formal
 concurrency, forced Uncommitted outcomes, affine/linear residents, arbitrary-key
