@@ -1,10 +1,9 @@
 # Closed arguments before a provider bound
 
-A helper can use the number chosen by a match in its input requirement. Here,
-the true arm supplies 254, anonymous addition produces 255, and the u8 parameter
-lands that value before its Wrapping addition produces 1. The helper's input
-requirement therefore establishes value <= 1, which justifies its ordinary call
-requiring value <= 257.
+The helper's input limit is 1. A match chooses 254, the next addition produces
+255, and an 8-bit addition wraps 255 + 2 to 1. Passing 1 must compile and
+passing 2 must reject. With its input bounded by 1, the helper can make the
+existing call that allows values up to 257.
 
 This is another production of **CANONICALIZE-SCALAR-RANGE-CONTRACTS** under the
 existing provider endpoint fact. Before computing the provider bound,
@@ -98,19 +97,29 @@ and [ordered matches](../../../../../wiki/spec/language/patterns.md).
 
 ## Qualification frontier
 
-The retained optimized 420805 compiler (SHA-256
-203f5fe996b80a514855c66bc9ba426f8f8937b9e62b395adc0bf78195ce2b29)
-wrongly refuses the frozen local prerequisite prototype: it loses the header
-bound and cannot prove the relaxed <= 257 call. The provider-6 and input-2
-prototypes currently hit that earlier gap and receive no intended-rejection
-credit. The ordinary body control already runs at zero in both engines; its
-256-to-u8 twin rejects only with a late VerifiedOperationMalformed error,
-which does not establish initial-landing enforcement.
+The original optimized 420805 compiler wrongly refused the local prerequisite
+before the provider bound could be used. The 256-to-u8 control reached a later
+malformed-operation error instead of rejecting the initial argument.
 
-The nine transported sources and exact pins are frozen but are not yet
-qualified with a repaired compiler. Raw baseline records and source hashes
-remain under build/scalar-continue-20261102/endpoint-contracts-*. This frontier
-must be replaced with actual repaired-source outcomes before landing.
+[Linux corpus run 41860485084](https://github.com/CathedralOS/Omega/actions/runs/41860485084)
+used optimized source `6649bb1ad6b10c9766df28f4d702cd27ea26035f`. All nine
+positive pins and the ordinary argument control ran at native/Terminal exit 0;
+the original endpoint customer ran at 70/70. Provider-6 twins rejected at the
+bounded call, input 2 reached its own prerequisite refusal, and 256 rejected
+while checking whether it fits u8. The input-2 expectation text was refined in
+a later consumer commit; the original failed oracle record is preserved.
+
+That run timed out on an unchanged existing Wrapping/std program and skipped
+ordinary CLI and sample consumers. Those cases have no passing credit from it.
+[Integrated run 41878343493](https://github.com/CathedralOS/Omega/actions/runs/41878343493)
+is qualifying fresh compiler source `640d7a6f52facb78aa7d2c637ad6930fa6d89ad3`
+after an actual main conflict. Its ordinary CLI and 21 sample-project results
+remain pending. The historical 6649 results are not integration results.
+
+Raw receipts and frozen program/oracle hashes remain under
+`build/scalar-continue-20261102/endpoint-contracts-*`. A passing nine-place
+production still requires its ordinary positive executions and intended twins
+on the integrated compiler, followed by reviewed publication.
 
 This production does not close the historical 1,598-position audit, reconcile
 unrelated RangeValue declarations, retire scalar suffix parsing, or qualify
