@@ -1020,9 +1020,9 @@ impl CheckedUnitEffectOperationPlan {
         }
     }
 
-    /// The structural result binding of a call or a constructed value, the
-    /// producers that own an automatic return discard, with that flag. The
-    /// other structural producers answer `None`.
+    /// A produced structural value and its automatic return-disposal schedule.
+    /// Declarations and borrowed views have separate lifetime owners and do
+    /// not acquire a completed-value disposal obligation from this query.
     pub fn discardable_structural_result(
         &self,
     ) -> Option<(&CheckedUnitStructuralResultBindingPlan, bool)> {
@@ -1031,6 +1031,10 @@ impl CheckedUnitEffectOperationPlan {
             Self::Call(call) => call
                 .structural_result()
                 .zip(call.discard_result_on_return()),
+            Self::AtomicAccess(access) => access
+                .structural_result
+                .as_ref()
+                .map(|result| (result, access.discard_result_on_return)),
             _ => None,
         }
     }
@@ -1053,6 +1057,10 @@ impl CheckedUnitEffectOperationPlan {
                 },
             ) => Some((result, discard_result_on_return)),
             Self::Call(call) => call.structural_result_mut(),
+            Self::AtomicAccess(access) => access
+                .structural_result
+                .as_mut()
+                .map(|result| (result, &mut access.discard_result_on_return)),
             _ => None,
         }
     }
