@@ -1124,35 +1124,19 @@ defines the complete product bar.
   rows, and escaping variable-shaped results without an authored sum/descriptor
   reject.
 
-- **DOMAIN-CARRIER-FORMATION.** Enforce
+- **DOMAIN-CARRIER-FORMATION.** Finish
   [carrier-exact membership](wiki/spec/language/domains.md#carrier-exact-membership)
-  through proof formation, executable tests, qualification, and published
-  evidence. On fixed base `79eb08a76a7`, an optimized exact-source compiler
-  accepts `machine guarded(value: u8) -> u16 requires value in Small { 3 }`
-  under `domain u16::Small requires self <= 10;`. Hosted checking observations
-  `41656219861` and `41657251758` also accepted a suffixed `7u8` with and without
-  an unrelated declaration mentioning `u8`.
-  - Make the exact resolved applied carrier a formation obligation before
-    predicate substitution or mathematical-value projection. The domain already
-    retains a `TypeReferenceHandle`; reconcile proof-fact validation with the
-    executable carrier check through the owning type-correspondence boundary,
-    not a spelling-based lookup or another value-only acceptance path.
-  - Preserve nominal data identities, generic substitutions and declared type
-    equations, qualified carriers, and normal borrow/projection semantics.
-    Cover domain/data predicates, callable and trait contracts, statement facts,
-    literals, fields, call results, and specialized domain applications without
-    per-source-shape exceptions or accepting absent type information as a match.
-  - Preserve same-carrier membership, explicit exact conversions, anonymous
-    literal landing, generic family applications, and cross-width numeric
-    comparisons. Reject typed cross-width, signedness, nominal, and applied
-    carrier mismatches even when predicate values coincide; an unrelated type
-    declaration must not affect the result. Migrate any source this rejects.
-  Acceptance: one carrier-identity fact runs through all nine transport places
-  with `omega run --both` and authored outcomes on the four hosted targets;
-  fact-sensitive wrong-carrier twins and focused formation controls reject and
-  are pinned in the corpus. Predicate, policy, provenance, ownership, and access
-  obligations remain intact. Arbitrary-width integers and integer-family
-  constraint syntax are not prerequisites.
+  for the forms the nine-place row
+  [`domain_carrier_identity`](samples/cli/facts/domain_carrier_identity/README.md)
+  does not cover.
+  - Let a caller discharge a precondition whose subject is an explicit exact
+    conversion: `converted(4u8)` with `requires (narrow as u16) in Small`
+    forms but reports `cannot prove requires contract`.
+  - Judge carrier-generic domain families whose carrier is a type parameter
+    at each applied carrier, and statement-position membership facts, with
+    wrong-carrier rejects.
+  Acceptance: those forms run with `omega run --both` and their wrong-carrier
+  twins reject, pinned in the corpus.
 
 - **NOMINAL-FIELD-FLOW.** Close the Dungeon Crawler's field-domain execution and
   [representation-erased domain qualification](wiki/spec/language/domains.md)
