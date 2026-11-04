@@ -211,7 +211,7 @@ impl CallableApplication {
                             .find(|(binder, _)| *binder == symbol)
                         {
                             // This operand already belongs to the caller's
-                            // telescope. Retain it unchanged, rather than
+                            // declaration. Retain it unchanged, rather than
                             // applying the callee's substitutions a second time.
                             supplied_extent_argument = Some(*argument);
                             match program.type_reference_node(*argument) {
@@ -247,16 +247,19 @@ impl CallableApplication {
                                     }
                                 }
                                 types::TypeReferenceNode::ConstExpression(expression) => {
-                                    let expression::ExpressionNode::Integer(value) =
-                                        program.expression_table.expression(*expression)
-                                    else {
-                                        return Err(
-                                            "nominal callable array extent application needs a normalized integer argument",
-                                        );
-                                    };
-                                    let value = value.value_u64().and_then(|value| usize::try_from(value).ok())
-                                        .ok_or("nominal callable array extent is outside the host extent range")?;
-                                    types::FixedArrayLength::Literal(value)
+                                    match program.expression_table.expression(*expression) {
+                                        expression::ExpressionNode::Integer(value) => {
+                                            let value = value.value_u64().and_then(|value| usize::try_from(value).ok())
+                                                .ok_or("nominal callable array extent is outside the host extent range")?;
+                                            types::FixedArrayLength::Literal(value)
+                                        }
+                                        // A supplied computation can still need
+                                        // evaluation while this signature is
+                                        // applied. Preserve its exact argument;
+                                        // final checking still requires a valid
+                                        // integer extent before layout.
+                                        _ => types::FixedArrayLength::Expression(*argument),
+                                    }
                                 }
                                 _ => {
                                     return Err(
