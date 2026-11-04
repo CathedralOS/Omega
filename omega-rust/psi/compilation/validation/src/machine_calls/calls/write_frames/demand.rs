@@ -46,6 +46,12 @@ use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableCall};
 use typed_trees::types::TypeReferenceHandle;
 
+enum StatementReferenceTransferRefusal {
+    StatementSite,
+    EntryPrefix,
+    StatementEffects,
+}
+
 /// Shared conservative call-frame resolver. A complete result is the set of
 /// caller-visible places the call may write; `None` is deliberately opaque and
 /// requires consumers to invalidate every fact they cannot otherwise prove.
@@ -363,7 +369,7 @@ impl<'program> CallFrameResolver<'program> {
         {
             return Some(Vec::new());
         }
-        let (_, _, _, transfers) = self.statement_reference_transfer(machine, statement)?;
+        let (_, _, _, transfers) = self.statement_reference_transfer(machine, statement).ok()?;
         let transfer = transfers.all_routes();
         if !transfer.is_complete() {
             return None;
@@ -378,13 +384,14 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         machine: &Machine,
         statement: &StatementNode,
-    ) -> Option<Vec<super::StoredReferenceEffect>> {
+    ) -> Result<Vec<super::StoredReferenceEffect>, super::StoredReferenceRelationRefusal> {
+        use super::StoredReferenceRelationRefusal::{TemplateDependent, Unavailable};
         if statement.as_call().is_none()
             && !statement_value_expression_roots(self.program, statement)
                 .iter()
                 .any(|expression| expression_has_calls(self.program, *expression))
         {
-            return Some(Vec::new());
+            return Ok(Vec::new());
         }
         // A complete empty writable-slot relation needs no caller origins.
         // Use the same ordered evaluator as the prefix-dependent query: an
@@ -396,7 +403,8 @@ impl<'program> CallFrameResolver<'program> {
             machine,
             &self.tables.symbols,
             CallerWriteSite::Statement(statement),
-        )?;
+        )
+        .ok_or(Unavailable)?;
         let empty = CollectedStatementPrefix {
             isolated_locals: Vec::new(),
             aliases: Vec::new(),
@@ -417,14 +425,25 @@ impl<'program> CallFrameResolver<'program> {
             .as_ref()
             .is_some_and(|transfer| transfer.is_complete() && transfer.effects.is_empty())
         {
-            return Some(Vec::new());
+            return Ok(Vec::new());
         }
-        let (_, _, _, transfers) = self.statement_reference_transfer(machine, statement)?;
-        let transfer = transfers.fallthrough();
-        if !transfer.is_complete() {
-            return None;
-        }
-        super::stored_calls::public_effects(transfer.effects)
+        // The statement can still depend on a type parameter when the prefix
+        // stops at its binding fence. Concrete failed calls remain failures;
+        // only the unresolved structure is deferred to closed instances.
+        let template_statement = unbound.as_ref().is_some_and(|transfer| {
+            transfer.template_dependent && transfer.incomplete_calls.is_empty()
+        });
+        let (_, _, _, transfers) = self
+            .statement_reference_transfer(machine, statement)
+            .map_err(|refusal| match refusal {
+                StatementReferenceTransferRefusal::EntryPrefix if template_statement => {
+                    TemplateDependent
+                }
+                StatementReferenceTransferRefusal::StatementSite
+                | StatementReferenceTransferRefusal::EntryPrefix
+                | StatementReferenceTransferRefusal::StatementEffects => Unavailable,
+            })?;
+        transfers.fallthrough().into_complete_effects()
     }
 
     /// Each normal invocation establishes its own slot contents before the
@@ -555,16 +574,7 @@ impl<'program> CallFrameResolver<'program> {
             expression,
         )
         .ok_or(Unavailable)?;
-        if !transfer.incomplete_calls.is_empty() {
-            return Err(Unavailable);
-        }
-        // A relation that still depends on a type parameter is unknown
-        // structure, not a proved failure; the selected closed instances
-        // publish it with concrete types.
-        if transfer.template_dependent {
-            return Err(TemplateDependent);
-        }
-        super::stored_calls::public_effects(transfer.effects).ok_or(Unavailable)
+        transfer.into_complete_effects()
     }
 
     /// Failures belong to actual invocations, not a target-wide classification.
@@ -576,6 +586,7 @@ impl<'program> CallFrameResolver<'program> {
         statement: &StatementNode,
     ) -> Option<Vec<super::stored_calls::StoredReferenceCallFailure>> {
         self.statement_reference_transfer(machine, statement)
+            .ok()
             .map(|(_, _, _, transfers)| transfers.all_routes().incomplete_calls)
     }
 
@@ -608,7 +619,7 @@ impl<'program> CallFrameResolver<'program> {
         binding_is_stable: impl Fn(SymbolHandle, &[PlaceSegment]) -> bool,
     ) -> Option<Vec<LocalWriteOrigin>> {
         let (state, index, mut prefix, transfers) =
-            self.statement_reference_transfer(machine, statement)?;
+            self.statement_reference_transfer(machine, statement).ok()?;
         let transfer = transfers.all_routes();
         if !transfer.is_complete() {
             return None;
@@ -662,12 +673,15 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         machine: &Machine,
         statement: &StatementNode,
-    ) -> Option<(
-        &State,
-        usize,
-        CollectedStatementPrefix,
-        super::stored_calls::StatementSlotTransfers,
-    )> {
+    ) -> Result<
+        (
+            &State,
+            usize,
+            CollectedStatementPrefix,
+            super::stored_calls::StatementSlotTransfers,
+        ),
+        StatementReferenceTransferRefusal,
+    > {
         let trace_refusal = |phase: &str, state: SymbolHandle, index: Option<usize>| {
             if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
                 eprintln!(
@@ -683,7 +697,7 @@ impl<'program> CallFrameResolver<'program> {
             CallerWriteSite::Statement(statement),
         ) else {
             trace_refusal("statement-site", SymbolHandle::invalid(), None);
-            return None;
+            return Err(StatementReferenceTransferRefusal::StatementSite);
         };
         let Some(prefix) = super::state_write_walk::collected_prefix_at(
             &self.caches.state_write_shared_collections,
@@ -695,7 +709,7 @@ impl<'program> CallFrameResolver<'program> {
             true,
         ) else {
             trace_refusal("entry-prefix", state.symbol, Some(index));
-            return None;
+            return Err(StatementReferenceTransferRefusal::EntryPrefix);
         };
         let Some(effects) = super::stored_calls::statement_effects(
             self.program,
@@ -707,9 +721,9 @@ impl<'program> CallFrameResolver<'program> {
             &mut FrameInference::for_state(state.symbol),
         ) else {
             trace_refusal("statement-effects", state.symbol, Some(index));
-            return None;
+            return Err(StatementReferenceTransferRefusal::StatementEffects);
         };
-        Some((state, index, prefix, effects))
+        Ok((state, index, prefix, effects))
     }
 
     /// A bare reference-local replacement changes its binding, not the storage
@@ -1164,7 +1178,7 @@ impl<'program> CallFrameResolver<'program> {
         root: SymbolHandle,
         path: &[PlaceSegment],
     ) -> bool {
-        let Some((_, _, prefix, transfers)) = self.statement_reference_transfer(machine, statement)
+        let Ok((_, _, prefix, transfers)) = self.statement_reference_transfer(machine, statement)
         else {
             return false;
         };

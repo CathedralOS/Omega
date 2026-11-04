@@ -524,9 +524,12 @@ fn retire_replaced_carrier_loans(
     replacement: Option<&super::loans::CarrierReplacement>,
     current: &mut Vec<StateLoanTracker>,
 ) {
-    if let Some(effects) = call_frames
-        .and_then(|frames| frames.stored_reference_fallthrough_effects(machine, statement))
-    {
+    // Unresolved or unavailable effects cannot end an earlier backing loan.
+    if let Some(effects) = call_frames.and_then(|frames| {
+        frames
+            .stored_reference_fallthrough_effects(machine, statement)
+            .ok()
+    }) {
         // Exact effects install a complete post-call descriptor, including
         // preservation alternatives. Retire the former occurrence even when
         // one route kept its value; keeping both would turn alternatives into
