@@ -63,15 +63,17 @@ fn preserved_transfer(
     }
     let completed = control.operands.get(value);
     let mut source = completed;
-    let mut casts = 0;
+    let mut source_handle = value;
+    let mut visited = std::collections::HashSet::new();
+    let mut transferred = false;
     while let Some(expression) = crate::value_preserving_cast_operand(
         program,
         source.state_symbol,
         source.statement_index,
         source.expression,
     ) {
-        if casts == 64 {
-            return Err("owned transfer exceeds its captured cast chain");
+        if !visited.insert(source_handle) {
+            return Err("owned transfer has a cyclic captured cast chain");
         }
         let [input] = control
             .operands
@@ -91,10 +93,15 @@ fn preserved_transfer(
         {
             return Err("owned cast lost its exact evaluated operand");
         }
+        source_handle = source
+            .evaluated_inputs
+            .handles()
+            .next()
+            .ok_or("owned cast has no evaluated operand handle")?;
         source = input;
-        casts += 1;
+        transferred = true;
     }
-    if casts == 0 {
+    if !transferred {
         return Err("completed value is not an owned qualification transfer");
     }
     let mut place = crate::canonical_place_from_expression_in_state(
@@ -104,18 +111,26 @@ fn preserved_transfer(
         source.expression,
     )
     .ok_or("owned input has no exact semantic place")?;
-    let mut owned = crate::ownership_place_from_expression_in_state(
+    let owning_source = crate::ownership_source_expression(
         program,
         completed.state_symbol,
         completed.statement_index,
         completed.expression,
+    );
+    if owning_source != source.expression {
+        return Err("owned transfer lost its captured ownership source");
+    }
+    // Erasure keeps a new semantic root. Its input still names the original
+    // membership, while the owning-source query selects the storage consumed.
+    let mut owned = crate::ownership_place_from_expression_in_state(
+        program,
+        completed.state_symbol,
+        completed.statement_index,
+        owning_source,
     )
     .ok_or("owned transfer has no exact source place")?;
     place.segments.extend_from_slice(path);
     owned.segments.extend_from_slice(path);
-    if place != owned {
-        return Err("owned transfer and captured input name different places");
-    }
     for length in 0..=path.len() {
         let reference = crate::project_type_reference_from_segments(
             program,
@@ -144,7 +159,7 @@ fn preserved_transfer(
                 program,
                 control,
                 completed.storage_snapshot,
-                &place,
+                &owned,
                 &[source.storage_snapshot],
                 super::StoredObservation::InlineContents,
             ))
@@ -194,6 +209,9 @@ fn preserved_transfer(
     {
         return Err("owned transfer is not an actual completed consumer operand");
     }
+    if completed.evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
+        return Err("owned transfer has no actual evaluation lane");
+    }
     let mut identity = None;
     let permissions = facts
         .flow
@@ -207,7 +225,8 @@ fn preserved_transfer(
         // carrier's multiplicity or the projection's numeric contents.
         if event.machine_symbol != machine.symbol
             || event.state_symbol != completed.state_symbol
-            || event.expression != completed.expression
+            || event.expression != source.expression
+            || event.evaluation != completed.evaluation
             || event.root != owned.root
             || facts.flow.ownership.segments.span_or_empty(event.segments) != owned.segments
         {
@@ -234,11 +253,6 @@ fn preserved_transfer(
         };
         if statement != completed.statement_index || event.kind != PermissionEventKind::Transfer {
             continue;
-        }
-        if completed.evaluation == checked_trees::FlowPermissionEvaluation::Unknown
-            || event.evaluation != completed.evaluation
-        {
-            return Err("owned transfer belongs to another evaluation lane");
         }
         if event.access != PermissionAccess::Owned
             || !event.obligation_live

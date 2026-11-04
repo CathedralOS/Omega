@@ -79,8 +79,8 @@ machine main() crashes Trap {
     }
     machine partition(vacant: Extent in Granted & Vacant) requires vacant.length == CAPACITY {
         let parts: VacantExtentParts = split_vacant_extent(vacant, 32);
-        let first: Extent in Granted & Vacant = transport(parts.taken, true);
-        let second: Extent in Granted & Vacant = transport(parts.rest, false);
+        let first: Extent in Granted & Vacant = transport(parts.taken);
+        let second: Extent in Granted & Vacant = transport(parts.rest);
         transition first.length == 32 && second.length == 32 {
             true -> done(first, second)
             false -> bad()
@@ -90,7 +90,7 @@ machine main() crashes Trap {
     machine bad() { crash Trap; }
 }
 
-machine transport(storage: Extent in Granted & Vacant, choose: bool) -> Extent in Granted & Vacant crashes Trap { let retained: Extent in Granted & Vacant = storage; exercise(retained) }
+machine transport(storage: Extent in Granted & Vacant) -> Extent in Granted & Vacant crashes Trap { let retained: Extent in Granted & Vacant = storage; exercise(retained) }
 
 machine exercise(vacant: Extent in Granted & Vacant) -> Extent in Granted & Vacant crashes Trap {
     transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(vacant, Word { prefix: 101, value: 17, suffix: 103 }) {
