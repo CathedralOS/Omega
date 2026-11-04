@@ -51,7 +51,11 @@ pub(crate) fn try_desugar_atomic_let(
     // A single attempt establishes a whole sum value, not an observed-prior
     // scalar placeholder. Keep the authored receiver and value operands in
     // one local initializer; the ordering arguments become proof-static data.
-    if call.target.as_str(syntax_trees) == "compare_exchange_once" {
+    if let Some(observation) =
+        language_core::atomic::AtomicCompareExchangeObservationAxis::single_attempt_member(
+            call.target.as_str(syntax_trees),
+        )
+    {
         let [expected, replacement, success, failure] = arguments else {
             return None;
         };
@@ -73,8 +77,10 @@ pub(crate) fn try_desugar_atomic_let(
             result: ExpressionHandle::invalid(),
             ordering,
             result_custody:
-                language_core::atomic::AtomicExpressionResultCustody::ObservingCompareExchangeOnce(
-                    language_core::atomic::AtomicCompareExchangeOnceResultCustody::CANONICAL,
+                language_core::atomic::AtomicExpressionResultCustody::CompareExchangeOnce(
+                    language_core::atomic::AtomicCompareExchangeOnceResultCustody::for_observation(
+                        observation,
+                    ),
                 ),
         }));
         let statement = syntax_trees

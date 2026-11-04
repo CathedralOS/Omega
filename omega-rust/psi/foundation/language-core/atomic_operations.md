@@ -26,7 +26,8 @@ attribution even when the source has one primitive event.
 ## Serial producer route
 
 The parser's arithmetic-shaped carrier is decoded once, by
-`validation::atomic_load_carrier` / `atomic_assignment_carrier`, into the
+`validation::atomic_load_carrier`, `atomic_assignment_carrier`, or
+`atomic_once_carrier`, into the
 sealed operation, the accessed place, and the authored operands. Checking
 plans one `CheckedAtomicAccessPlan` per operation (typed-trees-to-checked-trees
 `execution/terminal_unit/atomic_operations.rs`): a writing carrier's result
@@ -45,8 +46,24 @@ Single-attempt compare-exchange binds one structural local directly. Its retaine
 receiver and two operands are an evaluation roster, not an ordinary call. The
 source checker requires the sealed canonical outcome with the exact resident
 type; Terminal admission rejoins its three-case schema, operand types and legal
-orderings. Serial execution and bounded CMPXCHG/LSE CAS retain the third case
-without inventing spurious failure.
+orderings. Both single-attempt families share this event. The retained result
+contract distinguishes observing failure payloads from non-observing proposal
+payloads, and the latter's successful displaced value. The complete result has
+its declared multiplicity: the observing scalar outcome is copyable, while the
+non-observing outcome remains affine even for a copyable scalar resident.
+
+The concrete non-observing scalar route uses the dedicated cell's builtin
+identity representation for its exact resident and comparison key. The
+receiving outcome type never supplies that correspondence. Custom keys,
+user-selected encoding laws, affine residents and placed-only permissions need
+their own admission evidence; this scalar route must not infer them.
+
+Serial execution commits a matching attempt and does not invent interference.
+Native selection keeps the instruction's three-way tag: x86 CMPXCHG is decisive
+in that attempt, while an AArch64 exclusive store may leave a matching attempt
+Uncommitted. Failure returns the proposal for the non-observing family, and
+commit returns the instruction-observed displaced value. Equality of the key
+and prior does not substitute for the native commitment tag.
 
 Omega's terminal-to-abstract lowering (`machine/operation/atomic_events.rs`)
 keeps each Terminal event as one `AbstractOperation::AtomicEvent` at the same

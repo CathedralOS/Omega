@@ -62,6 +62,7 @@ pub enum CheckedAtomicEvent {
         replacement: CheckedCallScalarArgument,
     },
     CompareExchangeOnce {
+        custody: language_core::atomic::AtomicCompareExchangeOnceResultCustody,
         success: MemoryOrdering,
         failure: MemoryOrdering,
         expected: CheckedCallScalarArgument,

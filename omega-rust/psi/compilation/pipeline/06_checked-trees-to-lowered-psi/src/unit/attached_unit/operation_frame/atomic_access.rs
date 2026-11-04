@@ -137,8 +137,12 @@ impl OperationFrame<'_, '_> {
                 failure: *failure,
             },
             CheckedAtomicEvent::CompareExchangeOnce {
-                success, failure, ..
+                success,
+                failure,
+                custody,
+                ..
             } => AtomicAccessEvent::CompareExchangeOnce {
+                custody: *custody,
                 expected: operand(0)?,
                 replacement: operand(1)?,
                 success: *success,

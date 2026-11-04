@@ -103,9 +103,11 @@ pub enum AtomicAccessEvent {
         success: MemoryOrdering,
         failure: MemoryOrdering,
     },
-    /// One observing attempt returning the canonical structural outcome,
-    /// including Uncommitted. It has no scalar observed-prior result.
+    /// One attempt returning its complete canonical outcome, including
+    /// Uncommitted. The result rules distinguish resident and proposal payloads;
+    /// the instruction's internal comparison is not an ordinary value read.
     CompareExchangeOnce {
+        custody: language_core::atomic::AtomicCompareExchangeOnceResultCustody,
         expected: ValueId,
         replacement: ValueId,
         success: MemoryOrdering,
@@ -128,10 +130,9 @@ impl AtomicAccessEvent {
     pub const fn single_attempt_custody(
         self,
     ) -> Option<language_core::atomic::AtomicCompareExchangeOnceResultCustody> {
-        if matches!(self, Self::CompareExchangeOnce { .. }) {
-            Some(language_core::atomic::AtomicCompareExchangeOnceResultCustody::CANONICAL)
-        } else {
-            None
+        match self {
+            Self::CompareExchangeOnce { custody, .. } => Some(custody),
+            _ => None,
         }
     }
     /// The proof-static ordering plan this event retains.
