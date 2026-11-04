@@ -19542,12 +19542,9 @@ pass/blockexec/blocking_executor_custody_claims_compile checked 4916ms check-tar
 pass/blockexec/runtime_selected_worker_body_exit checked 3933ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 2923ms @ccdb99ca2214
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 2920ms @ccdb99ca2214
-pass/borrow/mutable_selector_literal_replacement_exit rejected 2745ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove index `chosen` is within length 4 in main::entry
-pass/borrow/mutable_selector_rhs_snapshot_exit rejected 2768ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove index `chosen` is within length 4 in main::entry
-pass/borrow/mutable_selector_unchanged_exit rejected 3123ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove index `other` is within length 4 in main::entry
+pass/borrow/mutable_selector_literal_replacement_exit checked 4469ms check-target:macos_arm64 @1ac79518de3d
+pass/borrow/mutable_selector_rhs_snapshot_exit checked 4528ms check-target:macos_arm64 @1ac79518de3d
+pass/borrow/mutable_selector_unchanged_exit checked 4428ms check-target:macos_arm64 @1ac79518de3d
 pass/borrow/named_operator_disjoint_argument_preserves_bound checked 6477ms @12385533695f
 pass/borrow/nested_reference_parameter_referent_assignment checked 2407ms @ccdb99ca2214
 pass/borrow/owned_capture_replaced_reference checked 2177ms @ccdb99ca2214
@@ -23842,10 +23839,8 @@ pass/facts/may_write_codec_argument_through_call_result_exit rejected 3011ms che
 	cannot prove requires contract for call kept_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/facts/may_write_codec_argument_through_const_name_exit rejected 3061ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call read_at from main: other < 4 && items[..].len == 4 (needs fact `index < 4 && items.len == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/may_write_codec_argument_through_field_exit rejected 3212ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove index `bounds.other` is within length 4 in main::entry
-pass/facts/may_write_codec_argument_through_local_exit rejected 2131ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove index `other` is within length 4 in main::entry
+pass/facts/may_write_codec_argument_through_field_exit checked 4446ms check-target:macos_arm64 @1ac79518de3d
+pass/facts/may_write_codec_argument_through_local_exit checked 4552ms check-target:macos_arm64 @1ac79518de3d
 pass/facts/may_write_codec_argument_through_match_join_exit rejected 2913ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call joined_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/facts/may_write_codec_argument_through_other_machine_exit rejected 2831ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -23921,10 +23916,8 @@ pass/facts/may_write_stored_rebind_through_call_result_exit rejected 3137ms chec
 	cannot prove requires contract for call kept_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/facts/may_write_stored_rebind_through_const_name_exit rejected 2578ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call read_at from main: other < 4 && items[..].len == 4 (needs fact `index < 4 && items.len == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/may_write_stored_rebind_through_field_exit rejected 2575ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove index `bounds.other` is within length 4 in main::entry
-pass/facts/may_write_stored_rebind_through_local_exit rejected 3064ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove index `other` is within length 4 in main::entry
+pass/facts/may_write_stored_rebind_through_field_exit checked 4494ms check-target:macos_arm64 @1ac79518de3d
+pass/facts/may_write_stored_rebind_through_local_exit checked 4638ms check-target:macos_arm64 @1ac79518de3d
 pass/facts/may_write_stored_rebind_through_match_join_exit rejected 2364ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call joined_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/facts/may_write_stored_rebind_through_other_machine_exit rejected 2974ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214

@@ -474,6 +474,9 @@ pub(crate) fn finalize_checked_authored_selections(
         {
             return false;
         }
+        if selection_is_derived_wire_codec(program, **selection) {
+            return false;
+        }
         program
             .symbols
             .source_file(selection.source_span())
@@ -522,6 +525,30 @@ fn late_binding_ordinal(
                 .is_some_and(|selection| selection.target() == SelectionTarget::LateBound(binding))
         })
         .count()
+}
+
+fn selection_is_derived_wire_codec(
+    program: &dyn ::validation::CheckingInput,
+    selection: AuthoredDeclarationSelection,
+) -> bool {
+    program.machines().iter().any(|machine| {
+        program.machine_states(machine).iter().any(|state| {
+            program
+                .statement_table
+                .iter_statements(state.statement_nodes)
+                .any(|(_, statement)| match statement {
+                    typed_trees::statement::StatementNode::Call(call)
+                        if call.authored_call_selection == Some(selection.occurrence_id()) =>
+                    {
+                        validation::compiler_operations::statement_wire_codec_intrinsic(
+                            program, call,
+                        )
+                        .is_some()
+                    }
+                    _ => false,
+                })
+        })
+    })
 }
 
 /// Names the receiverless authored call target that stayed late-bound because
