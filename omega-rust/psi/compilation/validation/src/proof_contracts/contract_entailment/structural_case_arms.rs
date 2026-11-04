@@ -443,9 +443,19 @@ fn local_symbol_is_never_branched_on_in_remaining_prefix(
     if !local_symbol.is_valid() {
         return false;
     }
+    // A compiler-created binding (the generated transition subject, operand
+    // captures and similar, all spelled `__..`) forwards the bound value
+    // unchanged; a branch on it is a branch on this local. Authored locals
+    // do not forward mentions: a read of one is an explicit program fact,
+    // not value plumbing.
+    let mut forwarded = vec![local_symbol];
     let mentions_local =
-        |root: ExpressionHandle| expression_mentions_symbol(program, root, local_symbol);
-    let mentions_local_in_match = |root: ExpressionHandle| {
+        |root: ExpressionHandle, forwarded: &[SymbolHandle]| {
+            forwarded
+                .iter()
+                .any(|symbol| expression_mentions_symbol(program, root, *symbol))
+        };
+    let mentions_local_in_match = |root: ExpressionHandle, forwarded: &[SymbolHandle]| {
         if !root.is_valid() {
             return false;
         }
@@ -458,7 +468,7 @@ fn local_symbol_is_never_branched_on_in_remaining_prefix(
         expressions.into_iter().any(|expression| {
             matches!(
                 program.expression_table.expression(expression),
-                ExpressionNode::Match(_) if mentions_local(expression)
+                ExpressionNode::Match(_) if mentions_local(expression, forwarded)
             )
         })
     };
@@ -467,7 +477,7 @@ fn local_symbol_is_never_branched_on_in_remaining_prefix(
         if in_state_prefix_only {
             if let StatementNode::Transition(transition) = stmt {
                 if let TransitionGuardNode::When(guard) = transition.guard
-                    && mentions_local(guard)
+                    && mentions_local(guard, &forwarded)
                 {
                     return false;
                 }
@@ -476,13 +486,13 @@ fn local_symbol_is_never_branched_on_in_remaining_prefix(
         } else {
             if pos + 1 == execution.len()
                 && let StatementNode::Expression(expr) = stmt
-                && mentions_local(*expr)
+                && mentions_local(*expr, &forwarded)
             {
                 return false;
             }
             if let StatementNode::Transition(transition) = stmt {
                 if let TransitionGuardNode::When(guard) = transition.guard
-                    && mentions_local(guard)
+                    && mentions_local(guard, &forwarded)
                 {
                     return false;
                 }
@@ -491,16 +501,23 @@ fn local_symbol_is_never_branched_on_in_remaining_prefix(
                         .tables
                         .statement_table
                         .transition_target(transition.target)
-                    && mentions_local(*target)
+                    && mentions_local(*target, &forwarded)
                 {
                     return false;
                 }
             }
         }
         for (_, root) in program.tables.expression_roots(stmt) {
-            if mentions_local_in_match(root) {
+            if mentions_local_in_match(root, &forwarded) {
                 return false;
             }
+        }
+        if let StatementNode::LocalData(local) = stmt
+            && local.name.as_str().starts_with("__")
+            && let Some(initializer) = local.ordinary_value_initializer()
+            && mentions_local(initializer, &forwarded)
+        {
+            forwarded.push(local.symbol);
         }
     }
     true

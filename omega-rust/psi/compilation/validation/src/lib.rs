@@ -256,7 +256,8 @@ pub use proof_contracts::bound_expression_meaning::{
     has_builtin_domain_decomposed_guard_meaning, has_builtin_or_sealed_float_comparison_meaning,
     has_exact_case_membership_meaning, has_exact_data_case_membership_meaning,
     has_exact_declaration_case_membership_meaning, has_exact_domain_case_membership_meaning,
-    has_exact_integer_domain_subject, sealed_float_comparison, sealed_float_comparison_declaration,
+    has_exact_integer_domain_subject, match_result_unique_arm, sealed_float_comparison,
+    sealed_float_comparison_declaration,
 };
 pub use proof_contracts::contextual_identity::{
     contextual_identity_subject_type, contextual_proposition_children,
