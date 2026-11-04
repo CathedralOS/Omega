@@ -3,6 +3,50 @@
 mod context;
 pub use context::ProviderPlanningContext;
 
+/// An inline member can repeat its inherited requirement to identify an
+/// overload. Checking still needs the authored clause and its complete type
+/// and lifetime application. Provider discovery counts that relation once
+/// only when it is the unique exact repeat of the map's owned row.
+pub fn independent_satisfactions<'program>(
+    typed: &'program crate::TypedTrees,
+    machine: &'program crate::machine::Machine,
+) -> impl Iterator<Item = &'program crate::machine::TraitConformance> + 'program {
+    let repeated = owned_requirement_clause(typed, machine);
+    typed
+        .machine_trait_conformances(machine)
+        .iter()
+        .enumerate()
+        .filter(move |(ordinal, _)| Some(*ordinal) != repeated)
+        .map(|(_, edge)| edge)
+}
+
+fn owned_requirement_clause(
+    typed: &crate::TypedTrees,
+    machine: &crate::machine::Machine,
+) -> Option<usize> {
+    use crate::trait_definition::{AppliedTraitScope, ConformanceRowSource};
+
+    let (implementation, row) = typed.owned_conformance_realization(machine.symbol)?;
+    if row.source != ConformanceRowSource::Inline {
+        return None;
+    }
+    let expected = AppliedTraitScope::from_conformance(typed, implementation)?
+        .declaring_scope(typed, row.declaring_trait)?;
+    let mut matching = typed
+        .machine_trait_conformances(machine)
+        .iter()
+        .enumerate()
+        .filter(|(_, edge)| {
+            edge.requirement_symbol == row.requirement
+                && AppliedTraitScope::from_machine_conformance(typed, machine, edge)
+                    .is_some_and(|actual| expected.same_application(typed, &actual))
+        });
+    let (ordinal, _) = matching.next()?;
+    // Separate authored clauses must still diagnose duplicate supply. Missing
+    // or different application identity likewise preserves the original edge.
+    matching.next().is_none().then_some(ordinal)
+}
+
 /// Retain every authored target origin in one exact dependency-purpose scope.
 /// Target choice remains outside this source query, including for early Build.
 pub fn provider_target_declarations(

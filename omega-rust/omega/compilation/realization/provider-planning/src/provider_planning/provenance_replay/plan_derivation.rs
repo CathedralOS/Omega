@@ -61,7 +61,9 @@ pub(crate) fn derive_provider_plans(
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
         let provider_type_package_identity = provider_type_package_identity(typed, machine);
         let provider_type_symbol = provider_type_symbol(typed, machine);
-        for clause in typed.machine_trait_conformances(machine) {
+        for clause in checked_trees::typed_trees::provider_declarations::independent_satisfactions(
+            typed, machine,
+        ) {
             if clause.requirement.is_some()
                 && checked_trees::typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
                     typed, machine, clause,
@@ -268,7 +270,9 @@ fn derive_top_level_requirement_plans(
         };
         let provider_type_package_identity = provider_type_package_identity(typed, machine);
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
-        for clause in typed.machine_trait_conformances(machine) {
+        for clause in checked_trees::typed_trees::provider_declarations::independent_satisfactions(
+            typed, machine,
+        ) {
             // The authored satisfies edge names the requirement declaration
             // the provider claims: for a generic token-machine template the
             // row retains that authored template identity because provider
@@ -387,7 +391,9 @@ fn derive_boundary_operator_plans(
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
         let provider_type_package_identity = provider_type_package_identity(typed, machine);
         let provider_type_symbol = provider_type_symbol(typed, machine);
-        for clause in typed.machine_trait_conformances(machine) {
+        for clause in checked_trees::typed_trees::provider_declarations::independent_satisfactions(
+            typed, machine,
+        ) {
             if clause.requirement.is_none() {
                 continue;
             }

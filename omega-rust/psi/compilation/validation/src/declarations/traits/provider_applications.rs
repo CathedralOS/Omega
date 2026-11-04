@@ -105,7 +105,10 @@ pub(crate) fn closed_requirement_provider_associations(
         {
             continue;
         }
-        for conformance in program.machine_trait_conformances(machine) {
+        for conformance in typed_trees::provider_declarations::independent_satisfactions(
+            program.typed_program(),
+            machine,
+        ) {
             let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
                 requirement: declared,
                 ..
@@ -188,7 +191,10 @@ fn derive_provider_application_associations(
         machine.supply_mode == MachineSupplyMode::CheckedBody
             && program.machine_type_parameters(machine).is_empty()
     }) {
-        for conformance in program.machine_trait_conformances(provider) {
+        for conformance in typed_trees::provider_declarations::independent_satisfactions(
+            program.typed_program(),
+            provider,
+        ) {
             if conformance.external_binding.is_some() {
                 continue;
             }

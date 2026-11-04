@@ -126,7 +126,7 @@ pub(super) fn prepare(
                 .iter()
                 .any(|receipt| receipt.instance == machine.symbol)
     }) {
-        for edge in typed.machine_trait_conformances(machine) {
+        for edge in typed_trees::provider_declarations::independent_satisfactions(typed, machine) {
             let schema = if let Some(scope) =
                 AppliedTraitScope::from_machine_conformance(typed, machine, edge)
             {

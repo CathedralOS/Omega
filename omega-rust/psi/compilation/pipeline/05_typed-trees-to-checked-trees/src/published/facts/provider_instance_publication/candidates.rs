@@ -110,12 +110,17 @@ fn candidates(
             // These complete associations were admitted before publication.
             // Their clause owner need not be the public selecting map, and a
             // closed specialization need not repeat its authored edge.
-            for association in checked.facts.provider_closed_requirements.iter().filter(|row| {
-                row.provider == machine.symbol
-                    && row.template == application.template
-                    && row.closed_requirement == signature.symbol
-                    && row.receiving_application == application.trait_application_identity
-            }) {
+            for association in checked
+                .facts
+                .provider_closed_requirements
+                .iter()
+                .filter(|row| {
+                    row.provider == machine.symbol
+                        && row.template == application.template
+                        && row.closed_requirement == signature.symbol
+                        && row.receiving_application == application.trait_application_identity
+                })
+            {
                 declarations.push(CheckedProviderCandidateDeclaration {
                     provider: provider_declaration(typed, association)?,
                     receiving: receiving_handle(publication, association)?,
@@ -134,9 +139,7 @@ fn candidates(
         }
         return Ok(declarations);
     }
-    let supplies = typed
-        .machine_trait_conformances(machine)
-        .iter()
+    let supplies = typed_trees::provider_declarations::independent_satisfactions(typed, machine)
         .any(|conformance| {
             if conformance.external_binding.is_some() {
                 return false;
@@ -217,10 +220,6 @@ pub(super) fn provider_declaration(
 struct RequirementEdge {
     /// The declaration `Build::select_provider` names.
     provider: symbols::SymbolHandle,
-    /// The declaration checking keyed the retained receiving application by.
-    selecting_declaration: symbols::SymbolHandle,
-    /// The body the edge names.
-    realization: symbols::SymbolHandle,
     /// How the edge reaches a body when the candidate is not `realization`.
     reach: EdgeReach,
     /// The carrier declaration's own lifetime telescope.
@@ -344,8 +343,6 @@ fn exact_requirement_edges(
                 }
                 edges.push(RequirementEdge {
                     provider: implementation.symbol,
-                    selecting_declaration: implementation.symbol,
-                    realization: realization.symbol,
                     reach: if realization.target_family_interface {
                         // The row names a target family's head, the declaration
                         // every member body implements; each member is a
@@ -377,8 +374,6 @@ fn exact_requirement_edges(
                 };
                 edges.push(RequirementEdge {
                     provider,
-                    selecting_declaration: owner.symbol,
-                    realization: owner.symbol,
                     reach: EdgeReach::Named,
                     lifetime_parameters,
                 });
@@ -397,10 +392,8 @@ fn declares_exact_requirement(
     definition: &TraitDefinition,
     template: symbols::SymbolHandle,
 ) -> bool {
-    typed
-        .machine_trait_conformances(machine)
-        .iter()
-        .any(|conformance| {
+    typed_trees::provider_declarations::independent_satisfactions(typed, machine).any(
+        |conformance| {
             conformance.external_binding.is_none()
                 && matches!(
                     resolve_satisfied_declaration(typed, machine, conformance),
@@ -409,5 +402,6 @@ fn declares_exact_requirement(
                         requirement,
                     }) if satisfied.symbol == definition.symbol && requirement.symbol == template
                 )
-        })
+        },
+    )
 }

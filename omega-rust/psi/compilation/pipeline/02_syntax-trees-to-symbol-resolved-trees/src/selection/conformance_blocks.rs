@@ -94,7 +94,6 @@ pub(crate) fn normalize_closed_conformance_blocks(
             .next()
             .expect("one normalized row map per conformance");
     });
-    remove_inline_row_disambiguation_edges(program);
     let selected_realizations = program
         .conformances
         .iter()
@@ -934,80 +933,4 @@ fn resolve_realizations<'catalog>(
         candidates.retain(|(machine, _)| machine.name == row.realization_name);
     }
     candidates
-}
-
-/// A closed inline row already records its inherited requirement. Keep every
-/// independent exact satisfaction, removing only the same resolved relation
-/// used to disambiguate that row. This avoids deriving two provider candidates
-/// for one map without dropping an independently authored obligation.
-fn remove_inline_row_disambiguation_edges(program: &mut SymbolResolvedTrees) {
-    // Arena slots locate buckets; the full handle still authenticates each
-    // relation, including its generation.
-    let mut rows = Vec::<Vec<(SymbolHandle, SymbolHandle, DiagnosticName)>>::new();
-    for implementation in program.conformances.iter() {
-        for row in implementation
-            .rows
-            .iter()
-            .filter(|row| row.source == ConformanceRowSource::Inline)
-        {
-            let slot = row.realization_machine.arena_index() as usize;
-            if rows.len() <= slot {
-                rows.resize_with(slot + 1, Vec::new);
-            }
-            rows[slot].push((
-                row.realization_machine,
-                row.declaring_trait,
-                row.requirement_name.clone(),
-            ));
-        }
-    }
-    let replacements = program
-        .machines
-        .iter()
-        .map(|machine| {
-            let original = program.machine_trait_conformances(machine.satisfies);
-            let retained = original
-                .iter()
-                .filter(|edge| {
-                    !rows
-                        .get(machine.symbol.arena_index() as usize)
-                        .is_some_and(|rows| {
-                            rows.iter().any(|(member, owner, requirement)| {
-                                *member == machine.symbol
-                                    && edge.symbol == *owner
-                                    && edge.requirement.as_ref() == Some(requirement)
-                            })
-                        })
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-            (
-                machine.satisfies,
-                (retained.len() != original.len()).then_some(retained),
-            )
-        })
-        .collect::<Vec<_>>();
-    let mut spans = replacements
-        .into_iter()
-        .map(|(original, retained)| {
-            let Some(retained) = retained else {
-                return original;
-            };
-            let mut span = arena::HandleSpan::empty();
-            for edge in retained {
-                program
-                    .tables
-                    .declarations
-                    .machine_trait_conformances
-                    .append_to_span(&mut span, edge);
-            }
-            span
-        })
-        .collect::<Vec<_>>()
-        .into_iter();
-    program.machines.for_each_mut(|machine| {
-        machine.satisfies = spans
-            .next()
-            .expect("one satisfaction span per retained machine");
-    });
 }
