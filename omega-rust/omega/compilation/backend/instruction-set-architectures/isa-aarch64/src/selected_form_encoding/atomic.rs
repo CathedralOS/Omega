@@ -1,6 +1,6 @@
-//! Baseline AArch64 atomic events. Loads/stores use LDAR/STLR; decisive
-//! updates retry an exclusive store and return that successful attempt's
-//! observation. CAS exits without a store on mismatch. Once remains exactly
+//! Baseline AArch64 atomic events. Loads/stores use LDAR/STLR. Fetch/swap
+//! and strong compare-exchange retry failed exclusive stores and return the
+//! final attempt's observation. CAS exits without a store on mismatch. Once remains exactly
 //! one attempt. Full barriers preserve every admitted source ordering, while
 //! encoded effects expose the retry work rather than promising fixed work.
 

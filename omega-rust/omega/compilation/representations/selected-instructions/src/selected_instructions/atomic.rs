@@ -103,7 +103,7 @@ impl AtomicOperation {
     }
 
     /// Work retained by the canonical native realization. Baseline AArch64
-    /// uses exclusive retry for decisive updates; a single attempt never
+    /// retries fetch/swap and strong compare-exchange; a single attempt never
     /// acquires that progress behavior. X86 retries only bitwise fetches.
     pub const fn retries_until_commit(self, architecture: target::Architecture) -> bool {
         self.is_bitwise_fetch()

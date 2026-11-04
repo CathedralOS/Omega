@@ -1,4 +1,4 @@
-//! A decisive exchange retries failed exclusive stores, never a mismatching
+//! Strong compare-exchange retries failed exclusive stores, never a mismatching
 //! comparison. The returned prior belongs to the attempt that either commits
 //! or observes the mismatch. Expected/replacement remain unchanged across all
 //! attempts, and narrow comparisons use only their stored representation.

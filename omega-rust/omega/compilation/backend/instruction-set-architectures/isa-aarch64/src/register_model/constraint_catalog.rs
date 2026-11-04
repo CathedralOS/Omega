@@ -824,7 +824,7 @@ pub fn aarch64_register_constraint_catalog(
         });
     }
     // Retry inputs, observation and scratch stay distinct across failures.
-    // Decisive CAS also clobbers NZCV; Once keeps its own bounded roster.
+    // Strong compare-exchange also clobbers NZCV; Once keeps its own bounded roster.
     for (key, names, comparison) in [
         (
             crate::AARCH64_ATOMIC_UPDATE,
