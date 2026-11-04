@@ -8575,24 +8575,24 @@ fail/facts/fixed_array_eight_elem_index_bound_through_target_body_rejected rejec
 	cannot prove index `index` is within length 8 in read_element::entry
 	cannot prove index `index` is within length 8 in read_element::entry
 	cannot prove index `index` is within length 8 in read_element::entry
-fail/facts/fixed_array_layout_geometry_through_call_result_rejected rejected 3375ms unexpected @ccdb99ca2214
+fail/facts/fixed_array_layout_geometry_through_call_result_rejected rejected 6082ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/fixed_array_layout_geometry_through_const_name_rejected rejected 3798ms unexpected @ccdb99ca2214
+fail/facts/fixed_array_layout_geometry_through_const_name_rejected rejected 6028ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/fixed_array_layout_geometry_through_field_rejected rejected 3468ms unexpected @ccdb99ca2214
+fail/facts/fixed_array_layout_geometry_through_field_rejected rejected 4573ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/fixed_array_layout_geometry_through_local_rejected rejected 2925ms unexpected @ccdb99ca2214
+fail/facts/fixed_array_layout_geometry_through_local_rejected rejected 4577ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/fixed_array_layout_geometry_through_match_join_rejected rejected 3504ms unexpected @ccdb99ca2214
+fail/facts/fixed_array_layout_geometry_through_match_join_rejected rejected 4762ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/fixed_array_layout_geometry_through_other_machine_rejected rejected 3570ms unexpected @ccdb99ca2214
+fail/facts/fixed_array_layout_geometry_through_other_machine_rejected rejected 4638ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/fixed_array_layout_geometry_through_other_state_rejected rejected 1488ms unexpected @ccdb99ca2214
 	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/fixed_array_layout_geometry_through_parameter_rejected rejected 3182ms unexpected @ccdb99ca2214
+fail/facts/fixed_array_layout_geometry_through_parameter_rejected rejected 4629ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/fixed_array_layout_geometry_through_target_body_rejected rejected 2914ms unexpected @ccdb99ca2214
+fail/facts/fixed_array_layout_geometry_through_target_body_rejected rejected 4618ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_call_result_rejected rejected 3082ms expected @ccdb99ca2214
 	cannot prove index `picked_idx` is within length 1024 in read_element::entry
@@ -10569,24 +10569,24 @@ fail/facts/nested_record_field_borrow_bound_through_target_body_rejected rejecte
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_layout_geometry_through_call_result_rejected rejected 3312ms unexpected @ccdb99ca2214
+fail/facts/nested_record_layout_geometry_through_call_result_rejected rejected 4567ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/nested_record_layout_geometry_through_const_name_rejected rejected 3452ms unexpected @ccdb99ca2214
+fail/facts/nested_record_layout_geometry_through_const_name_rejected rejected 4436ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/nested_record_layout_geometry_through_field_rejected rejected 3618ms unexpected @ccdb99ca2214
+fail/facts/nested_record_layout_geometry_through_field_rejected rejected 4604ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/nested_record_layout_geometry_through_local_rejected rejected 3899ms unexpected @ccdb99ca2214
+fail/facts/nested_record_layout_geometry_through_local_rejected rejected 4581ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/nested_record_layout_geometry_through_match_join_rejected rejected 3733ms unexpected @ccdb99ca2214
+fail/facts/nested_record_layout_geometry_through_match_join_rejected rejected 4634ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/nested_record_layout_geometry_through_other_machine_rejected rejected 3477ms unexpected @ccdb99ca2214
+fail/facts/nested_record_layout_geometry_through_other_machine_rejected rejected 4612ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/nested_record_layout_geometry_through_other_state_rejected rejected 1402ms unexpected @ccdb99ca2214
 	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_layout_geometry_through_parameter_rejected rejected 3221ms unexpected @ccdb99ca2214
+fail/facts/nested_record_layout_geometry_through_parameter_rejected rejected 5005ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/nested_record_layout_geometry_through_target_body_rejected rejected 3621ms unexpected @ccdb99ca2214
+fail/facts/nested_record_layout_geometry_through_target_body_rejected rejected 4964ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/nested_record_value_through_call_result_rejected rejected 1322ms expected @ccdb99ca2214
 	exact arithmetic in machine `sum_envelope` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -12983,24 +12983,24 @@ fail/facts/slice_view_element_read_bound_through_target_body_rejected rejected 3
 	cannot prove requires contract for call index from read_guarded: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call index from read_guarded: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call index from read_guarded: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/slice_view_layout_geometry_through_call_result_rejected rejected 4160ms unexpected @ccdb99ca2214
+fail/facts/slice_view_layout_geometry_through_call_result_rejected rejected 4664ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/slice_view_layout_geometry_through_const_name_rejected rejected 3411ms unexpected @ccdb99ca2214
+fail/facts/slice_view_layout_geometry_through_const_name_rejected rejected 4660ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/slice_view_layout_geometry_through_field_rejected rejected 3971ms unexpected @ccdb99ca2214
+fail/facts/slice_view_layout_geometry_through_field_rejected rejected 4577ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/slice_view_layout_geometry_through_local_rejected rejected 3613ms unexpected @ccdb99ca2214
+fail/facts/slice_view_layout_geometry_through_local_rejected rejected 4530ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/slice_view_layout_geometry_through_match_join_rejected rejected 3568ms unexpected @ccdb99ca2214
+fail/facts/slice_view_layout_geometry_through_match_join_rejected rejected 4643ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/slice_view_layout_geometry_through_other_machine_rejected rejected 3235ms unexpected @ccdb99ca2214
+fail/facts/slice_view_layout_geometry_through_other_machine_rejected rejected 4601ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/slice_view_layout_geometry_through_other_state_rejected rejected 1681ms unexpected @ccdb99ca2214
 	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/slice_view_layout_geometry_through_parameter_rejected rejected 3444ms unexpected @ccdb99ca2214
+fail/facts/slice_view_layout_geometry_through_parameter_rejected rejected 4700ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/slice_view_layout_geometry_through_target_body_rejected rejected 4108ms unexpected @ccdb99ca2214
+fail/facts/slice_view_layout_geometry_through_target_body_rejected rejected 4701ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/source_indexed_binary_tree_child_swap_rejected rejected 583ms unexpected @ccdb99ca2214
 	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `joined` state `joined::entry`
