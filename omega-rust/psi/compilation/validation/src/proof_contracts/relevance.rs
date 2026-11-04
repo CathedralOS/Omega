@@ -220,7 +220,7 @@ fn expression_is_erased_binding(
 
 /// Transition dispatch captured from an erased parameter or local.
 /// The subject is the scrutinee's proof identity, not a runtime carrier.
-fn dispatch_subject_of_erased_binding(
+pub fn dispatch_subject_of_erased_binding(
     program: &dyn CheckingInput,
     state: &typed_trees::state::State,
     local: &typed_trees::statement::TableLocalData,

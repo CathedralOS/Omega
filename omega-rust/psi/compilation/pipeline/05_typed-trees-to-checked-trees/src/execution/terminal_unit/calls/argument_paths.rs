@@ -135,11 +135,24 @@ pub(crate) fn checked_call_erased_proof_arguments(
                 call_ordinal: coordinate.call_ordinal,
                 erased_ordinal: u32::try_from(erased_ordinal).ok()?,
             };
-            let term =
-                facts
-                    .values
-                    .proof_terms
-                    .term_at(caller_state, coordinate.statement_index, role)?;
+            let term = facts
+                .values
+                .proof_terms
+                .term_at(caller_state, coordinate.statement_index, role)
+                .or_else(|| {
+                    // A transition edge records the same erased actual under
+                    // the authored parameter position. The unit-call key is
+                    // the dense proof ordinal of a direct call; both name one
+                    // formal, and a missing unit-call term is not a second
+                    // actual.
+                    facts.values.proof_terms.term_at(
+                        caller_state,
+                        coordinate.statement_index,
+                        CheckedProofTermRole::TransitionArgument {
+                            argument_ordinal: parameter.source_position,
+                        },
+                    )
+                })?;
             (proof_term_type_matches(program, caller_state, term, parameter.type_identity)
                 || instantiated_formal_matches(program, caller_state, coordinate, parameter, term))
             .then(|| term.clone())
