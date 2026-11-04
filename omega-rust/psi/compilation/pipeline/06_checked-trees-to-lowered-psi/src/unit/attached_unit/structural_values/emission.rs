@@ -1869,7 +1869,7 @@ impl Emission<'_, '_, '_> {
                     crate::emission::operation_emission::buffer::structural_result_declaration(
                         place,
                         self.structural_type,
-                        StructuralMultiplicity::Unrestricted,
+                        self.multiplicity,
                     ),
                     OperationKind::EstablishNativeCodeLayout { machine },
                 ));

@@ -538,9 +538,9 @@ impl<'program> StructuralJudge<'program> {
             crate::completed_storage::StoredOperand::Incoming(_) => {
                 stored.current_anchors.iter().any(|anchor| match anchor {
                     StorageAnchor::Incoming => true,
-                    // An unchanged input field may be read after other stores.
-                    // That read has its own observation point even though no
-                    // store supplied the field's bytes.
+                    // A followed branch can carry unchanged entry contents
+                    // across a join under a newer anchor. They still describe
+                    // this place when no later write has changed it.
                     StorageAnchor::After(cut) => preserved(*cut),
                     StorageAnchor::Store(_) | StorageAnchor::CallReturn => false,
                 })
@@ -568,6 +568,25 @@ impl<'program> StructuralJudge<'program> {
             &place,
             observation,
         );
+        if super::super::super::struct_trace()
+            && stored
+                .current_anchors
+                .iter()
+                .any(|anchor| matches!(anchor, StorageAnchor::After(_)))
+        {
+            let reaching_kind = match &reaching {
+                None | Some(crate::completed_storage::StoredOperand::Incoming(_)) => "incoming",
+                Some(crate::completed_storage::StoredOperand::Value { .. }) => "stored value",
+                Some(crate::completed_storage::StoredOperand::Alternatives(_)) => "alternatives",
+                Some(crate::completed_storage::StoredOperand::Unavailable) => "unavailable",
+            };
+            eprintln!(
+                "STRUCT anchored-storage-value owner={} stored={:?} requested={coordinate:?} anchors={:?} at={at:?} reaching={reaching_kind}",
+                self.program.symbols.display_path(self.machine_symbol, "::"),
+                stored.coordinate,
+                stored.current_anchors,
+            );
+        }
         let valid = match reaching {
             None => reached(&crate::completed_storage::StoredOperand::Incoming(
                 place.clone(),

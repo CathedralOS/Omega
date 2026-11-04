@@ -1,1 +1,3 @@
-default domain is still FALSE at a call
+cannot complete a call at statement 2 in machine `probe` state `entry`
+the `requires` facts of `reading` (data `Reading`)
+unproved; restore them first
