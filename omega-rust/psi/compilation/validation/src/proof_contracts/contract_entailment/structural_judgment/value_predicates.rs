@@ -17,6 +17,7 @@ use numerics::float_semantics_catalog::{
 };
 use numerics::literals::FloatFormat;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
+use typed_trees::operator::OperatorDefinition;
 use typed_trees::types::PrimitiveType;
 
 type FloatBoundWorld = Vec<(StructuralTerm, facts::FloatPredicate)>;
@@ -875,48 +876,55 @@ fn projected_meaning(
     primitive: PrimitiveType,
     value: StructuralTerm,
 ) -> Option<StructuralTerm> {
-    let mut candidates = program.operators().iter().filter_map(|operator| {
+    let candidates = program.operators().iter().filter_map(|operator| {
         let [namespace, name] = program.operator_path_members(operator.name) else {
             return None;
         };
         let operation =
             FloatProjectionOperation::from_source_identity(namespace.as_str(), name.as_str())?;
-        let source = crate::proof_contracts::float_projection_bindings::exact_toolchain_float_projection_primitive(
+        let (source, contract) = crate::proof_contracts::float_projection_bindings::exact_toolchain_float_projection_contract(
             program, operator, operation,
         )?;
-        (source == primitive).then_some(operator)
+        (source == primitive).then_some((operator, contract))
     });
-    let operator = candidates.next();
-    let duplicate = candidates.next();
-    if super::super::struct_trace() {
-        eprintln!(
-            "STRUCT ieee projection primitive={primitive:?} target={:?} duplicate={:?}",
-            operator.map(|operator| operator.symbol),
-            duplicate.map(|operator| operator.symbol)
-        );
-    }
-    let operator = operator?;
-    if duplicate.is_some() {
-        return None;
-    }
+    let operator = operator_for_float_catalog_contract(candidates)?;
     operator_application(program, operator, value)
 }
 
 fn nan_predicate(program: &dyn CheckingInput, meaning: StructuralTerm) -> Option<StructuralTerm> {
-    let mut candidates = program.operators().iter().filter(|operator| {
-        crate::proof_contracts::float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract(program, operator)
-            .is_some_and(|(row, _)| matches!(row.kernel(), FloatSemanticKernel::SinglePredicate(FloatSemanticPredicate::NaN)))
+    let candidates = program.operators().iter().filter_map(|operator| {
+        let (row, contract) = crate::proof_contracts::float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract(program, operator)?;
+        matches!(row.kernel(), FloatSemanticKernel::SinglePredicate(FloatSemanticPredicate::NaN))
+            .then_some((operator, contract))
     });
-    let operator = candidates.next()?;
-    if candidates.next().is_some() {
-        return None;
-    }
+    let operator = operator_for_float_catalog_contract(candidates)?;
     operator_application(program, operator, meaning)
+}
+
+/// A private checking view may retain several declarations of one sealed
+/// operation. The complete catalog contract, rather than its local symbol,
+/// determines the operation's meaning. Conflicting contracts still refuse.
+fn operator_for_float_catalog_contract<'program, Contract: Eq + std::fmt::Debug>(
+    mut candidates: impl Iterator<Item = (&'program OperatorDefinition, Contract)>,
+) -> Option<&'program OperatorDefinition> {
+    let (operator, contract) = candidates.next()?;
+    for (other, other_contract) in candidates {
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT ieee catalog target={:?} contract={contract:?} retained={:?} retained_contract={other_contract:?}",
+                operator.symbol, other.symbol
+            );
+        }
+        if other_contract != contract {
+            return None;
+        }
+    }
+    Some(operator)
 }
 
 fn operator_application(
     program: &dyn CheckingInput,
-    operator: &typed_trees::operator::OperatorDefinition,
+    operator: &OperatorDefinition,
     argument: StructuralTerm,
 ) -> Option<StructuralTerm> {
     let name = program.operator_path_members(operator.name).last()?;
