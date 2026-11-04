@@ -95,7 +95,9 @@ pub(super) fn check(
         };
         (
             AccessLifecycleOwner::Run {
-                carrier: reference,
+                carrier: program
+                    .type_reference_table
+                    .peeled_type_reference(reference),
                 storage,
                 count,
                 singleton: if operation == AccessLifecycleOperation::Initialize {
@@ -149,7 +151,9 @@ pub(super) fn check(
     };
     let owns_content = operation != AccessLifecycleOperation::View;
     Ok(AccessLifecycleStorage {
-        carrier: extent_reference,
+        carrier: program
+            .type_reference_table
+            .peeled_type_reference(extent_reference),
         base: field(program, extent, "base")?,
         length: field(program, extent, "length")?,
         granted: domain("Granted")?,
