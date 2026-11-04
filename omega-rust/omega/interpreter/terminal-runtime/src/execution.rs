@@ -32,6 +32,8 @@ mod components;
 mod entry;
 mod host_imports;
 pub use host_imports::bind_admitted_intrinsics;
+#[cfg(test)]
+mod intrinsic_custody;
 mod native_code_layouts;
 
 pub use host_imports::clock::{TerminalClockEnvironment, TerminalClockSnapshot};
