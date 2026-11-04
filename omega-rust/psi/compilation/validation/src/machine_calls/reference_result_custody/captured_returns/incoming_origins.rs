@@ -5,7 +5,7 @@
 //! admitted incoming identity before comparing its referent-relative region;
 //! otherwise the first same-typed sibling can mask the actual returning leaf.
 
-use super::{Captures, TypeReferenceHandle, frame_origin_fits_loan};
+use super::{CapturedReturnOrigin, Captures, TypeReferenceHandle, frame_origin_fits_loan};
 
 pub(super) struct IncomingLeaf {
     pub(super) carrier: TypeReferenceHandle,
@@ -72,8 +72,10 @@ impl Captures<'_> {
         &self,
         state: &typed_trees::state::State,
         loan: &checked_trees::BorrowReturnedLoanFact,
-        origin: &crate::LocalWriteSource,
+        origin: &CapturedReturnOrigin,
     ) -> bool {
+        let extent = origin.extent;
+        let origin = &origin.source;
         if loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency
             || loan.root != facts::PlaceRoot::Symbol(origin.root)
         {
@@ -82,8 +84,14 @@ impl Captures<'_> {
         let Some(region) = self.facts.borrow.access_segments.span(loan.segments) else {
             return false;
         };
+        if self.trace_return_state(state) {
+            eprintln!(
+                "CHECKSITE completion-origin-region state={:?} source={:?} extent={:?} region={:?}",
+                state.symbol, origin, extent, region
+            );
+        }
         if !loan.incoming_reference.is_valid() {
-            return frame_origin_fits_loan(origin, region);
+            return frame_origin_fits_loan(origin, extent, region);
         }
         let Some(incoming) = self.incoming_leaf(state, loan) else {
             return false;
@@ -105,6 +113,6 @@ impl Captures<'_> {
         let mut referent = origin.clone();
         referent.segments = relative.to_vec();
         referent.recasts.clear();
-        frame_origin_fits_loan(&referent, region)
+        frame_origin_fits_loan(&referent, extent, region)
     }
 }

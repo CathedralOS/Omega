@@ -242,7 +242,7 @@ impl Captures<'_> {
                     loan.root == facts::PlaceRoot::Symbol(origin.source.root)
                         && self.returned_loan_owner_path(state, loan).as_deref()
                             == Some(owner_path.as_slice())
-                        && self.origin_matches_returned_loan(state, loan, &origin.source)
+                        && self.origin_matches_returned_loan(state, loan, origin)
                 }) {
                     if leaf.source.access.borrow_access_kind()? != loan.kind {
                         return None;
@@ -268,8 +268,16 @@ impl Captures<'_> {
                 if !covered {
                     if self.trace_return_state(state) {
                         eprintln!(
-                            "CHECKSITE completion-uncovered-origin state={:?} leaf={:?} source={:?} extent={:?} loans={:?}",
-                            state.symbol, leaf.path, origin.source, origin.extent, site_loans
+                            "CHECKSITE completion-uncovered-origin state={:?} leaf={:?} source={:?} extent={:?} loans={:?} loan_segments={:?}",
+                            state.symbol,
+                            leaf.path,
+                            origin.source,
+                            origin.extent,
+                            site_loans,
+                            site_loans
+                                .iter()
+                                .map(|loan| self.facts.borrow.access_segments.span(loan.segments))
+                                .collect::<Vec<_>>()
                         );
                     }
                     return None;

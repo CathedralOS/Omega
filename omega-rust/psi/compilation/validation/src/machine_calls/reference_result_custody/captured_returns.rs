@@ -890,7 +890,7 @@ impl Captures<'_> {
                             && candidate.kind == loan.kind
                             && self.returned_loan_owner_path(state, candidate).as_deref()
                                 == Some(owner_path.as_slice())
-                            && self.origin_matches_returned_loan(state, candidate, &origin.source)
+                            && self.origin_matches_returned_loan(state, candidate, origin)
                     })
                 {
                     return None;
@@ -901,7 +901,7 @@ impl Captures<'_> {
                 .filter(|origin| {
                     origin.result_path == result_path
                         && loan.root == facts::PlaceRoot::Symbol(origin.source.root)
-                        && self.origin_matches_returned_loan(state, loan, &origin.source)
+                        && self.origin_matches_returned_loan(state, loan, origin)
                 })
                 .collect::<Vec<_>>();
             if !matching.is_empty() {
@@ -1304,12 +1304,25 @@ impl Captures<'_> {
 
 /// Match a lifetime capture in its original declaration namespace, retaining
 /// the exact presentation coordinate when the loan already captured that view.
-fn frame_origin_fits_loan(origin: &crate::LocalWriteSource, loan: &[facts::PlaceSegment]) -> bool {
+fn frame_origin_fits_loan(
+    origin: &crate::LocalWriteSource,
+    extent: ReferenceOriginExtent,
+    loan: &[facts::PlaceSegment],
+) -> bool {
     // Lifetime capture can conservatively lend a whole input region. The
     // complete body relation narrows its declaration-level origin only within
     // that captured region; it cannot pick an unrelated field or storage root.
     let within = |candidate: &[facts::PlaceSegment]| {
         captured_address_refines(candidate, loan)
+            // A checked callee may describe its result as somewhere inside
+            // this input collection. Its captured opaque window records that
+            // same region without identifying an exact address. Compare only
+            // the collection's parent path; fixed windows and other dimensions
+            // still need their own coordinates. Publication retains the extent
+            // and execution retains the formed descriptor's offset and length.
+            || (extent == ReferenceOriginExtent::WithinRegion
+                && matches!(loan.split_last(), Some((facts::PlaceSegment::OpaqueRange, parent))
+                    if captured_address_refines(candidate, parent)))
             || candidate
                 .get(..loan.len())
                 .is_some_and(|prefix| captured_address_refines(loan, prefix))
