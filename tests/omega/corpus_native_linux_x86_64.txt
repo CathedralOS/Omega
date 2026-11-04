@@ -1246,7 +1246,14 @@ pass/contracts/call_write_keeps_disjoint_guard_assert_exit built 2972ms exit:0 @
 pass/contracts/call_write_keeps_disjoint_guard_exit built 6554ms exit:24 @a92f16431042
 pass/contracts/carry_contract_decl checked 2905ms @a92f16431042
 pass/contracts/case_requires_payload_field_read_exit built 2476ms exit:0 @a92f16431042
+pass/contracts/consistent_branches_quiet_exit built 9361ms exit:0 @6be568cdb4e5
 pass/contracts/contract_declaration_boundary checked 2477ms @a92f16431042
+pass/contracts/contradictory_boolean_match_arm_exit built 9476ms exit:0 @6be568cdb4e5
+pass/contracts/contradictory_branch_call_admission_exit built 8309ms exit:0 @6be568cdb4e5
+pass/contracts/contradictory_branch_closes_obligation_exit built 8225ms exit:0 @6be568cdb4e5
+pass/contracts/contradictory_branch_result_guarantee_exit built 8209ms exit:0 @6be568cdb4e5
+pass/contracts/contradictory_match_predecessor_join_exit built 7993ms exit:0 @6be568cdb4e5
+pass/contracts/contradictory_relational_branch_exit built 7901ms exit:0 @6be568cdb4e5
 pass/contracts/current_computed_scalar_guard_exit built 6371ms exit:70 @a92f16431042
 pass/contracts/disequality_disjoin checked 2321ms @a92f16431042
 pass/contracts/disjunctive_ensures checked 2141ms @a92f16431042
@@ -1263,6 +1270,7 @@ pass/contracts/entry_case_replaced_before_call checked 2617ms @a92f16431042
 pass/contracts/float_guard_disjoint_operand_write rejected 4888ms regressed-from:built+exit:0 @a92f16431042
 	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 pass/contracts/folded_actual_requires checked 2565ms @a92f16431042
+pass/contracts/generic_branch_contract_contradiction_exit built 9441ms exit:0 @6be568cdb4e5
 pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit built 3229ms exit:0 @a92f16431042
 pass/contracts/guard_conjunct_survives_disjoint_state_write_exit built 6964ms exit:24 @a92f16431042
 pass/contracts/indexed_crash_dense_scalar_namespace built 2296ms exit:0 @a92f16431042
@@ -1305,6 +1313,7 @@ pass/contracts/saved_call_case_guarantee_requires_exit built 2419ms exit:0 @a92f
 pass/contracts/saved_case_guarantee checked 2340ms @a92f16431042
 pass/contracts/selected_storage_contract_exit built 2885ms exit:0 @a92f16431042
 pass/contracts/shared_field_current_arithmetic checked 1439ms @a92f16431042
+pass/contracts/specialized_branch_selection_quiet_exit built 7614ms exit:0 @6be568cdb4e5
 pass/contracts/strict_clause_terminated_headers checked 1386ms @a92f16431042
 pass/contracts/terminal_contract checked 2597ms @a92f16431042
 pass/control_flow/affine_call_result_state_transfer_exit built 6460ms exit:70 @a92f16431042
@@ -4819,6 +4828,7 @@ pass/facts/unsigned_shift_right_bound_through_other_machine_exit built 3123ms ex
 pass/facts/unsigned_shift_right_bound_through_other_state_exit built 2648ms exit:0 @a92f16431042
 pass/facts/unsigned_shift_right_bound_through_parameter_exit built 3027ms exit:0 @a92f16431042
 pass/facts/unsigned_shift_right_bound_through_target_body_exit built 3738ms exit:0 @a92f16431042
+pass/facts/value_location_alignment_contract_field_exit built 8282ms exit:0 @8d6537e9a051
 pass/facts/view_extent_after_write_through_call_result_exit built 3003ms exit:0 @a92f16431042
 pass/facts/view_extent_after_write_through_const_name_exit built 3776ms exit:0 @a92f16431042
 pass/facts/view_extent_after_write_through_field_exit incomplete 2653ms regressed-from:built+exit:0 @a92f16431042
