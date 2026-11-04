@@ -21420,6 +21420,8 @@ fail/generics/runtime_value_recipe_wrong_carrier rejected 1051ms expected @ccdb9
 	value parameter `Count` of `Index` requires `u64`, but runtime subject `flag` has a different carrier
 fail/generics/runtime_value_recipe_wrong_evidence_namespace rejected 741ms expected @ccdb99ca2214
 	machine `probe` conformance-evidence call has no unique exact requirement: its selected target is not a requirement state
+fail/generics/selected_boolean_policy_applied_contract_wrong_argument rejected 607ms @e7ad8aab1953+wt
+	machine `main` state `entry` value call to `apply` violates required fact `Callback(value) == value`: the instantiated fact is structurally false (`37 == 38`)
 fail/generics/selected_map_capture_wrong_result_region rejected 2001ms unexpected @ccdb99ca2214
 	cleanup effect preparation for `invoke$specialized$d4f0094e26d9f87c$0` requires a complete specialization of `Selected::borrow`
 fail/generics/selected_member_value_bound rejected 2059ms expected @ccdb99ca2214
@@ -23205,6 +23207,8 @@ fail/proofs/scalar_field_snapshot_selector_replaces_collection rejected 1917ms e
 fail/proofs/scalar_state_return_outside_byte_class rejected 1935ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from Main::write_byte: main.bytes in [u8]::Utf8 (invalidated by prior mutation of main.bytes[0]; main.bytes is part of [u8]::Utf8) in state `write_byte`
 	cannot prove default-domain field requirement for return from Main::write_byte at statement 3: main.bytes requires [u8; N]::Utf8
+fail/proofs/selected_boolean_policy_wrong_validator rejected 2357ms @e7ad8aab1953+wt
+	cannot prove ensures contract for exit from Selected::check at statement 0: accepts(result, value)
 fail/proofs/selected_law_citation_linear_resource_reuse rejected 7184ms expected @ee4dbb4b2d56
 	cannot use `token` in machine `main` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/proofs/selected_specification_requires_false_result rejected 791ms expected @ccdb99ca2214
@@ -34501,6 +34505,7 @@ pass/generics/runtime_transition_result_inference_exit checked 3433ms check-targ
 pass/generics/runtime_value_generic_subject_exit checked 13860ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_value_member_argument_exit checked 3845ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_value_recipe_bounded_declaration checked 3636ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/selected_boolean_policy_applied_contract_exit checked 3476ms check-target:macos_arm64 @e7ad8aab1953+wt
 pass/generics/selected_member_distinct_binder_names_exit checked 3956ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/selected_member_shared_runtime_subject_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/selected_open_capture_carriers_exit checked 3833ms check-target:macos_arm64 @ccdb99ca2214
@@ -35441,6 +35446,8 @@ pass/proofs/scalar_field_snapshot_selector_writes_payload rejected 2369ms check-
 pass/proofs/scalar_state_return_keeps_byte_class rejected 2042ms regressed-from:checked @ccdb99ca2214
 	cannot prove requires contract for call consume from Main::main: main.bytes in [u8]::Utf8 (invalidated by prior mutation of main.bytes[0]; main.bytes is part of [u8]::Utf8) in state `main`
 	cannot prove default-domain field requirement for return from Main::main at statement 4: main.bytes requires [u8; N]::Utf8
+pass/proofs/selected_boolean_policy_attached_exit checked 3562ms check-target:macos_arm64 @e7ad8aab1953+wt
+pass/proofs/selected_boolean_policy_exit checked 3545ms check-target:macos_arm64 @e7ad8aab1953+wt
 pass/proofs/selected_map_law_application_exit checked 10385ms check-target:macos_arm64 @d38849d4cb02
 pass/proofs/selected_specification_requires_composition rejected 1567ms regressed-from:checked @ccdb99ca2214
 	specification call `Right` is not denotational: the selected machine is not unconditionally terminating
