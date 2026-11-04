@@ -182,6 +182,24 @@ class ReplayPlanTests(unittest.TestCase):
             self.assertFalse(report["passed"])
             self.assertIn("cache missing", report["error"])
 
+    def test_bound_cargo_receipt_identifies_the_actual_unit_basename(self):
+        plan = self.plan()
+        output = self.root / "output"
+        output.mkdir()
+        cache = self.root / "target/debug"
+        cache.mkdir(parents=True)
+        (cache / "omega").write_bytes(self.binary)
+        runner = cache / "build/compiler/unit/out/test-integration-test-corpus_runner"
+        runner.parent.mkdir(parents=True)
+        runner.write_bytes(self.binary)
+        Path(str(runner) + ".compiler-profile.json").write_text(
+            json.dumps(dict(binary_sha256=self.identity["sha256"])))
+        with patch.dict(os.environ, CARGO_TARGET_DIR=str(self.root / "target")):
+            paths, profiles = replay.materialize(self.root, output, plan, self.profile)
+        manifest = json.loads((paths["runner"].parent / "cache-inputs.json").read_text())
+        self.assertEqual(manifest["runner"]["path"], str(runner))
+        self.assertEqual(profiles["runner"]["sha256"], self.identity["sha256"])
+
 
 if __name__ == "__main__":
     unittest.main()

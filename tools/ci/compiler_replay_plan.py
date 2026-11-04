@@ -152,7 +152,25 @@ def materialize(root, output, plan, profile_query):
             candidates.extend(sorted(path for path in (cache / "debug/deps").glob("corpus_runner-*")
                                      if re.fullmatch(r"corpus_runner-[0-9a-f]+" + re.escape(suffix), path.name)))
             candidates.extend(sorted((cache / "debug/build").glob("*/*/out/" + filename + suffix)))
+            # Cargo's bound receipt is written beside its actual test output.
+            # It can identify a unit basename without guessing that basename;
+            # the executable still has to match the original digest below.
+            for receipt in sorted((cache / "debug").rglob("*.compiler-profile.json")):
+                if receipt.is_symlink():
+                    continue
+                try:
+                    data = json.loads(receipt.read_text(encoding="utf-8"))
+                except (OSError, UnicodeError, ValueError):
+                    continue
+                if isinstance(data, dict) and data.get("binary_sha256") == identity["sha256"]:
+                    candidates.append(receipt.with_name(receipt.name.removesuffix(".compiler-profile.json")))
+        candidates = list(dict.fromkeys(candidates))
         candidates = [path for path in candidates if path.is_file() and not path.is_symlink()]
+        if not candidates:
+            found = [dict(path=str(path), symlink=path.is_symlink(), file=path.is_file())
+                     for path in sorted((cache / "debug").rglob("*" + filename + "*"))]
+            (retained / "cache-discovery.json").write_text(
+                json.dumps(dict(kind=kind, related_paths=found), indent=2) + "\n", encoding="utf-8")
         require(candidates,
                 f"retained {kind} cache output is missing; no rebuild was attempted")
         matching = [path for path in candidates if file_digest(path) == identity["sha256"]]
