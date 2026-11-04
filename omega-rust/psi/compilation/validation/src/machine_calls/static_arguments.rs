@@ -485,31 +485,6 @@ fn validate_call(
             &ordinary,
             ArgumentScope::Caller(state),
         ) {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                // Source arguments keep their original owner after body
-                // specialization. Trace both owners before deciding which
-                // instance's argument bindings this occurrence may use.
-                let source_owner = call.lexical_owner(program);
-                let caller = state.and_then(|state| program.machine_holding_state(state.symbol));
-                eprintln!(
-                    "STATICARG refused source_owner={source_owner:?} source_application={:?} current_state={:?} current_caller={:?} target={name} arguments={ordinary:?}",
-                    call.application(),
-                    state.map(|state| state.symbol),
-                    caller.map(|machine| (machine.symbol, machine.name.as_str())),
-                );
-                for instance in program.machine_specializations.iter().filter(|instance| {
-                    instance.template == source_owner
-                        || caller.is_some_and(|caller| instance.instance == caller.symbol)
-                }) {
-                    eprintln!(
-                        "STATICARG enclosing template={:?} instance={:?} binding_application={:?} const_identities={:?}",
-                        instance.template,
-                        instance.instance,
-                        instance.binding_application,
-                        instance.const_argument_identities,
-                    );
-                }
-            }
             diagnostics.push(error);
         }
         if let Some(state) = state
@@ -713,6 +688,32 @@ enum ArgumentScope<'scope> {
     ClosedRequirement(&'scope [typed_trees::typed_trees::RequirementLocalArgument]),
 }
 
+/// Only a declaration's explicit complete roster makes its own generic Value
+/// binders available to const-only operations. A runtime parameter with an
+/// equality guard is still a runtime value; specialization of one caller does
+/// not strengthen the generic API. Carrier and call-contract checks remain on
+/// the original argument below.
+fn finite_family_binder(
+    program: &dyn CheckingInput,
+    scope: ArgumentScope<'_>,
+    symbol: symbols::SymbolHandle,
+) -> bool {
+    let ArgumentScope::Caller(Some(state)) = scope else {
+        return false;
+    };
+    let Some(machine) = program.machine_holding_state(state.symbol) else {
+        return false;
+    };
+    program
+        .machine_type_parameters(machine)
+        .iter()
+        .any(|parameter| parameter.symbol == symbol)
+        && matches!(
+            program.typed_program().finite_machine_family(machine),
+            typed_trees::finite_family::FamilyProbe::Finite { .. }
+        )
+}
+
 fn validate_arguments(
     program: &dyn CheckingInput,
     name: &str,
@@ -773,6 +774,7 @@ fn validate_arguments(
             && program
                 .data_type_parameter_by_symbol(argument.symbol)
                 .is_some_and(|source| matches!(source.kind, TypeParameterKind::Value { .. }))
+            && !finite_family_binder(program, scope, argument.symbol)
         {
             return Err(Diagnostic::error(format!(
                 "const parameter `{}` of `{name}` cannot accept runtime-capable Value binder `{}`",

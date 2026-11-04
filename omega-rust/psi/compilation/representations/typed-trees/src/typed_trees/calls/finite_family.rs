@@ -59,13 +59,39 @@ impl TypedTrees {
     /// 32 && L == 8`); the compiler never invents a Cartesian product from
     /// independently listed values.
     pub fn finite_signature_family(&self, signature: &StateSignature) -> FamilyProbe {
-        if !signature.lifetime_parameters.is_empty() {
+        self.finite_declaration_family(
+            signature.symbol,
+            !signature.lifetime_parameters.is_empty(),
+            self.state_signature_type_parameters(signature),
+            self.state_signature_contracts(signature),
+        )
+    }
+
+    /// A runtime-capable generic body may enter const-only operations through
+    /// its own complete finite family. Callers and generated instances cannot
+    /// grant that permission to an otherwise unrestricted declaration.
+    pub fn finite_machine_family(&self, machine: &crate::machine::Machine) -> FamilyProbe {
+        self.finite_declaration_family(
+            machine.symbol,
+            !machine.lifetime_parameters.is_empty(),
+            self.machine_type_parameters(machine),
+            self.machine_contracts(machine),
+        )
+    }
+
+    fn finite_declaration_family(
+        &self,
+        owner: symbols::SymbolHandle,
+        has_lifetimes: bool,
+        type_parameters: &[crate::data::TypeParameter],
+        contracts: &[crate::signature::SignatureContract],
+    ) -> FamilyProbe {
+        if has_lifetimes {
             return FamilyProbe::NotFinite(
                 "invocation lifetimes are arbitrary regions, not an enumerable value roster"
                     .to_owned(),
             );
         }
-        let type_parameters = self.state_signature_type_parameters(signature);
         let binders = type_parameters
             .iter()
             .filter(|parameter| {
@@ -84,8 +110,7 @@ impl TypedTrees {
         }
         let mut family =
             FamilyProbe::NotFinite("declares no finite-family `requires` clause".to_owned());
-        for fact in self
-            .state_signature_contracts(signature)
+        for fact in contracts
             .iter()
             .filter(|contract| contract.kind == crate::signature::SignatureContractKind::Requires)
             .flat_map(|contract| self.proof_facts.span_or_empty(contract.facts))
@@ -93,7 +118,7 @@ impl TypedTrees {
             let Some(root) = fact.as_expression() else {
                 continue;
             };
-            let candidate = self.explicit_signature_family(signature, &binders, *root);
+            let candidate = self.explicit_signature_family(owner, &binders, *root);
             if matches!(&candidate, FamilyProbe::Finite { .. }) {
                 if matches!(&family, FamilyProbe::Finite { .. }) {
                     return FamilyProbe::NotFinite(
@@ -113,7 +138,7 @@ impl TypedTrees {
     /// they neither enumerate tuples nor erase a declared finite family.
     fn explicit_signature_family(
         &self,
-        signature: &StateSignature,
+        owner: symbols::SymbolHandle,
         binders: &[&crate::data::TypeParameter],
         root: crate::expression::ExpressionHandle,
     ) -> FamilyProbe {
@@ -122,7 +147,7 @@ impl TypedTrees {
             let mut assignments: Vec<Option<FamilyValue>> = vec![None; binders.len()];
             for conjunct in self.binary_chain_leaves(alternative, BinaryOperator::And) {
                 let Some((binder_index, value)) =
-                    self.equality_assignment(signature.symbol, binders, conjunct)
+                    self.equality_assignment(owner, binders, conjunct)
                 else {
                     return FamilyProbe::NotFinite(
                         "the `requires` clause is not explicit `Binder == literal` equalities; opaque \
