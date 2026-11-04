@@ -232,6 +232,7 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             atomic_update: Some(crate::X86_64_ATOMIC_UPDATE),
             atomic_bitwise_update: Some(crate::X86_64_ATOMIC_BITWISE_UPDATE),
             atomic_compare_exchange: Some(crate::X86_64_ATOMIC_COMPARE_EXCHANGE),
+            atomic_compare_exchange_once: Some(crate::X86_64_ATOMIC_COMPARE_EXCHANGE_ONCE),
             crash: crate::X86_64_CRASH,
             load_packed: Some(crate::X86_64_LOAD_PACKED),
             store_packed: Some(crate::X86_64_STORE_PACKED),
