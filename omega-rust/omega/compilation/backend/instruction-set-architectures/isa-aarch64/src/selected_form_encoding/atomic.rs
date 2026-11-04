@@ -389,9 +389,13 @@ mod tests {
             crate::aarch64_physical_register_model(),
         )
         .unwrap();
-        let views = ["x2", "x0", "x1", "x3", "x4"]
-            .map(|name| physical.model().view_named(name).unwrap().id);
         for form in AtomicForm::ALL {
+            let views = if form.operation.is_bitwise_fetch() {
+                ["x9", "x10", "x11", "x3", "x4"]
+            } else {
+                ["x2", "x0", "x1", "x3", "x4"]
+            }
+            .map(|name| physical.model().view_named(name).unwrap().id);
             let operands = &views[..usize::from(form.operand_count())];
             let kind = SelectedInstructionKind::AtomicAccess { form };
             let alternative = MachineAlternativeKey {
