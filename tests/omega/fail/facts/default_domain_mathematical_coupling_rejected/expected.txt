@@ -1,1 +1,3 @@
-default domain is still FALSE
+cannot complete return from machine `consume` state `entry`
+the `requires` facts of `budget` (data `Budget`)
+unproved; restore them first

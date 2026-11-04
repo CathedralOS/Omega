@@ -1,1 +1,3 @@
-default domain is still FALSE
+cannot complete a call at statement 6 in machine `joined` state `entry`
+the `requires` facts of `narrow` (data `Interval`)
+unproved; restore them first
