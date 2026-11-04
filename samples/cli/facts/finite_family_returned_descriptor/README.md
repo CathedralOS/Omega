@@ -37,9 +37,10 @@ choosing one arm traps. The field example checks the neighboring values 17 and
 23 around its stored views. Named arrays are copied into owned runtime storage
 before borrowing them. The `other_state` folder remains the nested-machine place.
 
-Each lifetime twin changes only `Header::window`: it returns a view of an array
-local to that invocation instead of the caller's array. It must still reject
-because that storage does not outlive the call. Every sample's Main and Build
+Twelve lifetime twins change only `Header::window` to return invocation-local
+storage. The replacement and saved-pointer twins instead install a reference to
+local storage at their replacement store. Each changes only the borrowing source
+and must reject because that storage does not outlive the call. Every sample's Main and Build
 files match its fixture under `tests/omega/{pass,fail}/facts/finite_family_returned_descriptor/`.
 All positives bind the four hosted targets and declare exit 0.
 
@@ -59,15 +60,6 @@ reusing the first pointer or inventing a constant result fails. Its
 [twin](caller_view/invalid/main.omg)
 changes only the selected method to return invocation-local storage.
 
-The first probe put references inside both records. Fixed-base run
-[41685737527](https://github.com/CathedralOS/Omega/actions/runs/41685737527)
-refused that cast before the call, as did candidate run
-[41685737741](https://github.com/CathedralOS/Omega/actions/runs/41685737741).
-It did not test returned-view composition. This probe uses supported scalar
-records to isolate the caller's existing view; it retains the same byte, width
-choices and local-storage twin. The earlier source remains at `34f4d51`.
-No passing result is claimed for the new probe yet.
-
 The [incoming-pointer join](incoming_join/main.omg) chooses between an unchanged
 input pointer and a new borrow of a field before the same selected call. Both
 choices run at widths 16 and 32. The input reads 11 and the field reads 23, so
@@ -75,15 +67,14 @@ losing either predecessor or choosing the wrong pointer fails. A second helper
 joins two unchanged input pointers and also exercises both choices. Its
 [twin](incoming_join/invalid/main.omg) changes only the selected method to return
 local storage. This checks that preserving a view also preserves ordinary
-incoming pointers in the complete set of possible sources. Fresh results are
-pending.
+incoming pointers in the complete set of possible sources.
 
 The [saved-pointer replacement](saved_source/main.omg) saves a mutable pointer,
 then changes the reference stored in its record before the selected call. The
 returned and stored references must both read the new byte 11, rather than the
 old byte 29. This distinguishes the saved pointer's identity from the record's
 later contents. Its [twin](saved_source/invalid/main.omg) installs local storage
-instead. Fresh results are pending.
+instead.
 
 The [target-qualification example](target_qualification/main.omg) calls an
 ordinary `SelectedTarget::target_only` requirement from a selected family member.
@@ -103,79 +94,75 @@ example similarly publishes `invokes SelectedTarget` on `Windowing::window`.
 Calling a boundary requirement does not itself add a service to its reach.
 The existing optional macOS x86-64 entry remains in the target place.
 
+These programs make incorrect data transport observable: both match inputs run,
+the two arrays have different trailing bytes, and replacements must return the
+new byte. Widths 16 and 32 have the same returned-data behavior. Which identical
+specialization executes, selection between implementations with different
+behavior, and dispatch-table relocations remain outside this row's evidence.
+
 The governing contracts are [finite specialization](../../../../wiki/spec/language/generics.md#finite-specialization-boundary),
 [dynamic method families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families),
 [returned views](../../../../wiki/spec/language/lifetimes.md#returned-views),
 [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection)
 and [service reach and synchronous calls](../../../../wiki/spec/language/effects.md).
 
-The complete acceptance requires the following:
+The evidence must establish the following obligations:
 
-- Checked construction establishes each incoming view and its access. A lifetime
-  name or matching field name cannot create a reference or permission.
-- Returning a view preserves every reference it contains and its relationship to
-  the caller's backing. Replacing one stored reference retires that old reference
-  without changing an unrelated one. Both resulting shared references may coexist;
-  an exclusive reference still cannot be duplicated.
-- Calls and joins preserve the actual selected input. The caller's later length
-  and byte checks cannot justify returning storage that has already died.
-- The public requirement owns the borrowed result contract. A private provider's
-  local variables cannot stand in for public input coordinates, and every family
-  row must have valid target supply.
-- Terminal Psi and native execution must both read the caller's original storage,
-  including its correct address and length. Successful checking or image emission
-  alone does not establish that result.
+| Requirement | What these programs check |
+| --- | --- |
+| Establishment | Construction and entry contracts supply the actual data, access and width choices. A length check makes indexing safe; it does not create a lifetime. |
+| Identity and lifetime | The two arrays keep their distinct trailing bytes. Whole-record and saved-pointer writes replace byte 29 with byte 11 while both stored and returned references remain usable. Each local-storage twin must reject. |
+| Composition | Calls substitute the actual selected input. Both pointer-join choices run, and an existing checked view retains its field interpretation through the call. A later caller equality check supplies no borrowing permission. |
+| Ownership and proof | The public requirement owns the returned-reference contract. Local provider variables cannot replace public inputs. Shared references may coexist; live-borrow controls still forbid conflicting writes. |
+| Portable program | Terminal Psi must preserve the actual data arguments, returned views and explicit cleanup through the selected call. A reference installed into caller storage survives the returning call; a genuine local parent still needs disposal. Broader proof-erasure and crash-route acceptance remains open. |
+| Build, layout and calling conventions | Explicit Build rows select ordinary implementations for the hosted targets. Address, length and stored-pointer fields cross calls and returns. Missing supply must refuse publication on exactly the unsupplied targets. |
+| Registers and call storage | Calls preserve both view components and the neighboring values 17 and 23. The interpreter and native result must agree. This row does not establish explicit activation bounds or every arithmetic instruction. |
+| Native images | Matching-host execution must read the authored bytes through the selected calls and emitted image. Dispatch-table relocations, long-branch relaxation, callbacks and other image mechanisms retain their own acceptance. |
 
 ## Current validation
 
-The unchanged replacement program fails during lowering on fixed baseline
-`0d2886a26e6b17ede96f1accbb6501a2a85fbd30`
-([run](https://github.com/CathedralOS/Omega/actions/runs/41575232529)).
-The repair at `a251628c888a10e0f2871d4b15a1429cf1746d53`
-([run](https://github.com/CathedralOS/Omega/actions/runs/41668616576)) executes
-that program and the stored-pointer program with native and Terminal exit 0
-through both corpus and public sample commands. Their local-storage twins reject.
-Those observations cover the two examples. The complete row still needs current
-validation.
+All 15 positive examples have actual native/Terminal exit-zero agreements on
+Linux x86-64 at the retained compiler revisions `3baa68a0860` and
+`0c53c5e5b938`. All 14 local-storage twins reject. The
+[ordinary CLI replay](https://github.com/CathedralOS/Omega/actions/runs/41785423833)
+at `3baa68a0860` passes all 30 outcomes: 15 exit-zero agreements and 15 intended
+refusals, including missing target supply. Those observations retain their
+original compiler and input identities.
 
-At `750caced8cc6b894273004bf2ecb2d94ec57ed3c`, all twelve original fact programs
-execute with native and Terminal exit 0 on
-[Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41754288583)
-and [Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/41754324372).
-Every measured local-storage control rejects. The missing-supply control refuses
-publication on Linux x86-64 and executes on its supplied ARM target. The source
-leg selects macOS ARM64 independently and also observes its missing-supply refusal.
-The reports remain failed because the new caller-view example still loses its
-input origins. Neither report reaches public sample execution. Linux also has a
-slice-return refusal whose current-main attribution remains unresolved.
+The shared-slice regression required one further repair. The
+[failed trace](https://github.com/CathedralOS/Omega/actions/runs/41808313137)
+shows that loan matching discarded the checked result's region extent.
+Compiler `845a43cb4fe` preserves that extent and matches the enclosing collection
+of the actual opaque window, retaining access and fixed-coordinate checks.
+The unchanged slice program now returns its authored 70 on both engines through
+[ordinary CLI package review and execution](https://github.com/CathedralOS/Omega/actions/runs/41813706580).
+The replay uses the retained optimized compiler and verifies 179 original
+program/library inputs. Its earlier direct-fixture command remains failed on
+an unaccepted program-entry binding; it ran neither engine.
 
-The next probe at `faa7d0645db43495ece24190cc3f6def9d489942`
-([run](https://github.com/CathedralOS/Omega/actions/runs/41759230903)) still refuses
-the caller-view and incoming-pointer join. Its stored-pointer, replacement and
-existing view-composition controls execute with exit 0 in both engines; all six
-intended source controls reject. These partial results do not establish the new
-examples.
+[Integrated validation](https://github.com/CathedralOS/Omega/actions/runs/41815976095)
+is running at `059fb0b41d8`: 49 Source cases, 26 execution or publication
+outcomes, and 30 ordinary fact outcomes. It includes the complete fact and the
+existing related view, call and cleanup controls. No integrated result or
+current four-host completion is claimed yet; the three other-host fact checks
+remain pending.
 
-Current source separates the captured pointer from the callee's later read of
-its contents. The pointer keeps its original evaluated value. When the callee
-reads data through that pointer, it uses storage after every argument has
-completed, including effects from later arguments. Independent source review accepted
-this correction. Fresh execution of the caller-view, incoming-pointer join and
-saved-pointer replacement, followed by all public fact projects, remains open.
-The preceding `e46c33e3c75a055c41e48fbc53c7ead8c2548e8b` probe
-([run](https://github.com/CathedralOS/Omega/actions/runs/41763942681)) checks all
-three new examples, but native legalization refuses their storage relationships.
-The stored-pointer and existing view-composition programs execute with exit 0 in
-both engines. The original replacement also refuses lowering at that source.
-An existing case-descriptor example rejects identically on the earlier `750`
-compiler, confirmed by [retained baseline run](https://github.com/CathedralOS/Omega/actions/runs/41766271632).
-Its invalid control also has an unrelated diagnostic, so it does not establish
-enforcement of that obligation. These failures remain open.
+The earlier failed corpus reports remain retained. Separate case-descriptor
+and nested-view programs also refuse on published compiler `9566f10e0d29`.
+Their early borrowing/formation errors provide no intended enforcement or
+execution evidence, and those gaps remain open. The unsuccessful lookup-scoping
+attempt was reverted after review found valid nested results it could exclude.
 
-Actual producer identities, raw reports and earlier source are retained under
-`build/finite-descriptor-selected-20261103/`.
+The original replacement program's lowering failure is retained in
+[41575232529](https://github.com/CathedralOS/Omega/actions/runs/41575232529).
+The [cleanup trace](https://github.com/CathedralOS/Omega/actions/runs/41778481192)
+establishes the later storage error: a transfer moves the reference into caller
+storage while preserving its creation identity. The repair checks its current
+storage and still follows every parent and lifetime obligation. Local parents
+and siblings must close through their actual cleanup.
 
-Windows x86-64 and macOS ARM64 native execution remain unverified for this
-change. Broader generic dispatch, cleanup and product-compiler acceptance are
-not established by this row. Both parent requirements remain open. No owner
-design decision is needed.
+Exact producer identities, input hashes, raw observations, earlier source and
+independent reviews remain under `build/finite-descriptor-selected-20261103/`.
+Both parent requirements stay open. This row does not establish the remaining
+generic dispatch, proof-erasure, crash-route or product-compiler acceptance.
+No language-design decision is needed.
