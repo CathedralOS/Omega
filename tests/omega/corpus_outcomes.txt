@@ -10290,6 +10290,40 @@ fail/facts/finite_family_input_index/wrong_provider rejected 11117ms expected @4
 	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
 	machine `produce$specialized$bf862e295a8967d7$0$2751` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
 	machine `produce$specialized$d1322acad3338bfd$1$2756` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
+fail/facts/finite_family_owned_field/call_result rejected 8492ms expected @4969443addd0
+	cannot prove ensures contract for exit from ReadField::read at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$ef379b294b035803$0$2717 at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$d45a4b2c8f81ae01$1$2722 at statement 2: result >= 100
+fail/facts/finite_family_owned_field/const_name rejected 6475ms expected @4969443addd0
+	cannot prove ensures contract for exit from ReadField::read at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$ef379b294b035803$0$2740 at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$d45a4b2c8f81ae01$1$2745 at statement 2: result >= 100
+fail/facts/finite_family_owned_field/field rejected 9361ms expected @4969443addd0
+	cannot prove ensures contract for exit from ReadField::read at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$ef379b294b035803$0$2717 at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$d45a4b2c8f81ae01$1$2722 at statement 2: result >= 100
+fail/facts/finite_family_owned_field/local rejected 9249ms expected @4969443addd0
+	cannot prove ensures contract for exit from ReadField::read at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$ef379b294b035803$0$2714 at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$d45a4b2c8f81ae01$1$2719 at statement 2: result >= 100
+fail/facts/finite_family_owned_field/match_join rejected 8768ms expected @4969443addd0
+	cannot prove ensures contract for exit from ReadField::read at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$ef379b294b035803$0$2715 at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$d45a4b2c8f81ae01$1$2720 at statement 2: result >= 100
+fail/facts/finite_family_owned_field/other_machine rejected 9292ms expected @4969443addd0
+	cannot prove ensures contract for exit from ReadField::read at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$ef379b294b035803$0$2718 at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$d45a4b2c8f81ae01$1$2723 at statement 2: result >= 100
+fail/facts/finite_family_owned_field/other_state rejected 8574ms expected @4969443addd0
+	cannot prove ensures contract for exit from ReadField::read at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$ef379b294b035803$0$2719 at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$d45a4b2c8f81ae01$1$2724 at statement 2: result >= 100
+fail/facts/finite_family_owned_field/parameter rejected 8357ms expected @4969443addd0
+	cannot prove ensures contract for exit from ReadField::read at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$ef379b294b035803$0$2713 at statement 2: result >= 100
+	cannot prove ensures contract for exit from ReadField::read$specialized$d45a4b2c8f81ae01$1$2718 at statement 2: result >= 100
+fail/facts/finite_family_owned_field/target_body rejected 474ms unexpected @4969443addd0
+	tests/omega/fail/facts/finite_family_owned_field/target_body/main.omg:41:26: boundary-trait machine requirement `SelectedRead::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
 fail/facts/finite_family_returned_descriptor/call_result rejected 5568ms expected @9ad31e5e8715
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
@@ -29875,6 +29909,16 @@ pass/facts/finite_family_input_index/other_machine checked 18357ms check-target:
 pass/facts/finite_family_input_index/other_state checked 14815ms check-target:macos_arm64 @4148c7ab0c1e
 pass/facts/finite_family_input_index/parameter checked 13018ms check-target:macos_arm64 @4148c7ab0c1e
 pass/facts/finite_family_input_index/target_body checked 18230ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_owned_field/call_result checked 10994ms check-target:macos_arm64 @4969443addd0
+pass/facts/finite_family_owned_field/const_name checked 12922ms check-target:macos_arm64 @4969443addd0
+pass/facts/finite_family_owned_field/field checked 12749ms check-target:macos_arm64 @4969443addd0
+pass/facts/finite_family_owned_field/local checked 12793ms check-target:macos_arm64 @4969443addd0
+pass/facts/finite_family_owned_field/match_join checked 11001ms check-target:macos_arm64 @4969443addd0
+pass/facts/finite_family_owned_field/other_machine checked 10031ms check-target:macos_arm64 @4969443addd0
+pass/facts/finite_family_owned_field/other_state checked 10045ms check-target:macos_arm64 @4969443addd0
+pass/facts/finite_family_owned_field/parameter checked 12194ms check-target:macos_arm64 @4969443addd0
+pass/facts/finite_family_owned_field/target_body rejected 1897ms check-target:macos_arm64 @4969443addd0
+	tests/omega/pass/facts/finite_family_owned_field/target_body/main.omg:41:26: boundary-trait machine requirement `SelectedRead::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
 pass/facts/finite_family_returned_descriptor/call_result checked 6985ms check-target:macos_arm64 @9ad31e5e8715
 pass/facts/finite_family_returned_descriptor/caller_view checked 6931ms check-target:macos_arm64 @9ad31e5e8715
 pass/facts/finite_family_returned_descriptor/const_name checked 7112ms check-target:macos_arm64 @9ad31e5e8715
