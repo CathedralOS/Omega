@@ -46,21 +46,31 @@ def expected_exit(root, fixture, target):
         raise ValueError(f"ordinary CLI fixture has no build.omg: {fixture}")
     oracles = fixture_oracles(project, target)
     extra = [path.name for path in project.glob("expected_*")
-             if not (path.name in ("expected_native_exit.txt", "expected_terminal_inspections.txt")
+             if not (path.name in ("expected_native_exit.txt", "expected_interpreter_exit.txt",
+                                  "expected_terminal_inspections.txt")
                      or (path.name.startswith("expected_native_exit.") and path.suffix == ".txt"))]
     if extra or any(project.glob("entry_ram*")) or oracle(project)[1] is not None:
         raise ValueError("ordinary CLI exit fixtures cannot omit authored stream/inspection oracles")
     inspection_machines(project)
-    if not oracles["exit"] and relative.parts[:2] == ("samples", "cli"):
-        declared_exit, _ = oracle(project)
-        if declared_exit is not None:
-            return declared_exit
-    if not oracles["exit"]:
-        raise ValueError(f"ordinary CLI fixture has no {target} numeric exit oracle: {fixture}")
-    text = Path(oracles["exit"]).read_text(encoding="utf-8").strip()
-    if not re.fullmatch(r"-?\d+", text):
-        raise ValueError("ordinary CLI fixture requires an authored numeric exit oracle")
-    return int(text)
+    if oracles["exit"]:
+        text = Path(oracles["exit"]).read_text(encoding="utf-8").strip()
+        if not re.fullmatch(r"-?\d+", text):
+            raise ValueError("ordinary CLI fixture requires an authored numeric exit oracle")
+        expected = int(text)
+    else:
+        expected = oracle(project)[0] if relative.parts[:2] == ("samples", "cli") else None
+        if expected is None:
+            raise ValueError(f"ordinary CLI fixture has no {target} numeric exit oracle: {fixture}")
+    # A corpus fixture can declare both engine exits. The product's --both
+    # command must satisfy both authored expectations.
+    interpreter = project / "expected_interpreter_exit.txt"
+    if interpreter.is_file():
+        text = interpreter.read_text(encoding="utf-8").strip()
+        if not re.fullmatch(r"-?\d+", text):
+            raise ValueError("ordinary CLI fixture requires a numeric interpreter exit oracle")
+        if int(text) != expected:
+            raise ValueError("ordinary CLI requires matching native and interpreter exit oracles")
+    return expected
 
 
 def inspection_machines(project):

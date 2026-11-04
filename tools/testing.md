@@ -157,7 +157,10 @@ For a named existing pass fixture whose oracle is a numeric exit, the optional
 ordinary CLI update/review/resume followed by `run --both --keep`; it does not
 repeat that package check in the corpus runner. It freezes
 tracked fixture/library inputs and requires explicit native and Terminal exit
-markers. It preserves raw logs for both review phases; managed acceptance is
+markers. An authored numeric `expected_interpreter_exit.txt` must match the
+selected native exit (or a sample's declared exit); conflicting or nonnumeric
+expectations refuse before building. Both engine markers must report that
+authored exit during execution. It preserves raw logs for both review phases; managed acceptance is
 ordinary pending-row decisions, not a copied lock. Plain names in `expected_terminal_inspections.txt` run through public named
 inspection and canonical artifact reload with matching program identity. Stream,
 RAM and debug/runtime/control inspection oracles remain refused before building

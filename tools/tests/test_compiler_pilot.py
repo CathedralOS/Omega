@@ -158,6 +158,44 @@ class CompilerPilotTests(unittest.TestCase):
                                                 cli_fixtures=fixture), 1)
                 execute.assert_not_called()
 
+    def test_ordinary_cli_honors_both_numeric_engine_oracles_before_build(self):
+        fixture = "pass/borrows/saved_reference"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, fixture)
+            project = root / "tests/omega" / fixture
+            (project / "build.omg").write_text("ProgramEntry")
+            (project / "expected_native_exit.txt").write_text("70")
+            interpreter = project / "expected_interpreter_exit.txt"
+            interpreter.write_text("70")
+            with patch.object(pilot, "ROOT", root), patch.object(pilot, "execute") as execute:
+                self.assertEqual(pilot.select_cli_fixtures(fixture), (fixture,))
+                self.assertEqual(pilot.ordinary_cli_fixture.expected_exit(root, fixture, "linux_x86_64"), 70)
+                for unsupported in ("", "trap", "70 trailing text", "71"):
+                    interpreter.write_text(unsupported)
+                    with self.subTest(oracle=unsupported):
+                        self.assertEqual(pilot.run_suite("bad", pilot.POSITIVES, pilot.NEGATIVES,
+                                                        cli_fixtures=fixture), 1)
+                    execute.assert_not_called()
+                interpreter.write_text("70")
+                (project / "expected_native_exit.linux_x86_64.txt").write_text("0")
+                with self.assertRaisesRegex(ValueError, "matching native and interpreter"):
+                    pilot.ordinary_cli_fixture.expected_exit(root, fixture, "linux_x86_64")
+
+    def test_ordinary_cli_sample_header_must_match_its_interpreter_oracle(self):
+        sample = "samples/cli/systems/journal"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.sample_root(root, sample)
+            project = root / sample
+            (project / "main.omg").write_text("// Expected exit: 7\nmachine main() {}")
+            interpreter = project / "expected_interpreter_exit.txt"
+            interpreter.write_text("7")
+            self.assertEqual(pilot.ordinary_cli_fixture.expected_exit(root, sample, "linux_x86_64"), 7)
+            interpreter.write_text("0")
+            with self.assertRaisesRegex(ValueError, "matching native and interpreter"):
+                pilot.ordinary_cli_fixture.expected_exit(root, sample, "linux_x86_64")
+
     def test_ordinary_cli_inspection_oracles_are_preserved_or_refused_before_build(self):
         with tempfile.TemporaryDirectory() as temporary:
             project = Path(temporary)
