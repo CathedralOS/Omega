@@ -92,6 +92,8 @@ impl TypedTrees {
             // Type/Const substitutions belong to the value/type map. The
             // namespace map is reserved for selected evidence and code.
             static_arguments: Vec::new(),
+            static_argument_owner: SymbolHandle::invalid(),
+            selected_providers: Vec::new(),
             symbols: source_subject
                 .is_valid()
                 .then_some((source_subject, subject))

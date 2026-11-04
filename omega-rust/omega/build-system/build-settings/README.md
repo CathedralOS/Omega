@@ -104,8 +104,15 @@ The evaluator captures the interpreter observations, validates the returned
 Build configuration, then asks that owner to settle outputs and select generated
 sources. It does not assemble durable filesystem evidence itself.
 
-Authored trust grants, component-assumption acceptances, and executed exclusion
-receipts are checked by [realization trust](../../compilation/realization/trust-model/README.md).
+Authored root trust grants and executed exclusion receipts are checked by
+[realization trust](../../compilation/realization/trust-model/README.md).
+Component assumptions instead use the existing consumer acceptance/lock route;
+ordinary Build policy may only attenuate that accepted ceiling under
+[component acceptance](../../../../wiki/spec/build/component_publication.md#consumer-acceptance-and-build-attenuation).
+The source `Build::accept_component_assumption` approval call is retired. Its
+removal, consumer-policy wiring, and affected sample/fixture migration remain
+under **COMPONENT-SUBSTRATE** in [TASKS.md](../../../../TASKS.md); this contract
+update does not establish that the evaluator records accepted assumptions.
 Build evaluation decodes wire demands; Psi's
 [typed-to-checked stage](../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checking.rs)
 checks their meaning before publishing checked trees. Package review reconstructs grants through

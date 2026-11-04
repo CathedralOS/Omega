@@ -1,10 +1,20 @@
 # Component assumption recording
 
-The build declares one exact component-assumption digest through the public
-`Build::accept_component_assumption(builder, digest)` call. The customer exits
-70 through the standard ProcessExit provider. Accepting a component assumption
-does not accept the project's package permissions, confer host authority, or
-replace normal package review.
+The customer uses the retired
+`Build::accept_component_assumption(builder, digest)` approval call and awaits
+migration to the ratified
+[consumer acceptance and Build attenuation](../../../../wiki/spec/build/component_publication.md#consumer-acceptance-and-build-attenuation)
+route under **COMPONENT-SUBSTRATE** in [TASKS.md](../../../../TASKS.md). The
+current evaluator discards that digest; the call does not establish consumer
+approval. Approval belongs to canonical consumer policy/lock inputs, while
+optional Build policy can only restrict the selected product's accepted ceiling.
+The authored runtime oracle remains exit 70 through ProcessExit, with no output.
+
+The commands and observer descriptions below retain the earlier fixture-level
+workflow and claimed observations; they are not fresh evidence that the current
+compiler records acceptance or implements the ratified policy. Migration must
+replace obsolete approval and spelling checks with missing/changed/correct
+consumer-policy and attenuation controls, preserving the runtime oracle.
 
 Run `omega update --project samples/cli/independent/component_assumption_recording
 --target linux_x86_64`, inspect and decide the exact project review, then resume
@@ -20,7 +30,7 @@ the Windows allocator omitted four port/model-specific register declarations
 already present in the ISA effect catalog. With those catalogs consistent,
 native and Terminal both exit 70; the authored source and admission stay unchanged.
 
-The checked digest is `0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`.
+The earlier checked digest was `0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`.
 `validation/observe.rs` independently reads the exact row from complete source
 checking, checking its bytes, count, selected Build and authored span. This
 observation uses the repository's explicit fixture policy, separately from the
@@ -31,9 +41,11 @@ The component mode inspects a genuine one-port-write fixture without executing
 its privileged operation. Its independent policy fixes service 1, port 1016 and
 value 65. A Python SHA-256 oracle independently reconstructs the assumption
 identity. The verifier accepts the unchanged component only with that exact
-assumption and rejects absent and changed digests. The observer also supplies each consumer’s exact recorded Build policy to the
-verifier: authored acceptance succeeds, while missing and changed authored
-digests reject. This verifies assumption admission; it does not claim deployment
+assumption and rejects absent and changed digests. The earlier observer supplied
+each consumer's recorded Build policy to the verifier and reported authored
+acceptance succeeding, with missing and changed authored digests rejecting.
+Those records do not establish today's approval path. This fixture-level
+workflow did not claim deployment
 of an independent provider edge. Source controls reject malformed
 hex, short digest, wrong arity, swapped operands and constructed Build values;
 explicit reborrow and uppercase spelling work, and a same-named user declaration

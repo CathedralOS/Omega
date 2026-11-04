@@ -14,6 +14,7 @@ ensures result <= 61
 
     machine step(c: u64) -> u64
     requires c <= 100 && c > 61
+    terminates by c
     {
         let next: u64 = c - 10;
         transition next <= 61 {

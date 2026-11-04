@@ -1601,12 +1601,9 @@ invokes
 
 machine posix_filesystem_rda_drain(filesystem: &mut PosixFilesystem, fuel: u64) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
-
-terminates by fuel
 {
     transition fuel > 0 { true -> rdd_step(filesystem, fuel) false -> rdd_exhausted() }
-    machine rdd_step(filesystem: &mut PosixFilesystem, fuel: u64) -> i32 requires fuel > 0
-    terminates by fuel {
+    machine rdd_step(filesystem: &mut PosixFilesystem, fuel: u64) -> i32 requires fuel > 0 {
         posix_filesystem_rda_step(filesystem, 0);
         transition filesystem.rda_verdict == 1 { true -> posix_filesystem_rda_drain(filesystem, fuel - 1) _ -> rdd_settle(filesystem) }
     }
