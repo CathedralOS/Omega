@@ -609,6 +609,53 @@ pub(in crate::execution) fn build_call_operation(
         .ok()?
     };
 
+    if let Some((operation, expected_service)) =
+        validation::compiler_operations::task_register_operation(program, target_machine)
+            .inspect_err(|reason| phase(reason))
+            .ok()?
+    {
+        let expected = match operation {
+            language_core::task_register::TaskRegisterOperation::Activate { .. } => {
+                PrimitiveType::U8
+            }
+            language_core::task_register::TaskRegisterOperation::Selector => PrimitiveType::U16,
+        };
+        if !matches!(expected_call_result, Some(ExpectedCallValueResult::Scalar(actual)) if actual == expected)
+        {
+            phase("task-register operation lost its scalar result");
+            return None;
+        }
+        let rows = &facts.service_reaches.rows;
+        let [service] = rows.services(call_target.service_reach.direct) else {
+            phase("task-register operation requires exactly its MachineControl service");
+            return None;
+        };
+        if *service != expected_service
+            || !rows
+                .services(call_target.service_reach.transitive)
+                .contains(service)
+        {
+            phase("task-register call changed its checked MachineControl authority");
+            return None;
+        }
+        return CheckedUnitCallPlan::new(CheckedUnitCallParts {
+            coordinate,
+            source_site,
+            target: call_target,
+            route: CheckedUnitCallRoute::TaskRegister {
+                operation,
+                service: *service,
+                result_type: expected,
+            },
+            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+            scalar_arguments,
+            structural_arguments,
+            result: CheckedUnitCallResult::Unit,
+            transfers: CallTransfers::Claims(transfers),
+        })
+        .map(OperationPlan::Call);
+    }
+
     if no_normal {
         CheckedUnitCallPlan::new(CheckedUnitCallParts {
             coordinate,

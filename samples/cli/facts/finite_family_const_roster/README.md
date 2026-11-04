@@ -84,3 +84,9 @@ verified level 1; recorded inputs and outcomes retain that measured source.
 Other-host execution and the broader parent tasks remain open. Remaining finite
 family requirements include borrowed descriptor results, entry content claims
 and other target bridges; this scalar row does not close those obligations.
+
+The `target_body` place already selects `HostedFamily` through Build rows; it
+now also binds `macos_x86_64` with its own row, so this host executes it. On
+macOS x86-64 the positive exits 0 under `omega run --both` and the twin still
+rejects with `requires exactly one closed roster tuple`. With a single
+implementation there is no wrong row to detect, so no tag check is added.

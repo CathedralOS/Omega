@@ -28,6 +28,7 @@ pub(super) fn decode_instruction(
     let unit_clobbers = decode_units(cursor)?;
     let memory = match cursor.byte()? {
         9 => MachineMemoryEffect::TemporaryStackStorageV1,
+        18 => MachineMemoryEffect::TaskRegisterActivationV1,
         0 => MachineMemoryEffect::NoneV1,
         1 => MachineMemoryEffect::ReadPointerV1,
         5 => MachineMemoryEffect::HostedReadByteV1,
@@ -569,6 +570,8 @@ fn decode_alternative_for_version(
         253 => MachineAlternativeFamily::ProcessorHalt,
         259 => MachineAlternativeFamily::GlobalDescriptorTableLoad,
         260 => MachineAlternativeFamily::GlobalDescriptorTableStore,
+        261 => MachineAlternativeFamily::TaskRegisterActivate,
+        262 => MachineAlternativeFamily::TaskRegisterRead,
         254 => MachineAlternativeFamily::ControlRegisterRead,
         255 => MachineAlternativeFamily::ControlRegisterWrite,
         256 => MachineAlternativeFamily::InterruptControl,
@@ -802,6 +805,14 @@ fn decode_encoded_effects(
             count_operand: cursor.u16()?,
         },
         0 => MachineEncodedMemoryEffect::NoneV1,
+        22 => MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
+            table_pointer_operand: cursor.u16()?,
+            table_byte_count_operand: cursor.u16()?,
+            task_pointer_operand: cursor.u16()?,
+            selector_operand: cursor.u16()?,
+            scratch_pointer_operand: cursor.u16()?,
+            stack_pointer: register_model::RegisterViewId(cursor.u16()?),
+        },
         21 => MachineEncodedMemoryEffect::WriteFixedPointerV1 {
             pointer_operand: cursor.u16()?,
             byte_count: cursor.u16()?,

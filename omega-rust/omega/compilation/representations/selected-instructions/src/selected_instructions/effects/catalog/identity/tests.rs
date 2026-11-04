@@ -66,6 +66,8 @@ fn keys() -> SelectedConstraintKeys {
             processor_halt: Some(instruction(810)),
             interrupt_control: Some(instruction(811)),
             global_descriptor_table: Some(instruction(906)),
+            task_register_activate: Some(instruction(907)),
+            task_register_read: Some(instruction(908)),
             memory_fence: Some(instruction(812)),
             atomic_fence: Some(instruction(800)),
             access_read: Some(instruction(806)),

@@ -14,13 +14,13 @@ pub(super) fn selected_actions(
     facts: &CheckFacts,
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
-    machine: SymbolHandle,
     state: SymbolHandle,
     coordinate: CheckedUnitCallCoordinate,
     target: SymbolHandle,
     root: facts::PlaceRoot,
     source: CheckedUnitStructuralArgumentSourcePlan,
-) -> Option<Vec<CheckedNormalCleanupAction>> {
+) -> Result<Vec<CheckedNormalCleanupAction>, &'static str> {
+    let machine = super::owning_cleanup_machine(program, state);
     let mut actions = Vec::new();
     let mut retirement = None;
     for disposition_handle in facts
@@ -39,38 +39,34 @@ pub(super) fn selected_actions(
             continue;
         }
         if retirement.is_none() {
-            retirement = Some(super::actions::home_retirement(
-                program,
-                shapes,
-                disposition,
-                source.clone(),
-            )?);
+            retirement = Some(
+                super::actions::home_retirement(program, shapes, disposition, source.clone())
+                    .ok_or("retained owner home retirement cannot be formed")?,
+            );
         }
-        actions.extend(
-            selected_regions(
-                program,
-                facts,
-                targets,
-                shapes,
-                disposition_handle,
-                source.clone(),
-                None,
-            )
-            .ok()?,
-        );
+        actions.extend(selected_regions(
+            program,
+            facts,
+            targets,
+            shapes,
+            disposition_handle,
+            source.clone(),
+            None,
+        )?);
     }
     if let Some(retirement) = retirement {
         super::actions::finish_home(&mut actions, retirement);
     }
-    Some(actions)
+    Ok(actions)
 }
 
 pub(in crate::execution::terminal_unit) fn dependency_dispositions(
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    machine: SymbolHandle,
     state: SymbolHandle,
     root: checked_trees::CheckedStructuralValueHandle,
 ) -> Option<Vec<arena::Handle<checked_trees::ContextualCleanupDisposition>>> {
+    let machine = super::owning_cleanup_machine(program, state);
     let mut selected = Vec::new();
     for value in facts.values.structural_values.value_dependencies(root)? {
         if value == root {
@@ -108,7 +104,7 @@ pub(super) fn owner_group_actions(
     shapes: &mut ShapeCollector<'_>,
     disposition: arena::Handle<checked_trees::ContextualCleanupDisposition>,
     source: CheckedUnitStructuralArgumentSourcePlan,
-) -> Option<Vec<CheckedNormalCleanupAction>> {
+) -> Result<Vec<CheckedNormalCleanupAction>, &'static str> {
     let row = facts.contextual_cleanup.dispositions.get(disposition);
     let PermissionEventSource::Call {
         statement_index,
@@ -116,18 +112,19 @@ pub(super) fn owner_group_actions(
         target_symbol,
     } = row.source
     else {
-        return None;
+        return Err("retained owner disposition is not a call source");
     };
     selected_actions(
         program,
         facts,
         targets,
         shapes,
-        row.machine,
         row.state,
         CheckedUnitCallCoordinate {
-            statement_index: u32::try_from(statement_index).ok()?,
-            call_ordinal: u32::try_from(call_ordinal).ok()?,
+            statement_index: u32::try_from(statement_index)
+                .map_err(|_| "retained owner statement index exceeds u32")?,
+            call_ordinal: u32::try_from(call_ordinal)
+                .map_err(|_| "retained owner call ordinal exceeds u32")?,
         },
         target_symbol,
         row.root,

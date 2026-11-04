@@ -30,6 +30,8 @@ record_variants!(effects::CompilerIntrinsicExecutionIdentity {
     9 => PrimitiveIntegerComparison { operation, integer_type },
     10 => NamedFloatNegation(value0),
     11 => NamedFloatConversion { source, target, domain },
+    12 => TaskRegisterActivate,
+    13 => TaskRegisterRead,
 });
 
 record_variants!(effects::CompilerNumericType {

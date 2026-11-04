@@ -11,6 +11,8 @@ pub enum PackageReviewCompilerIntrinsicExecution {
     HostedReadByte,
     ProgramImageRetainedSuffixStart,
     ProgramStorageEntry,
+    TaskRegisterActivate,
+    TaskRegisterRead,
     AccessorScalarAccess {
         contract: [u8; 32],
         placement_commitment: [u8; 32],
