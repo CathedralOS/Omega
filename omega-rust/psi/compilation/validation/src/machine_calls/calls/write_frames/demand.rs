@@ -423,10 +423,15 @@ impl<'program> CallFrameResolver<'program> {
             &mut FrameInference::for_state(state.symbol),
         )
         .map(|transfers| transfers.fallthrough());
-        if unbound
-            .as_ref()
-            .is_some_and(|transfer| transfer.is_complete() && transfer.effects.is_empty())
-        {
+        // A concrete empty frontier needs no caller origins. A guard whose
+        // only open question is a type parameter likewise publishes no caller
+        // slot: closed instances recheck that parameter with concrete types.
+        // An unknown invocation that names a failed call stays incomplete.
+        if unbound.as_ref().is_some_and(|transfer| {
+            transfer.effects.is_empty()
+                && transfer.incomplete_calls.is_empty()
+                && (transfer.is_complete() || transfer.template_dependent)
+        }) {
             return Some(Vec::new());
         }
         let (_, _, _, transfers) = self.statement_reference_transfer(machine, statement)?;

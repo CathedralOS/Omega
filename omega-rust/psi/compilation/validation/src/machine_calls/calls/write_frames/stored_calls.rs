@@ -158,6 +158,19 @@ fn invocation_reference_effects(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<SlotRelationTransfer> {
+    // Asm intrinsics write registers and scalar destinations. `embed`
+    // yields a proof integer. Neither replaces caller reference slots, and
+    // neither has a machine signature for the ordinary parameter inventory.
+    if program
+        .typed_program()
+        .symbols
+        .builtin_function_for_symbol(target)
+        .is_some_and(|builtin| {
+            builtin.is_asm_intrinsic() || builtin == symbols::BuiltinFunction::IntegerEmbed
+        })
+    {
+        return Some(SlotRelationTransfer::complete(Vec::new()));
+    }
     let trace_refusal = |phase: &str| {
         if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
             eprintln!(
@@ -229,6 +242,16 @@ fn invocation_reference_effects(
             }
             crate::CallSite::Expression { expression, call }
                 .parameters(program, machine.symbol)
+                .or_else(|| {
+                    // The applied logical signature can be absent while the
+                    // selected requirement still names its public contract.
+                    // That contract classifies caller slots; a private
+                    // satisfier body does not.
+                    let dispatch = call.static_requirement_dispatch.as_ref()?;
+                    let (_, signature) =
+                        program.trait_machine_signature(dispatch.contract_symbol())?;
+                    Some(program.state_signature_parameters(signature))
+                })
                 .or_else(|| {
                     trace_refusal("expression-parameters");
                     None

@@ -169,6 +169,30 @@ impl Retirement<'_> {
         {
             return self.uncommitted_owner == PlaceRoot::Symbol(Default::default());
         }
+        // A carrier with no loan row is not kept alive by a descriptor
+        // occurrence. A named copy home ends with the frame. An affine
+        // temporary is the initializer copied into that home: it ends here
+        // too, and the named home is what lowering has to have established.
+        // Loan-bearing carriers stay ordered by their holders.
+        if self.at_exit
+            && matches!(
+                result.multiplicity,
+                language_semantics::Multiplicity::Unrestricted
+                    | language_semantics::Multiplicity::Affine
+            )
+            && (result.local.is_named()
+                || result.multiplicity == language_semantics::Multiplicity::Affine)
+            && super::carrier_loans(
+                self.facts,
+                self.machine,
+                self.state.symbol,
+                result,
+                self.results,
+            )
+            .is_some_and(|loans| loans.is_empty())
+        {
+            return true;
+        }
         let source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         };

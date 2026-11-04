@@ -999,6 +999,17 @@ impl Evaluation {
             .retain(|local| local.argument.place != place);
     }
 
+    /// End an anonymous result that occupies a declared local's place.
+    /// The result and the local are two registrations of one home. Releasing
+    /// the result must leave the named local established: a later descriptor
+    /// release still resolves that symbol.
+    pub(crate) fn retire_result_carrier(&mut self, place: PlaceId) {
+        self.structural_value_owners
+            .retain(|owner| owner.value.place != place || owner.symbol.is_valid());
+        self.structural_locals
+            .retain(|local| local.argument.place != place || local.root.as_symbol().is_some());
+    }
+
     /// A consuming operation removes executable names, while expression-owner
     /// coordinates remain available to their already checked completion cleanup.
     /// Whole-home cleanup removes those historical coordinates afterwards.
