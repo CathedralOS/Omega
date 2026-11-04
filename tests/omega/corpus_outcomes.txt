@@ -21805,6 +21805,10 @@ fail/layouts/fixed_layout_finite_dynamic_policy_rejected rejected 462ms expected
 	policy `Policy::plan` produced an invalid plan: alignment 0 is not a positive power of two
 fail/layouts/fixed_layout_overridden_invalid_policy_rejected rejected 462ms expected @2ba727eefb59+wt
 	policy `Policy::plan` produced an invalid plan: alignment 0 is not a positive power of two
+fail/layouts/fixed_layout_policy_borrowed_content rejected 2240ms expected @dc9835be2e64
+	specification call `policy` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
+fail/layouts/fixed_layout_policy_guarantee rejected 2698ms expected @dc9835be2e64
+	cannot prove ensures contract for exit from validate at statement 0: policy(result, storage, expected)
 fail/layouts/fixed_layout_unbounded_policy_geometry_rejected rejected 3199ms expected @d68d95fa82f8
 	recast has no complete exact layout alternative roster
 fail/layouts/fixed_layout_uncalled_policy_member_rejected rejected 2019ms expected @d68d95fa82f8
@@ -34841,6 +34845,7 @@ pass/layouts/fixed_layout_computed_const_policy_exit rejected 523ms check-target
 pass/layouts/fixed_layout_finite_dynamic_policy_exit checked 2087ms check-target:macos_arm64 @2ba727eefb59+wt
 pass/layouts/fixed_layout_forwarded_fragmented_mutation_exit checked 15572ms check-target:macos_arm64 @911f6617ba9e
 pass/layouts/fixed_layout_overridden_valid_policy_exit checked 1871ms check-target:macos_arm64 @2ba727eefb59+wt
+pass/layouts/fixed_layout_policy_value_exit checked 3643ms check-target:macos_arm64 @dc9835be2e64
 pass/layouts/fixed_layout_semantic_only_policy_exit checked 8828ms check-target:macos_arm64 @d68d95fa82f8
 pass/layouts/fixed_layout_unbounded_invariant_policy_exit checked 9008ms check-target:macos_arm64 @d68d95fa82f8
 pass/layouts/fixed_layout_unmentioned_valid_policy_exit checked 1937ms check-target:macos_arm64 @2ba727eefb59+wt
