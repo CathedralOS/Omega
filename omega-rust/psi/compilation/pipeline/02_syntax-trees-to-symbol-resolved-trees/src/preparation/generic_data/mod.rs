@@ -426,7 +426,7 @@ fn collect_closed_const_arguments(
     declaration_syntax: Option<&SyntaxTrees>,
     positions: &[TypeReferenceHandle],
     public_positions: &HashSet<TypeReferenceHandle>,
-    include_machine_casts: bool,
+    include_callable_inputs: bool,
 ) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
     let mut pending = Vec::new();
     let mut seen_pending = HashSet::new();
@@ -498,7 +498,32 @@ fn collect_closed_const_arguments(
             _ => {}
         }
     }
-    if include_machine_casts {
+    if include_callable_inputs {
+        // A satisfaction clause owns its complete trait application. Its
+        // argument leaves alone cannot identify their receiving const carrier.
+        let selected_positions = positions.iter().copied().collect::<HashSet<_>>();
+        let applications = uses::concrete_machine_declarations(syntax, syntax.root_item_handles())
+            .into_iter()
+            .flat_map(|machine| syntax.items.satisfies_clauses(machine.satisfies))
+            .filter_map(|clause| {
+                let arguments =
+                    syntax_type_references(syntax).type_reference_handles(clause.arguments);
+                arguments
+                    .iter()
+                    .any(|argument| selected_positions.contains(argument))
+                    .then(|| (clause.trait_name.clone(), arguments.to_vec()))
+            })
+            .collect::<Vec<_>>();
+        for (name, arguments) in applications {
+            if let Some(parameters) = selection.const_parameter_carriers(
+                syntax,
+                declaration_syntax,
+                &name,
+                &[symbols::SymbolKind::Trait],
+            ) {
+                retain_arguments(syntax, &parameters, &arguments);
+            }
+        }
         let mut concrete = None;
         for (handle, expression) in syntax.expressions.iter_expressions() {
             let ExpressionNode::Cast(cast) = expression else {
