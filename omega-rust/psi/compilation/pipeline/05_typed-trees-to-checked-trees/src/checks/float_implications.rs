@@ -471,9 +471,9 @@ fn required_comparison(
         else {
             continue;
         };
-        // A declaration-relative selector must be substituted with its own
-        // captured actual. Static field/index coordinates need no such read;
-        // an unresolved selector cannot borrow a caller's same-spelled value.
+        // An index in the contract must use its own captured argument.
+        // Fields and constant indices need no extra read. Unknown indices
+        // cannot use a caller value just because it has the same name.
         if !declared_place
             .segments
             .iter()

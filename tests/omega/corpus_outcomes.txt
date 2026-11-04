@@ -1080,6 +1080,8 @@ fail/facts/fixed_region_byte_roundtrip_through_target_body_short_region_rejected
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
 fail/facts/float_comparison_route_nonnumeric_contract_rejected rejected 8727ms expected @cc26a0e67500
 	cannot prove requires contract for call bounded from select: value <= 1.0 (needs fact `value <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_result_equality_selected_entry_field_rejected rejected 16330ms expected @fa1d3b675c49
+	cannot prove requires contract for call observe from main: item.kept == 7.0 (needs fact `item.kept == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/foreign_byte_array_element_backing_through_call_result_rejected rejected 36751ms expected @3db1f7baaded+wt
 	statement 2 mutates `text[0]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/facts/foreign_byte_array_element_backing_through_const_name_rejected rejected 23024ms expected @3db1f7baaded+wt
@@ -8226,15 +8228,15 @@ pass/facts/float_range_delivery_through_other_machine_exit checked 8340ms check-
 pass/facts/float_range_delivery_through_other_state_exit checked 9618ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/float_range_delivery_through_parameter_exit checked 8164ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/float_range_delivery_through_target_body_exit checked 8929ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/float_result_equality_through_call_result_exit checked 6900ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_result_equality_through_const_name_exit checked 6671ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_result_equality_through_field_exit checked 6155ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_result_equality_through_local_exit checked 7084ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_result_equality_through_match_join_exit checked 6007ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_result_equality_through_other_machine_exit checked 6990ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_result_equality_through_other_state_exit checked 6733ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_result_equality_through_parameter_exit checked 6919ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/float_result_equality_through_target_body_exit checked 6453ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/float_result_equality_through_call_result_exit checked 9812ms check-target:macos_arm64 @37bbc58593ae
+pass/facts/float_result_equality_through_const_name_exit checked 10084ms check-target:macos_arm64 @37bbc58593ae
+pass/facts/float_result_equality_through_field_exit checked 10986ms check-target:macos_arm64 @37bbc58593ae
+pass/facts/float_result_equality_through_local_exit checked 10700ms check-target:macos_arm64 @37bbc58593ae
+pass/facts/float_result_equality_through_match_join_exit checked 9965ms check-target:macos_arm64 @37bbc58593ae
+pass/facts/float_result_equality_through_other_machine_exit checked 9923ms check-target:macos_arm64 @37bbc58593ae
+pass/facts/float_result_equality_through_other_state_exit checked 9954ms check-target:macos_arm64 @37bbc58593ae
+pass/facts/float_result_equality_through_parameter_exit checked 9926ms check-target:macos_arm64 @37bbc58593ae
+pass/facts/float_result_equality_through_target_body_exit checked 18330ms check-target:macos_arm64 @37bbc58593ae
 pass/facts/foreign_borrowed_array_view_call_result checked 20397ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/foreign_borrowed_array_view_const_name checked 20354ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/foreign_borrowed_array_view_field checked 19165ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -24465,23 +24467,23 @@ fail/facts/float_range_delivery_through_target_body_rejected rejected 7089ms exp
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/float_result_equality_through_call_result_rejected rejected 5544ms expected @ccdb99ca2214
+fail/facts/float_result_equality_through_call_result_rejected rejected 7308ms expected @37bbc58593ae
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
-fail/facts/float_result_equality_through_const_name_rejected rejected 5153ms expected @ccdb99ca2214
+fail/facts/float_result_equality_through_const_name_rejected rejected 7116ms expected @37bbc58593ae
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
-fail/facts/float_result_equality_through_field_rejected rejected 5193ms expected @ccdb99ca2214
+fail/facts/float_result_equality_through_field_rejected rejected 7479ms expected @37bbc58593ae
 	cannot prove ensures contract for exit from read_kept at statement 0: result == holder.item.kept && result == 7.0
-fail/facts/float_result_equality_through_local_rejected rejected 5366ms expected @ccdb99ca2214
+fail/facts/float_result_equality_through_local_rejected rejected 7429ms expected @37bbc58593ae
 	cannot prove ensures contract for exit from read_kept at statement 1: result == item.kept && result == 7.0
-fail/facts/float_result_equality_through_match_join_rejected rejected 5502ms expected @ccdb99ca2214
+fail/facts/float_result_equality_through_match_join_rejected rejected 7419ms expected @37bbc58593ae
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
-fail/facts/float_result_equality_through_other_machine_rejected rejected 5609ms expected @ccdb99ca2214
+fail/facts/float_result_equality_through_other_machine_rejected rejected 7195ms expected @37bbc58593ae
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
-fail/facts/float_result_equality_through_other_state_rejected rejected 4373ms expected @ccdb99ca2214
+fail/facts/float_result_equality_through_other_state_rejected rejected 7658ms expected @37bbc58593ae
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
-fail/facts/float_result_equality_through_parameter_rejected rejected 4428ms expected @ccdb99ca2214
+fail/facts/float_result_equality_through_parameter_rejected rejected 7076ms expected @37bbc58593ae
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
-fail/facts/float_result_equality_through_target_body_rejected rejected 5570ms expected @ccdb99ca2214
+fail/facts/float_result_equality_through_target_body_rejected rejected 13437ms expected @37bbc58593ae
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
 fail/facts/foreign_borrowed_array_view_call_result rejected 9884ms expected @ee4dbb4b2d56
 	statement 6 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)

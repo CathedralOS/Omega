@@ -4360,15 +4360,15 @@ pass/facts/float_range_delivery_through_other_machine_exit built 4365ms exit:0 i
 pass/facts/float_range_delivery_through_other_state_exit built 4359ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/float_range_delivery_through_parameter_exit built 4503ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/float_range_delivery_through_target_body_exit built 4514ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_call_result_exit built 4300ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_const_name_exit built 4945ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_field_exit built 4869ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_local_exit built 4157ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_match_join_exit built 4595ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_other_machine_exit built 4601ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_other_state_exit built 4450ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_parameter_exit built 4393ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_target_body_exit built 4289ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/facts/float_result_equality_through_call_result_exit built 9796ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_const_name_exit built 9795ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_field_exit built 10081ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_local_exit built 10084ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_match_join_exit built 10221ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_other_machine_exit built 10177ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_other_state_exit built 10229ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_parameter_exit built 10189ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_target_body_exit built 15792ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
 pass/facts/foreign_borrowed_array_view_call_result built 3086ms exit:127 @6e42425cd720
 	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
 pass/facts/foreign_borrowed_array_view_const_name built 2530ms exit:127 @6e42425cd720
