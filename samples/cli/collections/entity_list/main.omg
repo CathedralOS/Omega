@@ -34,32 +34,32 @@ machine Main::main(main: &mut Main) reaches Console {
     main.monsters[2].hp = 25;
     main.monsters[3].hp = 8;
     main.i = 0;
-    transition { _ -> damage_loop(main) }
+    transition { _ -> block damage_loop(main) }
 
     machine damage_loop(main: &mut Main) {
-        transition main.i < 4 { true -> damage_one(main) _ -> sum_start(main) }
+        transition main.i < 4 { true -> block damage_one(main) _ -> block sum_start(main) }
     }
     machine damage_one(main: &mut Main) {
         main.scratch = main.monsters[main.i].hp; // direct indexed read into a scalar
         main.scratch = main.scratch - 10;        // arithmetic on the scalar field
         main.monsters[main.i].hp = main.scratch; // direct indexed write-back
         main.i = main.i + 1;
-        transition { _ -> damage_loop(main) }
+        transition { _ -> block damage_loop(main) }
     }
 
     machine sum_start(main: &mut Main) {
         main.i = 0;
         main.total = 0;
-        transition { _ -> sum_loop(main) }
+        transition { _ -> block sum_loop(main) }
     }
     machine sum_loop(main: &mut Main) {
-        transition main.i < 4 { true -> sum_one(main) _ -> done(main) }
+        transition main.i < 4 { true -> block sum_one(main) _ -> block done(main) }
     }
     machine sum_one(main: &mut Main) {
         main.scratch = main.monsters[main.i].hp;
         main.total = main.total + main.scratch;
         main.i = main.i + 1;
-        transition { _ -> sum_loop(main) }
+        transition { _ -> block sum_loop(main) }
     }
 
     machine done(main: &mut Main) {

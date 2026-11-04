@@ -133,6 +133,8 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         | BuiltinFunction::AsmWriteCr0
         | BuiltinFunction::AsmWriteCr3
         | BuiltinFunction::AsmWriteCr4
+        | BuiltinFunction::AsmStoreGdtr
+        | BuiltinFunction::AsmLoadGdtr
         | BuiltinFunction::AsmWriteBackInvalidate
         | BuiltinFunction::AsmInvalidate
         | BuiltinFunction::AsmWriteBackNoInvalidate

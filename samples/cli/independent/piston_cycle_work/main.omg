@@ -30,12 +30,12 @@ crashes Trap
     let mut application: Application;
     let input: ByteRead = block Console::read_byte();
     transition input {
-        ByteRead::Byte { value } -> select(&mut application, value)
+        ByteRead::Byte { value } -> block select(&mut application, value)
         _ -> invalid()
     }
     machine select(application: &mut Application, value: i32) {
         transition value >= 48 && value <= 57 {
-            true -> delimiter(application, value)
+            true -> block delimiter(application, value)
             _ -> invalid()
         }
     }
@@ -45,7 +45,7 @@ crashes Trap
         let tail: ByteRead = block Console::read_byte();
         transition tail {
             ByteRead::Eof -> start(application)
-            ByteRead::Byte { value: 10 } -> finish_input(application)
+            ByteRead::Byte { value: 10 } -> block finish_input(application)
             _ -> invalid()
         }
     }

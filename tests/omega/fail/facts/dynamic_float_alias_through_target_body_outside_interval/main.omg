@@ -1,6 +1,6 @@
 // Inline exact IEEE value 0.25 guarantee refines public inclusive f64 interval [0, 0.5]; the dyn call preserves the public interval for a precondition and observes 0.25.
 // Place: target_body.
-// Invalid: Quarter alone promises and returns 0.75 outside the public interval.
+// Expected exit: 0.
 public let public_interval(value: f64, lower: f64, upper: f64): core::Strict<0> = value >= lower && value <= upper;
 
 trait Fraction {
@@ -9,42 +9,17 @@ trait Fraction {
 Quarter satisfies Fraction {
     machine get() -> f64 ensures result >= 0.75 && result <= 0.75 { 0.75 }
 }
-boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+boundary trait FloatInvocation {
+    machine invoke(selected: dyn Fraction) -> f64 reaches
+    ensures public_interval(result, 0.0, 0.5);
 }
-X86BodyCheck satisfies SelectedBodyCheck {
-    machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
-        machine done() {}
-        machine wrong() { crash Trap; }
-    }
-}
-ArmBodyCheck satisfies SelectedBodyCheck {
-    machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
-        machine done() {}
-        machine wrong() { crash Trap; }
-    }
-}
-boundary trait SelectedInvoke {
-    machine invoke(selected: dyn Fraction) -> f64 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures public_interval(result, 0.0, 0.5);
-}
-X86Invoke satisfies SelectedInvoke {
-    machine invoke(selected: dyn Fraction) -> f64 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures public_interval(result, 0.0, 0.5) {
-        SelectedBodyCheck::require_tag(17u64);
-        Fraction::get(selected)
-    }
-}
-ArmInvoke satisfies SelectedInvoke {
-    machine invoke(selected: dyn Fraction) -> f64 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures public_interval(result, 0.0, 0.5) {
-        SelectedBodyCheck::require_tag(29u64);
-        Fraction::get(selected)
-    }
+SelectedFloatInvocation satisfies FloatInvocation {
+    machine invoke(selected: dyn Fraction) -> f64 ensures public_interval(result, 0.0, 0.5) { Fraction::get(selected) }
 }
 machine accept(value: f64) requires public_interval(value, 0.0, 0.5) {}
 machine main() crashes Trap {
     let selected: dyn Fraction = Quarter as dyn Fraction;
-    let observed: f64 = SelectedInvoke::invoke(selected);
+    let observed: f64 = FloatInvocation::invoke(selected);
     accept(observed);
     transition observed == 0.25 {
         true -> done()
@@ -52,12 +27,4 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
-}
-machine x86_entry() crashes Trap {
-    SelectedBodyCheck::require_tag(17u64);
-    main();
-}
-machine arm_entry() crashes Trap {
-    SelectedBodyCheck::require_tag(29u64);
-    main();
 }

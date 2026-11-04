@@ -23,7 +23,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
     let layers: Number = block number(&mut application.reader);
     let count: Number = block number(&mut application.reader);
     transition ambient.valid && substrate.valid && layers.valid && count.valid {
-        true -> options(application, ambient.value, substrate.value, layers.value, count.value)
+        true -> block options(application, ambient.value, substrate.value, layers.value, count.value)
         _ -> invalid(application)
     }
     machine invalid(application: &mut Application) { Console::write_line("ERROR input or domain"); Console::exit_process(10); }
@@ -31,42 +31,42 @@ machine Application::main(application: &mut Application) reaches Console crashes
         let layer_integer: i32 in Saturating = I32::from_f64(layers);
         let count_integer: i32 in Saturating = I32::from_f64(count);
         transition ambient >= 1.0 && ambient <= 4.0 && substrate >= 1.0 && substrate <= 4.0 && layers >= 0.0 && layers <= 8.0 && count >= 1.0 && count <= 32.0 && layers == F64::from_i32(layer_integer as i32) && count == F64::from_i32(count_integer as i32) {
-            true -> configure(application, ambient, substrate, layer_integer as i32 in Wrapping, count_integer as i32 in Wrapping)
+            true -> block configure(application, ambient, substrate, layer_integer as i32 in Wrapping, count_integer as i32 in Wrapping)
             _ -> invalid(application)
         }
     }
     machine configure(application: &mut Application, ambient: f64, substrate: f64, layers: i32 in Wrapping, count: i32 in Wrapping) {
         application.ambient = ambient; application.substrate = substrate;
         application.layers = layers; application.count = count; application.index = 0;
-        transition { _ -> read_layer(application) }
+        transition { _ -> block read_layer(application) }
     }
     machine read_layer(application: &mut Application) {
-        transition application.index >= 0 && application.index < application.layers && application.index < 8 { true -> layer_tokens(application) _ -> start_wavelengths(application) }
+        transition application.index >= 0 && application.index < application.layers && application.index < 8 { true -> block layer_tokens(application) _ -> block start_wavelengths(application) }
     }
     machine layer_tokens(application: &mut Application) {
         let index: Number = block number(&mut application.reader);
         let thickness: Number = block number(&mut application.reader);
         transition index.valid && thickness.valid && index.value >= 1.0 && index.value <= 4.0 && thickness.value >= 0.0 && thickness.value <= 2000.0 {
-            true -> store_layer(application, index.value, thickness.value)
+            true -> block store_layer(application, index.value, thickness.value)
             _ -> invalid(application)
         }
     }
     machine store_layer(application: &mut Application, index: f64, thickness: f64) {
         application.indices[application.index] = index; application.thicknesses[application.index] = thickness;
         application.index = application.index + 1;
-        transition { _ -> read_layer(application) }
+        transition { _ -> block read_layer(application) }
     }
-    machine start_wavelengths(application: &mut Application) { application.index = 0; transition { _ -> read_wavelength(application) } }
+    machine start_wavelengths(application: &mut Application) { application.index = 0; transition { _ -> block read_wavelength(application) } }
     machine read_wavelength(application: &mut Application) {
-        transition application.index >= 0 && application.index < application.count && application.index < 32 { true -> wavelength_token(application) _ -> finish_input(application) }
+        transition application.index >= 0 && application.index < application.count && application.index < 32 { true -> block wavelength_token(application) _ -> block finish_input(application) }
     }
     machine wavelength_token(application: &mut Application) {
         let wavelength: Number = block number(&mut application.reader);
-        transition wavelength.valid && wavelength.value >= 200.0 && wavelength.value <= 2000.0 { true -> store_wavelength(application, wavelength.value) _ -> invalid(application) }
+        transition wavelength.valid && wavelength.value >= 200.0 && wavelength.value <= 2000.0 { true -> block store_wavelength(application, wavelength.value) _ -> invalid(application) }
     }
     machine store_wavelength(application: &mut Application, wavelength: f64) {
         application.wavelengths[application.index] = wavelength; application.index = application.index + 1;
-        transition { _ -> read_wavelength(application) }
+        transition { _ -> block read_wavelength(application) }
     }
     machine finish_input(application: &mut Application) {
         let complete: bool = block ended(&mut application.reader);

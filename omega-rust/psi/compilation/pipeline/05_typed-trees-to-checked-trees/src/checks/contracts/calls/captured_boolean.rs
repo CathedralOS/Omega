@@ -118,6 +118,8 @@ fn captured_float_requirement(
     // the requirement's own frame: a Boolean comparison of substituted actuals
     // needs no state, and an operation that would read a body state's operand
     // types finds none and stays unproved rather than reading an implementation.
+    // Captured field facts need no private implementation: the public declaration
+    // supplies its parameters even when it has no executable body.
     let (machine, target_state) = validation::find_state(program, call.target_symbol)
         .map(|(machine, state)| (machine.symbol, state.symbol))
         .or_else(|| {

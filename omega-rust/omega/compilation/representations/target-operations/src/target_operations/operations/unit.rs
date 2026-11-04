@@ -625,6 +625,12 @@ pub enum TargetUnitOperation {
         port: u16,
         value: u8,
     },
+    GlobalDescriptorTable {
+        psi_operation: OperationId,
+        service: ServiceId,
+        operation: terminal_psi::GlobalDescriptorTableOperation,
+        source: terminal_psi::StructuralArgument,
+    },
     RegisterAccess {
         psi_operation: OperationId,
         service: Option<ServiceId>,

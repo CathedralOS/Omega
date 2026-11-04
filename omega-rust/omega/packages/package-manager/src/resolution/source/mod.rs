@@ -52,23 +52,3 @@ pub(crate) use navigation::PackageSourceNavigation;
 pub(crate) use selection::PackageSourceSelectionEvidence;
 pub use selection::PackageSourceSelectionEvidenceError;
 use std::path::{Path, PathBuf};
-
-/// Offer private compiler storage from the ordinary retained source resolver.
-/// The lane conveys storage custody only; source and package admission remain
-/// per compilation. Embedders can preserve their explicitly supplied resolver.
-pub fn retain_compiler_source_storage(
-    resolver: Option<&package_source::SourceResolver>,
-) -> Result<package_source::storage::RetainedStorageLane, String> {
-    let owned;
-    let resolver = match resolver {
-        Some(resolver) => resolver,
-        None => {
-            owned = package_source::SourceResolver::for_current_user(
-                package_source::PrimaryGitChoices::default(),
-            )
-            .map_err(|reason| reason.to_string())?;
-            &owned
-        }
-    };
-    custody::retain_compiled_review_storage(resolver).map_err(|reason| reason.to_string())
-}

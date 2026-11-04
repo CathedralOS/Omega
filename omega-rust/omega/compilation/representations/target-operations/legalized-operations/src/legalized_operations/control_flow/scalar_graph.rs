@@ -185,6 +185,7 @@ impl LegalizedScalarInstruction {
             }
             LegalizedScalarInstructionKind::ByteSequenceLength { indices, .. }
             | LegalizedScalarInstructionKind::ElementViewLength { indices, .. }
+            | LegalizedScalarInstructionKind::GlobalDescriptorTable { indices, .. }
             | LegalizedScalarInstructionKind::StorageAddress { indices, .. }
             | LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
@@ -456,6 +457,13 @@ pub enum LegalizedScalarInstructionKind {
         boundary: semantic_vocabulary::BoundaryMachineId,
     },
     StorageAddress {
+        source: semantic_vocabulary::PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
+    },
+    GlobalDescriptorTable {
+        service: semantic_vocabulary::ServiceId,
+        operation: terminal_psi::GlobalDescriptorTableOperation,
         source: semantic_vocabulary::PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
         indices: Vec<LegalizedRuntimeIndexOperand>,
@@ -1096,6 +1104,7 @@ impl LegalizedScalarInstructionKind {
             | Self::SelectImplementation { .. }
             | Self::FloatResultPolicy { .. }
             | Self::PortWrite { .. }
+            | Self::GlobalDescriptorTable { .. }
             | Self::RegisterAccess { .. }
             | Self::AtomicFence { .. }
             | Self::AccessorScalarAccess { .. }

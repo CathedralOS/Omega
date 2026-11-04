@@ -6,7 +6,8 @@
 // actually ran.
 //
 //   * `boundary machine % Math::remainder` — the operator
-//     surface is boundary-declared.
+//     surface is boundary-declared, homed on the probe's own
+//     `u64 in Operand` domain.
 //   * `satisfies Math::remainder` provider impl.
 //   * `requires value <= bounded(256)` — range endpoint is a machine
 //     call evaluated at check time.
@@ -16,11 +17,12 @@
 
 data Math {}
 
-boundary machine % Math::remainder(left: u64, right: u64) -> u64;
+domain u64::Operand;
+boundary machine % Math::remainder(left: u64 in Operand, right: u64 in Operand) -> u64;
 
 data Provider {}
 
-machine Provider::remainder(left: u64, right: u64) -> u64
+machine Provider::remainder(left: u64 in Operand, right: u64 in Operand) -> u64
 satisfies Math::remainder
 {
     transition { _ -> (left | right) }

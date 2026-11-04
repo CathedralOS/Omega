@@ -91,7 +91,7 @@ pub(super) fn settle(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     }
     // A query in a `requires` contract runs in no statement. Contracts bind
     // only parameters, so its place must be rooted at one and takes that
-    // parameter's declared type. `ensures` and trait requirement contracts
+    // parameter's declared type, projected through any field path. `ensures` and trait requirement contracts
     // are not yet answered and reject. Anything else (a constant
     // initializer, a data predicate) names no storage place and rejects.
     let roots: Vec<_> = expressions_of(program)
@@ -198,10 +198,10 @@ fn value_query_operand(
     }
 }
 
-/// A `requires` query's subject: a parameter of an ordinary machine, or a
-/// reference parameter's referent. Contracts carry no proof context for a
-/// slice's nonempty view or a field path, so those stay statement-only, and
-/// trait requirement contracts are not yet answered.
+/// A `requires` query's subject: a parameter of an ordinary machine, a
+/// reference parameter's referent, or a field path below either. Contracts
+/// carry no proof context for a slice's nonempty view, so slices stay
+/// statement-only, and trait requirement contracts are not yet answered.
 fn contract_storage_type(
     program: &TypedTrees,
     place: ExpressionHandle,
@@ -209,11 +209,6 @@ fn contract_storage_type(
     const NO_PLACE: &str = "`align_of(value)` observes a storage place; outside a machine body only a parameter of the contracted machine names one";
     let canonical = validation::canonical_place_from_expression(program, place).ok_or(NO_PLACE)?;
     let root = canonical.root.as_symbol().ok_or(NO_PLACE)?;
-    if !canonical.segments.is_empty() {
-        return Err(
-            "`align_of(value)` in a contract observes a whole parameter or its referent; a projected place is not yet supported there",
-        );
-    }
     let declared = program
         .machines()
         .iter()
@@ -234,7 +229,29 @@ fn contract_storage_type(
             NO_PLACE
         });
     };
-    let subject = referent(program, declared);
+    // A field path projects from the parameter's referent, exactly as the
+    // body form does: a field inside an explicit representation has no
+    // default-placement guarantee, and a reference field observes its referent.
+    let mut subject = referent(program, declared);
+    for segment in &canonical.segments {
+        if !matches!(segment, facts::PlaceSegment::Field { .. }) {
+            return Err(
+                "`align_of(value)` in a contract observes a parameter, its referent or a field path; an element or other projection is not yet supported there",
+            );
+        }
+        if program.layout_storage_arguments(subject).is_some() {
+            return Err(
+                "`align_of(value)` on a field of an explicit layout representation needs that policy's placement, which is not yet observed",
+            );
+        }
+        subject = validation::project_type_reference_from_segments(
+            program,
+            subject,
+            std::slice::from_ref(segment),
+        )
+        .map(|field| referent(program, field))
+        .ok_or("`align_of(value)` requires an operand whose storage type is known")?;
+    }
     if matches!(
         program.type_reference_table.type_reference(subject),
         TypeReferenceNode::Slice { .. }
@@ -268,6 +285,18 @@ fn observed_storage_type(
             .ok_or(
                 "`align_of(value)` observes an addressable storage place; this operand is a value with no storage location",
             )?;
+    // A case payload field is selected by its name, not by a proof that the
+    // case is active; its storage type would be the first matching case's.
+    // An ordinary read owes that case proof, but this query never reads.
+    if canonical
+        .segments
+        .iter()
+        .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+    {
+        return Err(
+            "`align_of(value)` on a case payload field needs a proof that the case is active, which the query does not yet carry; query a field outside the case",
+        );
+    }
     // A field inside an explicit representation (`LayoutStorage<T, Policy>`)
     // sits wherever that policy placed it, so the field type's default
     // minimum is no guarantee for it. Reject rather than overstate it.

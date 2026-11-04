@@ -964,6 +964,7 @@ fn canonical_scalar_jobs_bind_provisional_inputs_to_the_target_and_entry() {
         .unwrap();
         let installation = program
             .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+                native_code_layouts: None,
                 entry: Some(TargetMachineCallable::Machine(entry)),
                 installation: Some(&providers),
                 target_machines: Some(selected),
