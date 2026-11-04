@@ -308,11 +308,13 @@ fn validate<'program>(
     );
     for machine in program.machines() {
         if typed_trees::float_providers::is_catalog_declaration(program.typed_program(), machine)
-            && typed_trees::float_providers::intrinsic_member(program.typed_program(), machine)
-                .is_none()
+            && let Err(reason) = typed_trees::float_providers::authenticate_intrinsic_member(
+                program.typed_program(),
+                machine,
+            )
         {
             diagnostics.push(Diagnostic::error(format!(
-                "float provider member `{}` is not authenticated: its core map, exact public requirement, complete signature and intrinsic binding must agree",
+                "float provider member `{}` is not authenticated: {reason}",
                 machine.name,
             )));
         }

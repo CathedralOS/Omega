@@ -75,17 +75,16 @@ pub fn project_build_program(
         .map(|machine| (machine.attached_data_symbol, machine.symbol))
         .collect::<Vec<_>>();
     let descriptors = build_descriptor_declarations(original);
-    let machines = original
-        .machines()
-        .iter()
-        .map(|machine| machine.symbol)
-        .collect::<HashSet<_>>();
     let mut program = project_declarations(
         original,
         |symbol| {
             is_build_scope(symbol)
                 && !is_generated(symbol)
-                && (machines.contains(&symbol) || !descriptors.contains(&symbol))
+                // A described bodyless member supplies no Build code to check.
+                // Actual calls still restore its exact declaration through the
+                // ordinary reference closure below.
+                && (original.machine(symbol).is_some_and(|machine| machine.body_is_present)
+                    || !descriptors.contains(&symbol))
         },
         |symbol| {
             is_generated(symbol)
