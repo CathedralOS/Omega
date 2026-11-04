@@ -46,9 +46,12 @@ impl SourceStorage {
         // A toolchain-owned root already has declaration custody. Imported
         // package sources do not create an anonymous User owner for that root.
         // Retaining the capture above still checks unbound source containment.
-        if !self.sources.selected_files().any(|file| {
+        // retain_anonymous_owner transfers this map into the capture. Inspect
+        // that map and restore it when no User owner needs to be established.
+        if !capture.sources().selected_files().any(|file| {
             file.origin == SourceOrigin::User && file.package_root == self.default_package_root
         }) {
+            self.sources = std::sync::Arc::unwrap_or_clone(capture.sources);
             return Ok(None);
         }
         let sealed = capture.complete_without_dependencies()?;
