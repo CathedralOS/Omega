@@ -22744,29 +22744,19 @@ pass/facts/data_where_standing_mutable_recast_through_parameter_exit checked 384
 pass/facts/data_where_standing_mutable_recast_through_target_body_exit checked 3271ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_restoration checked 3284ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_restoration_snapshot checked 3689ms check-target:macos_arm64 @f78c2623a68c
-pass/facts/data_where_standing_nested_borrowed_field_call_result incomplete 10408ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
-pass/facts/data_where_standing_nested_borrowed_field_const_name incomplete 10294ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_call_result checked 6417ms check-target:macos_arm64 @cc73d2b91415
+pass/facts/data_where_standing_nested_borrowed_field_const_name checked 6364ms check-target:macos_arm64 @cc73d2b91415
 pass/facts/data_where_standing_nested_borrowed_field_descriptor_snapshot checked 8757ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_field incomplete 10589ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_field checked 6439ms check-target:macos_arm64 @cc73d2b91415
 pass/facts/data_where_standing_nested_borrowed_field_incoming_compatibility checked 15956ms check-target:macos_arm64 @4606e707a322+wt
-pass/facts/data_where_standing_nested_borrowed_field_incoming_snapshot incomplete 10246ms check-target:macos_arm64 @4606e707a322+wt
-	`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion carrier retirement order); in state `main::entry`
+pass/facts/data_where_standing_nested_borrowed_field_incoming_snapshot checked 6054ms check-target:macos_arm64 @cc73d2b91415
 pass/facts/data_where_standing_nested_borrowed_field_known_saved_descriptor checked 9338ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_local incomplete 11365ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
-pass/facts/data_where_standing_nested_borrowed_field_match_join incomplete 11640ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
-pass/facts/data_where_standing_nested_borrowed_field_other_machine incomplete 11214ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
-pass/facts/data_where_standing_nested_borrowed_field_other_state incomplete 11220ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
-pass/facts/data_where_standing_nested_borrowed_field_parameter incomplete 9049ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
-pass/facts/data_where_standing_nested_borrowed_field_target_body incomplete 10007ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
-	`x86_entry` calls `main`; `main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_local checked 6055ms check-target:macos_arm64 @cc73d2b91415
+pass/facts/data_where_standing_nested_borrowed_field_match_join checked 5975ms check-target:macos_arm64 @cc73d2b91415
+pass/facts/data_where_standing_nested_borrowed_field_other_machine checked 6278ms check-target:macos_arm64 @cc73d2b91415
+pass/facts/data_where_standing_nested_borrowed_field_other_state checked 6110ms check-target:macos_arm64 @cc73d2b91415
+pass/facts/data_where_standing_nested_borrowed_field_parameter checked 6127ms check-target:macos_arm64 @cc73d2b91415
+pass/facts/data_where_standing_nested_borrowed_field_target_body checked 5185ms check-target:macos_arm64 @cc73d2b91415
 pass/facts/data_where_standing_owned_whole_replacement_child_restoration checked 3306ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_predicate_helper_alias_exit checked 5396ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_predicate_helper_literal_exit checked 5347ms check-target:macos_arm64 @911f6617ba9e
