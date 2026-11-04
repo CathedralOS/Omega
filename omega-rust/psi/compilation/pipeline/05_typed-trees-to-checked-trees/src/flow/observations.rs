@@ -157,7 +157,7 @@ pub(super) fn case_observation(
             // a proposition about every possible origin. Retain the exact
             // current carrier namespace and all invalidation dependencies.
             let (selected, place) =
-                descriptors::descriptor_capture(program, &build.control, &receiver)?;
+                descriptors::descriptor_capture(program, &build.control, receiver)?;
             let source = build.control.case_accesses.get(selected.case_access);
             if source.evaluation != observation.evaluation
                 || source.constraints != observation.constraints
@@ -257,6 +257,7 @@ pub(super) fn byte_contents_observation(
                 &super::LiteralExpressionProjection {
                     expression: receiver.expression,
                     remaining: Vec::new(),
+                    destination: Vec::new(),
                 },
             )
             .ok_or("the probe operand has no complete captured value projection")?;
