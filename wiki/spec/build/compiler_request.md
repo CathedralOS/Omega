@@ -55,6 +55,18 @@ not require ecosystem receiving-policy input or claim permission to execute the
 result. Explicit receiver admission remains a separate operation under
 [service permission](permissions.md#artifact-production-versus-receiver-admission).
 
+Component verification receives its exact consumer-accepted assumptions through
+those canonical external admissions, with the ordinary package acceptance/lock
+route for packaged dependencies and existing root grants for root claims.
+[Build attenuation](component_publication.md#consumer-acceptance-and-build-attenuation)
+can only narrow the selected product's accepted ceiling; it cannot manufacture
+admissions or replace them with a source-authored digest list. Preserve subject,
+profile, occurrence, purpose, and target identity. Product acceptance does not
+authorize executing a component during Build. The retired
+`Build::accept_component_assumption` call adds no separate request input or
+approval channel. This clarifies logical admission ownership, not new physical
+wire tags or permission to infer a missing accepted row.
+
 Discovery, retrieval, ambient traversal, and ambient host defaults are outside the
 standalone compiler. Compiler-injected build vocabulary belongs to compiler
 identity, not host-supplied source. The compiler derives providers, roots,
