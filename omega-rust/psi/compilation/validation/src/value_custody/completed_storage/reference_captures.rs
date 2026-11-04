@@ -201,6 +201,11 @@ impl Resolver<'_> {
             self.control.operands.get(value).type_reference,
             path,
         ) else {
+            self.trace_selection(
+                value,
+                path,
+                "projection has no applied member correspondence",
+            );
             return Selection::Unavailable;
         };
         let path = path.as_slice();
@@ -216,9 +221,35 @@ impl Resolver<'_> {
         }
         self.active.push(query.clone());
         let result = self.resolve(value, path);
+        if matches!(result, Selection::Unavailable) {
+            self.trace_selection(value, path, "captured descriptor selection unavailable");
+        }
         self.active.pop();
         self.memo.push((query, result.clone()));
         result
+    }
+    fn trace_selection(&self, value: Handle<FlowOperandFact>, path: &[PlaceSegment], reason: &str) {
+        if std::env::var_os("OMEGA_STORAGE_QUERY_TRACE").is_none()
+            || !self.control.operands.is_valid(value)
+        {
+            return;
+        }
+        let capture = self.control.operands.get(value);
+        if std::env::var("OMEGA_STORAGE_QUERY_TRACE_STATE")
+            .ok()
+            .and_then(|value| value.parse::<u32>().ok())
+            .is_some_and(|state| capture.state_symbol.arena_index() != state)
+        {
+            return;
+        }
+        eprintln!(
+            "STORAGE_QUERY capture-refused value={value:?} state={:?} statement={} current={:?} type={:?} expression={:?} path={path:?} reason={reason} capture={capture:?}",
+            capture.state_symbol,
+            capture.statement_index,
+            self.current,
+            capture.type_reference,
+            capture.expression
+        );
     }
     fn resolve(&mut self, value: Handle<FlowOperandFact>, path: &[PlaceSegment]) -> Selection {
         let capture = self.control.operands.get(value);
@@ -453,6 +484,7 @@ impl Resolver<'_> {
                 place,
                 path,
             ) else {
+                self.trace_selection(value, path, "physical receiver projection unavailable");
                 return Selection::Unavailable;
             };
             let snapshot = if view {
