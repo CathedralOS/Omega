@@ -35,8 +35,8 @@ pub(crate) fn retain(checked: &mut CheckedTrees) {
             continue;
         }
         let selecting_provider = match candidates::provider_declaration(typed, association) {
-            Ok(Some(provider)) => Ok(provider),
-            Ok(None) => continue,
+            Ok(provider) if provider.is_valid() => Ok(provider),
+            Ok(_) => continue,
             Err(reason) => Err(reason),
         };
         publication

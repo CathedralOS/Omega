@@ -121,9 +121,10 @@ fn candidates(
                         && row.receiving_application == application.trait_application_identity
                 })
             {
-                let Some(provider) = provider_declaration(typed, association)? else {
+                let provider = provider_declaration(typed, association)?;
+                if !provider.is_valid() {
                     continue;
-                };
+                }
                 declarations.push(CheckedProviderCandidateDeclaration {
                     provider,
                     receiving: receiving_handle(publication, association)?,
@@ -176,9 +177,10 @@ fn candidates(
     if !supplies {
         return Ok(Vec::new());
     }
-    let Some(provider) = machine_provider_declaration(typed, machine)? else {
+    let provider = machine_provider_declaration(typed, machine)?;
+    if !provider.is_valid() {
         return Ok(Vec::new());
-    };
+    }
     Ok(vec![CheckedProviderCandidateDeclaration {
         provider,
         receiving: arena::Handle::default(),
@@ -205,12 +207,12 @@ fn receiving_handle(
 pub(super) fn provider_declaration(
     typed: &TypedTrees,
     association: &checked_trees::CheckedProviderClosedRequirement,
-) -> Result<Option<SymbolHandle>, String> {
+) -> Result<SymbolHandle, String> {
     if typed
         .conformance_by_symbol(association.selecting_declaration)
         .is_some()
     {
-        return Ok(Some(association.selecting_declaration));
+        return Ok(association.selecting_declaration);
     }
     let machine = typed
         .machine(association.selecting_declaration)
@@ -224,14 +226,15 @@ pub(super) fn provider_declaration(
 fn machine_provider_declaration(
     typed: &TypedTrees,
     machine: &Machine,
-) -> Result<Option<SymbolHandle>, String> {
+) -> Result<SymbolHandle, String> {
     let provider =
-        typed_trees::provider_declarations::satisfaction_provider_declaration(typed, machine);
+        typed_trees::provider_declarations::satisfaction_provider_declaration(typed, machine)
+            .unwrap_or_default();
     let owner = typed.symbols.get(machine.symbol).declaration_owner;
     let owns_selection = (owner.is_valid()
         && typed.symbols.get(owner).kind == symbols::SymbolKind::Conformance)
         || machine.attached_data.is_some();
-    if provider.is_none() && owns_selection {
+    if !provider.is_valid() && owns_selection {
         return Err("exact satisfaction lost its recorded provider declaration".into());
     }
     Ok(provider)
@@ -386,9 +389,10 @@ fn exact_requirement_edges(
                 if !declares_exact_requirement(typed, owner, definition, template) {
                     continue;
                 }
-                let Some(provider) = machine_provider_declaration(typed, owner)? else {
+                let provider = machine_provider_declaration(typed, owner)?;
+                if !provider.is_valid() {
                     continue;
-                };
+                }
                 edges.push(RequirementEdge {
                     provider,
                     reach: EdgeReach::Named,
