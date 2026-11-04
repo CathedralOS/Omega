@@ -12,13 +12,21 @@ terminates
         layout.entry != 0 && layout.regions[0].base == layout.entry && layout.regions[0].length > 0
     }
 }
-machine fetch(branch: bool) -> CodeLayout terminates {
-    match branch { true -> code_layout<selected<u64, 7>>(), false -> code_layout<selected<u64, 7>>() }
+data MarkedLayout { layout: CodeLayout; path: u64; }
+machine marked_layout() -> MarkedLayout terminates {
+    let layout: CodeLayout = code_layout<selected<u64, 7>>();
+    MarkedLayout { layout: layout, path: 1 }
+}
+machine fetch(branch: bool) -> MarkedLayout terminates {
+    match branch {
+        true -> marked_layout(),
+        false -> MarkedLayout { layout: code_layout<selected<u64, 7>>(), path: 0 }
+    }
 }
 machine witness() -> bool terminates {
-    let left: CodeLayout = fetch(true);
-    let right: CodeLayout = fetch(false);
-    inspect(&left) && inspect(&right)
+    let left: MarkedLayout = fetch(true);
+    let right: MarkedLayout = fetch(false);
+    inspect(&left.layout) && inspect(&right.layout) && left.path == 1 && right.path == 0
 }
 const OBSERVED: bool = witness();
 machine main() crashes Trap {

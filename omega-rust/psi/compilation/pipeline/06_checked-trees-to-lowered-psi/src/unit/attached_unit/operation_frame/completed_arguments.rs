@@ -34,15 +34,18 @@ impl OperationFrame<'_, '_> {
         previous: Option<CompletedStructuralArgument>,
         complete: bool,
     ) -> Result<CompletedStructuralArgument, LoweringError> {
-        let call = operation.call().ok_or(LoweringError::Unsupported(
-            "structural operand capture has no checked call",
-        ))?;
-        let source = call
-            .structural_arguments
-            .get(ordinal)
+        let invocation = operation
+            .structural_invocation()
             .ok_or(LoweringError::Unsupported(
-                "structural operand capture has no checked actual",
+                "structural operand capture has no checked invocation",
             ))?;
+        let source =
+            invocation
+                .structural_operands()
+                .get(ordinal)
+                .ok_or(LoweringError::Unsupported(
+                    "structural operand capture has no checked actual",
+                ))?;
         let mut captured = if let Some(captured) = previous {
             captured
         } else {
@@ -116,13 +119,30 @@ impl OperationFrame<'_, '_> {
                             row.kind.as_operation_result().map(|(_, identity)| identity)
                         })
                 });
-            let parameters =
-                super::super::call_parameters::structural_parameters(self.checked, call)?;
-            let parameter = parameters.get(ordinal).ok_or(LoweringError::Unsupported(
-                "structural operand capture lost its selected formal",
-            ))?;
-            let copy = source.access == checked_trees::CheckedStructuralAccess::Owned
-                && parameter.multiplicity == language_semantics::Multiplicity::Unrestricted;
+            let (copy, endpoint) = match invocation {
+                checked_trees::CheckedStructuralInvocation::Call(call) => {
+                    let parameters =
+                        super::super::call_parameters::structural_parameters(self.checked, call)?;
+                    let parameter = parameters.get(ordinal).ok_or(LoweringError::Unsupported(
+                        "structural operand capture lost its selected formal",
+                    ))?;
+                    (
+                        source.access == checked_trees::CheckedStructuralAccess::Owned
+                            && parameter.multiplicity
+                                == language_semantics::Multiplicity::Unrestricted,
+                        crate::emission::completed_place::endpoint_use(
+                            identities,
+                            self.checked,
+                            self.structural_types.declarations(),
+                            parameter,
+                        )?,
+                    )
+                }
+                checked_trees::CheckedStructuralInvocation::BorrowedInstruction { .. } => (
+                    false,
+                    crate::emission::completed_place::EndpointUse::Storage,
+                ),
+            };
             let frontiers = if let Some(root) = prepared.root_type {
                 crate::emission::completed_place::plan(
                     self.structural_types.declarations(),
@@ -130,12 +150,7 @@ impl OperationFrame<'_, '_> {
                     &prepared.path,
                     copy,
                     prepared.access,
-                    crate::emission::completed_place::endpoint_use(
-                        identities,
-                        self.checked,
-                        self.structural_types.declarations(),
-                        parameter,
-                    )?,
+                    endpoint,
                 )?
             } else if prepared.path.is_empty() && !copy {
                 Vec::new()
@@ -262,7 +277,7 @@ impl OperationFrame<'_, '_> {
                     self.operations.register_structural_materialization(
                         place,
                         self.state,
-                        call.coordinate.statement_index,
+                        invocation.coordinate().statement_index,
                     )?;
                     captured.private_homes.push(place);
                     progress.prepared = PreparedStructuralArgument::from_static(

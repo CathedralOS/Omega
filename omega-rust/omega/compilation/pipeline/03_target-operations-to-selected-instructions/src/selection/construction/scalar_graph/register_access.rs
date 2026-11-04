@@ -17,6 +17,9 @@ pub(super) fn emit(
     let operation = event.operation();
     let keys = &builder.constraints.keys;
     let key = match operation {
+        RegisterOperation::GlobalDescriptorTable(_) => {
+            return Err(SelectedInstructionError::custody());
+        }
         RegisterOperation::SystemRead(terminal_psi::SystemRegister::Control(_)) => {
             keys.control_register_read
         }

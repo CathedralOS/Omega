@@ -634,7 +634,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 facts::PlaceRoot::Symbol(local.symbol),
                                 local.type_reference,
                                 result,
-                                target_parameters.get(target.position as usize)?,
+                                target_parameters.get(target.position as usize)?.type_reference,
                                 target.type_identity,
                                 trace,
                                 Some(&|expression| transition_selector(
@@ -879,7 +879,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         program, machine.symbol, source, ordinal as usize,
                         &validation::CanonicalPlace { root: owner, segments: Vec::new() },
                         owner, root.type_reference, &result,
-                        target_parameters.get(target.position as usize)?, target.type_identity,
+                        target_parameters.get(target.position as usize)?.type_reference, target.type_identity,
                         trace, None,
                     )?
                 } else {
