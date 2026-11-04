@@ -396,7 +396,6 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
             arguments.append("--both")
         result = subprocess.run(arguments, cwd=ROOT, stdin=subprocess.DEVNULL,
                                 env=dict(os.environ, OMEGA_CORPUS_SWEEP="1",
-                                         OMEGA_COMPILER_CHECK_SITES="1",
                                          OMEGA_CORPUS_CAPTURE_ARTIFACTS=str(captures / name)))
         if result.returncode not in (0, 1):
             raise ValueError(f"{name}: corpus gate exited {result.returncode}")

@@ -14,6 +14,7 @@ use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use symbols::SymbolKind;
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::references::StaticArgumentCall;
 use typed_trees::statement::TableAssignment;
 use typed_trees::typed_trees::ScalarAccessorDeclaration;
 
@@ -106,7 +107,7 @@ pub(in crate::machine_calls::calls::write_frames) fn call_exposes_frozen_binding
     let writes = call_binding_write_paths(
         program,
         machine,
-        call.target_symbol,
+        StaticArgumentCall::Statement(call),
         receiver.as_ref(),
         arguments,
         symbols,
@@ -187,7 +188,7 @@ fn expression_exposes(
         let mut call_writes = call_binding_write_paths(
             program,
             machine,
-            call.target_symbol,
+            StaticArgumentCall::Expression(expression, call),
             receiver.as_ref(),
             arguments,
             symbols,
@@ -401,12 +402,22 @@ pub(in crate::machine_calls::calls::write_frames) fn writes_may_replace_binding(
 fn call_binding_write_paths(
     program: &dyn crate::CheckingInput,
     caller: &typed_trees::machine::Machine,
-    target: SymbolHandle,
+    call: StaticArgumentCall<'_>,
     receiver: Option<&FramePlaceOrigin>,
     arguments: &[ExpressionHandle],
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
+    // These checked operations cannot replace a captured descriptor or case.
+    // Their operands still pass through the ordinary traversal, and the
+    // separate content-write query still owns changes to referent contents.
+    if crate::compiler_operations::call_preserves_reference_slots(program, call) {
+        return Some(Vec::new());
+    }
+    let target = match call {
+        StaticArgumentCall::Expression(_, call) => call.target_symbol,
+        StaticArgumentCall::Statement(call) => call.target_symbol,
+    };
     if let Some(declaration) = ScalarAccessorDeclaration::authenticate(program, target).ok()? {
         let state = program.state_by_symbol(declaration.state())?;
         let value = match declaration.operation() {

@@ -1107,6 +1107,13 @@ fn match_input_has_builtin_meaning(
         }
         ExpressionNode::Member(member) => recurse(member.receiver),
         ExpressionNode::Borrow(borrow) => recurse(borrow.target),
+        // A completed byte probe has the same selected Boolean meaning in a
+        // match as in a conditional guard. Its operand still owes the ordinary
+        // builtin-operator checks; authored same-named calls remain excluded.
+        ExpressionNode::Call(_) => {
+            typed_trees::byte_predicates::byte_predicate_call(program, expression)
+                .is_some_and(|(_, operand)| recurse(operand))
+        }
         ExpressionNode::Name(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Integer(_)
