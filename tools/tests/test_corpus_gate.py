@@ -84,14 +84,15 @@ class TerminalFenceOracleTests(unittest.TestCase):
             self.assertFalse(corpus_gate.terminal_fence_failures([row], corpus)[0]["recordable"])
 
 
-def fake_runner(records: str, stdout: str = "", *, reported_root=None, report_root=True):
+def fake_runner(records: str, stdout: str = "", *, stderr: str = "",
+                reported_root=None, report_root=True):
     """A Popen stand-in that writes `records` where the gate asks for them."""
     def popen(arguments, **options):
         Path(options["env"]["OMEGA_CORPUS_RECORDS"]).write_text(records)
         root = reported_root or options["env"]["OMEGA_CORPUS_ROOT"]
         metadata = ("corpus_runner: fixture-root-v1 " + os.fsencode(root).hex() + "\n"
                     if report_root else "")
-        return SimpleNamespace(stdout=io.StringIO(stdout), stderr=io.StringIO(metadata),
+        return SimpleNamespace(stdout=io.StringIO(stdout), stderr=io.StringIO(metadata + stderr),
                                returncode=0, wait=lambda: 0)
     return popen
 
@@ -306,6 +307,30 @@ class RunnerInputSelection(unittest.TestCase):
                           side_effect=fake_runner(rows)) as invocation:
             corpus_gate.run_runner(Path("corpus_runner"), root=root)
         return invocation.call_args.kwargs["env"]
+
+    def test_requested_phase_output_survives_a_timeout_record_and_runner_exit_zero(self):
+        rows = corpus_records.render([
+            record("pass/control_flow/borrowed_state_argument", "timeout", millis=120000)])
+        # Actual checkpoint/render_rows format from the retained profiler.
+        profile = ("CHECKPOINT after check-fact construction pid=123 thread=ThreadId(4) "
+                   "process-cumulative completed inclusive-wall\n"
+                   "  1234.567 ms         2 x  psi.05.build_check_facts\n"
+                   "          17 n  omega.native.calls\n"
+                   "    12.345 ms         1 x  timing label with spaces\n"
+                   "           2 n  counter label with spaces\n")
+        chatter = "unrelated compiler output\nCHECKPOINT unrelated\n"
+        for setting in (None, "0", "", "1"):
+            environment = {} if setting is None else {"OMEGA_PHASE_PROFILE": setting}
+            output = io.StringIO()
+            with self.subTest(profile=setting), \
+                    patch.dict(os.environ, environment, clear=True), \
+                    patch.object(corpus_gate.subprocess, "Popen", side_effect=
+                                 fake_runner(rows, stderr=chatter + profile)), \
+                    contextlib.redirect_stderr(output):
+                measured = corpus_gate.run_runner(Path("corpus_runner"))
+            self.assertEqual(measured[0]["status"], "timeout")
+            self.assertEqual(measured[0]["millis"], 120000)
+            self.assertEqual(output.getvalue(), profile if setting in ("", "1") else "")
 
     def test_fixture_root_follows_the_measured_checkout_over_a_stale_environment(self):
         measured = Path(tempfile.gettempdir()) / "measured-omega-checkout"

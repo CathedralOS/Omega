@@ -723,12 +723,21 @@ def run_runner(binary: Path, root: Path = ROOT, *, freshly_built=False) -> list[
     buffered_stderr = collections.deque(maxlen=2000)
     root_reports = []
     root_prefix = "corpus_runner: fixture-root-v1 "
+    phase_profile = env.get("OMEGA_PHASE_PROFILE") not in (None, "0")
+    # These are the existing profiler's checkpoint, timing and counter rows.
+    # A timeout is an ordinary runner record with exit 0, so its requested
+    # completed timings must not disappear with buffered compiler chatter.
+    profile_output = re.compile(
+        r"^(?:CHECKPOINT [^\r\n]+ pid=\d+ thread=ThreadId\(\d+\) "
+        r"process-cumulative completed inclusive-wall|"
+        r"\s*(?:\d+\.\d{3} ms\s+\d+ x|\d+ n)[ \t]+[^\r\n]+)\s*$")
 
     def stream_progress():
         for line in proc.stderr:
             if line.startswith(root_prefix):
                 root_reports.append(line[len(root_prefix):].strip())
-            elif line.startswith("corpus_runner:"):
+            elif (line.startswith("corpus_runner:")
+                  or phase_profile and profile_output.fullmatch(line)):
                 sys.stderr.write(line)
                 sys.stderr.flush()
             else:
