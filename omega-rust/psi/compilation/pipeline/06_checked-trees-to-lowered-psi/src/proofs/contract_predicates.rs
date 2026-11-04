@@ -28,12 +28,10 @@ pub(crate) trait PredicateTerms {
     }
     fn structural_identity(
         &self,
-        _identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        _left: &checked_trees::CheckedStructuralParameterField,
-        _right: &checked_trees::CheckedStructuralParameterField,
-    ) -> Result<Proposition, LoweringError> {
-        unsupported("contract namespace has no structural identity subjects")
-    }
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        left: &checked_trees::CheckedStructuralParameterField,
+        right: &checked_trees::CheckedStructuralParameterField,
+    ) -> Result<Proposition, LoweringError>;
     fn strict_bound(&self, left: ScalarTerm, right: ScalarTerm) -> Proposition {
         Proposition::LessThan(left, right)
     }

@@ -104,6 +104,21 @@ struct RouteTerms<'a> {
 }
 
 impl crate::proofs::contract_predicates::PredicateTerms for RouteTerms<'_> {
+    fn structural_identity(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        left: &checked_trees::CheckedStructuralParameterField,
+        right: &checked_trees::CheckedStructuralParameterField,
+    ) -> Result<Proposition, LoweringError> {
+        lower_structural_identity(
+            identities,
+            left,
+            right,
+            self.parameters,
+            self.structural_types,
+        )
+    }
+
     fn scalar(
         &self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,

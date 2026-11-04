@@ -136,9 +136,8 @@ pub(crate) fn lower_sequence_extent_term(
         .ok_or(LoweringError::Unsupported(
             "closed sequence extent names a non-structural parameter",
         ))?;
-    if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
-        return unsupported("closed sequence extent requires readable access");
-    }
+    // The shared observation walk rejects write-only access before resolving
+    // the path. Keep that access decision with the operation that observes it.
     // Inline coordinates and executable crossings come from one declaration
     // walk. An extent behind a reference is an observation at that exact
     // descriptor, not an inline field or an inferred capacity.
@@ -334,9 +333,8 @@ fn lower_structural_indexed_place(
     else {
         return unsupported("indexed contract observation has no selected read");
     };
-    if access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
-        return unsupported("indexed contract observation requires readable access");
-    }
+    // Projection preparation reads no storage or selectors. The shared walk
+    // below rejects write-only access before evaluating either.
     let mut projections = path
         .iter()
         .cloned()

@@ -27,6 +27,17 @@ struct FieldSubject {
 }
 
 impl PredicateTerms for FieldSubject {
+    fn structural_identity(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        left: &checked_trees::CheckedStructuralParameterField,
+        right: &checked_trees::CheckedStructuralParameterField,
+    ) -> Result<semantic_vocabulary::Proposition, LoweringError> {
+        // This namespace binds one primitive SUBJECT and has no structural
+        // formals. The shared converter enforces that same empty namespace.
+        crate::proofs::crash_routes::lower_structural_identity(identities, left, right, &[], &[])
+    }
+
     fn scalar(
         &self,
         _identities: &mut terminal_psi::TerminalIdentityTableBuilder,
