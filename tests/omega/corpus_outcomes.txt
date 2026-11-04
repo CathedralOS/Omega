@@ -212,6 +212,8 @@ fail/dependent/declaration_predicate_requires_unproved rejected 951ms expected @
 fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch rejected 4053ms expected @68b6f6ba6c2f
 	machine `forward` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/domains/applied_generic_carrier_wrong_arguments rejected 1499ms expected @b74b1a5036b8+wt
+	machine `retain` state `entry` parameter `pair` uses `in Typed`, but no `domain` named `Typed` is declared for `Pair<u32, u64>` (domains are bound to their storage type)
 fail/domains/carrier_exact_data_predicate rejected 561ms expected @288072bee333
 	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
 fail/domains/carrier_exact_domain_predicate rejected 549ms expected @288072bee333
@@ -5884,6 +5886,7 @@ pass/dependent/zero_case_predicate_entry_exit checked 26374ms check-target:macos
 pass/dependent/zero_gated_record_field_store_exit checked 59782ms check-target:macos_arm64 @911f6617ba9e
 pass/dependent/zero_valid_qualified_storage checked 9130ms @911f6617ba9e
 pass/dependent/zeroed_record_member_sum_elision checked 17842ms check-target:macos_arm64 @ccdb99ca2214
+pass/domains/applied_generic_carrier checked 8134ms check-target:macos_arm64 @b74b1a5036b8+wt
 pass/domains/bitwise_live_membership_exit checked 3306ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/bodyless_owner_establishment checked 1909ms @0cea3356c5b0+wt
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 2705ms @ccdb99ca2214
