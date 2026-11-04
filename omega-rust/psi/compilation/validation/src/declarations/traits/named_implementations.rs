@@ -229,6 +229,18 @@ fn validate_closed_rows(
         let validate_member = |machine: &typed_trees::machine::Machine,
                                state: &typed_trees::state::State,
                                diagnostics: &mut Vec<Diagnostic>| {
+            if !machine.body_is_present
+                && !matches!(
+                    machine.supply_mode,
+                    language_semantics::MachineSupplyMode::ExternalRealization { .. }
+                )
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "inline member `{}` requires a checked body or an admitted external realization; a boundary claim does not supply an implementation",
+                    machine.name,
+                )));
+                return;
+            }
             super::conformance::validate_applied_trait_signature(
                 program,
                 service_reaches,

@@ -791,31 +791,60 @@ fn closed_conformance_member_carries_one_exact_edge_for_its_own_requirement() {
 }
 
 #[test]
-fn closed_conformance_member_edge_must_name_its_own_requirement() {
-    for edges in [
-        "satisfies Ranked<Card>::after",
-        "satisfies Ranked<Card>::before as Primary",
-    ] {
-        let source = format!(
-            r#"
-            trait Ranked<Item> {{ machine before(value: &Item, other: &Item) -> bool; }}
-            data Card {{ }}
-            PowerOrder satisfies Ranked<Card> {{
-                machine before(value: &Card, other: &Card) -> bool {edges} {{ }}
-            }}
-        "#
-        );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let diagnostic = parse_syntax_trees(&tokens)
-            .expect_err("a mismatched or repeated member edge must reject");
-        assert!(
-            diagnostic.message.contains("may carry only one exact edge"),
-            "unexpected diagnostic for `{edges}`: {}",
-            diagnostic.message
-        );
-    }
+fn inline_member_retains_independent_exact_edges() {
+    let source = r#"
+        trait Local { machine forward(value: u8) -> u8; }
+        Forwarding satisfies Local {
+            machine forward(value: u8) -> u8
+                satisfies First::read, Second::observe as Observed
+            { value }
+        }
+    "#;
+    let parsed = super::parse_source(
+        source,
+        "independent exact edges are ordinary machine clauses",
+    );
+    let conformance = super::root_conformance(&parsed, "one named implementation");
+    let [syntax_trees::item::ConformanceMember::Machine(member)] =
+        parsed.items.conformance_members(conformance.members)
+    else {
+        panic!("one ordinary member");
+    };
+    let [first, second] = parsed.items.satisfies_clauses(member.satisfies) else {
+        panic!("both exact edges remain");
+    };
+    assert_eq!(first.requirement.as_ref().unwrap().as_str(&parsed), "read");
+    assert_eq!(
+        second.requirement.as_ref().unwrap().as_str(&parsed),
+        "observe"
+    );
+    assert_eq!(second.alias.as_ref().unwrap().as_str(&parsed), "Observed");
+}
+
+#[test]
+fn inline_boundary_member_retains_its_external_supply() {
+    let source = r#"
+        trait Native { machine forward(value: u8) -> u8; }
+        Forwarding satisfies Native {
+            public boundary machine forward(value: u8) -> u8
+                satisfies External::read via ForeignBinding::CompilerIntrinsic;
+        }
+    "#;
+    let parsed = super::parse_source(
+        source,
+        "ordinary modifiers and external supply are retained",
+    );
+    let conformance = super::root_conformance(&parsed, "one named implementation");
+    let [syntax_trees::item::ConformanceMember::Machine(member)] =
+        parsed.items.conformance_members(conformance.members)
+    else {
+        panic!("one boundary member");
+    };
+    assert!(member.is_public && member.boundary && member.bodyless);
+    let [edge] = parsed.items.satisfies_clauses(member.satisfies) else {
+        panic!("one exact external edge");
+    };
+    assert!(edge.via.is_some());
 }
 
 #[test]
