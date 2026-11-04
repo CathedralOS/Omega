@@ -50,6 +50,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::SelectImplementation { .. }
         | O::BoundaryCall { .. }
         | O::PortWrite { .. }
+        | O::GlobalDescriptorTable { .. }
         | O::RegisterAccess { .. }
         | O::Call { .. } => calls_and_effects::encode(bytes, operation),
 

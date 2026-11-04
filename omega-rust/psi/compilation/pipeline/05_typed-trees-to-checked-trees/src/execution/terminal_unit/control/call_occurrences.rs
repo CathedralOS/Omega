@@ -121,6 +121,34 @@ pub(in crate::execution::terminal_unit) fn terminal_invocation(
     .then_some(callable)
 }
 
+/// The same final value may be a bare expression or a normalized terminal
+/// transition. Both call accounting and statement sequencing must give its
+/// retained value graph the invocation, rather than schedule it a second time.
+pub(in crate::execution::terminal_unit) fn completion_expression(
+    program: &dyn validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+) -> Option<typed_trees::expression::ExpressionHandle> {
+    match program
+        .statement_table
+        .statement_at(state, statement_index)?
+    {
+        StatementNode::Expression(expression) => Some(*expression),
+        StatementNode::Transition(transition)
+            if terminal_invocation(program, machine, state, statement_index).is_some() =>
+        {
+            match program.statement_table.transition_target(transition.target) {
+                typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                    Some(*expression)
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 pub(in crate::execution::terminal_unit) fn tail_call<'a>(
     program: &'a dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,

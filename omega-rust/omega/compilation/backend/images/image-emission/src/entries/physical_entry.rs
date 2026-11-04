@@ -136,7 +136,7 @@ pub fn bind_physical_entry(
             "explicit physical arrival currently requires x86-64 PE",
         ));
     }
-    let request = native_entry_request(artifact, &physical.call, inbound_ordinals)
+    let request = native_entry_request(artifact, physical, inbound_ordinals)
         .map_err(|error| invalid(&error.to_string()))?;
     let bridge = emit_native_entry_bridge(request).map_err(|error| invalid(&error.to_string()))?;
     let stack_switch = stack_switch::emit(&bridge)?;
@@ -175,7 +175,7 @@ pub(crate) fn validate_binding(artifact: &ObjectArtifact) -> Result<(), Diagnost
         .iter()
         .map(|(_, parameter)| parameter.inbound_ordinal)
         .collect::<Vec<_>>();
-    let request = native_entry_request(artifact, &binding.plan.call, &ordinals)
+    let request = native_entry_request(artifact, &binding.plan, &ordinals)
         .map_err(|error| invalid(&error.to_string()))?;
     if request != *binding.bridge.request() {
         return Err(invalid(

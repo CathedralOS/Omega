@@ -73,13 +73,8 @@ pub fn lower_typed_trees(
 /// One language judgment kept with the exact input it judged. Only this module
 /// constructs one, from a check it ran, so a judgment taken from it is a
 /// judgment this function computed for an equal input.
-#[derive(Debug, Clone, compiler_storage::Record)]
+#[derive(Debug, Clone)]
 pub struct RetainedCheck {
-    /// Disk rows cannot supply partial body judgments to a different program.
-    /// Exact whole-input reuse and fresh authority admission reestablish this
-    /// invocation's provenance before ordinary in-session partial reuse resumes.
-    #[record(skip)]
-    dependency_judgments_admitted: bool,
     /// The typed program before preparation and the admission inputs it was
     /// prepared under. Preparation is a pure function of that pair, so an
     /// equal request can take this judgment without preparing or checking.
@@ -97,10 +92,6 @@ pub struct RetainedCheck {
 }
 
 impl RetainedCheck {
-    pub fn is_current_strict_judgment(&self) -> bool {
-        !self.admits_pending_inputs && self.dependency_judgments_admitted
-    }
-
     /// Identity of an already-issued language judgment, not semantic equality
     /// or permission to skip admission. Invocation owners use it only to avoid
     /// retaining the same immutable result twice.
@@ -132,7 +123,7 @@ impl RetainedCheck {
     /// Dependency-body entailment judgments a strict consumer may reuse.
     /// A pending admission does not supply a judgment to anyone.
     pub fn strict_dependency_bodies(&self) -> &[validation::DependencyBodyJudgment] {
-        if self.admits_pending_inputs || !self.dependency_judgments_admitted {
+        if self.admits_pending_inputs {
             &[]
         } else {
             &self.dependency_bodies
@@ -141,7 +132,7 @@ impl RetainedCheck {
 
     /// Frozen bodies a strict consumer may read through the same correspondence.
     pub fn strict_frozen_dependency_bodies(&self) -> &[validation::FrozenDependencyBody] {
-        if self.admits_pending_inputs || !self.dependency_judgments_admitted {
+        if self.admits_pending_inputs {
             &[]
         } else {
             &self.frozen_dependency_bodies
@@ -169,11 +160,7 @@ pub fn reuse_retained_check(
     retain: bool,
 ) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
     let checked = prior.checked.clone();
-    let retained = retain.then(|| {
-        let mut retained = prior.clone();
-        retained.dependency_judgments_admitted = true;
-        retained
-    });
+    let retained = retain.then(|| prior.clone());
     phase_profile::scope("psi.05.declaration_authority", || {
         admit_declaration_authority(&checked, request)
     })?;
@@ -221,7 +208,6 @@ pub fn lower_typed_trees_reusing(
     )?;
     let checked = std::sync::Arc::new(checked);
     let retained = retained_input.map(|(preparation_input, preparation_admission)| RetainedCheck {
-        dependency_judgments_admitted: true,
         preparation_input,
         preparation_admission,
         admits_pending_inputs: admits_pending_inputs || !deferred_layout_applications.is_empty(),
@@ -335,14 +321,14 @@ fn check_program(
             &mutation_summaries,
         )
     });
-    let (mut facts, prepared_effects) = match built {
+    let (mut facts, prepared_effects, program) = match built {
         Ok(built) => built,
-        Err(errors) => {
+        Err(failure) => {
             return Err(
                 crate::checking::program_validation::entailment_errors_first(
-                    &program,
+                    failure.program.as_deref().unwrap_or(&program),
                     deferred_entailment,
-                    errors,
+                    failure.diagnostics,
                 ),
             );
         }

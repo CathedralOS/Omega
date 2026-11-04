@@ -110,6 +110,7 @@ fn initializer_emits_original_inputs_complete_image_and_typed_outcomes() {
             profile_requirement: None,
         },
         storage: TerminalAccessStorage {
+            owner: terminal_psi::TerminalAccessOwner::Extent,
             carrier: owner,
             base: StructuralFieldId::new(3).unwrap(),
             length: StructuralFieldId::new(2).unwrap(),

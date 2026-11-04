@@ -91,6 +91,7 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                     destination.place() == place
                 }
                 LegalizedScalarInstructionKind::StorageAddress { source, .. }
+                | LegalizedScalarInstructionKind::GlobalDescriptorTable { source, .. }
                 | LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
                 | LegalizedScalarInstructionKind::StructuralCaseMembership { source, .. }
                 | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
