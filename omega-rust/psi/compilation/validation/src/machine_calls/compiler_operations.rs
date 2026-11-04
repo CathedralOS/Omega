@@ -270,6 +270,24 @@ pub fn storage_address_operand(
     .map(|arguments| arguments[0])
 }
 
+/// Recording a provider choice changes Build intent, not references stored in
+/// caller data. Consume the checked operation identity for both call forms;
+/// an ordinary declaration with the same name keeps its inferred effects.
+/// Arguments still execute before this operation, and their effects remain.
+pub(crate) fn call_preserves_reference_slots(
+    program: &dyn crate::CheckingInput,
+    call: StaticArgumentCall<'_>,
+) -> bool {
+    matches!(
+        static_call_intrinsic(program, call),
+        Some(
+            AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection
+                | AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_)
+                | AuthoredDeclarationSelectionIntrinsic::StorageAddress
+        )
+    )
+}
+
 /// These resolved observations neither write caller storage nor install
 /// reference slots. Their runtime operands still execute with their ordinary
 /// effects; an ordinary same-spelled declaration does not select this rule.
