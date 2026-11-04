@@ -24,11 +24,13 @@ use typed_trees::references::{
     collect_selected_program_references,
 };
 
-/// Prepare the complete admitted Build context without changing symbol handles.
-/// The result must still pass ordinary checking before any machine executes.
+/// Prepare Build and the exact declarations its completed provider choices need.
+/// Symbol handles stay unchanged. Every retained body still owes ordinary
+/// checking before execution; selecting a declaration supplies no proof.
 pub fn project_build_program(
     original: &dyn crate::CheckingInput,
     entry: SymbolHandle,
+    selected_declarations: &[SymbolHandle],
 ) -> Result<TypedTrees, Vec<Diagnostic>> {
     // Instantiation preserves template source provenance for diagnostics, not
     // the purpose of the use that demanded the instance. In particular, a
@@ -51,6 +53,16 @@ pub fn project_build_program(
             "selected Build entry has no exact Build-context declaration custody",
         )]);
     }
+    if let Some(symbol) = selected_declarations
+        .iter()
+        .find(|symbol| !in_build_context(**symbol))
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "selected Build dependency `{}` is outside the Build source context",
+            original.symbols.display_path(*symbol, "::"),
+        ))]);
+    }
+    let selected = DeclarationSelection::from_symbols(selected_declarations.iter().copied());
     // Purpose selects the checking context, not the executable target member.
     // Every Build sibling still owns constants and proof obligations under
     // Build's provider authority. Dropping siblings here sends their unfinished
@@ -78,12 +90,17 @@ pub fn project_build_program(
     let mut program = project_declarations(
         original,
         |symbol| {
+            if selected.contains(symbol) {
+                return true;
+            }
+            // A described bodyless member supplies no Build code to check.
+            // Actual calls still restore its exact declaration through the
+            // ordinary reference closure below.
             is_build_scope(symbol)
                 && !is_generated(symbol)
-                // A described bodyless member supplies no Build code to check.
-                // Actual calls still restore its exact declaration through the
-                // ordinary reference closure below.
-                && (original.machine(symbol).is_some_and(|machine| machine.body_is_present)
+                && (original
+                    .machine(symbol)
+                    .is_some_and(|machine| machine.body_is_present)
                     || !descriptors.contains(&symbol))
         },
         |symbol| {
