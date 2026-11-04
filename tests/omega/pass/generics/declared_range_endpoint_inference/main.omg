@@ -172,3 +172,10 @@ machine entry_start() reaches Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }
+
+// Exercise source admission at the restored boundaries; the runtime entry stays unchanged.
+machine restored_endpoint_inputs() {
+    _ = bounded_endpoint(1);
+    _ = bounded_wide(9223372036854775808u64);
+    _ = exclusive_upper_bound<256>(255);
+}
