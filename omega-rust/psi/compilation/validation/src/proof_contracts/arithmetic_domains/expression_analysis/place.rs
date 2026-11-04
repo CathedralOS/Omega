@@ -76,22 +76,10 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
                 .captured_integer_interval(state.symbol, expression)
         })
         .map_or(interval, |captured| interval.intersect(captured));
-    // Only store-enforced refinements hold without a current-value premise.
-    // A mixed default predicate may be temporarily false in an invariant
-    // window; its conjuncts cannot refine a scalar copied during that window.
-    let interval = walk
-        .machine
-        .zip(walk.state)
-        .and_then(|(machine, state)| {
-            crate::proof_contracts::default_domains::stored_field_where_interval(
-                program, machine, state, expression,
-            )
-        })
-        .map_or(interval, |facts| interval.intersect(facts));
     // Calls may clear snapshot facts without changing an immutable parameter.
     // Its checked arrival requirements remain valid at every read; the shared
-    // standing-bounds query excludes mutable parameter arrival facts and only
-    // recovers store-enforced bounds for mutable places.
+    // standing-bounds query excludes mutable parameter arrival facts. A record's
+    // default predicate needs proof about this read's actual storage version.
     let interval = walk
         .machine
         .zip(walk.state)

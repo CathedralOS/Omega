@@ -736,11 +736,18 @@ impl Execution<'_, '_, '_> {
             *possible_storage = self.project_possible_storage(receiver, &path);
         }
 
-        let places = self
-            .captured_reference_places(receiver.referents)
-            .into_iter()
-            .map(|place| place.projected(&path))
-            .collect::<Option<Vec<_>>>();
+        // A recast's fields describe its new interpretation. Appending them
+        // to the original storage path could make an overlapping write look
+        // disjoint. Keep the relative projection above, but let the retained
+        // enclosure bound the write when no translated address is available.
+        let places = if !self.backing_allows_projection(receiver) {
+            Some(Vec::new())
+        } else {
+            self.captured_reference_places(receiver.referents)
+                .into_iter()
+                .map(|place| place.projected(&path))
+                .collect::<Option<Vec<_>>>()
+        };
         let Some(places) = places else {
             return HandleSpan::empty();
         };
@@ -1369,7 +1376,11 @@ impl Execution<'_, '_, '_> {
     fn captured_collection_places(&self, operand: &FlowOperandFact) -> Vec<CapturedReferencePlace> {
         // Collection operands are evaluated as places. An empty capture is
         // authoritative, including for owned fields behind an unresolved view.
-        self.captured_reference_places(operand.referents)
+        if !self.backing_allows_projection(operand) {
+            Vec::new()
+        } else {
+            self.captured_reference_places(operand.referents)
+        }
     }
 
     pub(super) fn captured_reference_places(

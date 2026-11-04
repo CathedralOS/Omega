@@ -1,5 +1,7 @@
 use arena::Arena;
-use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use calling_conventions::{
+    CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
+};
 use machine_emission::native_entry_bridge::{
     NativeEntryBridgeRequest, NativeEntryParameter, emit_native_entry_bridge,
 };
@@ -35,7 +37,8 @@ fn private_stack_prefix_copies_abi_stack_arguments_and_preserves_return() {
             parameters: vec![ValueShape::integer(8, 8); parameter_count],
             result: Some(ValueShape::integer(8, 8)),
         };
-        let plan = evaluate_call_plan(CallingPolicy::MicrosoftX64, &signature).unwrap();
+        let plan =
+            evaluate_ordinary_boundary_entry_plan(CallingPolicy::MicrosoftX64, &signature).unwrap();
         let mut parameters = Arena::with_capacity(parameter_count);
         for ordinal in 0..parameter_count {
             parameters.insert(NativeEntryParameter {
@@ -45,8 +48,9 @@ fn private_stack_prefix_copies_abi_stack_arguments_and_preserves_return() {
         }
         let bridge = emit_native_entry_bridge(NativeEntryBridgeRequest {
             target: target::NativeTarget::uefi_x64(),
-            internal: plan.clone(),
-            inbound: plan,
+            internal: plan.plan().call.clone(),
+            inbound: plan.plan().clone(),
+            body_footprint: None,
             parameters,
         })
         .unwrap();

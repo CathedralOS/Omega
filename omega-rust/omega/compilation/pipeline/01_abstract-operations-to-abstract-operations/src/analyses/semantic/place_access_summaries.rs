@@ -598,6 +598,12 @@ fn scan_operation(
         O::ReleaseActivationClaim { source, .. } => {
             pending.attribute_argument(context, source, true, true)
         }
+        O::GlobalDescriptorTable {
+            operation, source, ..
+        } => {
+            let writes = *operation == terminal_psi::GlobalDescriptorTableOperation::Store;
+            pending.attribute_argument(context, source, !writes, writes);
+        }
         O::RegisterAccess { .. } => {
             // Register writes may change memory interpretation. They are not
             // ordinary accesses to one place that an alias summary can narrow.

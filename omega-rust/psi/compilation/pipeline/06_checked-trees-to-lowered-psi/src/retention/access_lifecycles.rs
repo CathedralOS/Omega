@@ -31,6 +31,7 @@ pub(crate) fn retain(
             schema,
             policy_machine,
             placement,
+            storage,
             ..
         } = row
         else {
@@ -93,7 +94,7 @@ pub(crate) fn retain(
         let policy_identity = identity(*policy)?;
         let policy_plan_machine_identity = identity(*policy_machine)?;
         let schema_identity = identity(*schema)?;
-        let storage = storage_contract(identities, checked, module, *callable, *operation)?;
+        let storage = storage_contract(identities, checked, module, storage)?;
         let image_fields = image_fields(
             identities,
             checked,
@@ -380,120 +381,98 @@ fn profile_requirement(
     ))
 }
 
-/// Resolve roles while authenticated source declarations still exist. Terminal
-/// consumers receive dense coordinates; they never recognize field names or
-/// guess which qualification on an arbitrary linear record means residency.
+/// Translate the evaluated plan's checked roles into emitted identities.
+/// No source shape or qualification selection is repeated during publication.
 fn storage_contract(
     identities: &mut TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     module: &terminal_psi::TerminalModule,
-    callable: symbols::SymbolHandle,
-    operation: AccessLifecycleOperation,
+    storage: &typed_trees::typed_trees::AccessLifecycleStorage,
 ) -> Result<terminal_psi::TerminalAccessStorage, LoweringError> {
-    let typed = &checked.typed;
-    let (parameters, return_type) = if let Some(application) =
-        typed.closed_requirement_application(callable)
-    {
-        (
-            typed.state_signature_parameters(application.signature),
-            application.signature.return_type,
-        )
-    } else {
-        let machine = typed.machine(callable).ok_or(LoweringError::Unsupported(
-            "placement execution lost its source declaration",
-        ))?;
-        if typed_trees::typed_trees::AccessExecutionDeclaration::authenticate(typed, machine.symbol)
-            .map_err(|_| LoweringError::Unsupported("placement execution contract is invalid"))?
-            .is_none()
-        {
-            return unsupported("placement storage has no authenticated execution contract");
-        }
-        let [state] = typed.machine_states(machine) else {
-            return unsupported("placement execution lost its sole entry");
-        };
-        (typed.state_parameters(state), state.return_type)
-    };
-    let parameter = parameters.first().ok_or(LoweringError::Unsupported(
-        "placement storage lost its source parameter",
-    ))?;
-    let reference = typed
-        .type_reference_table
-        .peeled_type_reference(parameter.type_reference);
-    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-        typed.type_reference_table.type_reference(reference)
-    else {
-        return unsupported("placement storage is not the core extent");
-    };
-    if !validation::is_extent_declaration(typed, *symbol) || typed.symbols.name(*symbol) != "Extent"
-    {
-        return unsupported("placement storage is not the core extent");
-    }
-    let data = typed
-        .data_definition_by_symbol(*symbol)
-        .ok_or(LoweringError::Unsupported(
-            "placement extent definition is absent",
-        ))?;
-    let carrier = super::access_view_plans::schema_type(checked, module, data).ok_or(
-        LoweringError::Unsupported("placement extent carrier is absent"),
-    )?;
-    let declaration = terminal_psi::find_structural_type(&module.structural_types, carrier).ok_or(
-        LoweringError::Unsupported("placement extent declaration is absent"),
-    )?;
-    let (base, length) = storage_fields(identities, checked, *symbol, declaration)?;
-    let domains =
-        validation::field_domains::declared_type_domain_rows(typed, parameter.type_reference)
-            .into_iter()
-            .chain(validation::field_domains::declared_type_domain_rows(
-                typed,
-                return_type,
-            ))
-            .collect::<Vec<_>>();
-    let domain = |name: &str| {
-        let mut matches = domains
+    use typed_trees::typed_trees::AccessLifecycleOwner;
+    let carrier = |reference| {
+        let identity = checked.typed.type_identity_request_text(
+            typed_trees::type_identity::TypeIdentityRequest::ordinary(reference),
+        );
+        module
+            .structural_types
             .iter()
-            .filter(|row| {
-                validation::is_extent_declaration(typed, row.domain_symbol)
-                    && typed
-                        .domain_definition(row.domain_symbol)
-                        .is_some_and(|definition| {
-                            definition.name.as_str().rsplit("::").next() == Some(name)
-                        })
+            .find(|declaration| {
+                module.identities.text(declaration.identity) == Some(identity.as_str())
             })
-            .filter_map(|row| {
-                module
-                    .structural_domains
-                    .iter()
-                    .find(|domain| {
-                        domain.carrier == carrier
-                            && domain.semantic_domain.get() == u64::from(row.semantic_domain.0)
-                    })
-                    .map(|domain| domain.id)
+            .map(|declaration| declaration.id)
+            .ok_or(LoweringError::Unsupported(
+                "checked storage carrier lost its emitted correspondence",
+            ))
+    };
+    let field = |identities: &mut TerminalIdentityTableBuilder,
+                 carrier,
+                 member: &typed_trees::data::DataField| {
+        let identity = identities.intern(
+            &checked_trees::CheckedMemberIdentity::of_member(member.identity, member.name.clone())
+                .spelling(),
+        );
+        module
+            .structural_type(carrier)
+            .and_then(|declaration| match &declaration.shape {
+                terminal_psi::StructuralTypeShape::Record { fields, .. } => {
+                    terminal_psi::field_by_identity(fields, identity)
+                }
+                _ => None,
             })
-            .collect::<Vec<_>>();
-        matches.sort_unstable();
-        matches.dedup();
-        match matches.as_slice() {
-            [domain] => Ok(*domain),
-            _ => Err(LoweringError::Unsupported(
-                "placement extent lost an exact source qualification",
-            )),
+            .map(|field| field.id)
+            .ok_or(LoweringError::Unsupported(
+                "checked storage field lost its emitted correspondence",
+            ))
+    };
+    let domain = |carrier, source: language_semantics::SemanticDomainId| {
+        module
+            .structural_domains
+            .iter()
+            .find(|domain| {
+                domain.carrier == carrier && domain.semantic_domain.get() == u64::from(source.0)
+            })
+            .map(|domain| domain.id)
+            .ok_or(LoweringError::Unsupported(
+                "checked storage qualification lost its emitted correspondence",
+            ))
+    };
+    let backing = carrier(storage.carrier)?;
+    let owner = match &storage.owner {
+        AccessLifecycleOwner::Extent => terminal_psi::TerminalAccessOwner::Extent,
+        AccessLifecycleOwner::Run {
+            carrier: owner,
+            storage: backing,
+            count,
+            singleton,
+        } => {
+            let owner = carrier(*owner)?;
+            terminal_psi::TerminalAccessOwner::Run {
+                carrier: owner,
+                storage: field(identities, owner, backing)?,
+                count: field(identities, owner, count)?,
+                singleton: singleton.map(|source| domain(owner, source)).transpose()?,
+            }
         }
+    };
+    let occupied_owner = match owner {
+        terminal_psi::TerminalAccessOwner::Extent => backing,
+        terminal_psi::TerminalAccessOwner::Run { carrier, .. } => carrier,
     };
     Ok(terminal_psi::TerminalAccessStorage {
-        carrier,
-        base,
-        length,
-        granted: domain("Granted")?,
-        vacant: if operation == AccessLifecycleOperation::View {
-            None
-        } else {
-            Some(domain("Vacant")?)
-        },
-        resident: if operation == AccessLifecycleOperation::View {
-            None
-        } else {
-            Some(domain("Resident")?)
-        },
+        carrier: backing,
+        owner,
+        base: field(identities, backing, &storage.base)?,
+        length: field(identities, backing, &storage.length)?,
+        granted: domain(backing, storage.granted)?,
+        vacant: storage
+            .vacant
+            .map(|source| domain(backing, source))
+            .transpose()?,
+        resident: storage
+            .occupied
+            .map(|source| domain(occupied_owner, source))
+            .transpose()?,
     })
 }
 

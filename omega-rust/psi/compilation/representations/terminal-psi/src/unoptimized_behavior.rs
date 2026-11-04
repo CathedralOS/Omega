@@ -67,7 +67,8 @@ impl UnoptimizedMachineBehavior {
                             boundary: *boundary,
                         })
                     }
-                    OperationKind::PortWrite { service, .. }
+                    OperationKind::GlobalDescriptorTable { service, .. }
+                    | OperationKind::PortWrite { service, .. }
                     | OperationKind::RegisterAccess {
                         service: Some(service),
                         ..

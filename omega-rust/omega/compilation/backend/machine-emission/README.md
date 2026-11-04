@@ -105,6 +105,26 @@ supplies the callback identity and boundary entry plan; it neither extracts
 machine bytes nor reconstructs their ABI metadata. This consumes the existing
 text-placement result, not an additional pipeline stage.
 
+An x86 interrupt handler needs to return with the interrupted program's registers
+and flags intact. The [native entry adapter](src/native_entry_bridge.rs) saves
+all fifteen ordinary integer registers, clears the direction flag before calling
+the compiled body, restores those registers, and returns with `iretq`. The CPU's
+five-word return frame restores the original flags, instruction pointer and stack
+pointer. Native stack arguments begin after that frame; its words are never
+interpreted as handler arguments.
+
+The image owner checks the handler and its reached helpers against the complete
+entry state plan before emitting this adapter. It uses retained instruction and
+frame effects, keyed by both function and instruction, so one helper cannot hide
+another's writes. The supported interrupt protocol rejects vector or control-state
+use it cannot restore. A handler promised to remain masked also rejects interrupt
+enabling, unknown flags restoration, and opaque callees without that promise.
+
+This adapter requires an admitted, normalized arrival frame. Installation still
+owns the actual stack, any arguments, retained state and controller obligations.
+Emitting an interrupt entry does not create an installed root or a qualified
+interrupt acknowledgement.
+
 Object/container construction, final-image validation, executable installation,
 and callable admission remain later owners. Compiler-generated source/byte
 correspondence and one physical receipt for each surviving settled boundary

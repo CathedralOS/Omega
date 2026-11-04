@@ -1228,6 +1228,7 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "function-identity",
+ "iced-x86",
  "isa-aarch64",
  "isa-x86_64",
  "layout-plans",

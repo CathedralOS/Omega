@@ -315,6 +315,7 @@ pub(super) fn retain_available(
                 ),
                 // Selected execution already joined exact realization custody.
                 OperationPlan::RegisterAccess { .. }
+                | OperationPlan::GlobalDescriptorTable { .. }
                 | OperationPlan::EvaluateStructuralValue { .. }
                 | OperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. },
@@ -436,6 +437,7 @@ pub(super) fn retain_available(
                     | OperationPlan::AtomicFence { .. }
                     | OperationPlan::AtomicAccess(_)
                     | OperationPlan::RegisterAccess { .. }
+                | OperationPlan::GlobalDescriptorTable { .. }
                     | OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. })
                     // A borrowed reference binds storage already owned by the
                     // frame; establish/release carry no callee dependency.

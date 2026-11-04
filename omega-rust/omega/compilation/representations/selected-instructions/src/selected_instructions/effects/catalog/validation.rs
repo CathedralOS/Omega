@@ -50,6 +50,8 @@ fn touches_external_state(semantic: MachineSemanticKind) -> bool {
             | MachineSemanticKind::PortWrite
             | MachineSemanticKind::SystemRegisterRead
             | MachineSemanticKind::SystemRegisterWrite
+            | MachineSemanticKind::GlobalDescriptorTableLoad
+            | MachineSemanticKind::GlobalDescriptorTableStore
             | MachineSemanticKind::ControlRegisterRead
             | MachineSemanticKind::ControlRegisterWrite
             | MachineSemanticKind::PortRegisterRead
@@ -256,6 +258,8 @@ pub(super) fn validate_declaration(
         _ if callback_writes => crate::MachineMemoryEffect::PrivateCallbackMaterializationV1,
         _ if table_call => crate::MachineMemoryEffect::ReadPointerV1,
         _ if temporary_stack => crate::MachineMemoryEffect::TemporaryStackStorageV1,
+        MachineSemanticKind::GlobalDescriptorTableLoad => crate::MachineMemoryEffect::ReadPointerV1,
+        MachineSemanticKind::GlobalDescriptorTableStore => WritePointerV1,
         MachineSemanticKind::MemoryFence => crate::MachineMemoryEffect::CatalogFenceV1,
         MachineSemanticKind::AtomicFence => crate::MachineMemoryEffect::AtomicFenceV1,
         MachineSemanticKind::AtomicAccess(_) => crate::MachineMemoryEffect::AtomicPointerV1,
@@ -302,6 +306,8 @@ pub(super) fn validate_declaration(
         MachineSemanticKind::PortWrite
         | MachineSemanticKind::SystemRegisterRead
         | MachineSemanticKind::SystemRegisterWrite
+        | MachineSemanticKind::GlobalDescriptorTableLoad
+        | MachineSemanticKind::GlobalDescriptorTableStore
         | MachineSemanticKind::ControlRegisterRead
         | MachineSemanticKind::ControlRegisterWrite
         | MachineSemanticKind::PortRegisterRead
@@ -1195,6 +1201,30 @@ fn validate_encoded_effects(
         (
             MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand: 0,
+                byte_count: 10,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::GlobalDescriptorTableLoad
+            && declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
+            && encoded.external_operand_reads == [0]
+            && encoded.external_operand_writes.is_empty()
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1 => {}
+        (
+            MachineEncodedMemoryEffect::WriteFixedPointerV1 {
+                pointer_operand: 0,
+                byte_count: 10,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::GlobalDescriptorTableStore
+            && declaration.memory == WritePointerV1
+            && encoded.external_operand_reads == [0]
+            && encoded.external_operand_writes.is_empty()
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1 => {}
+        (
+            MachineEncodedMemoryEffect::ReadPointerV1 {
+                pointer_operand: 0,
                 byte_count,
             },
             MachineEncodedStackEffect::UnchangedV1,
@@ -1309,7 +1339,7 @@ fn validate_encoded_effects(
                 .external_operand_writes
                 .iter()
                 .copied()
-                .eq(form.observed_operand())
+                .eq(form.output_operands())
             && constraint
                 .operands
                 .iter()
@@ -1318,7 +1348,7 @@ fn validate_encoded_effects(
                     if usize::from(operand.operand) != index || operand.tied_to.is_some() {
                         return false;
                     }
-                    if Some(operand.operand) == form.observed_operand() {
+                    if form.output_operands().contains(&operand.operand) {
                         // Allocatable outputs require early clobber. A retry
                         // may instead use fixed homes: all inputs must also
                         // be fixed and distinct, and target catalog replay
