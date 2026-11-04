@@ -31,9 +31,55 @@ The concrete builtin admission must retain that correspondence rather than
 infer a provider contract from a receiving type. Broader resident/key support
 and non-observing-only placed permissions remain separate acceptance.
 
-The local source and oracle are being measured against the exact published
-compiler before any compiler edit. No repaired-source or runtime success is
-claimed. All nine places, their pinned twins, the u64/representation boundary
-where required, ordinary package review and all four matching hosts remain
-unfinished. The row will not close at this first witness. Formal concurrency,
-forced Uncommitted outcomes and target-refinement proofs also remain open.
+The fixed source/oracle baseline at `99240c1329b` is now measured by
+[41824546059](https://github.com/CathedralOS/Omega/actions/runs/41824546059).
+The valid local program refuses because `try_exchange_once` is unresolved;
+no engine runs. Its observing-family twin rejects the intended sealed-result
+obligation. The ordinary free-name control checks and actually agrees at exit 0.
+This is a compiler gap, not an invalid source program. The separate earlier
+request failed during workflow setup and supplies no compiler evidence.
+
+The complete row is authored, with matching positive and negative pins:
+
+| Place | Transport of the complete outcome |
+| --- | --- |
+| [Local](local/main.omg) | Bind the direct operation result. |
+| [Field](field/main.omg) | Move it into a record and select its field. |
+| [Parameter](parameter/main.omg) | Pass it as an owned machine argument. |
+| [Call result](call_result/main.omg) | Return it from an ordinary machine. |
+| [Match join](match_join/main.omg) | Join two owned paths and observe markers 17 and 23 for both key choices. |
+| [Const name](const_name/main.omg) | Retain the same key, proposal and neighbor through named constants. |
+| [Nested machine](other_state/main.omg) | Transfer it to a nested machine. |
+| [Other machine](other_machine/main.omg) | Consume it in a separate free machine. |
+| [Selected body](target_body/main.omg) | Return it from one ordinary implementation selected by four explicit Build rows. |
+
+Every place has an `invalid/main.omg` twin changing only the primitive to the
+observing family. The [wide control](controls/wide/main.omg) carries distinct
+values above 32 bits through the u64 payload and native register boundary;
+its twin keeps the same wrong-family obligation. It is not another fact row.
+The [ordinary-name control](controls/ordinary_name/main.omg) keeps a free machine
+with the same spelling ordinary. Additional invalid controls require exact
+[resident type](controls/wrong_resident/main.omg),
+[dedicated storage](controls/ordinary_storage/main.omg),
+[legal failure ordering](controls/failure_ordering/main.omg) and
+[one owner of the affine result](controls/duplicate_result/main.omg).
+
+| Requirement | Evidence required from this row |
+| --- | --- |
+| Establishment | The actual dedicated cell and concrete builtin identity encoding admit the operation; the sealed family fixes its cases and payload roles. The outcome type supplies no atomic authority. |
+| Identity and lifetime | Failure retains proposal 99, commitment returns displaced 10, and neighbor 17 stays untouched. The affine whole result cannot be consumed twice. |
+| Composition | Whole outcomes cross records, calls, parameters, both join paths, nested machines and public selected returns. No caller equality guard establishes the operation's contract. |
+| Soundness boundaries | Unknown resident identities, ordinary storage and invalid failure orderings refuse. Custom encoding laws, affine residents and placed-only access are outside this concrete admission. |
+| Portable program | One event keeps its actual operands, ordering and complete outcome contract through Terminal encoding and interpretation. No extra atomic read or retry supplies a payload. |
+| Build, layout and calling conventions | Four explicit entry/provider rows and canonical case layouts carry the whole affine result; the u64 control challenges a distinct native carrier width. |
+| Registers and instructions | Existing single-attempt ISA forms produce the prior and actual commitment tag. Native payload publication must use that tag, preserving both inputs and the canary. |
+| Native images | Actual corpus and ordinary commands must agree with Terminal at authored exit 0 on every claimed matching host. |
+
+The first repair checkpoint `51f6a69e720` failed Rust checking because one
+checked-interpreter caller still used the old validator API. It produced no
+program observations. The corrected checkpoint `83cf72e8e8e` is under the same
+small hosted qualification; no current compile or runtime success is claimed.
+All nine places, the controls, ordinary package review and four-host execution
+remain unfinished until their actual reports meet these obligations. Formal
+concurrency, forced Uncommitted outcomes, affine/linear residents, arbitrary-key
+laws, contention and target-refinement proofs remain open in the parent task.
