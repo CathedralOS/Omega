@@ -36,8 +36,9 @@ and each operand keeps its own `AtomicOperand` scalar row. Lowering emits
 the plan as one Terminal `AtomicAccess` at a complete rooted storage path.
 An empty projection names a whole dedicated cell; an inline record cell keeps
 its actual final field identity (terminal-psi `control_flow/atomic.rs`).
-The codec, independent verifier (`validation/atomic_access.rs`) and
-interpreter consume that event; the verifier refuses illegal orderings,
+The codec's independent operation verifier
+(`terminal-psi/codec/src/sections/semantic_module/module_foundation_validation.rs`)
+and interpreter consume that event; the verifier refuses illegal orderings,
 runtime-selected locations, bounded writes without their checked resident
 establishment obligation, mistyped operands or results, and events on ordinary
 scalar storage.
