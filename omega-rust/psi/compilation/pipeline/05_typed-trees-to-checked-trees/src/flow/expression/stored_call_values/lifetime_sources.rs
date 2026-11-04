@@ -65,6 +65,20 @@ impl Execution<'_, '_, '_> {
                         .span_or_empty(actual.referents),
                     actual.retention
                 );
+                if self
+                    .context
+                    .control
+                    .operand_retentions
+                    .is_valid(actual.retention)
+                {
+                    eprintln!(
+                        "CHECKSITE stored-lifetime-input-profile input={input:?} profile={:?}",
+                        self.context
+                            .control
+                            .operand_retentions
+                            .get(actual.retention)
+                    );
+                }
             }
             let leaf = self
                 .context

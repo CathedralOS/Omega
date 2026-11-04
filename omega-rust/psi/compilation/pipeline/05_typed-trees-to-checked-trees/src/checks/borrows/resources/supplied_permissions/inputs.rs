@@ -279,8 +279,9 @@ fn append_borrowed(
             let value = facts.flow.control.operands.get(operand);
             if facts.flow.control.operand_retentions.is_valid(value.retention) {
                 let profile = facts.flow.control.operand_retentions.get(value.retention);
-                eprintln!("CHECKSITE completed-output-input-profile operand={operand:?} retention={:?} profile={profile:?} suppliers={:?}", value.retention,
-                    facts.flow.control.operand_retained_suppliers.span_or_empty(profile.suppliers));
+                eprintln!("CHECKSITE completed-output-input-profile operand={operand:?} retention={:?} profile={profile:?} suppliers={:?} reborrows={:?}", value.retention,
+                    facts.flow.control.operand_retained_suppliers.span_or_empty(profile.suppliers),
+                    facts.flow.control.operand_reborrow_sources.span_or_empty(profile.reborrow_sources));
             }
         }
         reason
