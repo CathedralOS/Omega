@@ -118,12 +118,22 @@ impl Execution<'_, '_, '_> {
                         };
                         let expected =
                             validation::reference_shell(self.program, reference).unwrap();
+                        // A helper may establish a predicate on the same data
+                        // before storing its reference. The checked body owns
+                        // that predicate; this join retains the original
+                        // pointer and its access, comparing only storage shape.
                         if !(supplied.access == expected.access
                             || supplied.access == language_semantics::ReferenceAccess::Mutable)
                             || !validation::storage_origin_types_match(
                                 self.program,
-                                supplied.referee,
-                                expected.referee,
+                                validation::peel_declared_constraints(
+                                    self.program,
+                                    supplied.referee,
+                                ),
+                                validation::peel_declared_constraints(
+                                    self.program,
+                                    expected.referee,
+                                ),
                             )
                         {
                             suppliers_known = false;
