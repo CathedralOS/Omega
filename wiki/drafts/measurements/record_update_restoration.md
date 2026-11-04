@@ -103,11 +103,26 @@ reviews and failed attempts. Disk-full links and the initial cleanup-helper
 failure are recorded separately from successful checks. Every edited fixture
 has a fresh corpus record; every unselected original row remains unchanged.
 
-Two recast-parent controls reject at an earlier field-loan restriction. They
-retain that rejection, but checking their later restoration obligation remains
-unverified. Two neighboring stronger-predicate programs stop while preparing
-storage layouts; those refusals do not demonstrate the intended predicates.
-These limits are also recorded beside the programs.
+Resolving an actual merge conflict brought in a change to scalar-field loan
+checking. A [focused hosted run](https://github.com/CathedralOS/Omega/actions/runs/41756991925)
+used optimized integrated source `2713116252386e98ce5e87961aca764f8760b217`.
+The returned-record match program checks and runs with both exits zero; its
+missing-predicate twin rejects. The dirty-forward control rejects the unproved
+Pair requirement at a call. The forwarding-marker twin now reaches the intended
+Pair restoration refusal on return. Their restoration obligations are therefore
+observed on this source, beyond the earlier R16 loan-only errors.
+
+That hosted job failed because the forwarding-marker expectation still named
+the old loan error. The corrected expectations were checked against the actual
+captured diagnostic messages with the corpus runner's fragment-matching rule.
+The programs, compiler and observations were unchanged; no engine was rerun or
+relabeled. The original failed report remains intact. Producer preparation took
+44.7 minutes; checking took 26.8 seconds and both-engine execution 10.2 seconds.
+The producer's original digests and profiles are in that run's records artifact.
+
+Two neighboring stronger-predicate programs still stop while preparing storage
+layouts; those refusals do not demonstrate the intended predicates. Those limits
+remain recorded beside the programs.
 
 ## Baseline and remaining work
 

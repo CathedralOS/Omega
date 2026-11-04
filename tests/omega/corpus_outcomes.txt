@@ -2826,10 +2826,12 @@ fail/facts/recast_parent_restoration_changed_end_rejected rejected 2213ms expect
 	cannot complete return from machine `inspect` state `entry`: this write left the `requires` facts of `pair` (data `Pair`) unproved; restore them first
 fail/facts/recast_parent_restoration_completion_order_rejected rejected 6007ms expected @21213f5ea3d3
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_dirty_forward_rejected rejected 1107ms expected @f78c2623a68c
+fail/facts/recast_parent_restoration_dirty_forward_rejected rejected 7115ms expected @271311625238
+	cannot complete a call at statement 5 in machine `inspect` state `entry`: this write left the `requires` facts of `pair` (data `Pair`) unproved; restore them first
+	cannot complete return from machine `inspect` state `entry`: this write left the `requires` facts of `pair` (data `Pair`) unproved; restore them first
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_forwarding_marker_rejected rejected 605ms expected @f78c2623a68c
-	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_forwarding_marker_rejected rejected 7681ms expected @271311625238
+	cannot complete return from machine `inspect` state `entry`: this write left the `requires` facts of `pair` (data `Pair`) unproved; restore them first
 fail/facts/recast_parent_restoration_through_call_result_rejected rejected 802ms expected @0a3a759c64e3
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_through_const_name_rejected rejected 955ms expected @0a3a759c64e3
@@ -7640,7 +7642,7 @@ pass/facts/data_where_standing_mutable_recast_through_call_result_exit checked 4
 pass/facts/data_where_standing_mutable_recast_through_const_name_exit checked 3902ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_recast_through_field_exit checked 3872ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_recast_through_local_exit checked 3300ms check-target:macos_arm64 @f78c2623a68c
-pass/facts/data_where_standing_mutable_recast_through_match_join_exit checked 3878ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_mutable_recast_through_match_join_exit checked 11078ms check-target:macos_arm64 @271311625238
 pass/facts/data_where_standing_mutable_recast_through_other_machine_exit checked 3800ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_recast_through_other_state_exit checked 3882ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_recast_through_parameter_exit checked 3842ms check-target:macos_arm64 @f78c2623a68c
@@ -23394,7 +23396,7 @@ fail/facts/data_where_standing_mutable_recast_through_field_rejected rejected 66
 	construction of `Holder` field `view`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
 fail/facts/data_where_standing_mutable_recast_through_local_rejected rejected 2414ms expected @f78c2623a68c
 	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_mutable_recast_through_match_join_rejected rejected 525ms expected @f78c2623a68c
+fail/facts/data_where_standing_mutable_recast_through_match_join_rejected rejected 2923ms expected @271311625238
 	value operand: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
 	value operand: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
 	argument `view` for state `forward::entry`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
