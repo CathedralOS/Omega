@@ -230,8 +230,13 @@ class CompilerProducer:
         return cli if self.runner is None else cli + ((self.runner, self.runner_profile),)
 
     def verify(self):
-        if command(["git", "rev-parse", "HEAD"]) != self.revision or command(["git", "status", "--porcelain"]):
-            raise ValueError("producer source revision or working inputs changed")
+        if (command(["git", "rev-parse", "HEAD"]) != self.revision
+                or command(["git", "rev-parse", "HEAD^{tree}"]) != self.tree
+                or command(["git", "status", "--porcelain"])
+                or os.environ.get("GITHUB_SHA", self.revision) != self.revision):
+            raise ValueError("producer source revision, tree or working inputs changed")
+        if corpus_gate.host_target() != self.target or command(["rustc", "-Vv"]) != self.toolchain:
+            raise ValueError("producer host or Rust toolchain changed")
         for binary, expected in self._artifacts():
             if corpus_gate.require_optimized(binary) != expected:
                 raise ValueError(f"retained producer identity/profile changed: {binary}")
@@ -240,6 +245,44 @@ class CompilerProducer:
         return dict(revision=self.revision, tree=self.tree, target=self.target, toolchain=self.toolchain,
                     cli=str(self.cli), runner=None if self.runner is None else str(self.runner),
                     cli_profile=self.cli_profile, runner_profile=self.runner_profile)
+
+
+def write_new_record(path, record):
+    """Publish a completed preparation record without replacing prior evidence."""
+    with Path(path).open("x", encoding="utf-8") as stream:
+        stream.write(json.dumps(record, indent=2) + "\n")
+
+
+def load_producer(path):
+    """Authenticate a prepared producer; failure never starts another build."""
+    manifest = json.loads(Path(path).read_text(encoding="utf-8"))
+    if (not isinstance(manifest, dict) or set(manifest) != {"schema", "producer"}
+            or manifest["schema"] != "omega-compiler-producer-v1"):
+        raise ValueError("unrecognized prepared compiler manifest")
+    record = manifest["producer"]
+    fields = {"revision", "tree", "target", "toolchain", "cli", "runner",
+              "cli_profile", "runner_profile"}
+    if not isinstance(record, dict) or set(record) != fields:
+        raise ValueError("prepared compiler manifest has incomplete producer identity")
+    if any(not isinstance(record[field], str) or not record[field]
+           for field in ("revision", "tree", "target", "toolchain", "cli")):
+        raise ValueError("prepared compiler identity fields must be nonempty strings")
+    runner = record["runner"]
+    if runner is not None and (not isinstance(runner, str) or not runner):
+        raise ValueError("prepared corpus runner path is invalid")
+    cli = Path(record["cli"])
+    runner = Path(runner) if runner is not None else None
+    if not cli.is_absolute() or (runner is not None and not runner.is_absolute()):
+        raise ValueError("prepared executable paths must be absolute")
+    producer = CompilerProducer(record["revision"], record["tree"], record["target"],
+                                record["toolchain"], cli, runner,
+                                record["cli_profile"], record["runner_profile"])
+    for _, profile in producer._artifacts():
+        if (not isinstance(profile, dict) or not isinstance(profile.get("sha256"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", profile["sha256"])):
+            raise ValueError("prepared executable lacks its verified digest/profile")
+    producer.verify()
+    return producer
 
 
 def prepare_producer(output, *, need_runner=True):
@@ -415,25 +458,57 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         raise ValueError("; ".join(refusals))
 
 
-def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fixtures=None, samples=None, cli_fixtures=None, check_only=False):
+def selected_consumers(positives, negatives, checking_only, *, fixtures, samples, cli_fixtures, check_only):
+    """Resolve the complete request before either preparing or using a compiler."""
+    if check_only and (fixtures is None or samples is not None or cli_fixtures is not None):
+        raise ValueError("checking-only requires exact fixtures without samples or ordinary CLI projects")
+    selected_samples = select_samples(samples) if samples is not None else ()
+    selected_cli = select_cli_fixtures(cli_fixtures) if cli_fixtures is not None else ()
+    if (samples is not None or cli_fixtures is not None) and fixtures is None:
+        positives, negatives, checking_only = (), (), ()
+    if fixtures is not None:
+        positives, negatives = select_fixtures(fixtures)
+        checking_only = ()
+    if check_only:
+        checking_only, positives = positives, ()
+    if not (positives or negatives or checking_only or selected_samples or selected_cli):
+        raise ValueError("pilot requires at least one fixture")
+    return dict(positives=positives, negatives=negatives, checking_only=checking_only,
+                samples=selected_samples, cli_fixtures=selected_cli)
+
+
+def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fixtures=None, samples=None, cli_fixtures=None, check_only=False, phase="all"):
     output = ROOT / "build" / name
     output.mkdir(parents=True, exist_ok=True)
-    summary = dict(schema="omega-compiler-pilot-v1", passed=False)
+    preparing = phase == "prepare"
+    report = output / ("preparation.json" if preparing else "summary.json")
+    manifest = output / "producer.json"
+    # A second preparation must not replace either the compiler association or
+    # its result, including a prior failed attempt. Use another output directory.
+    if preparing and (report.exists() or manifest.exists()):
+        print("compiler-pilot: preparation records already exist", file=sys.stderr)
+        return 1
+    summary = dict(schema="omega-compiler-preparation-v1" if preparing else "omega-compiler-pilot-v1",
+                   passed=False)
+    started = time.monotonic()
     try:
-        if check_only and (fixtures is None or samples is not None or cli_fixtures is not None):
-            raise ValueError("checking-only requires exact fixtures without samples or ordinary CLI projects")
-        selected_samples = select_samples(samples) if samples is not None else ()
-        selected_cli = select_cli_fixtures(cli_fixtures) if cli_fixtures is not None else ()
-        if (samples is not None or cli_fixtures is not None) and fixtures is None:
-            positives, negatives, checking_only = (), (), ()
-        if fixtures is not None:
-            positives, negatives = select_fixtures(fixtures)
-            checking_only = ()
-        if check_only:
-            checking_only, positives = positives, ()
-        execute(output, summary, positives=positives, negatives=negatives,
-                checking_only=checking_only, producer=producer, samples=selected_samples,
-                cli_fixtures=selected_cli)
+        if phase not in ("all", "prepare", "consume") or (phase != "all" and producer is not None):
+            raise ValueError("separate phases require their recorded producer, not an in-memory override")
+        selected = selected_consumers(positives, negatives, checking_only, fixtures=fixtures,
+                                      samples=samples, cli_fixtures=cli_fixtures, check_only=check_only)
+        if preparing:
+            summary.update(candidate=command(["git", "rev-parse", "HEAD"]),
+                           tree=command(["git", "rev-parse", "HEAD^{tree}"]),
+                           target=corpus_gate.host_target(), toolchain=command(["rustc", "-Vv"]),
+                           consumers=selected)
+            producer = prepare_producer(output, need_runner=bool(
+                selected["positives"] or selected["negatives"] or selected["checking_only"]))
+            write_new_record(manifest, dict(schema="omega-compiler-producer-v1", producer=producer.record()))
+            summary["producer"] = producer.record()
+        else:
+            if phase == "consume":
+                producer = load_producer(manifest)
+            execute(output, summary, producer=producer, **selected)
         summary["passed"] = True
         return 0
     except (OSError, ValueError, subprocess.CalledProcessError,
@@ -442,11 +517,17 @@ def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fi
         print(f"compiler-pilot: {error}", file=sys.stderr)
         return 1
     finally:
-        (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+        if preparing:
+            summary["seconds"] = round(time.monotonic() - started, 3)
+            write_new_record(report, summary)
+        else:
+            report.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
 
 def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--phase", choices=("all", "prepare", "consume"), default="all",
+                        help="prepare and retain the compiler, consume its manifest without building, or do both")
     parser.add_argument("--fixtures", help="comma-separated exact pass/... or fail/... fixture IDs")
     parser.add_argument("--samples", help="comma-separated exact samples/cli/facts project paths (includes descendants)")
     parser.add_argument("--cli-fixtures", help="exact pass/... normal-exit projects through ordinary CLI review/run")
@@ -461,7 +542,8 @@ def main(arguments=None):
     cli_fixtures = (options.cli_fixtures if options.cli_fixtures is not None
                     else os.environ.get(CLI_FIXTURE_ENVIRONMENT) or None)
     return run_suite("compiler-pilot", POSITIVES, NEGATIVES, fixtures=fixtures,
-                     samples=samples, cli_fixtures=cli_fixtures, check_only=options.checking_only)
+                     samples=samples, cli_fixtures=cli_fixtures, check_only=options.checking_only,
+                     phase=options.phase)
 
 
 if __name__ == "__main__":
