@@ -19,7 +19,7 @@ use crate::object::private_object_composition::namespaces;
 use crate::object::private_object_composition::remap;
 
 mod implementation_tables;
-mod native_code_layouts;
+pub(crate) mod native_code_layouts;
 
 /// Replay one terminal image against the exact prepared object inputs. Every
 /// writer lane — direct, dynamic ELF, PE — settles here: preparation only

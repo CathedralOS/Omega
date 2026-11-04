@@ -116,6 +116,8 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub atomic_store: Option<RegisterConstraintKey>,
     pub atomic_update: Option<RegisterConstraintKey>,
     pub atomic_compare_exchange: Option<RegisterConstraintKey>,
+    /// Single-attempt exchange returns the observed resident and outcome tag.
+    pub atomic_compare_exchange_once: Option<RegisterConstraintKey>,
     /// Bitwise RMW may need a retry sequence with a different register contract.
     pub atomic_bitwise_update: Option<RegisterConstraintKey>,
     pub crash: RegisterConstraintKey,

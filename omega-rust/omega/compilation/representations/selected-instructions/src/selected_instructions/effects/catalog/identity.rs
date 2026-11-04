@@ -45,7 +45,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v37\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v38\0");
     bytes.extend_from_slice(&catalog.target.identity_bytes());
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -57,6 +57,7 @@ pub fn machine_effect_catalog_identity(
         catalog.selected_keys.atomic_store,
         catalog.selected_keys.atomic_update,
         catalog.selected_keys.atomic_compare_exchange,
+        catalog.selected_keys.atomic_compare_exchange_once,
         catalog.selected_keys.atomic_bitwise_update,
         catalog.selected_keys.copy_bytes,
         catalog.selected_keys.hosted_read_byte,
@@ -652,6 +653,7 @@ pub(crate) const fn semantic_kind_payload(kind: MachineSemanticKind) -> Option<u
         MachineSemanticKind::AccessorScalarAccess(form) => Some(form.machine_payload()),
         MachineSemanticKind::NearestIeeeFloatArithmetic(form) => Some(form.machine_payload()),
         MachineSemanticKind::FloatResultPolicy(form) => Some(form.machine_payload()),
+        MachineSemanticKind::AtomicAccess(form) => form.machine_payload(),
         _ => None,
     }
 }
@@ -665,6 +667,7 @@ pub(crate) const fn alternative_family_payload(family: MachineAlternativeFamily)
         MachineAlternativeFamily::AccessorScalarAccess(form) => Some(form.machine_payload()),
         MachineAlternativeFamily::NearestIeeeFloatArithmetic(form) => Some(form.machine_payload()),
         MachineAlternativeFamily::FloatResultPolicy(form) => Some(form.machine_payload()),
+        MachineAlternativeFamily::AtomicAccess(form) => form.machine_payload(),
         _ => None,
     }
 }

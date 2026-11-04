@@ -1073,24 +1073,33 @@ pub fn x86_64_register_constraint_catalog(
     // prior cell in it: the expected operand pins RAX, the observed output
     // is an ordinary early-clobber register the encoding fills from RAX
     // after the LOCK form, and RAX itself is a declared family clobber.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_ATOMIC_COMPARE_EXCHANGE,
-        operands: vec![
+    for (key, outputs) in [
+        (X86_64_ATOMIC_COMPARE_EXCHANGE, 1),
+        (crate::X86_64_ATOMIC_COMPARE_EXCHANGE_ONCE, 2),
+    ] {
+        let mut operands = vec![
             allocatable(0, Access::Use, GPR64),
             fixed(1, Access::Use, "rax"),
             allocatable(2, Access::Use, GPR64),
-            super::early_clobber(allocatable(3, Access::Def, GPR64)),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: {
-            let mut clobbers = view("rax").units.clone();
-            clobbers.extend(view("rflags").units.iter().copied());
-            clobbers.sort_unstable();
-            clobbers
-        },
-    });
+        ];
+        operands.extend(
+            (3..3 + outputs)
+                .map(|operand| super::early_clobber(allocatable(operand, Access::Def, GPR64))),
+        );
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands,
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: {
+                let mut clobbers = view("rax").units.clone();
+                clobbers.extend(view("rflags").units.iter().copied());
+                clobbers.sort_unstable();
+                clobbers
+            },
+        });
+    }
     for (key, restore) in [
         (crate::X86_64_SAVE_FLOATING_CONTROL, false),
         (crate::X86_64_RESTORE_FLOATING_CONTROL, true),

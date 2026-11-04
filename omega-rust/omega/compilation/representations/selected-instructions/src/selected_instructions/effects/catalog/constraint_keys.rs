@@ -44,6 +44,7 @@ impl SelectedConstraintKeys {
             self.atomic_store,
             self.atomic_update,
             self.atomic_compare_exchange,
+            self.atomic_compare_exchange_once,
             // LSE uses the ordinary update row; a software-retry target can
             // select its separate interference contract without duplicating
             // an identical hardware row in the inventory.
@@ -182,6 +183,9 @@ impl SelectedConstraintKeys {
                     crate::AtomicOperation::Load => self.rows.atomic_load,
                     crate::AtomicOperation::Store => self.rows.atomic_store,
                     crate::AtomicOperation::CompareExchange => self.rows.atomic_compare_exchange,
+                    crate::AtomicOperation::CompareExchangeOnce => {
+                        self.rows.atomic_compare_exchange_once
+                    }
                     crate::AtomicOperation::FetchAnd
                     | crate::AtomicOperation::FetchOr
                     | crate::AtomicOperation::FetchXor => self.rows.atomic_bitwise_update,

@@ -200,6 +200,7 @@ pub fn target_register_environment_identity(
         selected_keys.atomic_store,
         selected_keys.atomic_update,
         selected_keys.atomic_compare_exchange,
+        selected_keys.atomic_compare_exchange_once,
         selected_keys.atomic_bitwise_update,
         selected_keys.load64,
         selected_keys.load_packed,

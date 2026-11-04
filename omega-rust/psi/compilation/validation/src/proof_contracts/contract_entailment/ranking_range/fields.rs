@@ -457,35 +457,9 @@ impl<'program> Coordinate<'program> {
                 ),
             ]);
         }
-        // The leaf's owning declaration states `where` facts every write
-        // re-proves: they bound each legal read the way a declared field
-        // range does, so the coordinate carries them as hypotheses too.
-        let owner = program.symbols.get(self.field.symbol).parent;
-        if let Some(definition) =
-            crate::declarations::data_queries::data_definition_by_symbol(program, owner)
-            && let Some(intervals) =
-                crate::proof_contracts::default_domains::data_where_field_intervals(
-                    program, definition,
-                )
-            && let Some((_, low, high)) = intervals
-                .iter()
-                .find(|(symbol, ..)| *symbol == self.field.symbol)
-        {
-            if let Some(low) = low {
-                comparisons.push((
-                    BinaryOperator::GreaterOrEqual,
-                    self.value(),
-                    Polynomial::constant(BigInt::from_i64(*low)),
-                ));
-            }
-            if let Some(high) = high {
-                comparisons.push((
-                    BinaryOperator::LessOrEqual,
-                    self.value(),
-                    Polynomial::constant(BigInt::from_i64(*high)),
-                ));
-            }
-        }
+        // Record predicates are facts about particular values, rather than
+        // permanent restrictions on this field coordinate. The caller supplies
+        // their current-value proof separately.
         comparisons
     }
 

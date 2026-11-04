@@ -538,7 +538,7 @@ pub(in crate::exit_contract) fn validate_non_return(
                     .external_operand_writes
                     .iter()
                     .copied()
-                    .eq(form.observed_operand())
+                    .eq(form.output_operands())
         }
         (
             SelectedInstructionKind::SaveFloatingControl { slot },

@@ -423,29 +423,6 @@ pub(crate) fn completed_case_occurrences(
     occurrences
 }
 
-pub(super) fn field_is_where_mentioned(
-    program: &dyn crate::CheckingInput,
-    definition: &DataDefinition,
-    field: &str,
-) -> bool {
-    fact_span_mentions_field(program, definition, definition.where_facts, field)
-}
-
-/// Whether any fact in `facts` names `field` -- the write-target test shared
-/// by type-wide `where` facts and a constrained case's own fact span.
-pub(super) fn fact_span_mentions_field(
-    program: &dyn crate::CheckingInput,
-    definition: &DataDefinition,
-    facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
-    field: &str,
-) -> bool {
-    program
-        .proof_facts
-        .span_or_empty(facts)
-        .iter()
-        .any(|fact| fact_names_field(program, definition, fact, field))
-}
-
 pub(super) fn fact_names_field(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
@@ -513,7 +490,7 @@ pub(super) fn fact_is_disjoint_from_store(
 /// Resolve an ordinary predicate projection in its exact receiving telescope.
 /// This returns contents coordinates only: selected indexing, descriptor/value
 /// distinctions, and every inline crossing retain their existing type gates.
-pub(super) fn predicate_projection(
+pub(crate) fn predicate_projection(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     application: TypeReferenceHandle,

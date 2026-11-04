@@ -233,6 +233,7 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             atomic_update: Some(crate::X86_64_ATOMIC_UPDATE),
             atomic_bitwise_update: Some(crate::X86_64_ATOMIC_BITWISE_UPDATE),
             atomic_compare_exchange: Some(crate::X86_64_ATOMIC_COMPARE_EXCHANGE),
+            atomic_compare_exchange_once: Some(crate::X86_64_ATOMIC_COMPARE_EXCHANGE_ONCE),
             crash: crate::X86_64_CRASH,
             load_packed: Some(crate::X86_64_LOAD_PACKED),
             store_packed: Some(crate::X86_64_STORE_PACKED),
@@ -590,12 +591,11 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
         Semantic::FloatResultPolicy(form) => {
             return crate::selected_form_encoding::float_result_policy::effects(form);
         }
-        // LOCK-prefixed atomic forms read their address plus operation
-        // inputs and write the observed-prior output alone.
-        Semantic::AtomicAccess(form) => (
-            (0..form.operation.input_count()).collect(),
-            form.observed_operand().into_iter().collect(),
-        ),
+        // The atomic encoder owns both explicit results and implicit effects.
+        // Its outcome tag is a real output, alongside the observed resident.
+        Semantic::AtomicAccess(form) => {
+            return crate::selected_form_encoding::atomic::effects(form);
+        }
         Semantic::NearestIeeeFloatArithmetic(_) => {
             unreachable!("float arithmetic effects returned above")
         }
@@ -790,18 +790,6 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
                     },
                     MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
                     MachineEncodedControlEffect::ReturnFromActivationStackV1,
-                )
-            }
-            Semantic::AtomicAccess(form) => {
-                let encoded = crate::selected_form_encoding::atomic::effects(form);
-                (
-                    encoded.implicit_unit_uses,
-                    encoded.implicit_unit_defs,
-                    encoded.implicit_unit_clobbers,
-                    encoded.memory,
-                    encoded.stack,
-                    encoded.trap,
-                    encoded.control,
                 )
             }
             // The xor-zero idiom defines its destination from no input and
