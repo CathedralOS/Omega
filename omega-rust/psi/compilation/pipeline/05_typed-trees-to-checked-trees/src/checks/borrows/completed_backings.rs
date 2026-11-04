@@ -28,9 +28,11 @@ pub(super) struct CompletedDescriptorBackings {
     pub(super) forwarded_inputs: Vec<Handle<FlowOperandFact>>,
 }
 
-/// An unchanged slot still names an exact entry descriptor. Use the same
-/// typed namespace lookup for saved input obligations and ordinary loads;
-/// the reference used to reach the slot does not lend its pointee's access.
+/// A selected incoming alternative keeps its original entry descriptor even
+/// when a conditional store retires that identity from the current roster.
+/// Callers have selected this exact Incoming member on the immutable storage
+/// timeline. Resolve its entry namespace without reactivating current access;
+/// the reference used to reach the slot cannot supply that permission.
 pub(in crate::checks::borrows) fn incoming_sources(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
@@ -39,9 +41,13 @@ pub(in crate::checks::borrows) fn incoming_sources(
     constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
     source: validation::CanonicalPlace,
 ) -> Result<Vec<ResolvedAlias>, &'static str> {
-    if let Some(places) =
-        super::aliases::unchanged_incoming_leaf(program, facts, state, constraints, &source)?
-    {
+    if let Some(places) = super::aliases::unchanged_incoming_leaf(
+        program,
+        facts,
+        state,
+        state.entry_constraints,
+        &source,
+    )? {
         return Ok(places);
     }
     super::access_sources::resolve_descriptor_all(

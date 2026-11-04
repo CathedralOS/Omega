@@ -46,9 +46,15 @@ impl Execution<'_, '_, '_> {
                 continue;
             };
             let actual = *self.context.control.operands.get(actual);
+            // Stores select the data reached by the actual's outer reference,
+            // including an empty path that replaces an inner pointer slot.
+            // This is destination typing; a write-only address need not read
+            // the previous descriptor to install its replacement.
+            let carrier = validation::reference_shell(self.program, actual.type_reference)
+                .map_or(actual.type_reference, |reference| reference.referee);
             let Some(reference) = validation::project_type_reference_from_segments(
                 self.program,
-                actual.type_reference,
+                carrier,
                 &effect.destination.local_segments,
             ) else {
                 continue;

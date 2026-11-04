@@ -569,23 +569,29 @@ pub(in crate::checks::borrows) fn unchanged_incoming_leaf(
                 incoming.origin,
                 checked_trees::IncomingReferenceOrigin::Parameter { .. }
             )
-            || !crate::borrow::owner_path_selects_leaf(program, owner, &source.segments)
         {
             continue;
         }
-        let selected = validation::owned_projection_type_reference(
+        let Some(segments) = validation::corresponding_place_projection(
             program,
             incoming.carrier_type,
             &source.segments,
-        )
-        .ok_or("the selected incoming descriptor has no typed owner projection")?;
+        ) else {
+            continue;
+        };
+        if !crate::borrow::owner_path_selects_leaf(program, owner, &segments) {
+            continue;
+        }
+        let selected =
+            validation::owned_projection_type_reference(program, incoming.carrier_type, &segments)
+                .ok_or("the selected incoming descriptor has no typed owner projection")?;
         validation::reference_shell(program, selected)
             .ok_or("the incoming selection is not a descriptor")?;
         resolved.push(ResolvedAlias {
             place: CapturedPlace {
                 incoming_reference: identity,
                 incoming_owner_path: if owner.contains(&BorrowLoanOwnerSegment::DynamicIndex) {
-                    source.segments.clone()
+                    segments
                 } else {
                     Vec::new()
                 },
