@@ -6,15 +6,16 @@ use target_operations::TargetUnitOperation;
 fn atomic_storage_requires_retained_graph_replay() {
     use abstract_operations::atomic::AbstractAtomicLocation;
     use abstract_operations::{AbstractAtomicEvent, AtomicResidencyEdge};
-    use semantic_vocabulary::{PlaceId, StructuralFieldId};
+    use semantic_vocabulary::PlaceId;
 
     let operation = AbstractOperation::AtomicEvent {
         psi_operation: OperationId::new(1).unwrap(),
         event: AbstractAtomicEvent::Store {
             location: AbstractAtomicLocation {
                 root: PlaceId::new(1).unwrap(),
-                path: Vec::new(),
-                field: StructuralFieldId::new(1).unwrap(),
+                path: vec![terminal_psi::StructuralPathSegment::Field(
+                    terminal_psi::TerminalIdentityIndex(1),
+                )],
             },
             ordering: terminal_psi::MemoryOrdering::NoOrdering,
             value: ValueId::new(1).unwrap(),

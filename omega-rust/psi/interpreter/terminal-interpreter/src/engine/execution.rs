@@ -1309,11 +1309,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                                     OperationKind::AtomicAccess {
                                         place,
                                         ref path,
-                                        field,
                                         event,
                                         ..
                                     } => {
-                                        self.execute_atomic_access(operation, place, path, field, event)?;
+                                        self.execute_atomic_access(operation, place, path, event)?;
                                         OperationFlow::Advance
                                     }
                                         }

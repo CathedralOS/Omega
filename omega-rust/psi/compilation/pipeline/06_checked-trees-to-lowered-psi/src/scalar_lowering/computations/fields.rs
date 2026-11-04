@@ -843,6 +843,7 @@ pub(crate) fn prepare(
         for handle in super::reachable_nodes(checked, &[root.root])? {
             let node = plans.nodes.get(handle);
             let CheckedScalarComputationKind::StructuralField {
+                atomic_ordering,
                 source_type,
                 field_identity,
                 receiver_value,
@@ -1055,10 +1056,16 @@ pub(crate) fn prepare(
             // A zero field means the walk's last literal element already
             // selected the scalar: its declaration is that primitive carrier.
             if !field.is_valid() {
-                if typed_overlay.is_some()
-                    || !matches!(declaration.shape,
-                        StructuralTypeShape::PrimitiveScalar(actual) if actual == leaf_scalar_type)
-                {
+                let leaf_matches = match (&declaration.shape, atomic_ordering) {
+                    (StructuralTypeShape::PrimitiveScalar(actual), None) => {
+                        *actual == leaf_scalar_type
+                    }
+                    (StructuralTypeShape::AtomicCell(cell), Some(_)) => {
+                        cell.is_supported() && cell.scalar_type() == leaf_scalar_type
+                    }
+                    _ => false,
+                };
+                if typed_overlay.is_some() || !leaf_matches {
                     return unsupported("element observation does not end at its scalar element");
                 }
                 bindings.push(Binding {
@@ -1608,31 +1615,23 @@ fn atomic_observation(
         return unsupported("atomic load needs legal ordering and exact readable atomic storage");
     }
     let path = resolved_observation_path(binding, bindings, &home, captured_type)?;
-    let Some((terminal_psi::StructuralPathSegment::Field(_), prefix)) = path.split_last() else {
-        return unsupported("atomic load lost its exact field path");
-    };
-    let field = binding.field.ok_or(LoweringError::Unsupported(
-        "atomic load lost its declared field",
-    ))?;
     let root = bindings
         .structural_place_type(home.place)
         .unwrap_or(binding.observation_root_type);
-    let declaration = terminal_semantics::projected_field_declaration(
+    let cell = terminal_semantics::atomic_cell_type(
         bindings.structural_declarations().iter(),
         root,
-        prefix,
-        field,
+        &path,
     )
     .ok_or(LoweringError::Unsupported(
-        "atomic load field declaration is absent",
+        "atomic load cell declaration is absent",
     ))?;
-    if declaration.field_type.atomic_scalar_type() != Some(binding.scalar_type) {
-        return unsupported("atomic load cannot observe an ordinary scalar field");
+    if cell.scalar_type() != binding.scalar_type {
+        return unsupported("atomic load cannot observe a different resident type");
     }
     Ok(LoweredDirectExpression::AtomicLoad {
         source: home.place,
-        path: prefix.to_vec(),
-        field,
+        path,
         ordering,
         scalar_type: binding.scalar_type,
     })

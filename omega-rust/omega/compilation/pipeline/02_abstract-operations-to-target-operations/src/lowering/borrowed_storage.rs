@@ -142,6 +142,13 @@ impl StorageRecipes<'_> {
                 self.fields
                     .push((path.clone(), repetitions.clone(), offset, *scalar, *scalar))
             }
+            // This is resident geometry, like an inline atomic field.
+            // Shared snapshot and event permissions remain separate.
+            StructuralTypeShape::AtomicCell(cell) => {
+                let scalar = cell.scalar_type();
+                self.fields
+                    .push((path.clone(), repetitions.clone(), offset, scalar, scalar));
+            }
             StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::ElementView { .. } => {

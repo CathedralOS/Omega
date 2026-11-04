@@ -139,6 +139,9 @@ impl<'module> TerminalBoundaryRecipes<'module> {
                 StructuralTypeShape::PrimitiveScalar(scalar) => {
                     return self.scalar(*scalar);
                 }
+                StructuralTypeShape::AtomicCell(cell) => {
+                    return self.scalar(cell.scalar_type());
+                }
                 StructuralTypeShape::Reference { referent, .. } => {
                     return self.reference(*referent);
                 }

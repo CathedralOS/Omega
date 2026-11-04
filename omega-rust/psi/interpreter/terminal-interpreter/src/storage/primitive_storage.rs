@@ -72,6 +72,7 @@ enum ScalarStorageObservation {
     OrdinaryReference { shared_view: bool },
     ExclusiveSnapshot,
     OwnedSnapshot,
+    AtomicEvent,
 }
 
 /// A loan pins its owner's exact activation until it returns. Stack depth is
@@ -1851,8 +1852,13 @@ impl TerminalExecution<'_> {
         // field's declared identity — not in primitive root storage.
         if let Some((StructuralPathSegment::Field(identity), parent_path)) = view.path.split_last()
         {
-            let field =
-                self.scalar_leaf_field(view, *identity, parent_path, scalar_type, shared_view)?;
+            let field = self.scalar_leaf_field(
+                view,
+                *identity,
+                parent_path,
+                scalar_type,
+                ScalarStorageObservation::OrdinaryReference { shared_view },
+            )?;
             return Ok((
                 PrimitiveStorage::canonical(PrimitiveStorageEndpoint::ScalarField(field)),
                 scalar_type,
@@ -1868,6 +1874,75 @@ impl TerminalExecution<'_> {
         ))
     }
 
+    /// Resolve an authenticated atomic endpoint to its original scalar cell.
+    /// References retain the same field namespace or whole home; representation
+    /// bytes and ordinary scalar views cannot manufacture atomic backing.
+    pub(crate) fn atomic_cell_storage(
+        &self,
+        parent: &TerminalStructuralValue,
+        view: Option<crate::storage::reference::AggregateViewTip>,
+        path: &[StructuralPathSegment],
+    ) -> Result<(PrimitiveStorage, ScalarType), TerminalInterpretError> {
+        let declared = match view {
+            None => parent.structural_type,
+            Some(crate::storage::reference::AggregateViewTip::Aggregate { view, backing })
+                if backing == parent.structural_type =>
+            {
+                view.structural_type
+            }
+            Some(_) => return Err(malformed()),
+        };
+        let types = self.structural_types();
+        let cell = terminal_semantics::atomic_cell_type(types.values(), declared, path)
+            .ok_or_else(malformed)?;
+        let scalar = cell.scalar_type();
+        let endpoint = if let Some((StructuralPathSegment::Field(identity), prefix)) =
+            path.split_last()
+        {
+            let field =
+                terminal_semantics::runtime_structural_field(types.values(), declared, path)
+                    .ok_or_else(malformed)?;
+            if field.identity != *identity || field.field_type.atomic_cell_type() != Some(cell) {
+                return Err(malformed());
+            }
+            let (canonical, _) = terminal_semantics::static_field_projection(
+                types.values(),
+                declared,
+                prefix,
+                field.id,
+            )
+            .ok_or_else(malformed)?;
+            PrimitiveStorageEndpoint::ScalarField(
+                self.observed_field_cell_in(parent, view, &canonical, field.id)?,
+            )
+        } else {
+            if !path.is_empty()
+                || self.structural_declaration(declared)?.shape
+                    != terminal_psi::StructuralTypeShape::AtomicCell(cell)
+            {
+                return Err(malformed());
+            }
+            let mut leaf = parent.clone();
+            leaf.structural_type = declared;
+            match leaf.path.split_last() {
+                Some((StructuralPathSegment::Field(identity), prefix)) => {
+                    PrimitiveStorageEndpoint::ScalarField(self.scalar_leaf_field(
+                        &leaf,
+                        *identity,
+                        prefix,
+                        scalar,
+                        ScalarStorageObservation::AtomicEvent,
+                    )?)
+                }
+                _ if view.is_none() => {
+                    PrimitiveStorageEndpoint::Scalar(StructuralRuntimePlace::from(&leaf))
+                }
+                _ => return Err(malformed()),
+            }
+        };
+        Ok((PrimitiveStorage::canonical(endpoint), scalar))
+    }
+
     /// Map a bound scalar-leaf view's spelled field tip back to its declared
     /// `structural_scalar_fields` key. The view's runtime path names the leaf;
     /// the containing record's declared type is recovered from the referent
@@ -1879,8 +1954,12 @@ impl TerminalExecution<'_> {
         identity: terminal_psi::TerminalIdentityIndex,
         parent_path: &[StructuralPathSegment],
         scalar_type: ScalarType,
-        shared_view: bool,
+        observation: ScalarStorageObservation,
     ) -> Result<StructuralScalarRuntimeField, TerminalInterpretError> {
+        let shared_view = matches!(
+            observation,
+            ScalarStorageObservation::OrdinaryReference { shared_view: true }
+        );
         let root = self
             .live_structural_values()
             .filter(|value| value.path.is_empty())
@@ -1921,6 +2000,20 @@ impl TerminalExecution<'_> {
             (None, Some(field)) => (field, StructuralFieldNamespace::CasePayload),
             _ => return Err(malformed()),
         };
+        if matches!(observation, ScalarStorageObservation::AtomicEvent) {
+            let actual = field.field_type.atomic_cell_type().ok_or_else(malformed)?;
+            if actual.scalar_type() != scalar_type
+                || self.structural_declaration(view.structural_type)?.shape
+                    != terminal_psi::StructuralTypeShape::AtomicCell(actual)
+            {
+                return Err(malformed());
+            }
+            return Ok(StructuralScalarRuntimeField {
+                parent: parent_place,
+                namespace,
+                field: field.id,
+            });
+        }
         let shape = if shared_view {
             field.field_type.shared_observation_shape()
         } else {

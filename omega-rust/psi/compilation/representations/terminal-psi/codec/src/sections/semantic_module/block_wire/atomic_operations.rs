@@ -18,7 +18,7 @@ use language_core::atomic::{
     AtomicCompareExchangeAttemptAxis, AtomicCompareExchangeObservationAxis,
     AtomicCompareExchangeOnceResultCustody, AtomicCompareExchangeOutcomeIdentity,
 };
-use semantic_vocabulary::{PlaceId, StructuralFieldId};
+use semantic_vocabulary::PlaceId;
 use terminal_psi::{
     AtomicAccessEvent, AtomicReadModifyWrite, MemoryOrdering, OperationKind, StructuralPathSegment,
 };
@@ -34,7 +34,6 @@ pub(super) fn encode_atomic_access(
     writer: &mut Writer,
     place: PlaceId,
     path: &[StructuralPathSegment],
-    field: StructuralFieldId,
     event: AtomicAccessEvent,
     resident_obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<(), CodecError> {
@@ -48,7 +47,6 @@ pub(super) fn encode_atomic_access(
     }
     writer.id(place);
     encode_structural_path(writer, "atomic access path", path)?;
-    writer.id(field);
     match event {
         AtomicAccessEvent::Load { ordering } => {
             writer.u8(LOAD);
@@ -121,7 +119,6 @@ pub(super) fn decode_atomic_access(
     };
     let place = reader.id("PlaceId")?;
     let path = decode_structural_path(reader)?;
-    let field = reader.id("StructuralFieldId")?;
     let event = match reader.u8()? {
         LOAD => AtomicAccessEvent::Load {
             ordering: decode_ordering(reader)?,
@@ -167,7 +164,6 @@ pub(super) fn decode_atomic_access(
     Ok(OperationKind::AtomicAccess {
         place,
         path,
-        field,
         event,
         resident_obligation,
     })

@@ -191,6 +191,7 @@ fn resolve_structural_shape(
                 8,
             ))),
             StructuralTypeShape::PrimitiveScalar(scalar) => Ok(Some(scalar_shape(*scalar))),
+            StructuralTypeShape::AtomicCell(cell) => Ok(Some(scalar_shape(cell.scalar_type()))),
             StructuralTypeShape::ByteSequence(carrier) => {
                 byte_sequence_shape(*carrier, structural_type).map(Some)
             }
