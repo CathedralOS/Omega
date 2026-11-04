@@ -9,8 +9,6 @@
 //! references restore that declaration if Build also uses it. This is a typed
 //! input projection, not a checked judgment or post-check product pruning.
 
-mod trace;
-
 use crate::frozen_program::expression_table;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -110,7 +108,6 @@ pub fn project_build_program(
             .map(Arc::clone)
             .unwrap_or_else(|| Arc::new(typed.clone())),
     );
-    trace::unresolved_calls(original.typed_program(), &program);
     Ok(program)
 }
 
