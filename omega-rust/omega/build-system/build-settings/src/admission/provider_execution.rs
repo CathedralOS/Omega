@@ -102,7 +102,8 @@ impl BuildProviderPlans {
             .iter()
             .map(|plan| vec![None; plan.rows.len()])
             .collect::<Vec<_>>();
-        let proposals = admission::derive_selected_intrinsic_settlement_proposals(
+        let intrinsics = admission::admit_terminal_intrinsics(
+            artifact,
             &self.selected,
             self.declarations
                 .iter()
@@ -116,12 +117,7 @@ impl BuildProviderPlans {
                     },
                 ),
             &demanded,
-            &module.boundary_machines,
-            &module.external_providers,
-            &module.identities,
         )?;
-        let intrinsics =
-            admission::admit_terminal_intrinsics(artifact, &self.selected, &proposals)?;
         Ok(BuildProviderInstallation {
             checked,
             intrinsics,

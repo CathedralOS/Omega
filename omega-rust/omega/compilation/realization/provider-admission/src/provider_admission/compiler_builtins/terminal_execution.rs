@@ -37,13 +37,24 @@ impl AdmittedTerminalIntrinsics {
 /// Consume the same selected-row proposals used by native admission. A closed
 /// numeric identity has reference semantics; every other mechanism requires
 /// its own receiving host/backing admission and is refused here.
-pub fn admit_terminal_intrinsics(
+pub fn admit_terminal_intrinsics<'selection>(
     artifact: terminal_codec::TerminalExecutionView<'_>,
-    selected: &effects::SelectedProviderPlanFacts,
-    proposals: &[super::TerminalCompilerBuiltinProposal],
+    selected: &'selection effects::SelectedProviderPlanFacts,
+    provenance: impl ExactSizeIterator<Item = super::CompilerIntrinsicPlanProvenance<'selection>>,
+    demanded: &std::collections::BTreeSet<String>,
 ) -> Result<AdmittedTerminalIntrinsics, Vec<Diagnostic>> {
     let module = artifact.module();
-    let retained = super::prepare_retained_compiler_builtins(proposals, selected.plans())?;
+    // Derive and admit against this one code view. A separately retained
+    // proposal's slot and signature cannot authenticate another code owner.
+    let proposals = super::derive_selected_intrinsic_settlement_proposals(
+        selected,
+        provenance,
+        demanded,
+        &module.boundary_machines,
+        &module.external_providers,
+        &module.identities,
+    )?;
+    let retained = super::prepare_retained_compiler_builtins(&proposals, selected.plans())?;
     let mut operations = Vec::with_capacity(retained.len());
     for proposal in retained {
         let refuse = |reason: &str| {
