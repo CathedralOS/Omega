@@ -112,14 +112,26 @@ a later consumer commit; the original failed oracle record is preserved.
 That run timed out on an unchanged existing Wrapping/std program and skipped
 ordinary CLI and sample consumers. Those cases have no passing credit from it.
 [Integrated run 41878343493](https://github.com/CathedralOS/Omega/actions/runs/41878343493)
-is qualifying fresh compiler source `640d7a6f52facb78aa7d2c637ad6930fa6d89ad3`
-after an actual main conflict. Its ordinary CLI and 21 sample-project results
-remain pending. The historical 6649 results are not integration results.
+used fresh compiler source `640d7a6f52facb78aa7d2c637ad6930fa6d89ad3` after
+an actual main conflict. All 21 sample observations match their authored
+oracles: ten positives run at native/Terminal exit 0 and eleven invalid
+controls reject for the required reasons. Twelve corpus positives also run
+at 0/0. These are fresh integration observations; the historical 6649 results
+remain separate.
+
+The integrated run is still red. SDK admission stops the unchanged original
+exit-70 customer and typed-arithmetic controls before their own programs run.
+Three other controls stop at a generic statement-slot query before reaching
+their intended checks. A [small replay](https://github.com/CathedralOS/Omega/actions/runs/41889499577)
+with the same authenticated compiler reproduces that query failure in a
+scalar-only conversion positive and a stored-output invalid control. Their
+sources and intended oracles stay unchanged while the owning operations are
+repaired. An unrelated refusal is not passing rejection evidence.
 
 Raw receipts and frozen program/oracle hashes remain under
-`build/scalar-continue-20261102/endpoint-contracts-*`. A passing nine-place
-production still requires its ordinary positive executions and intended twins
-on the integrated compiler, followed by reviewed publication.
+`build/scalar-continue-20261102/endpoint-contracts-*`. The new repairs need a
+fresh optimized producer and full acceptance, including the original 70/70
+customer, before scoped corpus recording and reviewed publication.
 
 This production does not close the historical 1,598-position audit, reconcile
 unrelated RangeValue declarations, retire scalar suffix parsing, or qualify
