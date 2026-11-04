@@ -9,7 +9,7 @@ observes a copy of the resident on failure and has no displaced payload on
 success. This row must preserve the other canonical outcome family: mismatch
 and uncommitted attempts return the proposal, while a committed exchange returns
 the displaced resident. A missing non-observing result or a substituted observing
-result cannot satisfy that requirement. This is a distinct custody/result rule,
+result cannot satisfy that requirement. This is a distinct result and ownership rule,
 not a larger width or count of the existing row.
 
 The first [local program](local/main.omg) is a frozen baseline witness, with its
@@ -23,8 +23,11 @@ static premise. The twin changes only the selected primitive to observing
 compare_exchange_once while retaining the non-observing receiving type and all
 oracles; it must reject the wrong canonical result family.
 
-This first production uses dedicated AtomicU32 storage and its concrete u32
-comparison representation. It does not select an arbitrary custom key law or
+The non-observing result has one owner. Its `affine` rule means that it may
+be consumed at most once, even though its u32 payload is copyable.
+
+This first production uses dedicated AtomicU32 storage and the same concrete
+u32 bits for its resident and comparison key. It does not select an arbitrary custom key law or
 admit an affine/linear resident. The accepted [atomic outcome rule](../../../../wiki/spec/resources/access.md#atomic-compare-exchange-outcomes)
 keeps Key and its encoding law in call evidence, outside the runtime outcome.
 The concrete builtin admission must retain that correspondence rather than
@@ -63,6 +66,11 @@ with the same spelling ordinary. Additional invalid controls require exact
 [dedicated storage](controls/ordinary_storage/main.omg),
 [legal failure ordering](controls/failure_ordering/main.omg) and
 [one owner of the affine result](controls/duplicate_result/main.omg).
+The [discarded-result control](controls/discarded_result/main.omg) leaves the
+result unused and observes a counted proposal helper, resident 10 and neighbor
+17 afterward. Its rejection twin selects the wrong result family. This checks
+that automatic disposal preserves once-only operand execution; the nine places
+observe the returned payloads themselves.
 
 | Requirement | Evidence required from this row |
 | --- | --- |
@@ -75,14 +83,36 @@ with the same spelling ordinary. Additional invalid controls require exact
 | Registers and instructions | Existing single-attempt ISA forms produce the prior and actual commitment tag. Native payload publication must use that tag, preserving both inputs and the canary. |
 | Native images | Actual corpus and ordinary commands must agree with Terminal at authored exit 0 on every claimed matching host. |
 
-The first repair checkpoint `51f6a69e720` failed Rust checking because one
-checked-interpreter caller still used the old validator API. It produced no
-program observations. The next checkpoint `83cf72e8e8e` exposed a missing direct dependency in
-native selection during Rust checking. Neither failure supplies program
-observations. Compiler `33dbcf476f87` corrects that dependency and is under the
-same small hosted qualification; no current compile or runtime success is
-claimed.
-All nine places, the controls, ordinary package review and four-host execution
-remain unfinished until their actual reports meet these obligations. Formal
-concurrency, forced Uncommitted outcomes, affine/linear residents, arbitrary-key
-laws, contention and target-refinement proofs remain open in the parent task.
+At compiler and input source `33dbcf476f87`,
+[41832747517](https://github.com/CathedralOS/Omega/actions/runs/41832747517)
+checks the local positive and its intended twin, preserves the ordinary-name
+and observing-operation controls, and records three actual native/Terminal
+exit-zero agreements. Ordinary local and name commands also agree at zero;
+the ordinary twin refuses its intended result-family obligation.
+
+The [full-row replay](https://github.com/CathedralOS/Omega/actions/runs/41836746210)
+uses that same authenticated compiler with authored inputs `e766e6465a2c`.
+Seven standard places, the u64 control and ordinary-name control agree at zero
+through corpus and ordinary execution. All 14 authored invalid controls match.
+The field and match-join places stop in lowering and run neither engine. The
+report remains failed; those two places are unfinished. The artifact records
+the compiler and program-input identities separately, with unchanged compiler,
+library, tooling and configuration bytes.
+
+At compiler and input source `0253ef7cc691`, the
+[completed Linux qualification](https://github.com/CathedralOS/Omega/actions/runs/41841737327)
+checks all 17 selected positives and rejects all 19 intended controls. All 17
+runtime fixtures agree at exit zero, including the frozen field and match-join
+programs and the unused-result control. Ordinary package review records 12
+exit-zero agreements and 15 intended refusals. The compiler records the atomic
+result's disposal schedule in the same result owner used by other affine
+values; lowering reads that schedule. No descriptor admission guard changed.
+
+PR #1815 published that repair. Its final Source records do not establish the
+missing host executions. The Windows, macOS and Linux ARM64 qualifications,
+current publication checks and final records remain unfinished. The earlier
+failed reports retain their original source stamps and outcomes.
+
+Formal concurrency, forced Uncommitted outcomes, affine/linear residents,
+arbitrary-key laws, contention and target-refinement proofs remain open in the
+parent task.
