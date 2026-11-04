@@ -1211,7 +1211,7 @@ fn visit_callable_symbol(
             visit_symbol(retained, *policy);
             visit_symbol(retained, *schema);
             visit_symbol(retained, *policy_machine);
-            visit_symbol(retained, storage.carrier);
+            visit_type_reference(program, retained, storage.carrier);
             for field in [&storage.base, &storage.length] {
                 visit_symbol(retained, field.symbol);
                 visit_type_reference(program, retained, field.type_reference);
@@ -1223,7 +1223,7 @@ fn visit_callable_symbol(
                 ..
             } = &storage.owner
             {
-                visit_symbol(retained, *carrier);
+                visit_type_reference(program, retained, *carrier);
                 for field in [storage, count] {
                     visit_symbol(retained, field.symbol);
                     visit_type_reference(program, retained, field.type_reference);

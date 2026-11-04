@@ -36,7 +36,7 @@ pub enum AccessLifecyclePlan {
 /// Lowering maps these identities; it does not rediscover fields or domain names.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct AccessLifecycleStorage {
-    pub carrier: symbols::SymbolHandle,
+    pub carrier: TypeReferenceHandle,
     pub base: crate::data::DataField,
     pub length: crate::data::DataField,
     pub granted: language_semantics::SemanticDomainId,
@@ -50,7 +50,7 @@ pub enum AccessLifecycleOwner {
     #[default]
     Extent,
     Run {
-        carrier: symbols::SymbolHandle,
+        carrier: TypeReferenceHandle,
         storage: crate::data::DataField,
         count: crate::data::DataField,
         singleton: Option<language_semantics::SemanticDomainId>,

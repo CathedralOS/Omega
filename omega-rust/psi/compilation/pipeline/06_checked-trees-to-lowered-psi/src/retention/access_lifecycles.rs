@@ -390,10 +390,15 @@ fn storage_contract(
     storage: &typed_trees::typed_trees::AccessLifecycleStorage,
 ) -> Result<terminal_psi::TerminalAccessStorage, LoweringError> {
     use typed_trees::typed_trees::AccessLifecycleOwner;
-    let carrier = |symbol| {
+    let carrier = |reference| {
+        let reference = checked
+            .typed
+            .type_reference_table
+            .peeled_type_reference(reference);
         checked
             .typed
-            .data_definition_by_symbol(symbol)
+            .data_application_definition(reference)
+            .or_else(|| checked.typed.closed_data_definition(reference))
             .and_then(|data| super::access_view_plans::schema_type(checked, module, data))
             .ok_or(LoweringError::Unsupported(
                 "checked storage carrier lost its emitted correspondence",
