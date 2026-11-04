@@ -46,10 +46,10 @@ pub(in crate::encoding::recovery) fn decode(
                     })
                 })?,
                 terminal_slot: conformance::application(reader)?,
-                terminal_offset: reader.u64()?,
+                terminal_placements: reader.sequence(9, placement)?,
                 terminal_byte_size: reader.u64()?,
                 terminal_alignment: reader.u64()?,
-                composed_offset: reader.u64()?,
+                composed_placements: reader.sequence(9, placement)?,
             })
         })?,
     })
@@ -78,4 +78,26 @@ pub(in crate::encoding::recovery) fn layout_application(
         byte_size: reader.u64()?,
         alignment: reader.u64()?,
     })
+}
+
+fn placement(reader: &mut Reader<'_>) -> Result<layout_plans::LayoutPlacementReport, Error> {
+    use layout_plans::{IntegerInterpretation, LayoutPlacementReport};
+    Ok(super::super::tag!(reader => {
+        0 => LayoutPlacementReport::At { offset: reader.u64()? },
+        1 => LayoutPlacementReport::IntegerAt {
+            offset: reader.u64()?,
+            stored_width: reader.u64()?,
+            interpretation: super::super::tag!(reader => {
+                0 => IntegerInterpretation::Signed,
+                1 => IntegerInterpretation::Unsigned,
+            }),
+        },
+        2 => LayoutPlacementReport::Bits {
+            container: reader.u64()?,
+            container_width: reader.u64()?,
+            destination_lsb: reader.u64()?,
+            source_lsb: reader.u64()?,
+            width: reader.u64()?,
+        },
+    }))
 }

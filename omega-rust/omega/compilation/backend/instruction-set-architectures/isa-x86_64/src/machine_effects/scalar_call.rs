@@ -93,7 +93,7 @@ pub fn x86_64_normalized_foreign_call_declaration(
         if Some(callback.terminal_operation) != record.invocation_site.operation() {
             return None;
         }
-        match callback.destination {
+        match callback.destination.clone() {
             calling_conventions::NativePlace::Parameter(_) => {
                 let bytes = match callback.application.placement.locations.as_slice() {
                     [calling_conventions::ValueLocation::Register { .. }] => {
@@ -123,16 +123,14 @@ pub fn x86_64_normalized_foreign_call_declaration(
                 else {
                     return None;
                 };
-                if *register == calling_conventions::MachineRegister::X86R11
-                    || callback.field_byte_offset? > i32::MAX as usize
-                {
-                    return None;
-                }
-                let bytes = if *register == calling_conventions::MachineRegister::X86R12 {
-                    15
-                } else {
-                    14
+                let destination = crate::X86_64CallbackMaterializationDestination::RecordField {
+                    root_register: *register,
+                    placements: callback.field_placements.clone()?,
                 };
+                let bytes = u16::try_from(
+                    crate::selected_form_encoding::callback_group_bytes(destination)?.len(),
+                )
+                .ok()?;
                 callback_byte_count = callback_byte_count.checked_add(bytes)?;
             }
         }
@@ -153,12 +151,14 @@ pub fn x86_64_normalized_foreign_call_declaration(
     Some(MachineEffectDeclaration {
         semantic: MachineSemanticKind::NormalizedForeignCall,
         constraint: row.key,
-        memory: if table.is_some() {
+        memory: if field_destinations != 0 || stack_destinations != 0 {
+            MachineMemoryEffect::PrivateCallbackMaterializationV1
+        } else if table.is_some() {
             MachineMemoryEffect::ReadPointerV1
         } else {
             MachineMemoryEffect::NoneV1
         },
-        trap: if table.is_some() {
+        trap: if field_destinations != 0 || stack_destinations != 0 || table.is_some() {
             MachineTrapBehavior::MayArchitecturalFaultV1
         } else {
             MachineTrapBehavior::NeverV1
@@ -182,6 +182,9 @@ pub fn x86_64_normalized_foreign_call_declaration(
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: {
                 let mut encoded = user_direct_call_effects(row, stack_pointer);
+                if field_destinations != 0 || stack_destinations != 0 {
+                    encoded.memory = MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1;
+                }
                 if supervisor {
                     encoded.memory = MachineEncodedMemoryEffect::NoneV1;
                     encoded.stack = MachineEncodedStackEffect::UnchangedV1;

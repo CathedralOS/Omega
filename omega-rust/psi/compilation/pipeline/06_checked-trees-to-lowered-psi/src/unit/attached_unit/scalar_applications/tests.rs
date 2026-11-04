@@ -70,6 +70,9 @@ fn shared_root() -> (
     (program, recipe, contexts)
 }
 
+/// Lowering admits a constant entry only with its body's checked crash
+/// summary, so each body carries the empty summary checking records for a
+/// crash-free body.
 fn checked_with_scope(program: typed_trees::TypedTrees) -> CheckedTrees {
     let mut facts = checked_trees::CheckFacts::default();
     for machine in program.machines() {
@@ -99,6 +102,22 @@ fn checked_with_scope(program: typed_trees::TypedTrees) -> CheckedTrees {
                 machine: machine.symbol,
                 product_selected: true,
                 ..Default::default()
+            });
+        facts
+            .contract_plans
+            .machines
+            .push(checked_trees::MachineContractPlan {
+                machine: machine.symbol,
+                closed_scalar_values: Default::default(),
+                crash: checked_trees::CrashPlan::default().with_checked_body_summary(Some(
+                    checked_trees::CheckedBodyCrashSummary::new(
+                        machine.symbol,
+                        machine.states,
+                        Vec::new(),
+                    ),
+                )),
+                report_fingerprint: 0,
+                commitment: checked_trees::MachineContractCommitment::from_digest([0; 32]),
             });
     }
     CheckedTrees::with_roots(program, facts)

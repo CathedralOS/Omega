@@ -78,7 +78,11 @@ pub(super) fn require_tail_component(
     program: &dyn CheckingInput,
     component: &[usize],
 ) -> Result<(), &'static str> {
-    let dispatched = dispatched_implementations(program);
+    // A boundary requirement call, like a selector call, is one occurrence
+    // that can enter any of its implementations, so it owes the same tail
+    // classification whichever one a target selects.
+    let mut dispatched = dispatched_implementations(program);
+    dispatched.extend(supplied_requirement_implementations(program));
     for position in component {
         let machine = &program.machines()[*position];
         for state in program.machine_states(machine) {
@@ -109,6 +113,7 @@ pub(super) fn extend_runtime_adjacency(
     adjacency: &mut [Vec<usize>],
 ) -> Vec<usize> {
     let dispatched = dispatched_implementations(program);
+    let supplied = supplied_requirement_implementations(program);
     let mut selector_self_recursion = Vec::new();
     for (index, machine) in program.machines().iter().enumerate() {
         if proof_only.is_proof_machine(program, machine) {
@@ -132,6 +137,18 @@ pub(super) fn extend_runtime_adjacency(
                 if implementations.contains(&index) && !selector_self_recursion.contains(&index) {
                     selector_self_recursion.push(index);
                 }
+            } else if let Some((_, implementations)) = supplied
+                .iter()
+                .find(|(requirement, _)| *requirement == target)
+            {
+                // A requirement call reaches whichever implementation Build
+                // selects for the target. Psi checks every supplied one
+                // independently of that selection, so each contributes its
+                // edge and a cycle through any of them must be ranked.
+                adjacency[index].extend(implementations.iter().copied());
+                if implementations.contains(&index) && !selector_self_recursion.contains(&index) {
+                    selector_self_recursion.push(index);
+                }
             } else if let Some(callee) = target_machine(program, target)
                 && (callee != index
                     || target == machine.symbol
@@ -147,6 +164,41 @@ pub(super) fn extend_runtime_adjacency(
         adjacency[index].dedup();
     }
     selector_self_recursion
+}
+
+/// Every supplied implementation machine of each boundary-trait requirement,
+/// whatever any target selects: Build chooses which one realizes the call
+/// only after Psi. Ordinary trait requirements are resolved within Psi and
+/// keep their own call targets.
+fn supplied_requirement_implementations(
+    program: &dyn CheckingInput,
+) -> Vec<(SymbolHandle, Vec<usize>)> {
+    let mut supplied: Vec<(SymbolHandle, Vec<usize>)> = Vec::new();
+    for conformance in program.conformances() {
+        let boundary = program
+            .trait_definition_by_symbol(conformance.trait_symbol)
+            .is_some_and(|definition| definition.is_boundary);
+        if !boundary {
+            continue;
+        }
+        for row in &conformance.rows {
+            let Some(implementation) = target_machine(program, row.realization_machine) else {
+                continue;
+            };
+            match supplied
+                .iter_mut()
+                .find(|(requirement, _)| *requirement == row.requirement)
+            {
+                Some((_, implementations)) => implementations.push(implementation),
+                None => supplied.push((row.requirement, vec![implementation])),
+            }
+        }
+    }
+    for (_, implementations) in &mut supplied {
+        implementations.sort_unstable();
+        implementations.dedup();
+    }
+    supplied
 }
 
 /// Every implementation machine a selector call through each slot can

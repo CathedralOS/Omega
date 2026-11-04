@@ -160,12 +160,18 @@ pub(super) fn update_state_loan_last_uses(
             if !loans.is_valid(carrier.handle) {
                 continue;
             }
+            // A temporary is formed by the statement that borrows it, and its
+            // expression identity cannot name a later replacement, so an alias
+            // formed in that same statement still observes its contents.
+            let temporary = matches!(carrier.storage_owner, facts::PlaceRoot::Expression(_));
+            let carrier_statement = loans.get(carrier.handle).statement_index;
             for alias in loan_trackers {
-                if !loans.is_valid(alias.handle)
-                    || !order.precedes(
-                        loans.get(carrier.handle).statement_index,
-                        loans.get(alias.handle).statement_index,
-                    )
+                if !loans.is_valid(alias.handle) {
+                    continue;
+                }
+                let alias_statement = loans.get(alias.handle).statement_index;
+                if !(order.precedes(carrier_statement, alias_statement)
+                    || (temporary && carrier_statement == alias_statement))
                     || alias.place.root != carrier.storage_owner
                     || !owner_path_overlaps_place_segments(
                         program,
