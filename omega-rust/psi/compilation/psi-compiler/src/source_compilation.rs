@@ -582,7 +582,7 @@ impl SourceCompletionInput {
 /// Invocation-owned canonical frontend inputs. Retention supplies declarations
 /// and pending bodies, never a language judgment, Build authority or free charge.
 /// Stored inputs contain no reference to this container, avoiding ownership cycles.
-#[derive(Clone, Default, compiler_storage::Record)]
+#[derive(Clone, Default)]
 pub struct SourceFrontends {
     entries: Arc<std::sync::Mutex<Vec<Arc<SourceCompletionInput>>>>,
 }
