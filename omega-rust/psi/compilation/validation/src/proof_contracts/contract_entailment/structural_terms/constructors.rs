@@ -315,14 +315,74 @@ pub(in super::super) fn zero_value_structural_term(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<StructuralTerm> {
-    if !type_reference.is_valid()
-        || crate::proof_only_classification(program)
-            .proof_only_mention(program, type_reference)
-            .is_some()
-    {
+    if !type_reference.is_valid() {
         return None;
     }
-    zero_term(program, type_reference, &mut Vec::new())
+    if crate::proof_only_classification(program)
+        .proof_only_mention(program, type_reference)
+        .is_some()
+    {
+        trace_zero_value(program, type_reference, None, "proof-only-carrier");
+        return None;
+    }
+    let value = zero_term(program, type_reference, &mut Vec::new());
+    trace_zero_value(program, type_reference, value.as_ref(), "completed-query");
+    value
+}
+
+/// A failed zero-value proof must identify the declaration actually available
+/// in this checking context. Read only retained metadata and the query's own
+/// result; tracing must not perform another proof or establish missing storage.
+fn trace_zero_value(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    value: Option<&StructuralTerm>,
+    reason: &str,
+) {
+    if !super::super::struct_trace() {
+        return;
+    }
+    let head = program.type_reference_table.type_head_symbol(reference);
+    let declaration = head.and_then(|symbol| {
+        program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == symbol)
+    });
+    let members = declaration.map(|data| {
+        program
+            .data_members(data)
+            .iter()
+            .take(8)
+            .map(|member| match member {
+                DataMember::Field(field) => ("field", field.name.as_str(), field.symbol, 0),
+                DataMember::Variant(case) => (
+                    "case",
+                    case.name.as_str(),
+                    case.symbol,
+                    program.data_payload_fields(case).len(),
+                ),
+            })
+            .collect::<Vec<_>>()
+    });
+    let result = match value {
+        Some(StructuralTerm::Constructor { data, case, fields }) => {
+            Some((data.as_str(), case.as_str(), fields.len()))
+        }
+        Some(_) => Some(("<non-constructor>", "", 0)),
+        None => None,
+    };
+    eprintln!(
+        "STRUCT zero-value-query reason={reason} reference={reference:?} type={:?} head={head:?} declaration={:?} members={members:?} result={result:?}",
+        program.type_reference_table.type_reference(reference),
+        declaration.map(|data| (
+            data.symbol,
+            data.name.as_str(),
+            data.type_parameters,
+            data.generic_instance,
+            data.zero_gated
+        )),
+    );
 }
 
 fn zero_term(
@@ -331,6 +391,12 @@ fn zero_term(
     active: &mut Vec<SymbolHandle>,
 ) -> Option<StructuralTerm> {
     if crate::value_custody::data::type_requires_establishment(program, type_reference) {
+        trace_zero_value(
+            program,
+            type_reference,
+            None,
+            "storage-requires-establishment",
+        );
         return None;
     }
     if let TypeReferenceNode::Constrained {
@@ -402,14 +468,30 @@ fn zero_term(
     // A generic first case may be independent of its arguments (None). An
     // actually stored open parameter still fails below: no declaration or
     // established zero value exists for that field type.
-    let symbol = program
+    let Some(symbol) = program
         .type_reference_table
-        .type_head_symbol(type_reference)?;
+        .type_head_symbol(type_reference)
+    else {
+        trace_zero_value(program, type_reference, None, "missing-type-head");
+        return None;
+    };
     if !symbol.is_valid() || active.contains(&symbol) {
+        trace_zero_value(
+            program,
+            type_reference,
+            None,
+            "unresolved-or-recursive-type",
+        );
         return None;
     }
-    let definition = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
+    let Some(definition) =
+        crate::declarations::data_queries::data_definition_by_symbol(program, symbol)
+    else {
+        trace_zero_value(program, type_reference, None, "missing-data-declaration");
+        return None;
+    };
     if crate::value_custody::data::data_requires_establishment(program, definition) {
+        trace_zero_value(program, type_reference, None, "data-requires-establishment");
         return None;
     }
     active.push(symbol);
