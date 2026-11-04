@@ -144,9 +144,9 @@ fail/arithmetic/collection_result_wrong_argument rejected 1134ms expected @ccdb9
 	exact arithmetic in machine `rejected` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `count(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/arithmetic/complement_nested_overflow rejected 895ms expected @ccdb99ca2214
 	exact arithmetic in machine `run` state `entry` terminal expression may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
-fail/arithmetic/composite_bound_arrival_late_write rejected 600ms unexpected @ccdb99ca2214
+fail/arithmetic/composite_bound_arrival_late_write rejected 4024ms expected @3cf7fdf150d7
 	exact arithmetic in machine `commit` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/arithmetic/composite_bound_arrival_unbounded_predecessor rejected 1153ms unexpected @ccdb99ca2214
+fail/arithmetic/composite_bound_arrival_unbounded_predecessor rejected 4024ms expected @3cf7fdf150d7
 	exact arithmetic in machine `commit` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/const_binder_unbounded_product rejected 749ms expected @ccdb99ca2214
 	exact arithmetic in machine `scale` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -2830,8 +2830,8 @@ fail/calls/projected_call_domain_unproved rejected 3056ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from update at statement 1: cell.storage in [u8; N]::Utf8
 fail/calls/qualified_literal_return_invalid rejected 2670ms expected @ccdb99ca2214
 	cannot prove default-domain field requirement for return from label, state entry, at statement 1: "\\xc3\\xa9" requires [u8]::Ascii
-fail/calls/qualified_nontail_self_call_rejected rejected 751ms unexpected @ccdb99ca2214
-	exact arithmetic in machine `step` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `walk(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/calls/qualified_nontail_self_call_rejected rejected 1156ms expected @33a2bc6ea583
+	`Walker::walk(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> walk(..)` on a measured machine, or iterate with an explicit stack.
 fail/calls/recursive_terminal_block_missing_acknowledgement rejected 1812ms expected @ccdb99ca2214
 	call to `scan` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/calls/recursive_terminal_block_redundant_acknowledgement rejected 1445ms expected @ccdb99ca2214
@@ -3911,7 +3911,7 @@ fail/core/content_projection_foreign_package rejected 1700ms expected @ccdb99ca2
 fail/core/content_projection_observation_requires rejected 722ms expected @ccdb99ca2214
 	cannot prove requires contract for specification call `Owned::content` in trait `Forward` state `forward` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `Owned::content` in trait `Forward` state `forward` ensures contract: establish its selected precondition in an independently formed prior requires fact
-fail/core/content_projection_partial_integer_cancellation rejected 1909ms unexpected @ee4dbb4b2d56
+fail/core/content_projection_partial_integer_cancellation rejected 3196ms expected @3cf7fdf150d7
 	exact arithmetic in machine `Owned::content` state `content` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/core/content_projection_partial_natural_cancellation rejected 1612ms expected @ee4dbb4b2d56
 	cannot form specification operator `-` in proof body `Owned::content`: no exact selected meaning for operand types [Nat, Nat]
@@ -4401,8 +4401,8 @@ fail/dependent/qualified_nested_zero_storage_not_established rejected 3495ms exp
 	machine `main` state `entry` statement 18: reading `alias.guarded` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `Guarded[in Positive]`
 	machine `main` state `entry` statement 20: reading `routed.guarded` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `Guarded[in Issued]`
 	machine `main` state `entry` statement 22: reading `exclusive.value` crosses an open default-domain invariant window before data `ExclusiveFloatingEnvelope` is established: the zeroed representation is not yet a `ExclusiveFloatingEnvelope` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-fail/dependent/relational_loop_invariant_reassigned_index_rejected rejected 836ms unexpected @ccdb99ca2214
-	exact arithmetic in machine `loop_` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/dependent/relational_loop_invariant_reassigned_index_rejected rejected 3633ms expected @33a2bc6ea583
+	cannot prove index `main.i` is within length 1 in loop_::entry
 fail/dependent/requires_call_unproven_rejected rejected 11537ms expected @ccdb99ca2214
 	cannot prove requires contract for call helper from Main::main: main.a <= main.b (needs fact `main.a <= main.b` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/dependent/reserved_child_keeps_parent_invariant rejected 2159ms expected @f78c2623a68c
@@ -6191,18 +6191,26 @@ fail/facts/borrowed_restoration_window_through_call_result_rejected rejected 296
 	state `write_cell` receives `c` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 borrows `c` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `c.value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/borrowed_restoration_window_through_const_name_rejected rejected 1374ms unexpected @ccdb99ca2214
-	exact arithmetic in machine `done` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/borrowed_restoration_window_through_field_rejected rejected 1569ms unexpected @ccdb99ca2214
-	exact arithmetic in machine `done` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/borrowed_restoration_window_through_local_rejected rejected 1223ms unexpected @ccdb99ca2214
-	exact arithmetic in machine `done` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/borrowed_restoration_window_through_const_name_rejected rejected 3721ms expected @3cf7fdf150d7
+	state `write_cell` receives `cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3) in machine `main`, state `entry`, statement 2
+	statement 2 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/borrowed_restoration_window_through_field_rejected rejected 3372ms expected @3cf7fdf150d7
+	state `write_cell` receives `holder.cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `holder.cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3) in machine `main`, state `entry`, statement 2
+	statement 2 mutates `holder.cell.value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/borrowed_restoration_window_through_local_rejected rejected 4103ms expected @3cf7fdf150d7
+	state `write_cell` receives `cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3) in machine `main`, state `entry`, statement 2
+	statement 2 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/facts/borrowed_restoration_window_through_match_join_rejected rejected 3683ms expected @ccdb99ca2214
 	state `write_cell` receives `cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 borrows `cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/borrowed_restoration_window_through_other_machine_rejected rejected 1302ms unexpected @ccdb99ca2214
-	exact arithmetic in machine `done` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/borrowed_restoration_window_through_other_machine_rejected rejected 3499ms expected @3cf7fdf150d7
+	state `forward` receives `cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3) in machine `main`, state `entry`, statement 2
+	statement 2 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/facts/borrowed_restoration_window_through_other_state_rejected rejected 3501ms expected @ccdb99ca2214
 	state `write_cell` receives `cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 borrows `cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -6211,8 +6219,10 @@ fail/facts/borrowed_restoration_window_through_parameter_rejected rejected 2696m
 	state `write_cell` receives `cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 borrows `cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/borrowed_restoration_window_through_target_body_rejected rejected 2333ms unexpected @ccdb99ca2214
-	exact arithmetic in machine `done` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/borrowed_restoration_window_through_target_body_rejected rejected 3466ms expected @3cf7fdf150d7
+	state `write_cell` receives `cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3) in machine `main`, state `entry`, statement 2
+	statement 2 mutates `cell` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/facts/boundary_provider_call_through_call_result_rejected rejected 1218ms expected @ccdb99ca2214
 	exact arithmetic in machine `run` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `acquire(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/facts/boundary_provider_call_through_const_name_rejected rejected 1451ms expected @ccdb99ca2214
@@ -8581,9 +8591,8 @@ fail/facts/fixed_array_layout_geometry_through_match_join_rejected rejected 4762
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/fixed_array_layout_geometry_through_other_machine_rejected rejected 4638ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/fixed_array_layout_geometry_through_other_state_rejected rejected 1488ms unexpected @ccdb99ca2214
-	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/fixed_array_layout_geometry_through_other_state_rejected rejected 4370ms expected @3cf7fdf150d7
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/fixed_array_layout_geometry_through_parameter_rejected rejected 4629ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/fixed_array_layout_geometry_through_target_body_rejected rejected 4618ms expected @2e05cd243a72
@@ -9530,25 +9539,25 @@ fail/facts/indexed_owned_case_replacement_through_target_body_rejected rejected 
 	cannot prove initializer of `payload` in witness is in domain `u64::PositiveSmall`; an annotation cannot establish routed qualification
 	cannot prove initializer of `payload` in witness is in domain `u64::PositiveSmall`; an annotation cannot establish routed qualification
 	cannot prove initializer of `payload` in witness is in domain `u64::PositiveSmall`; an annotation cannot establish routed qualification
-fail/facts/indexed_recoverable_replacement_window_through_call_result_rejected rejected 6342ms unexpected @ee4dbb4b2d56
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[0]` must hold a value again before this state's exits consume the borrow
-fail/facts/indexed_recoverable_replacement_window_through_const_name_rejected rejected 9182ms unexpected @ee4dbb4b2d56
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[0]` must hold a value again before this state's exits consume the borrow
-fail/facts/indexed_recoverable_replacement_window_through_field_rejected rejected 8602ms unexpected @ee4dbb4b2d56
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[0]` must hold a value again before this state's exits consume the borrow
-fail/facts/indexed_recoverable_replacement_window_through_local_rejected rejected 8437ms unexpected @ee4dbb4b2d56
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[0]` must hold a value again before this state's exits consume the borrow
-fail/facts/indexed_recoverable_replacement_window_through_match_join_rejected rejected 7887ms unexpected @ee4dbb4b2d56
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[0]` must hold a value again before this state's exits consume the borrow
-fail/facts/indexed_recoverable_replacement_window_through_other_machine_rejected rejected 6702ms unexpected @ee4dbb4b2d56
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[0]` must hold a value again before this state's exits consume the borrow
-fail/facts/indexed_recoverable_replacement_window_through_other_state_rejected rejected 8750ms unexpected @ee4dbb4b2d56
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[0]` must hold a value again before this state's exits consume the borrow
-fail/facts/indexed_recoverable_replacement_window_through_parameter_rejected rejected 9621ms unexpected @ee4dbb4b2d56
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[0]` must hold a value again before this state's exits consume the borrow
-fail/facts/indexed_recoverable_replacement_window_through_target_body_rejected rejected 9851ms unexpected @ee4dbb4b2d56
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `X86Repair::repair`, state `repair` (statement 5): `holder.tokens[0]` must hold a value again before this state's exits consume the borrow
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `ArmRepair::repair`, state `repair` (statement 5): `holder.tokens[0]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_call_result_rejected rejected 3038ms expected @3cf7fdf150d7
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_const_name_rejected rejected 3004ms expected @3cf7fdf150d7
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_field_rejected rejected 3351ms expected @3cf7fdf150d7
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_local_rejected rejected 3135ms expected @3cf7fdf150d7
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_match_join_rejected rejected 3933ms expected @3cf7fdf150d7
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_other_machine_rejected rejected 3079ms expected @3cf7fdf150d7
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_other_state_rejected rejected 3064ms expected @3cf7fdf150d7
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_parameter_rejected rejected 3136ms expected @3cf7fdf150d7
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_target_body_rejected rejected 3183ms expected @3cf7fdf150d7
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `X86Repair::repair`, state `repair` (statement 5): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `ArmRepair::repair`, state `repair` (statement 5): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
 fail/facts/indexed_storage_address_identity_through_call_result_rejected rejected 2478ms expected @ccdb99ca2214
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 3 borrows `items[index]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
@@ -10263,9 +10272,8 @@ fail/facts/narrow_to_wide_sign_extension_through_match_join_rejected rejected 21
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_wide_sign_extension_through_other_machine_rejected rejected 1432ms expected @ccdb99ca2214
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_sign_extension_through_other_state_rejected rejected 1577ms unexpected @ccdb99ca2214
+fail/facts/narrow_to_wide_sign_extension_through_other_state_rejected rejected 983ms expected @33a2bc6ea583
 	exact arithmetic in machine `compute` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	Exact integer cast in machine `compute` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/facts/narrow_to_wide_sign_extension_through_parameter_rejected rejected 1197ms expected @ccdb99ca2214
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_wide_sign_extension_through_target_body_rejected rejected 1319ms expected @ccdb99ca2214
@@ -10363,9 +10371,8 @@ fail/facts/narrow_to_wide_zero_extension_through_match_join_rejected rejected 14
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_wide_zero_extension_through_other_machine_rejected rejected 1495ms expected @ccdb99ca2214
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_zero_extension_through_other_state_rejected rejected 2093ms unexpected @ccdb99ca2214
+fail/facts/narrow_to_wide_zero_extension_through_other_state_rejected rejected 920ms expected @33a2bc6ea583
 	exact arithmetic in machine `compute` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	Exact integer cast in machine `compute` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/facts/narrow_to_wide_zero_extension_through_parameter_rejected rejected 1430ms expected @ccdb99ca2214
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_wide_zero_extension_through_target_body_rejected rejected 1202ms expected @ccdb99ca2214
@@ -10548,9 +10555,8 @@ fail/facts/nested_record_layout_geometry_through_match_join_rejected rejected 46
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/nested_record_layout_geometry_through_other_machine_rejected rejected 4612ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/nested_record_layout_geometry_through_other_state_rejected rejected 1402ms unexpected @ccdb99ca2214
-	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_record_layout_geometry_through_other_state_rejected rejected 4212ms expected @33a2bc6ea583
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/nested_record_layout_geometry_through_parameter_rejected rejected 5005ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/nested_record_layout_geometry_through_target_body_rejected rejected 4964ms expected @2e05cd243a72
@@ -12962,9 +12968,8 @@ fail/facts/slice_view_layout_geometry_through_match_join_rejected rejected 4643m
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/slice_view_layout_geometry_through_other_machine_rejected rejected 4601ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/slice_view_layout_geometry_through_other_state_rejected rejected 1681ms unexpected @ccdb99ca2214
-	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/slice_view_layout_geometry_through_other_state_rejected rejected 4460ms expected @33a2bc6ea583
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/slice_view_layout_geometry_through_parameter_rejected rejected 4700ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/slice_view_layout_geometry_through_target_body_rejected rejected 4701ms expected @2e05cd243a72
@@ -15013,9 +15018,8 @@ fail/generics/local_generic_result_parameter_mismatch rejected 741ms expected @c
 	machine `wrong` state `entry` local `received` expects `Output`, but the value is delivered as `Input`
 fail/generics/local_slice_result_element_mismatch rejected 710ms expected @ccdb99ca2214
 	machine `wrong` state `entry` local `viewed` expects `&[Output]`, but the value is delivered as `&[Input]`
-fail/generics/local_value_index_drops_written_order rejected 1603ms unexpected @911f6617ba9e
-	data `Counted` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	exact arithmetic in machine `invalid` state `entry` local `__value_index#2613#0` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/generics/local_value_index_drops_written_order rejected 881ms expected @33a2bc6ea583
+	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/generics/machine_bound_violated_at_call rejected 553ms expected @ccdb99ca2214
 	generic machine `Main::copy_it` has a concrete specialization tuple that does not satisfy its authored type bounds
 fail/generics/machine_equation_constructor_binder_carrier_constructed rejected 713ms expected @b23365ced206+wt
@@ -16156,8 +16160,8 @@ fail/ownership/inactive_constructed_carrier_second_transfer rejected 8201ms expe
 	cannot use `value.slot` in machine `main` state `entry` (statement 2) after `value.slot` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `value.slot` first
 fail/ownership/inactive_whole_carrier_second_transfer rejected 8199ms expected @ee4dbb4b2d56
 	cannot use `value` in machine `main` state `entry` (statement 2) after `value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/ownership/indexed_borrowed_window_wrong_place_repair rejected 6498ms unexpected @ee4dbb4b2d56
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[0]` must hold a value again before this state's exits consume the borrow
+fail/ownership/indexed_borrowed_window_wrong_place_repair rejected 3142ms expected @3cf7fdf150d7
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
 fail/ownership/linear_array_call_argument_wrong_element rejected 3466ms expected @ee4dbb4b2d56
 	owned delivery in array literal element cannot erase or replace its retained dropped by cleanup application
 	array literal element expects the `Receipt` data type but got `Other` in the `element` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
