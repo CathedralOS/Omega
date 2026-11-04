@@ -1,0 +1,2 @@
+cannot prove requires contract for call require_same
+observed == read(holder.counter.value)

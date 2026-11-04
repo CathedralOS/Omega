@@ -154,12 +154,18 @@ impl StructuralJudge<'_> {
             )
             .is_some()
             {
+                // Entry predicates can name a scalar before its nested pointers
+                // are loaded. Authenticate that load chain before retaining the
+                // projection as a read; otherwise keep a logical entry value.
                 let observed = projected.filter(|projected| {
                     super::super::super::structural_terms::scalar_operand_is_observed(
                         program,
                         field_reference,
                         projected,
-                    )
+                    ) && child.root.as_symbol().is_some_and(|root| {
+                        self.entry_read_backing(machine, state, root, &child.segments)
+                            .is_some()
+                    })
                 });
                 let observed = if let Some(observed) = observed {
                     self.retain_entry_scalar_observation(machine, state, child, observed)
