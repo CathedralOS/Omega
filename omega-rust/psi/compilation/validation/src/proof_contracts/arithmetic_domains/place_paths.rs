@@ -58,6 +58,42 @@ pub(crate) fn place_path(
     }
 }
 
+/// The element an index expression reads, when its collection is a place and
+/// its index is a literal or a named value whose storage can be tracked. Any
+/// other index names no trackable element, so it receives no element facts.
+pub(super) fn element_place(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<super::value_environment::ElementPlace> {
+    use super::ordered_values::Operand;
+    let ExpressionNode::Indexed(indexed) = expression_table(program).expression(expression) else {
+        return None;
+    };
+    let collection = place_path(program, indexed.collection)?;
+    let index = match expression_table(program).expression(indexed.index) {
+        ExpressionNode::Integer(literal) => Operand::Integer(literal.clone(), literal.landing()),
+        // Only a value binding names storage whose own writes the operand
+        // survival rules see; any other name keeps no element fact.
+        ExpressionNode::Name(path)
+            if path.symbol.is_valid()
+                && path.symbol == path.head_symbol
+                && matches!(
+                    program.symbols.get(path.symbol).kind,
+                    symbols::SymbolKind::Local
+                        | symbols::SymbolKind::Parameter
+                        | symbols::SymbolKind::Const
+                ) =>
+        {
+            Operand::Place {
+                root: path.symbol,
+                path: place_path(program, indexed.index)?,
+            }
+        }
+        _ => return None,
+    };
+    Some(super::value_environment::ElementPlace { collection, index })
+}
+
 /// A value capture is an occurrence, independently of its source's spelling
 /// and later storage versions. The private prefix cannot name an authored
 /// declaration in this display-path environment.

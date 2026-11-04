@@ -14,7 +14,7 @@ impl Execution<'_, '_, '_> {
         &mut self,
         parameters: &[typed_trees::signature::StateParameter],
         effects: &[validation::StoredReferenceEffect],
-        inputs: &[FlowOperandFact],
+        inputs: HandleSpan<FlowOperandFact>,
         call: &BorrowCallFact,
         binding_writes: Option<&[CanonicalPlace]>,
     ) -> Vec<CallStore> {
@@ -23,8 +23,7 @@ impl Execution<'_, '_, '_> {
         }
         let input = |symbol: SymbolHandle| {
             typed_trees::signature::state_parameter_position(parameters, symbol)
-                .and_then(|position| inputs.get(position))
-                .copied()
+                .map(|position| inputs.handle_at(position as u32))
         };
         let mut values: Vec<CallStore> = Vec::new();
         for effect in effects.iter() {
@@ -46,6 +45,7 @@ impl Execution<'_, '_, '_> {
             let Some(actual) = input(effect.destination.local_symbol) else {
                 continue;
             };
+            let actual = *self.context.control.operands.get(actual);
             let Some(reference) = validation::project_type_reference_from_segments(
                 self.program,
                 actual.type_reference,
@@ -90,7 +90,7 @@ impl Execution<'_, '_, '_> {
                         break;
                     };
                     let Some(selected) = self.call_backing_values(
-                        &actual,
+                        actual,
                         &source.backing,
                         reference,
                         self.storage_snapshot,
@@ -105,7 +105,8 @@ impl Execution<'_, '_, '_> {
                     let mut image_profiles = Vec::new();
                     let mut is_image = source.carrier_symbol == source.backing.root
                         && source.carrier_segments == source.backing.segments;
-                    for (value, projection) in selected {
+                    for (operand, projection) in selected {
+                        let value = *self.context.control.operands.get(operand);
                         let Some(supplied) = validation::project_type_reference_from_segments(
                             self.program,
                             value.type_reference,
@@ -148,7 +149,7 @@ impl Execution<'_, '_, '_> {
                             }
                             _ => is_image = false,
                         }
-                        suppliers.push((value, projection));
+                        suppliers.push((operand, projection));
                     }
                     if !suppliers_known {
                         break;
@@ -253,6 +254,7 @@ impl Execution<'_, '_, '_> {
                     lifetime_known = false;
                     break;
                 };
+                let backing = *self.context.control.operands.get(backing);
                 // The may-write footprint may cover a collection even when
                 // its independent typed source still names one exact leaf.
                 // capture_reference_projection below validates those retained
@@ -286,6 +288,7 @@ impl Execution<'_, '_, '_> {
                         lifetime_known = false;
                         break;
                     };
+                    let carrier = *self.context.control.operands.get(carrier);
                     let Some(carrier) = self.capture_reference_projection(
                         &carrier,
                         &source.carrier_segments,
@@ -412,7 +415,7 @@ impl Execution<'_, '_, '_> {
                     .map(
                         |(value, projection)| checked_trees::FlowOperandRetainedSupplier {
                             contract: None,
-                            operand: self.context.control.operands.insert(value),
+                            operand: value,
                             projection: self
                                 .context
                                 .control

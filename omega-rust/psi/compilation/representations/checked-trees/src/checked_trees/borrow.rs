@@ -304,8 +304,20 @@ pub struct BorrowCallReferenceSlotEffect {
     pub may_select: bool,
 }
 
+/// A returned pointer can forward an existing descriptor or form a new view.
+/// Projected returns require the complete checked invocation association before
+/// their source permission can become a borrowing parent.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum BorrowLoanFormation {
+    #[default]
+    Ordinary,
+    ReturnedDescriptor,
+    ReturnedProjection,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowLoanFact {
+    pub formation: BorrowLoanFormation,
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
     pub incoming_owner_path: HandleSpan<facts::PlaceSegment>,
     /// Address admitted with a representation footprint, in this loan's same
@@ -478,6 +490,8 @@ pub struct CheckedDirectBorrowRestorationObligation {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBorrowResourceRetention {
     pub lexical_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    /// Includes descriptors a completed call installed; those carry custody
+    /// without a local loan and have no activation or weakening rows.
     pub holders: HandleSpan<Handle<BorrowLoanFact>>,
     pub final_weakening: Handle<crate::FlowBorrowWeakeningFact>,
 }

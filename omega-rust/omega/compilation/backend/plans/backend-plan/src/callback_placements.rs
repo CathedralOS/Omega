@@ -43,11 +43,11 @@ pub enum PrivateCallbackDestinationApplication {
     Direct {
         application: NativeParameterApplication,
     },
-    /// A field destination: the slot occupies `byte_offset` bytes into the
-    /// record reached through the root record parameter's location.
+    /// A field destination writes every address fragment into the record
+    /// reached through the root parameter.
     Field {
         root: NativeParameterApplication,
-        byte_offset: usize,
+        placements: calling_conventions::PrivateCallbackPlacements,
     },
 }
 
@@ -61,19 +61,18 @@ impl PrivateCallbackDestinationApplication {
         }
     }
 
-    /// The private slot's byte offset inside the bound record. A direct
-    /// destination's slot is the parameter's own location and names no
-    /// interior offset.
-    pub fn byte_offset(&self) -> Option<usize> {
+    /// Complete storage placements inside the bound record. Direct parameters
+    /// have no interior placements.
+    pub fn placements(&self) -> Option<&calling_conventions::PrivateCallbackPlacements> {
         match self {
             Self::Direct { .. } => None,
-            Self::Field { byte_offset, .. } => Some(*byte_offset),
+            Self::Field { placements, .. } => Some(placements),
         }
     }
 }
 
 /// Complete address-free context and selected row for one private callback
-/// materialization, including the retained field offset when applicable.
+/// materialization, including every retained field placement when applicable.
 /// Target operations, bytes, object relocations, runtime storage, registration
 /// authority, and leases are absent.
 #[derive(Debug, Clone, PartialEq, Eq)]
