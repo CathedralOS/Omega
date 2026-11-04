@@ -3,7 +3,6 @@ use crate::unit_validation::structural_catalog::{
     resolve_runtime_projection, resolve_structural_path,
 };
 use abstract_operations::AbstractOperation as O;
-use abstract_operations::AbstractStructuralCallResult;
 use abstract_operations::StructuralCallFormal;
 use abstract_operations::element_view_or_byte_subslice_pattern;
 use optimization_unit::PsiOptimizationFunction;

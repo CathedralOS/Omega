@@ -610,10 +610,6 @@ pub(crate) fn integer_source_bounds_from_interval(
     (minimum <= maximum).then_some((minimum, maximum))
 }
 
-/// Whether a place's declared type is an atomic integer (`AtomicU32`, ...),
-/// whose arithmetic wraps by hardware semantics, through reference/constraint
-/// shells.
-
 pub(crate) fn primitive_name(primitive: PrimitiveType) -> &'static str {
     match primitive {
         PrimitiveType::I8 => "i8",

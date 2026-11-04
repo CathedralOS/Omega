@@ -186,28 +186,22 @@ pub(super) fn derive(
                     let mut matched = Vec::new();
                     for candidate in candidates {
                         for (index, binding) in candidate.plan.rows.iter().enumerate() {
-                            let realization_matches = match candidate
-                                .provenance
-                                .row_realizations
-                                .get(index)
-                            {
-                                Some(ProviderRowRealization::Authored(symbol)) => {
-                                    *symbol == machine.symbol
-                                }
-                                // A build-owned row names no authored leaf:
-                                // it matches when this member's resolved
-                                // declaration satisfies the bound requirement.
-                                Some(ProviderRowRealization::BuildNative(origin)) => {
-                                    origin.requirement == row.requirement
-                                        && typed
-                                            .machine_trait_conformances(machine)
-                                            .iter()
-                                            .any(|edge| {
-                                                edge.requirement_symbol == row.requirement
-                                            })
-                                }
-                                _ => false,
-                            };
+                            let realization_matches =
+                                match candidate.provenance.row_realizations.get(index) {
+                                    Some(ProviderRowRealization::Authored(symbol)) => {
+                                        *symbol == machine.symbol
+                                    }
+                                    // A build-owned row names no authored leaf:
+                                    // it matches when this member's resolved
+                                    // declaration satisfies the bound requirement.
+                                    Some(ProviderRowRealization::BuildNative(origin)) => {
+                                        origin.requirement == row.requirement
+                                            && typed.machine_trait_conformances(machine).iter().any(
+                                                |edge| edge.requirement_symbol == row.requirement,
+                                            )
+                                    }
+                                    _ => false,
+                                };
                             if candidate.provenance.row_requirements.get(index)
                                 == Some(&row.requirement)
                                 && realization_matches
