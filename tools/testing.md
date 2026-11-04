@@ -229,14 +229,39 @@ An unset/empty environment variable leaves the default unchanged. Pass fixtures
 run both engines with the existing numeric and stream oracles; fail fixtures
 run the existing source/rejection gate only.
 
-The pilot exports its measured source into the existing artifact upload. It
-completes a shallow checkout above a known published prerequisite, asks the
-existing corpus owner to retain the source bundle, then restores that bundle
-in a separate repository containing only its authenticated published
-prerequisites. A missing feature parent or object refuses, including in a
-previously retained bundle. The copied bytes and their source, prerequisite
-and digest appear under `source/manifest.json`. An unauthenticated export
-stops before fixture observations; raw bundles stay out of Git.
+When only a fixture, oracle or consumer tool changes, an existing optimized
+compiler can run the new observations without another Rust build. Pass
+`fixtures=@tools/ci/qualification_plans/NAME.json` to the same workflow. The
+tracked plan owns the complete corpus, sample and ordinary CLI selection; do
+not combine it with the other selection inputs. `source_only: true` limits its
+corpus leg to checking while permitting the selected ordinary CLI and sample
+runtime consumers.
+
+The plan records the original producer commit, tree, target, toolchain,
+executable digests and optimized profiles, plus the complete compiler, SDK,
+bootstrap and build-input Git objects. These inputs must remain identical in
+the current consumer commit. The existing workflow cache supplies the bytes;
+the replay authenticates their hashes before querying their profiles, then
+keeps immutable copies. A missing or different executable refuses without a
+Cargo build fallback. Records retain the original producer revision separately
+from the current consumer revision and the originating run/cache reference.
+
+A failed fixture or oracle leaves the run red, while independent ordinary CLI
+and sample consumers still record their own outcomes. A changed source or
+executable stops the run. This preserves useful observations without treating a
+failed corpus leg as a passing qualification.
+
+Both fresh and retained-producer runs export their measured source into the
+existing pilot artifact. A shallow checkout fetches only until the source range
+above known published main has no missing ancestry. The corpus's existing
+`retain_record_source` owner then verifies its Git bundle; the pilot authenticates
+the bundle again in a fresh bare repository containing only its declared,
+authenticated published prerequisites. Missing feature parents or objects refuse,
+including in an older bundle that the corpus owner deliberately preserves.
+The pilot authenticates the copied bytes and records source, prerequisites and digest
+under `source/manifest.json`. An incomplete or unauthenticated export stops before
+fixture observations. This keeps later golden stamps inspectable after branch
+squashing without committing raw bundles or changing workflow permissions.
 
 ### Timing a check cold, and on a hosted runner
 
