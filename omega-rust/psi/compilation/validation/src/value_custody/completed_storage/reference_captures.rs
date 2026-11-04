@@ -239,6 +239,12 @@ impl Resolver<'_> {
             );
         }
         let view = crate::reference_shell(self.program, capture.type_reference).is_some();
+        if view
+            && path.is_empty()
+            && let Some(selected) = self.read_descriptor(value)
+        {
+            return selected;
+        }
         if let FlowOperandCompletion::Copied { copy, path: prefix } = capture.completion {
             if !self.control.copied_values.is_valid(copy) {
                 return Selection::Unavailable;
@@ -429,6 +435,128 @@ impl Resolver<'_> {
     /// Inline descriptor bytes belong to this completed occurrence. Crossing
     /// that descriptor reads its referent at the consumer's cut, while merely
     /// selecting the descriptor preserves its captured leaf and formation.
+    /// Read the descriptor that was actually loaded, not the pointer's later
+    /// home or its pointee. The access row records the evaluated slot; its
+    /// capture snapshot fixes the binding even if a later argument replaces it.
+    /// Pointee crossings keep this resolver's separate current-content cut.
+    fn read_descriptor(&mut self, value: Handle<FlowOperandFact>) -> Option<Selection> {
+        let capture = *self.control.operands.get(value);
+        if !self.control.case_accesses.is_valid(capture.case_access) {
+            return None;
+        }
+        let access = self.control.case_accesses.get(capture.case_access);
+        if access.state_symbol != capture.state_symbol
+            || access.statement_index != capture.statement_index
+            || access.expression != capture.expression
+        {
+            return Some(Selection::Unavailable);
+        }
+        let Some(state) = self.program.state_by_symbol(capture.state_symbol) else {
+            return Some(Selection::Unavailable);
+        };
+        if self
+            .program
+            .machine_by_own_or_state_symbol(capture.state_symbol)
+            .map(|machine| machine.symbol)
+            != Some(access.machine_symbol)
+        {
+            return Some(Selection::Unavailable);
+        }
+        let Some(places) = self.control.operand_referents.span(access.places) else {
+            return Some(Selection::Unavailable);
+        };
+        if places.is_empty() {
+            return None;
+        }
+        let expected = crate::reference_shell(self.program, capture.type_reference)?;
+        let mut slots = Vec::new();
+        for place in places {
+            let root = place.root.as_symbol()?;
+            let segments = self
+                .control
+                .operand_referent_segments
+                .span(place.segments)?;
+            let declared = crate::reference_result_custody::storage_owner_type_reference(
+                self.program,
+                state,
+                root,
+                u32::try_from(capture.statement_index).ok()?,
+            )?;
+            let slot =
+                crate::project_type_reference_from_segments(self.program, declared, segments)?;
+            let supplied = crate::reference_shell(self.program, slot)?;
+            // A borrow of a pointer and a read of that pointer have different
+            // types. Only a matching descriptor slot supplies this value.
+            if !(supplied.access == expected.access
+                || supplied.access == language_semantics::ReferenceAccess::Mutable)
+                || !crate::storage_origin_types_match(
+                    self.program,
+                    supplied.referee,
+                    expected.referee,
+                )
+            {
+                return None;
+            }
+            slots.push(crate::CanonicalPlace {
+                root: place.root,
+                segments: segments.to_vec(),
+            });
+        }
+        let captured_pointer = |place| Selection::Sources {
+            incoming: Vec::new(),
+            values: vec![StoredCapture {
+                capture: value,
+                reference: capture.type_reference,
+                projection: Vec::new(),
+                slot: Some(place),
+            }],
+        };
+        let mut selected = Vec::new();
+        for place in slots {
+            // An exclusive reference formal lends its referent, not a pointer
+            // home. Its mutability flag permits writes through that pointer.
+            // Immutable shared formals also keep their entry value; mutable
+            // shared bindings and stored fields still query capture history.
+            if place.segments.is_empty()
+                && place.root.as_symbol().is_some_and(|root| {
+                    self.program
+                        .state_parameter_by_symbol(state, root)
+                        .is_some_and(|parameter| {
+                            !parameter.is_mutable
+                                || crate::reference_shell(self.program, parameter.type_reference)
+                                    .is_some_and(|shell| shell.access.is_exclusive())
+                        })
+                })
+            {
+                selected.push(captured_pointer(place));
+                continue;
+            }
+            match super::at_snapshot(
+                self.program,
+                self.control,
+                capture.storage_snapshot,
+                &place,
+                StoredObservation::Binding,
+            ) {
+                Some(stored) => selected.push(self.stored(stored, &[])),
+                None if place.root.as_symbol().is_some_and(|root| {
+                    self.program
+                        .state_parameter_by_symbol(state, root)
+                        .is_some()
+                }) =>
+                {
+                    // This operand is an actual completed read of the entry
+                    // pointer. Keep its value capture and slot; an unread
+                    // incoming carrier remains Incoming in the ordinary
+                    // source-frontier query above.
+                    selected.push(captured_pointer(place));
+                }
+                None => return Some(Selection::Unavailable),
+            }
+        }
+        Some(join(selected))
+    }
+
     fn reference_leaf(
         &mut self,
         value: Handle<FlowOperandFact>,

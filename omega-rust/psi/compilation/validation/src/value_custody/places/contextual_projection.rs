@@ -175,7 +175,7 @@ fn resolve_contextual_name_path_root(
 /// one: payload spellings repeat across cases, so a qualified demand is
 /// answered only by the field that exact variant declares — an unqualified
 /// name search would mint a sibling case's same-named field for it.
-pub(super) fn resolve_member_symbol_from_place(
+pub fn resolve_member_symbol_from_place(
     program: &dyn crate::CheckingInput,
     place: &CanonicalPlace,
     member_name: &str,

@@ -110,6 +110,54 @@ mod correspondence_tests {
         assert_ne!(first.root, second.root);
         assert_eq!(source.expression(child), &ExpressionNode::Boolean(true));
     }
+
+    #[test]
+    fn copied_value_binding_names_the_same_evaluation_as_its_call_operand() {
+        use crate::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+        let mut source = ExpressionTable::default();
+        let value = source.insert(ExpressionNode::Boolean(true));
+        let application = source.retain_static_machine_application(
+            SymbolHandle::invalid(),
+            Identifier::generated("invoke"),
+            &[],
+        );
+        source.set_static_machine_application_bindings(
+            application,
+            &[StaticMachineBinding {
+                parameter: SymbolHandle::invalid(),
+                value: StaticMachineBindingValue::RuntimeValue {
+                    type_reference: crate::types::TypeReferenceHandle::invalid(),
+                    subject: SymbolHandle::invalid(),
+                    expression: value,
+                },
+            }],
+        );
+        let mut destination = ExpressionTable::default();
+        // Different handles make a stale reference into the source table fail.
+        destination.insert(ExpressionNode::Boolean(false));
+        let (arguments, _, copied, _) =
+            destination.copy_call_operands_from(&source, &[value, value], application, None);
+        let actuals = destination.expression_handles(arguments);
+        assert_eq!(actuals[0], actuals[1]);
+        let StaticMachineBindingValue::RuntimeValue { expression, .. } =
+            destination.static_machine_application_bindings(copied)[0].value
+        else {
+            panic!("copied runtime binding");
+        };
+        assert_eq!(expression, actuals[0]);
+        assert_eq!(
+            destination.expression(expression),
+            &ExpressionNode::Boolean(true)
+        );
+        assert_eq!(
+            source.static_machine_application_bindings(application)[0].value,
+            StaticMachineBindingValue::RuntimeValue {
+                type_reference: crate::types::TypeReferenceHandle::invalid(),
+                subject: SymbolHandle::invalid(),
+                expression: value,
+            }
+        );
+    }
 }
 
 impl ExpressionTable {
@@ -135,42 +183,31 @@ impl ExpressionTable {
         }
     }
 
-    /// Copy the invocation and its selected-map occurrence together. A map
-    /// qualifier owns a distinct telescope; only an operand selection shares
-    /// the invocation's application. Neither may retain the template's handle.
-    pub fn copy_call_static_applications_from(
-        &mut self,
-        source: &ExpressionTable,
-        application: crate::static_applications::StaticMachineApplicationHandle,
-        dispatch: Option<crate::typed_trees::StaticRequirementDispatch>,
-    ) -> (
-        crate::static_applications::StaticMachineApplicationHandle,
-        Option<crate::typed_trees::StaticRequirementDispatch>,
-    ) {
-        self.copy_call_static_applications(CopySource::Table(source), application, dispatch)
-    }
-
+    /// Copy each runtime Value expression once and share that copied evaluation
+    /// with its saved binding. A separately qualified implementation keeps its
+    /// own static arguments and lifetime bindings.
     fn copy_call_static_applications(
         &mut self,
         source: CopySource<'_>,
         application: crate::static_applications::StaticMachineApplicationHandle,
         mut dispatch: Option<crate::typed_trees::StaticRequirementDispatch>,
+        copies: &mut CopyGraph,
     ) -> (
         crate::static_applications::StaticMachineApplicationHandle,
         Option<crate::typed_trees::StaticRequirementDispatch>,
     ) {
-        let copied = self.copy_static_machine_application(source, application);
+        let copied = self.copy_static_machine_application(source, application, copies);
         if let Some(dispatch) = &mut dispatch {
             dispatch.selection_application = if dispatch.selection_application == application {
                 copied
             } else {
-                self.copy_static_machine_application(source, dispatch.selection_application)
+                self.copy_static_machine_application(source, dispatch.selection_application, copies)
             };
         }
         (copied, dispatch)
     }
 
-    /// Rebase both retained source telescopes into the cloned lexical owner.
+    /// Rebind both sets of saved generic arguments to the copied lexical scope.
     pub fn remap_call_static_applications<'scope>(
         &mut self,
         application: crate::static_applications::StaticMachineApplicationHandle,
@@ -223,6 +260,7 @@ impl ExpressionTable {
         &mut self,
         source: CopySource<'_>,
         application: crate::static_applications::StaticMachineApplicationHandle,
+        copies: &mut CopyGraph,
     ) -> crate::static_applications::StaticMachineApplicationHandle {
         if !application.is_valid() {
             return application;
@@ -257,6 +295,19 @@ impl ExpressionTable {
             .collect::<Vec<_>>();
         let mut bindings = bindings;
         for binding in &mut bindings {
+            if let crate::static_applications::StaticMachineBindingValue::RuntimeValue {
+                expression,
+                ..
+            } = &mut binding.value
+                && expression.is_valid()
+            {
+                *expression = self.copy_subtree_with_occurrences(
+                    source,
+                    *expression,
+                    &retain_every_field,
+                    copies,
+                );
+            }
             if let crate::static_applications::StaticMachineBindingValue::Machine(argument)
             | crate::static_applications::StaticMachineBindingValue::Conformance(argument) =
                 &mut binding.value
@@ -534,21 +585,32 @@ impl ExpressionTable {
         self.copy_expression_list(CopySource::Table(source), expressions, &retain_every_field)
     }
 
-    /// Copy one ordered operand graph with shared capture identities. The
-    /// statement owner closes its own definition handles after allocating it.
+    /// Copy a call's operands and retained applications with one correspondence.
+    /// A Value binding that names an operand keeps that same copied evaluation.
+    /// The statement owner closes capture definitions after allocating itself.
     pub(crate) fn copy_call_operands_from(
         &mut self,
         source: &ExpressionTable,
         expressions: &[ExpressionHandle],
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        dispatch: Option<crate::typed_trees::StaticRequirementDispatch>,
     ) -> (
         HandleSpan<ExpressionHandle>,
         Vec<(Handle<CompletedValueCapture>, ValueCaptureOwner)>,
+        crate::static_applications::StaticMachineApplicationHandle,
+        Option<crate::typed_trees::StaticRequirementDispatch>,
     ) {
         let mut copies = CopyGraph::default();
         let expressions = self.copy_expression_list_with_occurrences(
             CopySource::Table(source),
             expressions,
             &retain_every_field,
+            &mut copies,
+        );
+        let (application, dispatch) = self.copy_call_static_applications(
+            CopySource::Table(source),
+            application,
+            dispatch,
             &mut copies,
         );
         (
@@ -558,6 +620,8 @@ impl ExpressionTable {
                 .into_iter()
                 .map(|(original, capture)| (capture, source.value_capture(original).owner))
                 .collect(),
+            application,
+            dispatch,
         )
     }
 
@@ -797,6 +861,7 @@ impl ExpressionTable {
                         source,
                         call.authored_machine_application,
                         call.static_requirement_dispatch,
+                        copies,
                     );
                 self.insert(ExpressionNode::Call(TableCallExpression {
                     authored_call_selection: call.authored_call_selection,

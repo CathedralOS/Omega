@@ -8,6 +8,7 @@ use checked_trees::FlowOperandFact;
 use facts::PlaceSegment;
 
 impl Captures<'_> {
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn completed_descriptor_sources(
         &self,
         state: &typed_trees::state::State,
@@ -15,6 +16,7 @@ impl Captures<'_> {
         path: &[PlaceSegment],
         expected: TypeReferenceHandle,
         suffix: &crate::LocalWriteSource,
+        current: Handle<checked_trees::FlowStorageSnapshot>,
         active: &mut Vec<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>,
     ) -> Option<Vec<crate::LocalWriteSource>> {
         let query = (operand, path.to_vec());
@@ -63,7 +65,7 @@ impl Captures<'_> {
                 control,
                 operand,
                 path,
-                actual.storage_snapshot,
+                current,
             ) else {
                 // The selector proved an unchanged incoming descriptor at the
                 // original consumer cut. Whole-value copies can reach that
@@ -114,6 +116,7 @@ impl Captures<'_> {
                         &selected.projection,
                         expected,
                         suffix,
+                        current,
                         active,
                     )?
                 } else if !descriptor.referents.is_empty() {
@@ -138,6 +141,7 @@ impl Captures<'_> {
                             control.operand_retained_paths.span(supplier.projection)?,
                             expected,
                             suffix,
+                            current,
                             active,
                         )?);
                     }

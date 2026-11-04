@@ -20,8 +20,10 @@ use typed_trees::name::Identifier;
 use typed_trees::statement::{StatementHandle, StatementNode};
 use typed_trees::static_applications::StaticConformanceSelection;
 use typed_trees::static_applications::StaticMachineApplicationHandle;
-use typed_trees::typed_trees::ClosedConformanceApplicationCommitment;
 use typed_trees::typed_trees::StaticRequirementDispatch;
+use typed_trees::typed_trees::{
+    ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
+};
 use typed_trees::types::TypeReferenceHandle;
 use validation::conformance_applications::close_conformance_application;
 
@@ -234,6 +236,16 @@ pub(crate) fn route_explicit_requirement_calls(
             &arguments,
         ) {
             Ok(mut rewrite) => {
+                if let Some(dispatch) = &rewrite.dispatch
+                    && dispatch.selection_application.is_valid()
+                    && let Err(mut errors) = crate::monomorphization::prepare_conformance_occurrence(
+                        program,
+                        dispatch.selection_application,
+                    )
+                {
+                    diagnostics.append(&mut errors);
+                    continue;
+                }
                 rewrite.application_arguments = execution_arguments;
                 if implementation_receiver.is_some() {
                     rewrite.implementation_receiver = implementation_receiver;
@@ -314,6 +326,14 @@ fn qualified_selection_arguments(
     let owner = expressions_of(program)
         .static_machine_application(occurrence.application)
         .lexical_owner;
+    let retained = retained_qualifier_selection(
+        program,
+        occurrence,
+        owner,
+        requirement,
+        declaring_trait,
+        implementation,
+    );
     // Applied qualifiers retain their telescope separately from the method's
     // arguments. Rebuilding a bare symbol here discarded every captured type,
     // constant and region before ordinary map selection could inspect it.
@@ -326,6 +346,18 @@ fn qualified_selection_arguments(
             .unwrap_or_default(),
         RequirementCallSite::Statement(_) => TypeReferenceHandle::invalid(),
     };
+    if !qualifier.is_valid()
+        && let Some(application) = retained
+    {
+        // Executable syntax no longer spells the applied qualifier. Keep this
+        // occurrence's complete source operands; rewriting still checks them.
+        return Ok((
+            application,
+            expressions_of(program)
+                .static_machine_application_arguments(application)
+                .to_vec(),
+        ));
+    }
     let selected = if qualifier.is_valid() {
         program
             .static_operand_from_type_reference(qualifier)
@@ -386,6 +418,12 @@ fn qualified_selection_arguments(
         })
         .collect::<Result<Vec<_>, _>>()?;
     arguments.push(selected);
+    if let Some(application) = retained
+        && expressions_of(program).static_machine_application_arguments(application)
+            == arguments.as_slice()
+    {
+        return Ok((application, arguments));
+    }
     let requirement_name = Identifier::generated(program.symbols.name(requirement));
     let application = expressions_of_mut(program).retain_static_machine_application(
         requirement,
@@ -396,6 +434,54 @@ fn qualified_selection_arguments(
         .static_machine_application_mut(application)
         .lexical_owner = owner;
     Ok((application, arguments))
+}
+
+fn retained_qualifier_selection(
+    program: &TypedTrees,
+    occurrence: RequirementCallOccurrence,
+    owner: SymbolHandle,
+    requirement: SymbolHandle,
+    declaring_trait: SymbolHandle,
+    implementation: SymbolHandle,
+) -> Option<StaticMachineApplicationHandle> {
+    let dispatch = match occurrence.site {
+        RequirementCallSite::Expression(handle) => expressions_of(program)
+            .call_node(handle)?
+            .static_requirement_dispatch
+            .as_ref()?,
+        RequirementCallSite::Statement(handle) => program
+            .statement_table
+            .statement(handle)
+            .as_call()?
+            .static_requirement_dispatch
+            .as_ref()?,
+    };
+    if dispatch.requirement != requirement || dispatch.declaring_trait != declaring_trait {
+        return None;
+    }
+    let applications = program.selected_conformance_applications(
+        owner,
+        dispatch.selection_application,
+        dispatch.evidence_parameter,
+        dispatch.requirement,
+        dispatch.application_report_fingerprint,
+        dispatch.application_commitment,
+    );
+    let [application] = applications.as_slice() else {
+        return None;
+    };
+    if application.declaration != implementation || !dispatch.selection_application.is_valid() {
+        return None;
+    }
+    let source = expressions_of(program).static_machine_application(dispatch.selection_application);
+    let selection = source.conformance_selection.as_ref()?;
+    let arguments = expressions_of(program)
+        .static_machine_application_arguments(dispatch.selection_application);
+    let ordinal = selection.operand_ordinal as usize;
+    if ordinal.checked_add(1) != Some(arguments.len()) {
+        return None;
+    }
+    Some(dispatch.selection_application)
 }
 
 /// The implementation is the last static argument; every argument before it
@@ -490,7 +576,7 @@ struct ExplicitApplication<'a> {
 impl ExplicitApplication<'_> {
     fn through_implementation(&mut self) -> Result<ExplicitRequirementRewrite, String> {
         let program = &*self.program;
-        let application = close_conformance_application(program, self.implementation)
+        let mut application = close_conformance_application(program, self.implementation)
             .map_err(|diagnostic| diagnostic.message)?;
         let Some(conformance) = program
             .conformance_by_symbol(application.declaration)
@@ -565,6 +651,8 @@ impl ExplicitApplication<'_> {
             .ok_or_else(|| "direct conformance selection lost its explicit operand".to_owned())?;
         let target = row.realization_state;
         let row = row.clone();
+        retain_prepared_conformance_views(program, source_application, ordinal, &mut application)
+            .map_err(str::to_owned)?;
         expressions_of_mut(program)
             .static_machine_application_mut(source_application)
             .conformance_selection = Some(Box::new(StaticConformanceSelection {
@@ -733,6 +821,46 @@ impl ExplicitApplication<'_> {
     }
 }
 
+/// Keep derived views only when the same source occurrence still selects the
+/// complete original tuple in its original supplying scope.
+fn retain_prepared_conformance_views(
+    program: &TypedTrees,
+    handle: StaticMachineApplicationHandle,
+    ordinal: u32,
+    application: &mut ClosedConformanceApplication,
+) -> Result<bool, &'static str> {
+    let source = expressions_of(program).static_machine_application(handle);
+    let Some(selection) = &source.conformance_selection else {
+        return Ok(false);
+    };
+    let Some(previous) = selection.application.as_deref() else {
+        return Ok(false);
+    };
+    let mut original = previous.clone();
+    original.callable_application = Default::default();
+    original.trait_scope = Default::default();
+    if selection.operand_ordinal != ordinal || original != *application {
+        return Ok(false);
+    }
+    let source_owner = source.lexical_owner;
+    if previous.trait_scope.scope(program).is_some()
+        && previous.trait_scope.supplying_owner() != source_owner
+    {
+        return Err("refreshed conformance scope has another supplying owner");
+    }
+    if previous.callable_application.is_valid()
+        && expressions_of(program)
+            .static_machine_application(previous.callable_application)
+            .lexical_owner
+            != source_owner
+    {
+        return Err("refreshed capture view has another supplying owner");
+    }
+    application.callable_application = previous.callable_application;
+    application.trait_scope = previous.trait_scope;
+    Ok(true)
+}
+
 /// Rebuild copied occurrence selections from their rewritten explicit operand.
 /// Cloning transports source operands, never old derived application authority.
 pub(crate) fn refresh_occurrence_selections(
@@ -744,17 +872,14 @@ pub(crate) fn refresh_occurrence_selections(
         .copied()
         .filter_map(|handle| {
             let source = expressions_of(program).static_machine_application(handle);
-            source.conformance_selection.as_ref().map(|selection| {
-                (
-                    handle,
-                    selection.operand_ordinal,
-                    selection.application.clone(),
-                )
-            })
+            source
+                .conformance_selection
+                .as_ref()
+                .map(|selection| (handle, selection.operand_ordinal))
         })
         .collect::<Vec<_>>();
     let mut changed = Vec::new();
-    for (handle, ordinal, previous) in pending {
+    for (handle, ordinal) in pending {
         let operand = expressions_of(program)
             .static_machine_application_arguments(handle)
             .get(ordinal as usize)
@@ -766,36 +891,9 @@ pub(crate) fn refresh_occurrence_selections(
             })?;
         let mut application =
             close_conformance_application(program, &operand).map_err(|d| vec![d])?;
-        let mut old = previous.as_deref().cloned();
-        if let Some(old) = &mut old {
-            old.callable_application = Default::default();
-            old.trait_scope = Default::default();
-        }
-        if old.as_ref() == Some(&application) {
-            let previous = previous.as_ref().unwrap();
-            let source_owner = expressions_of(program)
-                .static_machine_application(handle)
-                .lexical_owner;
-            if previous.trait_scope.scope(program).is_some()
-                && previous.trait_scope.supplying_owner() != source_owner
-            {
-                return Err(vec![Diagnostic::error(
-                    "refreshed conformance scope has another supplying owner",
-                )]);
-            }
-            if previous.callable_application.is_valid()
-                && expressions_of(program)
-                    .static_machine_application(previous.callable_application)
-                    .lexical_owner
-                    != source_owner
-            {
-                return Err(vec![Diagnostic::error(
-                    "refreshed capture view has another supplying owner",
-                )]);
-            }
-            application.callable_application = previous.callable_application;
-            application.trait_scope = previous.trait_scope;
-        } else {
+        if !retain_prepared_conformance_views(program, handle, ordinal, &mut application)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+        {
             changed.push(handle);
         }
         expressions_of_mut(program)

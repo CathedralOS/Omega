@@ -327,30 +327,63 @@ impl PreparedCallableBorrowRefinement {
             &actual_frontier.outputs,
             actual.parameters,
         );
-        for (required_leaves, actual_leaves) in
-            required_frontier.inputs.iter().zip(&actual_frontier.inputs)
+        for (ordinal, (required_leaves, actual_leaves)) in required_frontier
+            .inputs
+            .iter()
+            .zip(&actual_frontier.inputs)
+            .enumerate()
         {
             for required_leaf in required_leaves {
                 let Some(actual_leaf) = actual_leaves.iter().find(|leaf| {
                     required_leaf.source == leaf.source
+                        && required_leaf.reference_hops == leaf.reference_hops
                         && contract_paths_correspond(
                             program,
                             &required_leaf.owner_path,
                             &leaf.owner_path,
                         )
                 }) else {
-                    return Err("callable input has a different carried region frontier".to_owned());
+                    return Err(format!(
+                        "callable input has a different carried region frontier [parameter {ordinal}; required path {:?}; required: {}; actual: {}]",
+                        required_leaf.owner_path,
+                        super::region_correspondence::region_context(
+                            program,
+                            &required,
+                            &required_frontier.regions
+                        ),
+                        super::region_correspondence::region_context(
+                            program,
+                            &actual,
+                            &actual_frontier.regions
+                        ),
+                    ));
                 };
                 if let Some(required_region) = &required_leaf.lifetime
                     && actual_leaf.lifetime.as_ref() != Some(required_region)
                 {
-                    return Err(match required_region {
+                    let reason = match required_region {
                         RegionIdentity::Fresh(_) => {
                             "fresh invocation region is replaced by a captured or different region"
                         }
                         _ => "callable input does not preserve its captured region identity",
-                    }
-                    .to_owned());
+                    };
+                    return Err(format!(
+                        "{reason} [parameter {ordinal}; path {:?}; required region {required_region:?} from {:?}; actual region {:?} from {:?}; required: {}; actual: {}]",
+                        required_leaf.owner_path,
+                        required_leaf.reference,
+                        actual_leaf.lifetime,
+                        actual_leaf.reference,
+                        super::region_correspondence::region_context(
+                            program,
+                            &required,
+                            &required_frontier.regions
+                        ),
+                        super::region_correspondence::region_context(
+                            program,
+                            &actual,
+                            &actual_frontier.regions
+                        ),
+                    ));
                 }
             }
         }
@@ -499,6 +532,7 @@ fn frontier_sources(
                         lifetime_only: leaf.lifetime_only,
                         retained_contract: leaf.retained_contract,
                         reference: leaf.reference,
+                        reference_hops: leaf.reference_hops,
                         owner_path: leaf.owner_path.clone(),
                         lifetime: leaf.lifetime.clone(),
                         access: leaf.access,
@@ -664,6 +698,7 @@ fn sources_refine(
                     )
                     && actual.parameter_index == required.parameter_index
                     && actual.source == required.source
+                    && actual.source_reference_hops == required.source_reference_hops
                     && actual.kind == required.kind
             })
         }) =>

@@ -140,6 +140,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     // retention and bound the exact loan group. Publish its selected physical
     // release here, before backing hooks, unless that same home already ended.
     let mut selected_descriptors = Vec::new();
+    completion_phase("normal completion: descriptor producer");
     for completion in completions {
         let OperationPlan::ReleaseReference {
             source: source @ SourcePlan::StructuralResult { binding_ordinal },
@@ -210,6 +211,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         },
     );
     if dying.is_empty() {
+        completion_phase("normal completion: finished");
         trace.restore(&caller_trace);
         return Some(completions);
     }
@@ -219,6 +221,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     completion_phase("normal completion: retained operand dependencies");
     let mut retained = Vec::new();
     for argument in invocation.structural_operands() {
+        completion_phase("normal completion: operand result bindings");
         let root = if let Some(ordinal) = argument.source_structural_result_binding_ordinal() {
             let mut bindings = results
                 .iter()
@@ -239,9 +242,10 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         let Some(root) = values.root_for_expression(state.symbol, statement, expression) else {
             continue;
         };
+        completion_phase("normal completion: operand value graph");
         retained.extend(values.value_dependencies(root.root)?);
     }
-    completion_phase("normal completion: call occurrence");
+    completion_phase("normal completion: invocation lookup");
     let flow = facts.flow.control.state(machine.symbol, state.symbol)?;
     let mut source_calls = facts
         .flow
@@ -259,12 +263,29 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     }
     completion_phase("normal completion: input lifetime roots");
     let mut retained_owners = Vec::new();
+    completion_phase("normal completion: input lifetimes");
     for operand in facts.flow.control.operands.span(source_call.operands)? {
-        for root in crate::flow::captured_lifetime_roots(program, &facts.flow.control, operand)? {
+        let roots = crate::flow::captured_lifetime_roots(program, &facts.flow.control, operand);
+        if roots.is_none() && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE normal-completion-input-lifetime machine={} state={} call={:?} operand={:?} profile={:?}",
+                machine.name,
+                state.name,
+                source_call,
+                operand,
+                facts
+                    .flow
+                    .control
+                    .operand_retentions
+                    .is_valid(operand.retention)
+                    .then(|| facts.flow.control.operand_retentions.get(operand.retention)),
+            );
+        }
+        for root in roots? {
             crate::shared::collections::push_unique(&mut retained_owners, root);
         }
     }
-    completion_phase("normal completion: completed operand occurrences");
+    completion_phase("normal completion: completed expression lookup");
     let (_, statement_node) = indexed_statements(program, state.statement_nodes)
         .find(|(position, _)| *position == statement as usize)?;
     let completed = crate::checks::ownership_occurrences::completed_expressions(
@@ -377,6 +398,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
             cleanup_actions,
         });
     }
+    completion_phase("normal completion: finished");
     trace.restore(&caller_trace);
     Some(completions)
 }
