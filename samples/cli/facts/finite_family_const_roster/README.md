@@ -80,7 +80,9 @@ local selection on macOS ARM64: ten positives check, eleven controls reject for
 the intended reasons, and all ten corpus positives execute with native and
 Terminal exits 0. All nine sample positives also execute with both exits 0;
 their nine twins reject as intended. The claim retains the producer profiles,
-316 input hashes, reports and raw outputs.
+316 input hashes, reports and raw outputs. The source-only corpus records
+retain the actual `a50253a693d8` stamp. Its replay source archive is preserved
+in [PR #1861](https://github.com/CathedralOS/Omega/pull/1861).
 
 The ordinary forwarding case first exposed a second defect: the arithmetic
 checker discarded a complete disjunction that was identical to the called
