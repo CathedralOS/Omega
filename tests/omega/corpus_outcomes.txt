@@ -2709,6 +2709,8 @@ fail/facts/provider_contract_endpoint_pending_call_through_parameter_rejected re
 	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
 fail/facts/provider_contract_endpoint_pending_call_through_target_body_rejected rejected 3326ms expected @4b50ded92ae9
 	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
+fail/facts/provider_poststate_selector_dispatch_result_rejected rejected 7678ms expected @45808887db27
+	a completed copied argument retains backing storage overlapping a staged exclusive loan
 fail/facts/recast_parent_restoration_argument_snapshot_rejected rejected 710ms expected @0a3a759c64e3
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_case_backing_overlap_rejected rejected 3289ms expected @8fce926f9735
@@ -28099,9 +28101,10 @@ fail/facts/provider_poststate_proof_subjects_rejected rejected 2464ms expected @
 	machine `Direct::keep` satisfies `Bounds::keep` but proves no ensures matching the declared law `second == ProofNat::Zero` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
 fail/facts/provider_poststate_readonly_subjects_rejected rejected 2580ms expected @ccdb99ca2214
 	machine `Direct::keep` satisfies `Readable::keep` but proves no ensures matching the declared law `second.len == 7` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
-fail/facts/provider_poststate_selector_different_join_rejected rejected 12293ms unexpected regressed-from:checked @61d32e24eb90
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(32), result: PlaceId(209), reason: "caller descriptor snapshots could not be reconstructed" }))
-fail/facts/provider_poststate_selector_unknown_parameter_rejected checked 11930ms @911f6617ba9e
+fail/facts/provider_poststate_selector_different_join_rejected rejected 9110ms expected regressed-from:checked @45808887db27
+	a completed copied argument retains backing storage overlapping a staged exclusive loan
+fail/facts/provider_poststate_selector_unknown_parameter_rejected rejected 9623ms expected regressed-from:checked @45808887db27
+	a completed copied argument retains backing storage overlapping a staged exclusive loan
 fail/facts/provider_poststate_wrong_inputs_rejected rejected 2728ms expected @ccdb99ca2214
 	machine `Installer::install` satisfies `Installing::install` but proves no ensures matching the declared law `destination.bytes.len == first.bytes.len` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
 fail/facts/provider_poststate_wrong_projection_rejected rejected 7433ms expected @911f6617ba9e
