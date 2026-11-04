@@ -1,0 +1,58 @@
+{
+  "qualified_compiler_source": "f78c2623a68cf93044b0b38befd42e627a98667a",
+  "publication_base": "674184316eba783ba3d8324aa1cdf6053b3be0cb",
+  "baseline_source": "c5cc3d8749224ed1a76fa7abad1707dfd9f5dd1d",
+  "baseline_accepted_source": "3bcdc2d9e3b81ab4af705b8c14d04a6f4021a8dd",
+  "previous_evidence": [
+    "3a3a4d53e122c3508075d50bb73ef3633055e13e",
+    "c03441063d2c5488948a77f61ef41660565288bb",
+    "024779c6ffe4db42ec4ce3d9771f35b5377e36cd"
+  ],
+  "execution_host": "macos_arm64",
+  "positive_both": 37,
+  "negative_controls": 44,
+  "corpus": {
+    "fixtures": 119,
+    "checked": 36,
+    "rejected": 83,
+    "wrong_reason": 0,
+    "unsafe_acceptances": 0,
+    "lost_successes": 0,
+    "edited_fixture_keys": 94,
+    "unselected_blocks_unchanged": true
+  },
+  "rust_tests": 10,
+  "rust_format_files": 36,
+  "added_line_lint_diagnostics": 0,
+  "source_bundles": [
+    {
+      "file": "interval-window-preintegration.bundle",
+      "sha256": "271dc12952d9a12521ce6f1a9d206e863edc36638f0c9480b203986686fa39d5",
+      "prerequisites": [
+        "5209eac451caf43591135c2b453033e60b4df917"
+      ]
+    },
+    {
+      "file": "interval-window-integrated-source.bundle",
+      "sha256": "359f9e83065649e7db2c5c2a13b2798c594999f7c58aed78c593ade0aab096d3",
+      "prerequisites": [
+        "674184316eba783ba3d8324aa1cdf6053b3be0cb"
+      ]
+    },
+    {
+      "file": "interval-window-qualified-source-f78c2623a68cf93044b0b38befd42e627a98667a.bundle",
+      "sha256": "5a75d3894543724ff1dee64d1b4e93590b7c9783cc8bee482ba30139426f71ba",
+      "prerequisites": [
+        "674184316eba783ba3d8324aa1cdf6053b3be0cb"
+      ]
+    }
+  ],
+  "observations": {
+    "file": "observations.tar.gz",
+    "sha256": "b9e408b30ce3666535528755e51f6ff0cc2aa06a25a77cd01c286d6985404cea",
+    "bytes": 9008780,
+    "receipt_files": 5544
+  },
+  "limits": "Native and Terminal execution is observed on macOS ARM64. Two restoration controls reject at an earlier field-loan gate, and two stronger-predicate neighbors stop during layout preparation. Their later obligations remain unverified. The original baseline comparison remains exactly 40 fixtures. Parent migration and GUI qualification remain open or deferred as documented.",
+  "preserved_attempts": "Earlier semantic refusals, disk-full links, unsuccessful runner retries and the cleanup-helper failure remain recorded with their actual sources and results. Completed producer bytes are retained locally in verified lossless archives; their original digests, profiles and archival records are included."
+}
