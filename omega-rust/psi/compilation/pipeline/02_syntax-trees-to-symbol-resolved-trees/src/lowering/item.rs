@@ -22,14 +22,11 @@ use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::ConstResolutionMode;
 use crate::resolution::lowerer::Lowerer;
 use crate::tables::syntax_items;
-use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use symbol_resolved_trees::name::DiagnosticName;
 use symbol_resolved_trees::trait_definition::ConformanceRowSource;
-use syntax::expression::ExpressionNode;
 use syntax::item::Item;
-use syntax::types::TypeReferenceNode;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_item(
@@ -139,9 +136,6 @@ fn lower_item_with_exposure(
                             lowerer,
                             syntax_trees,
                             conformance_name,
-                            &conformance.trait_name,
-                            conformance.trait_lifetime_arguments.as_slice(),
-                            conformance.trait_arguments,
                             edge_trait.as_ref(),
                             None,
                             machine,
@@ -153,9 +147,6 @@ fn lower_item_with_exposure(
                             lowerer,
                             syntax_trees,
                             conformance_name,
-                            &conformance.trait_name,
-                            conformance.trait_lifetime_arguments.as_slice(),
-                            conformance.trait_arguments,
                             None,
                             None,
                             machine,
@@ -171,9 +162,6 @@ fn lower_item_with_exposure(
                             lowerer,
                             syntax_trees,
                             conformance_name,
-                            &conformance.trait_name,
-                            conformance.trait_lifetime_arguments.as_slice(),
-                            conformance.trait_arguments,
                             Some(declaring_trait),
                             Some(*requirement_ordinal),
                             machine,
@@ -363,45 +351,15 @@ fn lower_closed_machine_row(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     conformance_name: &str,
-    trait_name: &syntax::identifier::Identifier,
-    trait_lifetime_arguments: &[syntax::identifier::Identifier],
-    trait_arguments: arena::HandleSpan<syntax::types::TypeReferenceHandle>,
     declaring_trait: Option<&syntax::identifier::Identifier>,
     requirement_ordinal: Option<usize>,
     machine: &syntax::item::Machine,
     source: ConformanceRowSource,
 ) -> Result<symbol_resolved_trees::trait_definition::ConformanceRow, Diagnostic> {
     let requirement_name = machine.name.clone();
-    if source == ConformanceRowSource::Inline
-        && let Some((realization_name, authored_realization_source_span)) = sealed_requirement_call(
-            syntax_trees,
-            trait_name,
-            trait_lifetime_arguments,
-            trait_arguments,
-            &requirement_name,
-            machine,
-        )
-    {
-        // The member's only body is a call to a machine that already satisfies
-        // this requirement. That machine is the realization. A second machine
-        // would be a different plan, and body completion cannot retarget the
-        // row after the empty-body pass.
-        return Ok(symbol_resolved_trees::trait_definition::ConformanceRow {
-            declaring_trait: symbols::SymbolHandle::invalid(),
-            declaring_trait_name: declaring_trait
-                .map(|name| lower_name(syntax_trees, name))
-                .unwrap_or_default(),
-            requirement: symbols::SymbolHandle::invalid(),
-            requirement_name: lower_name(syntax_trees, &requirement_name),
-            provisional_requirement_ordinal: requirement_ordinal,
-            realization_machine: symbols::SymbolHandle::invalid(),
-            realization_state: symbols::SymbolHandle::invalid(),
-            realization_name: DiagnosticName::generated(realization_name),
-            authored_realization_source_span: Some(authored_realization_source_span),
-            provisional_realization_ordinal: None,
-            source: ConformanceRowSource::Reference,
-        });
-    }
+    // A forwarding member still owns its identity, contracts and body. Keep
+    // the call for ordinary checking; physical call elimination belongs after
+    // resolution and proof, when it can preserve those separate obligations.
     let realization_name = declaring_trait.map_or_else(
         || {
             format!(
@@ -452,185 +410,4 @@ fn lower_closed_machine_row(
         provisional_realization_ordinal: Some(realization_ordinal),
         source,
     })
-}
-
-/// An inline member whose body is one static call is the callee when that
-/// callee already satisfies this exact requirement. A helper that does not
-/// satisfy the requirement stays a real call.
-fn sealed_requirement_call(
-    syntax_trees: &SyntaxTrees,
-    trait_name: &syntax::identifier::Identifier,
-    trait_lifetime_arguments: &[syntax::identifier::Identifier],
-    trait_arguments: arena::HandleSpan<syntax::types::TypeReferenceHandle>,
-    requirement_name: &syntax::identifier::Identifier,
-    machine: &syntax::item::Machine,
-) -> Option<(String, source::SourceSpan)> {
-    let (callee_path, callee_span) = sole_static_call(syntax_trees, machine)?;
-    let mut matched = None;
-    let mut matched_targets = Vec::new();
-    for item in syntax_trees.root_items() {
-        let Item::Machine(candidate) = item else {
-            continue;
-        };
-        if candidate.name.as_str(syntax_trees) != callee_path {
-            continue;
-        }
-        let satisfies = candidate_satisfies_requirement(
-            syntax_trees,
-            candidate,
-            trait_name,
-            trait_lifetime_arguments,
-            trait_arguments,
-            requirement_name,
-        );
-        if !satisfies {
-            continue;
-        }
-        // One path names several satisfying bodies only as the per-target
-        // members of a product family; two bodies for the same target are
-        // competing overloads. BUILD-OWNED-TARGET-SELECTION deletes the
-        // target-prefixed members and with them this distinction.
-        let target = candidate
-            .authored_target
-            .as_ref()
-            .map(|target| target.as_str(syntax_trees));
-        if matched_targets.contains(&target) {
-            return None;
-        }
-        matched_targets.push(target);
-        matched.get_or_insert((callee_path.clone(), callee_span));
-    }
-    matched
-}
-
-fn candidate_satisfies_requirement(
-    syntax_trees: &SyntaxTrees,
-    candidate: &syntax::item::Machine,
-    trait_name: &syntax::identifier::Identifier,
-    trait_lifetime_arguments: &[syntax::identifier::Identifier],
-    trait_arguments: arena::HandleSpan<syntax::types::TypeReferenceHandle>,
-    requirement_name: &syntax::identifier::Identifier,
-) -> bool {
-    syntax_items(syntax_trees)
-        .satisfies_clauses(candidate.satisfies)
-        .iter()
-        .any(|clause| {
-            clause.trait_name.as_str(syntax_trees) == trait_name.as_str(syntax_trees)
-                && clause.requirement.as_ref().is_some_and(|requirement| {
-                    requirement.as_str(syntax_trees) == requirement_name.as_str(syntax_trees)
-                })
-                && clause.lifetime_arguments.len() == trait_lifetime_arguments.len()
-                && clause
-                    .lifetime_arguments
-                    .iter()
-                    .zip(trait_lifetime_arguments)
-                    .all(|(left, right)| left.as_str(syntax_trees) == right.as_str(syntax_trees))
-                && syntax_type_arguments_match(syntax_trees, clause.arguments, trait_arguments)
-        })
-}
-
-fn syntax_type_arguments_match(
-    syntax_trees: &SyntaxTrees,
-    left: arena::HandleSpan<syntax::types::TypeReferenceHandle>,
-    right: arena::HandleSpan<syntax::types::TypeReferenceHandle>,
-) -> bool {
-    let left = syntax_trees.type_references.type_reference_handles(left);
-    let right = syntax_trees.type_references.type_reference_handles(right);
-    left.len() == right.len()
-        && left.iter().zip(right).all(|(left, right)| {
-            syntax_type_spelling(syntax_trees, *left).is_some_and(|spelling| {
-                syntax_type_spelling(syntax_trees, *right) == Some(spelling)
-            })
-        })
-}
-
-fn syntax_type_spelling(
-    syntax_trees: &SyntaxTrees,
-    reference: syntax::types::TypeReferenceHandle,
-) -> Option<String> {
-    match syntax_trees.type_references.type_reference(reference) {
-        TypeReferenceNode::Named(name) => Some(name.as_str(syntax_trees).to_string()),
-        TypeReferenceNode::Unit => Some("()".to_string()),
-        TypeReferenceNode::Reference { referee, .. } => Some(format!(
-            "&{}",
-            syntax_type_spelling(syntax_trees, *referee)?
-        )),
-        TypeReferenceNode::Slice { element_type } => Some(format!(
-            "[{}]",
-            syntax_type_spelling(syntax_trees, *element_type)?
-        )),
-        TypeReferenceNode::Generic {
-            base_name,
-            arguments,
-            ..
-        } => {
-            let arguments = syntax_type_references(syntax_trees)
-                .type_reference_handles(*arguments)
-                .iter()
-                .map(|argument| syntax_type_spelling(syntax_trees, *argument))
-                .collect::<Option<Vec<_>>>()?
-                .join(", ");
-            Some(format!("{}<{arguments}>", base_name.as_str(syntax_trees)))
-        }
-        _ => None,
-    }
-}
-
-fn sole_static_call(
-    syntax_trees: &SyntaxTrees,
-    machine: &syntax::item::Machine,
-) -> Option<(String, source::SourceSpan)> {
-    let [state] = syntax_trees.items.state_handles(machine.states) else {
-        return None;
-    };
-    let state = syntax_trees.items.state(*state);
-    let [statement] = syntax_trees.items.statements(state.statements) else {
-        return None;
-    };
-    let syntax::statement::StatementNode::Transition(transition) =
-        syntax_trees.statements.statement(*statement)
-    else {
-        return None;
-    };
-    if transition.continuation.is_valid()
-        || transition.guard != syntax::statement::TransitionGuardNode::Always
-        || transition.exit != syntax::statement::TransitionExit::Ordinary
-        || !syntax_trees
-            .statements
-            .outcome_proof_selectors(transition.proof_selectors)
-            .is_empty()
-    {
-        return None;
-    }
-    let syntax::statement::TransitionTargetNode::Value(expression) =
-        syntax_trees.statements.transition_target(transition.target)
-    else {
-        return None;
-    };
-    let ExpressionNode::Call(call) = syntax_trees.expressions.expression(*expression) else {
-        return None;
-    };
-    if !call.target_is_static {
-        return None;
-    }
-    let target_name = call.target.as_str(syntax_trees).to_string();
-    let target_span = call.target.source_span();
-    if !call.receiver.is_valid() {
-        return Some((target_name, target_span));
-    }
-    let ExpressionNode::Name(path) = syntax_trees.expressions.expression(call.receiver) else {
-        return None;
-    };
-    let members = syntax_trees.expressions.identifier_path_members(*path);
-    let first = members.first()?;
-    let mut names = members
-        .iter()
-        .map(|member| member.as_str(syntax_trees).to_string())
-        .collect::<Vec<_>>();
-    names.push(target_name);
-    let span = source::SourceSpan::new(
-        first.source_span().source_id,
-        source::Span::new(first.source_span().span.start, target_span.span.end),
-    );
-    Some((names.join("::"), span))
 }
