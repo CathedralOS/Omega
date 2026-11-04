@@ -104,6 +104,14 @@ pub enum SelectedInstructionError {
         operation: Option<semantic_vocabulary::OperationId>,
         site: optimization_core::CompilerCheckSite,
     },
+    /// The target has no admitted instruction contract for this atomic form.
+    AtomicFormUnavailable {
+        target: target::NativeTarget,
+        form: selected_instructions::AtomicForm,
+        function: usize,
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+    },
     AmbiguousSourceShape {
         function: usize,
         first: &'static str,

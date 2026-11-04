@@ -29,11 +29,13 @@ the fact. Selector identity, checking of unselected implementations, portable
 Terminal Psi, provider selection, calling plans and actual native/Terminal
 agreement follow the [parent requirements](../README.md).
 
-All nine positives and nine intended refusals have current Linux x86-64
+All nine positives and nine intended refusals have Linux x86-64 and macOS ARM64
 qualification at `51ca56236d0f`. Each positive actually runs with native and
 Terminal exit zero; its constrained consumer accepts the public named interval.
 The [parent evidence](../README.md) identifies the two complementary Linux
 runs and the separately observed root programs at `0f3013a5e471`.
 
-The full macOS ARM64 run is still active and supplies no completed result yet.
-Other hosts, final publication and the broader parent acceptance remain open.
+The retained macOS pilot reports contain the completed outcomes even though
+the outer workflow reached its one-hour limit and was canceled. The
+[parent evidence](../README.md) keeps those two facts distinct. Other hosts and
+the broader parent acceptance remain open.

@@ -857,6 +857,16 @@ helper that passes does not close an item.
   as one reusable library-authoring path, not recognition of format names or
   attached data machines. Data remains layout-neutral; core/std and community
   policies use the same checked machinery.
+  - Implement [demand-driven layout formation](wiki/spec/layouts/plans.md#layout-demand-and-validation)
+    without an all-target pre-pass for unused bodies. Retain exact application
+    and target demand from entries, selected Build-row closures, transitive
+    helpers/callbacks and compile-time geometry consumers; validate a newly
+    demanded application before use while keeping all ordinary source checks.
+    Pin unused-layout non-evaluation and rejection when that same layout is
+    consumed, including newly selected closures and invalid source in unused
+    bodies. Keep `unselected_target_{helper,callback}_layout_underflow` and
+    `unselected_target_layout_contract` rejecting when another declared target
+    row demands the bad plan, regardless of `--target` output narrowing.
   - Implement transparent `data Alias<...> = TypeExpression;` with all existing
     binder kinds, partial application, computed const arguments, exact machine
     and conformance selection, lifetime/value-subject preservation, public
@@ -1212,6 +1222,13 @@ defines the complete product bar.
     [temporary qualified-view retirement](wiki/spec/language/domains.md#temporary-qualified-views)
     across loan cohorts, and scalar reads/results under
     [copy and publication rules](wiki/spec/language/domains.md#establishment-transport-and-helper-calls).
+    Enforce [lender-domain restoration](wiki/spec/language/dependent_values.md#lent-storage-retains-its-declared-domains)
+    for declared locals through mutable calls and qualification-erased views:
+    `fail/collections/fixed_array_write_rejects_element_domain` must reject,
+    while `pass/domains/qualified_mutable_scalar_input_domain_expires` and
+    `samples/cli/facts/additional_input_domain_mutation` retain entry-only fact
+    expiration over storage that owes no such domain. Preserve restored-call
+    positives and declared-field rejection controls; no encoding-specific check.
   - Lower a borrow of a same-carrier cast: `observe(&(issued as Ticket in
     Ticket::Held))` checks but has no executable body ("earlier whole local
     correspondence"), and `look(&(issued as Ticket))` fails with "completed
