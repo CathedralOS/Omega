@@ -81,13 +81,24 @@ Its verified CLI binary has the same digest as the earlier Linux producer.
 No positive, pinned fixture, compiler or library input changed in that edit.
 The records keep the source revision at which each observation was made.
 
-The complete macOS ARM64 selection remains active in
-[run 41756122501](https://github.com/CathedralOS/Omega/actions/runs/41756122501).
-No macOS result is claimed here, and its existing rows remain unchanged.
-The four ProgramEntry and provider bindings do not establish native execution
-on Windows x86-64 or Linux ARM64. Final review and remote-main publication
-verification remain open. Broader dynamic dispatch and target-selection
-acceptance stays on the task board.
+The retained macOS ARM64 reports also complete both rows at `51ca56236d0f`:
+eighteen accepted positives, eighteen intended corpus refusals, eighteen
+actual native/Terminal exit-zero pairs, forty-five ordinary projects
+(eighteen passes and twenty-seven intended refusals), and both root programs.
+[Run 41756122501](https://github.com/CathedralOS/Omega/actions/runs/41756122501)
+hit its one-hour limit and the workflow is canceled. Its retained pilot summary
+and all six stages had completed successfully. Preparing the optimized producer
+took 2,632 seconds; the workflow is not relabeled successful, and no additional
+execution was invented or needed to record these observed results.
+
+The source migration landed in [PR #1486](https://github.com/CathedralOS/Omega/pull/1486)
+at `fa33c81d5ef2`. Fetched-main verification confirmed the reviewed source,
+all 532 authored input hashes and both recorded files, preserving unrelated
+parent records. The macOS observations keep their actual earlier source stamp;
+no execution at that publication or a later metadata commit is inferred.
+The four target bindings do not establish native execution on Windows x86-64
+or Linux ARM64. Broader dynamic dispatch and target-selection acceptance stays
+on the task board.
 
 <details><summary>Historical baseline and retained source</summary>
 
