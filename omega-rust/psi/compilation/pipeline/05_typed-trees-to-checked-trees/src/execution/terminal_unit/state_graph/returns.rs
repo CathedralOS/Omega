@@ -52,12 +52,13 @@ pub(super) fn scalar_completion(
         return None;
     }
     if let Some(binding) = returned_binding {
-        // The state's final expression. A closing terminal machine call's
-        // bound result completes through `terminal_calls::completion`.
-        return (matches!(
-            statements.get(terminator_index..),
-            Some([StatementNode::Expression(_)])
-        ) && binding.primitive_type == primitive_type)
+        // The retained result is complete before this terminator, including
+        // when typing normalized its final invocation into a value arm.
+        return (terminator_index.checked_add(1)? == statements.len()
+            && control::completion_expression(program, machine, state, terminator_index)
+                .is_some()
+            && usize::try_from(binding.statement_index).ok()? == terminator_index
+            && binding.primitive_type == primitive_type)
             .then_some(checked_trees::CheckedScalarReturnPlan::Binding(*binding));
     }
     let (exits, prefix) =

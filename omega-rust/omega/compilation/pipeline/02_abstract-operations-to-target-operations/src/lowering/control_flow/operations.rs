@@ -163,6 +163,22 @@ pub(super) fn lower_operation(
             site.provenance.operations.push(*psi_operation);
             Ok(())
         }
+        AbstractOperation::GlobalDescriptorTable {
+            psi_operation,
+            service,
+            operation,
+            source,
+        } => {
+            site.operations
+                .push(TargetUnitOperation::GlobalDescriptorTable {
+                    psi_operation: *psi_operation,
+                    service: *service,
+                    operation: *operation,
+                    source: source.clone(),
+                });
+            site.provenance.operations.push(*psi_operation);
+            Ok(())
+        }
         AbstractOperation::RegisterAccess {
             psi_operation,
             service,

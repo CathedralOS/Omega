@@ -129,7 +129,9 @@ impl EvaluatedBindingUsage {
 /// Build metadata, not executable runtime arguments.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildNativeBindingOrigin {
-    pub requirement_identity: String,
+    /// Index into the same evaluated via-binding identity table as the
+    /// receipt's producer callable.
+    pub requirement_identity: terminal_psi::TerminalIdentityIndex,
     pub source_occurrence_digest: [u8; 32],
     pub terminal_code: terminal_psi::TerminalPsiIdentity,
     pub fuel_schedule: u32,
@@ -138,9 +140,20 @@ pub struct BuildNativeBindingOrigin {
 }
 
 impl BuildNativeBindingOrigin {
-    fn validate(&self) -> Result<(), String> {
-        if self.requirement_identity.is_empty()
-            || self.source_occurrence_digest == [0; 32]
+    /// Resolve the requirement text the receipt commitment covers. The
+    /// commitment hashes canonical text, never table ordinals, so moving a
+    /// receipt between identity tables keeps its digest.
+    fn validate<'table>(
+        &self,
+        identities: &'table terminal_psi::TerminalIdentityTable,
+    ) -> Result<&'table str, String> {
+        let requirement = identities
+            .text(self.requirement_identity)
+            .filter(|requirement| !requirement.is_empty());
+        let Some(requirement) = requirement else {
+            return Err("native Build binding origin has no exact requirement identity".into());
+        };
+        if self.source_occurrence_digest == [0; 32]
             || self.terminal_code.program_fingerprint.as_bytes() == &[0; 32]
             || self.fuel_schedule == 0
             || self.storage_schedule == 0
@@ -148,10 +161,14 @@ impl BuildNativeBindingOrigin {
         {
             return Err("native Build binding origin is incomplete".into());
         }
-        Ok(())
+        Ok(requirement)
     }
-    fn feed(&self, digest: &mut crate::provider_evidence::digest_encoder::DomainDigestEncoder) {
-        digest.bytes(self.requirement_identity.as_bytes());
+    fn feed(
+        &self,
+        requirement: &str,
+        digest: &mut crate::provider_evidence::digest_encoder::DomainDigestEncoder,
+    ) {
+        digest.bytes(requirement.as_bytes());
         digest.raw(&self.source_occurrence_digest);
         digest.raw(&self.terminal_code.vocabulary_marker.get().to_le_bytes());
         digest.raw(self.terminal_code.program_fingerprint.as_bytes());
@@ -235,8 +252,13 @@ impl EvaluatedBindingReceipt {
 
     /// Rejoin one completed source-issued Build evaluation. This does not
     /// admit the foreign promise: provider and executable admission still own it.
-    pub fn with_build_origin(mut self, origin: BuildNativeBindingOrigin) -> Result<Self, String> {
-        origin.validate()?;
+    /// `identities` is the table the origin's requirement index was interned in.
+    pub fn with_build_origin(
+        mut self,
+        origin: BuildNativeBindingOrigin,
+        identities: &terminal_psi::TerminalIdentityTable,
+    ) -> Result<Self, String> {
+        let requirement = origin.validate(identities)?;
         if self.build_origin.is_some() || self.producer_package.is_none() {
             return Err(
                 "native Build receipt has duplicate origin or no immutable supplier".into(),
@@ -246,15 +268,15 @@ impl EvaluatedBindingReceipt {
             b"omega.build-native-binding-receipt.sha256.v1\0",
         );
         digest.raw(&self.identity);
-        origin.feed(&mut digest);
+        origin.feed(requirement, &mut digest);
         self.identity = digest.finish();
         self.build_origin = Some(origin);
         Ok(self)
     }
 
     /// Move an inert receipt between retained identity tables without changing
-    /// its meaning. Canonical producer text participates in the commitment;
-    /// invocation-local table ordinals do not.
+    /// its meaning. Canonical producer and Build requirement text participate
+    /// in the commitment; invocation-local table ordinals do not.
     pub fn reintern_producer(
         &self,
         source: &terminal_psi::TerminalIdentityTable,
@@ -266,6 +288,13 @@ impl EvaluatedBindingReceipt {
             .ok_or("native binding receipt lost its source producer identity")?;
         let mut receipt = self.clone();
         receipt.producer_callable_identity = destination.intern(producer);
+        if let Some(origin) = &mut receipt.build_origin {
+            let requirement = source
+                .text(origin.requirement_identity)
+                .filter(|name| !name.is_empty())
+                .ok_or("native Build receipt lost its source requirement identity")?;
+            origin.requirement_identity = destination.intern(requirement);
+        }
         Ok(receipt)
     }
 

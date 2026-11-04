@@ -1016,16 +1016,29 @@ pub(crate) fn validate_decoded(
                             },
                         ]
                 }
-                AtomicOperation::CompareExchange => {
-                    decoded
-                        == [
-                            DecodedInstruction::AtomicLockedCompareExchange {
-                                register: registers[2],
-                                base,
-                                bits,
+                AtomicOperation::CompareExchange | AtomicOperation::CompareExchangeOnce => {
+                    let mut expected = vec![
+                        DecodedInstruction::AtomicLockedCompareExchange {
+                            register: registers[2],
+                            base,
+                            bits,
+                        },
+                        mov(0, registers[3]),
+                    ];
+                    if let Some(outcome) = form.outcome_operand() {
+                        let destination = registers[usize::from(outcome)];
+                        expected.extend([
+                            DecodedInstruction::SetBoolean {
+                                condition: 4,
+                                destination,
                             },
-                            mov(0, registers[3]),
-                        ]
+                            DecodedInstruction::ZeroExtendU8 {
+                                source: destination,
+                                destination,
+                            },
+                        ]);
+                    }
+                    decoded == expected
                 }
                 operation @ (AtomicOperation::FetchAnd
                 | AtomicOperation::FetchOr

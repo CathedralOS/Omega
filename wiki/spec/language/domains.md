@@ -56,6 +56,39 @@ such as `domain i32::Km;` are unchanged. Machine receiver syntax and the
 `Self` conformance type remain absent. Existing unqualified data-field names
 in data predicates remain field references; `self.field` names them explicitly.
 
+### Carrier-exact membership
+
+Named decision: `carrier-exact-domain-membership`, settled 2026-11-03.
+
+A domain over `u16` classifies `u16` values, not values of any other carrier
+that happen to represent the same number. Before substituting a candidate into
+the domain predicate, form membership against the domain's exact resolved
+applied carrier. This rule applies equally to proof facts, contracts,
+qualifications, and executable membership tests.
+
+For `domain u16::Small requires self <= 10;`, `7u16 in Small` has the right
+carrier, while `7u8 in Small` is ill-formed even though seven fits both types.
+An explicit exact conversion, `(7u8 as u16) in Small`, precedes membership in
+the other carrier's domain. Anonymous literals follow ordinary expected-carrier
+landing; a suffix or an already typed operand cannot be re-landed by membership.
+Cross-carrier numeric equality remains a different judgment and grants no
+domain membership or conversion.
+
+Carrier correspondence uses retained type/declaration identities and the exact
+generic substitutions and declared type equations. Matching domain names,
+matching record fields, or erasing an operand to its mathematical value cannot
+replace it. The comparison concerns the data carrier, not identical sets of
+domain qualifications; ordinary predicate, semantic-role, access, provenance,
+ownership, and borrow obligations remain independently enforced.
+
+A carrier-generic domain family has a separately applied carrier at each use.
+Sharing its definition does not transfer membership between those carriers.
+Possible restrictions to all integer, signed integer, or unsigned integer
+carriers are discussed in the unaccepted
+[arbitrary-width integer proposal](../../proposals/0008_arbitrary_width_integers.md#carrier-families-and-domains).
+That proposal neither permits concrete cross-carrier membership nor admits
+arbitrary integer widths into the language.
+
 Scalar interval relationships use ordinary propositions, not a bracketed type
 suffix (`scalar-range-contract-spelling`). Put common-field relationships in the
 data declaration's `requires`, including guarded case-payload relationships,
@@ -662,6 +695,25 @@ Commutativity is not a condition for forming an indexed family, only evidence
 for a rewrite that reorders operands. Exact operation and law identities survive
 generic substitution and interface publication.
 
+A canonical integer index may have a qualified carrier such as `u8 in Wrapping`
+or `u8 in Saturating`. The qualification constrains operation matching; only
+the explicit conformance supplies the selected operation and its laws. A
+predicate-only qualification grants no arithmetic law. The complete applied
+conformance includes inherited requirements and their substitutions.
+[Literal-linked index identities](../proofs/contracts.md#literal-linked-index-identities)
+combine a checked identity law with its connection to an exact typed literal,
+and affect canonical identity in every application position. Qualification and
+the authored operations' formation obligations remain intact.
+
+The selected laws also govern
+[bounded distributive normalization](../proofs/contracts.md#bounded-canonical-index-normalization).
+Equivalent pre-expansion forms under one law set receive the same identity and
+cutoff decision. A well-formed large index may remain unexpanded; if a required
+comparison cannot be established because of that cutoff, report the expansion
+measure and limit instead of asserting inequality. A checked exact equality
+may supply compatibility without renaming the domain application. No localized
+canonical-budget override or implicit algebra selection follows.
+
 Units, coordinate frames, currencies, tensor shapes, scales, and encodings are
 library customers, not compiler cases. Metadata erasure removes no scaling,
 range-check, or rounding work from the chosen library operation. Runtime
@@ -682,6 +734,10 @@ establishes the exact predicate once; subsequent operations preserve it through
 their contracts instead of implicitly rescanning. Reading a byte does not break
 the encoding, while a slice preserving UTF-8 must prove codepoint-boundary
 endpoints. Mutation must preserve or re-establish the facts on affected places.
+For [declared local and field qualifications](dependent_values.md#lent-storage-retains-its-declared-domains),
+this includes loan handback after a call, even when the callee receives a view
+with the encoding qualification erased. An additional entry-only fact over
+otherwise unqualified storage remains distinct from a declared storage obligation.
 An abstract codepoint-text quotient is distinct from any chosen byte encoding;
 its observers obey [quotient contracts](../proofs/quotients.md).
 

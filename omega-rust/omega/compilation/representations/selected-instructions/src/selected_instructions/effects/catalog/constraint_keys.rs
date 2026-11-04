@@ -44,6 +44,7 @@ impl SelectedConstraintKeys {
             self.atomic_store,
             self.atomic_update,
             self.atomic_compare_exchange,
+            self.atomic_compare_exchange_once,
             // LSE uses the ordinary update row; a software-retry target can
             // select its separate interference contract without duplicating
             // an identical hardware row in the inventory.
@@ -163,6 +164,10 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::PortWrite => return self.rows.port_write,
             MachineSemanticKind::SystemRegisterRead => return self.rows.system_register_read,
             MachineSemanticKind::SystemRegisterWrite => return self.rows.system_register_write,
+            MachineSemanticKind::GlobalDescriptorTableLoad
+            | MachineSemanticKind::GlobalDescriptorTableStore => {
+                return self.rows.global_descriptor_table;
+            }
             MachineSemanticKind::ControlRegisterRead => return self.rows.control_register_read,
             MachineSemanticKind::ControlRegisterWrite => return self.rows.control_register_write,
             MachineSemanticKind::PortRegisterRead => return self.rows.port_register_read,
@@ -178,6 +183,9 @@ impl SelectedConstraintKeys {
                     crate::AtomicOperation::Load => self.rows.atomic_load,
                     crate::AtomicOperation::Store => self.rows.atomic_store,
                     crate::AtomicOperation::CompareExchange => self.rows.atomic_compare_exchange,
+                    crate::AtomicOperation::CompareExchangeOnce => {
+                        self.rows.atomic_compare_exchange_once
+                    }
                     crate::AtomicOperation::FetchAnd
                     | crate::AtomicOperation::FetchOr
                     | crate::AtomicOperation::FetchXor => self.rows.atomic_bitwise_update,

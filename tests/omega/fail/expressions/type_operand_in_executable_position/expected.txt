@@ -1,0 +1,1 @@
+a type operand is valid only in a static type predicate

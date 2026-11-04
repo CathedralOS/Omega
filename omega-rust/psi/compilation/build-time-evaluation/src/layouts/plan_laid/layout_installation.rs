@@ -77,11 +77,43 @@ fn invocation_owners(
     owners
 }
 
+/// Evaluate and install the geometry of every fixed representation the domain
+/// demands, first completing the execution applications its policies call.
 pub(crate) fn compute_plan_laid_layouts_in(
     typed: &mut TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &crate::build_time_evaluation::EvaluationDomain,
 ) -> Result<(), Vec<Diagnostic>> {
+    let requests = scoped_representation_requests(typed, domain)?;
+    if requests.is_empty() {
+        return Ok(());
+    }
+    typed_trees_to_typed_trees::prepare_execution_applications(typed)?;
+    install_requested_layouts(typed, selection_authority, domain, requests)
+}
+
+/// The same evaluation for a caller that already completed the execution
+/// applications and has not changed the program since. Preparation is a fixed
+/// point, so a second run walks the whole program and adds nothing; on a std
+/// program that walk was about 2.6 s of build-time layout evaluation.
+pub(super) fn compute_prepared_plan_laid_layouts_in(
+    typed: &mut TypedTrees,
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &crate::build_time_evaluation::EvaluationDomain,
+) -> Result<(), Vec<Diagnostic>> {
+    let requests = scoped_representation_requests(typed, domain)?;
+    if requests.is_empty() {
+        return Ok(());
+    }
+    install_requested_layouts(typed, selection_authority, domain, requests)
+}
+
+/// Demanded representations in dependency order, or none when the domain has
+/// no deployment inputs to evaluate them under.
+fn scoped_representation_requests(
+    typed: &TypedTrees,
+    domain: &crate::build_time_evaluation::EvaluationDomain,
+) -> Result<Vec<ScopedRepresentationRequest>, Vec<Diagnostic>> {
     let fail = |reason: String| vec![Diagnostic::error(reason)];
     let mut requests = Vec::new();
     for occurrence in collect_selected_program_type_occurrences(typed, domain.work()) {
@@ -211,14 +243,14 @@ pub(crate) fn compute_plan_laid_layouts_in(
     }
     let requests = ordered;
     if requests.is_empty() {
-        return Ok(());
+        return Ok(requests);
     }
     if domain.layout_targets.is_empty() && domain.layout_applications.is_none() {
         // Source completion may establish semantic constants before deployment
         // inputs exist. Retain exact constructor applications as obligations;
         // publish no provisional geometry. The settled Source facade requires
         // their physical closure before checking or Terminal production.
-        return Ok(());
+        return Ok(Vec::new());
     }
     for (position, target) in domain.layout_targets.iter().enumerate() {
         target.validate().map_err(|reason| fail(reason.into()))?;
@@ -231,7 +263,16 @@ pub(crate) fn compute_plan_laid_layouts_in(
             ));
         }
     }
-    typed_trees_to_typed_trees::prepare_execution_applications(typed)?;
+    Ok(requests)
+}
+
+fn install_requested_layouts(
+    typed: &mut TypedTrees,
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &crate::build_time_evaluation::EvaluationDomain,
+    requests: Vec<ScopedRepresentationRequest>,
+) -> Result<(), Vec<Diagnostic>> {
+    let fail = |reason: String| vec![Diagnostic::error(reason)];
     // A continuation replaces only the applications it owns. Earlier source
     // continuations and their arena-backed field/target rows remain available
     // to later dependencies; clearing the whole catalog loses that custody.

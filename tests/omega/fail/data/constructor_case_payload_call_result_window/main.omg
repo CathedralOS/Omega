@@ -4,8 +4,11 @@ use omega::language::core::float_operations;
 use omega::language::core::numeric_conversion;
 
 data Held<'samples> { values: &'samples mut [f64]; }
-data Outcome<'samples> {
-    case Some(held: Held<'samples>) where held.values.len == 2;
+data Outcome<'samples>
+    requires (self in Outcome::Empty)
+        || ((self in Outcome::Some) && self.held.values.len == 2)
+{
+    case Some(held: Held<'samples>);
     case Empty;
 }
 

@@ -4,6 +4,7 @@
 //! reconstructs the inputs after a later opaque write.
 
 use super::super::Execution;
+use arena::HandleSpan;
 use checked_trees::{BorrowCallFact, FlowOperandFact, FlowOperandRetainedSupplier};
 use facts::PlaceSegment;
 
@@ -11,7 +12,7 @@ impl Execution<'_, '_, '_> {
     pub(super) fn capture_output_lifetime_sources(
         &mut self,
         parameters: &[typed_trees::signature::StateParameter],
-        inputs: &[FlowOperandFact],
+        inputs: HandleSpan<FlowOperandFact>,
         call: &BorrowCallFact,
         identity: facts::InvocationOutputIdentity,
         owner_path: &[PlaceSegment],
@@ -36,8 +37,8 @@ impl Execution<'_, '_, '_> {
             })?;
             let mut suppliers = Vec::new();
             for source in &output.dependencies {
-                let actual = *inputs.get(source.parameter_index)?;
-                let input = self.context.control.operands.insert(actual);
+                let input = inputs.handles().nth(source.parameter_index)?;
+                let actual = *self.context.control.operands.get(input);
                 let source_path = crate::borrow::owner_place_segments(&source.source_path);
                 let (operand, mut projection) = if source.source
                     == checked_trees::ViewReturnInputSource::Stored

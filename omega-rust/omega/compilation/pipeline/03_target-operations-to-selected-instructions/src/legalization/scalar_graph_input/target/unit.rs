@@ -582,6 +582,8 @@ pub(super) fn validate_operation(
             AbstractOperation::EstablishStructuralArray { .. }
             | AbstractOperation::EstablishScalarArray { .. }
             | AbstractOperation::EstablishActivationClaim { .. }
+            | AbstractOperation::SplitActivationClaim { .. }
+            | AbstractOperation::MergeActivationClaim { .. }
             | AbstractOperation::ReleaseActivationClaim { .. }
             | AbstractOperation::EstablishNativeCodeLayout { .. }
             | AbstractOperation::EstablishRecord { .. }
@@ -944,6 +946,23 @@ pub(super) fn validate_operation(
             && sources.iter().any(|(identity, source)| {
                 *identity == value.value && source.scalar_type() == value.scalar_type
             }) => {}
+        (
+            TargetUnitOperation::GlobalDescriptorTable {
+                psi_operation,
+                service,
+                operation,
+                source,
+            },
+            AbstractOperation::GlobalDescriptorTable {
+                psi_operation: expected_operation,
+                service: expected_service,
+                operation: expected_kind,
+                source: expected_source,
+            },
+        ) if psi_operation == expected_operation
+            && service == expected_service
+            && operation == expected_kind
+            && source == expected_source => {}
         (
             TargetUnitOperation::StorageAddress {
                 psi_operation,

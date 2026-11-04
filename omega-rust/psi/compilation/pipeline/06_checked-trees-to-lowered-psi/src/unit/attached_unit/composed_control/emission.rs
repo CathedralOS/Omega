@@ -455,20 +455,14 @@ pub(super) fn emit_call_operations(
                 let source_value_count = retained_source_count.ok_or(
                     LoweringError::Unsupported("composed structural actual has no source prefix"),
                 )?;
-                let call =
-                    planned_operations[operation]
-                        .call()
-                        .ok_or(LoweringError::Unsupported(
-                            "composed structural actual has no call",
-                        ))?;
-                let offset = call.structural_arguments[..argument]
+                let arguments = planned_operations[operation].structural_operands();
+                let offset = arguments[..argument]
                     .iter()
                     .map(|source| source.call_selector_positions().count())
                     .sum::<usize>();
                 let selectors = staged_selector_slots[operation][offset..].to_vec();
                 if staged_structural_arguments[operation].is_empty() {
-                    staged_structural_arguments[operation] =
-                        vec![None; call.structural_arguments.len()];
+                    staged_structural_arguments[operation] = vec![None; arguments.len()];
                 }
                 let previous = staged_structural_arguments[operation][argument].take();
                 let captured = evaluate_frame!(source_value_count, |frame| {
@@ -581,7 +575,7 @@ pub(super) fn emit_call_operations(
         );
         let call_operands = if establishes_local || OperationFrame::lowers(operation) {
             None
-        } else {
+        } else if OperationFrame::consumes_prepared_operands(operation) {
             Some(literal_arguments::evaluate(
                 identities,
                 checked,
@@ -603,6 +597,8 @@ pub(super) fn emit_call_operations(
                 erased_parameters,
                 sequence,
             )?)
+        } else {
+            return unsupported("composed operation has no frame emission route");
         };
         // The final call publishes into the state's ordinary scalar binding
         // namespace. Retire argument temporaries first, after copying its

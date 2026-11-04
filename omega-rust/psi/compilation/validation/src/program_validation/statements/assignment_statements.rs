@@ -471,14 +471,18 @@ pub(super) fn validate<'a, 'p>(
                 diagnostics,
             );
         }
-        if let Some(stated) = current_state.and_then(|state| {
-            crate::proof_contracts::default_domains::stored_field_where_interval(
-                program,
-                machine,
-                state,
-                assignment.target,
-            )
-        }) {
+        // A plain record can restore its predicate over several stores.
+        // Atomic residents must remain valid after each individual event.
+        if atomic.is_some()
+            && let Some(stated) = current_state.and_then(|state| {
+                crate::proof_contracts::default_domains::stored_field_where_interval(
+                    program,
+                    machine,
+                    state,
+                    assignment.target,
+                )
+            })
+        {
             let contained = arithmetic_domains::check_where_interval_containment(
                 program,
                 stated,
@@ -532,7 +536,8 @@ pub(super) fn validate<'a, 'p>(
                 program,
                 machine,
                 state,
-                assignment,
+                statement,
+                scope.call_frames,
                 &written,
                 value_environment,
             );

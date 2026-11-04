@@ -35,10 +35,20 @@ pub(crate) fn derive_provider_plans(
     selected_target: Option<&str>,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
     target_machine_origins: &[SelectedTargetMachineOrigin],
+    native_bindings: &[DerivedProviderPlan],
 ) -> Result<Vec<DerivedProviderPlan>, Vec<diagnostics::Diagnostic>> {
     let context = services.context();
     let typed = context.typed;
     let mut plans: Vec<DerivedProviderPlan> = Vec::new();
+    // The package's `Build::bind` rows already own a realization for their
+    // requirements. A `boundary machine` satisfies declaration naming one of
+    // them derives no row of its own: the build-owned row is the one
+    // realization, and its provenance is what boundary discovery rejoins.
+    let native_row_requirements: Vec<SymbolHandle> = native_bindings
+        .iter()
+        .filter(|plan| plan.plan.target == selected_target.unwrap_or_default())
+        .flat_map(|plan| plan.provenance.row_requirements.iter().copied())
+        .collect();
     // Typed trees retain every authored body and its conformances. This
     // transitional settlement derives only the requested realization's rows;
     // semantic declaration queries must never perform that selection for us.
@@ -78,6 +88,9 @@ pub(crate) fn derive_provider_plans(
                             && !clause.via_expression.is_valid()
                             && clause.external_binding_source_span.is_none() =>
                     {
+                        if native_row_requirements.contains(&clause.requirement_symbol) {
+                            continue;
+                        }
                         let Some((binding, origin)) = inferred_compiler_leaf_binding(
                             typed,
                             machine,
@@ -179,8 +192,16 @@ pub(crate) fn derive_provider_plans(
         selected_target,
         evaluated_bindings,
     ));
-    let named =
-        super::named_provider_plans::derive(services, calling_plans, selected_target, &plans);
+    // Named maps join member realizations against every candidate row that
+    // owns one: authored conformance rows and build-owned native rows alike.
+    let mut join_candidates = plans.clone();
+    join_candidates.extend(native_bindings.iter().cloned());
+    let named = super::named_provider_plans::derive(
+        services,
+        calling_plans,
+        selected_target,
+        &join_candidates,
+    );
     if std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some() {
         for plan in &named {
             eprintln!("[prov] named-derived plan={}", plan.plan.name);

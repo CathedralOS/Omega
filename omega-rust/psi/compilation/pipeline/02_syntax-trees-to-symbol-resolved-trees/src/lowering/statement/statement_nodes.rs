@@ -399,13 +399,11 @@ pub(crate) fn lower_statement_node(
             }
             // An Always fallback is selected only after earlier arms fail.
             // Its target work cannot join the pre-dispatch hoist prefix.
-            // A first arm with a pattern (`subject { true -> .. }`) parses
-            // with an Always guard but is still selected by that pattern: its
-            // reads may be valid only when it matches (`u < 8 { true ->
-            // f(a[u + 1]) }`), so its target work stays behind selection too.
+            // A pattern arm (`true ->`, `Case { .. } ->`) carries its selection
+            // in its patterns rather than its guard, so it is guarded too.
             let unconditional = !has_preceding_transition
-                && matches!(transition.guard, TransitionGuardNode::Always)
-                && patterns.is_empty();
+                && transition.patterns.is_empty()
+                && matches!(transition.guard, TransitionGuardNode::Always);
             let target = lower_transition_target_node(
                 lowerer,
                 syntax_trees,

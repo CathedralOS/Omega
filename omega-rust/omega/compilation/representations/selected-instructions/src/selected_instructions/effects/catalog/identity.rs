@@ -45,7 +45,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v35\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v38\0");
     bytes.extend_from_slice(&catalog.target.identity_bytes());
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -57,6 +57,7 @@ pub fn machine_effect_catalog_identity(
         catalog.selected_keys.atomic_store,
         catalog.selected_keys.atomic_update,
         catalog.selected_keys.atomic_compare_exchange,
+        catalog.selected_keys.atomic_compare_exchange_once,
         catalog.selected_keys.atomic_bitwise_update,
         catalog.selected_keys.copy_bytes,
         catalog.selected_keys.hosted_read_byte,
@@ -113,6 +114,7 @@ pub fn machine_effect_catalog_identity(
             crate::MachineMemoryEffect::CopyBytesV1 => 6,
             crate::MachineMemoryEffect::AtomicFenceV1 => 15,
             crate::MachineMemoryEffect::CatalogFenceV1 => 16,
+            crate::MachineMemoryEffect::PrivateCallbackMaterializationV1 => 17,
             crate::MachineMemoryEffect::AtomicPointerV1 => 8,
             crate::MachineMemoryEffect::TemporaryStackStorageV1 => 9,
             crate::MachineMemoryEffect::NoneV1 => 0,
@@ -369,12 +371,21 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
             bytes.identity_bytes(&count_operand.to_le_bytes());
         }
         MachineEncodedMemoryEffect::NoneV1 => bytes.identity_bytes(&[0]),
+        MachineEncodedMemoryEffect::WriteFixedPointerV1 {
+            pointer_operand,
+            byte_count,
+        } => {
+            bytes.identity_bytes(&[21]);
+            bytes.identity_bytes(&pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&byte_count.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
             bytes.identity_bytes(&[7]);
             bytes.identity_bytes(&pointer_operand.to_le_bytes());
         }
         MachineEncodedMemoryEffect::AtomicFenceV1 => bytes.identity_bytes(&[18]),
         MachineEncodedMemoryEffect::CatalogFenceV1 => bytes.identity_bytes(&[19]),
+        MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1 => bytes.identity_bytes(&[20]),
         MachineEncodedMemoryEffect::AtomicPointerV1 {
             pointer_operand,
             form,
@@ -616,6 +627,8 @@ macro_rules! effect_tag_arms {
             $enum::ModelSpecificRead => 251,
             $enum::ModelSpecificWrite => 252,
             $enum::ProcessorHalt => 253,
+            $enum::GlobalDescriptorTableLoad => 259,
+            $enum::GlobalDescriptorTableStore => 260,
             $enum::ControlRegisterRead => 254,
             $enum::ControlRegisterWrite => 255,
             $enum::InterruptControl => 256,
@@ -640,6 +653,7 @@ pub(crate) const fn semantic_kind_payload(kind: MachineSemanticKind) -> Option<u
         MachineSemanticKind::AccessorScalarAccess(form) => Some(form.machine_payload()),
         MachineSemanticKind::NearestIeeeFloatArithmetic(form) => Some(form.machine_payload()),
         MachineSemanticKind::FloatResultPolicy(form) => Some(form.machine_payload()),
+        MachineSemanticKind::AtomicAccess(form) => form.machine_payload(),
         _ => None,
     }
 }
@@ -653,6 +667,7 @@ pub(crate) const fn alternative_family_payload(family: MachineAlternativeFamily)
         MachineAlternativeFamily::AccessorScalarAccess(form) => Some(form.machine_payload()),
         MachineAlternativeFamily::NearestIeeeFloatArithmetic(form) => Some(form.machine_payload()),
         MachineAlternativeFamily::FloatResultPolicy(form) => Some(form.machine_payload()),
+        MachineAlternativeFamily::AtomicAccess(form) => form.machine_payload(),
         _ => None,
     }
 }

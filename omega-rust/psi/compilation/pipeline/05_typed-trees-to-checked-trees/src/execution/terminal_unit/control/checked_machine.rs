@@ -282,6 +282,7 @@ pub(crate) fn build_checked_machine_residual_parts(
                 .into_iter()
                 .collect(),
             CheckedUnitEffectOperationPlan::RegisterAccess { .. }
+            | CheckedUnitEffectOperationPlan::GlobalDescriptorTable { .. }
             | CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
             | CheckedUnitEffectOperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. },

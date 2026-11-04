@@ -233,6 +233,8 @@ machine_semantic_kinds! {
     { fixed MemoryFence },
     { fixed ControlRegisterRead },
     { fixed ControlRegisterWrite },
+    { fixed GlobalDescriptorTableLoad },
+    { fixed GlobalDescriptorTableStore },
 
     { fixed AtomicFence },
     { fixed InvokeNoNormal },
@@ -311,6 +313,8 @@ impl MachineSemanticKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineAlternativeFamily {
+    GlobalDescriptorTableLoad,
+    GlobalDescriptorTableStore,
     ControlRegisterRead,
     ControlRegisterWrite,
     PortWrite,
@@ -427,6 +431,8 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::InvokeNoNormal => Self::InvokeNoNormal,
             MachineSemanticKind::SystemRegisterRead => Self::SystemRegisterRead,
             MachineSemanticKind::SystemRegisterWrite => Self::SystemRegisterWrite,
+            MachineSemanticKind::GlobalDescriptorTableLoad => Self::GlobalDescriptorTableLoad,
+            MachineSemanticKind::GlobalDescriptorTableStore => Self::GlobalDescriptorTableStore,
             MachineSemanticKind::ControlRegisterRead => Self::ControlRegisterRead,
             MachineSemanticKind::ControlRegisterWrite => Self::ControlRegisterWrite,
             MachineSemanticKind::PortRegisterRead => Self::PortRegisterRead,
@@ -595,6 +601,8 @@ pub enum MachineAlternativeApplicability {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineMemoryEffect {
+    /// Writes callback containers; partial placements also read their original bits.
+    PrivateCallbackMaterializationV1,
     /// Exact ordering event selected by the catalog operation, without a location.
     CatalogFenceV1,
     /// Orders coherent memory without accessing a location.
@@ -811,6 +819,9 @@ impl MachineEncodedEffects {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedMemoryEffect {
+    /// Containers and record roots come from the retained normalized callback roster.
+    /// The separate stack effect retains any return-address write by CALL.
+    PrivateCallbackMaterializationV1,
     /// Catalog ordering event; the selected kind and byte decoder fix its exact mask.
     CatalogFenceV1,
     /// Load one pointer from a named, layout-derived table field. The call's
@@ -881,6 +892,11 @@ pub enum MachineEncodedMemoryEffect {
     /// Exact footprint is the receiving-validated Store instruction byte size.
     WritePointerV1 {
         pointer_operand: u16,
+    },
+    /// The validated instruction writes this exact fixed byte span.
+    WriteFixedPointerV1 {
+        pointer_operand: u16,
+        byte_count: u16,
     },
     ReadIndexedPointerV1 {
         pointer_operand: u16,

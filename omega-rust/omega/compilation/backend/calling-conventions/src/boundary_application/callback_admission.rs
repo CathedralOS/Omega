@@ -8,14 +8,14 @@ use crate::{
 };
 
 impl BoundaryCallingApplication {
-    pub fn authenticated_callback_offset(
+    pub fn authenticated_callback_placements(
         &self,
         expected_commitment: [u8; 32],
         binder: StaticMachineBinderId,
         destination: &NativePlace,
         parameter: &NativeParameterApplication,
         context: &CallbackMaterializationContext,
-    ) -> Result<Option<usize>, String> {
+    ) -> Result<Option<Vec<layout_plans::LayoutPlacementReport>>, String> {
         if expected_commitment == [0; 32]
             || self.commitment != expected_commitment
             || self.recomputed_commitment()? != expected_commitment
@@ -148,7 +148,7 @@ impl BoundaryCallingApplication {
                 {
                     return Err("callback field changed its semantic formal association".to_owned());
                 }
-                Ok(Some(layout.field_offset(self.target)?))
+                Ok(Some(layout.field_placements(self.target)?))
             }
         }
     }

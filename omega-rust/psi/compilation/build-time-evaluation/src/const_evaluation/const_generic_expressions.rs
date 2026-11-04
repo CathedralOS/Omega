@@ -1059,6 +1059,9 @@ fn evaluate_probe_internal(
                 .to_owned(),
         );
     }
+    // An array length is a count: name that rule and its carrier before the
+    // landing detail, so a negative or fractional length reads as an
+    // array-length error while other landings keep their own wording.
     let (value, warnings) = value::evaluate_scalar_with_policy(
         typed,
         machine,
@@ -1067,7 +1070,17 @@ fn evaluate_probe_internal(
         destination,
         policy,
         calls,
-    )?;
+    )
+    .map_err(|reason| {
+        if extent {
+            format!(
+                "fixed-array length must evaluate to a nonnegative integer count of `{}`: {reason}",
+                destination.name()
+            )
+        } else {
+            reason
+        }
+    })?;
     if value.type_name() != destination.name() {
         return Err(format!(
             "landed `{}` result cannot initialize `{}`",

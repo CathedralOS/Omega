@@ -79,6 +79,7 @@ pub(in crate::legalization) fn admit(
     }
     if let abstract_operations::establish_or_subslice_set_pattern!(psi_operation, ..)
     | AbstractOperation::PortWrite { psi_operation, .. }
+    | AbstractOperation::GlobalDescriptorTable { psi_operation, .. }
     | AbstractOperation::EstablishActivationClaim { psi_operation, .. }
     | AbstractOperation::SplitActivationClaim { psi_operation, .. }
     | AbstractOperation::MergeActivationClaim { psi_operation, .. }

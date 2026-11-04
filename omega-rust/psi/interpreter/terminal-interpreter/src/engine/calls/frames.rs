@@ -384,6 +384,7 @@ impl TerminalExecution<'_> {
                     &prepared_arguments.aggregate_backings,
                     &prepared_arguments.primitive_loans,
                     &prepared_arguments.element_views,
+                    &prepared_arguments.byte_sequences,
                     &access_view_occurrences,
                 )
                 .map_err(|error| {
