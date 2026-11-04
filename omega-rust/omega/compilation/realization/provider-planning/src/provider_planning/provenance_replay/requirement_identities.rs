@@ -82,7 +82,12 @@ pub(crate) fn exact_installed_external_binding_identity<'typed>(
 /// than a widened catalog row.
 fn inferred_hosted_catalog_leaf(
     machine_name: &str,
-) -> Option<(&'static str, &'static str, &'static str, BoundaryIntrinsicShape)> {
+) -> Option<(
+    &'static str,
+    &'static str,
+    &'static str,
+    BoundaryIntrinsicShape,
+)> {
     match machine_name {
         "ConsoleNativeProvider::exit_process" => Some((
             "ConsoleNativeProvider",

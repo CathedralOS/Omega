@@ -26,16 +26,29 @@ pub fn is_indexed_logical_machine(program: &dyn crate::CheckingInput, machine: &
                 .map(|machine| machine.symbol)
                 .collect::<Vec<_>>();
             loop {
-                let retained = candidates
+                let mut retained = candidates
                     .iter()
                     .copied()
                     .filter(|symbol| {
-                        program
-                            .machine_by_symbol(*symbol)
-                            .is_some_and(|machine| logical_body(program, machine, &candidates))
+                        program.machine_by_symbol(*symbol).is_some_and(|machine| {
+                            let mut stack = Vec::new();
+                            logical_body(program, machine, &candidates, &mut stack)
+                        })
                     })
                     .collect::<Vec<_>>();
                 if retained.len() == candidates.len() {
+                    // A specialization is the selected body of a logical
+                    // template. Its erased indexed evidence stays proof
+                    // custody; copying the body does not create a runtime
+                    // carrier for that data.
+                    let mut instances = program
+                        .machine_specializations
+                        .iter()
+                        .filter(|row| retained.contains(&row.template))
+                        .map(|row| row.instance)
+                        .collect::<Vec<_>>();
+                    instances.retain(|symbol| !retained.contains(symbol));
+                    retained.extend(instances);
                     return retained;
                 }
                 candidates = retained;
@@ -110,6 +123,22 @@ fn logical_body(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     candidates: &[SymbolHandle],
+    stack: &mut Vec<SymbolHandle>,
+) -> bool {
+    if stack.contains(&machine.symbol) {
+        return true;
+    }
+    stack.push(machine.symbol);
+    let admitted = logical_body_contents(program, machine, candidates, stack);
+    stack.pop();
+    admitted
+}
+
+fn logical_body_contents(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    candidates: &[SymbolHandle],
+    stack: &mut Vec<SymbolHandle>,
 ) -> bool {
     if !machine.supply_mode.is_checked_body()
         || !machine.body_is_present
@@ -163,15 +192,17 @@ fn logical_body(
                             && call.evidence_arguments.is_empty()
                             && !call.operational_acknowledgement.acknowledges_suspend
                             && !call.operational_acknowledgement.acknowledges_block
-                            && target_machine(program, call.target_symbol)
-                                .is_some_and(|callee| candidates.contains(&callee.symbol))
+                            && target_machine(program, call.target_symbol).is_some_and(|callee| {
+                                candidates.contains(&callee.symbol)
+                                    || logical_body(program, callee, candidates, stack)
+                            })
                             && program
                                 .statement_table
                                 .expression_handles(call.arguments)
                                 .iter()
                                 .all(|argument| {
                                     logical_expression(
-                                        program, machine, state, *argument, candidates,
+                                        program, machine, state, *argument, candidates, stack,
                                     )
                                 })
                     }
@@ -180,18 +211,24 @@ fn logical_body(
                             // Exhaustiveness markers carry validation metadata,
                             // not a produced value or storage carrier. Their
                             // subject still obeys logical expression custody.
+                            // A transition subject captured from erased indexed
+                            // evidence keeps that evidence's carrier even when
+                            // the generated local's type handle is a distinct
+                            // copy of the same application.
                             && (crate::proof_contracts::contract_entailment::is_arm_pattern_marker(statement)
-                                || logical_carrier(program, local.type_reference))
+                                || logical_carrier(program, local.type_reference)
+                                || erased_evidence_initializer(program, state, local.initial_value))
                             && logical_expression(
                                 program,
                                 machine,
                                 state,
                                 local.initial_value,
                                 candidates,
+                                stack,
                             )
                     }
                     StatementNode::Expression(expression) => {
-                        logical_expression(program, machine, state, *expression, candidates)
+                        logical_expression(program, machine, state, *expression, candidates, stack)
                     }
                     StatementNode::Transition(transition) => {
                         transition.exit == typed_trees::statement::TransitionExit::Ordinary
@@ -203,6 +240,7 @@ fn logical_body(
                                         state,
                                         *expression,
                                         candidates,
+                                        stack,
                                     )
                                 },
                             )
@@ -219,13 +257,32 @@ fn logical_body(
                                             && !operational_acknowledgement.acknowledges_block
                                             && !static_machine_parameter.is_valid()
                                             && evidence_arguments.is_empty()
-                                            && program
+                                            && (program
                                                 .machine_states(machine)
                                                 .iter()
                                                 .any(|state| state.symbol == path.symbol)
+                                                || target_machine(program, path.symbol).is_some_and(
+                                                    |target| {
+                                                        target.symbol == machine.symbol
+                                                            || candidates.contains(&target.symbol)
+                                                            || logical_body(
+                                                                program,
+                                                                target,
+                                                                candidates,
+                                                                stack,
+                                                            )
+                                                    },
+                                                ))
                                     }
                                     TransitionTargetNode::Terminal => true,
-                                    TransitionTargetNode::Value(_) => false,
+                                    TransitionTargetNode::Value(value) => logical_expression(
+                                        program,
+                                        machine,
+                                        state,
+                                        *value,
+                                        candidates,
+                                        stack,
+                                    ),
                                 }
                             })
                     }
@@ -234,12 +291,50 @@ fn logical_body(
     })
 }
 
+fn erased_evidence_initializer(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+    mut expression: ExpressionHandle,
+) -> bool {
+    for _ in 0..8 {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Borrow(borrow) => expression = borrow.target,
+            ExpressionNode::Name(path) => {
+                if program.state_parameters(state).iter().any(|parameter| {
+                    parameter.symbol == path.symbol
+                        && parameter.relevance.is_erased()
+                        && logical_carrier(program, parameter.type_reference)
+                }) {
+                    return true;
+                }
+                let Some(initial_value) = program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .find_map(|statement| match statement {
+                        StatementNode::LocalData(local) if local.symbol == path.symbol => {
+                            Some(local.initial_value)
+                        }
+                        _ => None,
+                    })
+                else {
+                    return false;
+                };
+                expression = initial_value;
+            }
+            _ => return false,
+        }
+    }
+    false
+}
+
 fn logical_expression(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
     candidates: &[SymbolHandle],
+    stack: &mut Vec<SymbolHandle>,
 ) -> bool {
     if !expression.is_valid() {
         return true;
@@ -247,15 +342,17 @@ fn logical_expression(
     let node = program.expression_table.expression(expression);
     let admitted = match node {
         ExpressionNode::Atomic(_)
-        | ExpressionNode::Borrow(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => false,
+        ExpressionNode::Borrow(borrow) => {
+            erased_evidence_initializer(program, state, borrow.target)
+        }
         ExpressionNode::Call(call) => {
             !call.receiver.is_valid()
                 && call.selects_only_nominal_route()
-                && call.carries_only_positional_arguments()
+                && call.evidence_arguments.is_empty()
                 && !call.operational_acknowledgement.acknowledges_suspend
                 && !call.operational_acknowledgement.acknowledges_block
                 && call.static_requirement_dispatch.is_none()
@@ -264,8 +361,10 @@ fn logical_expression(
                         && program
                             .prepared_mathematics()
                             .is_some_and(|view| view.application(expression).is_some()))
-                    || target_machine(program, call.target_symbol)
-                        .is_some_and(|callee| candidates.contains(&callee.symbol)))
+                    || target_machine(program, call.target_symbol).is_some_and(|callee| {
+                        candidates.contains(&callee.symbol)
+                            || logical_body(program, callee, candidates, stack)
+                    }))
         }
         ExpressionNode::Cast(cast) => {
             !cast.form.is_recast()
@@ -283,8 +382,11 @@ fn logical_expression(
                 })
         }
         ExpressionNode::Indexed(_) => false,
-        ExpressionNode::Member(member) => super::operand_type_reference(program, member.receiver)
-            .is_some_and(|reference| super::is_source_evidence_carrier(program, reference)),
+        ExpressionNode::Member(member) => {
+            super::operand_type_reference(program, member.receiver)
+                .is_some_and(|reference| super::is_source_evidence_carrier(program, reference))
+                || erased_evidence_initializer(program, state, member.receiver)
+        }
         _ => true,
     };
     if !admitted {
@@ -292,7 +394,7 @@ fn logical_expression(
     }
     let mut children_admitted = true;
     crate::queries::expression_traversal::children(program, node, |child| {
-        children_admitted &= logical_expression(program, machine, state, child, candidates);
+        children_admitted &= logical_expression(program, machine, state, child, candidates, stack);
     });
     children_admitted
 }

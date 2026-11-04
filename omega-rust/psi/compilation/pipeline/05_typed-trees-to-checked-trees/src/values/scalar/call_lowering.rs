@@ -506,10 +506,9 @@ pub(crate) fn lower_proof_term(
     // Mathematical source evidence is retained at its exact expression and
     // independently checked carrier, never reconstructed from a destination.
     if let Some(view) = program.prepared_mathematics() {
-        if let Some(constructor) = view.source_constructor(expression) {
-            if constructor.type_identity != program.normalized_type_identity(expected_type) {
-                return None;
-            }
+        if let Some(constructor) = view.source_constructor(expression)
+            && constructor.type_identity == program.normalized_type_identity(expected_type)
+        {
             if constructor.constructor != expression {
                 return lower_proof_term(
                     program,
@@ -525,7 +524,9 @@ pub(crate) fn lower_proof_term(
                 );
             }
         }
-        if let Some(constructor) = view.source_constructor(expression) {
+        if let Some(constructor) = view.source_constructor(expression)
+            && constructor.type_identity == program.normalized_type_identity(expected_type)
+        {
             // Abstraction can produce a closed value under an unrelated
             // lexical scalar scope. Its empty dependency roster is already
             // kernel checked; retain that exact value rather than rebuilding
@@ -579,14 +580,15 @@ pub(crate) fn lower_proof_term(
         }
         if let Some(evidence) = view.source_evidence(expression) {
             let expected_identity = program.normalized_type_identity(expected_type);
-            if evidence.type_identity != expected_identity {
-                return None;
+            // A mathematical row for a different carrier does not erase the
+            // formal that still names this destination.
+            if evidence.type_identity == expected_identity {
+                return Some(CheckedProofTerm::Mathematical {
+                    type_identity: evidence.type_identity,
+                    term: evidence.term,
+                    ty: evidence.ty,
+                });
             }
-            return Some(CheckedProofTerm::Mathematical {
-                type_identity: evidence.type_identity,
-                term: evidence.term,
-                ty: evidence.ty,
-            });
         }
     }
     // The checked destination provides an array's element type and exact extent.

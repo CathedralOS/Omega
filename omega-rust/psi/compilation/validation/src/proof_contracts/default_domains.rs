@@ -38,6 +38,7 @@ mod symbolic_values;
 mod where_fact_intervals;
 
 pub use super::contract_entailment::data_predicates_admit_zero;
+pub use case_requirements::case_predicate_expressions;
 pub(crate) use case_requirements::selected_case_requirements;
 pub use float_predicates::data_float_predicate;
 pub(crate) use float_predicates::float_field_literal_bound_meaning;
