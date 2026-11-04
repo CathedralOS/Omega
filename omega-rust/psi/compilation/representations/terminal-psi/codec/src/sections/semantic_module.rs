@@ -157,7 +157,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 238 combines both changes; the two earlier 237 layouts are incompatible.
 // Callable headers retain the exact remaining declaration binder count.
 // Marker 239 retains every placement of a split private callback address.
-pub(crate) const FORMAT_MARKER: u16 = 239;
+// Marker 240 keeps the binder-selected calling owner for inherited callbacks.
+pub(crate) const FORMAT_MARKER: u16 = 240;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

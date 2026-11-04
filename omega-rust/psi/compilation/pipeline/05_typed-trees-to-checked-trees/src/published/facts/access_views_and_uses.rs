@@ -88,7 +88,7 @@ pub(crate) fn build_nominal_machine_use_facts(
             )]);
         }
         let callback_entry = match program.traits().iter().find(|definition| {
-            definition.symbol == nominal_use.satisfaction_trait
+            definition.symbol == nominal_use.receiving_trait
                 && validation::boundary_has_explicit_calling_policy(program, definition)
         }) {
             Some(_) => {
@@ -112,6 +112,21 @@ pub(crate) fn build_nominal_machine_use_facts(
             }
             None => None,
         };
+        let callback_requirements = if callback_entry.is_some() {
+            let (_, signature) = program
+                .trait_machine_signature(nominal_use.satisfaction_requirement)
+                .ok_or_else(|| {
+                    vec![diagnostics::Diagnostic::error(
+                        "checked callback lost its exact inbound requirement",
+                    )]
+                })?;
+            program
+                .executable_requirement_machine_instances(signature)
+                .map(|instance| instance.symbol)
+                .collect()
+        } else {
+            Vec::new()
+        };
         checked.push(checked_trees::CheckedNominalMachineUse {
             application_index: 0, // Assigned when the complete roster is frozen.
             site: match nominal_use.site {
@@ -127,6 +142,8 @@ pub(crate) fn build_nominal_machine_use_facts(
             static_machine_ordinal: nominal_use.static_machine_ordinal,
             selected_machine: nominal_use.selected_machine,
             selected_entry: nominal_use.selected_entry,
+            receiving_trait: nominal_use.receiving_trait,
+            receiving_application: nominal_use.receiving_application,
             satisfaction_trait: nominal_use.satisfaction_trait,
             satisfaction_requirement: nominal_use.satisfaction_requirement,
             canonical_requirement_overload: nominal_use.canonical_requirement_overload,
@@ -139,6 +156,7 @@ pub(crate) fn build_nominal_machine_use_facts(
                 contract_commitment: actual.commitment,
             },
             callback_entry,
+            callback_requirements,
             refinement: checked_trees::CheckedMachineContractRefinement {
                 published_requirement_report_fingerprint: published_fingerprint,
                 published_requirement_commitment: published_commitment,
