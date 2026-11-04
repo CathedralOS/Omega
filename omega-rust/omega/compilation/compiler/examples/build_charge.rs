@@ -2387,6 +2387,7 @@ fn source_native_roundtrip() {
 }
 
 fn interleaved_build_invocations() {
+    build_sequence::print_execution_counts("before interleaved builds");
     let request = package_invocation_requests("pass/build/activation_yields_without_replay");
     let mut session = CompilationSession::default();
     let before = counters::build_execution_count();
@@ -2428,6 +2429,7 @@ fn interleaved_build_invocations() {
             1,
             "early role is observable before return"
         );
+        build_sequence::print_execution_counts("one source Build is paused");
         // Move the invocation while its activation is paused and the host's
         // caller handle is gone. Neither job borrows a coordinator stack frame.
         let mut pending = vec![(first, activation)];
@@ -2539,6 +2541,7 @@ fn sliced_build_retains_effects() {
     orchestration::check_source(&mut CompilationSession::default(), request)
         .result
         .expect("sliced Build completes");
+    build_sequence::print_execution_counts("sliced source Build completed");
     assert_eq!(counters::build_execution_count() - before, 1);
     let fuel = account.consumed_fuel_units();
     assert!(
@@ -2562,6 +2565,7 @@ fn sliced_build_retains_effects() {
             .contains("evaluation Fuel allowance exhausted")),
         "{diagnostics:?}"
     );
+    build_sequence::print_execution_counts("sliced source Build refused for fuel");
     assert_eq!(counters::build_execution_count() - before, 1);
     assert_eq!(limited.live_storage_cells(), 0);
     assert_eq!(limited.live_payload_bytes(), 0);

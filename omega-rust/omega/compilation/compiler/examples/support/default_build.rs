@@ -101,6 +101,7 @@ fn inherited(role: BuildDeclarationKind, marker: u8) {
             .unwrap();
         session.check_package_build(product).unwrap();
     }
+    build_sequence::print_execution_counts("default Build after both Product contexts");
     assert_eq!(
         counters::build_execution_count() - before,
         1,
@@ -151,6 +152,7 @@ fn anonymous() {
         .complete_source_check(invocation, Ok(Some(returned)))
         .result
         .unwrap();
+    build_sequence::print_execution_counts("anonymous default Build completed");
     assert_eq!(counters::build_execution_count() - before, 1);
     assert!(!temporary.path().join("build.omg").exists());
     println!(

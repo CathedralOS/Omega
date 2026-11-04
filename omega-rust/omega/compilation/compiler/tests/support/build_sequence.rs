@@ -47,3 +47,15 @@ pub fn return_package(
         }
     }
 }
+
+/// Show actual attempts before checking the existing no-replay expectations.
+/// These process totals do not describe a coherent concurrent snapshot.
+pub fn print_execution_counts(context: &str) {
+    use artifacts::compile_timings::counters;
+    println!(
+        "Build starts ({context}): total={} source={} supplier={}",
+        counters::build_execution_count(),
+        counters::source_build_execution_count(),
+        counters::provider_defaults_execution_count(),
+    );
+}
