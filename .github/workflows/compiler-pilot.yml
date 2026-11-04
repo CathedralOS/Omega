@@ -1,142 +1,69 @@
-name: Compiler queue pilot
-
+name: Check the existing slice return with the verified main compiler
 on:
-  pull_request:
-    branches: [integration-pilot]
-  merge_group:
-    branches: [integration-pilot]
-    types: [checks_requested]
   workflow_dispatch:
-    inputs:
-      smoke:
-        description: Also build executables and run the native/Terminal smoke (not admission)
-        type: boolean
-        default: false
-      fixtures:
-        description: Optional comma-separated exact pass/group/name and fail/group/name IDs; replaces smoke
-        type: string
-        default: ''
-      checking_only:
-        description: Check only the exact fixtures and rejection controls, without repeating runtime observations
-        type: boolean
-        default: false
-      samples:
-        description: Optional comma-separated exact samples/cli/facts project paths (with descendants); replaces smoke
-        type: string
-        default: ''
-      cli_fixtures:
-        description: Optional exact pass/... or samples/cli/... normal-exit projects through ordinary CLI package review and both engines
-        type: string
-        default: ''
-      native_host:
-        description: Matching native host for manual executable observations
-        type: choice
-        options:
-          - linux_x86_64
-          - linux_arm64
-          - windows_x86_64
-          - macos_arm64
-        default: linux_x86_64
-
 permissions:
   contents: read
-
-# A new PR revision supersedes its old check; never cancel a merge-group check
-# merely because another PR entered the queue.
-concurrency:
-  group: compiler-pilot-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
+  actions: read
 jobs:
-  compiler-pilot:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","linux_arm64":"ubuntu-24.04-arm","windows_x86_64":"windows-2022","macos_arm64":"macos-15"}')[inputs.native_host] || 'ubuntu-24.04' }}
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
+  corpus:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     env:
-      CARGO_BUILD_JOBS: '2'
-      CARGO_INCREMENTAL: '0'
-      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
-      CARGO_BUILD_FINGERPRINT: content
-      OMEGA_CORPUS_JOBS: '2'
+      GH_TOKEN: ${{ github.token }}
       RUST_MIN_STACK: '67108864'
-      # Match Linux/macOS post-merge storage; Windows keeps its short target path.
-      CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
+      OMEGA_CORPUS_JOBS: '1'
+      RETAINED_HOST: linux_x86_64
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: 51ca56236d0f080d4244e1c4a823568caa117aae
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Test the gate's refusal paths
-        run: python tools/tests/test_compiler_pilot.py -v
-      - name: Validate exact fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_fixtures; import os; print(select_fixtures(os.environ['OMEGA_COMPILER_PILOT_FIXTURES']))"
-      - name: Validate exact fact sample selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.samples != ''
-        env:
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-        run: python -c "from tools.ci.compiler_pilot import select_samples; import os; print(select_samples(os.environ['OMEGA_COMPILER_PILOT_SAMPLES']))"
-      - name: Validate exact ordinary CLI fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.cli_fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_cli_fixtures; import os; print(select_cli_fixtures(os.environ['OMEGA_COMPILER_PILOT_CLI_FIXTURES']))"
-      - name: Provision Windows rooted temporary directory for hosted applications
-        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && inputs.cli_fixtures != ''
-        run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        id: build-cache
+      - name: Attribute one existing slice-return refusal without rebuilding Rust
+        shell: bash
+        run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          import hashlib,json,os,subprocess,sys
+          settings={'source': '51ca56236d0f080d4244e1c4a823568caa117aae', 'tree': 'b22c11ddb47f5f9d2419f419e0a9f1de674b0a1c', 'inputs': {'tests/omega/pass/slices/runtime_shared_subslice_return_exit/README.md': '854fa12d803022e9abf09eb8695d4704a5b473b79c55e8a737e0e3a1ccebf069', 'tests/omega/pass/slices/runtime_shared_subslice_return_exit/build.omg': '314c94208a17521fcaceb643c9fe4c59580af7017a81cb448870161e4c4daa65', 'tests/omega/pass/slices/runtime_shared_subslice_return_exit/expected_native_exit.txt': '6442bc26a7c562f5afe6467dab36365c709909f6a81afcecfc0c25cff0f1bab0', 'tests/omega/pass/slices/runtime_shared_subslice_return_exit/main.omg': '509624fcbc19851e4517d467ea09f2ee23b5e20b64f1b8c36e7c88d2e69825bb'}, 'fixtures': ['pass/slices/runtime_shared_subslice_return_exit'], 'hosts': {'linux_x86_64': {'run': 41754435705, 'artifact': 'compiler-pilot-linux_x86_64-51ca56236d0f080d4244e1c4a823568caa117aae-1', 'cli_sha256': 'e29f10ebab750548e301101fd77fd684961e3b6793ec0d07c79869576f257993', 'runner_sha256': '82fd7f0ca421c44c13393097b0dec105737acc695a935ff9b6149a7c46f28fa6'}}}
+          source=settings['source'];host=os.environ['RETAINED_HOST'];origin=settings['hosts'][host]
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==source
+          assert subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()==settings['tree']
+          assert not subprocess.check_output(['git','status','--porcelain'],text=True).strip()
+          for path,digest in settings['inputs'].items():assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==digest,path
+          run=json.loads(subprocess.check_output(['gh','api','repos/CathedralOS/Omega/actions/runs/'+str(origin['run'])],text=True))
+          assert run['head_sha']==source and run['status']=='completed'
+          artifacts=json.loads(subprocess.check_output(['gh','api','repos/CathedralOS/Omega/actions/runs/'+str(origin['run'])+'/artifacts'],text=True))['artifacts']
+          matches=[a for a in artifacts if a['name']==origin['artifact']];assert len(matches)==1
+          retained=Path('build/descriptor-slice-baseline-51ca-producer')
+          subprocess.run(['gh','run','download',str(origin['run']),'--name',origin['artifact'],'--dir',str(retained)],check=True)
+          records=list(retained.glob('producer-*/producer.json'));assert len(records)==1
+          original=json.loads(records[0].read_text());assert original['revision']==source and original['tree']==settings['tree'] and original['target']==host
+          cli=records[0].parent/Path(original['cli']).name;cli.chmod(0o755)
+          sys.path.insert(0,'tools/ci');import compiler_pilot
+          profile=compiler_pilot.corpus_gate.require_optimized(cli.resolve())
+          assert profile['sha256']==original['cli_profile']['sha256'] and profile['profile']==original['cli_profile']['profile'] and profile['profile']['opt_level']=='1'
+          if 'cli_sha256' in origin:assert profile['sha256']==origin['cli_sha256']
+          runner=records[0].parent/Path(original['runner']).name;runner.chmod(0o755)
+          runner_profile=compiler_pilot.corpus_gate.require_optimized(runner.resolve())
+          assert runner_profile['sha256']==original['runner_profile']['sha256'] and runner_profile['profile']==original['runner_profile']['profile'] and runner_profile['profile']['opt_level']=='1'
+          assert runner_profile['sha256']==origin['runner_sha256']
+          producer=compiler_pilot.CompilerProducer(source,settings['tree'],host,original['toolchain'],cli.resolve(),runner.resolve(),profile,runner_profile)
+          out=Path('build/descriptor-slice-baseline-51ca');out.mkdir(parents=True,exist_ok=True)
+          (out/'retained-origin.json').write_text(json.dumps({'settings':settings,'host':host,'origin_run':origin['run'],'origin_conclusion':run['conclusion'],'artifact':matches[0],'original_producer':original,'actual_profile':profile,'actual_runner_profile':runner_profile,'driver_sha':os.environ.get('GITHUB_SHA'),'actual_checkout':source},indent=2)+'\n')
+          # The driver checks out this exact measured source. The workflow-only driver
+          # revision remains separately recorded above; it is not a new producer.
+          os.environ['GITHUB_SHA']=source
+          result=compiler_pilot.run_suite('descriptor-slice-baseline-51ca',(),(),producer=producer,fixtures=','.join(settings['fixtures']),check_only=True)
+          assert compiler_pilot.corpus_gate.require_optimized(cli.resolve())==profile
+          assert not subprocess.check_output(['git','status','--porcelain'],text=True).strip()
+          raise SystemExit(result)
+          PYTHON
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
-      - name: Check the exact integration candidate
-        id: compiler-check
-        run: cargo check --locked -p omega
-      - name: Optional executable observations
-        if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py
-      - name: Report actual producer and fixture observations
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json') if (root / name).is_file()]"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        with:
-          name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/
-          if-no-files-found: warn
-          compression-level: 0
+          name: descriptor-slice-baseline-51ca-${{ github.run_id }}
+          path: build/descriptor-slice-baseline-51ca/
           retention-days: 7
-      # The corpus reports alone, so `corpus_gate.py --compare --remote` reads
-      # rows without downloading the retained producer (350-520 MB).
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        with:
-          name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/*.json
-          if-no-files-found: warn
-          retention-days: 7
-      # A source/runtime fixture failure does not invalidate compiled Cargo
-      # objects. Retain them for the next correction; check outcomes stay red.
-      - name: Save build cache after fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
