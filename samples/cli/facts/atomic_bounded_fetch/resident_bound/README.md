@@ -20,5 +20,7 @@ establishment twins. All original sources, old refusal oracles and observations
 remain in the frozen baseline evidence.
 
 Owning task: **ATOMIC-MEMORY-MODEL**. See the [parent](../README.md) for complete
-qualification and the remaining concurrent and refinement obligations. Current
-repair validation is still in progress; no passing execution is claimed here.
+qualification and the remaining concurrent and refinement obligations. All nine
+places and their establishment twins have actual current observations on each of the four
+matching hosts. The parent records the measured compiler/program sources,
+supplemental limits and remaining acceptance.

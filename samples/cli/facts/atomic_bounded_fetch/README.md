@@ -19,17 +19,80 @@ marker. Taking the same arm twice cannot satisfy the exit oracle. The selected
 target pins now match the ordinary-provider samples and their explicit Build
 rows; the previous prefixed pins are retained in the baseline snapshot.
 
-Current repair qualification is in progress. At fixed source
-`4637c6da3b4843292581b9b04f7c39b43675a75e`, whose tree equals published
-`f59057c97230bd9715b3cbc50faa9b4da291b3b7`,
-[the Linux ARM64 baseline](https://github.com/CathedralOS/Omega/actions/runs/41778920756)
-checks nine positives, wrongly refuses the nine valid mask-127 programs, and
-refuses every native attempt at missing `FetchAnd` selection before either
-engine runs. Its ordinary stages did not execute. The first repair probe
-passed compilation and five AArch64 encoding checks, then stopped at an old
-public-encoder test's register homes; it supplies no program execution result.
-Full current-source checks, actual engines, ordinary projects and independent
-review remain required. This does not close the atomic memory-model task.
+The frozen [Linux ARM64 baseline](https://github.com/CathedralOS/Omega/actions/runs/41778920756)
+uses `4637c6da3b4843292581b9b04f7c39b43675a75e`, whose tree equals published
+`f59057c97230bd9715b3cbc50faa9b4da291b3b7`. All nine original positives check,
+but native realization refuses `FetchAnd` before either engine runs. The nine
+mask-127 programs also expose the shared numeric approximation described above.
+Their old source and refusal oracles remain frozen in that evidence.
+
+The repaired compiler at `491bd96c236f147d52531c4ebb05076a0bb557ef` has actual
+native/Terminal exit-zero agreements for all eighteen positive productions on
+all four matching hosts. Each store-127 twin rejects its establishment
+obligation. The ordinary CLI observes all 37 projects, including the root.
+The target programs use separately recorded corrected inputs at
+`86799c125677a194a7bc4db22bd6eb8dac547c9e`; their compiler remains the actual
+archived 491 source. The empty service promise is retained, with the selected
+trait recorded only as an invocation dependency.
+
+The completed Linux row uses compiler source
+`f012a95f6e18e4a85afc43784a2a46bd748bdcac` in
+[run 41805379523](https://github.com/CathedralOS/Omega/actions/runs/41805379523).
+All eighteen fact positives check and execute at native/Terminal exit 0; all
+eighteen establishment twins reject. The Boolean and single-attempt neighbors
+also agree at 0, while the width-sensitive program agrees at its authored 70.
+[The retained-compiler replay](https://github.com/CathedralOS/Omega/actions/runs/41808847330)
+observes all 37 ordinary projects: nineteen zero agreements and eighteen
+intended refusals.
+
+The other hosts retain their actual observations. ARM uses
+[the full 491 scope](https://github.com/CathedralOS/Omega/actions/runs/41787238415)
+plus [corrected target inputs](https://github.com/CathedralOS/Omega/actions/runs/41793274090).
+macOS and Windows retain the unchanged 491 fact/neighbor observations and their
+[macOS](https://github.com/CathedralOS/Omega/actions/runs/41793281052) and
+[Windows](https://github.com/CathedralOS/Omega/actions/runs/41793284487) corrected
+input replays. Their width programs now have fresh Source and actual 70/70
+observations at 417a in
+[macOS run 41802041877](https://github.com/CathedralOS/Omega/actions/runs/41802041877)
+and [Windows run 41802045704](https://github.com/CathedralOS/Omega/actions/runs/41802045704).
+The later state-grouping and case-observation queries preserve the exact rows,
+full identities, duplicate rules and order; independent source review accepts
+reuse at these original producer stamps.
+
+A final storage-only correction uses dense arena-slot buckets while retaining
+full handle/generation equality and the original observation order.
+[Its focused Linux run](https://github.com/CathedralOS/Omega/actions/runs/41811817773)
+at `69b68f2359b97883bfeb27fa6860de4a1e80441d` checks the atomic match and
+byte-case cleanup positives plus their controls; both positives actually agree
+at exit 0. Independent source review accepts the unchanged full-row results
+above at their original f012/417a producer identities. This establishes no new
+other-host execution or timing result.
+
+The workflow repairs remove repeated searches of unrelated state/capability
+rows and sorting of facts that case observations never consume. They preserve
+all authority and evidence checks. No speed ratio or general performance
+closure is claimed.
+
+Both Linux jobs remain failed: standalone width checking times out, and an
+additional non-atomic byte-field snapshot execution times out. Neither is
+recorded as passed. The width's actual current BOTH result already compiles and
+runs that unchanged program. The snapshot has Source success; the changed
+queries are equivalent, and the current whole-case store (70/70) and byte-case
+partial cleanup (0/0) exercise their relevant consumers. Its supplemental native
+result remains unverified. Earlier timeout reports and their original oracles
+remain retained.
+
+Two supplemental numeric positives still refuse identically at the fixed
+pre-repair source: `runtime_immutable_unsigned_bitwise_bounds_exit` and
+`scalar_state_return_keeps_byte_class`. Their positive oracles and failed
+summaries remain unchanged. This row does not close those proof gaps,
+concurrent contention, forced retry, formal memory-model axioms or target
+refinement proofs under **ATOMIC-MEMORY-MODEL**.
+
+The final documentation and record update changes no compiler, library, authored
+program, Build or oracle bytes. Executions keep the actual sources above; no
+execution at a later documentation or main commit is inferred. The source
+archives on PR #1795 retain those revisions through squash and branch cleanup.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -57,7 +120,7 @@ The `target_body` place and its twin carry no source target prefix.
 implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
 by explicit target-keyed Build rows. The operation, inputs, contracts and exit
 oracle are unchanged. The entry wrapper and each implementation check a tag
-(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Earlier migration evidence was Linux x86-64 native and Terminal Psi agreement
-for the positive and refusal of the then-current mask control. That refusal was
-a conservative proof limit, not a semantic counterexample. It is historical;
-the current complete scope still needs fresh matching-host outcomes.
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Current target observations cover all four matching hosts with the same
+empty service contract, explicit provider selection and actual exit-zero
+agreements. Historical mask-control refusal is preserved as a conservative
+proof limitation; the current rejection controls test invalid establishment.
