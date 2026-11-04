@@ -149,7 +149,8 @@ impl<'facts> IncomingBackingCalls<'facts> {
                     .control
                     .operands
                     .get(load.capture)
-                    .descriptor_read,
+                    .descriptor_permission
+                    .loaded_read(),
                 store_target: statement.store_target,
             });
         }

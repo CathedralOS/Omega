@@ -319,8 +319,30 @@ fn captured_storage_lifetime(
     if formation != result.statement_index as usize {
         return None;
     }
+    let boundary =
+        whole_local_release_boundary(program, facts, machine, authored, result.statement_index);
+    if boundary.is_none() && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        let groups = local_record_loans(program, facts, machine, authored, result.statement_index);
+        eprintln!(
+            "CHECKSITE captured-holder-boundary-unavailable state={state:?} result={result:?} owner={owner:?} groups={groups:?}"
+        );
+        if let Some(groups) = groups {
+            for (_, group) in groups {
+                for (handle, loan) in facts.borrow.loan_group(group).into_iter().flatten() {
+                    eprintln!(
+                        "CHECKSITE captured-holder-boundary-loan state={state:?} result={} loan={handle:?} row={loan:?} weakening={:?} release={:?}",
+                        result.binding_ordinal,
+                        loan_weakening(facts, machine, state, handle),
+                        validation::reference_result_custody::release_statement(
+                            program, facts, machine, state, handle
+                        )
+                    );
+                }
+            }
+        }
+    }
     Some((
-        whole_local_release_boundary(program, facts, machine, authored, result.statement_index)?,
+        boundary?,
         local_storage_loans(facts, machine, state, *owner)?,
     ))
 }
@@ -383,6 +405,25 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
                 .then_some((result, custody.reference_loans))
         }),
     };
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        let result = match operation {
+            OperationPlan::EstablishReference { result, .. }
+            | OperationPlan::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue {
+                result,
+                ..
+            }) => Some(result),
+            _ => None,
+        };
+        if let Some(result) = result {
+            eprintln!(
+                "CHECKSITE captured-retirement-inventory state={state:?} result={result:?} direct={direct:?} owners={:?}",
+                results
+                    .iter()
+                    .filter(|(binding, _)| binding == result)
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
     if let Some((result, loans)) = direct {
         let (whole_storage_boundary, storage_loans) =
             captured_storage_lifetime(program, facts, machine, state, results, result)?;
@@ -1031,15 +1072,33 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         ) {
             let result = captured.result;
             let loans = captured.loans;
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE exit-reference-inventory state={state:?} result={result:?} loans={loans:?} whole_boundary={} storage_loans={:?}",
+                    captured.whole_storage_boundary, captured.storage_loans
+                );
+            }
             trace.statement(Some(result.statement_index));
             if operations
                 .iter()
                 .flat_map(OperationPlan::with_value_calls)
                 .any(|operation| whole_result_discarded(operation, result))
             {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE exit-reference-skipped state={state:?} result={} reason=discarded",
+                        result.binding_ordinal
+                    );
+                }
                 continue;
             }
             if replacement_owns_release(&order, facts, machine, state, loans) {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE exit-reference-skipped state={state:?} result={} reason=replacement",
+                        result.binding_ordinal
+                    );
+                }
                 continue;
             }
             // The exit boundary consumes the same current custody as an
@@ -1053,6 +1112,12 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 result.binding_ordinal,
                 operations,
             )? {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE exit-reference-skipped state={state:?} result={} reason=transferred",
+                        result.binding_ordinal
+                    );
+                }
                 continue;
             }
             // Completion transfers this exact carrier and its retained ingress
@@ -1193,18 +1258,56 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             let (result, _) = results
                 .iter()
                 .find(|(result, _)| result.binding_ordinal == *binding_ordinal)?;
-            if retirement.carrier_children_retired(result)
-                && storage_loans
-                    .iter()
-                    .all(|loan| retirement.holder_retired(*loan))
-                && facts
-                    .borrow
-                    .loan_group(*loans)?
-                    .all(|(loan, _)| retirement.children_retired(loan))
-            {
-                next = Some(index);
-                break;
+            if !retirement.carrier_children_retired(result) {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE exit-reference-pending state={state:?} result={} reason=carrier-children scheduled={} loans={loans:?}",
+                        result.binding_ordinal,
+                        scheduled.len()
+                    );
+                }
+                continue;
             }
+            let mut waiting_storage = None;
+            if !storage_loans.iter().all(|loan| {
+                let retired = retirement.holder_retired(*loan);
+                if !retired {
+                    waiting_storage = Some(*loan);
+                }
+                retired
+            }) {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE exit-reference-pending state={state:?} result={} reason=storage-holder scheduled={} storage_loans={storage_loans:?} waiting={waiting_storage:?} row={:?}",
+                        result.binding_ordinal,
+                        scheduled.len(),
+                        waiting_storage.map(|loan| facts.borrow.loans.get(loan)),
+                    );
+                }
+                continue;
+            }
+            if !facts
+                .borrow
+                .loan_group(*loans)?
+                .all(|(loan, _)| retirement.children_retired(loan))
+            {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE exit-reference-pending state={state:?} result={} reason=loan-children scheduled={} rows={:?}",
+                        result.binding_ordinal,
+                        scheduled.len(),
+                        facts
+                            .borrow
+                            .loan_group(*loans)
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<_>>()
+                    );
+                }
+                continue;
+            }
+            next = Some(index);
+            break;
         }
         if let Some(index) = next {
             scheduled.push(pending.remove(index).1);

@@ -416,9 +416,10 @@ fn resolve_descriptor_places_with_loans(
 }
 
 /// Join an unchanged selected slot from the completed-storage owner to its
-/// actual incoming leaf-family permission. A declared family is not a current
-/// value inventory: only the caller holding StoredOperand::Incoming may use
-/// this join. Raw path/type lookups deliberately cannot select these rows.
+/// actual stored entry descriptor. This includes the inner `&Cell` of an
+/// `&mut &Cell` input: the outer borrowed grant has a different origin even
+/// though both owner paths are empty. Only a completed-storage Incoming
+/// selection may use this join; a declared path alone is no current value.
 pub(in crate::checks::borrows) fn unchanged_incoming_leaf(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
@@ -441,23 +442,36 @@ pub(in crate::checks::borrows) fn unchanged_incoming_leaf(
             .span(incoming.owner_path)
             .ok_or("the incoming descriptor has an incomplete owner path")?;
         if incoming.place_root() != source.root
-            || !owner.contains(&BorrowLoanOwnerSegment::DynamicIndex)
-            || !crate::borrow::owner_path_selects_leaf(program, owner, &source.segments)
+            || !matches!(
+                incoming.origin,
+                checked_trees::IncomingReferenceOrigin::Parameter { .. }
+            )
         {
             continue;
         }
-        let selected = validation::owned_projection_type_reference(
+        let Some(segments) = validation::corresponding_place_projection(
             program,
             incoming.carrier_type,
             &source.segments,
-        )
-        .ok_or("the selected incoming descriptor has no typed owner projection")?;
+        ) else {
+            continue;
+        };
+        if !crate::borrow::owner_path_selects_leaf(program, owner, &segments) {
+            continue;
+        }
+        let selected =
+            validation::owned_projection_type_reference(program, incoming.carrier_type, &segments)
+                .ok_or("the selected incoming descriptor has no typed owner projection")?;
         validation::reference_shell(program, selected)
             .ok_or("the incoming selection is not a descriptor")?;
         resolved.push(ResolvedAlias {
             place: CapturedPlace {
                 incoming_reference: identity,
-                incoming_owner_path: source.segments.clone(),
+                incoming_owner_path: if owner.contains(&BorrowLoanOwnerSegment::DynamicIndex) {
+                    segments
+                } else {
+                    Vec::new()
+                },
                 root: incoming.place_root(),
                 segments: Vec::new(),
             },

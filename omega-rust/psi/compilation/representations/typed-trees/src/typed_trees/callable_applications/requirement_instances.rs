@@ -505,6 +505,7 @@ impl TypedTrees {
         }
         let mut substitutions = CallableApplication {
             region_scope: template,
+            static_argument_owner: lexical_owner,
             trait_region_application: Some((environment.clone(), environment.frame_count())),
             source_binders: outer_parameters
                 .iter()

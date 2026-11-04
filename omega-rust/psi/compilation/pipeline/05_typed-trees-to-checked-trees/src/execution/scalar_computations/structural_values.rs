@@ -369,7 +369,8 @@ impl Builder<'_, '_> {
                 {
                     let machine = self.program.machine_by_symbol(self.machine)?;
                     let state = self.program.state_by_symbol(self.state)?;
-                    let actual = formed_reference_type(self.program, machine, state, expression)?;
+                    let actual =
+                        formed_reference_type(self.program, machine, state, expression, expected)?;
                     (expression, actual)
                 }
                 // A view carries a descriptor value, not an owned slice

@@ -117,6 +117,7 @@ pub enum LoweringError {
         live_places: Vec<PlaceId>,
     },
     InvalidFieldObservationStoragePath(validation::StorageObservationTypePathError),
+    InvalidSuspensionPlan(&'static str),
     Unsupported(&'static str),
     CompilerEvaluationAdmission(String),
     /// Preserve the two actual descriptor shapes at a failed state-owner join.
@@ -354,6 +355,10 @@ impl std::error::Error for LoweringError {}
 
 pub(crate) fn unsupported<T>(message: &'static str) -> Result<T, LoweringError> {
     Err(LoweringError::Unsupported(message))
+}
+
+pub(crate) fn invalid_suspension<T>(reason: &'static str) -> Result<T, LoweringError> {
+    Err(LoweringError::InvalidSuspensionPlan(reason))
 }
 
 /// Translate an unsupported-plan lookup failure into the machine-plan error,

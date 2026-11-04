@@ -163,7 +163,10 @@ terminates by fuel
     let entries: [FieldEntry; 64];
     transition { _ -> fill(schema, entries, fuel, 0) }
 
-    machine fill(schema: Schema, entries: [FieldEntry; 64], fuel: u64, index: u64 in Wrapping) -> LayoutPlan requires fuel >= 1 && fuel <= 128 {
+    machine fill(schema: Schema, entries: [FieldEntry; 64], fuel: u64, index: u64 in Wrapping) -> LayoutPlan
+    requires fuel >= 1 && fuel <= 128
+    terminates by fuel in 1..=128
+    {
         transition fuel > 1 && index < 33 {
             true -> place(schema, entries, fuel - 1, index)
             _ -> done(schema, entries)

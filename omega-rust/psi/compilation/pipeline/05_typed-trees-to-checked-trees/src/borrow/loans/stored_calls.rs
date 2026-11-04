@@ -71,9 +71,9 @@ pub(super) fn loans(
     let Some(frames) = call_frames else {
         return Ok(Vec::new());
     };
-    let Some(effects) = frames.stored_reference_fallthrough_effects(machine, statement) else {
-        return Ok(Vec::new());
-    };
+    let effects = frames
+        .stored_reference_fallthrough_effects(machine, statement)
+        .ok_or("stored call has no complete statement-successor effects")?;
     if effects.is_empty() {
         return Ok(Vec::new());
     }

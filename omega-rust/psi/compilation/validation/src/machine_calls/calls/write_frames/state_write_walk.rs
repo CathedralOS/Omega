@@ -6,7 +6,7 @@
 //! distinction explicit avoids traversing successor graphs for local alias
 //! queries without publishing truncated effects as complete evidence.
 
-use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+use crate::declarations::symbols::TopLevelSymbols;
 use crate::machine_calls::calls::write_frames::alias_origins::{
     stable_assignment_target_path, stable_local_reference_alias_origin,
     stable_local_reference_alias_origins,
@@ -574,6 +574,25 @@ fn walk_state_write_prefix_body(
         };
         let replaces_local_binding =
             super::reference_subjects::replaces_binding(program, machine, statement)?;
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+            && let Some(assignment) = statement.as_assignment()
+            && let Some(receiving) = reference_subjects::assignment_stored_value_type(
+                program, machine, state, assignment,
+            )
+            && crate::reference_shell(program, receiving).is_some()
+        {
+            eprintln!(
+                "STRUCT descriptor-store-summary callee={} state={:?} statement={statement_index} target={:?} receiving={} replaces_local_binding={replaces_local_binding} parameters={:?}",
+                machine.name,
+                state.symbol,
+                super::FrameSourcePlace::from_expression(program, assignment.target),
+                program.display_type_reference_with_constraints(receiving),
+                parameters
+                    .iter()
+                    .map(|parameter| (parameter.symbol, parameter.name.as_str()))
+                    .collect::<Vec<_>>()
+            );
+        }
         let declared_stored_origins = match statement {
             StatementNode::LocalData(local)
                 if ((type_may_carry_write(program, local.type_reference)
@@ -745,6 +764,8 @@ fn walk_state_write_prefix_body(
                         program,
                         inference,
                         &mut stored,
+                        &mut local_alias_origins,
+                        &mut divergent_alias_origins,
                         stored_call_effects.as_ref(),
                     );
                     continue;
@@ -854,6 +875,8 @@ fn walk_state_write_prefix_body(
                         program,
                         inference,
                         &mut stored,
+                        &mut local_alias_origins,
+                        &mut divergent_alias_origins,
                         stored_call_effects.as_ref(),
                     );
                     local_alias_origins.retain(|(name, _)| name != &relative);
@@ -919,40 +942,33 @@ fn walk_state_write_prefix_body(
                 };
                 let receiver_origins = divergent_receiver_origins.unwrap_or_default();
                 let nested_writes = {
-                    let deduped_paths =
-                        |paths: for<'site> fn(
-                            &dyn crate::CheckingInput,
-                            &Machine,
-                            &MachineSymbols<'site>,
-                            &TopLevelSymbols<'site>,
-                            &[String],
-                            &str,
-                            CallerWriteSite<'site>,
-                            &[checked_trees::expression::ExpressionHandle],
-                            &mut FrameInference,
-                        ) -> Option<Vec<String>>,
-                         inference: &mut FrameInference| {
-                            if has_divergent_receiver {
-                                return None;
-                            }
-                            (!arguments.iter().any(|argument| {
-                                expression_is_effectful_indexed_place(program, *argument)
-                            }))
-                            .then(|| {
-                                paths(
-                                    program,
-                                    machine,
-                                    &machine_symbols,
-                                    symbols,
-                                    receiver_members,
-                                    nested_call.target.as_str(),
-                                    CallerWriteSite::Call(nested_call),
-                                    arguments,
-                                    inference,
-                                )
-                            })
-                            .flatten()
-                        };
+                    let deduped_paths = |paths: super::demand::KnownWrittenPathsForParts,
+                                         inference: &mut FrameInference,
+                                         argument_origins: &[Option<
+                        Vec<super::FramePlaceOrigin>,
+                    >]| {
+                        if has_divergent_receiver {
+                            return None;
+                        }
+                        (!arguments.iter().any(|argument| {
+                            expression_is_effectful_indexed_place(program, *argument)
+                        }))
+                        .then(|| {
+                            paths(
+                                program,
+                                machine,
+                                &machine_symbols,
+                                symbols,
+                                receiver_members,
+                                nested_call.target.as_str(),
+                                CallerWriteSite::Call(nested_call),
+                                arguments,
+                                inference,
+                                Some(argument_origins),
+                            )
+                        })
+                        .flatten()
+                    };
                     let argument_types = super::call_targets::call_argument_types(
                         program,
                         machine,
@@ -989,10 +1005,18 @@ fn walk_state_write_prefix_body(
                         Some(&argument_origins),
                     )
                     .or_else(|| {
-                        deduped_paths(known_boundary_call_written_paths_for_parts, inference)
+                        deduped_paths(
+                            known_boundary_call_written_paths_for_parts,
+                            inference,
+                            &argument_origins,
+                        )
                     })
                     .or_else(|| {
-                        deduped_paths(known_requirement_call_written_paths_for_parts, inference)
+                        deduped_paths(
+                            known_requirement_call_written_paths_for_parts,
+                            inference,
+                            &argument_origins,
+                        )
                     })
                     .or_else(|| {
                         if has_divergent_receiver || has_divergent_actual {
@@ -1036,6 +1060,8 @@ fn walk_state_write_prefix_body(
                         program,
                         inference,
                         &mut stored,
+                        &mut local_alias_origins,
+                        &mut divergent_alias_origins,
                         stored_call_effects.as_ref(),
                     );
                     continue;
@@ -1171,6 +1197,8 @@ fn walk_state_write_prefix_body(
             program,
             inference,
             &mut stored,
+            &mut local_alias_origins,
+            &mut divergent_alias_origins,
             stored_call_effects.as_ref(),
         );
         if let Some(replacement) = assignment_replacement {
@@ -1193,10 +1221,12 @@ fn install_statement_call_effects(
     program: &dyn crate::CheckingInput,
     inference: &mut FrameInference,
     stored: &mut Vec<StoredLocalOrigins>,
+    aliases: &mut Vec<(String, FramePlaceOrigin)>,
+    divergent: &mut Vec<(String, Vec<FramePlaceOrigin>)>,
     effects: Option<&super::stored_calls::SlotRelationTransfer>,
 ) {
     if let Some(effects) = effects {
-        super::stored_calls::apply_transfer(program, stored, effects);
+        super::stored_calls::apply_transfer(program, stored, aliases, divergent, effects);
         for record in stored {
             inference.record_local(record);
         }

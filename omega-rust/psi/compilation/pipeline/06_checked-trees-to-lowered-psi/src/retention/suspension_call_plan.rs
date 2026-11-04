@@ -9,7 +9,7 @@
 
 use super::{
     CheckedTrees, LoweredSourceCallOccurrence, LoweringError, OperationKind, TerminalModule,
-    ValueDeclaration, ValueId, terminal_scalar_type, unsupported,
+    ValueDeclaration, ValueId, invalid_suspension, terminal_scalar_type, unsupported,
 };
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::shared::direct_calls::direct_call_parts;
@@ -208,7 +208,8 @@ pub(crate) fn retain_suspension_call_plans(
             crossing,
             occurrence,
             &mut live_values,
-            &module.structural_types,
+            source_calls,
+            module,
         )?;
         let live_values = live_values
             .into_iter()
@@ -270,8 +271,10 @@ fn retain_loan_graph(
         &checked_trees::SuspensionCrossingLiveValueFact,
         terminal_psi::TerminalSuspensionLiveValue,
     )],
-    types: &[terminal_psi::StructuralTypeDeclaration],
+    source_calls: &[LoweredSourceCallOccurrence],
+    module: &TerminalModule,
 ) -> Result<terminal_psi::TerminalSuspensionLoans, LoweringError> {
+    let types = &module.structural_types;
     use checked_trees::{
         BorrowLoanLineage, CheckedCallBorrowLoanSource, CheckedParentBorrowResource,
         SuspensionCrossingLoanBacking, SuspensionCrossingLoanSource, SuspensionValueBorrowFrontier,
@@ -340,6 +343,108 @@ fn retain_loan_graph(
                     TerminalSuspensionLoanResource::IncomingReference,
                     Handle::invalid(),
                     HandleSpan::empty(),
+                    access.clone(),
+                )
+            }
+            SuspensionCrossingLoanSource::LifetimeDependency { loan, resource } => {
+                if !borrow.output_lifetime_dependencies.is_valid(resource)
+                    || borrow.output_lifetime_dependencies.get(resource).loan != loan
+                {
+                    return invalid_suspension("suspension lifetime dependency lost its checked resource");
+                }
+                let mut suppliers = HandleSpan::empty();
+                for source in borrow
+                    .loan_suppliers
+                    .span_or_empty(borrow.loans.get(loan).supplying_loans)
+                {
+                    let supplier = dependency(*source);
+                    if !supplier.is_valid() {
+                        return invalid_suspension("suspension dependency supplier is absent");
+                    }
+                    suppliers.push_contiguous(graph.supplier_links.insert(supplier));
+                }
+                (
+                    TerminalSuspensionLoanCapture::InputDependencies,
+                    TerminalSuspensionLoanResource::LifetimeDependency,
+                    Handle::invalid(),
+                    suppliers,
+                    borrow.loans.get(loan).kind.clone(),
+                )
+            }
+            SuspensionCrossingLoanSource::OutputInput { input, .. } => {
+                let input = borrow.supplied_output_inputs.get(input);
+                let contract = checked
+                    .facts
+                    .flow
+                    .control
+                    .operand_retained_suppliers
+                    .get(input.source)
+                    .contract
+                    .ok_or(LoweringError::InvalidSuspensionPlan(
+                        "suspension output input has no original contract",
+                    ))?;
+                let calls = checked.facts.flow.control.calls.iter().filter(|(_, call)| {
+                    call.statement_index == contract.statement_index
+                        && call.call_ordinal == contract.call_ordinal
+                        && call.authored_expression == contract.invocation
+                        && call
+                            .argument_operands()
+                            .handles()
+                            .any(|operand| operand == contract.input)
+                });
+                let mut calls = calls;
+                let (call, _) = calls.next().ok_or(LoweringError::InvalidSuspensionPlan(
+                    "suspension input has no original invocation",
+                ))?;
+                if calls.next().is_some() {
+                    return invalid_suspension("suspension input invocation is ambiguous");
+                }
+                let path = borrow.call_loan_paths.span(input.capture_path).ok_or(
+                    LoweringError::InvalidSuspensionPlan("suspension input capture path is unavailable"),
+                )?;
+                let (operation, argument, path) = captured_call_leaf(
+                    identities,
+                    checked,
+                    source_calls,
+                    module,
+                    contract.state_symbol,
+                    call,
+                    contract.parameter_index,
+                    path,
+                )?;
+                let mut suppliers = HandleSpan::empty();
+                let access = match input.permission {
+                    checked_trees::CheckedOutputBorrowInputPermission::Borrowed { resource } => {
+                        let resource = borrow.call_loan_resources.get(resource);
+                        let parents = match resource.source {
+                            CheckedCallBorrowLoanSource::StoredLoan { loan } => vec![loan],
+                            CheckedCallBorrowLoanSource::CallAccess { parents, .. } => {
+                                borrow.call_loan_parents.span_or_empty(parents).to_vec()
+                            }
+                        };
+                        for parent in parents {
+                            let parent = dependency(parent);
+                            if !parent.is_valid() {
+                                return invalid_suspension("suspension input ancestor is absent");
+                            }
+                            suppliers.push_contiguous(graph.supplier_links.insert(parent));
+                        }
+                        resource.access.clone()
+                    }
+                    checked_trees::CheckedOutputBorrowInputPermission::Incoming {
+                        access, ..
+                    } => access.into(),
+                };
+                (
+                    TerminalSuspensionLoanCapture::CallInput {
+                        call: operation,
+                        argument,
+                        path: graph.paths.insert_many(path),
+                        stored: contract.source == checked_trees::ViewReturnInputSource::Stored,
+                    },
+                    TerminalSuspensionLoanResource::OutputInput,
+                    Handle::invalid(),
+                    suppliers,
                     access,
                 )
             }
@@ -353,7 +458,54 @@ fn retain_loan_graph(
                     .loan_captures
                     .iter()
                     .filter(|capture| capture.loan == *source_loan);
-                let capture = if let Some(capture) = captures.next() {
+                let capture = if loan.lineage == BorrowLoanLineage::UnretainedDerived
+                    && (!loan.supplying_loans.is_empty()
+                        || borrow.retained_call_inputs(*source_loan).is_some())
+                {
+                    TerminalSuspensionLoanCapture::DescriptorTransfer
+                } else if let CheckedParentBorrowResource::SuppliedOutput { resource } = resource {
+                    let output = borrow.supplied_output_resources.get(*resource);
+                    let incoming = borrow.incoming_references.get(output.identity);
+                    let checked_trees::IncomingReferenceOrigin::Output { identity } =
+                        incoming.origin
+                    else {
+                        return invalid_suspension("suspension output lost its exact namespace");
+                    };
+                    let call = checked.facts.flow.control.calls.get(output.call);
+                    let parameters =
+                        validation::call_target_parameters(checked, call.target_symbol)
+                            .ok_or(LoweringError::InvalidSuspensionPlan(
+                                "suspension output call has no formal telescope",
+                            ))?;
+                    let position = parameters
+                        .iter()
+                        .position(|parameter| parameter.symbol == identity.parameter_symbol)
+                        .ok_or(LoweringError::InvalidSuspensionPlan(
+                            "suspension output has no original output argument",
+                        ))?;
+                    let path = validation::borrow_contracts::structural_owner_path(
+                        checked,
+                        borrow.owner_segments.span_or_empty(incoming.owner_path),
+                    )
+                    .ok_or(LoweringError::InvalidSuspensionPlan(
+                        "suspension output path has no declaration",
+                    ))?;
+                    let (operation, argument, path) = captured_call_leaf(
+                        identities,
+                        checked,
+                        source_calls,
+                        module,
+                        output.state_symbol,
+                        output.call,
+                        position,
+                        &path,
+                    )?;
+                    TerminalSuspensionLoanCapture::CompletedOutput {
+                        call: operation,
+                        argument,
+                        path: graph.paths.insert_many(path),
+                    }
+                } else if let Some(capture) = captures.next() {
                     if captures.next().is_some() {
                         return unsupported("suspension loan has multiple formation captures");
                     }
@@ -382,6 +534,17 @@ fn retain_loan_graph(
                     {
                         TerminalSuspensionLoanResource::Reborrow
                     }
+                    CheckedParentBorrowResource::SuppliedOutput { resource }
+                        if borrow.supplied_output_resources.is_valid(*resource) =>
+                    {
+                        TerminalSuspensionLoanResource::CompletedOutput
+                    }
+                    _ if loan.lineage == BorrowLoanLineage::UnretainedDerived
+                        && (!loan.supplying_loans.is_empty()
+                            || borrow.retained_call_inputs(*source_loan).is_some()) =>
+                    {
+                        TerminalSuspensionLoanResource::DescriptorTransfer
+                    }
                     _ => TerminalSuspensionLoanResource::Unresolved,
                 };
                 let parent = match loan.lineage {
@@ -396,49 +559,97 @@ fn retain_loan_graph(
                     }
                     suppliers.push_contiguous(graph.supplier_links.insert(supplier));
                 }
-                (capture, resource, parent, suppliers, &loan.kind)
+                if let Some(inputs) = borrow.retained_call_inputs(*source_loan) {
+                    for input in inputs {
+                        let supplier = loan_identities.iter().find(|(source, _, _)| matches!(carry.suspension_loans.get(*source).source,
+                            SuspensionCrossingLoanSource::CapturedActual { resource } if resource == *input))
+                            .map(|(_, _, target)| *target).ok_or(LoweringError::InvalidSuspensionPlan("saved reference's original call input is absent"))?;
+                        suppliers.push_contiguous(graph.supplier_links.insert(supplier));
+                    }
+                }
+                (capture, resource, parent, suppliers, loan.kind.clone())
             }
             SuspensionCrossingLoanSource::CapturedActual { resource } => {
                 if !borrow.call_loan_resources.is_valid(resource) {
                     return unsupported("suspension captured actual resource is unavailable");
                 }
+                let resource_handle = resource;
                 let resource = borrow.call_loan_resources.get(resource);
-                let position = crossing
-                    .borrows
-                    .operands
-                    .handles()
-                    .position(|operand| operand == resource.owner_operand)
-                    .ok_or(LoweringError::Unsupported(
-                        "suspension loan has no captured actual",
-                    ))?;
-                let live_value = live_values
-                    .iter()
-                    .position(|(live, _)| {
-                        live.origin
-                            == checked_trees::SuspensionCrossingValueOrigin::CallArgument {
-                                position,
-                            }
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "suspension captured actual is not retained",
-                    ))?;
-                let path = borrow.call_loan_paths.span(resource.capture_path).ok_or(
-                    LoweringError::Unsupported("suspension actual loan path is unavailable"),
-                )?;
-                let TerminalSuspensionValueType::Structural(root) =
-                    live_values[live_value].1.value_type
-                else {
-                    return unsupported("suspension captured loan has no structural operand");
-                };
-                let path = lower_static_argument_path(identities, path, root, types)?;
-                let path = graph.paths.insert_many(path);
-                let capture = TerminalSuspensionLoanCapture::RetainedValue {
-                    live_value: u32::try_from(live_value).map_err(|_| {
-                        LoweringError::Unsupported(
-                            "suspension actual index exceeds Terminal vocabulary",
-                        )
-                    })?,
-                    path,
+                let historical = rows.iter().any(|row| {
+                    let loan = row.stored_loan();
+                    loan.is_valid()
+                        && borrow
+                            .retained_call_inputs(loan)
+                            .is_some_and(|inputs| inputs.contains(&resource_handle))
+                });
+                let capture = if historical {
+                    let call = checked.facts.flow.control.calls.get(resource.call);
+                    let position = call
+                        .argument_operands()
+                        .handles()
+                        .position(|operand| operand == resource.owner_operand)
+                        .ok_or(LoweringError::InvalidSuspensionPlan(
+                            "saved input has no original call argument",
+                        ))?;
+                    let path = borrow.call_loan_paths.span(resource.capture_path).ok_or(
+                        LoweringError::InvalidSuspensionPlan(
+                            "saved input's original capture path is unavailable",
+                        ),
+                    )?;
+                    let (operation, argument, path) = captured_call_leaf(
+                        identities,
+                        checked,
+                        source_calls,
+                        module,
+                        resource.state_symbol,
+                        resource.call,
+                        position,
+                        path,
+                    )?;
+                    TerminalSuspensionLoanCapture::CallInput {
+                        call: operation,
+                        argument,
+                        path: graph.paths.insert_many(path),
+                        stored: !resource.capture_path.is_empty(),
+                    }
+                } else {
+                    let position = crossing
+                        .borrows
+                        .operands
+                        .handles()
+                        .position(|operand| operand == resource.owner_operand)
+                        .ok_or(LoweringError::Unsupported(
+                            "suspension loan has no captured actual",
+                        ))?;
+                    let live_value = live_values
+                        .iter()
+                        .position(|(live, _)| {
+                            live.origin
+                                == checked_trees::SuspensionCrossingValueOrigin::CallArgument {
+                                    position,
+                                }
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "suspension captured actual is not retained",
+                        ))?;
+                    let path = borrow.call_loan_paths.span(resource.capture_path).ok_or(
+                        LoweringError::Unsupported("suspension actual loan path is unavailable"),
+                    )?;
+                    let TerminalSuspensionValueType::Structural(root) =
+                        live_values[live_value].1.value_type
+                    else {
+                        return unsupported("suspension captured loan has no structural operand");
+                    };
+                    let path = lower_static_argument_path(identities, path, root, types)?;
+                    let path = graph.paths.insert_many(path);
+                    TerminalSuspensionLoanCapture::RetainedValue {
+                        live_value: u32::try_from(live_value).map_err(|_| {
+                            LoweringError::Unsupported(
+                                "suspension actual index exceeds Terminal vocabulary",
+                            )
+                        })?,
+                        path,
+                    }
                 };
                 let (kind, parent, suppliers) = match resource.source {
                     CheckedCallBorrowLoanSource::StoredLoan { loan } => {
@@ -446,15 +657,7 @@ fn retain_loan_graph(
                         if !supplier.is_valid() {
                             return unsupported("suspension actual loan supplier is not retained");
                         }
-                        let kind = match borrow.loans.get(loan).lineage {
-                            BorrowLoanLineage::Reborrow { .. } => {
-                                TerminalSuspensionLoanResource::Reborrow
-                            }
-                            BorrowLoanLineage::DirectRoot => {
-                                TerminalSuspensionLoanResource::DirectRoot
-                            }
-                            _ => TerminalSuspensionLoanResource::Unresolved,
-                        };
+                        let kind = TerminalSuspensionLoanResource::DescriptorTransfer;
                         (
                             kind,
                             Handle::invalid(),
@@ -480,11 +683,13 @@ fn retain_loan_graph(
                                 TerminalSuspensionLoanResource::DirectRoot
                             },
                             parent,
-                            HandleSpan::empty(),
+                            graph
+                                .supplier_links
+                                .insert_many(parents.iter().map(|parent| dependency(*parent))),
                         )
                     }
                 };
-                (capture, kind, parent, suppliers, &resource.access)
+                (capture, kind, parent, suppliers, resource.access.clone())
             }
         };
         let backing = match row.backing {
@@ -504,6 +709,25 @@ fn retain_loan_graph(
                     })?,
                 }
             }
+            SuspensionCrossingLoanBacking::CompletedOutput { resource } => {
+                let loan = dependency(borrow.supplied_output_resources.get(resource).loan);
+                if !loan.is_valid() {
+                    return invalid_suspension("suspension completed output is not retained");
+                }
+                TerminalSuspensionLoanBacking::CompletedOutput { loan }
+            }
+            SuspensionCrossingLoanBacking::InputDependencies => {
+                TerminalSuspensionLoanBacking::InputDependencies
+            }
+            SuspensionCrossingLoanBacking::IncomingReferent { .. }
+                if matches!(row.source, SuspensionCrossingLoanSource::OutputInput { .. })
+                    || matches!(row.source, SuspensionCrossingLoanSource::CapturedActual { resource } if rows.iter().any(|row| {
+                        let loan = row.stored_loan();
+                        loan.is_valid() && borrow.retained_call_inputs(loan).is_some_and(|inputs| inputs.contains(&resource))
+                    })) =>
+            {
+                TerminalSuspensionLoanBacking::CapturedInput
+            }
             SuspensionCrossingLoanBacking::IncomingReferent { identity } => {
                 let (_, _, argument) = incoming_reference_binding(
                     identities,
@@ -516,12 +740,29 @@ fn retain_loan_graph(
                 TerminalSuspensionLoanBacking::IncomingReferent { argument }
             }
         };
+        let mut inputs = HandleSpan::empty();
+        if matches!(
+            row.source,
+            SuspensionCrossingLoanSource::Stored {
+                resource: CheckedParentBorrowResource::SuppliedOutput { .. },
+                ..
+            } | SuspensionCrossingLoanSource::LifetimeDependency { .. }
+        ) {
+            for (candidate, _, target) in &loan_identities {
+                if matches!(carry.suspension_loans.get(*candidate).source,
+                    SuspensionCrossingLoanSource::OutputInput { owner, .. } if owner == *source_loan)
+                {
+                    inputs.push_contiguous(graph.input_links.insert(*target));
+                }
+            }
+        }
         *graph.occurrences.get_mut(*terminal) = TerminalSuspensionLoan {
             capture,
             backing,
             resource,
             parent,
             suppliers,
+            inputs,
             access: match access {
                 checked_trees::BorrowAccessKind::Read => StructuralAccess::SharedBorrow,
                 checked_trees::BorrowAccessKind::Mutable => StructuralAccess::MutableBorrow,
@@ -956,4 +1197,62 @@ fn scalar_value_available_before(
     };
     definition.id != block.id
         && terminal_semantics::control_graph::dominators(machine).dominates(definition.id, block.id)
+}
+
+/// The operation owns the observation epoch. Its already emitted argument
+/// retains earlier operand evaluation even when a later operand changes a name.
+fn captured_call_leaf(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    source_calls: &[LoweredSourceCallOccurrence],
+    module: &TerminalModule,
+    state: symbols::SymbolHandle,
+    call: Handle<checked_trees::FlowCallFact>,
+    position: usize,
+    path: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Result<
+    (
+        semantic_vocabulary::OperationId,
+        terminal_psi::StructuralArgument,
+        Vec<terminal_psi::StructuralPathSegment>,
+    ),
+    LoweringError,
+> {
+    let call = checked.facts.flow.control.calls.get(call);
+    let mut occurrences = source_calls.iter().filter(|occurrence| {
+        occurrence.matches_statement(state, call.statement_index, call.call_ordinal)
+    });
+    let occurrence = occurrences.next().ok_or(LoweringError::InvalidSuspensionPlan(
+        "captured output/input call has no emitted occurrence",
+    ))?;
+    if occurrences.next().is_some()
+        || owning_callable_symbol(checked, occurrence.source_target)
+            != owning_callable_symbol(checked, call.target_symbol)
+    {
+        return invalid_suspension("captured output/input call is ambiguous or redirected");
+    }
+    let operation = occurrence
+        .terminal_site
+        .operation()
+        .ok_or(LoweringError::InvalidSuspensionPlan(
+            "captured output/input has no normal call operation",
+        ))?;
+    let emitted = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find(|candidate| candidate.id == operation)
+        .ok_or(LoweringError::InvalidSuspensionPlan(
+            "captured output/input operation is unavailable",
+        ))?;
+    let (
+        TerminalSuspensionPlace::Structural(argument),
+        TerminalSuspensionValueType::Structural(root),
+    ) = call_argument_binding(checked, call.target_symbol, &emitted.kind, module, position)?
+    else {
+        return invalid_suspension("captured output/input has no structural argument");
+    };
+    let path = lower_static_argument_path(identities, path, root, &module.structural_types)?;
+    Ok((operation, argument, path))
 }

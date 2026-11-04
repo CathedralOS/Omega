@@ -230,6 +230,15 @@ consumer API, qualification, complete inventory, and failure categories. Neither
 deserialized metadata nor an early build-time product reference satisfies it.
 Installation-dependent facts remain requirements until actual binding admission.
 
+The accepted assumptions are supplied through
+[consumer acceptance](../build/component_publication.md#consumer-acceptance-and-build-attenuation),
+with canonical meaning and exact subject/profile/occurrence/target scope, not
+approval authored by the component or plan producer. A Build policy or topology
+request may impose a tighter ceiling but cannot widen consumer acceptance or
+rewrite the verifier's complete inventory. A package-defined graph plan is not
+a second compiler acceptance input and grants no execution or installation
+authority.
+
 The component verifier owns code-to-inventory correctness; this package owns
 inventory-to-instance-graph correctness; the installer/provider owns the actual
 bindings. No package-owned duplicate census or topology-specific compiler analyzer
@@ -383,6 +392,13 @@ and accepted assumptions. The builder may choose bindings that satisfy that
 request, but may not add an undeclared instance, swap code, or omit a required
 policy. Updates to the request need new owner authorization; no compatibility
 heuristic is necessary in the first version.
+
+Its assumption list reflects independently accepted inputs or a restriction of
+that acceptance, never new approval inferred from the request writer's intent.
+It does not replace the ordinary compilation acceptance record or allow a
+dependency's own lock to authorize the consumer. Build attenuation is optional;
+its absent/empty distinction follows the component acceptance contract rather
+than silently turning omitted policy into a new grant.
 
 The installer receives the expected request commitment and current installation
 authorization from its caller/supervisor, not from the candidate plan. It compares

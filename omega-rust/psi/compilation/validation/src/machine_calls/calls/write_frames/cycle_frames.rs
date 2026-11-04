@@ -387,6 +387,7 @@ fn build_cycle_frame_equation<'program>(
                                 CallerWriteSite::Call(call),
                                 arguments,
                                 &mut inference,
+                                Some(&argument_origins),
                             )
                         })
                         .flatten()

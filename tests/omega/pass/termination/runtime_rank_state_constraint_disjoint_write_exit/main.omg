@@ -5,6 +5,7 @@ terminates by remaining in 0..=9 {
 
     machine step(current: u32, mut ceiling: u32, scratch: u32, mut unrelated: u32) -> u32
     requires current <= 9 && ceiling <= 4 && scratch <= ceiling
+    terminates by current in 0..=9
     {
         unrelated = 1;
         transition scratch > ceiling {
