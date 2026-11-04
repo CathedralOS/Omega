@@ -49,8 +49,8 @@ machine Main::main(context: &mut Main) reaches Console {
     // Check 1: 100°C → 212°F.
     let result: f64 = celsius_to_fahrenheit(100.0);
     transition result > 211.5 {
-        true -> check_c2f_upper(context, result)
-        _ -> bad_c2f_low(context)
+        true -> block check_c2f_upper(context, result)
+        _ -> block bad_c2f_low(context)
     }
     machine bad_c2f_low(context: &mut Main) {
         Console::write_line("FAIL: 100 C converted below 211.5 F (exit 71)");
@@ -62,8 +62,8 @@ machine Main::main(context: &mut Main) reaches Console {
 
     machine check_c2f_upper(context: &mut Main, result: f64) {
         transition result < 212.5 {
-            true -> check_f2c(context)
-            _ -> bad_c2f_high(context)
+            true -> block check_f2c(context)
+            _ -> block bad_c2f_high(context)
         }
     }
     machine bad_c2f_high(context: &mut Main) {
@@ -78,8 +78,8 @@ machine Main::main(context: &mut Main) reaches Console {
     machine check_f2c(context: &mut Main) {
         let result: f64 = fahrenheit_to_celsius(212.0);
         transition result > 99.5 {
-            true -> check_f2c_upper(context, result)
-            _ -> bad_f2c_low(context)
+            true -> block check_f2c_upper(context, result)
+            _ -> block bad_f2c_low(context)
         }
     }
     machine bad_f2c_low(context: &mut Main) {
@@ -92,8 +92,8 @@ machine Main::main(context: &mut Main) reaches Console {
 
     machine check_f2c_upper(context: &mut Main, result: f64) {
         transition result < 100.5 {
-            true -> check_k2c(context)
-            _ -> bad_f2c_high(context)
+            true -> block check_k2c(context)
+            _ -> block bad_f2c_high(context)
         }
     }
     machine bad_f2c_high(context: &mut Main) {
@@ -108,8 +108,8 @@ machine Main::main(context: &mut Main) reaches Console {
     machine check_k2c(context: &mut Main) {
         let result: f64 = kelvin_to_celsius(373.15);
         transition result > 99.9 {
-            true -> check_k2c_upper(context, result)
-            _ -> bad_k2c_low(context)
+            true -> block check_k2c_upper(context, result)
+            _ -> block bad_k2c_low(context)
         }
     }
     machine bad_k2c_low(context: &mut Main) {
@@ -122,8 +122,8 @@ machine Main::main(context: &mut Main) reaches Console {
 
     machine check_k2c_upper(context: &mut Main, result: f64) {
         transition result < 100.1 {
-            true -> check_km(context)
-            _ -> bad_k2c_high(context)
+            true -> block check_km(context)
+            _ -> block bad_k2c_high(context)
         }
     }
     machine bad_k2c_high(context: &mut Main) {
@@ -138,8 +138,8 @@ machine Main::main(context: &mut Main) reaches Console {
     machine check_km(context: &mut Main) {
         let result: f64 = km_to_miles(10.0);
         transition result > 6.1 {
-            true -> check_km_upper(context, result)
-            _ -> bad_km_low(context)
+            true -> block check_km_upper(context, result)
+            _ -> block bad_km_low(context)
         }
     }
     machine bad_km_low(context: &mut Main) {
@@ -152,8 +152,8 @@ machine Main::main(context: &mut Main) reaches Console {
 
     machine check_km_upper(context: &mut Main, result: f64) {
         transition result < 6.3 {
-            true -> check_kg(context)
-            _ -> bad_km_high(context)
+            true -> block check_kg(context)
+            _ -> block bad_km_high(context)
         }
     }
     machine bad_km_high(context: &mut Main) {
@@ -168,8 +168,8 @@ machine Main::main(context: &mut Main) reaches Console {
     machine check_kg(context: &mut Main) {
         let result: f64 = kg_to_lbs(5.0);
         transition result > 11.0 {
-            true -> check_kg_upper(context, result)
-            _ -> bad_kg_low(context)
+            true -> block check_kg_upper(context, result)
+            _ -> block bad_kg_low(context)
         }
     }
     machine bad_kg_low(context: &mut Main) {
@@ -182,8 +182,8 @@ machine Main::main(context: &mut Main) reaches Console {
 
     machine check_kg_upper(context: &mut Main, result: f64) {
         transition result < 11.1 {
-            true -> good(context)
-            _ -> bad_kg_high(context)
+            true -> block good(context)
+            _ -> block bad_kg_high(context)
         }
     }
     machine bad_kg_high(context: &mut Main) {

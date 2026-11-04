@@ -285,6 +285,9 @@ pub(super) fn check_indexed_access(
     // extent judgment above could not close the bounds; a second independent
     // interval prefix cannot reconstruct captured nested call results.
     let builtin_geometry = length.is_some()
+        || expression_type_reference(program, machine, state, indexed.collection)
+            .and_then(|reference| validation::fixed_array_type_extent(program, reference))
+            .is_some()
         || expression_is_slice(program, machine, state, indexed.collection)
         || expression_type_reference(program, machine, state, indexed.collection)
             .and_then(|reference| arrays::bounded_byte_type_capacity(program, reference))

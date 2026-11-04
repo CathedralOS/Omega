@@ -71,6 +71,13 @@ pub struct CheckedUnitCallTarget {
 /// How a call reaches its target.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitCallRoute {
+    /// A checked task-register operation uses the ordinary evaluated arguments
+    /// without entering the private core declaration's nonexistent frame.
+    TaskRegister {
+        operation: language_core::task_register::TaskRegisterOperation,
+        service: language_semantics::ServiceReachId,
+        result_type: typed_trees::types::PrimitiveType,
+    },
     /// A sealed compiler operation performed in this caller's activation.
     /// Its source invocation shares operand evaluation and result custody with
     /// calls, but enters no callee frame and demands no provider completion.
@@ -217,6 +224,33 @@ impl CheckedUnitCallPlan {
                 )
             ),
             BoundaryCompletion::NormalReturn => match (&route, &result, &transfers) {
+                (
+                    CheckedUnitCallRoute::TaskRegister {
+                        operation,
+                        result_type,
+                        ..
+                    },
+                    Result::Unit | Result::Scalar(_),
+                    Transfers::Claims(claims),
+                ) => {
+                    claims.is_empty()
+                        && match &result {
+                            Result::Scalar(result) => result.primitive_type == *result_type,
+                            _ => true,
+                        }
+                        && match operation {
+                            language_core::task_register::TaskRegisterOperation::Activate {
+                                entries,
+                            } => {
+                                (2..=8192).contains(entries)
+                                    && structural_arguments.len() == 3
+                                    && scalar_arguments.len() == 1
+                            }
+                            language_core::task_register::TaskRegisterOperation::Selector => {
+                                structural_arguments.is_empty() && scalar_arguments.is_empty()
+                            }
+                        }
+                }
                 (
                     CheckedUnitCallRoute::Module {
                         contract_commitment,
@@ -394,6 +428,7 @@ impl CheckedUnitCallPlan {
                 ..
             } => *contract_commitment,
             CheckedUnitCallRoute::ActivationStorage { .. }
+            | CheckedUnitCallRoute::TaskRegister { .. }
             | CheckedUnitCallRoute::Boundary
             | CheckedUnitCallRoute::Dynamic { .. } => None,
         }
@@ -408,6 +443,7 @@ impl CheckedUnitCallPlan {
                 ..
             } => Some(erased_scalar_arguments),
             CheckedUnitCallRoute::ActivationStorage { .. }
+            | CheckedUnitCallRoute::TaskRegister { .. }
             | CheckedUnitCallRoute::Boundary
             | CheckedUnitCallRoute::Dynamic { .. } => None,
         }
@@ -422,6 +458,7 @@ impl CheckedUnitCallPlan {
                 ..
             } => Some(erased_proof_arguments),
             CheckedUnitCallRoute::ActivationStorage { .. }
+            | CheckedUnitCallRoute::TaskRegister { .. }
             | CheckedUnitCallRoute::Boundary
             | CheckedUnitCallRoute::Dynamic { .. } => None,
         }

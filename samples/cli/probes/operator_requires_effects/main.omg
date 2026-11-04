@@ -9,6 +9,8 @@
 //     resolves the public slot; `CheckedEquality::equal` is the
 //     selected checked satisfier, so `==` on these operands runs its
 //     body rather than primitive equality.
+//   * The operands are `i32 in Counted`, the probe's own domain home:
+//     bare i32 operands would join the core's primitive `==` family.
 //   * `prepare` mutates through `&mut` while returning —
 //     operand evaluation order: effect first, then `value`
 //     read. `prepare` stores 1 and returns 1, so the comparison
@@ -19,26 +21,29 @@
 //
 // Expected exit: 0.
 
-boundary machine == Integer::equal(left: i32, right: i32) -> bool
+domain i32::Counted requires self >= -1000000; self <= 1000000;
+
+boundary machine == Integer::equal(left: i32 in Counted, right: i32 in Counted) -> bool
 requires right >= 0;
 
 data CheckedEquality {}
 
-machine CheckedEquality::equal(left: i32, right: i32) -> bool
+machine CheckedEquality::equal(left: i32 in Counted, right: i32 in Counted) -> bool
 satisfies Integer::equal
 requires right >= 0
 {
     left <= right && left >= right
 }
 
-machine prepare(value: &mut i32) -> i32
+machine prepare(value: &mut i32 in Counted) -> i32 in Counted
 ensures value >= 0 {
     value = 1;
     1
 }
 
-machine compare(mut value: i32) -> bool {
-    prepare(&mut value) == value
+machine compare(value: i32 in Counted) -> bool {
+    let mut held: i32 in Counted = value;
+    prepare(&mut held) == held
 }
 
 data Main { hits: i32 in Wrapping; }

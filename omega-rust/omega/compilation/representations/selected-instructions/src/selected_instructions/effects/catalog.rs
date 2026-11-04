@@ -233,9 +233,13 @@ machine_semantic_kinds! {
     { fixed MemoryFence },
     { fixed ControlRegisterRead },
     { fixed ControlRegisterWrite },
+    { fixed GlobalDescriptorTableLoad },
+    { fixed GlobalDescriptorTableStore },
 
     { fixed AtomicFence },
     { fixed InvokeNoNormal },
+    { fixed TaskRegisterActivate },
+    { fixed TaskRegisterRead },
     {
         /// One `Trapping` primitive at one carrier: the exact result, or an
         /// in-function architectural trap when the policy predicate holds.
@@ -311,6 +315,10 @@ impl MachineSemanticKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineAlternativeFamily {
+    GlobalDescriptorTableLoad,
+    GlobalDescriptorTableStore,
+    TaskRegisterActivate,
+    TaskRegisterRead,
     ControlRegisterRead,
     ControlRegisterWrite,
     PortWrite,
@@ -427,6 +435,10 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::InvokeNoNormal => Self::InvokeNoNormal,
             MachineSemanticKind::SystemRegisterRead => Self::SystemRegisterRead,
             MachineSemanticKind::SystemRegisterWrite => Self::SystemRegisterWrite,
+            MachineSemanticKind::GlobalDescriptorTableLoad => Self::GlobalDescriptorTableLoad,
+            MachineSemanticKind::GlobalDescriptorTableStore => Self::GlobalDescriptorTableStore,
+            MachineSemanticKind::TaskRegisterActivate => Self::TaskRegisterActivate,
+            MachineSemanticKind::TaskRegisterRead => Self::TaskRegisterRead,
             MachineSemanticKind::ControlRegisterRead => Self::ControlRegisterRead,
             MachineSemanticKind::ControlRegisterWrite => Self::ControlRegisterWrite,
             MachineSemanticKind::PortRegisterRead => Self::PortRegisterRead,
@@ -622,6 +634,8 @@ pub enum MachineMemoryEffect {
     HostedReadByteV1,
     /// Private-byte initialization and kernel read, with an observable stdout write.
     HostedWriteByteV1,
+    /// Checked GDTR association, scratch write and conditional locked TSS descriptor update.
+    TaskRegisterActivationV1,
     WritePointerV1,
     NoneV1,
     ReadPointerV1,
@@ -883,9 +897,26 @@ pub enum MachineEncodedMemoryEffect {
     HostedWriteByteV1 {
         stack_pointer: RegisterViewId,
     },
+    /// The preflight reads the actual GDTR into ten scratch bytes and inspects
+    /// the selected sixteen-byte descriptor within the borrowed table. Success
+    /// performs LTR's locked descriptor update and retains the task-state base
+    /// in TR. PUSHFQ temporarily uses eight bytes below the current stack.
+    TaskRegisterActivationV1 {
+        table_pointer_operand: u16,
+        table_byte_count_operand: u16,
+        task_pointer_operand: u16,
+        selector_operand: u16,
+        scratch_pointer_operand: u16,
+        stack_pointer: RegisterViewId,
+    },
     /// Exact footprint is the receiving-validated Store instruction byte size.
     WritePointerV1 {
         pointer_operand: u16,
+    },
+    /// The validated instruction writes this exact fixed byte span.
+    WriteFixedPointerV1 {
+        pointer_operand: u16,
+        byte_count: u16,
     },
     ReadIndexedPointerV1 {
         pointer_operand: u16,

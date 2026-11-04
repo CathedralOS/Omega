@@ -42,38 +42,38 @@ machine Main::main(main: &mut Main) reaches Console {
     let second: i32 in Saturating = Ring::pop(&mut ring);
     let last: i32 in Saturating = Ring::pop(&mut ring);
     transition ring.size == 3 {
-        true -> check_popped(&ring, first, second, last)
-        _ -> bad_size()
+        true -> block check_popped(&ring, first, second, last)
+        _ -> block bad_size()
     }
 
     machine check_popped(ring: &Ring, first: i32 in Saturating, second: i32 in Saturating, last: i32 in Saturating) {
         transition first == 20 && second == 30 && last == 40 {
-            true -> check_sum(ring)
-            _ -> bad_pop()
+            true -> block check_sum(ring)
+            _ -> block bad_pop()
         }
     }
     machine check_sum(ring: &Ring) {
         let sum: i32 in Saturating = ring.slots[3] + ring.slots[4] + ring.slots[5];
         transition sum == 70 {
-            true -> good()
-            _ -> bad_sum()
+            true -> block good()
+            _ -> block bad_sum()
         }
     }
     machine good() {
         Console::write_line("PASS: size=3, last pop 40, remaining sum 70 (exit 70)");
-        transition { _ -> finish(70) }
+        transition { _ -> block finish(70) }
     }
     machine bad_size() {
         Console::write_line("FAIL: wrong ring size (exit 71)");
-        transition { _ -> finish(71) }
+        transition { _ -> block finish(71) }
     }
     machine bad_pop() {
         Console::write_line("FAIL: wrong last-popped value (exit 72)");
-        transition { _ -> finish(72) }
+        transition { _ -> block finish(72) }
     }
     machine bad_sum() {
         Console::write_line("FAIL: wrong sum of remaining slots (exit 73)");
-        transition { _ -> finish(73) }
+        transition { _ -> block finish(73) }
     }
     machine finish(code: i32) {
         Console::write_line("[press Enter to close]");

@@ -31,23 +31,23 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     main.minimum = 9;
     main.maximum = 0;
     main.eof = false;
-    transition { _ -> read(main) }
+    transition { _ -> block read(main) }
     machine read(main: &mut Main) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Byte { value } -> byte(main, value)
-            _ -> finish_input(main)
+            ByteRead::Byte { value } -> block byte(main, value)
+            _ -> block finish_input(main)
         }
     }
     machine byte(main: &mut Main, value: i32) {
         transition value == 10 {
-            true -> close(main)
-            _ -> validate(main, value)
+            true -> block close(main)
+            _ -> block validate(main, value)
         }
     }
     machine validate(main: &mut Main, value: i32) {
         transition value >= 48 && value <= 57 && main.length >= 0 && main.length < 32 && main.frame < 16 {
-            true -> store(main, value)
+            true -> block store(main, value)
             _ -> bad(main)
         }
     }
@@ -57,15 +57,15 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         main.minimum = match sample < main.minimum { true -> sample _ -> main.minimum };
         main.maximum = match sample > main.maximum { true -> sample _ -> main.maximum };
         main.length = main.length + 1;
-        transition { _ -> read(main) }
+        transition { _ -> block read(main) }
     }
     machine finish_input(main: &mut Main) {
         main.eof = true;
-        transition main.length > 0 { true -> close(main) _ -> end(main) }
+        transition main.length > 0 { true -> block close(main) _ -> end(main) }
     }
     machine close(main: &mut Main) {
         transition main.length > 0 && main.frame < 16 {
-            true -> begin_frame(main)
+            true -> block begin_frame(main)
             _ -> bad(main)
         }
     }
@@ -78,12 +78,12 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         main.best_sum = 10000;
         main.best_pairs = 1;
         main.ties = 0;
-        transition main.length >= 12 { true -> score(main) _ -> track(main) }
+        transition main.length >= 12 { true -> block score(main) _ -> block track(main) }
     }
     machine score(main: &mut Main) {
         transition main.lag <= 8 {
-            true -> calculate(main)
-            _ -> classify(main)
+            true -> block calculate(main)
+            _ -> block classify(main)
         }
     }
     machine calculate(main: &mut Main) {
@@ -93,8 +93,8 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         Console::write(" "); number(main.sum);
         Console::write(" "); number(main.pairs); Console::write_line("");
         transition main.sum * main.best_pairs < main.best_sum * main.pairs {
-            true -> better(main)
-            _ -> tie(main)
+            true -> block better(main)
+            _ -> block tie(main)
         }
     }
     machine better(main: &mut Main) {
@@ -102,15 +102,15 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         main.best_sum = main.sum;
         main.best_pairs = main.pairs;
         main.ties = 1;
-        transition { _ -> next_lag(main) }
+        transition { _ -> block next_lag(main) }
     }
     machine tie(main: &mut Main) {
         main.ties = match main.sum * main.best_pairs == main.best_sum * main.pairs { true -> main.ties + 1 _ -> main.ties };
-        transition { _ -> next_lag(main) }
+        transition { _ -> block next_lag(main) }
     }
     machine next_lag(main: &mut Main) {
         main.lag = main.lag + 1;
-        transition { _ -> score(main) }
+        transition { _ -> block score(main) }
     }
     machine classify(main: &mut Main) {
         main.status = match main.minimum == main.maximum {
@@ -121,7 +121,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             }
         };
         main.best_lag = match main.status == 0 || main.status == 4 { true -> 0 _ -> main.best_lag };
-        transition { _ -> track(main) }
+        transition { _ -> block track(main) }
     }
     machine track(main: &mut Main) {
         Console::write("TRACK "); number(main.frame);
@@ -169,7 +169,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         main.length = 0;
         main.minimum = 9;
         main.maximum = 0;
-        transition main.eof { true -> end(main) _ -> read(main) }
+        transition main.eof { true -> end(main) _ -> block read(main) }
     }
     machine end(main: &mut Main) {
         transition main.frame > 0 {

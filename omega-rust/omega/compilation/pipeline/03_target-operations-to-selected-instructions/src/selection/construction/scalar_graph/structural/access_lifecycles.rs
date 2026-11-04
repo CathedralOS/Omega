@@ -85,6 +85,13 @@ pub(super) fn emit(
     else {
         return Err(failure("extraction lost its admitted profile type"));
     };
+    let mut backing = storage.clone();
+    backing.path.extend(
+        plan.storage
+            .owner_storage_path(declarations)
+            .ok_or_else(|| failure("extraction lost its owner backing projection"))?,
+    );
+    let storage = &backing;
     let mut remaining = indices.as_slice();
     let storage_indices = operand_indices(storage, &mut remaining)?;
     let profile_indices = operand_indices(profile, &mut remaining)?;

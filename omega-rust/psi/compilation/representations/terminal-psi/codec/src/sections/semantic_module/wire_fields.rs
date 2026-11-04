@@ -930,3 +930,11 @@ optional_packages! {
     ProviderPackage: "empty provider source package identity";
     BoundaryPackage: "empty boundary package identity";
 }
+
+use terminal_psi::GlobalDescriptorTableOperation;
+wire_enum! {
+    GlobalDescriptorTable: GlobalDescriptorTableOperation, "GlobalDescriptorTableOperation" {
+        0 => Store,
+        1 => Load,
+    }
+}

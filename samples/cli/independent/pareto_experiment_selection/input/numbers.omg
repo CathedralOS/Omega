@@ -8,29 +8,29 @@ invokes Console
 blocks
 crashes Trap
 {
-    transition { _ -> skip() }
+    transition { _ -> block skip() }
     machine skip() -> Parsed {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> invalid()
-            ByteRead::Byte { value } -> start(value)
+            ByteRead::Byte { value } -> block start(value)
         }
     }
     machine start(byte: i32) -> Parsed {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
-            true -> skip()
-            false -> first(byte)
+            true -> block skip()
+            false -> block first(byte)
         }
     }
     machine first(byte: i32) -> Parsed {
         transition byte >= 48 && byte <= 57 {
-            true -> initial(byte)
+            true -> block initial(byte)
             false -> invalid()
         }
     }
     machine initial(byte: i32) -> Parsed
     requires byte >= 48 && byte <= 57 {
-        transition { _ -> scan((byte - 48) as u64, 1) }
+        transition { _ -> block scan((byte - 48) as u64, 1) }
     }
     machine scan(value: u64, digits: u64) -> Parsed
     requires value <= 999
@@ -38,7 +38,7 @@ crashes Trap
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> complete(value)
-            ByteRead::Byte { value as byte } -> classify(value, digits, byte)
+            ByteRead::Byte { value as byte } -> block classify(value, digits, byte)
         }
     }
     machine classify(value: u64, digits: u64, byte: i32) -> Parsed
@@ -46,12 +46,12 @@ crashes Trap
     requires digits >= 1 && digits <= 3 {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
             true -> complete(value)
-            false -> digit(value, digits, byte)
+            false -> block digit(value, digits, byte)
         }
     }
     machine digit(value: u64, digits: u64, byte: i32) -> Parsed {
         transition byte >= 48 && byte <= 57 && value <= 99 && digits >= 1 && digits < 3 {
-            true -> append(value, digits, byte)
+            true -> block append(value, digits, byte)
             false -> invalid()
         }
     }
@@ -59,7 +59,7 @@ crashes Trap
     requires value <= 99
     requires digits >= 1 && digits < 3
     requires byte >= 48 && byte <= 57 {
-        transition { _ -> scan(value * 10 + ((byte - 48) as u64), digits + 1) }
+        transition { _ -> block scan(value * 10 + ((byte - 48) as u64), digits + 1) }
     }
     machine complete(value: u64) -> Parsed { Parsed { value: value, valid: true } }
     machine invalid() -> Parsed { Parsed { value: 0, valid: false } }
@@ -71,17 +71,17 @@ invokes Console
 blocks
 crashes Trap
 {
-    transition { _ -> scan() }
+    transition { _ -> block scan() }
     machine scan() -> bool {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> true
-            ByteRead::Byte { value } -> check(value)
+            ByteRead::Byte { value } -> block check(value)
         }
     }
     machine check(byte: i32) -> bool {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
-            true -> scan()
+            true -> block scan()
             false -> false
         }
     }

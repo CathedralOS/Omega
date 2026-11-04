@@ -140,6 +140,7 @@ pub(crate) fn check_product_source(
             .settle(&computed_build_config.config.settings.optimizations)
             .effective()
             .clone(),
+        selections.portable_productions(),
     ));
     let native_bindings = Arc::new(
         provider_planning::native_bindings::PreparedNativeBuildBindings::capture(

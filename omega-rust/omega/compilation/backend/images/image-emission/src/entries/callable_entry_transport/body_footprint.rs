@@ -149,6 +149,10 @@ pub(super) fn collect(
             footprint.decoded(model, encoded)?;
             match row.alternative.family {
                 MachineAlternativeFamily::ControlRegisterRead
+                | MachineAlternativeFamily::GlobalDescriptorTableLoad
+                | MachineAlternativeFamily::GlobalDescriptorTableStore
+                | MachineAlternativeFamily::TaskRegisterActivate
+                | MachineAlternativeFamily::TaskRegisterRead
                 | MachineAlternativeFamily::ControlRegisterWrite => {
                     footprint.state(MachineState::ControlState)
                 }

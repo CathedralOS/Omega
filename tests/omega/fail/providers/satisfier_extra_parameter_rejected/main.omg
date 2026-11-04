@@ -41,7 +41,10 @@ public boundary trait ArithmeticCount {
     machine count(value: u64) -> u64 reaches;
 }
 boundary operator Arithmetic::offset(value: i32) -> i32;
-boundary machine - Arithmetic::select_left(left: i32, right: i32) -> i32;
+// The operator's declared home: bare primitive operands would join the
+// core's primitive operator family, which only the core may publish.
+domain i32::Selected;
+boundary machine - Arithmetic::select_left(left: i32 in Selected, right: i32 in Selected) -> i32;
 
 machine stateful_count(state: &mut TallyState, value: u64) -> u64
 satisfies ArithmeticCount::count
@@ -53,10 +56,10 @@ satisfies Arithmetic::offset
 {
     value
 }
-machine stateful_select_left(state: &mut TallyState, left: i32, right: i32) -> i32
+machine stateful_select_left(state: &mut TallyState, left: i32 in Selected, right: i32 in Selected) -> i32
 satisfies Arithmetic::select_left
 {
-    left
+    left as i32
 }
 
 machine main() { }

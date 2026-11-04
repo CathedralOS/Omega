@@ -144,6 +144,19 @@ pub(super) fn parameter_destination_inventory(
                 return None;
             }
             visited.push(reference);
+            // Scalar elements cannot contain reference destinations, even
+            // before their fixed-array count is closed. Nonspatial lifetime
+            // obligations remain separate and must also be completely absent.
+            if crate::has_contents(
+                program,
+                reference,
+                &[],
+                crate::ContentsRequirement::BorrowFree,
+            ) && crate::borrow_contracts::retained_lifetime_owner_paths(program, reference)
+                .is_some_and(|paths| paths.is_empty())
+            {
+                continue;
+            }
             let Some(inventory) = stored_origins::declared_origins_for_query(
                 program,
                 parameter.symbol,

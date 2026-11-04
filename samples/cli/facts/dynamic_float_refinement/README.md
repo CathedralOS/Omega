@@ -6,9 +6,9 @@ callers use the public contract. Every program checks the observed result and
 traps if it differs from `0.25`.
 
 This row belongs to `BUILD-OWNED-TARGET-SELECTION` in [TASKS.md](../../../../TASKS.md).
-Its remaining migration replaces the four identical target-prefixed `invoke`
-bodies with `SelectedFloatInvocation`, an ordinary named implementation of
-`FloatInvocation`. Four explicit Build rows select it. The dynamic selector
+Four explicit Build rows select `SelectedFloatInvocation`, an ordinary named
+implementation of `FloatInvocation`, in place of the former target-prefixed
+`invoke` bodies. The dynamic selector
 remains an actual `dyn Fraction` argument, and the result remains `f64`.
 
 | Place | Positive | Reject twin |
@@ -96,9 +96,22 @@ at `fa33c81d5ef2`. Fetched-main verification confirmed the reviewed source,
 all 532 authored input hashes and both recorded files, preserving unrelated
 parent records. The macOS observations keep their actual earlier source stamp;
 no execution at that publication or a later metadata commit is inferred.
-The four target bindings do not establish native execution on Windows x86-64
-or Linux ARM64. Broader dynamic dispatch and target-selection acceptance stays
-on the task board.
+Windows x86-64 and Linux ARM64 now have matching-host qualification for both
+rows at published source `9566f10e0d29`. Each host checked eighteen positives
+and eighteen intended corpus refusals, then observed eighteen native/Terminal
+exit-zero pairs. Each also ran the forty-five ordinary projects: eighteen
+exit-zero pairs and twenty-seven intended refusals, including the migrated
+nested controls. Both root programs completed with native/Terminal exit zero.
+The runs are [Windows 41779728390](https://github.com/CathedralOS/Omega/actions/runs/41779728390)
+and [Linux ARM64 41779730966](https://github.com/CathedralOS/Omega/actions/runs/41779730966).
+Their audits verify the optimized compiler profiles, all 532 frozen authored
+inputs and all 707 distinct authored/copied input hashes per host.
+
+Both nine-place rows now have observed native/Terminal agreement on all four
+hosted targets. Programs, Build files, oracles, compiler and library inputs are
+unchanged in this record update. Each result keeps its actual observed source;
+the earlier Linux x86-64 and macOS results retain their earlier stamps.
+Broader dynamic dispatch and target-selection acceptance stays on the task board.
 
 <details><summary>Historical baseline and retained source</summary>
 
@@ -108,7 +121,7 @@ refusals, then observed eighteen native/Terminal exit-zero pairs. The recording
 checkout was `c98fe475c9a7`; the actual verified optimized producer was
 `1f3c4da0217e`. It is not a run of the migrated source or current main.
 
-The measured current core source is retained as a verified Git bundle in
+The earlier measured core source is retained as a verified Git bundle in
 [PR #1486](https://github.com/CathedralOS/Omega/pull/1486#issuecomment-6620126120),
 with all thirteen posted parts read back and decoded. Raw reports, producer
 profiles and authored input hashes are retained in

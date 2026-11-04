@@ -5,11 +5,13 @@
 //! authority by spelling; Build execution still checks the original activation cell.
 
 mod build_declarations;
+mod task_register;
 pub use build_declarations::{
     build_operation, build_product_request_intrinsic, is_build_declaration_selection,
     resolve_build_static_operand,
 };
 use language_semantics::byte_predicates::ByteSequencePredicate;
+pub use task_register::{task_register_declaration, task_register_operation};
 use typed_trees::types::TypeReferenceNode;
 
 use crate::frozen_program::expression_table;
@@ -254,4 +256,81 @@ pub(crate) fn expression_call_only_observes_operands(
                 | AuthoredDeclarationSelectionIntrinsic::StorageAddress
         )
     )
+}
+
+/// A descriptor instruction borrows exactly ten bytes. Hardware-written bytes
+/// cannot establish a reference, a refinement or any other typed value.
+pub fn global_descriptor_table_operand(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: Option<&typed_trees::state::State>,
+    operand: typed_trees::expression::ExpressionHandle,
+    operation: language_core::inline_assembly::AsmGlobalDescriptorTableOperation,
+) -> Result<typed_trees::types::TypeReferenceHandle, &'static str> {
+    use language_core::inline_assembly::AsmGlobalDescriptorTableOperation as Operation;
+    use language_semantics::ReferenceAccess;
+    let reference = crate::expression_result_type_reference(
+        program,
+        machine,
+        state.ok_or("descriptor instruction has no enclosing machine body")?,
+        operand,
+    )
+    .ok_or("operand has no checked reference type")?;
+    let shell = crate::reference_shell(program, reference)
+        .ok_or("operand must be a borrowed ten-byte array, not a numeric address")?;
+    match (operation, shell.access) {
+        (Operation::Load, ReferenceAccess::WriteOnly) => return Err("lgdt needs readable bytes"),
+        (Operation::Store, ReferenceAccess::Shared) => return Err("sgdt needs writable bytes"),
+        _ => {}
+    }
+    let TypeReferenceNode::FixedArray {
+        element_type: element,
+        ..
+    } = program.type_reference_table.type_reference(shell.referee)
+    else {
+        return Err("descriptor must be an unqualified fixed byte array");
+    };
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(*element)
+    else {
+        return Err("descriptor bytes must be unqualified u8 values");
+    };
+    if program.symbols.builtin_type_atom(*symbol) != Some(symbols::BuiltinTypeAtom::U8)
+        || program.closed_fixed_array_length(shell.referee) != Some(10)
+    {
+        return Err("descriptor must be exactly [u8; 10]");
+    }
+    Ok(reference)
+}
+
+/// Identify descriptor instructions by their resolved builtin, never by source spelling.
+pub fn global_descriptor_table_operation(
+    program: &dyn crate::CheckingInput,
+    target: symbols::SymbolHandle,
+) -> Option<language_core::inline_assembly::AsmGlobalDescriptorTableOperation> {
+    use language_core::inline_assembly::AsmGlobalDescriptorTableOperation as Operation;
+    match program.symbols.builtin_function_for_symbol(target)? {
+        symbols::BuiltinFunction::AsmStoreGdtr => Some(Operation::Store),
+        symbols::BuiltinFunction::AsmLoadGdtr => Some(Operation::Load),
+        _ => None,
+    }
+}
+
+/// Return the checked receiver types used by ordinary argument evaluation.
+/// A missing or invalid instruction contract grants no forwarding authority.
+pub fn global_descriptor_table_operand_types(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    target: symbols::SymbolHandle,
+    arguments: &[typed_trees::expression::ExpressionHandle],
+) -> Option<[typed_trees::types::TypeReferenceHandle; 1]> {
+    let operation = global_descriptor_table_operation(program, target)?;
+    let [argument] = arguments else {
+        return None;
+    };
+    Some([
+        global_descriptor_table_operand(program, machine, Some(state), *argument, operation)
+            .ok()?,
+    ])
 }
