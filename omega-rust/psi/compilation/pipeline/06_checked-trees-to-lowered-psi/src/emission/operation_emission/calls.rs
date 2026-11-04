@@ -175,6 +175,10 @@ pub(crate) struct LoweredDirectCallBinding {
 pub(crate) struct CallEmissionContext<'a> {
     /// Actual emitted owner, including all source owners of a fused graph.
     pub(crate) terminal_machine: MachineId,
+    pub(crate) service_ids: &'a [(
+        language_semantics::ServiceReachId,
+        semantic_vocabulary::ServiceId,
+    )],
     pub(crate) domain_ids: &'a [crate::shared::terminal_identities::StructuralDomainBinding],
     pub(crate) domain_declarations: &'a [terminal_psi::StructuralDomainDeclaration],
     pub(crate) scalar_qualifications: &'a terminal_psi::ScalarQualificationCatalog,

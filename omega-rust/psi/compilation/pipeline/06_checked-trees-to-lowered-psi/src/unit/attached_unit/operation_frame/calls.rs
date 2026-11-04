@@ -96,6 +96,21 @@ impl OperationFrame<'_, '_> {
         // plan and the result binding this match already destructured.
         match (call.route(), call.result()) {
             (
+                CheckedUnitCallRoute::TaskRegister {
+                    operation,
+                    service,
+                    result_type,
+                },
+                _,
+            ) => self.task_register(
+                identities,
+                call,
+                *operation,
+                *service,
+                *result_type,
+                &inputs,
+            ),
+            (
                 CheckedUnitCallRoute::ActivationStorage {
                     operation: action,
                     bound,

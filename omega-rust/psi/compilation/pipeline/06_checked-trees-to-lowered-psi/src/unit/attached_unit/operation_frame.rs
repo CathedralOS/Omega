@@ -102,6 +102,7 @@ mod locals;
 mod register_access;
 mod selection_retirement;
 mod stores;
+mod task_register;
 mod values;
 pub(super) use calls::CallInputs;
 pub(super) use completed_arguments::CompletedStructuralArgument;

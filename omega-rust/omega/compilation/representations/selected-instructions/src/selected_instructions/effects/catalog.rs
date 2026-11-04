@@ -238,6 +238,8 @@ machine_semantic_kinds! {
 
     { fixed AtomicFence },
     { fixed InvokeNoNormal },
+    { fixed TaskRegisterActivate },
+    { fixed TaskRegisterRead },
     {
         /// One `Trapping` primitive at one carrier: the exact result, or an
         /// in-function architectural trap when the policy predicate holds.
@@ -315,6 +317,8 @@ impl MachineSemanticKind {
 pub enum MachineAlternativeFamily {
     GlobalDescriptorTableLoad,
     GlobalDescriptorTableStore,
+    TaskRegisterActivate,
+    TaskRegisterRead,
     ControlRegisterRead,
     ControlRegisterWrite,
     PortWrite,
@@ -433,6 +437,8 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::SystemRegisterWrite => Self::SystemRegisterWrite,
             MachineSemanticKind::GlobalDescriptorTableLoad => Self::GlobalDescriptorTableLoad,
             MachineSemanticKind::GlobalDescriptorTableStore => Self::GlobalDescriptorTableStore,
+            MachineSemanticKind::TaskRegisterActivate => Self::TaskRegisterActivate,
+            MachineSemanticKind::TaskRegisterRead => Self::TaskRegisterRead,
             MachineSemanticKind::ControlRegisterRead => Self::ControlRegisterRead,
             MachineSemanticKind::ControlRegisterWrite => Self::ControlRegisterWrite,
             MachineSemanticKind::PortRegisterRead => Self::PortRegisterRead,
@@ -628,6 +634,8 @@ pub enum MachineMemoryEffect {
     HostedReadByteV1,
     /// Private-byte initialization and kernel read, with an observable stdout write.
     HostedWriteByteV1,
+    /// Checked GDTR association, scratch write and conditional locked TSS descriptor update.
+    TaskRegisterActivationV1,
     WritePointerV1,
     NoneV1,
     ReadPointerV1,
@@ -887,6 +895,18 @@ pub enum MachineEncodedMemoryEffect {
     },
     /// Write one frame byte, then let the selected host kernel read it for stdout.
     HostedWriteByteV1 {
+        stack_pointer: RegisterViewId,
+    },
+    /// The preflight reads the actual GDTR into ten scratch bytes and inspects
+    /// the selected sixteen-byte descriptor within the borrowed table. Success
+    /// performs LTR's locked descriptor update and retains the task-state base
+    /// in TR. PUSHFQ temporarily uses eight bytes below the current stack.
+    TaskRegisterActivationV1 {
+        table_pointer_operand: u16,
+        table_byte_count_operand: u16,
+        task_pointer_operand: u16,
+        selector_operand: u16,
+        scratch_pointer_operand: u16,
         stack_pointer: RegisterViewId,
     },
     /// Exact footprint is the receiving-validated Store instruction byte size.

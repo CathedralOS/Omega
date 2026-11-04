@@ -431,6 +431,7 @@ pub(super) fn emit(
         retained_scalar_prefix,
         scalar_calls: CallEmissionContext {
             terminal_machine,
+            service_ids,
             domain_ids,
             domain_declarations,
             scalar_qualifications: prepared_scalar_qualifications.catalog(),

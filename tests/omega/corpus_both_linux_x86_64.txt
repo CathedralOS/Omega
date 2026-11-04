@@ -54,6 +54,7 @@ pass/calls/selected_crash_argument_snapshot_exit built 10692ms exit:0 interprete
 pass/calls/selected_crash_distinct_limits_exit built 10688ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_match_record_exit built 13834ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_private_forwarding_exit built 10143ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
+pass/control_flow/pattern_arm_guarded_index_argument_exit built 9930ms exit:0 interpreter-exit:0 interpreter:agrees @189b8cf70738+wt
 pass/domains/erasing_cast_keeps_field_domains_exit built 8521ms exit:0 interpreter-exit:0 interpreter:agrees @f2672d675498
 pass/domains/erasing_cast_keeps_field_facts_exit built 8678ms exit:0 interpreter-exit:0 interpreter:agrees @f2672d675498
 pass/domains/erasing_cast_keeps_predicates_and_named_domains_exit built 8206ms exit:0 interpreter-exit:0 interpreter:agrees @f2672d675498
@@ -2778,7 +2779,7 @@ pass/domains/runtime_forwarded_borrowed_result_domain_exit built 11904ms exit:0 
 pass/domains/runtime_qualified_ieee_field_read_exit built 7174ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/domains/runtime_structural_contract_erasure_exit built 2621ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/domains/runtime_terminal_result_context_exit built 21919ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
-pass/drops/reference_rebinding_preserves_pointee_exit built 1767ms exit:0 interpreter-exit:0 interpreter:agrees @5fe2ed4548de
+pass/drops/reference_rebinding_preserves_pointee_exit built 10277ms exit:0 interpreter-exit:0 interpreter:agrees @a55978ecf3a8
 pass/drops/runtime_borrowed_ingress_no_nominal_disposal_exit built 2444ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @52cc0c6da477
 pass/drops/runtime_empty_array_owner_cleanup_sites_exit built 3842ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/drops/runtime_named_linear_container_cleanup_exit built 9852ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
@@ -7297,6 +7298,7 @@ pass/recast/write_footprint/state built 1776ms exit:0 interpreter-exit:0 interpr
 pass/references/mutable_loan_member_read_initializes_local_exit built 6293ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/references/rebound_local_reference_follows_new_referent_exit built 9819ms exit:0 interpreter-exit:0 interpreter:agrees @292918dbcd2d
 pass/references/rebound_parameter_reference_follows_new_referent_exit built 8403ms exit:0 interpreter-exit:0 interpreter:agrees @ebc975d3ee17
+pass/references/rebound_parameter_returns_new_caller_view_exit built 10153ms exit:0 interpreter-exit:0 interpreter:agrees @a55978ecf3a8
 pass/references/runtime_shared_ref_param_guard_exit built 6019ms exit:1 interpreter-exit:1 interpreter:agrees @a92f16431042
 pass/references/selected_record_loan_disjoint_fields_exit built 6654ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/register_allocation/fixed_uses_across_hosted_clobbers_exit built 6306ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a92f16431042
@@ -7377,6 +7379,7 @@ pass/slices/projected_array_call_exit built 5050ms exit:70 stdout:match interpre
 pass/slices/projected_loan_arg checked 1897ms @a92f16431042
 pass/slices/projected_slice_length checked 1721ms @a92f16431042
 pass/slices/qualified_subslice_composition_exit built 5372ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/slices/rebound_slice_local_reads_new_view_exit built 9078ms exit:0 interpreter-exit:0 interpreter:agrees @a55978ecf3a8
 pass/slices/recursive_subslice_element_accumulator_exit built 5372ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/slices/requires_field_count_alias_index_compile checked 1301ms @a92f16431042
 pass/slices/returned_collection_window_copy incomplete 2297ms interpreter:unchecked @a92f16431042
@@ -7744,7 +7747,9 @@ pass/termination/nested_projection_measure rejected 2044ms @a92f16431042
 	machine call cycle: `walk` -- rank range membership, pinned endpoints, or nonincrease is unproven at a call site; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 pass/termination/predicate_requires_ranked_cycle checked 1613ms @a92f16431042
 pass/termination/private_self_call_without_promise_compile checked 1995ms @a92f16431042
+pass/termination/progress_selector_owned_arrival_frozen_ingress_exit built 8938ms exit:0 interpreter-exit:0 interpreter:agrees @a55978ecf3a8
 pass/termination/progress_selector_owned_arrival_reference_reborrow_exit built 9840ms exit:0 interpreter-exit:0 interpreter:agrees @49d08ea371fd
+pass/termination/progress_selector_owned_arrival_repeated_rebind_exit built 7412ms exit:0 interpreter-exit:0 interpreter:agrees @a55978ecf3a8
 pass/termination/progress_selector_owned_snapshot_exit built 2250ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/termination/progress_selector_reference_snapshot_exit built 2239ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/termination/projected_subject_measure rejected 1847ms @a92f16431042

@@ -52,6 +52,8 @@ fn touches_external_state(semantic: MachineSemanticKind) -> bool {
             | MachineSemanticKind::SystemRegisterWrite
             | MachineSemanticKind::GlobalDescriptorTableLoad
             | MachineSemanticKind::GlobalDescriptorTableStore
+            | MachineSemanticKind::TaskRegisterActivate
+            | MachineSemanticKind::TaskRegisterRead
             | MachineSemanticKind::ControlRegisterRead
             | MachineSemanticKind::ControlRegisterWrite
             | MachineSemanticKind::PortRegisterRead
@@ -260,6 +262,9 @@ pub(super) fn validate_declaration(
         _ if temporary_stack => crate::MachineMemoryEffect::TemporaryStackStorageV1,
         MachineSemanticKind::GlobalDescriptorTableLoad => crate::MachineMemoryEffect::ReadPointerV1,
         MachineSemanticKind::GlobalDescriptorTableStore => WritePointerV1,
+        MachineSemanticKind::TaskRegisterActivate => {
+            crate::MachineMemoryEffect::TaskRegisterActivationV1
+        }
         MachineSemanticKind::MemoryFence => crate::MachineMemoryEffect::CatalogFenceV1,
         MachineSemanticKind::AtomicFence => crate::MachineMemoryEffect::AtomicFenceV1,
         MachineSemanticKind::AtomicAccess(_) => crate::MachineMemoryEffect::AtomicPointerV1,
@@ -308,6 +313,8 @@ pub(super) fn validate_declaration(
         | MachineSemanticKind::SystemRegisterWrite
         | MachineSemanticKind::GlobalDescriptorTableLoad
         | MachineSemanticKind::GlobalDescriptorTableStore
+        | MachineSemanticKind::TaskRegisterActivate
+        | MachineSemanticKind::TaskRegisterRead
         | MachineSemanticKind::ControlRegisterRead
         | MachineSemanticKind::ControlRegisterWrite
         | MachineSemanticKind::PortRegisterRead
@@ -1209,6 +1216,26 @@ fn validate_encoded_effects(
             && declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
             && encoded.external_operand_reads == [0]
             && encoded.external_operand_writes.is_empty()
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1 => {}
+        (
+            MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
+                table_pointer_operand: 0,
+                task_pointer_operand: 1,
+                selector_operand: 2,
+                scratch_pointer_operand: 3,
+                table_byte_count_operand: 4,
+                stack_pointer: memory_stack,
+            },
+            MachineEncodedStackEffect::TemporaryBytesV1 {
+                stack_pointer,
+                byte_count: 8,
+            },
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::TaskRegisterActivate
+            && declaration.memory == crate::MachineMemoryEffect::TaskRegisterActivationV1
+            && memory_stack == stack_pointer
+            && encoded.external_operand_reads == [0, 1, 2, 3, 4]
+            && encoded.external_operand_writes == [5]
             && encoded.control == MachineEncodedControlEffect::FallThroughV1 => {}
         (
             MachineEncodedMemoryEffect::WriteFixedPointerV1 {

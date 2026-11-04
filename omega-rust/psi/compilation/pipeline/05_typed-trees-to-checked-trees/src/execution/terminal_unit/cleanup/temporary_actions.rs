@@ -221,8 +221,9 @@ pub(in crate::execution::terminal_unit) fn operations(
     state: SymbolHandle,
     parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     operations: &[CheckedUnitEffectOperationPlan],
-) -> Option<OperationSelections> {
-    let release_owned = release_owned_dispositions(operations, &shapes.cleanup_control)?;
+) -> Result<OperationSelections, &'static str> {
+    let release_owned = release_owned_dispositions(operations, &shapes.cleanup_control)
+        .ok_or("release-owned owner cleanup span missing")?;
     sequence_actions(
         program,
         facts,
@@ -249,18 +250,21 @@ fn sequence_actions(
     sequence: OperationSequence<'_>,
     completion: Option<(&CheckedUnitEffectOperationPlan, OperationSequence<'_>)>,
     release_owned: &[arena::Handle<checked_trees::ContextualCleanupDisposition>],
-) -> Option<OperationSelections> {
+) -> Result<OperationSelections, &'static str> {
     (|| {
         let mut selected = OperationSelections::default();
         for operation_index in 0..sequence.len() {
-            let operation = sequence.get(operation_index)?;
+            let operation = sequence
+                .get(operation_index)
+                .ok_or("operation ordinal exceeds its sequence")?;
             if let CheckedUnitEffectOperationPlan::ReleaseReference { owner_cleanups, .. } =
                 operation
             {
                 let owners = shapes
                     .cleanup_control
                     .reference_owner_cleanups
-                    .span(*owner_cleanups)?
+                    .span(*owner_cleanups)
+                    .ok_or("release reference owner cleanup span missing")?
                     .to_vec();
                 for (ordinal, owner) in owners.into_iter().enumerate() {
                     let actions = owner_group_actions(
@@ -272,10 +276,13 @@ fn sequence_actions(
                         owner.owner.source,
                     )?;
                     if actions.is_empty() {
-                        return None;
+                        return Err("release reference owner group selected no cleanup actions");
                     }
                     let actions = shapes.cleanup_control.actions.insert_many(actions);
-                    let handle = owner_cleanups.handle_at(u32::try_from(ordinal).ok()?);
+                    let handle = owner_cleanups.handle_at(
+                        u32::try_from(ordinal)
+                            .map_err(|_| "release owner ordinal exceeds u32")?,
+                    );
                     shapes
                         .cleanup_control
                         .reference_owner_cleanups
@@ -319,7 +326,7 @@ fn sequence_actions(
                     selected.continuations.push((
                         operation_index,
                         super::replacements::actions(
-                            program, facts, targets, shapes, machine, state, parameters, operation,
+                            program, facts, targets, shapes, state, parameters, operation,
                         )?,
                     ));
                 }
@@ -328,18 +335,24 @@ fn sequence_actions(
                     cleanup_actions,
                     ..
                 } => {
-                    let prior = sequence.prefix(operation_index)?;
+                    let prior = sequence
+                        .prefix(operation_index)
+                        .ok_or("call boundary prefix exceeds its sequence")?;
                     // Retained nested calls keep their own invocation identities.
                     // The dependency inventory locates a source; it does not turn
                     // an arm-local producer into an unconditional live occurrence.
                     let mut local = None;
                     for position in 0..prior.len() {
-                        for candidate in prior.get(position)?.with_value_calls() {
+                        for candidate in prior
+                            .get(position)
+                            .ok_or("producer prefix ordinal exceeds its sequence")?
+                            .with_value_calls()
+                        {
                             if candidate.invocation_coordinate() != Some(*coordinate) {
                                 continue;
                             }
                             if local.replace(candidate).is_some() {
-                                return None;
+                                return Err("call boundary names two local producers");
                             }
                         }
                     }
@@ -347,17 +360,20 @@ fn sequence_actions(
                         consumer.invocation_coordinate() == Some(*coordinate)
                     });
                     let (consumer, producers) = match (local, enclosing) {
-                        (Some(_), Some(_)) => return None,
+                        (Some(_), Some(_)) => {
+                            return Err("call boundary has both a local and a completion producer")
+                        }
                         (Some(consumer), None) => (consumer, prior),
                         (None, Some(completion)) => completion,
-                        (None, None) => return None,
+                        (None, None) => {
+                            return Err("call boundary has no producer in its prefix or completion")
+                        }
                     };
                     let actions = call_actions(
                         program,
                         facts,
                         targets,
                         shapes,
-                        machine,
                         state,
                         consumer,
                         producers,
@@ -369,7 +385,7 @@ fn sequence_actions(
                 _ => {}
             }
         }
-        Some(selected)
+        Ok(selected)
     })()
 }
 
@@ -384,9 +400,9 @@ fn value_call_actions(
     parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     call: &checked_trees::CheckedStructuralValueCall,
     release_owned: &[arena::Handle<checked_trees::ContextualCleanupDisposition>],
-) -> Option<CallSelections> {
+) -> Result<CallSelections, &'static str> {
     let preparation = OperationSequence::operands(call.operands());
-    Some(CallSelections {
+    Ok(CallSelections {
         operands: sequence_actions(
             program,
             facts,
@@ -424,15 +440,17 @@ fn call_actions(
     facts: &CheckFacts,
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
-    machine: SymbolHandle,
     state: SymbolHandle,
     consumer: &CheckedUnitEffectOperationPlan,
     producers: OperationSequence<'_>,
     cleanup_actions: &[CheckedNormalCleanupAction],
     release_owned: &[arena::Handle<checked_trees::ContextualCleanupDisposition>],
-) -> Option<SelectedActions> {
+) -> Result<SelectedActions, &'static str> {
     (|| {
-        let coordinate = consumer.invocation_coordinate()?;
+        let machine = super::owning_cleanup_machine(program, state);
+        let coordinate = consumer
+            .invocation_coordinate()
+            .ok_or("call-boundary consumer has no invocation coordinate")?;
         let mut sources = Vec::new();
         let mut completed = Vec::new();
         for action in cleanup_actions {
@@ -454,7 +472,7 @@ fn call_actions(
                     .filter(|action| action.source() == source)
                     .any(|action| !matches!(action, CheckedNormalCleanupAction::Discard(_)))
                 {
-                    return None;
+                    return Err("discarded call result also carries a non-discard cleanup");
                 }
                 completed.extend(
                     cleanup_actions
@@ -471,7 +489,11 @@ fn call_actions(
                     // Missing schedule entries and duplicate producers both refuse.
                     let mut producer = None;
                     for position in 0..producers.len() {
-                        for candidate in producers.get(position)?.with_value_calls() {
+                        for candidate in producers
+                            .get(position)
+                            .ok_or("producer prefix ordinal exceeds its sequence")?
+                            .with_value_calls()
+                        {
                             if !candidate
                                 .structural_result_binding()
                                 .is_some_and(|result| result.binding_ordinal == binding_ordinal)
@@ -479,11 +501,11 @@ fn call_actions(
                                 continue;
                             }
                             if producer.replace(candidate).is_some() {
-                                return None;
+                                return Err("cleanup source names two result producers");
                             }
                         }
                     }
-                    let producer = producer?;
+                    let producer = producer.ok_or("cleanup source names no result producer")?;
                     // Independent statement results may have no expression home.
                     // Contextual retirement below still requires an exact root.
                     super::normal_edges::producer_root(facts, state, producer)
@@ -491,7 +513,7 @@ fn call_actions(
                 CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
                     Some(facts::PlaceRoot::Expression(expression))
                 }
-                _ => return None,
+                _ => return Err("cleanup source is neither a call result nor an expression"),
             };
             let contextual = root.is_some_and(|root| {
                 facts
@@ -516,7 +538,7 @@ fn call_actions(
                     action.source() == source
                         && matches!(action, CheckedNormalCleanupAction::RetireHome { .. })
                 }) {
-                    return None;
+                    return Err("home retirement without a contextual call disposition");
                 }
                 completed.extend(
                     cleanup_actions
@@ -529,11 +551,15 @@ fn call_actions(
             // A real retained release owns this complete source group, even when
             // it is later or nested in another value call's completion sequence.
             // Independent disposal above requires no contextual call association.
-            let consumer = facts.flow.control.call_at(
-                state,
-                coordinate.statement_index as usize,
-                coordinate.call_ordinal as usize,
-            )?;
+            let consumer = facts
+                .flow
+                .control
+                .call_at(
+                    state,
+                    coordinate.statement_index as usize,
+                    coordinate.call_ordinal as usize,
+                )
+                .ok_or("call boundary names no consumer in the call schedule")?;
             if release_owned.iter().any(|handle| {
                 let disposition = facts.contextual_cleanup.dispositions.get(*handle);
                 disposition.machine == machine
@@ -554,15 +580,14 @@ fn call_actions(
                 facts,
                 targets,
                 shapes,
-                machine,
                 state,
                 coordinate,
                 consumer.target_symbol,
-                root?,
+                root.ok_or("contextual cleanup source has no place root")?,
                 source.clone(),
             )?);
         }
-        Some(SelectedActions {
+        Ok(SelectedActions {
             actions: completed,
             selected_regions: Vec::new(),
         })
@@ -586,45 +611,55 @@ impl OperationSequenceMut<'_> {
 pub(in crate::execution::terminal_unit) fn install(
     operations: &mut [CheckedUnitEffectOperationPlan],
     selected: OperationSelections,
-) -> Option<()> {
+) -> Result<(), &'static str> {
     install_sequence(OperationSequenceMut::Body(operations), selected)
 }
 
 fn install_sequence(
     mut operations: OperationSequenceMut<'_>,
     selected: OperationSelections,
-) -> Option<()> {
+) -> Result<(), &'static str> {
     for (position, actions) in selected.continuations {
         let CheckedUnitEffectOperationPlan::ContinuationCleanup {
             cleanup_actions,
             selected_regions,
             ..
-        } = operations.get_mut(position)?
+        } = operations
+            .get_mut(position)
+            .ok_or("cleanup continuation position exceeds its sequence")?
         else {
-            return None;
+            return Err("cleanup continuation position is not a continuation boundary");
         };
         *cleanup_actions = actions.actions;
         *selected_regions = actions.selected_regions;
     }
     for (position, selections) in selected.constructions {
-        let calls = match operations.get_mut(position)? {
+        let calls = match operations
+            .get_mut(position)
+            .ok_or("cleanup construction position exceeds its sequence")?
+        {
             CheckedUnitEffectOperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { calls, .. },
             )
             | CheckedUnitEffectOperationPlan::EvaluateStructuralValue { calls, .. } => calls,
-            _ => return None,
+            _ => return Err("cleanup construction position has no value calls"),
         };
         for (call_index, selected) in selections {
-            install_value_call(calls.get_mut(call_index)?, selected)?;
+            install_value_call(
+                calls
+                    .get_mut(call_index)
+                    .ok_or("cleanup call ordinal exceeds its value calls")?,
+                selected,
+            )?;
         }
     }
-    Some(())
+    Ok(())
 }
 
 fn install_value_call(
     call: &mut checked_trees::CheckedStructuralValueCall,
     selected: CallSelections,
-) -> Option<()> {
+) -> Result<(), &'static str> {
     install_sequence(
         OperationSequenceMut::Operands(call.operands_mut()),
         selected.operands,
@@ -635,9 +670,9 @@ fn install_value_call(
             selected.completions,
         )
     } else if selected.completions.is_empty() {
-        Some(())
+        Ok(())
     } else {
-        None
+        Err("value call selected completion actions without a completion sequence")
     }
 }
 
@@ -777,7 +812,8 @@ pub(crate) fn finalize_completion_actions(
                 context.parameters,
                 call,
                 &context.release_owned,
-            )?;
+            )
+            .ok()?;
             if !selected.is_empty() {
                 value_calls.push((handle, selected));
             }
@@ -1012,13 +1048,13 @@ pub(crate) fn finalize_completion_actions(
                     facts,
                     &targets,
                     &mut shapes,
-                    state_flow.machine_symbol,
                     state_flow.state_symbol,
                     coordinate,
                     call.target_symbol,
                     disposition.root,
                     CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
-                )?;
+                )
+                .ok()?;
                 owners.push((
                     operand.argument_ordinal,
                     operand.operand,
@@ -1101,8 +1137,7 @@ pub(crate) fn finalize_completion_actions(
                 .scheduled_call_mut(handle)
                 .ok_or("normal cleanup lost its scheduled value call")?,
             selected,
-        )
-        .ok_or("normal cleanup lost its value-call completion")?;
+        )?;
     }
     let mut actions = arena::Arena::new();
     let mut cleanups = arena::Arena::new();

@@ -495,7 +495,10 @@ pub(super) fn build_traced(
             owner.symbol,
             state.symbol,
             &mut operations,
-            prepared_calls.state_schedules(owner.symbol, state.symbol),
+            prepared_calls.state_schedules(
+                super::cleanup::owning_cleanup_machine(program, state.symbol),
+                state.symbol,
+            ),
         )?;
         let call_schedules = |value| prepared_calls.schedule(value);
         let completion = super::cleanup::normal_edges::completed_body_outcome(

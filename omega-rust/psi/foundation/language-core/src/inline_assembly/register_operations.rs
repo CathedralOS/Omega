@@ -54,6 +54,10 @@ pub enum AsmRegisterOperation {
     ModelSpecificWrite,
     /// Native descriptor access; source and Terminal retain its byte loan separately.
     GlobalDescriptorTable(AsmGlobalDescriptorTableOperation),
+    /// Native activation receives addresses only after their typed loans have
+    /// been checked. It is not exposed as a numeric-pointer assembly operand.
+    TaskRegisterActivate,
+    TaskRegisterRead,
 }
 
 impl AsmRegisterOperation {
@@ -61,6 +65,8 @@ impl AsmRegisterOperation {
     /// tags carry no ISA encoding, operand values or authority disposition.
     pub const fn catalog_tag(self) -> u16 {
         match self {
+            Self::TaskRegisterActivate => 0x602,
+            Self::TaskRegisterRead => 0x603,
             Self::GlobalDescriptorTable(AsmGlobalDescriptorTableOperation::Store) => 0x600,
             Self::GlobalDescriptorTable(AsmGlobalDescriptorTableOperation::Load) => 0x601,
             Self::ProcessorHalt => 0x400,
@@ -83,6 +89,8 @@ impl AsmRegisterOperation {
 
     pub const fn from_catalog_tag(tag: u16) -> Option<Self> {
         match tag {
+            0x602 => return Some(Self::TaskRegisterActivate),
+            0x603 => return Some(Self::TaskRegisterRead),
             0x600 => {
                 return Some(Self::GlobalDescriptorTable(
                     AsmGlobalDescriptorTableOperation::Store,
@@ -157,6 +165,8 @@ impl AsmRegisterOperation {
     pub const fn input_carriers(self) -> &'static [AsmRegisterCarrier] {
         use AsmRegisterCarrier::*;
         match self {
+            Self::TaskRegisterActivate => &[U64, U64, U16, U64, U64],
+            Self::TaskRegisterRead => &[],
             Self::SystemRead(_)
             | Self::ProcessorHalt
             | Self::InterruptControl(_)
@@ -172,7 +182,8 @@ impl AsmRegisterOperation {
     pub const fn result_carrier(self) -> Option<AsmRegisterCarrier> {
         match self {
             Self::SystemRead(_) | Self::ModelSpecificRead => Some(AsmRegisterCarrier::U64),
-            Self::PortRead => Some(AsmRegisterCarrier::U8),
+            Self::PortRead | Self::TaskRegisterActivate => Some(AsmRegisterCarrier::U8),
+            Self::TaskRegisterRead => Some(AsmRegisterCarrier::U16),
             _ => None,
         }
     }
@@ -199,7 +210,9 @@ impl AsmRegisterOperation {
             | Self::InterruptControl(_)
             | Self::MemoryFence(_)
             | Self::ModelSpecificWrite
-            | Self::GlobalDescriptorTable(_) => true,
+            | Self::GlobalDescriptorTable(_)
+            | Self::TaskRegisterActivate
+            | Self::TaskRegisterRead => true,
             Self::SystemWrite(register) => register.write_intrinsic_name().is_some(),
         }
     }
