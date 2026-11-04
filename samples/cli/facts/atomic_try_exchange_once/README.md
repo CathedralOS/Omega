@@ -80,9 +80,10 @@ with [PR #1822](https://github.com/CathedralOS/Omega/pull/1822) and
 [PR #1836](https://github.com/CathedralOS/Omega/pull/1836).
 
 After corpus consolidation, 22 surviving Source entries record their actual
-Mac observations: 11 checked positives and 11 intended refusals. The removed
-host record slots remain absent. All 75 original owned observations are
-retained by the measured reports, with their original source stamps.
+Mac observations: 11 checked positives and 11 intended refusals. Five deleted
+Source rows remain absent. The 48 physical host observations had not yet been
+recorded; they remain in the linked reports without adding corpus entries. All
+75 owned observations retain their actual measured source stamps.
 
 Earlier failures remain historical. The fixed
 [9924 baseline](https://github.com/CathedralOS/Omega/actions/runs/41824546059)
