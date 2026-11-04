@@ -27,37 +27,37 @@ fail/borrows/match_effectful_subject_fresh_overlap_rejected rejected 16803ms exp
 	statement 2 creates local borrow `slot` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 3 and it is released at state exit)
 fail/borrows/rebound_parameter_returns_local_view rejected 7793ms expected @28549af67d45
 	machine `observe` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/borrows/suspension_projected_call_view_earlier_argument_original_forbidden_rejected rejected 1892ms expected @f339c83f6359
+fail/borrows/suspension_projected_call_view_earlier_argument_original_forbidden_rejected rejected 3967ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/borrows/suspension_projected_call_view_forbidden_alternative_rejected rejected 1785ms expected @f339c83f6359
+fail/borrows/suspension_projected_call_view_forbidden_alternative_rejected rejected 3976ms expected @d68d95fa82f8
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/borrows/suspension_projected_call_view_returned_forbidden_rejected rejected 1754ms expected @f339c83f6359
+fail/borrows/suspension_projected_call_view_returned_forbidden_rejected rejected 3889ms expected @d68d95fa82f8
 	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/borrows/suspension_projected_call_view_shared_cohort_early_write_rejected rejected 1753ms expected @f339c83f6359
+fail/borrows/suspension_projected_call_view_shared_cohort_early_write_rejected rejected 3957ms expected @d68d95fa82f8
 	statement 8 mutates `source.right` while local borrow `saved` is still active (borrowed at statement 2; its last use is at statement 9)
 	statement 8 mutates `source.right` while local borrow `sibling` is still active (borrowed at statement 3; its last use is at statement 9)
-fail/borrows/suspension_projected_call_view_shared_result_cannot_write_rejected rejected 493ms expected @f339c83f6359
+fail/borrows/suspension_projected_call_view_shared_result_cannot_write_rejected rejected 1062ms expected @d68d95fa82f8
 	machine `main` state `entry` local `reference` requires mutable source access; shared or immutable storage cannot supply it
-fail/borrows/suspension_projected_call_view_whole_input_early_write_rejected rejected 2178ms expected @f339c83f6359
+fail/borrows/suspension_projected_call_view_whole_input_early_write_rejected rejected 3957ms expected @d68d95fa82f8
 	statement 5 mutates `source.right` while local borrow `reference` is still active (borrowed at statement 3; its last use is at statement 7)
 	statement 5 mutates `source.right` while local borrow `message` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/borrows/suspension_saved_reference_view_earlier_operand_original_forbidden_rejected rejected 2533ms expected @24e82dfa56fd
+fail/borrows/suspension_saved_reference_view_earlier_operand_original_forbidden_rejected rejected 3867ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/borrows/suspension_saved_reference_view_forbidden_alternative_rejected rejected 2654ms expected @24e82dfa56fd
+fail/borrows/suspension_saved_reference_view_forbidden_alternative_rejected rejected 3916ms expected @d68d95fa82f8
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/borrows/suspension_saved_reference_view_inherited_backing_rejected rejected 2638ms expected @24e82dfa56fd
+fail/borrows/suspension_saved_reference_view_inherited_backing_rejected rejected 3935ms expected @d68d95fa82f8
 	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/borrows/suspension_saved_reference_view_retained_call_input_early_write_rejected rejected 2847ms expected @24e82dfa56fd
+fail/borrows/suspension_saved_reference_view_retained_call_input_early_write_rejected rejected 3876ms expected @d68d95fa82f8
 	statement 10 mutates `source.second` while local borrow `narrow` is still active (borrowed at statement 4; its last use is at statement 11)
 	statement 10 mutates `source.second` while local borrow `copied` is still active (borrowed at statement 5; its last use is at statement 11)
 	statement 10 mutates `source.second` while local borrow `reference` is still active (borrowed at statement 6; its last use is at statement 11)
 	statement 10 mutates `source.second` while local borrow `message` is still active (borrowed at statement 8; its last use is at statement 11)
-fail/borrows/suspension_saved_reference_view_shared_cannot_write_rejected rejected 771ms expected @24e82dfa56fd
+fail/borrows/suspension_saved_reference_view_shared_cannot_write_rejected rejected 1001ms expected @d68d95fa82f8
 	machine `main` state `entry` local `reference` requires mutable source access; shared or immutable storage cannot supply it
-fail/borrows/suspension_saved_reference_view_shared_cohort_early_write_rejected rejected 3502ms expected @24e82dfa56fd
+fail/borrows/suspension_saved_reference_view_shared_cohort_early_write_rejected rejected 3871ms expected @d68d95fa82f8
 	statement 9 mutates `parent[0]` while local borrow `storage` is still active (borrowed at statement 2; its last use is at statement 10)
 	statement 9 mutates `parent[0]` while local borrow `sibling` is still active (borrowed at statement 4; its last use is at statement 10)
-fail/borrows/suspension_saved_reference_view_write_only_cannot_read_rejected rejected 761ms expected @24e82dfa56fd
+fail/borrows/suspension_saved_reference_view_write_only_cannot_read_rejected rejected 996ms expected @d68d95fa82f8
 	machine `main` state `entry` reads write-only parameter `copied`; `&write` permits replacement or exact `&write` forwarding, never observation
 	machine `main` state `entry` local `reference` may read, but the source supplies only write-only authority
 fail/borrows/symbolic_call_before_concrete_output_obligation rejected 5118ms expected @16349300ab35
@@ -3184,97 +3184,97 @@ fail/facts/stored_shared_byte_view_element_lend_through_parameter_rejected rejec
 	cannot prove requires contract for call observe from main: windows[0].len == 1 && windows[1].len == 1 (needs fact `windows[0].len == 1 && windows[1].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/stored_shared_byte_view_element_lend_through_target_body_rejected rejected 1937ms expected @0fb500fb9d4b
 	cannot prove requires contract for call observe from main: windows[0].len == 1 && windows[1].len == 1 (needs fact `windows[0].len == 1 && windows[1].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/suspension_projected_call_view_through_call_result_rejected rejected 1823ms expected @f339c83f6359
+fail/facts/suspension_projected_call_view_through_call_result_rejected rejected 3945ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_projected_call_view_through_const_name_rejected rejected 2255ms expected @f339c83f6359
+fail/facts/suspension_projected_call_view_through_const_name_rejected rejected 3851ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_projected_call_view_through_field_rejected rejected 1782ms expected @f339c83f6359
+fail/facts/suspension_projected_call_view_through_field_rejected rejected 4012ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_projected_call_view_through_local_rejected rejected 1784ms expected @f339c83f6359
+fail/facts/suspension_projected_call_view_through_local_rejected rejected 3915ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_projected_call_view_through_match_join_rejected rejected 1843ms expected @f339c83f6359
+fail/facts/suspension_projected_call_view_through_match_join_rejected rejected 3888ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_projected_call_view_through_other_machine_rejected rejected 1793ms expected @f339c83f6359
+fail/facts/suspension_projected_call_view_through_other_machine_rejected rejected 3873ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_projected_call_view_through_other_state_rejected rejected 1811ms expected @f339c83f6359
+fail/facts/suspension_projected_call_view_through_other_state_rejected rejected 3836ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_projected_call_view_through_parameter_rejected rejected 1821ms expected @f339c83f6359
+fail/facts/suspension_projected_call_view_through_parameter_rejected rejected 3890ms expected @d68d95fa82f8
 	call to `entry` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `entry` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_projected_call_view_through_target_body_rejected rejected 1753ms expected @f339c83f6359
+fail/facts/suspension_projected_call_view_through_target_body_rejected rejected 3909ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_saved_reference_view_through_call_result_rejected rejected 3124ms expected @24e82dfa56fd
+fail/facts/suspension_saved_reference_view_through_call_result_rejected rejected 3867ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_saved_reference_view_through_const_name_rejected rejected 3113ms expected @24e82dfa56fd
+fail/facts/suspension_saved_reference_view_through_const_name_rejected rejected 3852ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_saved_reference_view_through_field_rejected rejected 2632ms expected @24e82dfa56fd
+fail/facts/suspension_saved_reference_view_through_field_rejected rejected 3948ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_saved_reference_view_through_local_rejected rejected 2069ms expected @24e82dfa56fd
+fail/facts/suspension_saved_reference_view_through_local_rejected rejected 3927ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_saved_reference_view_through_match_join_rejected rejected 2573ms expected @24e82dfa56fd
+fail/facts/suspension_saved_reference_view_through_match_join_rejected rejected 3951ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_saved_reference_view_through_other_machine_rejected rejected 2951ms expected @24e82dfa56fd
+fail/facts/suspension_saved_reference_view_through_other_machine_rejected rejected 3935ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_saved_reference_view_through_other_state_rejected rejected 2975ms expected @24e82dfa56fd
+fail/facts/suspension_saved_reference_view_through_other_state_rejected rejected 3827ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_saved_reference_view_through_parameter_rejected rejected 2526ms expected @24e82dfa56fd
+fail/facts/suspension_saved_reference_view_through_parameter_rejected rejected 3940ms expected @d68d95fa82f8
 	call to `entry` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `entry` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_saved_reference_view_through_target_body_rejected rejected 2480ms expected @24e82dfa56fd
+fail/facts/suspension_saved_reference_view_through_target_body_rejected rejected 3878ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_recast_through_call_result_rejected rejected 4524ms expected @56ac2516672d
+fail/facts/suspension_transported_loan_recast_through_call_result_rejected rejected 3896ms expected @d68d95fa82f8
 	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_recast_through_const_name_rejected rejected 4524ms expected @56ac2516672d
+fail/facts/suspension_transported_loan_recast_through_const_name_rejected rejected 3899ms expected @d68d95fa82f8
 	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_recast_through_field_rejected rejected 4275ms expected @56ac2516672d
+fail/facts/suspension_transported_loan_recast_through_field_rejected rejected 3888ms expected @d68d95fa82f8
 	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_recast_through_local_rejected rejected 4275ms expected @56ac2516672d
+fail/facts/suspension_transported_loan_recast_through_local_rejected rejected 3860ms expected @d68d95fa82f8
 	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_recast_through_match_join_rejected rejected 4525ms expected @56ac2516672d
+fail/facts/suspension_transported_loan_recast_through_match_join_rejected rejected 3889ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_recast_through_other_machine_rejected rejected 4529ms expected @56ac2516672d
+fail/facts/suspension_transported_loan_recast_through_other_machine_rejected rejected 3854ms expected @d68d95fa82f8
 	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_recast_through_other_state_rejected rejected 4306ms expected @56ac2516672d
+fail/facts/suspension_transported_loan_recast_through_other_state_rejected rejected 3871ms expected @d68d95fa82f8
 	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_recast_through_parameter_rejected rejected 4302ms expected @56ac2516672d
+fail/facts/suspension_transported_loan_recast_through_parameter_rejected rejected 3853ms expected @d68d95fa82f8
 	call to `entry` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_recast_through_target_body_rejected rejected 3882ms expected @56ac2516672d
+fail/facts/suspension_transported_loan_recast_through_target_body_rejected rejected 3906ms expected @d68d95fa82f8
 	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_through_call_result_rejected rejected 16145ms expected @3db1f7baaded+wt
+fail/facts/suspension_transported_loan_through_call_result_rejected rejected 3863ms expected @d68d95fa82f8
 	call to `park` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_through_const_name_rejected rejected 19539ms expected @3db1f7baaded+wt
+fail/facts/suspension_transported_loan_through_const_name_rejected rejected 3873ms expected @d68d95fa82f8
 	call to `park` may suspend while `cells` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_through_field_rejected rejected 20375ms expected @3db1f7baaded+wt
+fail/facts/suspension_transported_loan_through_field_rejected rejected 3927ms expected @d68d95fa82f8
 	call to `park` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_through_local_rejected rejected 23783ms expected @3db1f7baaded+wt
+fail/facts/suspension_transported_loan_through_local_rejected rejected 3893ms expected @d68d95fa82f8
 	call to `park` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_through_match_join_rejected rejected 16390ms expected @3db1f7baaded+wt
+fail/facts/suspension_transported_loan_through_match_join_rejected rejected 3893ms expected @d68d95fa82f8
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_through_other_machine_rejected rejected 19354ms expected @3db1f7baaded+wt
+fail/facts/suspension_transported_loan_through_other_machine_rejected rejected 3889ms expected @d68d95fa82f8
 	call to `park` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_through_other_state_rejected rejected 21023ms expected @3db1f7baaded+wt
+fail/facts/suspension_transported_loan_through_other_state_rejected rejected 3893ms expected @d68d95fa82f8
 	call to `park` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_through_parameter_rejected rejected 16580ms expected @3db1f7baaded+wt
+fail/facts/suspension_transported_loan_through_parameter_rejected rejected 3839ms expected @d68d95fa82f8
 	call to `entry` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-fail/facts/suspension_transported_loan_through_target_body_rejected rejected 16565ms expected @3db1f7baaded+wt
+fail/facts/suspension_transported_loan_through_target_body_rejected rejected 3848ms expected @d68d95fa82f8
 	call to `park` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/facts/target_family_callback_guarantee/bare_interleaved rejected 1496ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
@@ -3517,20 +3517,36 @@ fail/inline_asm/asm_where_retired rejected 623ms expected @d83ddecd7693+wt
 	tests/omega/fail/inline_asm/asm_where_retired/main.omg:3:22: expected one of `clobbers <registers>`, `requires`, `ensures`, `{`, found identifier `where`
 fail/layouts/accessor_with_linear_owner_write_denied rejected 13119ms expected @ee4dbb4b2d56
 	accessor write application: the access plan does not permit this operation
-fail/layouts/fixed_layout_closed_requirement_policy_rejected rejected 604ms expected @2ba727eefb59+wt
-	demanded premise closure checking failed: machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
-fail/layouts/fixed_layout_computed_const_policy_rejected rejected 592ms expected @2ba727eefb59+wt
-	demanded premise closure checking failed: exact arithmetic in value argument `Marker` of `Policy` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/layouts/fixed_layout_closed_requirement_policy_rejected rejected 4093ms expected @d68d95fa82f8
+	machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read$specialized$5e09db097e4d0425$0$3371` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read$specialized$5e09db097e4d0425$0$3371` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read$specialized$5e09db097e4d0425$0$3371` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read$specialized$5e09db097e4d0425$0$3371` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read$specialized$5e09db097e4d0425$0$3371` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read$specialized$5e09db097e4d0425$0$3371` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read$specialized$7a2d026b581db1c4$1$3375` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read$specialized$7a2d026b581db1c4$1$3375` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read$specialized$7a2d026b581db1c4$1$3375` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read$specialized$7a2d026b581db1c4$1$3375` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read$specialized$7a2d026b581db1c4$1$3375` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+	machine `DefaultRead::read$specialized$7a2d026b581db1c4$1$3375` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+fail/layouts/fixed_layout_computed_const_policy_rejected rejected 511ms expected @d68d95fa82f8
+	exact arithmetic in closed const argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/layouts/fixed_layout_dormant_invalid_policy_rejected rejected 464ms expected @2ba727eefb59+wt
 	policy `Policy::plan` produced an invalid plan: alignment 0 is not a positive power of two
 fail/layouts/fixed_layout_finite_dynamic_policy_rejected rejected 462ms expected @2ba727eefb59+wt
 	policy `Policy::plan` produced an invalid plan: alignment 0 is not a positive power of two
 fail/layouts/fixed_layout_overridden_invalid_policy_rejected rejected 462ms expected @2ba727eefb59+wt
 	policy `Policy::plan` produced an invalid plan: alignment 0 is not a positive power of two
-fail/layouts/fixed_layout_unbounded_policy_geometry_rejected rejected 818ms expected @2ba727eefb59+wt
+fail/layouts/fixed_layout_unbounded_policy_geometry_rejected rejected 3199ms expected @d68d95fa82f8
 	recast has no complete exact layout alternative roster
-fail/layouts/fixed_layout_uncalled_policy_member_rejected rejected 566ms expected @2ba727eefb59+wt
-	policy `Policy::plan$specialized$d6370627ca0e1e1b$0` produced an invalid plan: alignment 0 is not a positive power of two
+fail/layouts/fixed_layout_uncalled_policy_member_rejected rejected 2019ms expected @d68d95fa82f8
+	policy `Policy::plan$specialized$d6370627ca0e1e1b$0$3420` produced an invalid plan: alignment 0 is not a positive power of two
 fail/layouts/generic_requirement_implementation_integer_at_requires_fit rejected 8232ms expected @aa06f04853cc+wt
 	IntegerAt call in main requires every performed value to fit its physical storage: effectful invocation has no complete performed-write body
 fail/layouts/local_access_declaration_shadows_core_view rejected 648ms expected @b43a5fa574e6
@@ -4185,7 +4201,7 @@ pass/borrows/qualified_owner_state_loan_exit checked 4020ms check-target:macos_a
 pass/borrows/qualified_record_view_call_exit checked 92864ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/qualified_reference_field_retarget_exit checked 3667ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/rebound_parameter_keeps_earlier_copy_exit checked 10431ms check-target:macos_arm64 @28549af67d45
-pass/borrows/recast_suspension_branch_cleanup_exit checked 5317ms check-target:macos_arm64 @56ac2516672d
+pass/borrows/recast_suspension_branch_cleanup_exit checked 5432ms check-target:macos_arm64 @d68d95fa82f8
 pass/borrows/reference_aggregate_disjoint_mutable_leaves_exit checked 79303ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/reference_cycle_projection_root_partition checked 2282ms @ccdb99ca2214
 pass/borrows/reference_parameter_field_store_exit checked 3380ms check-target:macos_arm64 @ccdb99ca2214
@@ -4467,26 +4483,26 @@ pass/borrows/stored_reference_address_field_exit checked 3969ms check-target:mac
 pass/borrows/stored_reference_projection_exit checked 15667ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/stored_view_return_consumers checked 2281ms @ccdb99ca2214
 pass/borrows/structural_operand_view_catalog_exit checked 3710ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/suspension_projected_call_view_all_suppliers_only_view_exit checked 2899ms check-target:macos_arm64 @f339c83f6359
-pass/borrows/suspension_projected_call_view_earlier_argument_exit checked 2899ms check-target:macos_arm64 @f339c83f6359
-pass/borrows/suspension_projected_call_view_entry_source_exit checked 2724ms check-target:macos_arm64 @f339c83f6359
+pass/borrows/suspension_projected_call_view_all_suppliers_only_view_exit checked 5499ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_projected_call_view_earlier_argument_exit checked 5373ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_projected_call_view_entry_source_exit checked 5376ms check-target:macos_arm64 @d68d95fa82f8
 pass/borrows/suspension_projected_call_view_independent_image_exit checked 2629ms check-target:macos_arm64 @f339c83f6359
-pass/borrows/suspension_projected_call_view_inline_source_exit checked 2807ms check-target:macos_arm64 @f339c83f6359
-pass/borrows/suspension_projected_call_view_reborrow_selected_exit checked 2743ms check-target:macos_arm64 @f339c83f6359
-pass/borrows/suspension_projected_call_view_returned_alternatives_exit checked 2731ms check-target:macos_arm64 @f339c83f6359
-pass/borrows/suspension_projected_call_view_returned_direct_read_exit checked 2700ms check-target:macos_arm64 @f339c83f6359
-pass/borrows/suspension_projected_call_view_returned_exit checked 2710ms check-target:macos_arm64 @f339c83f6359
-pass/borrows/suspension_projected_call_view_shared_cohort_restore_exit checked 2710ms check-target:macos_arm64 @f339c83f6359
-pass/borrows/suspension_projected_call_view_source_replaced_exit checked 2743ms check-target:macos_arm64 @f339c83f6359
-pass/borrows/suspension_projected_call_view_whole_input_restore_exit checked 2742ms check-target:macos_arm64 @f339c83f6359
-pass/borrows/suspension_saved_reference_view_all_suppliers_exit checked 4817ms check-target:macos_arm64 @24e82dfa56fd
-pass/borrows/suspension_saved_reference_view_earlier_operand_capture_exit checked 4617ms check-target:macos_arm64 @24e82dfa56fd
-pass/borrows/suspension_saved_reference_view_inherited_backing_exit checked 3960ms check-target:macos_arm64 @24e82dfa56fd
-pass/borrows/suspension_saved_reference_view_projected_borrow_exit checked 3365ms check-target:macos_arm64 @24e82dfa56fd
-pass/borrows/suspension_saved_reference_view_retained_call_input_source_replaced_exit checked 3363ms check-target:macos_arm64 @24e82dfa56fd
-pass/borrows/suspension_saved_reference_view_shared_cohort_call_restore_exit checked 3615ms check-target:macos_arm64 @24e82dfa56fd
-pass/borrows/suspension_saved_reference_view_shared_cohort_source_replaced_exit checked 3645ms check-target:macos_arm64 @24e82dfa56fd
-pass/borrows/suspension_saved_reference_view_source_replaced_exit checked 3385ms check-target:macos_arm64 @24e82dfa56fd
+pass/borrows/suspension_projected_call_view_inline_source_exit checked 5323ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_projected_call_view_reborrow_selected_exit checked 5370ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_projected_call_view_returned_alternatives_exit checked 5389ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_projected_call_view_returned_direct_read_exit checked 5406ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_projected_call_view_returned_exit checked 5393ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_projected_call_view_shared_cohort_restore_exit checked 5414ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_projected_call_view_source_replaced_exit checked 5362ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_projected_call_view_whole_input_restore_exit checked 5364ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_saved_reference_view_all_suppliers_exit checked 5405ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_saved_reference_view_earlier_operand_capture_exit checked 5395ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_saved_reference_view_inherited_backing_exit checked 5463ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_saved_reference_view_projected_borrow_exit checked 5440ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_saved_reference_view_retained_call_input_source_replaced_exit checked 5455ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_saved_reference_view_shared_cohort_call_restore_exit checked 5447ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_saved_reference_view_shared_cohort_source_replaced_exit checked 5481ms check-target:macos_arm64 @d68d95fa82f8
+pass/borrows/suspension_saved_reference_view_source_replaced_exit checked 5500ms check-target:macos_arm64 @d68d95fa82f8
 pass/borrows/tagged_scalar_field_live_copy_exit checked 3101ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/target_family_backing_alternatives_exit checked 3334ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/terminal_call_loan_completion_exit checked 3580ms check-target:macos_arm64 @ccdb99ca2214
@@ -6171,11 +6187,11 @@ pass/effects/gui_semantic_services checked 19747ms @ccdb99ca2214
 pass/effects/nominal_callback_const_reach checked 3143ms @ccdb99ca2214
 pass/effects/nominal_callback_dependency checked 3928ms check-target:macos_arm64 @ccdb99ca2214
 pass/effects/opaque_leaf_inherits_requirement_contract checked 2328ms @409a3e82132d+wt
-pass/effects/optional_reach_declared_slack_exit checked 3184ms check-target:macos_arm64 @ccdb99ca2214
+pass/effects/optional_reach_declared_slack_exit checked 6620ms check-target:macos_arm64 @d68d95fa82f8
 pass/effects/optional_reach_empty_exit checked 3144ms check-target:macos_arm64 @ccdb99ca2214
-pass/effects/optional_reach_generic_narrow_exit checked 3648ms check-target:macos_arm64 @ccdb99ca2214
-pass/effects/optional_reach_recursive_foreign_exit checked 3640ms check-target:macos_arm64 @ccdb99ca2214
-pass/effects/optional_reach_target_union_exit checked 2911ms check-target:macos_arm64 @ccdb99ca2214
+pass/effects/optional_reach_generic_narrow_exit checked 6976ms check-target:macos_arm64 @d68d95fa82f8
+pass/effects/optional_reach_recursive_foreign_exit checked 6543ms check-target:macos_arm64 @d68d95fa82f8
+pass/effects/optional_reach_target_union_exit checked 6498ms check-target:macos_arm64 @d68d95fa82f8
 pass/effects/reach_inferred_wrapper checked 2917ms @ccdb99ca2214
 pass/effects/reach_through_machine_param checked 2976ms @ccdb99ca2214
 pass/effects/reviewed_service_rows_exit checked 18046ms check-target:macos_arm64 @ccdb99ca2214
@@ -11682,42 +11698,42 @@ pass/facts/structural_issuer_forwarding_other_state checked 3373ms check-target:
 pass/facts/structural_issuer_forwarding_parameter checked 3334ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/structural_issuer_forwarding_target_body checked 3943ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/subslice_state_extent_after_write_exit checked 3696ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/suspension_projected_call_view_through_call_result_exit checked 2828ms check-target:macos_arm64 @f339c83f6359
-pass/facts/suspension_projected_call_view_through_const_name_exit checked 2827ms check-target:macos_arm64 @f339c83f6359
-pass/facts/suspension_projected_call_view_through_field_exit checked 2759ms check-target:macos_arm64 @f339c83f6359
-pass/facts/suspension_projected_call_view_through_local_exit checked 2754ms check-target:macos_arm64 @f339c83f6359
-pass/facts/suspension_projected_call_view_through_match_join_exit checked 2773ms check-target:macos_arm64 @f339c83f6359
-pass/facts/suspension_projected_call_view_through_other_machine_exit checked 2766ms check-target:macos_arm64 @f339c83f6359
-pass/facts/suspension_projected_call_view_through_other_state_exit checked 2763ms check-target:macos_arm64 @f339c83f6359
-pass/facts/suspension_projected_call_view_through_parameter_exit checked 2762ms check-target:macos_arm64 @f339c83f6359
-pass/facts/suspension_projected_call_view_through_target_body_exit checked 2829ms check-target:macos_arm64 @f339c83f6359
-pass/facts/suspension_saved_reference_view_through_call_result_exit checked 3576ms check-target:macos_arm64 @24e82dfa56fd
-pass/facts/suspension_saved_reference_view_through_const_name_exit checked 3489ms check-target:macos_arm64 @24e82dfa56fd
-pass/facts/suspension_saved_reference_view_through_field_exit checked 3677ms check-target:macos_arm64 @24e82dfa56fd
-pass/facts/suspension_saved_reference_view_through_local_exit checked 3661ms check-target:macos_arm64 @24e82dfa56fd
-pass/facts/suspension_saved_reference_view_through_match_join_exit checked 3335ms check-target:macos_arm64 @24e82dfa56fd
-pass/facts/suspension_saved_reference_view_through_other_machine_exit checked 3329ms check-target:macos_arm64 @24e82dfa56fd
-pass/facts/suspension_saved_reference_view_through_other_state_exit checked 4058ms check-target:macos_arm64 @24e82dfa56fd
-pass/facts/suspension_saved_reference_view_through_parameter_exit checked 4018ms check-target:macos_arm64 @24e82dfa56fd
-pass/facts/suspension_saved_reference_view_through_target_body_exit checked 3898ms check-target:macos_arm64 @24e82dfa56fd
-pass/facts/suspension_transported_loan_recast_through_call_result_exit checked 5317ms check-target:macos_arm64 @56ac2516672d
-pass/facts/suspension_transported_loan_recast_through_const_name_exit checked 5190ms check-target:macos_arm64 @56ac2516672d
-pass/facts/suspension_transported_loan_recast_through_field_exit checked 5190ms check-target:macos_arm64 @56ac2516672d
-pass/facts/suspension_transported_loan_recast_through_local_exit checked 5523ms check-target:macos_arm64 @56ac2516672d
-pass/facts/suspension_transported_loan_recast_through_match_join_exit checked 5527ms check-target:macos_arm64 @56ac2516672d
-pass/facts/suspension_transported_loan_recast_through_other_machine_exit checked 5128ms check-target:macos_arm64 @56ac2516672d
-pass/facts/suspension_transported_loan_recast_through_other_state_exit checked 5124ms check-target:macos_arm64 @56ac2516672d
-pass/facts/suspension_transported_loan_recast_through_parameter_exit checked 5209ms check-target:macos_arm64 @56ac2516672d
-pass/facts/suspension_transported_loan_recast_through_target_body_exit checked 5209ms check-target:macos_arm64 @56ac2516672d
-pass/facts/suspension_transported_loan_through_call_result_exit checked 25020ms check-target:macos_arm64 @3db1f7baaded+wt
-pass/facts/suspension_transported_loan_through_const_name_exit checked 24195ms check-target:macos_arm64 @3db1f7baaded+wt
-pass/facts/suspension_transported_loan_through_field_exit checked 23956ms check-target:macos_arm64 @3db1f7baaded+wt
-pass/facts/suspension_transported_loan_through_local_exit checked 24021ms check-target:macos_arm64 @3db1f7baaded+wt
-pass/facts/suspension_transported_loan_through_match_join_exit checked 29651ms check-target:macos_arm64 @3db1f7baaded+wt
-pass/facts/suspension_transported_loan_through_other_machine_exit checked 18844ms check-target:macos_arm64 @3db1f7baaded+wt
-pass/facts/suspension_transported_loan_through_other_state_exit checked 21978ms check-target:macos_arm64 @3db1f7baaded+wt
-pass/facts/suspension_transported_loan_through_parameter_exit checked 21999ms check-target:macos_arm64 @3db1f7baaded+wt
-pass/facts/suspension_transported_loan_through_target_body_exit checked 21386ms check-target:macos_arm64 @3db1f7baaded+wt
+pass/facts/suspension_projected_call_view_through_call_result_exit checked 5521ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_projected_call_view_through_const_name_exit checked 5544ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_projected_call_view_through_field_exit checked 5461ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_projected_call_view_through_local_exit checked 5473ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_projected_call_view_through_match_join_exit checked 5487ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_projected_call_view_through_other_machine_exit checked 5518ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_projected_call_view_through_other_state_exit checked 5593ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_projected_call_view_through_parameter_exit checked 5470ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_projected_call_view_through_target_body_exit checked 5537ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_saved_reference_view_through_call_result_exit checked 5493ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_saved_reference_view_through_const_name_exit checked 5425ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_saved_reference_view_through_field_exit checked 5446ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_saved_reference_view_through_local_exit checked 5497ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_saved_reference_view_through_match_join_exit checked 5568ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_saved_reference_view_through_other_machine_exit checked 5499ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_saved_reference_view_through_other_state_exit checked 5492ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_saved_reference_view_through_parameter_exit checked 5614ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_saved_reference_view_through_target_body_exit checked 5754ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_recast_through_call_result_exit checked 5630ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_recast_through_const_name_exit checked 5589ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_recast_through_field_exit checked 5601ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_recast_through_local_exit checked 5661ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_recast_through_match_join_exit checked 5662ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_recast_through_other_machine_exit checked 5557ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_recast_through_other_state_exit checked 5624ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_recast_through_parameter_exit checked 5629ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_recast_through_target_body_exit checked 5714ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_through_call_result_exit checked 5603ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_through_const_name_exit checked 5612ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_through_field_exit checked 5685ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_through_local_exit checked 5659ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_through_match_join_exit checked 5549ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_through_other_machine_exit checked 5637ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_through_other_state_exit checked 5633ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_through_parameter_exit checked 5686ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/suspension_transported_loan_through_target_body_exit checked 5723ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/target_family_callback_guarantee/bare_interleaved checked 2806ms check-target:macos_arm64 @45fb2a705c96
 pass/facts/target_family_callback_guarantee/call_result checked 3041ms check-target:macos_arm64 @45fb2a705c96
 pass/facts/target_family_callback_guarantee/const_name checked 3887ms check-target:macos_arm64 @45fb2a705c96
@@ -11858,15 +11874,15 @@ pass/facts/typed_reflection_mutation_completion_other_state_exit checked 7915ms 
 pass/facts/typed_reflection_mutation_completion_parameter_exit checked 7517ms check-target:macos_arm64 @f0eff27c64cd
 pass/facts/typed_reflection_mutation_completion_shared_generic_exit checked 7226ms check-target:macos_arm64 @f0eff27c64cd
 pass/facts/typed_reflection_mutation_completion_target_body_exit checked 9156ms check-target:macos_arm64 @f0eff27c64cd
-pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 3750ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 3450ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_direct_boundary_call_through_field_exit checked 3654ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_direct_boundary_call_through_local_exit checked 3969ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_direct_boundary_call_through_match_join_exit checked 3267ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_direct_boundary_call_through_other_machine_exit checked 3850ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_direct_boundary_call_through_other_state_exit checked 3372ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_direct_boundary_call_through_parameter_exit checked 3429ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_direct_boundary_call_through_target_body_exit checked 49016ms check-target:macos_arm64 @b9580c0cab21+wt
+pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 6521ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 6552ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_direct_boundary_call_through_field_exit checked 6444ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_direct_boundary_call_through_local_exit checked 6545ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_direct_boundary_call_through_match_join_exit checked 6555ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_direct_boundary_call_through_other_machine_exit checked 6464ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_direct_boundary_call_through_other_state_exit checked 6484ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_direct_boundary_call_through_parameter_exit checked 6606ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_direct_boundary_call_through_target_body_exit checked 6697ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_dynamic_boundary_call_through_call_result_exit checked 59310ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/unannotated_dynamic_boundary_call_through_const_name_exit checked 57346ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/unannotated_dynamic_boundary_call_through_field_exit checked 49104ms check-target:macos_arm64 @863cdf432f5d+wt
@@ -11876,15 +11892,15 @@ pass/facts/unannotated_dynamic_boundary_call_through_other_machine_exit checked 
 pass/facts/unannotated_dynamic_boundary_call_through_other_state_exit checked 79614ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/unannotated_dynamic_boundary_call_through_parameter_exit checked 60632ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/unannotated_dynamic_boundary_call_through_target_body_exit checked 66710ms check-target:macos_arm64 @005a0eaac360
-pass/facts/unannotated_generic_boundary_call_through_call_result_exit checked 4164ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_generic_boundary_call_through_const_name_exit checked 3567ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_generic_boundary_call_through_field_exit checked 3894ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_generic_boundary_call_through_local_exit checked 3930ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_generic_boundary_call_through_match_join_exit checked 3595ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_generic_boundary_call_through_other_machine_exit checked 3486ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_generic_boundary_call_through_other_state_exit checked 3482ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_generic_boundary_call_through_parameter_exit checked 3431ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_generic_boundary_call_through_target_body_exit checked 54411ms check-target:macos_arm64 @005a0eaac360
+pass/facts/unannotated_generic_boundary_call_through_call_result_exit checked 6699ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_generic_boundary_call_through_const_name_exit checked 6679ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_generic_boundary_call_through_field_exit checked 6676ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_generic_boundary_call_through_local_exit checked 6680ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_generic_boundary_call_through_match_join_exit checked 6638ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_generic_boundary_call_through_other_machine_exit checked 6713ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_generic_boundary_call_through_other_state_exit checked 6654ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_generic_boundary_call_through_parameter_exit checked 6691ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_generic_boundary_call_through_target_body_exit checked 6730ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_imported_boundary_call_through_call_result_exit checked 4133ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_imported_boundary_call_through_const_name_exit checked 4154ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_imported_boundary_call_through_field_exit checked 3956ms check-target:macos_arm64 @ccdb99ca2214
@@ -11894,33 +11910,33 @@ pass/facts/unannotated_imported_boundary_call_through_other_machine_exit checked
 pass/facts/unannotated_imported_boundary_call_through_other_state_exit checked 4566ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_imported_boundary_call_through_parameter_exit checked 4743ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_imported_boundary_call_through_target_body_exit checked 54418ms check-target:macos_arm64 @005a0eaac360
-pass/facts/unannotated_provider_boundary_call_through_call_result_exit checked 3699ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_provider_boundary_call_through_const_name_exit checked 3628ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_provider_boundary_call_through_field_exit checked 3469ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_provider_boundary_call_through_local_exit checked 3523ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_provider_boundary_call_through_match_join_exit checked 3205ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_provider_boundary_call_through_other_machine_exit checked 3426ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_provider_boundary_call_through_other_state_exit checked 3324ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_provider_boundary_call_through_parameter_exit checked 3652ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_provider_boundary_call_through_target_body_exit checked 65991ms check-target:macos_arm64 @005a0eaac360
-pass/facts/unannotated_recursive_boundary_call_through_call_result_exit checked 3442ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_recursive_boundary_call_through_const_name_exit checked 3883ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_recursive_boundary_call_through_field_exit checked 3685ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_recursive_boundary_call_through_local_exit checked 3524ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_recursive_boundary_call_through_match_join_exit checked 3824ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_recursive_boundary_call_through_other_machine_exit checked 3830ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_recursive_boundary_call_through_other_state_exit checked 3483ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_recursive_boundary_call_through_parameter_exit checked 3864ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_recursive_boundary_call_through_target_body_exit checked 54539ms check-target:macos_arm64 @005a0eaac360
-pass/facts/unannotated_transitive_boundary_call_through_call_result_exit checked 3250ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_transitive_boundary_call_through_const_name_exit checked 3588ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_transitive_boundary_call_through_field_exit checked 3626ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_transitive_boundary_call_through_local_exit checked 3813ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_transitive_boundary_call_through_match_join_exit checked 4040ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_transitive_boundary_call_through_other_machine_exit checked 3523ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_transitive_boundary_call_through_other_state_exit checked 3362ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_transitive_boundary_call_through_parameter_exit checked 3625ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_transitive_boundary_call_through_target_body_exit checked 65982ms check-target:macos_arm64 @005a0eaac360
+pass/facts/unannotated_provider_boundary_call_through_call_result_exit checked 6627ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_provider_boundary_call_through_const_name_exit checked 6617ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_provider_boundary_call_through_field_exit checked 6592ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_provider_boundary_call_through_local_exit checked 6599ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_provider_boundary_call_through_match_join_exit checked 6632ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_provider_boundary_call_through_other_machine_exit checked 6566ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_provider_boundary_call_through_other_state_exit checked 6510ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_provider_boundary_call_through_parameter_exit checked 6670ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_provider_boundary_call_through_target_body_exit checked 6667ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_recursive_boundary_call_through_call_result_exit checked 6770ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_recursive_boundary_call_through_const_name_exit checked 6611ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_recursive_boundary_call_through_field_exit checked 6690ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_recursive_boundary_call_through_local_exit checked 6756ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_recursive_boundary_call_through_match_join_exit checked 6623ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_recursive_boundary_call_through_other_machine_exit checked 6723ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_recursive_boundary_call_through_other_state_exit checked 6661ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_recursive_boundary_call_through_parameter_exit checked 6506ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_recursive_boundary_call_through_target_body_exit checked 6684ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_transitive_boundary_call_through_call_result_exit checked 6617ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_transitive_boundary_call_through_const_name_exit checked 6690ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_transitive_boundary_call_through_field_exit checked 6731ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_transitive_boundary_call_through_local_exit checked 6618ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_transitive_boundary_call_through_match_join_exit checked 6665ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_transitive_boundary_call_through_other_machine_exit checked 6605ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_transitive_boundary_call_through_other_state_exit checked 6670ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_transitive_boundary_call_through_parameter_exit checked 6632ms check-target:macos_arm64 @d68d95fa82f8
+pass/facts/unannotated_transitive_boundary_call_through_target_body_exit checked 6658ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unsigned_32bit_division_remainder_bound_through_call_result_exit checked 3857ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unsigned_32bit_division_remainder_bound_through_const_name_exit checked 3409ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unsigned_32bit_division_remainder_bound_through_field_exit checked 3724ms check-target:macos_arm64 @ccdb99ca2214
@@ -13064,13 +13080,14 @@ pass/layouts/empty_record_layout_queries_compile checked 2905ms @ccdb99ca2214
 pass/layouts/extent_view_external_content checked 12345ms terminal-runtime.attempt:match terminal-inspections:match @b3876048c0a2
 pass/layouts/extent_view_external_write checked 14953ms terminal-runtime.attempt:match terminal-inspections:match @b3876048c0a2
 pass/layouts/five_element_array_layout_compile checked 2622ms @ccdb99ca2214
-pass/layouts/fixed_layout_closed_requirement_policy_exit checked 2539ms check-target:macos_arm64 @2ba727eefb59+wt
-pass/layouts/fixed_layout_computed_const_policy_exit checked 2288ms check-target:macos_arm64 @2ba727eefb59+wt
+pass/layouts/fixed_layout_closed_requirement_policy_exit checked 10253ms check-target:macos_arm64 @d68d95fa82f8
+pass/layouts/fixed_layout_computed_const_policy_exit rejected 523ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d68d95fa82f8
+	exact arithmetic in closed const argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 pass/layouts/fixed_layout_finite_dynamic_policy_exit checked 2087ms check-target:macos_arm64 @2ba727eefb59+wt
 pass/layouts/fixed_layout_forwarded_fragmented_mutation_exit checked 15572ms check-target:macos_arm64 @911f6617ba9e
 pass/layouts/fixed_layout_overridden_valid_policy_exit checked 1871ms check-target:macos_arm64 @2ba727eefb59+wt
-pass/layouts/fixed_layout_semantic_only_policy_exit checked 2134ms check-target:macos_arm64 @2ba727eefb59+wt
-pass/layouts/fixed_layout_unbounded_invariant_policy_exit checked 2277ms check-target:macos_arm64 @2ba727eefb59+wt
+pass/layouts/fixed_layout_semantic_only_policy_exit checked 8828ms check-target:macos_arm64 @d68d95fa82f8
+pass/layouts/fixed_layout_unbounded_invariant_policy_exit checked 9008ms check-target:macos_arm64 @d68d95fa82f8
 pass/layouts/fixed_layout_unmentioned_valid_policy_exit checked 1937ms check-target:macos_arm64 @2ba727eefb59+wt
 pass/layouts/float_member_layout_queries_compile checked 6914ms @ccdb99ca2214
 pass/layouts/generic_constant_layout_contract_exit checked 3740ms check-target:macos_arm64 @ccdb99ca2214
@@ -20120,13 +20137,13 @@ fail/effects/macos_dispatch_cannot_hide_filesystem_write rejected 18708ms expect
 	machine `RuntimePresentation::send` state `send` does not satisfy trait `PresentationClient` machine `send`: service `FilesystemContentWrite` is not allowed by the trait requirement
 fail/effects/nominal_callback_console_const_reach rejected 490ms expected @ccdb99ca2214
 	fixed-array length `[u8; length()]`: const evaluation of `length` failed: machine `@array-extent-10-12` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
-fail/effects/optional_reach_declared_slack_rejected rejected 2461ms expected @ccdb99ca2214
+fail/effects/optional_reach_declared_slack_rejected rejected 4455ms expected @d68d95fa82f8
 	machine `main` publishes service reach `Mark` but its checked body reaches undeclared service `Unused`
-fail/effects/optional_reach_disjoint_service_rejected rejected 2244ms expected @ccdb99ca2214
+fail/effects/optional_reach_disjoint_service_rejected rejected 4432ms expected @d68d95fa82f8
 	machine `read_mark` publishes service reach `Mark + Unused` but its checked body reaches undeclared service `Forbidden`
-fail/effects/optional_reach_generic_narrow_rejected rejected 3416ms expected @ccdb99ca2214
+fail/effects/optional_reach_generic_narrow_rejected rejected 4557ms expected @d68d95fa82f8
 	machine `main` publishes service reach `Mark` but its checked body reaches undeclared service `Unused`
-fail/effects/optional_reach_target_union_rejected rejected 2100ms expected @ccdb99ca2214
+fail/effects/optional_reach_target_union_rejected rejected 4462ms expected @d68d95fa82f8
 	machine `main` publishes service reach `Mark` but its checked body reaches undeclared service `Forbidden`
 fail/effects/pacing_poll_cannot_observe_descriptors rejected 13158ms expected @ccdb99ca2214
 	cannot prove requires contract for call poll from invalid_wait: 1 == 0 && 1 == 0 (needs fact `fds == 0 && nfds == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -21183,23 +21200,23 @@ fail/facts/boundary_provider_call_through_target_body_rejected rejected 1183ms e
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `get(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `get(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `get(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
-fail/facts/boundary_requirement_ceiling_missing_through_call_result_rejected rejected 264ms expected @ccdb99ca2214
+fail/facts/boundary_requirement_ceiling_missing_through_call_result_rejected rejected 320ms expected @d68d95fa82f8
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_call_result_rejected/main.omg:4:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
-fail/facts/boundary_requirement_ceiling_missing_through_const_name_rejected rejected 282ms expected @ccdb99ca2214
+fail/facts/boundary_requirement_ceiling_missing_through_const_name_rejected rejected 332ms expected @d68d95fa82f8
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_const_name_rejected/main.omg:5:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
-fail/facts/boundary_requirement_ceiling_missing_through_field_rejected rejected 285ms expected @ccdb99ca2214
+fail/facts/boundary_requirement_ceiling_missing_through_field_rejected rejected 322ms expected @d68d95fa82f8
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_field_rejected/main.omg:4:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
-fail/facts/boundary_requirement_ceiling_missing_through_local_rejected rejected 296ms expected @ccdb99ca2214
+fail/facts/boundary_requirement_ceiling_missing_through_local_rejected rejected 322ms expected @d68d95fa82f8
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_local_rejected/main.omg:4:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
-fail/facts/boundary_requirement_ceiling_missing_through_match_join_rejected rejected 671ms expected @ccdb99ca2214
+fail/facts/boundary_requirement_ceiling_missing_through_match_join_rejected rejected 326ms expected @d68d95fa82f8
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_match_join_rejected/main.omg:4:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
-fail/facts/boundary_requirement_ceiling_missing_through_other_machine_rejected rejected 620ms expected @ccdb99ca2214
+fail/facts/boundary_requirement_ceiling_missing_through_other_machine_rejected rejected 326ms expected @d68d95fa82f8
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_other_machine_rejected/main.omg:4:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
-fail/facts/boundary_requirement_ceiling_missing_through_other_state_rejected rejected 412ms expected @ccdb99ca2214
+fail/facts/boundary_requirement_ceiling_missing_through_other_state_rejected rejected 322ms expected @d68d95fa82f8
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_other_state_rejected/main.omg:4:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
-fail/facts/boundary_requirement_ceiling_missing_through_parameter_rejected rejected 520ms expected @ccdb99ca2214
+fail/facts/boundary_requirement_ceiling_missing_through_parameter_rejected rejected 332ms expected @d68d95fa82f8
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_parameter_rejected/main.omg:4:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
-fail/facts/boundary_requirement_ceiling_missing_through_target_body_rejected rejected 2769ms expected @b9580c0cab21+wt
+fail/facts/boundary_requirement_ceiling_missing_through_target_body_rejected rejected 347ms expected @d68d95fa82f8
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_target_body_rejected/main.omg:4:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
 fail/facts/boundary_zero_origin_through_call_result_changed rejected 2256ms expected @ccdb99ca2214
 	cannot prove requires contract for call acquire from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -30645,23 +30662,23 @@ fail/facts/unannotated_dynamic_boundary_call_through_parameter_rejected rejected
 fail/facts/unannotated_dynamic_boundary_call_through_target_body_rejected rejected 37533ms expected @005a0eaac360
 	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_generic_boundary_call_through_call_result_rejected rejected 2367ms expected @ccdb99ca2214
+fail/facts/unannotated_generic_boundary_call_through_call_result_rejected rejected 4497ms expected @d68d95fa82f8
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_generic_boundary_call_through_const_name_rejected rejected 2250ms expected @ccdb99ca2214
+fail/facts/unannotated_generic_boundary_call_through_const_name_rejected rejected 4495ms expected @d68d95fa82f8
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_generic_boundary_call_through_field_rejected rejected 1895ms expected @ccdb99ca2214
+fail/facts/unannotated_generic_boundary_call_through_field_rejected rejected 4523ms expected @d68d95fa82f8
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_generic_boundary_call_through_local_rejected rejected 2981ms expected @ccdb99ca2214
+fail/facts/unannotated_generic_boundary_call_through_local_rejected rejected 4527ms expected @d68d95fa82f8
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_generic_boundary_call_through_match_join_rejected rejected 2738ms expected @ccdb99ca2214
+fail/facts/unannotated_generic_boundary_call_through_match_join_rejected rejected 4567ms expected @d68d95fa82f8
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_generic_boundary_call_through_other_machine_rejected rejected 2974ms expected @ccdb99ca2214
+fail/facts/unannotated_generic_boundary_call_through_other_machine_rejected rejected 4446ms expected @d68d95fa82f8
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_generic_boundary_call_through_other_state_rejected rejected 3186ms expected @ccdb99ca2214
+fail/facts/unannotated_generic_boundary_call_through_other_state_rejected rejected 4525ms expected @d68d95fa82f8
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_generic_boundary_call_through_parameter_rejected rejected 2876ms expected @ccdb99ca2214
+fail/facts/unannotated_generic_boundary_call_through_parameter_rejected rejected 4541ms expected @d68d95fa82f8
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_generic_boundary_call_through_target_body_rejected rejected 37300ms expected @005a0eaac360
+fail/facts/unannotated_generic_boundary_call_through_target_body_rejected rejected 4466ms expected @d68d95fa82f8
 	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_imported_boundary_call_through_call_result_rejected rejected 2954ms expected @ccdb99ca2214
@@ -30683,60 +30700,60 @@ fail/facts/unannotated_imported_boundary_call_through_parameter_rejected rejecte
 fail/facts/unannotated_imported_boundary_call_through_target_body_rejected rejected 38440ms expected @005a0eaac360
 	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_provider_boundary_call_through_call_result_rejected rejected 2800ms expected @ccdb99ca2214
+fail/facts/unannotated_provider_boundary_call_through_call_result_rejected rejected 4563ms expected @d68d95fa82f8
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
-fail/facts/unannotated_provider_boundary_call_through_const_name_rejected rejected 2185ms expected @ccdb99ca2214
+fail/facts/unannotated_provider_boundary_call_through_const_name_rejected rejected 4402ms expected @d68d95fa82f8
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
-fail/facts/unannotated_provider_boundary_call_through_field_rejected rejected 2067ms expected @ccdb99ca2214
+fail/facts/unannotated_provider_boundary_call_through_field_rejected rejected 4399ms expected @d68d95fa82f8
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
-fail/facts/unannotated_provider_boundary_call_through_local_rejected rejected 2670ms expected @ccdb99ca2214
+fail/facts/unannotated_provider_boundary_call_through_local_rejected rejected 4374ms expected @d68d95fa82f8
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
-fail/facts/unannotated_provider_boundary_call_through_match_join_rejected rejected 2821ms expected @ccdb99ca2214
+fail/facts/unannotated_provider_boundary_call_through_match_join_rejected rejected 4448ms expected @d68d95fa82f8
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
-fail/facts/unannotated_provider_boundary_call_through_other_machine_rejected rejected 2537ms expected @ccdb99ca2214
+fail/facts/unannotated_provider_boundary_call_through_other_machine_rejected rejected 4455ms expected @d68d95fa82f8
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
-fail/facts/unannotated_provider_boundary_call_through_other_state_rejected rejected 3228ms expected @ccdb99ca2214
+fail/facts/unannotated_provider_boundary_call_through_other_state_rejected rejected 4348ms expected @d68d95fa82f8
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
-fail/facts/unannotated_provider_boundary_call_through_parameter_rejected rejected 2835ms expected @ccdb99ca2214
+fail/facts/unannotated_provider_boundary_call_through_parameter_rejected rejected 4370ms expected @d68d95fa82f8
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
-fail/facts/unannotated_provider_boundary_call_through_target_body_rejected rejected 38142ms expected @005a0eaac360
+fail/facts/unannotated_provider_boundary_call_through_target_body_rejected rejected 4483ms expected @d68d95fa82f8
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
-fail/facts/unannotated_recursive_boundary_call_through_call_result_rejected rejected 2634ms expected @ccdb99ca2214
+fail/facts/unannotated_recursive_boundary_call_through_call_result_rejected rejected 4449ms expected @d68d95fa82f8
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_recursive_boundary_call_through_const_name_rejected rejected 2814ms expected @ccdb99ca2214
+fail/facts/unannotated_recursive_boundary_call_through_const_name_rejected rejected 4440ms expected @d68d95fa82f8
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_recursive_boundary_call_through_field_rejected rejected 2426ms expected @ccdb99ca2214
+fail/facts/unannotated_recursive_boundary_call_through_field_rejected rejected 4392ms expected @d68d95fa82f8
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_recursive_boundary_call_through_local_rejected rejected 2967ms expected @ccdb99ca2214
+fail/facts/unannotated_recursive_boundary_call_through_local_rejected rejected 4363ms expected @d68d95fa82f8
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_recursive_boundary_call_through_match_join_rejected rejected 2279ms expected @ccdb99ca2214
+fail/facts/unannotated_recursive_boundary_call_through_match_join_rejected rejected 4460ms expected @d68d95fa82f8
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_recursive_boundary_call_through_other_machine_rejected rejected 2822ms expected @ccdb99ca2214
+fail/facts/unannotated_recursive_boundary_call_through_other_machine_rejected rejected 4434ms expected @d68d95fa82f8
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_recursive_boundary_call_through_other_state_rejected rejected 2158ms expected @ccdb99ca2214
+fail/facts/unannotated_recursive_boundary_call_through_other_state_rejected rejected 4364ms expected @d68d95fa82f8
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_recursive_boundary_call_through_parameter_rejected rejected 2921ms expected @ccdb99ca2214
+fail/facts/unannotated_recursive_boundary_call_through_parameter_rejected rejected 4440ms expected @d68d95fa82f8
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_recursive_boundary_call_through_target_body_rejected rejected 30097ms expected @005a0eaac360
+fail/facts/unannotated_recursive_boundary_call_through_target_body_rejected rejected 4509ms expected @d68d95fa82f8
 	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_transitive_boundary_call_through_call_result_rejected rejected 2176ms expected @ccdb99ca2214
+fail/facts/unannotated_transitive_boundary_call_through_call_result_rejected rejected 4442ms expected @d68d95fa82f8
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_transitive_boundary_call_through_const_name_rejected rejected 3056ms expected @ccdb99ca2214
+fail/facts/unannotated_transitive_boundary_call_through_const_name_rejected rejected 4419ms expected @d68d95fa82f8
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_transitive_boundary_call_through_field_rejected rejected 3086ms expected @ccdb99ca2214
+fail/facts/unannotated_transitive_boundary_call_through_field_rejected rejected 4449ms expected @d68d95fa82f8
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_transitive_boundary_call_through_local_rejected rejected 2680ms expected @ccdb99ca2214
+fail/facts/unannotated_transitive_boundary_call_through_local_rejected rejected 4478ms expected @d68d95fa82f8
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_transitive_boundary_call_through_match_join_rejected rejected 2652ms expected @ccdb99ca2214
+fail/facts/unannotated_transitive_boundary_call_through_match_join_rejected rejected 4372ms expected @d68d95fa82f8
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_transitive_boundary_call_through_other_machine_rejected rejected 3155ms expected @ccdb99ca2214
+fail/facts/unannotated_transitive_boundary_call_through_other_machine_rejected rejected 4458ms expected @d68d95fa82f8
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_transitive_boundary_call_through_other_state_rejected rejected 2584ms expected @ccdb99ca2214
+fail/facts/unannotated_transitive_boundary_call_through_other_state_rejected rejected 4434ms expected @d68d95fa82f8
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_transitive_boundary_call_through_parameter_rejected rejected 2713ms expected @ccdb99ca2214
+fail/facts/unannotated_transitive_boundary_call_through_parameter_rejected rejected 4437ms expected @d68d95fa82f8
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_transitive_boundary_call_through_target_body_rejected rejected 29860ms expected @005a0eaac360
+fail/facts/unannotated_transitive_boundary_call_through_target_body_rejected rejected 4391ms expected @d68d95fa82f8
 	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/uninitialized_dyn_selection_through_call_result rejected 1373ms expected @281c0d530cb7
@@ -36667,7 +36684,7 @@ run/proofs/quotient_copy_paths rejected 57231ms check-target:macos_arm64 regress
 	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
 run/providers/module_named_float_conversion_family_exit rejected 8776ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-run/providers/target_applicable_provider_closure checked 9910ms check-target:macos_arm64 @ccdb99ca2214
+run/providers/target_applicable_provider_closure checked 110569ms check-target:macos_arm64 @d68d95fa82f8
 run/providers/target_family_provider_boundary_identity_exit checked 11036ms check-target:macos_arm64 @ccdb99ca2214
 run/ranges/borrowed_case_payload_alias checked 2774ms check-target:macos_arm64 @02f650a3c5b1
 run/ranges/borrowed_case_payload_bound checked 2823ms check-target:macos_arm64 @02f650a3c5b1
