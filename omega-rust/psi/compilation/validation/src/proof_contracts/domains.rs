@@ -13,9 +13,9 @@ pub(crate) use closed_instances::closed_integer_index_bindings;
 pub use integer_membership::integer_domain_membership;
 use language_semantics::CarryPermission;
 
-mod executable_tests;
+mod membership_carriers;
 mod runtime_predicates;
-pub use executable_tests::validate_executable_domain_test_carriers;
+pub use membership_carriers::validate_domain_membership_carriers;
 pub use runtime_predicates::{
     scalar_domain_definition_predicate, scalar_domain_local_predicate, scalar_domain_predicate,
     scalar_domain_value_predicate, scalar_field_domain_predicate, scalar_field_restriction,
