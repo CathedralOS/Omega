@@ -48,3 +48,14 @@ other-state row uses the repository's current authored state syntax; it retains
 its parameter and explicit transition identity. Runtime indices and static
 canonical indices remain different judgments. No access, conformance, callable
 contract, ownership, or effect obligation is discharged by the type equation.
+
+
+## Remaining target-body migration
+
+This production is part of **BUILD-OWNED-TARGET-SELECTION** as well as its
+structural-inference task. The positive and reject target programs now use the
+same ordinary requirement, named implementation choices and four target-keyed
+Build rows. Their fact, consuming call and reject obligation are unchanged.
+Current migration checks are pending; historical observations above keep their
+original source and host identities. The [parent qualification notes](../README.md#current-migration-qualification)
+retain the complete four-production scope and remaining acceptance.

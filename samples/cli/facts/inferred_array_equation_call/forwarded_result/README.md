@@ -21,7 +21,7 @@ constructor traversal. Ordinary typing still checks arguments, constraints,
 properties, invocation requirements and ownership afterward.
 An early result observation can remain underdetermined when the outer call
 supplies its context. That case defers to ordinary inference; it is not a
-contradictory equation. Unavailable static-machine telescopes and ordinary
+contradictory equation. Unavailable static-machine parameter lists and ordinary
 reference-access compatibility likewise remain the normal checker's obligations.
 The observer retains its diagnostic and explains it if the consumer also fails
 to determine a tuple. Pinned outer-context, static-machine-binder and reference
@@ -89,3 +89,14 @@ lifetimes and unspecialized disjunctive body checking. The two named Std-backed
 customers also reject on the recorded baseline at Std `FloatMeaning` ensures
 contracts before reaching their authored program; this repair changes none of
 those proof obligations.
+
+
+## Remaining target-body migration
+
+This production is part of **BUILD-OWNED-TARGET-SELECTION** as well as its
+structural-inference task. The positive and reject target programs now use the
+same ordinary requirement, named implementation choices and four target-keyed
+Build rows. Their fact, consuming call and reject obligation are unchanged.
+Current migration checks are pending; historical observations above keep their
+original source and host identities. The [parent qualification notes](../README.md#current-migration-qualification)
+retain the complete four-production scope and remaining acceptance.

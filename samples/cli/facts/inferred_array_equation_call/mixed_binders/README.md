@@ -106,3 +106,14 @@ This row covers closed mixed selections, not arbitrary callback/evidence-depende
 computed type expressions or runtime value-index identity. Named Std-backed
 customers retain their own package review and execution requirements. Linux,
 macOS and Linux ARM64 native observations for this production remain unmeasured.
+
+
+## Remaining target-body migration
+
+This production is part of **BUILD-OWNED-TARGET-SELECTION** as well as its
+structural-inference task. The positive and reject target programs now use the
+same ordinary requirement, named implementation choices and four target-keyed
+Build rows. Their fact, consuming call and reject obligation are unchanged.
+Current migration checks are pending; historical observations above keep their
+original source and host identities. The [parent qualification notes](../README.md#current-migration-qualification)
+retain the complete four-production scope and remaining acceptance.
