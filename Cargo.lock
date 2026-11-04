@@ -2534,6 +2534,7 @@ dependencies = [
  "abstract-operations",
  "access-plans",
  "calling-conventions",
+ "language-core",
  "layout-plans",
  "legalized-operations",
  "optimization-core",
