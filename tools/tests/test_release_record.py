@@ -442,6 +442,37 @@ class SkipAccounting(unittest.TestCase):
             "print(os.environ[\"NEXTEST_STATUS_LEVEL\"])'", sys.executable)
         self.assertEqual("skip", result["output_tail"].strip())
 
+    def test_run_command_shows_progress_before_a_quiet_command_exits(self):
+        # A gate used to stay blank until communicate() returned. A quiet
+        # command has to say it is still running, and the lines it does print
+        # have to reach the waiter before the process exits. The saved tail
+        # stays the command's own output, heartbeat text included nowhere in it.
+        held = []
+        real_stderr = sys.stderr
+
+        class Capture:
+            def write(self, text):
+                held.append(text)
+                return len(text)
+
+            def flush(self):
+                pass
+
+        sys.stderr = Capture()
+        try:
+            result = release_record.run_command(
+                "python -c \"import time; time.sleep(0.45); "
+                "print('corpus_runner: 1/2 done')\"",
+                sys.executable, heartbeat_seconds=0.15)
+        finally:
+            sys.stderr = real_stderr
+        shown = "".join(held)
+        self.assertIn("still running", shown)
+        self.assertIn("corpus_runner: 1/2 done", shown)
+        self.assertIn("corpus_runner: 1/2 done", result["output_tail"])
+        self.assertNotIn("still running", result["output_tail"])
+        self.assertEqual(0, result["exit"])
+
     def test_environment_filters_name_only_narrowing_variables(self):
         self.assertEqual(
             {"OMEGA_CORPUS_SHARD": "1/4"},
