@@ -20892,6 +20892,10 @@ fail/generics/dependent_callback_result_needs_public_order rejected 1636ms expec
 	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	machine argument `snapshot` for `through_callback` does not refine `Callback`: its requires facts are not a conservative refinement
+fail/generics/dependent_checker_wrong_constant rejected 471ms @775af766ad1a+wt
+	machine argument `second` for `apply` does not refine `Checker`: its ensures facts are not a conservative refinement
+fail/generics/dependent_checker_wrong_helper rejected 800ms @775af766ad1a+wt
+	`Selected::check` does not satisfy `Check::check`: helper `Valid` requires `accepts_other`, but the implementation promises `accepts`
 fail/generics/dependent_const_array_extent rejected 1681ms expected @ccdb99ca2214
 	const parameter `Selected` of `Pick` has an invalid named value: named constant `Short` has type `[u8; 1]`, expected `[u8; 2]`
 fail/generics/dependent_const_array_named_carrier rejected 1515ms expected @ccdb99ca2214
@@ -34246,6 +34250,10 @@ pass/generics/core_slice_for_each rejected 2699ms check-target:macos_arm64 regre
 pass/generics/cross_module_const_alias_callable_arguments_exit checked 8002ms check-target:macos_arm64 @d4295d67990d
 pass/generics/declared_range_endpoint_inference rejected 50353ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
 	authored Operator declaration selection occurrence 21291 (`+` in \\\\?\\tests\\omega\\pass\\generics\\declared_range_endpoint_inference\\main.omg) remained unresolved after successful checking (CheckedOperator)
+pass/generics/dependent_checker_borrowed_exit checked 2704ms check-target:macos_arm64 @775af766ad1a+wt
+pass/generics/dependent_checker_checker_first_exit checked 2703ms check-target:macos_arm64 @775af766ad1a+wt
+pass/generics/dependent_checker_configured_exit checked 3357ms check-target:macos_arm64 @775af766ad1a+wt
+pass/generics/dependent_checker_named_exit checked 3363ms check-target:macos_arm64 @775af766ad1a+wt
 pass/generics/dependent_const_array_carrier checked 2375ms @ccdb99ca2214
 pass/generics/dependent_const_carrier_arguments checked 2386ms @ccdb99ca2214
 pass/generics/dependent_const_recursive_forwarding checked 2214ms @ccdb99ca2214

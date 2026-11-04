@@ -294,6 +294,7 @@ impl TypedTrees {
         // cannot be the basis of another round of substitution.
         let mut application = CallableApplication {
             region_scope: lexical_owner,
+            static_argument_owner: lexical_owner,
             ..CallableApplication::default()
         };
         for binding in bindings {

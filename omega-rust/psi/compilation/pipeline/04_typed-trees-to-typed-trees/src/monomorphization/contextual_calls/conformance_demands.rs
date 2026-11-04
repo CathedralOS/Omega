@@ -145,6 +145,9 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
         expressions_of_mut(program)
             .set_static_machine_application_selected_machines(invocation, &selected);
         program
+            .prepare_selected_machine_contracts(invocation)
+            .map_err(failure)?;
+        program
             .closed_conformance_application_at_mut(site)
             .ok_or_else(|| failure("captured demand lost its source occurrence"))?
             .callable_application = invocation;

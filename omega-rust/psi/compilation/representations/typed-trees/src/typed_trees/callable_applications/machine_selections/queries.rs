@@ -13,11 +13,82 @@ use crate::{
 use symbols::SymbolHandle;
 
 impl TypedTrees {
-    fn machine_selection_lifetimes_are_current(&self, owner: &AppliedCallableOwner) -> bool {
+    pub(super) fn same_selected_provider(
+        &self,
+        left: StaticMachineApplicationHandle,
+        right: StaticMachineApplicationHandle,
+    ) -> bool {
+        let a = self.static_machine_application(left);
+        let b = self.static_machine_application(right);
+        a.registration_operation == b.registration_operation
+            && a.binding_declaration == b.binding_declaration
+            && a.lexical_owner == b.lexical_owner
+            && a.lifetime_binding_declaration == b.lifetime_binding_declaration
+            && a.conformance_selection == b.conformance_selection
+            && self.static_machine_application_lifetimes(left)
+                == self.static_machine_application_lifetimes(right)
+            && self.same_selected_bindings(
+                self.static_machine_application_bindings(left),
+                self.static_machine_application_bindings(right),
+                a.lexical_owner,
+            )
+    }
+
+    fn same_selected_bindings(
+        &self,
+        left: &[StaticMachineBinding],
+        right: &[StaticMachineBinding],
+        owner: SymbolHandle,
+    ) -> bool {
+        left.len() == right.len()
+            && left.iter().zip(right).all(|(previous, current)| {
+                previous.parameter == current.parameter
+                    && match (&previous.value, &current.value) {
+                        (
+                            StaticMachineBindingValue::Type(a),
+                            StaticMachineBindingValue::Type(b),
+                        ) => self.same_callable_operand(*a, *b, owner),
+                        (
+                            StaticMachineBindingValue::Const(a),
+                            StaticMachineBindingValue::Const(b),
+                        ) => self.same_callable_index(*a, *b, owner),
+                        (
+                            StaticMachineBindingValue::Machine(a),
+                            StaticMachineBindingValue::Machine(b),
+                        )
+                        | (
+                            StaticMachineBindingValue::Conformance(a),
+                            StaticMachineBindingValue::Conformance(b),
+                        ) => {
+                            a == b
+                                || applied_index_identity(
+                                    self,
+                                    IndexIdentityArgument::StaticArgument(a),
+                                    owner,
+                                    &[],
+                                )
+                                .zip(applied_index_identity(
+                                    self,
+                                    IndexIdentityArgument::StaticArgument(b),
+                                    owner,
+                                    &[],
+                                ))
+                                .is_some_and(|(a, b)| a == b)
+                        }
+                        _ => previous.value == current.value,
+                    }
+            })
+    }
+
+    pub(super) fn machine_selection_lifetimes_are_current(
+        &self,
+        owner: &AppliedCallableOwner,
+    ) -> bool {
         let AppliedCallableOwner::MachineSelection {
             invocation,
             provider,
             caller_lifetimes,
+            caller_bindings,
             caller_lifetime_declaration,
             caller_lifetime_owner,
             provider_lifetime_declaration,
@@ -30,7 +101,12 @@ impl TypedTrees {
         };
         let caller = self.static_machine_application(*invocation);
         let selected = self.static_machine_application(*provider);
-        *caller_lifetime_declaration == caller.lifetime_binding_declaration
+        let saved = self
+            .expression_table
+            .static_machine_binding_snapshot(*caller_bindings);
+        let current = self.static_machine_application_bindings(*invocation);
+        self.same_selected_bindings(saved, current, caller.lexical_owner)
+            && *caller_lifetime_declaration == caller.lifetime_binding_declaration
             && *caller_lifetime_owner == caller.lexical_owner
             && *provider_lifetime_declaration == selected.lifetime_binding_declaration
             && *provider_lifetime_owner == selected.lexical_owner
@@ -87,6 +163,7 @@ impl TypedTrees {
                 else {
                     return None;
                 };
+                let required = required.as_ref()?;
                 (*source == invocation
                     && *position == ordinal
                     && *entry == selected
@@ -282,6 +359,7 @@ impl TypedTrees {
                 else {
                     return None;
                 };
+                let required = required.as_ref()?;
                 (*source == invocation).then_some(AppliedMachineCallable {
                     invocation,
                     lexical_owner: self.static_machine_application(*provider).lexical_owner,

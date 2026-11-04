@@ -53,37 +53,14 @@ impl AppliedTraitScope<'_> {
         arguments: &[(SymbolHandle, crate::types::TypeReferenceHandle)],
         bindings: &[crate::static_applications::StaticMachineLifetimeBinding],
     ) -> Option<Self> {
-        let declaration = program.lifetime_declaration_owner(declaration);
-        let mut lifetimes = Vec::with_capacity(bindings.len());
-        for binding in bindings {
-            let parameter =
-                lifetime_parameter_identity(program, declaration, binding.parameter.as_str())?;
-            if parameter.declaration != declaration
-                || lifetimes
-                    .iter()
-                    .any(|(previous, _)| previous == binding.parameter.as_str())
-            {
-                return None;
-            }
-            lifetime_parameter_identity(program, argument_owner, binding.argument.as_str())?;
-            lifetimes.push((
-                binding.parameter.as_str().to_owned(),
-                binding.argument.as_str().to_owned(),
-            ));
-        }
+        let region = invocation_region_scope(program, declaration, argument_owner, bindings)?;
         self.argument_owner = argument_owner;
         self.substitutions.splice(0..0, arguments.iter().copied());
         for start in &mut self.substitution_scope_starts {
             *start += arguments.len();
         }
         self.substitution_scope_starts.insert(0, 0);
-        self.region_scopes.insert(
-            0,
-            AppliedDeclarationRegionScope {
-                declaration,
-                lifetimes,
-            },
-        );
+        self.region_scopes.insert(0, region);
         Some(self)
     }
 
@@ -93,12 +70,75 @@ impl AppliedTraitScope<'_> {
         &self,
         program: &TypedTrees,
     ) -> Option<NormalizedTypeIdentity> {
+        self.with_identity_scopes(program, |scopes| {
+            self.portable_application_identity_in_scopes(program, self.argument_owner, scopes, 0)
+        })
+    }
+
+    /// Identify a receiving trait with every selection made by its calling
+    /// invocation, including complete machine and conformance applications.
+    /// The supplied frame is simultaneous and precedes the trait's own bindings.
+    pub fn portable_application_identity_under_invocation(
+        &self,
+        program: &TypedTrees,
+        declaration: SymbolHandle,
+        argument_owner: SymbolHandle,
+        arguments: &[(SymbolHandle, IndexIdentityArgument<'_>)],
+        bindings: &[crate::static_applications::StaticMachineLifetimeBinding],
+    ) -> Option<NormalizedTypeIdentity> {
+        let region = invocation_region_scope(program, declaration, argument_owner, bindings)?;
+        self.with_identity_scopes(program, |scopes| {
+            let mut complete = Vec::with_capacity(scopes.len() + 1);
+            complete.push(AppliedTypeIdentityScope {
+                declaration: region.declaration,
+                arguments,
+                lifetimes: &region.lifetimes,
+            });
+            complete.extend_from_slice(scopes);
+            self.portable_application_identity_in_scopes(program, argument_owner, &complete, 1)
+        })
+    }
+
+    fn portable_application_identity_in_scopes(
+        &self,
+        program: &TypedTrees,
+        argument_owner: SymbolHandle,
+        scopes: &[AppliedTypeIdentityScope<'_>],
+        preceding: usize,
+    ) -> Option<NormalizedTypeIdentity> {
         let arguments = program
             .trait_type_parameters(self.declaration)
             .iter()
-            .map(|parameter| self.portable_parameter_identity(program, parameter.symbol))
+            .map(|parameter| {
+                let (reference, outer) = self.parameter_application(parameter.symbol)?;
+                let supplying = &scopes[..outer + preceding];
+                if parameter.kind.is_const_or_value()
+                    || matches!(parameter.kind, TypeParameterKind::Machine { .. })
+                {
+                    portable_applied_index_identity(
+                        program,
+                        IndexIdentityArgument::TypeReference(reference),
+                        argument_owner,
+                        supplying,
+                    )
+                } else {
+                    portable_applied_type_identity(program, reference, argument_owner, supplying)
+                }
+            })
             .collect::<Option<Vec<_>>>()?;
-        let lifetimes = self.portable_lifetime_arguments(program)?;
+        let lifetimes = self
+            .declaration
+            .lifetime_parameters
+            .iter()
+            .map(|parameter| {
+                portable_applied_lifetime_identity(
+                    program,
+                    parameter.as_str(),
+                    argument_owner,
+                    scopes,
+                )
+            })
+            .collect::<Option<Vec<_>>>()?;
         crate::type_identity::portable_trait_application_identity(
             program,
             self.declaration.symbol,
@@ -123,7 +163,9 @@ impl AppliedTraitScope<'_> {
                 .find(|binder| binder.symbol == parameter)?;
             if matches!(
                 binder.kind,
-                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                TypeParameterKind::Const { .. }
+                    | TypeParameterKind::Value { .. }
+                    | TypeParameterKind::Machine { .. }
             ) {
                 portable_applied_index_identity(
                     program,
@@ -198,7 +240,9 @@ impl AppliedTraitScope<'_> {
             .iter()
             .find(|binder| binder.symbol == parameter)?;
         self.with_identity_scopes(program, |scopes| {
-            if binder.kind.is_const_or_value() {
+            if binder.kind.is_const_or_value()
+                || matches!(binder.kind, TypeParameterKind::Machine { .. })
+            {
                 applied_index_identity(
                     program,
                     IndexIdentityArgument::TypeReference(reference),
@@ -276,7 +320,9 @@ impl AppliedTraitScope<'_> {
                     // type operands retain nominal and region ownership.
                     if matches!(
                         parameter.kind,
-                        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                        TypeParameterKind::Const { .. }
+                            | TypeParameterKind::Value { .. }
+                            | TypeParameterKind::Machine { .. }
                     ) {
                         applied_index_identity(
                             program,
@@ -315,4 +361,34 @@ impl AppliedTraitScope<'_> {
             )
         })
     }
+}
+
+fn invocation_region_scope(
+    program: &TypedTrees,
+    declaration: SymbolHandle,
+    argument_owner: SymbolHandle,
+    bindings: &[crate::static_applications::StaticMachineLifetimeBinding],
+) -> Option<AppliedDeclarationRegionScope> {
+    let declaration = program.lifetime_declaration_owner(declaration);
+    let mut lifetimes = Vec::with_capacity(bindings.len());
+    for binding in bindings {
+        let parameter =
+            lifetime_parameter_identity(program, declaration, binding.parameter.as_str())?;
+        if parameter.declaration != declaration
+            || lifetimes
+                .iter()
+                .any(|(previous, _)| previous == binding.parameter.as_str())
+        {
+            return None;
+        }
+        lifetime_parameter_identity(program, argument_owner, binding.argument.as_str())?;
+        lifetimes.push((
+            binding.parameter.as_str().to_owned(),
+            binding.argument.as_str().to_owned(),
+        ));
+    }
+    Some(AppliedDeclarationRegionScope {
+        declaration,
+        lifetimes,
+    })
 }
