@@ -1,4 +1,4 @@
-name: Compiler queue pilot
+name: Diagnose selected-call reference records
 
 on:
   pull_request:
@@ -63,6 +63,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: e2cb69a07d2654300d8275c9692dd6f2b3724b3a
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
@@ -101,14 +102,36 @@ jobs:
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
-      - name: Optional executable observations
-        if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py
+      - name: Prepare one optimized CLI and trace returned origins
+        shell: bash
+        run: |
+          python3 - <<'DIAGNOSTIC'
+          from pathlib import Path
+          import gzip,hashlib,json,os,subprocess,sys,time
+          sys.path.insert(0,'tools/ci');import compiler_pilot
+          out=Path('build/compiler-pilot');out.mkdir(parents=True,exist_ok=True)
+          driver=os.environ['GITHUB_SHA'];os.environ['GITHUB_SHA']='e2cb69a07d2654300d8275c9692dd6f2b3724b3a'
+          inputs={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in Path('tests/omega/pass/slices/runtime_shared_subslice_return_exit').iterdir() if p.is_file()}
+          started=time.monotonic();producer=compiler_pilot.prepare_producer(out,need_runner=False);build_seconds=time.monotonic()-started
+          assert producer.revision=='e2cb69a07d2654300d8275c9692dd6f2b3724b3a' and producer.tree=='d1721267288e0a52825542d923f05e6d6928b118'
+          producer.verify();command=[str(producer.cli),'run','--both','--target','linux_x86_64','tests/omega/pass/slices/runtime_shared_subslice_return_exit/main.omg']
+          stderr=out/'slice-completion.stderr';timed_out=False;started=time.monotonic()
+          try:
+              with (out/'slice-completion.stdout').open('wb') as stdout,stderr.open('wb') as errors:
+                  result=subprocess.run(command,env=dict(os.environ,OMEGA_COMPILER_TRACE_COMPLETION='relay,whole'),stdout=stdout,stderr=errors,timeout=240)
+              code=result.returncode
+          except subprocess.TimeoutExpired:
+              code=None;timed_out=True
+          seconds=time.monotonic()-started;raw=stderr.read_bytes();compressed=gzip.compress(raw,mtime=0)
+          (out/'slice-completion.stderr.gz').write_bytes(compressed)
+          (out/'slice-completion-details.txt').write_text('\n'.join(line for line in raw.decode().splitlines() if 'CHECKSITE completion-' in line or 'error:' in line)+'\n')
+          producer.verify()
+          assert inputs=={name:hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in inputs}
+          record={'schema':'omega-completion-diagnostic-v1','passed':False,'diagnostic_only':True,'candidate':'e2cb69a07d2654300d8275c9692dd6f2b3724b3a','tree':'d1721267288e0a52825542d923f05e6d6928b118','driver':driver,'producer':producer.record(),'build_seconds':build_seconds,'command_seconds':seconds,'command':command,'exit':code,'timed_out':timed_out,'diagnostic_limit_seconds':240,'inputs':inputs,'raw_stderr_sha256':hashlib.sha256(raw).hexdigest(),'raw_stderr_bytes':len(raw),'gzip_sha256':hashlib.sha256(compressed).hexdigest(),'gzip_bytes':len(compressed),'purpose':'Observe the actual captured-return-source query and callee/input/loan coverage for the unchanged slice; diagnostics only.'}
+          (out/'summary.json').write_text(json.dumps(record,indent=2)+'\n');(out/'slice-completion-command.json').write_text(json.dumps(record,indent=2)+'\n');stderr.unlink()
+          print(json.dumps({k:record[k] for k in ['candidate','driver','build_seconds','command_seconds','exit','timed_out','diagnostic_only']}))
+          raise SystemExit(1 if code else 0)
+          DIAGNOSTIC
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json') if (root / name).is_file()]"
