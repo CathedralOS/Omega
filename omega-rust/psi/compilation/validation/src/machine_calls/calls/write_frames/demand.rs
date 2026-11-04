@@ -362,7 +362,7 @@ impl<'program> CallFrameResolver<'program> {
         {
             return Some(Vec::new());
         }
-        let (_, _, _, transfers) = self.statement_reference_transfer(machine, statement)?;
+        let (_, _, _, transfers) = self.statement_reference_transfer(machine, statement).ok()?;
         let transfer = transfers.all_routes();
         if !transfer.is_complete() {
             return None;
@@ -373,24 +373,37 @@ impl<'program> CallFrameResolver<'program> {
     /// Reference generations retained by the lexical successor. Calls in a
     /// departing transition arm keep their own invocation/edge custody; they
     /// cannot replace the descriptor roster on the guard's fallthrough route.
+    /// Template dependence stays pending; it does not establish empty effects.
     pub fn stored_reference_fallthrough_effects(
         &self,
         machine: &Machine,
         statement: &StatementNode,
-    ) -> Option<Vec<super::StoredReferenceEffect>> {
+    ) -> Result<Vec<super::StoredReferenceEffect>, super::StoredReferenceRelationRefusal> {
+        use super::StoredReferenceRelationRefusal::{TemplateDependent, Unavailable};
         if statement.as_call().is_none()
             && !statement_value_expression_roots(self.program, statement)
                 .iter()
                 .any(|expression| expression_has_calls(self.program, *expression))
         {
-            return Some(Vec::new());
+            return Ok(Vec::new());
         }
-        let (_, _, _, transfers) = self.statement_reference_transfer(machine, statement)?;
+        let (_, _, _, transfers) = self
+            .statement_reference_transfer(machine, statement)
+            .map_err(Unavailable)?;
         let transfer = transfers.fallthrough();
-        if !transfer.is_complete() {
-            return None;
+        // A real failed supplier remains an obligation even when another
+        // invocation in this statement depends on an unresolved template.
+        if !transfer.incomplete_calls.is_empty() {
+            return Err(Unavailable(
+                "stored call has no complete statement-successor effects: an invocation relation is unavailable",
+            ));
         }
-        super::stored_calls::public_effects(transfer.effects)
+        if transfer.template_dependent {
+            return Err(TemplateDependent);
+        }
+        super::stored_calls::public_effects(transfer.effects).ok_or(Unavailable(
+            "stored call has no complete statement-successor effects: a descriptor source is unavailable",
+        ))
     }
 
     /// Each normal invocation establishes its own slot contents before the
@@ -452,7 +465,9 @@ impl<'program> CallFrameResolver<'program> {
             .statement_table
             .statements(state.statement_nodes)
             .get(statement_index)
-            .ok_or(Unavailable)?;
+            .ok_or(Unavailable(
+                "operand reference-slot relation has no owning statement",
+            ))?;
         // The caller's current loan roster already owns prior statements.
         // A call-free statement adds no invocation effects and needs no second
         // reconstruction of that entry through source-level write inference.
@@ -508,7 +523,7 @@ impl<'program> CallFrameResolver<'program> {
         .ok_or(if template_operand {
             TemplateDependent
         } else {
-            Unavailable
+            Unavailable("operand reference-slot relation has no complete entry prefix")
         })?;
         let transfer = super::stored_calls::effects_at_expression(
             self.program,
@@ -520,9 +535,11 @@ impl<'program> CallFrameResolver<'program> {
             &mut FrameInference::for_state(state.symbol),
             expression,
         )
-        .ok_or(Unavailable)?;
+        .ok_or(Unavailable(
+            "operand evaluation has no reference-slot transfer",
+        ))?;
         if !transfer.incomplete_calls.is_empty() {
-            return Err(Unavailable);
+            return Err(Unavailable("operand invocation relation is unavailable"));
         }
         // A relation that still depends on a type parameter is unknown
         // structure, not a proved failure; the selected closed instances
@@ -530,7 +547,8 @@ impl<'program> CallFrameResolver<'program> {
         if transfer.template_dependent {
             return Err(TemplateDependent);
         }
-        super::stored_calls::public_effects(transfer.effects).ok_or(Unavailable)
+        super::stored_calls::public_effects(transfer.effects)
+            .ok_or(Unavailable("operand descriptor source is unavailable"))
     }
 
     /// Failures belong to actual invocations, not a target-wide classification.
@@ -542,6 +560,7 @@ impl<'program> CallFrameResolver<'program> {
         statement: &StatementNode,
     ) -> Option<Vec<super::stored_calls::StoredReferenceCallFailure>> {
         self.statement_reference_transfer(machine, statement)
+            .ok()
             .map(|(_, _, _, transfers)| transfers.all_routes().incomplete_calls)
     }
 
@@ -574,7 +593,7 @@ impl<'program> CallFrameResolver<'program> {
         binding_is_stable: impl Fn(SymbolHandle, &[PlaceSegment]) -> bool,
     ) -> Option<Vec<LocalWriteOrigin>> {
         let (state, index, mut prefix, transfers) =
-            self.statement_reference_transfer(machine, statement)?;
+            self.statement_reference_transfer(machine, statement).ok()?;
         let transfer = transfers.all_routes();
         if !transfer.is_complete() {
             return None;
@@ -622,12 +641,15 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         machine: &Machine,
         statement: &StatementNode,
-    ) -> Option<(
-        &State,
-        usize,
-        CollectedStatementPrefix,
-        super::stored_calls::StatementSlotTransfers,
-    )> {
+    ) -> Result<
+        (
+            &State,
+            usize,
+            CollectedStatementPrefix,
+            super::stored_calls::StatementSlotTransfers,
+        ),
+        &'static str,
+    > {
         let trace_refusal = |phase: &str, state: SymbolHandle, index: Option<usize>| {
             if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
                 eprintln!(
@@ -643,7 +665,9 @@ impl<'program> CallFrameResolver<'program> {
             CallerWriteSite::Statement(statement),
         ) else {
             trace_refusal("statement-site", SymbolHandle::invalid(), None);
-            return None;
+            return Err(
+                "stored call has no complete statement-successor effects: owning statement is unavailable",
+            );
         };
         let Some(prefix) = super::state_write_walk::collected_prefix_at(
             &self.caches.state_write_shared_collections,
@@ -655,7 +679,9 @@ impl<'program> CallFrameResolver<'program> {
             true,
         ) else {
             trace_refusal("entry-prefix", state.symbol, Some(index));
-            return None;
+            return Err(
+                "stored call has no complete statement-successor effects: entry reference-slot prefix is unavailable",
+            );
         };
         let Some(effects) = super::stored_calls::statement_effects(
             self.program,
@@ -667,9 +693,11 @@ impl<'program> CallFrameResolver<'program> {
             &mut FrameInference::for_state(state.symbol),
         ) else {
             trace_refusal("statement-effects", state.symbol, Some(index));
-            return None;
+            return Err(
+                "stored call has no complete statement-successor effects: statement evaluation transfer is unavailable",
+            );
         };
-        Some((state, index, prefix, effects))
+        Ok((state, index, prefix, effects))
     }
 
     /// A bare reference-local replacement changes its binding, not the storage
@@ -1124,7 +1152,7 @@ impl<'program> CallFrameResolver<'program> {
         root: SymbolHandle,
         path: &[PlaceSegment],
     ) -> bool {
-        let Some((_, _, mut prefix, transfers)) =
+        let Ok((_, _, mut prefix, transfers)) =
             self.statement_reference_transfer(machine, statement)
         else {
             return false;

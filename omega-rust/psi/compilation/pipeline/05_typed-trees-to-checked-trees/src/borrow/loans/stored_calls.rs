@@ -71,9 +71,18 @@ pub(super) fn loans(
     let Some(frames) = call_frames else {
         return Ok(Vec::new());
     };
-    let effects = frames
-        .stored_reference_fallthrough_effects(machine, statement)
-        .ok_or("stored call has no complete statement-successor effects")?;
+    let effects = match frames.stored_reference_fallthrough_effects(machine, statement) {
+        Ok(effects) => effects,
+        Err(validation::StoredReferenceRelationRefusal::TemplateDependent) => {
+            // No successor generation is established by a pending relation.
+            // Keep incoming debts active; the selected closed body rechecks
+            // this statement before it can publish concrete descriptor loans.
+            return Ok(Vec::new());
+        }
+        Err(validation::StoredReferenceRelationRefusal::Unavailable(reason)) => {
+            return Err(reason);
+        }
+    };
     if effects.is_empty() {
         return Ok(Vec::new());
     }
