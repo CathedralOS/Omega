@@ -738,9 +738,9 @@ fn inherits_normalized_constant_call(
 /// Calls whose arguments this expression context must admit. Nested calls
 /// are handled by their argument owner.
 pub(super) fn immediate_call_expressions(
-    program: &TypedTrees,
-    roots: &[ExpressionHandle],
-) -> Result<Vec<ExpressionHandle>, String> {
+    program: &typed_trees::TypedTrees,
+    roots: &[typed_trees::expression::ExpressionHandle],
+) -> Result<Vec<typed_trees::expression::ExpressionHandle>, String> {
     call_custody::immediate_call_expressions(program, roots)
 }
 

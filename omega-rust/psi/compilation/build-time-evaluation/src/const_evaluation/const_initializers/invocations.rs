@@ -21,7 +21,7 @@
 //! return-range obligations.
 
 use crate::build_time_evaluation::{expression_table, type_reference_table};
-use crate::unique::{extend_unique, push_unique};
+use crate::unique::extend_unique;
 use std::sync::Arc;
 
 use diagnostics::Diagnostic;
