@@ -118,9 +118,13 @@ pub(crate) fn bind_boundary_operator_application_demands(
                     })
                     .collect::<Vec<_>>();
                 if matching_uses.is_empty() {
-                    diagnostics.push(diagnostics::Diagnostic::error(
-                        "validated named operator application has no checked selected use",
-                    ));
+                    diagnostics.push(
+                        diagnostics::Diagnostic::error(format!(
+                            "the compiler lost the checked use of named operator `{}`",
+                            program.operator_path_string(operator.name),
+                        ))
+                        .with_source_span(program.expression_table.source_span(expression)),
+                    );
                     continue;
                 }
                 for operator_use in matching_uses {
