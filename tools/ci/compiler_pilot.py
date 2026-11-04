@@ -489,7 +489,6 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
             # this compiler. Keep every failure and leave the run red.
             refusals.append(f"{name}: {error}")
             summary["consumer_errors"] = list(refusals)
-            summary["consumer_errors"] = list(refusals)
         # A failed fixture does not invalidate the compiler. Changed compiler
         # bytes do: stop before another consumer uses an unauthenticated file.
         producer.verify()
