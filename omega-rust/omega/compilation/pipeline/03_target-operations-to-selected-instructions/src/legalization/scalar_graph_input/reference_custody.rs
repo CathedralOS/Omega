@@ -2944,17 +2944,22 @@ fn transfer_return_custody(
                         carrier_type, path: origin.path.clone(), extent: origin.extent, access,
                     });
                 }
-                let target_operations::TargetReferenceOriginBase::Storage { root } = origin.base else {
-                    // An authored current-slot path is not automatically the
-                    // captured entry value after replacement.
-                    return false;
+                let (root, source_path) = match &origin.base {
+                    target_operations::TargetReferenceOriginBase::Storage { root } =>
+                        (*root, std::borrow::Cow::Borrowed(origin.path.as_slice())),
+                    target_operations::TargetReferenceOriginBase::IncomingContents { root, .. } =>
+                        // This is a declaration-only comparison. The captured
+                        // slot adds its explicit pointer crossing; it does not
+                        // become a current reload address or storage cursor.
+                        (*root, origin.type_projection()),
+                    _ => return false,
                 };
                 let Some(parameter) = function.structural_parameter(root) else {
                     return false;
                 };
                 // Summarize a captured selection without replaying its index or
                 // expanding an input collection into a finite candidate roster.
-                let mut path = origin.path.iter().map(|projection| match projection {
+                let mut path = source_path.iter().map(|projection| match projection {
                     ReferenceOriginProjection::Exact(StructuralPathSegment::RuntimeIndex { .. }) =>
                         ReferenceOriginProjection::Element,
                     _ => projection.clone(),
@@ -3619,15 +3624,13 @@ fn entry(
         .ok_or_else(|| invalid())?;
         for path in paths {
             let identity = (parameter.place, path.clone());
+            let root = Root::incoming_contents(parameter.place, path.clone());
             custody.leaves.insert(
                 identity.clone(),
                 Leaf {
                     identity: OccurrenceIdentity::parameter(&identity),
-                    root: Root::Ingress(parameter.place, path.clone()),
-                    backing: vec![descriptor_backing::Backing::Source(Root::Ingress(
-                        parameter.place,
-                        path.clone(),
-                    ))],
+                    root: root.clone(),
+                    backing: vec![descriptor_backing::Backing::Source(root)],
                     parents: Vec::new(),
                     lifetime_debts: Vec::new(),
                     contract: CarrierContract::Parameter(parameter.clone()),

@@ -513,15 +513,19 @@ impl Resolver<'_> {
         };
         let mut selected = Vec::new();
         for place in slots {
-            // An immutable reference formal keeps its entry pointer. A store
-            // through that formal replaces pointee contents, not this binding.
-            // Stored reference fields and mutable bindings still query their
-            // actual capture snapshot below.
+            // An exclusive reference formal lends its referent, not a pointer
+            // home. Its mutability flag permits writes through that pointer.
+            // Immutable shared formals also keep their entry value; mutable
+            // shared bindings and stored fields still query capture history.
             if place.segments.is_empty()
                 && place.root.as_symbol().is_some_and(|root| {
                     self.program
                         .state_parameter_by_symbol(state, root)
-                        .is_some_and(|parameter| !parameter.is_mutable)
+                        .is_some_and(|parameter| {
+                            !parameter.is_mutable
+                                || crate::reference_shell(self.program, parameter.type_reference)
+                                    .is_some_and(|shell| shell.access.is_exclusive())
+                        })
                 })
             {
                 selected.push(captured_pointer(place));

@@ -1652,7 +1652,7 @@ pub(super) fn entry(
             references.insert(
                 (parameter.place, path.clone()),
                 ReferenceStorage {
-                    root: ReferenceRoot::Ingress(parameter.place, path.clone()),
+                    root: ReferenceRoot::incoming_contents(parameter.place, path.clone()),
                     carrier_type: leaf_type(types, parameter.structural_type, &path)
                         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
                     referent: leaf_referent(types, parameter.structural_type, &path)
