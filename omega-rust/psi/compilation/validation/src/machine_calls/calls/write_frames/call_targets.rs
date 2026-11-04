@@ -41,19 +41,17 @@ pub(super) fn call_argument_types(
     if let Some(call_site) = call_site
         && typed_trees::operator::declaration_by_symbol(program, call_site.target_symbol(program))
             .is_some()
+        && let Some(parameters) = call_site.parameters(program, current_machine.symbol)
+        && parameters.len()
+            == crate::machine_calls::calls::call_site_argument_expressions(program, &call_site)
+                .len()
     {
-        if let Some(parameters) = call_site.parameters(program, current_machine.symbol)
-            && parameters.len()
-                == crate::machine_calls::calls::call_site_argument_expressions(program, &call_site)
-                    .len()
-        {
-            // A value-receiver spelling may bind the first operator formal
-            // outside call.arguments. It cannot shift this explicit roster.
-            return parameters
-                .iter()
-                .map(|parameter| parameter.type_reference)
-                .collect();
-        }
+        // A value-receiver spelling may bind the first operator formal
+        // outside call.arguments. It cannot shift this explicit roster.
+        return parameters
+            .iter()
+            .map(|parameter| parameter.type_reference)
+            .collect();
     }
     // A dynamic slot has already instantiated its complete operand roster,
     // including the independent selector. The public declaration omits that

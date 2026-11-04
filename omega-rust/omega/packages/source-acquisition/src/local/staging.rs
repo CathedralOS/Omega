@@ -101,7 +101,7 @@ pub fn stage_local_source_replacement_in_lane(
         limits,
         replacement_path: relative_path.clone(),
         expected_sha256: *expected_sha256,
-        replacement_sha256: crate::digest_encoder::content_identity(&replacement).into(),
+        replacement_sha256: crate::digest_encoder::content_identity(replacement),
     })
 }
 
@@ -127,7 +127,7 @@ fn replace_file(
             message: "replacement requires an existing regular captured source file".to_owned(),
         });
     };
-    let actual: [u8; 32] = crate::digest_encoder::content_identity(&bytes.as_slice()).into();
+    let actual: [u8; 32] = crate::digest_encoder::content_identity(bytes.as_slice());
     if &actual != expected_sha256 {
         return Err(local_source_changed(&path));
     }

@@ -89,7 +89,7 @@ pub(crate) fn substitute_resolved_constants(
     // nonliteral outer selectors in a nested projection. Field selection does
     // not create storage: borrowing TABLE[0].field has the same constant root
     // as borrowing TABLE[0], even when fields and indexes alternate.
-    let unsupported_array_projection_sources = body_expressions(&program)
+    let unsupported_array_projection_sources = body_expressions(program)
         .iter_expressions()
         .filter_map(|(_, node)| {
             let mut collection = match node {
@@ -98,7 +98,7 @@ pub(crate) fn substitute_resolved_constants(
                         program.tables.bodies.expressions.expression(indexed.index),
                         ExpressionNode::Integer(_)
                     ) || matches!(
-                        body_expressions(&program).expression(indexed.collection),
+                        body_expressions(program).expression(indexed.collection),
                         ExpressionNode::Borrow(_)
                     ) =>
                 {
@@ -112,7 +112,7 @@ pub(crate) fn substitute_resolved_constants(
                 ExpressionNode::Borrow(borrow)
                     if borrow.access != language_semantics::ReferenceAccess::Shared
                         || matches!(
-                            body_expressions(&program).expression(borrow.target),
+                            body_expressions(program).expression(borrow.target),
                             ExpressionNode::Indexed(_) | ExpressionNode::Member(_)
                         ) =>
                 {
@@ -159,7 +159,7 @@ pub(crate) fn substitute_resolved_constants(
             continue;
         }
         let initializer = declaration.initializer;
-        if !body_expressions(&program).expression_is_valid(initializer)
+        if !body_expressions(program).expression_is_valid(initializer)
             || program.tables.bodies.expressions.source_span(initializer)
                 != declaration.initializer_source_span
         {
@@ -194,7 +194,7 @@ pub(crate) fn substitute_resolved_constants(
         } else {
             initializer
         };
-        let initializer_selections = body_expressions(&program)
+        let initializer_selections = body_expressions(program)
             .authored_selection_occurrences(initializer)
             .collect::<Vec<_>>();
         program
@@ -202,7 +202,7 @@ pub(crate) fn substitute_resolved_constants(
             .bodies
             .expressions
             .attach_authored_selection_occurrences(occurrence.expression, initializer_selections);
-        let value = body_expressions(&program).expression(initializer).clone();
+        let value = body_expressions(program).expression(initializer).clone();
         *program
             .tables
             .bodies

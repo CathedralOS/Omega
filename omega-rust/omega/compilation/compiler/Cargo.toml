@@ -59,6 +59,7 @@ phase-profile = { path = "../../../psi/foundation/phase-profile" }
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
+layout-plans = { path = "../../../psi/foundation/layout-plans" }
 provider-selection = { path = "../realization/provider-selection" }
 layout = { path = "../backend/layout" }
 image-emission = { path = "../backend/images/image-emission" }
@@ -105,6 +106,10 @@ harness = false
 [[test]]
 name = "terminal_decode_once"
 path = "tests/terminal_decode_once.rs"
+
+[[test]]
+name = "retained_layout_match"
+path = "tests/retained_layout_match.rs"
 
 # Checked source helpers retain access-view backing across ordinary invocations.
 [[test]]

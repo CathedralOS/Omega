@@ -167,12 +167,12 @@ pub(super) fn validate(
             return Err(LegalizationError::custody());
         }
     }
-    if let Some(selector) = called.selector() {
-        if !sources.iter().any(|(value, source)| {
+    if let Some(selector) = called.selector()
+        && !sources.iter().any(|(value, source)| {
             *value == selector && source.scalar_type() == target_operations::selector_carrier_type()
-        }) {
-            return Err(LegalizationError::custody());
-        }
+        })
+    {
+        return Err(LegalizationError::custody());
     }
     if let Some(home) = result.scalar_home() {
         sources.push((home.source_value, Source::Home(*home)));

@@ -69,10 +69,10 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
             // names only borrowed backing. A formal's ingress type cannot
             // substitute for this stored descriptor's type.
             roots.push(result.type_identity);
-            if establishes_byte_element_view(checked, plans, result.type_identity, *value)? {
-                if let Some(identity) = byte_view_element_identity(plans.structural_types()) {
-                    roots.push(identity);
-                }
+            if establishes_byte_element_view(checked, plans, result.type_identity, *value)?
+                && let Some(identity) = byte_view_element_identity(plans.structural_types())
+            {
+                roots.push(identity);
             }
         }
         CheckedUnitEffectOperationPlan::EstablishLocal(
@@ -96,7 +96,7 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
             ..
         }) => {
             roots.push(*type_identity);
-            roots.push(value.type_identity.clone());
+            roots.push(value.type_identity);
         }
         CheckedUnitEffectOperationPlan::Store(checked_trees::CheckedStorePlan {
             value: checked_trees::CheckedStoreValue::Bytes(value),

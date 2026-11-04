@@ -13,6 +13,7 @@ pub fn execute_joined_product(
     output: &std::path::Path,
 ) -> Result<(), compiler::CompilationProductError> {
     let product = compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+        image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,

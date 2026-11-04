@@ -1,4 +1,4 @@
-// Fact: align_of(value) observes the storage location of a live u64 place, or the referent of a &u64, and reports that location's guaranteed alignment, at least 8u64 on every hosted target, discharging exact subtraction alignment - 8u64 across all nine places.
+// Fact: align_of(value) observes the storage location of a live u64 place, the referent of a &u64, or the first element of a nonempty [u64] slice, and reports that location's guaranteed alignment, at least 8u64 on every hosted target, discharging exact subtraction alignment - 8u64 across all nine places.
 // Place: match join. Each arm observes a different u64 location and the joined result feeds the subtraction.
 // Expected exit: 0
 

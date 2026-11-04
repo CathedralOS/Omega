@@ -1,7 +1,5 @@
 //! Stable callable-contract, expression, proposition, and declaration vocabulary.
 
-use super::identity::PackageReviewNominalIdentity;
-
 mod callable_contracts;
 mod declarations;
 mod expressions;

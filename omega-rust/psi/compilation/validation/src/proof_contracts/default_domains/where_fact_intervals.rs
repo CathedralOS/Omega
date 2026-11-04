@@ -364,9 +364,7 @@ fn field_literal_bounds(
         conjuncts.push(*expression);
     }
     while let Some(conjunct) = conjuncts.pop() {
-        let Some(binary) = expression_table(program).binary_node(conjunct) else {
-            return None;
-        };
+        let binary = expression_table(program).binary_node(conjunct)?;
         if binary.operator == BinaryOperator::And {
             conjuncts.extend([binary.left, binary.right]);
             continue;

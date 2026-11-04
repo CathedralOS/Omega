@@ -223,7 +223,7 @@ fn may_supply_closed_const_argument(syntax: &SyntaxTrees, argument: TypeReferenc
     match syntax.type_references.type_reference(argument) {
         TypeReferenceNode::ConstExpression(_) => true,
         TypeReferenceNode::Named(name) => {
-            syntax_type_references(&syntax)
+            syntax_type_references(syntax)
                 .const_argument_normalization(argument)
                 .is_none()
                 && ConstScalarSpelling::from_bare_name(name.as_str(syntax)).is_none()
@@ -238,15 +238,15 @@ fn positions_may_have_closed_const_arguments(
 ) -> bool {
     positions.iter().any(
         |position| match syntax.type_references.type_reference(*position) {
-            TypeReferenceNode::Generic { arguments, .. } => syntax_type_references(&syntax)
+            TypeReferenceNode::Generic { arguments, .. } => syntax_type_references(syntax)
                 .type_reference_handles(*arguments)
                 .iter()
                 .any(|argument| may_supply_closed_const_argument(syntax, *argument)),
-            TypeReferenceNode::Constrained { constraints, .. } => syntax_type_references(&syntax)
+            TypeReferenceNode::Constrained { constraints, .. } => syntax_type_references(syntax)
                 .constraints(*constraints)
                 .iter()
                 .any(|constraint| match constraint {
-                    TypeConstraintNode::Domain(domain) => syntax_type_references(&syntax)
+                    TypeConstraintNode::Domain(domain) => syntax_type_references(syntax)
                         .type_reference_handles(domain.arguments)
                         .iter()
                         .any(|argument| may_supply_closed_const_argument(syntax, *argument)),
@@ -456,7 +456,7 @@ fn collect_closed_const_arguments(
                 arguments,
                 ..
             } => {
-                let arguments = syntax_type_references(&syntax)
+                let arguments = syntax_type_references(syntax)
                     .type_reference_handles(arguments)
                     .to_vec();
                 if let Some(parameters) = selection.const_parameter_carriers(
@@ -491,7 +491,7 @@ fn collect_closed_const_arguments(
                     retain_arguments(
                         syntax,
                         &carriers,
-                        syntax_type_references(&syntax).type_reference_handles(domain.arguments),
+                        syntax_type_references(syntax).type_reference_handles(domain.arguments),
                     );
                 }
             }
@@ -507,7 +507,7 @@ fn collect_closed_const_arguments(
             if cast.semantic_domain_arguments.is_empty() {
                 continue;
             }
-            let members = syntax_expressions(&syntax).identifier_path_members(cast.semantic_domain);
+            let members = syntax_expressions(syntax).identifier_path_members(cast.semantic_domain);
             let Some(first) = members.first() else {
                 continue;
             };
@@ -546,7 +546,7 @@ fn collect_closed_const_arguments(
             retain_arguments(
                 syntax,
                 &carriers,
-                syntax_type_references(&syntax)
+                syntax_type_references(syntax)
                     .type_reference_handles(cast.semantic_domain_arguments),
             );
         }
@@ -601,7 +601,7 @@ pub(crate) fn canonicalize_pending_initializer_payload(
 ) -> Result<crate::resolution::ConstInitializerPayload, String> {
     let mut payload = definition.clone();
     while let TypeReferenceNode::Constrained { base_type, .. } =
-        syntax_type_references(&syntax).type_reference(payload.type_reference)
+        syntax_type_references(syntax).type_reference(payload.type_reference)
     {
         payload.type_reference = *base_type;
     }
@@ -665,9 +665,9 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
     if let TypeReferenceNode::Constrained {
         base_type,
         constraints,
-    } = syntax_type_references(&syntax).type_reference(definition.type_reference)
+    } = syntax_type_references(syntax).type_reference(definition.type_reference)
     {
-        let has_domain = syntax_type_references(&syntax)
+        let has_domain = syntax_type_references(syntax)
             .constraints(*constraints)
             .iter()
             .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)));
@@ -831,7 +831,7 @@ pub(crate) fn validate_direct_const_arguments(
 ) -> Result<(), Diagnostic> {
     let arguments = syntax.type_references.type_reference_handles(arguments);
     let has_direct = arguments.iter().any(|argument| {
-        syntax_type_references(&syntax)
+        syntax_type_references(syntax)
             .const_argument_normalization(*argument)
             .is_some_and(crate::constant::normalization_requires_expression)
     });
@@ -854,7 +854,7 @@ pub(crate) fn validate_direct_const_arguments(
     }
     for (argument, parameter) in arguments.iter().zip(parameters) {
         let Some(normalization) =
-            syntax_type_references(&syntax).const_argument_normalization(*argument)
+            syntax_type_references(syntax).const_argument_normalization(*argument)
         else {
             continue;
         };

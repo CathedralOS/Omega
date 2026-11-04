@@ -61,6 +61,17 @@ The control
 forms a new token over `c` in an arm while the refilled slot still holds `c`.
 It still rejects, inline and with the subject hoisted.
 
+Later, native lowering refused every place with ``callee stored-reference
+effects are unresolved``. Inside `refill`, the old token is moved out of `slot`
+for its drop hook before the new token is stored, so for one step the slot's
+reference field holds no known value. The descriptor replay that summarizes a
+helper's reference writes treated that vacant leaf as an unknown ancestor and
+refused the store, which marked `refill` as clobbering unknown memory.
+In `terminal-psi/semantics/.../replay/replay.rs`, finding where a store goes
+(`contents_address_invalidated`) now looks only at strict ancestors of the
+leaf. Every read keeps the leaf-inclusive check (`contents_path_invalidated`),
+so a read of the vacant leaf is still unknown.
+
 ## Requirements and evidence
 
 | Requirement | How this row establishes it |
@@ -75,8 +86,10 @@ It still rejects, inline and with the subject hoisted.
 Evidence, 2026-11-01, host macOS AArch64: candidate compiler built from base
 `5445b5af611` plus the change above. `omega run --both` exits 0 with native and
 interpreter agreeing for all nine positives; `omega --check` rejects all nine
-twins with the fragment above. Linux and Windows native execution are not
-observed here.
+twins with the fragment above. Evidence, 2026-11-03, host Linux x86-64: base `3e22616789c` plus the replay
+repair. `corpus_gate.py --both` builds all nine positives, native exit 0 with
+the interpreter agreeing; all nine twins reject with the fragment above.
+Windows native execution is not observed.
 
 ## Open
 

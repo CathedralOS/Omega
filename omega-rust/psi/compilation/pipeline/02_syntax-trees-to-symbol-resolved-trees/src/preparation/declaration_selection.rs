@@ -1471,7 +1471,7 @@ fn append_variants(
 ) {
     builder.insert_children(
         symbol,
-        syntax_items(&syntax)
+        syntax_items(syntax)
             .data_members(definition.members)
             .iter()
             .filter_map(|member| {
@@ -1512,7 +1512,7 @@ pub(crate) fn type_mentions_parameters(
     }
     match syntax.type_references.type_reference(type_reference) {
         TypeReferenceNode::Named(name) => substitution.contains_key(name.as_str(syntax)),
-        TypeReferenceNode::Generic { arguments, .. } => syntax_type_references(&syntax)
+        TypeReferenceNode::Generic { arguments, .. } => syntax_type_references(syntax)
             .type_reference_handles(*arguments)
             .iter()
             .any(|argument| type_mentions_parameters(syntax, *argument, substitution)),
@@ -1528,11 +1528,11 @@ pub(crate) fn type_mentions_parameters(
             constraints,
         } => {
             type_mentions_parameters(syntax, *base_type, substitution)
-                || syntax_type_references(&syntax)
+                || syntax_type_references(syntax)
                     .constraints(*constraints)
                     .iter()
                     .any(|constraint| match constraint {
-                        TypeConstraintNode::Domain(domain) => syntax_type_references(&syntax)
+                        TypeConstraintNode::Domain(domain) => syntax_type_references(syntax)
                             .type_reference_handles(domain.arguments)
                             .iter()
                             .any(|argument| {
@@ -1606,7 +1606,7 @@ pub(crate) fn has_deferred_const_argument(
     use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
     match syntax.type_references.type_reference(type_reference) {
         TypeReferenceNode::ConstExpression(_) => true,
-        TypeReferenceNode::Generic { arguments, .. } => syntax_type_references(&syntax)
+        TypeReferenceNode::Generic { arguments, .. } => syntax_type_references(syntax)
             .type_reference_handles(*arguments)
             .iter()
             .any(|argument| has_deferred_const_argument(syntax, *argument)),
@@ -1622,11 +1622,11 @@ pub(crate) fn has_deferred_const_argument(
             constraints,
         } => {
             has_deferred_const_argument(syntax, *base_type)
-                || syntax_type_references(&syntax)
+                || syntax_type_references(syntax)
                     .constraints(*constraints)
                     .iter()
                     .any(|constraint| match constraint {
-                        TypeConstraintNode::Domain(domain) => syntax_type_references(&syntax)
+                        TypeConstraintNode::Domain(domain) => syntax_type_references(syntax)
                             .type_reference_handles(domain.arguments)
                             .iter()
                             .any(|argument| has_deferred_const_argument(syntax, *argument)),
@@ -1678,6 +1678,27 @@ pub fn select_data_declarations_with_retained(
         .collect())
 }
 
+// Only the deferred frontier's owned predecessor is persistent. Normalization's
+// temporary borrow cannot escape as an independently restorable source owner.
+impl compiler_storage::Record for SelectionBase<'_> {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        match self {
+            Self::Shared(base) => compiler_storage::Record::write(base, output),
+            Self::Borrowed(_) => {
+                Err(output.error("borrowed declaration selection is not a persistent frontier"))
+            }
+        }
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        compiler_storage::Record::read(input).map(Self::Shared)
+    }
+}
+
 #[cfg(test)]
 mod retained_namespace_tests {
     use super::*;
@@ -1709,26 +1730,5 @@ mod retained_namespace_tests {
         }));
         ConstantSelection::new(&syntax, None, Vec::new())
             .expect("namespace registration retains source ownership before cloning names");
-    }
-}
-
-// Only the deferred frontier's owned predecessor is persistent. Normalization's
-// temporary borrow cannot escape as an independently restorable source owner.
-impl compiler_storage::Record for SelectionBase<'_> {
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        match self {
-            Self::Shared(base) => compiler_storage::Record::write(base, output),
-            Self::Borrowed(_) => {
-                Err(output.error("borrowed declaration selection is not a persistent frontier"))
-            }
-        }
-    }
-    fn read<Context>(
-        input: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        compiler_storage::Record::read(input).map(Self::Shared)
     }
 }

@@ -104,16 +104,13 @@ impl TypedTrees {
             }
             if let language_semantics::TerminationGuarantee::Terminates { premises } =
                 &clause.signature.termination_guarantee
-            {
-                if premises.is_empty()
+                && (premises.is_empty()
                     || matches!(
                         signature.termination_guarantee,
                         language_semantics::TerminationGuarantee::NoGuarantee
-                    )
-                {
-                    signature.termination_guarantee =
-                        clause.signature.termination_guarantee.clone();
-                }
+                    ))
+            {
+                signature.termination_guarantee = clause.signature.termination_guarantee.clone();
             }
             let row = match &clause.service_reach {
                 TraitRefinementReach::Inherited => continue,

@@ -4,51 +4,6 @@ use target_operations::{
     BoundarySettlementRealization, CompilerBuiltinExecution,
 };
 
-#[cfg(test)]
-mod tests {
-    use super::{
-        BoundaryExecutionBinding, CompilerBuiltinExecution, encode_boundary_execution_identity,
-    };
-    use semantic_vocabulary::BoundaryMachineId;
-    use terminal_psi::TerminalAccessLifecycleOperation;
-
-    #[test]
-    fn lifecycle_execution_identity_binds_boundary_and_operation() {
-        let encode = |boundary, operation| {
-            let mut bytes = Vec::new();
-            encode_boundary_execution_identity(
-                &mut bytes,
-                BoundaryExecutionBinding::CompilerBuiltin(
-                    CompilerBuiltinExecution::AccessLifecycle {
-                        boundary: BoundaryMachineId::new(boundary).expect("boundary"),
-                        operation,
-                    },
-                ),
-            );
-            bytes
-        };
-        let initialize = encode(1, TerminalAccessLifecycleOperation::Initialize);
-        assert_eq!(
-            initialize,
-            encode(1, TerminalAccessLifecycleOperation::Initialize)
-        );
-        assert_ne!(
-            initialize,
-            encode(2, TerminalAccessLifecycleOperation::Initialize)
-        );
-        assert_ne!(
-            initialize,
-            encode(1, TerminalAccessLifecycleOperation::MoveOut)
-        );
-        let mut hosted = Vec::new();
-        encode_boundary_execution_identity(
-            &mut hosted,
-            BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte),
-        );
-        assert_ne!(initialize, hosted);
-    }
-}
-
 pub fn encode_boundary_execution_identity(
     bytes: &mut Vec<u8>,
     execution: BoundaryExecutionBinding,
@@ -184,4 +139,49 @@ pub fn encode_accessor_scalar_demand(
     bytes.extend_from_slice(&demand.transfer_width_bits.to_le_bytes());
     bytes.extend_from_slice(&demand.placement_byte_extent.to_le_bytes());
     bytes.push(demand.observation as u8);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        BoundaryExecutionBinding, CompilerBuiltinExecution, encode_boundary_execution_identity,
+    };
+    use semantic_vocabulary::BoundaryMachineId;
+    use terminal_psi::TerminalAccessLifecycleOperation;
+
+    #[test]
+    fn lifecycle_execution_identity_binds_boundary_and_operation() {
+        let encode = |boundary, operation| {
+            let mut bytes = Vec::new();
+            encode_boundary_execution_identity(
+                &mut bytes,
+                BoundaryExecutionBinding::CompilerBuiltin(
+                    CompilerBuiltinExecution::AccessLifecycle {
+                        boundary: BoundaryMachineId::new(boundary).expect("boundary"),
+                        operation,
+                    },
+                ),
+            );
+            bytes
+        };
+        let initialize = encode(1, TerminalAccessLifecycleOperation::Initialize);
+        assert_eq!(
+            initialize,
+            encode(1, TerminalAccessLifecycleOperation::Initialize)
+        );
+        assert_ne!(
+            initialize,
+            encode(2, TerminalAccessLifecycleOperation::Initialize)
+        );
+        assert_ne!(
+            initialize,
+            encode(1, TerminalAccessLifecycleOperation::MoveOut)
+        );
+        let mut hosted = Vec::new();
+        encode_boundary_execution_identity(
+            &mut hosted,
+            BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte),
+        );
+        assert_ne!(initialize, hosted);
+    }
 }

@@ -501,8 +501,8 @@ fn operator_path_label(
     }
 }
 
-/// Whether one instantiated `requires` fact is proven by any context entering
-/// the invocation, or is a closed-literal claim decidable on its own.
+// Whether one instantiated `requires` fact is proven by any context entering
+// the invocation, or is a closed-literal claim decidable on its own.
 
 /// Push one diagnostic per requires fact the invocation does not prove.
 #[allow(clippy::too_many_arguments)]

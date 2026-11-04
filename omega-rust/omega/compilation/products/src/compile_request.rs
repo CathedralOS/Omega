@@ -18,7 +18,7 @@ mod checked;
 mod native;
 pub use checked::{CheckedCompileRequest, CheckedExecutionRequest, SettledCheckReuse};
 pub mod options;
-pub use native::NativeProductRequest;
+pub use native::{NativeImageDemand, NativeProductRequest};
 pub use terminal_installation::PrivateEntryRamInitialization;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,6 +107,7 @@ struct RequestedDestination {
 /// Per-target Build/provider settlement still belongs to the producing stages.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CompilePolicy {
+    native_image: NativeImageDemand,
     private_entry_ram: Vec<PrivateEntryRamInitialization>,
     pub(super) build_snapshot: Option<BuildSnapshotRequest>,
     terminal_authority_policy: TerminalAuthorityPolicy,
@@ -123,6 +124,7 @@ struct CompilePolicy {
 impl Default for CompilePolicy {
     fn default() -> Self {
         Self {
+            native_image: NativeImageDemand::Emit,
             private_entry_ram: Vec::new(),
             build_snapshot: None,
             terminal_authority_policy: current_terminal_authority_policy(),
@@ -190,6 +192,13 @@ impl CompileRequest {
             .collect();
         request
     }
+    /// Stop native production after runtime admission instead of emitting an
+    /// image; see [`NativeImageDemand`].
+    pub fn with_native_image_demand(mut self, demand: NativeImageDemand) -> Self {
+        self.policy.native_image = demand;
+        self
+    }
+
     /// Explicitly sponsor fresh private typed entry RAM; default supply is absent.
     pub fn with_private_entry_ram(mut self, inputs: Vec<PrivateEntryRamInitialization>) -> Self {
         self.policy.private_entry_ram = inputs;
@@ -383,6 +392,7 @@ impl ValidatedTargetCompilation {
     /// keeps only what native production needs.
     pub fn into_native_product_request(self) -> NativeProductRequest {
         NativeProductRequest {
+            image: self.policy.native_image,
             private_entry_ram: self.policy.private_entry_ram.clone(),
             terminal_authority_policy: self.policy.terminal_authority_policy.clone(),
             terminal_authority_permission_policy: self

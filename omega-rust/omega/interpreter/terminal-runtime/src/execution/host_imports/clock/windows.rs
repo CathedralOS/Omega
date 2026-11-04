@@ -115,7 +115,7 @@ pub(super) fn write_word(
     word: WindowsWord,
 ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
     let invalid = super::super::refusal("Windows time operands differ from the installed contract");
-    let call = super::super::call_operands(effect, &invalid)?;
+    let call = super::super::call_operands(effect, invalid)?;
     let [formal] = signature.structural_parameters.as_slice() else {
         return Err(invalid());
     };

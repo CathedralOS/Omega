@@ -1,12 +1,12 @@
 //! Structural type, domain, and service catalog publication for attached Unit
 //! closures.
 use super::super::{
-    BTreeSet, CheckedUnitStructuralTypeShape, DomainSemanticId,
-    InstallationReachDependency, ProgramLocalRootIntroductionSchema, ServiceDeclaration, ServiceId,
-    ServiceReachId, ServiceReachInterface, ServiceReachPlan, ServiceReachRowId, StructuralAccess,
+    BTreeSet, CheckedUnitStructuralTypeShape, DomainSemanticId, InstallationReachDependency,
+    ProgramLocalRootIntroductionSchema, ServiceDeclaration, ServiceId, ServiceReachId,
+    ServiceReachInterface, ServiceReachPlan, ServiceReachRowId, StructuralAccess,
     StructuralCaseDeclaration, StructuralCaseId, StructuralDomainDeclaration,
-    StructuralFieldDeclaration, StructuralParameterDeclaration,
-    StructuralTypeDeclaration, lower_mixed_cases, lower_mixed_fields,
+    StructuralFieldDeclaration, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    lower_mixed_cases, lower_mixed_fields,
     program_local_root_introduction_compatibility_report_identity, service_id,
     structural_domain_id, structural_field_id, structural_type_id, terminal_byte_sequence_carrier,
 };
@@ -660,7 +660,7 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
         active: &mut Vec<typed_trees::type_identity::TypeIdentityId>,
         selected: &mut Vec<&'a CheckedUnitStructuralTypePlan>,
     ) -> Result<(), LoweringError> {
-        if active.iter().any(|candidate| *candidate == identity) {
+        if active.contains(&identity) {
             return unsupported("recursive structural type is outside the Unit terminal slice");
         }
         if selected
@@ -681,6 +681,15 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
             error => error,
         })?;
         active.push(identity);
+        if plan.descriptor_presentation.is_valid() {
+            collect(
+                checked,
+                plans,
+                plan.descriptor_presentation,
+                active,
+                selected,
+            )?;
+        }
         if let Some(representation) = plans
             .opaque_representations()
             .iter()
@@ -773,8 +782,7 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
     let identity_text = |identity: typed_trees::type_identity::TypeIdentityId| {
         checked.type_identity_text(identity).unwrap_or_default()
     };
-    selected
-        .sort_by(|left, right| identity_text(left.identity).cmp(&identity_text(right.identity)));
+    selected.sort_by_key(|left| identity_text(left.identity));
     let mut referent_ids = selected
         .iter()
         .filter_map(|plan| match &plan.shape {
@@ -789,7 +797,7 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
             _ => None,
         })
         .collect::<Vec<_>>();
-    referent_ids.sort_by(|left, right| identity_text(*left).cmp(&identity_text(*right)));
+    referent_ids.sort_by_key(|left| identity_text(*left));
     referent_ids.dedup();
     // Identity-only leaves precede definitions in the shared namespace. Later
     // generated carriers allocate after the largest definition id, so they
@@ -1764,10 +1772,10 @@ pub(super) fn lower_unit_services_including(
         // A callable keeps its owning interface even when its explicit reach
         // is empty or names unrelated capability facets. This catalog supplies
         // identities to boundary declarations, not an implicit effect row.
-        if let Some(owner) = boundary.owning_service {
-            if !selected.contains(&owner) {
-                selected.push(owner);
-            }
+        if let Some(owner) = boundary.owning_service
+            && !selected.contains(&owner)
+        {
+            selected.push(owner);
         }
         collect_published_contract_services(
             &facts.rows,
@@ -1937,8 +1945,7 @@ pub(crate) fn lower_root_service_reach(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    installation_dependencies
-        .sort_by(|left, right| left.requirement_identity.cmp(&right.requirement_identity));
+    installation_dependencies.sort_by_key(|left| left.requirement_identity);
     if installation_dependencies
         .windows(2)
         .any(|pair| pair[0].requirement_identity == pair[1].requirement_identity)

@@ -120,6 +120,15 @@ impl RetainedCheck {
         self.preparation_admission == *admission && *self.preparation_input == *program
     }
 
+    /// Whether this judgment's preparation ran under `admission`. With an
+    /// equal typed program this is [`Self::judges_preparation_input`].
+    pub fn judges_preparation_admission(
+        &self,
+        admission: &typed_trees_to_typed_trees::PreparationAdmission,
+    ) -> bool {
+        self.preparation_admission == *admission
+    }
+
     /// Dependency-body entailment judgments a strict consumer may reuse.
     /// A pending admission does not supply a judgment to anyone.
     pub fn strict_dependency_bodies(&self) -> &[validation::DependencyBodyJudgment] {

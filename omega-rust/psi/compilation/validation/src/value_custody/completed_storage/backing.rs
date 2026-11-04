@@ -448,16 +448,15 @@ pub fn direct_referent_places(
         if !referent.root.is_valid() {
             return None;
         }
-        if referent.formation.is_valid() {
-            if !control.referent_formations.is_valid(referent.formation)
+        if referent.formation.is_valid()
+            && (!control.referent_formations.is_valid(referent.formation)
                 || control
                     .referent_formations
                     .get(referent.formation)
                     .owner
-                    .is_valid()
-            {
-                return None;
-            }
+                    .is_valid())
+        {
+            return None;
         }
         let place = CapturedPlace {
             incoming_reference: Handle::invalid(),

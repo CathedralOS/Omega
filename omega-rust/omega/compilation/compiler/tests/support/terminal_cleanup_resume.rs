@@ -1,8 +1,7 @@
 //! Portable corpus provision for resumable cleanup of a source-produced linear owner.
 //! This adapter records the exact authored Console byte boundary. It is a
 //! semantic test sink, not native Console/provider qualification.
-#[path = "terminal_provision.rs"]
-mod terminal_provision;
+use super::terminal_provision;
 
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
 use std::sync::{Arc, Mutex};
@@ -162,6 +161,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     ));
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            native_code_layouts: None,
             x86_flags: None,
             memory_ordering: None,
             entry: None,

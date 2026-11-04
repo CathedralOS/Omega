@@ -414,12 +414,12 @@ pub fn transported_span_end(
 /// durable-home area: every scalar-producing call row is one producer, its
 /// The unique `(block, instruction)` site a roster row's instruction id
 /// names, or `None` when it resolves to zero or several sites.
-pub fn unique_block_instruction<'a>(
-    function: &'a selected_instructions::SelectedFunction,
+pub fn unique_block_instruction(
+    function: &selected_instructions::SelectedFunction,
     instruction: selected_instructions::SelectedInstructionId,
 ) -> Option<(
-    &'a selected_instructions::SelectedBlock,
-    &'a selected_instructions::SelectedInstruction,
+    &selected_instructions::SelectedBlock,
+    &selected_instructions::SelectedInstruction,
 )> {
     let mut instructions = function.blocks.iter().flat_map(|block| {
         block
@@ -595,7 +595,7 @@ fn callback_address_custody(
         {
             return Err(invalid());
         }
-        let destination = match placed.destination {
+        let destination = match placed.destination.clone() {
             machine_code::CallbackAddressDestination::Register(register) => {
                 machine_code::CallbackAddressDestination::Register(register)
             }
@@ -604,16 +604,14 @@ fn callback_address_custody(
             }
             machine_code::CallbackAddressDestination::RecordField {
                 root_register,
-                byte_offset,
+                placements,
             } => {
-                if callback.field_byte_offset
-                    != Some(usize::try_from(byte_offset).map_err(|_| invalid())?)
-                {
+                if callback.field_placements.as_ref() != Some(&placements) {
                     return Err(invalid());
                 }
                 machine_code::CallbackAddressDestination::RecordField {
                     root_register,
-                    byte_offset,
+                    placements,
                 }
             }
         };

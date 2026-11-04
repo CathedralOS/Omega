@@ -401,7 +401,7 @@ pub(in crate::legalization) fn structural_transport_layout(
     // the physical copy independently preserves both endpoints' geometry.
     if quotient
         && crate::structural_inputs::shape(result.structural_type, &plan.structural_types)
-            != Some(shape.clone())
+            != Some(shape)
     {
         return Err(LegalizationError::custody());
     }

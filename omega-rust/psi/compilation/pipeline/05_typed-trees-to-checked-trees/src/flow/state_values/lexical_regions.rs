@@ -93,7 +93,7 @@ pub(in crate::flow) fn record<'plans>(
     for (ordinal, parameter) in parameters.iter().enumerate() {
         let capture = captured.get(ordinal);
         let completed = authenticated
-            .then(|| capture)
+            .then_some(capture)
             .flatten()
             .and_then(|capture| {
                 super::completed_argument_facts(program, build, capture, invocation)

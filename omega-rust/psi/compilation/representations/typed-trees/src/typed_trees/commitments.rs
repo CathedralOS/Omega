@@ -200,12 +200,12 @@ impl MachineSpecialization {
     }
 }
 
-pub fn closed_conformance_applications_of<'a>(
-    specializations: &'a [MachineSpecialization],
+pub fn closed_conformance_applications_of(
+    specializations: &[MachineSpecialization],
     instance: symbols::SymbolHandle,
     application_report_fingerprint: u64,
     application_commitment: ClosedConformanceApplicationCommitment,
-) -> Vec<&'a ClosedConformanceApplication> {
+) -> Vec<&ClosedConformanceApplication> {
     specializations
         .iter()
         .filter(|specialization| specialization.instance == instance)

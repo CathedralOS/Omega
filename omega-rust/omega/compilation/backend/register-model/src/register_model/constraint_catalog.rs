@@ -746,17 +746,17 @@ pub fn call_constraint_keys(variants: std::ops::Range<u16>) -> Vec<RegisterConst
 }
 
 /// The constraint row keyed `key` in a constraint row list.
-pub fn find_register_constraint<'rows>(
-    rows: &'rows [RegisterInstructionConstraint],
+pub fn find_register_constraint(
+    rows: &[RegisterInstructionConstraint],
     key: RegisterConstraintKey,
-) -> Option<&'rows RegisterInstructionConstraint> {
+) -> Option<&RegisterInstructionConstraint> {
     rows.iter().find(|row| row.key == key)
 }
 
 /// The mutable constraint row keyed `key` in a constraint row list.
-pub fn find_register_constraint_mut<'rows>(
-    rows: &'rows mut [RegisterInstructionConstraint],
+pub fn find_register_constraint_mut(
+    rows: &mut [RegisterInstructionConstraint],
     key: RegisterConstraintKey,
-) -> Option<&'rows mut RegisterInstructionConstraint> {
+) -> Option<&mut RegisterInstructionConstraint> {
     rows.iter_mut().find(|row| row.key == key)
 }

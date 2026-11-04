@@ -1160,7 +1160,7 @@ fn walk_state(
                     parameter_call_attempts,
                     call.target_symbol,
                     program.expression_table.expression_handles(call.arguments),
-                    &state_to_machine,
+                    state_to_machine,
                     &saved_places,
                     &mut tracked,
                     diagnostics,

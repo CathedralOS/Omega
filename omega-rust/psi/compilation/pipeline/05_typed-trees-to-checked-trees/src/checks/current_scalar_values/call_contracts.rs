@@ -59,11 +59,31 @@ impl CurrentScalarValues<'_> {
         expression: ExpressionHandle,
         arguments: &[ExpressionHandle],
     ) -> Option<ScopedArithmeticExpression> {
-        let captured = self.capture_parameter_goal(
+        self.bind_integer_expression_formals(
             callee,
             state,
             expression,
             self.program.state_parameters(state),
+            arguments,
+        )
+    }
+
+    /// The same capture over an explicit subset of the declaring state's
+    /// formals. A formal left out of the roster stays unbound, so a recipe
+    /// that reads it fails to capture rather than reading another value.
+    pub(crate) fn bind_integer_expression_formals(
+        &self,
+        callee: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        arguments: &[ExpressionHandle],
+    ) -> Option<ScopedArithmeticExpression> {
+        let captured = self.capture_parameter_goal(
+            callee,
+            state,
+            expression,
+            parameters,
             arguments,
             &[],
             true,

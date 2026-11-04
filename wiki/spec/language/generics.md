@@ -19,6 +19,46 @@ The clause is a declaration, not inference from body usage or the current
 consumer set. Missing or conflicting kinds/contracts reject. This rule applies
 to selected named bodies and does not infer whole-trait conformance evidence.
 
+## Generic machine requirements
+
+Named decision: `generic-requirement-evidence-binders`, settled 2026-11-03.
+
+A machine requirement admits the same generic binder kinds as an ordinary
+machine, including a named implementation parameter such as
+`Order satisfies Ordering<T>`. This applies to members of ordinary and boundary
+traits and to static callable requirements; declaring a requirement does not
+remove a binder kind that its checked implementation may use.
+
+```omega
+boundary trait Sorting {
+    machine sort<T, Order satisfies Ordering<T>>(
+        items: &mut [T]
+    );
+}
+```
+
+Here `Ordering<T>` is an ordinary declared trait. The caller supplies the exact
+named ordering implementation at each static application, just as for an
+ordinary generic machine. The selected body declares the matching ordered
+binders, kinds and requirements and satisfies the complete requirement contract
+for every admitted application. Binder names need not match; identities and
+substitution must. Fixing an arbitrary concrete implementation inside the body
+cannot implement a requirement universally quantified over `Order`.
+
+For a boundary requirement, Build selects the realizing implementation for the
+target. It does not choose or fill `Order`, enumerate all possible generic
+arguments, or strengthen the caller's requirements. Ordinary specialization
+retains the caller's exact static selections; runtime-capable value binders
+retain their ordinary value-argument meaning. Executable applications follow
+ordinary demand and realization rather than a new runtime generic engine.
+This introduces neither a generic foreign ABI nor implicit native adapters.
+
+Static generic eligibility does not confer dynamic eligibility. Unrestricted
+requirement-local type, machine or implementation binders cannot become open
+virtual-method slots. Generic trait arguments closed before forming a `dyn`
+interface and the existing explicit finite value families retain their distinct
+rules under [dynamic dispatch](../terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes).
+
 ## Applications and specialization
 
 An `asm machine` uses these same binders and machine-satisfaction rules; its
@@ -360,6 +400,17 @@ their exact bindings and permitted normalized expressions. A repeated inferred
 parameter must match consistently; stronger proof automation must not change an
 application's inferred constants, storage layout, or public identity. Separately
 proved relationships may establish compatibility without renaming either index.
+
+[Bounded canonical index normalization](../proofs/contracts.md#bounded-canonical-index-normalization)
+uses a shared published encoding independently of each compiler's in-memory
+storage. The canonical pre-expansion form determines the 64-summand expansion
+decision; a retained unexpanded form is not a proof of inequality. At an
+unresolved compatibility check, retained cutoff evidence supplies the budget
+diagnostic. Exact local equalities and checked theorem guarantees remain
+available. Generic compatibility derivations transport through specialization
+without another attempt to prove the same equality; separately closed keys
+still use admitted concrete evaluation. Call and formation obligations are not
+waived by transporting that evidence.
 
 Explicitly uninhabited domains remain legal. Matching that lacks a unique index
 rejects; emptiness cannot choose an arbitrary capacity. An opaque domain or an

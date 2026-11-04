@@ -3,8 +3,8 @@
 //! qualifications, each with its source correspondence retained.
 
 use super::{
-    ExpressionHandle, Fact, FactOrigin, FactPayload, FactPlace, FactPlan, FlowBuildContext,
-    HandleSpan, ProgramPoint, SymbolHandle, retain_qualification_correspondence,
+    ExpressionHandle, Fact, FactOrigin, FactPayload, FactPlace, FactPlan, HandleSpan, ProgramPoint,
+    SymbolHandle, retain_qualification_correspondence,
 };
 use crate::flow::canonical_place_from_semantic_place;
 use crate::flow::canonical_places_agree;
@@ -98,6 +98,20 @@ pub(super) fn transport(
                     }
                     facts::domain_membership_pattern!(domain, domain_symbol, semantic_domain) => {
                         let fact_place = fact.place.as_place()?;
+                        // A cast's target describes the whole value, so it
+                        // erases only the source's own membership; a field
+                        // keeps its declared domains.
+                        let whole_value = matches_source(fact_place);
+                        if whole_value
+                            && super::owned_qualifications::explicitly_erased(
+                                program,
+                                write.source_expression,
+                                domain_symbol,
+                                semantic_domain,
+                            )
+                        {
+                            return None;
+                        }
                         matches_source(fact_place).then_some((
                             FactPayload::DomainMembership {
                                 value: ExpressionHandle::invalid(),

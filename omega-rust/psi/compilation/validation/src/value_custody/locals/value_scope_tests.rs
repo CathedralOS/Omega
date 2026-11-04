@@ -36,8 +36,10 @@ fn declaration_constants_keep_exact_scope_without_admitting_foreign_storage() {
                 (SymbolKind::Parameter, SymbolNameRef::Static("ZERO")),
             ],
         );
-        let mut program = TypedTrees::default();
-        program.symbols = builder.finish();
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
         for _ in 0..copies {
             program.push_const_declaration(ConstDeclaration {
                 symbol: constant,

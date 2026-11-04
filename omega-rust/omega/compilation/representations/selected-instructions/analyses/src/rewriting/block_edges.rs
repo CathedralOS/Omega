@@ -36,17 +36,17 @@ pub fn member_position(
         })
 }
 
-pub fn function_at<'p, E>(
-    plan: &'p selected_instructions::SelectedInstructionPlan,
+pub fn function_at<E>(
+    plan: &selected_instructions::SelectedInstructionPlan,
     function_index: usize,
     miss: E,
-) -> Result<&'p SelectedFunction, E> {
+) -> Result<&SelectedFunction, E> {
     plan.functions.get(function_index).ok_or(miss)
 }
 
-/// The instruction a terminator carries — a position every traversal of
-/// its block observes, and the body-end landing position a destination can
-/// name.
+// The instruction a terminator carries — a position every traversal of
+// its block observes, and the body-end landing position a destination can
+// name.
 
 /// Every position of a block: its body instructions, then the instruction
 /// its terminator carries.

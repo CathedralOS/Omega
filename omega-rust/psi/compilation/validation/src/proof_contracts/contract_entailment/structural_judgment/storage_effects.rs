@@ -23,9 +23,11 @@ mod argument_reads;
 mod entry_reads;
 mod graph_versions;
 mod read_backing;
+mod stored_values;
 pub(in crate::proof_contracts::contract_entailment) use graph_versions::{
     StorageAnchor, StorageVersion,
 };
+pub(super) use stored_values::StoredValues;
 
 type StorageScope<'scope> = Option<(&'scope Machine, &'scope State)>;
 
@@ -290,7 +292,7 @@ impl StructuralJudge<'_> {
                 });
             }
         }
-        self.stored_values = std::sync::Arc::new(values);
+        self.stored_values = std::sync::Arc::new(StoredValues::from_values(values));
         self.invalidated_storage = std::sync::Arc::new(Vec::new());
         for parameter in self.program.state_parameters(entry) {
             let coordinate = CapturedStorageCoordinate {
@@ -408,8 +410,15 @@ impl StructuralJudge<'_> {
                 // A nominal record's initialized inline cells are a complete
                 // entry observation, independently of which scalar leaves a
                 // declaration later demands. Views keep their descriptor-only
-                // contract; contained references acquire no pointee facts.
-                if self.program.closed_data_definition(observed).is_none() {
+                // contract. A record that stores references is not complete
+                // this way: its contained references carry no pointee facts,
+                // and a whole-record entry value would answer reads through
+                // them before their own descriptor loads can.
+                if self.program.closed_data_definition(observed).is_none()
+                    || !self
+                        .frame_resolver()
+                        .is_some_and(|frames| frames.value_is_reference_free(observed))
+                {
                     continue;
                 }
                 let Some(machine) = self.program.machine(self.machine_symbol) else {
@@ -439,10 +448,9 @@ impl StructuralJudge<'_> {
             );
             if let Some(backing) = backing
                 && let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
-                    .iter_mut()
-                    .find(|stored| {
-                        stored.coordinate.root == facts::PlaceRoot::Symbol(parameter.symbol)
-                            && stored.coordinate.segments.is_empty()
+                    .value_at_mut(&CapturedStorageCoordinate {
+                        root: facts::PlaceRoot::Symbol(parameter.symbol),
+                        segments: Vec::new(),
                     })
             {
                 stored.backing = Some(backing);
@@ -498,9 +506,8 @@ impl StructuralJudge<'_> {
             };
             let backing = self.freeze_entry_read_backing(state, backing);
             self.retain_storage_value(place.clone(), value, true);
-            if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
-                .iter_mut()
-                .find(|stored| stored.coordinate == place)
+            if let Some(stored) =
+                std::sync::Arc::make_mut(&mut self.stored_values).value_at_mut(&place)
             {
                 stored.backing = Some(backing);
                 // No executable read was observed while admitting a Requires.
@@ -822,8 +829,7 @@ impl StructuralJudge<'_> {
         };
         if let Some(value) = self
             .stored_values
-            .iter()
-            .find(|stored| &stored.coordinate == place)
+            .value_at(place)
             .filter(|stored| valid(stored))
             .and_then(|stored| stored.current.clone())
         {
@@ -932,18 +938,16 @@ impl StructuralJudge<'_> {
         let version = self
             .read_storage_version(state, expression)
             .or(self.storage_version);
+        let selected_case = self
+            .stored_values
+            .values_at(&coordinate)
+            .find(|stored| {
+                !self.graph_storage_mode()
+                    || version.is_some_and(|at| self.current_value_valid(stored, &coordinate, at))
+            })
+            .and_then(|stored| stored.selected_case);
         if !super::super::structural_terms::term_is_unobserved_descriptor(self.program, value)
-            && let Some(case) = self
-                .stored_values
-                .iter()
-                .find(|stored| {
-                    stored.coordinate == coordinate
-                        && (!self.graph_storage_mode()
-                            || version.is_some_and(|at| {
-                                self.current_value_valid(stored, &coordinate, at)
-                            }))
-                })
-                .and_then(|stored| stored.selected_case)
+            && let Some(case) = selected_case
             && let Some((owner, _)) = self.program.variant_owner(case)
             && let Some(definition) = self.program.data_constructor_definition(
                 self.program
@@ -1255,9 +1259,7 @@ impl StructuralJudge<'_> {
             }
             _ => self.retain_storage_value(place.clone(), value, entry),
         }
-        if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
-            .iter_mut()
-            .find(|stored| stored.coordinate == place)
+        if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values).value_at_mut(&place)
         {
             stored.completed_read = Some((expression, self.storage_write_sequence));
             stored.backing = backing;
@@ -1309,10 +1311,7 @@ impl StructuralJudge<'_> {
             .storage_version
             .map_or_else(SymbolHandle::invalid, |version| version.state);
         let values = std::sync::Arc::make_mut(&mut self.stored_values);
-        if let Some(stored) = values
-            .iter_mut()
-            .find(|stored| stored.coordinate == coordinate)
-        {
+        if let Some(stored) = values.value_at_mut(&coordinate) {
             if entry && stored.entry.is_none() {
                 stored.entry = Some(value.clone());
             }
@@ -1454,8 +1453,7 @@ impl StructuralJudge<'_> {
         let coordinate = self.capture_storage_place(place.clone())?;
         let active_case = self
             .stored_values
-            .iter()
-            .find(|stored| stored.coordinate == coordinate)
+            .value_at(&coordinate)
             .and_then(|stored| stored.selected_case);
         if super::super::struct_trace() {
             eprintln!(
@@ -1568,11 +1566,7 @@ impl StructuralJudge<'_> {
             // version; its refusal must not fall back to the old payload.
             return self.current_storage_value(coordinate);
         }
-        if let Some(stored) = self
-            .stored_values
-            .iter()
-            .find(|stored| stored.coordinate == *coordinate)
-        {
+        if let Some(stored) = self.stored_values.value_at(coordinate) {
             let value = stored.entry.clone();
             if value.is_some() {
                 return value;
@@ -1582,10 +1576,11 @@ impl StructuralJudge<'_> {
         // that snapshot when the leaf was not captured separately.
         let reference =
             crate::declaration_type_reference(self.program, coordinate.root.as_symbol()?)?;
-        self.stored_values.iter().find_map(|stored| {
-            if stored.coordinate.root != coordinate.root || !stored.coordinate.segments.is_empty() {
-                return None;
-            }
+        let whole = CapturedStorageCoordinate {
+            root: coordinate.root,
+            segments: Vec::new(),
+        };
+        self.stored_values.values_at(&whole).find_map(|stored| {
             let value = stored.entry.clone()?;
             project_captured_value(self.program, reference, value, &coordinate.segments)
                 .map(|(_, value)| value)
@@ -1839,7 +1834,7 @@ impl StructuralJudge<'_> {
                     })
             {
                 let values = std::sync::Arc::make_mut(&mut self.stored_values);
-                if let Some(stored) = values.iter_mut().find(|stored| stored.coordinate == prefix) {
+                if let Some(stored) = values.value_at_mut(&prefix) {
                     stored.selected_case = Some(*variant);
                 } else {
                     values.push(CapturedStorageValue {

@@ -123,7 +123,7 @@ mod tests {
         };
         let encoded = encode(&physical, alternative, &operands).unwrap();
         reject_every_bit_flip(&encoded.bytes, "copy word stream", |changed| {
-            validate(&physical, alternative, &operands, &changed).is_err()
+            validate(&physical, alternative, &operands, changed).is_err()
         });
         for scratch in 3..5 {
             for input in 0..5 {

@@ -405,6 +405,7 @@ pub(crate) fn require_definitions(object: &ObjectPlan) -> Result<(), Error> {
 /// An artifact-local namespace and its section/symbol embedding in the image.
 pub(crate) struct ObjectNamespace<'artifact> {
     pub artifact: &'artifact ObjectArtifact,
+    pub private_function: Option<MachineFunctionIdentity>,
     pub text_offset: usize,
     pub data_offset: usize,
     bindings: Option<&'artifact arena::Arena<PrivateObjectSymbolBinding>>,
@@ -433,6 +434,7 @@ impl ObjectNamespace<'_> {
 pub(crate) fn namespaces(artifact: &ObjectArtifact) -> impl Iterator<Item = ObjectNamespace<'_>> {
     std::iter::once(ObjectNamespace {
         artifact: artifact.composition_source.as_deref().unwrap_or(artifact),
+        private_function: None,
         text_offset: 0,
         data_offset: 0,
         bindings: None,
@@ -443,6 +445,7 @@ pub(crate) fn namespaces(artifact: &ObjectArtifact) -> impl Iterator<Item = Obje
             .iter()
             .map(|private| ObjectNamespace {
                 artifact: &private.body,
+                private_function: Some(private.identity),
                 text_offset: private.text_offset,
                 data_offset: private.data_offset,
                 bindings: Some(&private.symbol_bindings),

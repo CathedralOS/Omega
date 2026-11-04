@@ -760,12 +760,12 @@ pub fn prove_ranking_range_entry_with_formation(
     })
 }
 
-/// The natural coordinates builtin scalar subjects read through member
-/// chains: each `record.field` subject resolves against its carrier formal's
-/// own declaration, then re-resolves onto the unique formal carrying that
-/// role at this state. A bare subject names no coordinate; an authored chain
-/// that resolves but cannot arrive -- a duplicated or role-less record slot --
-/// fails the edge rather than borrowing a foreign record's lineage.
+// The natural coordinates builtin scalar subjects read through member
+// chains: each `record.field` subject resolves against its carrier formal's
+// own declaration, then re-resolves onto the unique formal carrying that
+// role at this state. A bare subject names no coordinate; an authored chain
+// that resolves but cannot arrive -- a duplicated or role-less record slot --
+// fails the edge rather than borrowing a foreign record's lineage.
 
 /// The binary operators the endpoint-input and field-land traversals visit
 /// uniformly: both operands carry the dependency, then each site layers its

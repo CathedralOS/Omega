@@ -88,11 +88,8 @@ pub(crate) fn projection(
             && result.projected_qualifications.is_empty())
         .then_some(result.structural_type)
     };
-    let Some(root) =
-        root_type(source, argument.place, argument.access, &argument.path).or_else(owner_home)
-    else {
-        return None;
-    };
+    let root =
+        root_type(source, argument.place, argument.access, &argument.path).or_else(owner_home)?;
     let supplied = super::reference_input::source_access(source, argument.place)?;
     if supplied.structural_type != root
         || !terminal_semantics::reference_source_projection_accessible(
@@ -146,9 +143,7 @@ pub(crate) fn projection(
     } else {
         geometry.byte_offset
     };
-    let Some(lent) = crate::structural_inputs::shape(referent, &signature.structural_types) else {
-        return None;
-    };
+    let lent = crate::structural_inputs::shape(referent, &signature.structural_types)?;
     if referent != parameter.structural_type {
         return None;
     }

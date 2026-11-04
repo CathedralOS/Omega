@@ -598,14 +598,13 @@ impl<'program> ScopedCalls<'program> {
                     && !bindings
                         .iter()
                         .any(|binding| binding.binder == ScopedArithmeticBinder::Result)
-                {
-                    if !result_observations::result_uses_are_bound(
+                    && !result_observations::result_uses_are_bound(
                         self.program,
                         guarantee,
                         bindings,
-                    ) {
-                        continue;
-                    }
+                    )
+                {
+                    continue;
                 }
                 let mut roster = bindings.to_vec();
                 self.bind_length_projections(owner, guarantee, result_length, &mut roster)?;

@@ -389,7 +389,8 @@ pub(super) fn rebase_reference_formation_geometry(
     let expected = validation::reference_shell(program, reference)
         .map(|shell| validation::stored_structural_type_identity(program, shell.referee, &[], &[]));
     let Some(expected) = expected.filter(|identity| declared && identity.is_valid()) else {
-        return rebase_borrow_geometry_through_local_loans(program, geometry, loan_trackers);
+        let sources = rebase_borrow_geometry_through_local_loans(program, geometry, loan_trackers);
+        return retained_formation_sources(program, expression, sources, loan_trackers);
     };
     let stop = |place: &accesses::BorrowAccessPlace| {
         let Some(mut reference) = validation::canonical_place_type_reference(
@@ -423,13 +424,84 @@ pub(super) fn rebase_reference_formation_geometry(
                 validation::stored_structural_type_identity(program, stored, &[], &[]) == expected
             })
     };
-    rebase_borrow_places_following(
+    let sources = rebase_borrow_places_following(
         program,
         geometry,
         loan_trackers,
         Some(&stop),
         &mut Vec::new(),
-    )
+    );
+    retained_formation_sources(program, expression, sources, loan_trackers)
+}
+
+/// A saved descriptor forwards its established permission, including every
+/// selected alternative. Stop at the nearest real borrow, so a shared child
+/// of mutable storage never regains its ancestor's write authority.
+fn retained_formation_sources(
+    program: &dyn validation::CheckingInput,
+    expression: ExpressionHandle,
+    sources: Vec<RebasedBorrowPlace>,
+    loan_trackers: &[StateLoanTracker],
+) -> Vec<RebasedBorrowPlace> {
+    if validation::reference_formation_source(program, expression).is_none() {
+        return sources;
+    }
+    retain_formation_parents(sources, loan_trackers)
+}
+
+pub(super) fn retain_formation_parents(
+    sources: Vec<RebasedBorrowPlace>,
+    loan_trackers: &[StateLoanTracker],
+) -> Vec<RebasedBorrowPlace> {
+    sources
+        .into_iter()
+        .flat_map(|source| {
+            let Some(descriptor) = loan_trackers
+                .iter()
+                .find(|loan| loan.handle == source.source_loan)
+                .filter(|loan| !loan.permission_sources.is_empty())
+            else {
+                return vec![source];
+            };
+            descriptor
+                .permission_sources
+                .iter()
+                .map(|parent| RebasedBorrowPlace {
+                    parent_loan: parent.loan,
+                    source_owner_symbol: parent.owner_symbol,
+                    parent_lineage_is_retained: true,
+                    ..source.clone()
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// A shared-reference parameter cannot be written through, so a statement
+/// loan it carries at its own root was installed by rebinding the parameter
+/// (`selected = &local`), not by a store into the caller's referent. Reading
+/// the parameter then reads that new descriptor; forwarding the formal would
+/// let a returned view of an invocation-local slot pass as the caller's
+/// referent. Entry leaves keep their incoming identity and are not rebinds.
+fn shared_parameter_rebound(
+    program: &dyn ::validation::CheckingInput,
+    root: facts::PlaceRoot,
+    loan_trackers: &[StateLoanTracker],
+) -> bool {
+    let Some(symbol) = root.as_symbol() else {
+        return false;
+    };
+    let shared = program
+        .state_by_symbol(program.symbols.get(symbol).parent)
+        .and_then(|state| program.state_parameter_by_symbol(state, symbol))
+        .and_then(|parameter| validation::reference_shell(program, parameter.type_reference))
+        .is_some_and(|shell| shell.access == language_semantics::ReferenceAccess::Shared);
+    shared
+        && loan_trackers.iter().any(|loan| {
+            loan.storage_owner == root
+                && loan.owner_path.is_empty()
+                && !loan.place.incoming_reference.is_valid()
+        })
 }
 
 fn rebase_borrow_places_following(
@@ -447,9 +519,13 @@ fn rebase_borrow_places_following(
     // Its own borrowed grant supplies this namespace; an entry leaf at owner[]
     // is the next pointer stored in that referent, not this pointer's supplier.
     // Keep every entry leaf in the roster for actual inner loads/restoration.
+    // Only the read itself sees today's binding. A carried place naming the
+    // formal was captured before any rebind (a capture after one already
+    // followed the rebind's loan), so it keeps meaning the caller's referent.
     let parameter_referent = !place.incoming_reference.is_valid()
         && place.segments.is_empty()
-        && accesses::is_borrowed_parameter_root(program, place.root);
+        && accesses::is_borrowed_parameter_root(program, place.root)
+        && !(active.is_empty() && shared_parameter_rebound(program, place.root, loan_trackers));
     let source_loans: Vec<&StateLoanTracker> = loan_trackers
         .iter()
         .rev()
@@ -476,6 +552,7 @@ fn rebase_borrow_places_following(
             source_owner_symbol: SymbolHandle::invalid(),
             parent_loan: Handle::invalid(),
             parent_lineage_is_retained: false,
+            source_loan: Handle::invalid(),
             lifetime_access: None,
         }];
     }
@@ -560,15 +637,10 @@ fn rebase_borrow_places_following(
                 },
                 source_owner_symbol: source_loan.owner_symbol,
                 parent_loan: source_loan.handle,
-                // A call-result root is retained for receiver resolution but
-                // carries no borrow ancestry: children formed through it stay
-                // derived, so the reborrow resource model never sees more than
-                // the suspension shapes it can represent.
-                parent_lineage_is_retained: matches!(
-                    source_loan.lineage,
-                    checked_trees::BorrowLoanLineage::DirectRoot
-                        | checked_trees::BorrowLoanLineage::Reborrow { .. }
-                ) && !source_loan.call_result,
+                source_loan: source_loan.handle,
+                // Only the formation owner joins an exact permission parent;
+                // ordinary geometry rebasing does not establish ancestry.
+                parent_lineage_is_retained: false,
             }
         })
         .flat_map(|source| {
@@ -613,7 +685,7 @@ pub(super) fn retained_reference_lineage(
     program: &dyn ::validation::CheckingInput,
     formation: ExpressionHandle,
     source: &RebasedBorrowPlace,
-    rebased: &[RebasedBorrowPlace],
+    _rebased: &[RebasedBorrowPlace],
 ) -> checked_trees::BorrowLoanLineage {
     if source.lifetime_access.is_some() {
         return checked_trees::BorrowLoanLineage::LifetimeDependency;
@@ -644,11 +716,7 @@ pub(super) fn retained_reference_lineage(
     if !source.source_owner_symbol.is_valid() {
         return checked_trees::BorrowLoanLineage::DirectRoot;
     }
-    let parent_is_unique = rebased.len() == 1;
-    if is_reference_formation
-        && source.parent_loan.is_valid()
-        && source.parent_lineage_is_retained
-        && parent_is_unique
+    if is_reference_formation && source.parent_loan.is_valid() && source.parent_lineage_is_retained
     {
         checked_trees::BorrowLoanLineage::Reborrow {
             parent_loan: source.parent_loan,

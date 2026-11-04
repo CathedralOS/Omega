@@ -31,6 +31,7 @@
 mod components;
 mod entry;
 mod host_imports;
+mod native_code_layouts;
 
 pub use host_imports::clock::{TerminalClockEnvironment, TerminalClockSnapshot};
 
@@ -76,6 +77,9 @@ use terminal_interpreter::{
 };
 
 pub struct TerminalRuntimeRequest<'program> {
+    /// An explicit completed image to inspect; no image means no native geometry.
+    /// This supplies metadata only, never code installation or access authority.
+    pub native_image: Option<&'program native_artifact::NativeArtifact>,
     /// An explicit retained entry from this artifact's Build companion. This
     /// selects code only; entry storage and host authority remain independent.
     /// Without it, native provisions select their entry or the artifact default
@@ -144,6 +148,9 @@ pub enum TerminalRuntimeError {
     Execution(TerminalInstanceError),
 }
 
+/// Raised after guest execution, when the private native sponsor retires.
+const NATIVE_PROVIDER_RETIREMENT: &str = "native-provider-retirement";
+
 impl TerminalRuntimeError {
     /// Unsupported execution can surface at admission, instantiation or runtime.
     /// Keep those unavailable comparisons distinct from malformed artifacts and
@@ -161,8 +168,25 @@ impl TerminalRuntimeError {
             TerminalInterpretError::UnsupportedCapability(_)
                 | TerminalInterpretError::UnsupportedSemanticVariant(_)
                 | TerminalInterpretError::ScalarEntryQualificationUnsupported
-                | TerminalInterpretError::AffineProjectionNotRepresentable
+                | TerminalInterpretError::AffineProjectionNotRepresentable { .. }
         )
+    }
+
+    /// Standalone Terminal execution (`omega run --engine terminal`) may call
+    /// a refusal unavailability only when no guest instruction has run. Every
+    /// error raised by or after `invoke` follows guest effects: execution
+    /// errors and native-provider retirement. Earlier admission, installation,
+    /// instantiation and host-binding refusals precede the first instruction.
+    pub fn unavailable_before_guest_effects(&self) -> bool {
+        match self {
+            Self::Execution(_) => false,
+            Self::MissingProvision { capability, .. }
+                if *capability == NATIVE_PROVIDER_RETIREMENT =>
+            {
+                false
+            }
+            _ => self.comparison_unavailable(),
+        }
     }
 
     pub(super) fn missing(capability: &'static str, reason: impl Into<String>) -> Self {
@@ -317,8 +341,11 @@ pub fn execute_sliced(
             }
         }
     }
+    let native_code_layouts =
+        native_code_layouts::inspect(&request, program.terminal_psi(), execution_target)?;
     let mut installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            native_code_layouts: native_code_layouts.as_ref(),
             x86_flags: request.x86_flags,
             memory_ordering: request.memory_ordering,
             entry: request
@@ -523,4 +550,21 @@ fn layout_target_facts(
                 "selected target has no representation context".into(),
             )
         })
+}
+
+#[cfg(test)]
+mod unavailability_tests {
+    use super::{NATIVE_PROVIDER_RETIREMENT, TerminalRuntimeError};
+
+    #[test]
+    fn only_refusals_before_the_guest_runs_are_standalone_unavailability() {
+        let before = TerminalRuntimeError::missing("runtime-provider-installation", "absent");
+        assert!(before.comparison_unavailable());
+        assert!(before.unavailable_before_guest_effects());
+        let after = TerminalRuntimeError::missing(NATIVE_PROVIDER_RETIREMENT, "worker failed");
+        assert!(after.comparison_unavailable());
+        assert!(!after.unavailable_before_guest_effects());
+        let malformed = TerminalRuntimeError::InvalidProvision("malformed");
+        assert!(!malformed.unavailable_before_guest_effects());
+    }
 }

@@ -310,6 +310,27 @@ impl<'program> CallFrameResolver<'program> {
         })
     }
 
+    /// The slot relation of a dynamic call whose selector may be one the
+    /// program never forms: the requirement's declared outputs, with lifetime
+    /// debts only (dynamic_dispatch.md: an unknown selection retains the
+    /// requirement ceiling). `None` when every selector the calling state can
+    /// hold comes from the program's own coercions, which the closed roster
+    /// below covers.
+    pub fn received_selector_stored_reference_effects(
+        &self,
+        caller: &State,
+        target: SymbolHandle,
+    ) -> Option<Option<Vec<super::StoredReferenceEffect>>> {
+        let slot = self.program.dynamic_slot_by_symbol(target)?;
+        if !super::stored_calls::caller_may_receive_selector(self.program, caller, slot) {
+            return None;
+        }
+        Some(super::stored_calls::declared_formal_effects(
+            self.program,
+            slot,
+        ))
+    }
+
     /// Closed dispatch joins the checked slot-output relation of every possible
     /// realization. These are custody suppliers, never private predicate facts.
     pub fn dynamic_stored_reference_effects(
@@ -1029,6 +1050,20 @@ impl<'program> CallFrameResolver<'program> {
                 )
             },
         )
+    }
+
+    /// The whole local or parameter binding this assignment replaces, when it
+    /// rebinds a reference rather than storing through it. The old referent
+    /// keeps its value; facts that read through the binding no longer apply.
+    pub fn assignment_replaced_binding(
+        &self,
+        current_machine: &Machine,
+        statement: &StatementNode,
+    ) -> Option<String> {
+        match self.assignment_write_target(current_machine, statement)? {
+            AssignmentWriteTarget::LocalBindingReplacement { path } => Some(path),
+            AssignmentWriteTarget::Storage { .. } => None,
+        }
     }
 
     /// Whether RHS execution preserves the address inputs needed to name the

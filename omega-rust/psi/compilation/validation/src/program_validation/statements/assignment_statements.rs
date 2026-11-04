@@ -536,7 +536,8 @@ pub(super) fn validate<'a, 'p>(
                 program,
                 machine,
                 state,
-                assignment,
+                statement,
+                scope.call_frames,
                 &written,
                 value_environment,
             );

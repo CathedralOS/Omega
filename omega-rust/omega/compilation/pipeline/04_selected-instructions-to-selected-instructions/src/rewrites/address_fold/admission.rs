@@ -90,7 +90,6 @@ pub(super) fn rewrite_scan_steps(
 /// observes; edge and entry bindings can only reach it when no body
 /// instruction defines the register, in which case there is no in-block
 /// `AddressOffset` producer to fold.
-
 pub(super) fn admit<'source>(
     source: &'source impl ValidatedSelectedAnalysis,
     function_index: usize,

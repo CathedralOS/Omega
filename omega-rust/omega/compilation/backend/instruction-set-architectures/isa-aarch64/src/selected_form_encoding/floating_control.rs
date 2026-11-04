@@ -255,7 +255,7 @@ mod tests {
                         alternative,
                         &[],
                         displacement,
-                        &changed,
+                        changed,
                     )
                     .is_err()
                 });

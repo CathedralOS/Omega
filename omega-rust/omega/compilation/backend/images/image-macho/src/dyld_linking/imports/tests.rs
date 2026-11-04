@@ -319,7 +319,7 @@ fn repeated_normalized_identity_rejects_without_image_mutation() {
     });
     image.symbol_table.imports.insert(FinalImageImport {
         symbol_handle: second_symbol,
-        import: FinalImageImportPlan::Normalized((locator).into()),
+        import: FinalImageImportPlan::Normalized(locator),
     });
     let before = image.clone();
 

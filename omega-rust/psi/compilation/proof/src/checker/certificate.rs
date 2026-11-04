@@ -798,9 +798,7 @@ fn guarded_refold_certificate(
     seed: u64,
 ) -> Option<BoundedValueCertificate> {
     let program = proof_plan.program;
-    let Some(binary) = program.expression_table.binary_node(obligation.argument) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(obligation.argument)?;
     let (place, literal, subtract) = match binary.operator {
         BinaryOperator::Add => {
             if let Some(literal) = integer_literal_handle(proof_plan, binary.right) {

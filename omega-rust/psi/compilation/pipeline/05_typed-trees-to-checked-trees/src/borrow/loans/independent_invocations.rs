@@ -72,7 +72,7 @@ pub(super) fn form(
             supplying_loans: Vec::new(),
             lineage: BorrowLoanLineage::DirectRoot,
             kind: leaf.source.access.borrow_access_kind()?,
-            call_result: true,
+            formation: super::BorrowFormation::ReturnedDescriptor,
         })
     })
     .collect()

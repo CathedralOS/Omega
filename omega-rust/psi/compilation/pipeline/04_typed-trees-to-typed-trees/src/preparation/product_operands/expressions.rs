@@ -375,7 +375,6 @@ impl Lower<'_> {
                     .fields
                     .span_or_empty(fields)
                     .iter()
-                    .cloned()
                     .map(|field| {
                         Ok(expr::TableStructLiteralField {
                             name: self.identifier(field.name),
@@ -475,7 +474,6 @@ impl Lower<'_> {
                     .match_fields
                     .span_or_empty(fields)
                     .iter()
-                    .cloned()
                     .map(|field| {
                         Ok(expr::TableMatchField {
                             member: self.identifier(field.member),

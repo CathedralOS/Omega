@@ -140,7 +140,7 @@ pub fn element_representation_layout<'a>(
                     *budget = budget.checked_sub(child.leaves.len())?;
                     leaves.try_reserve(child.leaves.len()).ok()?;
                     for leaf in child.leaves {
-                        let mut path = vec![StructuralPathSegment::Field(field.identity.clone())];
+                        let mut path = vec![StructuralPathSegment::Field(field.identity)];
                         path.extend(leaf.path);
                         leaves.push(ElementRepresentationLeaf {
                             path,

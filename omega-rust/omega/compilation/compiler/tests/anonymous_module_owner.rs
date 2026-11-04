@@ -251,6 +251,7 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
         let reloaded = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
             .expect("consumer artifact reload");
         let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+            native_image: None,
             entry: None,
             filesystem: Default::default(),
             native_services: Default::default(),
@@ -352,8 +353,7 @@ fn equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute() {
         .result;
         if rejects {
             let failure = result
-                .err()
-                .expect("a different anonymous owner cannot supply the original nominal type");
+                .expect_err("a different anonymous owner cannot supply the original nominal type");
             let diagnostic = format!("{:?}", failure.into_diagnostics());
             eprintln!("copied-owner rejection: {diagnostic}");
             assert!(

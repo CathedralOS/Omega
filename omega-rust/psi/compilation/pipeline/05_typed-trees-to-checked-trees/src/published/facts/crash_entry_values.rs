@@ -927,11 +927,11 @@ fn entry_operand_symbol_at(
     )
 }
 
-/// `self` names the containing machine (or its attached data), not the
-/// receiver's telescope row — the same resolution
-/// `structural_fields::exact_self_parameter` applies for authored contract
-/// predicates. Bind the name to the state's `is_self` parameter so receiver
-/// projections take the parameter path below.
+// `self` names the containing machine (or its attached data), not the
+// receiver's telescope row — the same resolution
+// `structural_fields::exact_self_parameter` applies for authored contract
+// predicates. Bind the name to the state's `is_self` parameter so receiver
+// projections take the parameter path below.
 
 /// A sealed or builtin IEEE comparison is an entry predicate when its
 /// operands are. Primitive float equality is not the integer builtin, and
@@ -1101,7 +1101,7 @@ fn state_parameter_entry_operand(
         return None;
     }
     // Transition arguments bind only the non-self parameters, in order.
-    let argument_index = parameters[..parameter_ordinal].iter().count();
+    let argument_index = parameters[..parameter_ordinal].len();
     // The invocation itself is the entry state's one non-transition arrival.
     let mut provenance = if state_index == entry_index {
         Some(CrashPredicateExpression::Parameter(

@@ -89,7 +89,7 @@ pub(super) fn trait_parameter_tables(
         .map(|trait_definition| {
             (
                 trait_definition.symbol,
-                resolved_declarations(&program)
+                resolved_declarations(program)
                     .data_type_parameters
                     .span_or_empty(trait_definition.type_parameters)
                     .iter()
@@ -107,7 +107,7 @@ pub(super) fn trait_parameter_tables(
         .map(|definition| {
             (
                 definition.symbol,
-                resolved_declarations(&program)
+                resolved_declarations(program)
                     .data_type_parameters
                     .span_or_empty(definition.type_parameters)
                     .iter()
@@ -281,9 +281,7 @@ impl SignatureSymbolTables<'_> {
                     );
                     TypeParameterKind::Value { type_reference }
                 }
-                TypeParameterKind::Machine { mut contract }
-                    if !matches!(machine_parameter_arm, MachineParameterArm::Skip) =>
-                {
+                TypeParameterKind::Machine { mut contract } => {
                     if matches!(
                         machine_parameter_arm,
                         MachineParameterArm::ResolveWithAuthoredTraitArguments
@@ -326,11 +324,10 @@ impl SignatureSymbolTables<'_> {
 }
 
 /// How much of the shared type-parameter pass a site's Machine arm performs:
-/// none (traits), contract resolution only (conformances), or contract
-/// resolution plus authored-nominal trait-argument symbols (machines).
+/// every current site resolves the contract plus its authored-nominal
+/// trait-argument symbols.
 #[derive(Clone, Copy)]
 pub(super) enum MachineParameterArm {
-    Skip,
     ResolveWithAuthoredTraitArguments,
 }
 

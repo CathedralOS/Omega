@@ -502,7 +502,7 @@ pub(crate) fn checked_evidence_machine_identity(
     if checked
         .typed
         .executable_application_template(machine.symbol)
-        .map_err(|message| LoweringError::Unsupported(message))?
+        .map_err(LoweringError::Unsupported)?
         .is_some()
     {
         let checked_identity = checked

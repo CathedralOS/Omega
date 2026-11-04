@@ -132,10 +132,10 @@ pub fn state_declaration_predicates(
 /// The data declaration a parameter's referee names when the ordinary field
 /// resolution cannot: the declaration a lifetime-only application
 /// instantiates.
-fn parameter_data_definition<'program>(
-    program: &'program dyn crate::CheckingInput,
+fn parameter_data_definition(
+    program: &dyn crate::CheckingInput,
     referee: TypeReferenceHandle,
-) -> Option<&'program DataDefinition> {
+) -> Option<&DataDefinition> {
     let TypeReferenceNode::Generic {
         base_symbol: owner,
         arguments,
@@ -953,9 +953,7 @@ impl FactSpelling<'_> {
             _ => return None,
         };
         if matches!(operand_type, PrimitiveType::F32 | PrimitiveType::F64) {
-            let Some(binary) = expression_table(self.program).binary_node(authored) else {
-                return None;
-            };
+            let binary = expression_table(self.program).binary_node(authored)?;
             let operand_types = [
                 self.operand_type_reference(binary.left),
                 self.operand_type_reference(binary.right),

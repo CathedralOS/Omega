@@ -1,6 +1,6 @@
 # Value-location alignment
 
-Fact: align_of(value) observes the storage location of a live u64 place, or the referent of a &u64, and reports that location's guaranteed alignment, at least 8u64 on every hosted target, discharging exact subtraction alignment - 8u64 across all nine places.
+Fact: align_of(value) observes the storage location of a live u64 place, the referent of a &u64, or the first element of a nonempty [u64] slice, and reports that location's guaranteed alignment, at least 8u64 on every hosted target, discharging exact subtraction alignment - 8u64 across all nine places.
 
 Before this row the compiler refused every value argument to `align_of`
 ("takes no value arguments; the queried type is its single `<T>` operand"),
@@ -28,6 +28,25 @@ the result is at least 8.
 | another machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | another target implementation | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
+A second production of the same query observes a borrowed slice:
+[nonempty slice](compositions/nonempty_slice/main.omg), with a
+[twin](compositions/nonempty_slice/invalid/main.omg) that removes only
+`requires items.len >= 1`. A slice's location is its first element's, which
+exists only for a nonempty view, so the twin rejects with "needs the nonempty
+fact `items.len >= 1`". A `&[u8]` companion reports 1, not the 8 of the
+slice descriptor.
+
+A third production observes a parameter from its own contract:
+[contract requirement](compositions/contract_requirement/main.omg) states
+`requires align_of(value) >= 8u64` on a `&u64` parameter, and every caller
+must satisfy it. Its [twin](compositions/contract_requirement/invalid/main.omg)
+changes only the referent to `u32`, so the clause is false for every caller
+and rejects with "scalar predicate is false: requires contract". Because each
+answer is the exact validated minimum, the body's own `align_of(value)` already
+proves its subtraction; the contract adds the caller-side obligation, not a
+premise the body depends on. A weaker clause therefore cannot make the body's
+subtraction fail, which is why the twin changes the storage, not the bound.
+
 Each twin changes only the observed location's storage to `u32`. Its
 guaranteed alignment is 4, so the unchanged `alignment - 8u64` is rejected with
 bounds `[-4, -4]`. Positives and twins are mirrored under
@@ -38,7 +57,11 @@ bounds `[-4, -4]`. Positives and twins are mirrored under
 Typing keeps the authored operand on the `align_of` call. Typed preparation
 then resolves that operand as a place in its state: it must be rooted at a
 local or parameter, a reference is followed to its referent, and the operand
-leaves the executable call. From there the query is the same portable
+leaves the executable call. A borrowed slice is followed to its element
+type, and the request keeps a proof-only `view[0]` index that range checking
+discharges with the same length facts as an ordinary first-element index; it
+is never evaluated, so no element is read and no implicit `&view[0]` loan is
+made. From there the query is the same portable
 selected-layout alignment request as `align_of<T>()` over the observed
 storage type, so checking, Terminal Psi, the interpreter and native code all
 answer it from the selected target's validated layout. The operand is never
@@ -70,20 +93,19 @@ authored rows, unexecuted here.
   storage type's validated layout; no caller guard precedes the subtraction,
   and the runtime checks follow it.
 - Identity: the subject is the exact place the operand names, through
-  references to the referent. A value leaf, a constant, a slice or a
-  query in a contract position is rejected rather than given a fabricated location.
+  references to the referent. A value leaf, a constant, a slice not proved
+  nonempty, or a contract query that is not a whole parameter is rejected rather than given a fabricated location.
 - Composition: the result is an ordinary `u64` whose layout-observation fact
   survives copies, fields, call returns, joins and machine arguments, through
   the existing layout-observation route.
 
 ## What remains open
 
-- Nonempty slices: the first-element form needs a proved nonempty view; it
-  currently rejects.
-- Contract positions: a query inside `requires` (such as
-  `requires align_of(value) >= 8u64`) has no resolved state for its place and
-  currently rejects with a source diagnostic; only executable statements are
-  answered.
+- Contract positions: `requires` on an ordinary machine accepts a whole
+  parameter or its referent. Still rejected: `ensures` clauses (a true clause
+  cannot yet be proved at exit), contracts on trait requirements (so a
+  per-target implementation cannot carry the clause), and field paths or
+  slices in any contract.
 - Stronger-than-type alignment from placement or allocator contracts, and
   runtime computation of a location's alignment, are not implemented; the
   result is always the type minimum.

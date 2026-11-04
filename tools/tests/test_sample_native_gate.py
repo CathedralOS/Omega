@@ -1004,5 +1004,56 @@ class RunHistoryTests(unittest.TestCase):
             self.assertEqual(record["results"], results)
 
 
+class NativePublicationControls(unittest.TestCase):
+    def observe(self, directory, check_code=0, publication_code=1,
+                publication_error="missing provider", exit_oracle=False):
+        root = Path(directory)
+        (root / "main.omg").write_text("// Expected exit: 0\nmachine main() {}\n")
+        (root / "build.omg").write_text(
+            'machine build(builder: &mut Build) {\n'
+            ' Build::application(builder, "publication_control");\n'
+            ' Build::bind(builder, macos_arm64::ProgramEntry, main);\n}\n')
+        (root / "expected_native_rejection.macos_arm64.txt").write_text("missing provider\n")
+        if exit_oracle:
+            (root / "expected_native_exit.macos_arm64.txt").write_text("0\n")
+        project = sample_projects.Project(directory=root, entry=root / "main.omg", role="program")
+        calls = []
+
+        def command(arguments, timeout, **kwargs):
+            calls.append(arguments)
+            if "--check" in arguments:
+                return subprocess.CompletedProcess(arguments, check_code, "", "missing provider" if check_code else "")
+            return subprocess.CompletedProcess(arguments, publication_code, "", publication_error)
+
+        with patch.object(gate, "project_at", return_value=project), \
+                patch.object(gate, "accept_review", return_value=(None, "")), \
+                patch.object(gate, "run", side_effect=command):
+            result = gate.measure("omega", directory, "macos_arm64", 10)
+        return result, calls
+
+    def test_source_then_native_refusal_is_scored_without_launching(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, calls = self.observe(directory)
+        self.assertEqual(result["state"], "rejected")
+        self.assertEqual(result["native-rejection"], "match")
+        self.assertTrue(result["source_checked"])
+        self.assertEqual(result["publication_exit"], 1)
+        self.assertEqual(len(calls), 2)
+        self.assertIn("--check", calls[0])
+        self.assertNotIn("--check", calls[1])
+        self.assertTrue(all("run" not in command for command in calls))
+        self.assertNotIn("execution", result)
+
+    def test_source_error_wrong_reason_panic_and_conflicting_exit_do_not_pass(self):
+        cases = [dict(check_code=1), dict(publication_code=0),
+                 dict(publication_code=101), dict(publication_error="unrelated error"),
+                 dict(exit_oracle=True)]
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                result, _ = self.observe(directory, **case)
+                self.assertNotIn(result["state"], ("pass", "rejected"))
+                self.assertNotIn("execution", result)
+
+
 if __name__ == "__main__":
     unittest.main()

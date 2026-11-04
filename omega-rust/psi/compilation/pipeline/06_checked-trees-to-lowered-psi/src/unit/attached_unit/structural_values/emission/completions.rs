@@ -151,7 +151,7 @@ impl Emission<'_, '_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Result<(), LoweringError> {
-        let control = &flow_facts(&self.checked)
+        let control = &flow_facts(self.checked)
             .terminal_unit_effects
             .cleanup_control;
         let Some(completion) =

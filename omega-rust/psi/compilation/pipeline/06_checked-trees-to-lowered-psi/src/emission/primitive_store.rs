@@ -220,10 +220,10 @@ pub(crate) fn emit_assignment(
     if has_byte_predicates && logical_restriction != logical_scalar && !preserves_byte_memberships {
         return unsupported("primitive write lost its exact logical byte preservation judgment");
     }
-    if let Some(StructuralFieldType::BoundedInteger(integer)) = &logical_scalar {
-        if receiving_range.is_none_or(|range| range.integer != *integer) {
-            return unsupported("primitive store lost its logical receiving-range judgment");
-        }
+    if let Some(StructuralFieldType::BoundedInteger(integer)) = &logical_scalar
+        && receiving_range.is_none_or(|range| range.integer != *integer)
+    {
+        return unsupported("primitive store lost its logical receiving-range judgment");
     }
     // The source store plan retains the completed RHS and occurrence. Its
     // integer decision was authenticated by OperationFrame before emission;

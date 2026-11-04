@@ -164,9 +164,7 @@ fn schema_argument_matches(
     };
     let arguments = match plan.realizations {
         typed_trees::PlanLaidRealizations::Invariant(_) => {
-            return plan
-                .schema_argument
-                .is_none_or(|argument| matches(argument));
+            return plan.schema_argument.is_none_or(&matches);
         }
         typed_trees::PlanLaidRealizations::TargetInputs(span) => {
             let Some(targets) = program.plan_laid_target_layouts.span(span) else {

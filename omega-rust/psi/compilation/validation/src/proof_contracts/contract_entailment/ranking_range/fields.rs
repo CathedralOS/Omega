@@ -694,8 +694,8 @@ pub(super) fn projected_type(
     crate::value_custody::places::declared_place_type_raw(program, machine, Some(state), expression)
 }
 
-/// The member chain of `expression` from its root formal outward, each step
-/// as `(resolved field symbol, spelling)`. Case projections are not fields.
+// The member chain of `expression` from its root formal outward, each step
+// as `(resolved field symbol, spelling)`. Case projections are not fields.
 
 /// The parts both produced coordinates resolve identically: the formal's
 /// non-const record carrier, each intermediate chain step walked through
@@ -921,11 +921,11 @@ pub(super) fn parameter<'program>(
 
 /// The unique field `symbol` declared by the exact record `owner` -- one
 /// nominal member of one declaration, whichever module asked.
-pub(super) fn declared_field<'program>(
-    program: &'program dyn crate::CheckingInput,
+pub(super) fn declared_field(
+    program: &dyn crate::CheckingInput,
     owner: SymbolHandle,
     symbol: SymbolHandle,
-) -> Option<&'program DataField> {
+) -> Option<&DataField> {
     let declaration = program
         .data_definitions()
         .iter()

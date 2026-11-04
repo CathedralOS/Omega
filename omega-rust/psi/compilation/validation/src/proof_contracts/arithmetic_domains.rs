@@ -181,7 +181,7 @@ pub(crate) use return_ranges::{
     validate_return_value_range,
 };
 pub use stored_integer_writes::{
-    StoredIntegerReach, stored_integer_source_projection, stored_integer_source_projections,
+    StoredIntegerReach, UnestablishedStoredEncoding, stored_integer_source_projections,
     stored_integer_source_reach,
 };
 pub(crate) use stored_integer_writes::{

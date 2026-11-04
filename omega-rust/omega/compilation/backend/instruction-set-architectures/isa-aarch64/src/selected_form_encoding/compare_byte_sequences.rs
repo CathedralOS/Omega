@@ -196,11 +196,12 @@ mod tests {
             .constraint(crate::AARCH64_COMPARE_BYTE_SEQUENCES)
             .expect("catalog declares the compare constraint");
         assert_eq!(row.operands.len(), 8);
-        for position in 0..4 {
-            assert!(row.operands[position].access == register_model::RegisterOperandAccess::Use);
+        let (inputs, scratches) = row.operands.split_at(4);
+        for input in inputs {
+            assert!(input.access == register_model::RegisterOperandAccess::Use);
         }
-        for scratch in 4..8 {
-            assert!(row.operands[scratch].early_clobber);
+        for scratch in scratches {
+            assert!(scratch.early_clobber);
         }
     }
 
@@ -225,7 +226,7 @@ mod tests {
         )
         .unwrap();
         reject_every_bit_flip(&encoded.bytes, "compare word stream", |changed| {
-            validate(&physical, alternative, &operands, &changed).is_err()
+            validate(&physical, alternative, &operands, changed).is_err()
         });
     }
 }

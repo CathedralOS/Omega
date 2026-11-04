@@ -159,19 +159,22 @@ impl CompletedReturnSource {
         self,
         local: &TableLocalData,
         owner_prefix: &[BorrowOwnerSegment],
-        capture: impl FnOnce(ViewReturnFieldSource, Vec<PlaceSegment>) -> Vec<StatementBorrowLoan>,
-    ) -> Vec<StatementBorrowLoan> {
+        capture: impl FnOnce(
+            ViewReturnFieldSource,
+            Vec<PlaceSegment>,
+        ) -> Result<Vec<StatementBorrowLoan>, &'static str>,
+    ) -> Result<Vec<StatementBorrowLoan>, &'static str> {
         match self {
             // Image storage owes no borrowed input loan. Independent declared
             // lifetime dependencies remain separate rows in this same roster.
-            Self::ImmutableImage { .. } => Vec::new(),
+            Self::ImmutableImage { .. } => Ok(Vec::new()),
             Self::UnresolvedDescriptor {
                 mut owner_path,
                 kind,
             } => {
                 let mut path = owner_prefix.to_vec();
                 path.append(&mut owner_path);
-                vec![StatementBorrowLoan {
+                Ok(vec![StatementBorrowLoan {
                     formation_owner_path: None,
                     incoming_origin: None,
                     formation_expression: local.initial_value,
@@ -186,16 +189,16 @@ impl CompletedReturnSource {
                     supplying_loans: Vec::new(),
                     lineage: BorrowLoanLineage::UnretainedDerived,
                     kind,
-                    call_result: true,
-                }]
+                    formation: super::BorrowFormation::ReturnedDescriptor,
+                }])
             }
             Self::DescriptorCandidate { field, projection } => capture(field, projection),
             Self::LifetimeDependency { field } => {
-                let mut loans = capture(field, Vec::new());
+                let mut loans = capture(field, Vec::new())?;
                 for loan in &mut loans {
                     loan.lineage = BorrowLoanLineage::LifetimeDependency;
                 }
-                loans
+                Ok(loans)
             }
         }
     }
@@ -565,6 +568,15 @@ fn stored_source_covers(
     })
 }
 
+macro_rules! available {
+    ($query:expr) => {
+        match $query {
+            Some(value) => value,
+            None => return Ok(None),
+        }
+    };
+}
+
 /// Follow finite call operands without collapsing carried source leaves into
 /// the single-place query used for bare reference inputs.
 #[allow(clippy::too_many_arguments)]
@@ -577,8 +589,9 @@ pub(super) fn result_loans(
     expression: ExpressionHandle,
     owner_path: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
-) -> Option<Vec<StatementBorrowLoan>> {
-    let mut loans = relative_result_loans(
+    sources: &super::BorrowFormationSources<'_, '_>,
+) -> Result<Option<Vec<StatementBorrowLoan>>, &'static str> {
+    let mut loans = available!(relative_result_loans(
         program,
         state_symbol,
         statement_index,
@@ -586,23 +599,28 @@ pub(super) fn result_loans(
         local_data,
         expression,
         loan_trackers,
-    )?;
+        sources,
+    )?);
     // Project the produced value first, then join its surviving leaves to the
     // destination. Region-bearing applications and runtime-equivalent carriers
     // can retain different member symbols; only checked structural paths bridge
     // those namespaces. Rebasing before projection would erase a selected
     // returned field's loan because the destination is not its whole carrier.
-    let prefix = crate::borrow::carrier_path(program, local_data.type_reference, owner_path)?;
+    let prefix = available!(crate::borrow::carrier_path(
+        program,
+        local_data.type_reference,
+        owner_path
+    ));
     for loan in &mut loans {
         let mut path = prefix.clone();
         // These symbols already came from the complete declared result
         // relation, including evidence-bound call telescopes. Do not ask an
         // expression-type query to resolve the callable again: its raw result
         // may still be a template, even though this loan relation is closed.
-        path.extend(structural_owner_path(program, &loan.owner_path)?);
-        loan.owner_path = loan_owner_path(program, local_data.type_reference, &path)?;
+        path.extend(available!(structural_owner_path(program, &loan.owner_path)));
+        loan.owner_path = available!(loan_owner_path(program, local_data.type_reference, &path));
     }
-    Some(loans)
+    Ok(Some(loans))
 }
 
 pub(super) fn relative_result_loans(
@@ -613,24 +631,25 @@ pub(super) fn relative_result_loans(
     local_data: &TableLocalData,
     mut expression: ExpressionHandle,
     loan_trackers: &[StateLoanTracker],
-) -> Option<Vec<StatementBorrowLoan>> {
+    sources: &super::BorrowFormationSources<'_, '_>,
+) -> Result<Option<Vec<StatementBorrowLoan>>, &'static str> {
     let mut access_limits = Vec::new();
     loop {
         let call = match program.expression_table.expression(expression) {
             ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_) => {
-                let type_reference = expression_type_reference_in_state(
+                let type_reference = available!(expression_type_reference_in_state(
                     program,
                     state_symbol,
                     statement_index,
                     expression,
-                )?;
+                ));
                 let carrier = TableLocalData {
                     type_reference,
                     initial_value: expression,
                     ..local_data.clone()
                 };
-                let state = program.state_by_symbol(state_symbol)?;
-                return Some(limit_access(
+                let state = available!(program.state_by_symbol(state_symbol));
+                return Ok(Some(limit_access(
                     borrow_carrying_data_loans(
                         program,
                         state,
@@ -638,13 +657,14 @@ pub(super) fn relative_result_loans(
                         machine_symbol,
                         &carrier,
                         loan_trackers,
-                    ),
+                        sources,
+                    )?,
                     &access_limits,
-                ));
+                )));
             }
             ExpressionNode::Call(call) => call,
             ExpressionNode::Indexed(indexed) => {
-                let loans = relative_result_loans(
+                let loans = available!(relative_result_loans(
                     program,
                     state_symbol,
                     statement_index,
@@ -652,7 +672,8 @@ pub(super) fn relative_result_loans(
                     local_data,
                     indexed.collection,
                     loan_trackers,
-                )?;
+                    sources,
+                )?);
                 let index = expressions(program)
                     .constant_integer_value(indexed.index)
                     .and_then(|value| usize::try_from(value).ok());
@@ -673,10 +694,10 @@ pub(super) fn relative_result_loans(
                         Some(loan)
                     })
                     .collect();
-                return Some(limit_access(loans, &access_limits));
+                return Ok(Some(limit_access(loans, &access_limits)));
             }
             ExpressionNode::Member(member) => {
-                let loans = relative_result_loans(
+                let loans = available!(relative_result_loans(
                     program,
                     state_symbol,
                     statement_index,
@@ -684,7 +705,8 @@ pub(super) fn relative_result_loans(
                     local_data,
                     member.receiver,
                     loan_trackers,
-                )?;
+                    sources,
+                )?);
                 // The loan follows the selected value, not a syntactic place
                 // root. Reuse checking's exact receiver position: its call,
                 // constructor and generic-member joins preserve this field's
@@ -725,29 +747,29 @@ pub(super) fn relative_result_loans(
                         Some(loan)
                     })
                     .collect();
-                return Some(limit_access(loans, &access_limits));
+                return Ok(Some(limit_access(loans, &access_limits)));
             }
             ExpressionNode::Borrow(borrow) => {
                 // Borrowing an owned value forms a loan of its storage.
                 // Borrowing a descriptor forwards its selected referent.
-                let target_type = expression_type_reference_in_state(
+                let target_type = available!(expression_type_reference_in_state(
                     program,
                     state_symbol,
                     statement_index,
                     borrow.target,
-                )?;
+                ));
                 if reference_shell(program, target_type).is_none() {
-                    return None;
+                    return Ok(None);
                 }
                 access_limits.push(BorrowAccessKind::from(borrow.access));
                 expression = borrow.target;
                 continue;
             }
-            _ => return None,
+            _ => return Ok(None),
         };
-        let contract = call_view_return_contract(program, state_symbol, call)?;
+        let contract = available!(call_view_return_contract(program, state_symbol, call));
         if matches!(contract.source(program), ViewReturnSource::NotApplicable) {
-            return super::independent_invocations::form(
+            return Ok(super::independent_invocations::form(
                 program,
                 state_symbol,
                 machine_symbol,
@@ -756,9 +778,9 @@ pub(super) fn relative_result_loans(
                 validation::call_target_symbol(program, call),
                 contract.return_type_reference(program),
             )
-            .map(|loans| limit_access(loans, &access_limits));
+            .map(|loans| limit_access(loans, &access_limits)));
         }
-        let fields = contract.reference_sources(program)?;
+        let fields = available!(contract.reference_sources(program));
         let mut loans = result_source_loans(
             program,
             state_symbol,
@@ -770,8 +792,8 @@ pub(super) fn relative_result_loans(
             fields,
             &contract.substitutions,
             &[],
-            loan_trackers,
-        );
+            sources,
+        )?;
         // Bare and aggregate results both carry the completed source leaves,
         // not just the declared argument's root. Operand reborrow ancestry is
         // evaluated during invocation; it is not the returned value's ancestry.
@@ -783,8 +805,14 @@ pub(super) fn relative_result_loans(
             {
                 retained.formation_expression = expression;
             }
-            loan.call_result = true;
-            if loan.place.root.is_valid() && loan.lineage != BorrowLoanLineage::LifetimeDependency {
+            let projected = loan.formation == super::BorrowFormation::ReturnedProjection;
+            if !projected {
+                loan.formation = super::BorrowFormation::ReturnedDescriptor;
+            }
+            if !projected
+                && loan.place.root.is_valid()
+                && loan.lineage != BorrowLoanLineage::LifetimeDependency
+            {
                 loan.lineage = if loan.source_owner_symbol.is_valid() {
                     BorrowLoanLineage::UnretainedDerived
                 } else {
@@ -792,7 +820,7 @@ pub(super) fn relative_result_loans(
                 };
             }
         }
-        return Some(limit_access(loans, &access_limits));
+        return Ok(Some(limit_access(loans, &access_limits)));
     }
 }
 
@@ -827,48 +855,43 @@ pub(super) fn argument_loans(
     loan_trackers: &[StateLoanTracker],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     carried_arguments: &mut Vec<(usize, Vec<StatementBorrowLoan>)>,
-) -> Vec<StatementBorrowLoan> {
+    sources: &super::BorrowFormationSources<'_, '_>,
+) -> Result<Vec<StatementBorrowLoan>, &'static str> {
     let source_segments = place_segments(&field.source_path);
-    let cached_index = carried_arguments
+    let cached_index = if let Some(position) = carried_arguments
         .iter()
-        .position(|(index, _)| *index == field.parameter_index)
-        .unwrap_or_else(|| {
-            // `field.source_type` is the declared parameter type; the call's
-            // closed bindings resolve a type parameter to the argument's
-            // concrete carrier before its loan leaves are enumerated.
-            // Nested producers select paths in this input carrier, not the
-            // enclosing result's type. Keep the receiving storage identity;
-            // result_owner_path rebases its leaves only after source selection.
-            // Using an outer Envelope here would erase a Held argument's
-            // target leaf before an owned forwarding call could transport it.
-            let argument_owner = TableLocalData {
-                type_reference: CallViewReturnContract::carrier_reference(
-                    program,
-                    field.source_type,
-                    substitutions,
-                ),
-                initial_value: argument,
-                ..local_data.clone()
-            };
-            let loans =
-                borrowed_initializers(program, field.source_type, argument, substitutions, &[])
-                    .into_iter()
-                    .flat_map(|initializer| {
-                        borrowed_initializer_loans(
-                            program,
-                            state_symbol,
-                            statement_index,
-                            machine_symbol,
-                            &argument_owner,
-                            initializer,
-                            loan_trackers,
-                        )
-                    })
-                    .collect();
-            let index = carried_arguments.len();
-            carried_arguments.push((field.parameter_index, loans));
-            index
-        });
+        .position(|(parameter, _)| *parameter == field.parameter_index)
+    {
+        position
+    } else {
+        let argument_owner = TableLocalData {
+            type_reference: CallViewReturnContract::carrier_reference(
+                program,
+                field.source_type,
+                substitutions,
+            ),
+            initial_value: argument,
+            ..local_data.clone()
+        };
+        let mut loans = Vec::new();
+        for initializer in
+            borrowed_initializers(program, field.source_type, argument, substitutions, &[])
+        {
+            loans.extend(borrowed_initializer_loans(
+                program,
+                state_symbol,
+                statement_index,
+                machine_symbol,
+                &argument_owner,
+                initializer,
+                loan_trackers,
+                sources,
+            )?);
+        }
+        let position = carried_arguments.len();
+        carried_arguments.push((field.parameter_index, loans));
+        position
+    };
     let carried = carried_arguments[cached_index]
         .1
         .iter()
@@ -909,7 +932,7 @@ pub(super) fn argument_loans(
         .cloned()
         .collect::<Vec<_>>();
 
-    carried
+    Ok(carried
         .into_iter()
         .map(|mut loan| {
             loan.owner_path = result_owner_path.to_vec();
@@ -925,5 +948,5 @@ pub(super) fn argument_loans(
             loan.lineage = loan.lineage.derived();
             loan
         })
-        .collect()
+        .collect())
 }

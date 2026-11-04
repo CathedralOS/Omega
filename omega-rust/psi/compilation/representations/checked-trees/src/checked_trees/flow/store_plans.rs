@@ -91,7 +91,7 @@ impl CheckedStorePlan {
             projection_evaluations: Default::default(),
             source,
             path: self.destination.path.clone(),
-            type_identity: type_identity.clone(),
+            type_identity: *type_identity,
             access: crate::CheckedStructuralAccess::Owned,
         })
     }

@@ -72,6 +72,19 @@ pub enum ProjectProduct {
 pub enum NativeDestination {
     Retained,
     Published,
+    /// No image: the native request stops after provider and entry admission
+    /// and settles as a Terminal product carrying its runtime provisions, for
+    /// Terminal-only execution.
+    RuntimeAdmission,
+}
+
+impl NativeDestination {
+    const fn image_demand(self) -> compilation_products::NativeImageDemand {
+        match self {
+            Self::Retained | Self::Published => compilation_products::NativeImageDemand::Emit,
+            Self::RuntimeAdmission => compilation_products::NativeImageDemand::RuntimeAdmissionOnly,
+        }
+    }
 }
 
 /// Target identity and output placement are explicit, not inferred from an

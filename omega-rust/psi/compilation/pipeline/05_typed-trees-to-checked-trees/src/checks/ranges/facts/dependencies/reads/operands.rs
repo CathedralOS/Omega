@@ -202,7 +202,7 @@ impl ReadWalk<'_, '_, '_> {
         {
             place.root = facts::PlaceRoot::Symbol(value);
         }
-        crate::shared::collections::push_unique(&mut self.reads, place);
+        crate::shared::collections::push_unique(self.reads, place);
         true
     }
 }

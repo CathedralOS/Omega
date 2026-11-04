@@ -30,6 +30,7 @@ use crate::limits::{LOCAL_CACHE_SNAPSHOTS, LocalSourceLimits};
 use crate::snapshot::metadata::verify_local_snapshot;
 use crate::storage::RetainedStorageLane;
 use crate::tree::capture::CapturedLocalTree;
+#[cfg(test)]
 use crate::tree::filesystem::IoResultAt;
 use crate::tree::filesystem::io_error;
 

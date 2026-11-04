@@ -99,9 +99,7 @@ fn boolean_comparison(
     expression: ExpressionHandle,
     value: bool,
 ) -> Option<(ExpressionHandle, bool)> {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     if !matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual

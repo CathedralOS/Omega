@@ -244,6 +244,7 @@ fn write_section(
 #[cfg(test)]
 mod tests {
     use super::{image_imports_windows_internet_provider, windows_internet_provider_dll};
+    #[cfg(windows)]
     use crate::network_address::{classful_internet_address, classful_local_address};
 
     #[test]

@@ -160,18 +160,18 @@ fn retarget_statement_span(
         match statement {
             StatementNode::Assembly(handle) => {
                 let graph = program.tables.declarations.assembly_graphs.get(handle);
-                let blocks = resolved_declarations(&program)
+                let blocks = resolved_declarations(program)
                     .assembly_blocks
                     .span_or_empty(graph.blocks)
                     .to_vec();
                 for block in blocks {
                     expressions.extend_from_slice(
-                        resolved_declarations(&program)
+                        resolved_declarations(program)
                             .assembly_expressions
                             .span_or_empty(block.requires),
                     );
                     expressions.extend_from_slice(
-                        resolved_declarations(&program)
+                        resolved_declarations(program)
                             .assembly_expressions
                             .span_or_empty(block.ensures),
                     );
@@ -191,9 +191,8 @@ fn retarget_statement_span(
                 expressions.extend([assignment.target, assignment.value]);
             }
             StatementNode::Call(call) => {
-                expressions.extend_from_slice(
-                    body_statements(&program).expression_handles(call.arguments),
-                );
+                expressions
+                    .extend_from_slice(body_statements(program).expression_handles(call.arguments));
                 let site = CallSite {
                     target_symbol: call.target_symbol,
                     target: &call.target,
@@ -201,7 +200,7 @@ fn retarget_statement_span(
                     receiver_symbol: call.receiver_symbol,
                     requirement_application: arena::Handle::invalid(),
                     local_receiver: call.receiver.is_empty(),
-                    argument_count: body_statements(&program)
+                    argument_count: body_statements(program)
                         .expression_handles(call.arguments)
                         .len(),
                 };
@@ -249,7 +248,7 @@ fn retarget_transition_target(
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
     expressions: &mut Vec<ExpressionHandle>,
 ) {
-    let node = body_statements(&program).transition_target(target).clone();
+    let node = body_statements(program).transition_target(target).clone();
     match node {
         TransitionTargetNode::Named {
             path,
@@ -257,7 +256,7 @@ fn retarget_transition_target(
             source_span,
             ..
         } => {
-            let members = body_statements(&program).name_path_members(path.members);
+            let members = body_statements(program).name_path_members(path.members);
             let spelling = DiagnosticName::new(members.joined_path(), source_span);
             let replacement = members.last().and_then(|member| {
                 decide(&CallSite {
@@ -267,9 +266,7 @@ fn retarget_transition_target(
                     receiver_symbol: path.receiver_symbol,
                     requirement_application: arena::Handle::invalid(),
                     local_receiver: members.len() == 1,
-                    argument_count: body_statements(&program)
-                        .expression_handles(arguments)
-                        .len(),
+                    argument_count: body_statements(program).expression_handles(arguments).len(),
                 })
             });
             if let Some(replacement) = replacement
@@ -284,7 +281,7 @@ fn retarget_transition_target(
                 }
                 retained.symbol = replacement;
             }
-            expressions.extend_from_slice(body_statements(&program).expression_handles(arguments));
+            expressions.extend_from_slice(body_statements(program).expression_handles(arguments));
         }
         TransitionTargetNode::Value(value) => {
             expressions.push(value);
@@ -303,13 +300,13 @@ fn retarget_expression(
         return;
     }
     visited.push(expression);
-    let node = body_expressions(&program).expression(expression).clone();
+    let node = body_expressions(program).expression(expression).clone();
     let mut children = Vec::new();
     match node {
         ExpressionNode::Match(dispatch) => {
             children.push(dispatch.subject);
             for arm in program.tables.bodies.expressions.match_arms(dispatch.arms) {
-                children.extend(body_expressions(&program).match_pattern_dependencies(arm.pattern));
+                children.extend(body_expressions(program).match_pattern_dependencies(arm.pattern));
                 children.push(arm.value);
             }
         }
@@ -332,7 +329,7 @@ fn retarget_expression(
                 children.push(call.receiver);
             }
             children
-                .extend_from_slice(body_expressions(&program).expression_handles(call.arguments));
+                .extend_from_slice(body_expressions(program).expression_handles(call.arguments));
             let receiver_symbol = match program.tables.bodies.expressions.expression(call.receiver)
             {
                 ExpressionNode::Name(path) if call.receiver.is_valid() => path.symbol,
@@ -345,7 +342,7 @@ fn retarget_expression(
                 receiver_symbol,
                 requirement_application: call.requirement_application,
                 local_receiver: !call.receiver.is_valid(),
-                argument_count: body_expressions(&program)
+                argument_count: body_expressions(program)
                     .expression_handles(call.arguments)
                     .len(),
             };
@@ -373,7 +370,7 @@ fn retarget_expression(
         }
         ExpressionNode::StructLiteral(literal) => {
             children.extend(
-                body_expressions(&program)
+                body_expressions(program)
                     .struct_fields(literal.fields)
                     .iter()
                     .map(|field| field.value),

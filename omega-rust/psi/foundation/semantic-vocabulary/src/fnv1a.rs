@@ -92,3 +92,9 @@ impl Fnv1a {
         if self.0 == 0 { fallback } else { self.0 }
     }
 }
+
+impl Default for Fnv1a {
+    fn default() -> Self {
+        Self::new()
+    }
+}

@@ -39,9 +39,7 @@ impl CaseExclusions {
     }
 
     fn identity_position(&self, fingerprint: u64, place: &CanonicalPlace) -> Option<usize> {
-        let Some(&first) = self.table.by_identity.get(&fingerprint) else {
-            return None;
-        };
+        let &first = self.table.by_identity.get(&fingerprint)?;
         if self.table.observations[first].place.as_ref() == place {
             return Some(first);
         }

@@ -133,7 +133,6 @@ pub(crate) fn lower_selected_machine(
             )?,
             LoweringCompletion {
                 debug: DebugPublication::Omit,
-                ..Default::default()
             },
         ));
     }

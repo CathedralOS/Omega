@@ -320,7 +320,7 @@ fn predicate_holds_on_current_storage(
     }
     let judgment = instantiated_selected_fact_judgment(
         program,
-        &judge,
+        judge,
         definition.symbol,
         &parameters,
         predicate,

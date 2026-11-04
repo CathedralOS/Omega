@@ -23,25 +23,38 @@ machine add(first: u64 in Wrapping, second: u64 in Wrapping) -> u64 in Wrapping 
     first + second
 }
 
-machine joined_index(other: u64, flag: bool) -> u64
+machine mark_index(other: u64, path: &write u64) -> u64
 requires other < 4
 ensures result < 4
 {
-    match flag { true -> other, false -> other }
+    path = 1;
+    other
 }
 
-machine main() crashes Trap {
+machine joined_index(other: u64, flag: bool, path: &write u64) -> u64
+requires other < 4
+ensures result < 4
+{
+    match flag { true -> mark_index(other, path), false -> other }
+}
+
+machine exercise(flag: bool, expected_path: u64) crashes Trap {
     let mut chosen: u64 = 0;
     let mut other: u64 = 1;
-    let flag: bool = true;
     let items: [u8; 4] = [4, 7, 8, 9];
     let zero: u64 in Wrapping = 0;
     let marker: u64 in Wrapping = add(overwrite(relay(&mut chosen, &mut other, true)), zero);
-    let index: u64 = joined_index(other, flag);
-    transition (marker as u64) == 1 && chosen == 9 && items[index] == 7 {
+    let mut path: u64 = 0;
+    let index: u64 = joined_index(other, flag, &write path);
+    transition (marker as u64) == 1 && chosen == 9 && path == expected_path && items[index] == 7 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    exercise(true, 1);
+    exercise(false, 0);
 }

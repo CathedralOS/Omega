@@ -1036,11 +1036,11 @@ fn trace_missing_frontier(
     let events = ownership
         .permissions
         .iter()
-        .filter_map(|(_, event)| {
-            (event.state_symbol == operand.state_symbol
-                && permission_event_statement_index(event.source) == Some(operand.statement_index))
-            .then(|| (event, ownership.segments.span_or_empty(event.segments)))
+        .filter(|&(_, event)| {
+            event.state_symbol == operand.state_symbol
+                && permission_event_statement_index(event.source) == Some(operand.statement_index)
         })
+        .map(|(_, event)| (event, ownership.segments.span_or_empty(event.segments)))
         .collect::<Vec<_>>();
     let transfers = state
         .map(|state| {
@@ -1070,8 +1070,8 @@ fn trace_missing_frontier(
     let prefix_events = ownership
         .permissions
         .iter()
-        .filter_map(|(_, event)| {
-            (event.machine_symbol == machine.symbol
+        .filter(|&(_, event)| {
+            event.machine_symbol == machine.symbol
                 && event.state_symbol == operand.state_symbol
                 && (event.root == facts::PlaceRoot::Expression(operand.expression)
                     || source
@@ -1081,9 +1081,9 @@ fn trace_missing_frontier(
                         .iter()
                         .any(|(transfer, _)| transfer.root == event.root))
                 && permission_event_statement_index(event.source)
-                    .is_some_and(|statement| statement <= operand.statement_index))
-            .then(|| (event, ownership.segments.span_or_empty(event.segments)))
+                    .is_some_and(|statement| statement <= operand.statement_index)
         })
+        .map(|(_, event)| (event, ownership.segments.span_or_empty(event.segments)))
         .collect::<Vec<_>>();
     eprintln!(
         "CLAIM_SOURCE_PREFIX expression={:?} source={source:?} events={prefix_events:?}",

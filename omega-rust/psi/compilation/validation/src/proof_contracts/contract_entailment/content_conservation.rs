@@ -103,7 +103,7 @@ fn judge_numeric_content(
             };
             evaluator.compare(BinaryOperator::Equal, &left, &right)
         }
-        ContentAlgebraIdentity::IntervalSet { .. } => interval_sets::judge(&evaluator, plan),
+        ContentAlgebraIdentity::IntervalSet { .. } => interval_sets::judge(evaluator, plan),
     }
 }
 
