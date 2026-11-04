@@ -1,1 +1,1 @@
-default domain is still FALSE at state exit
+this write left the `requires` facts of `span` (data `Interval<32>`) unproved; restore them first
