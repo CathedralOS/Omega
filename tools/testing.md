@@ -251,6 +251,15 @@ and sample consumers still record their own outcomes. A changed source or
 executable stops the run. This preserves useful observations without treating a
 failed corpus leg as a passing qualification.
 
+Both fresh and retained-producer runs export their measured source into the
+existing pilot artifact. A shallow checkout fetches only until the source range
+above known published main has no missing ancestry. The corpus's existing
+`retain_record_source` owner then verifies its Git bundle; the pilot authenticates
+the copied bytes and records the exact source, published prerequisite and digest
+under `source/manifest.json`. An incomplete or unauthenticated export stops before
+fixture observations. This keeps later golden stamps inspectable after branch
+squashing without committing raw bundles or changing workflow permissions.
+
 ### Timing a check cold, and on a hosted runner
 
 A program that imports `omega_language_std` checks in 6.6 s on a warm

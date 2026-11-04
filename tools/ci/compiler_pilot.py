@@ -27,8 +27,10 @@ import corpus_gate
 from sample_projects import discover as discover_samples
 if __package__:
     from . import compiler_replay_plan, ordinary_cli_fixture
+    from . import compiler_source_export
 else:
     import compiler_replay_plan
+    import compiler_source_export
     import ordinary_cli_fixture
 
 POSITIVES = (
@@ -367,6 +369,8 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
             result["seconds"] = round(time.monotonic() - started, 3)
 
     need_runner = bool(positives or negatives or checking_only)
+    revisions = (revision,) if producer is None else (revision, producer.revision)
+    summary["source_exports"] = stage("retain measured source", lambda: compiler_source_export.export(output, revisions))
     if producer is None:
         producer = stage("prepare optimized compiler", lambda: prepare_producer(output, need_runner=need_runner))
     stage("authenticate optimized producer", producer.verify)

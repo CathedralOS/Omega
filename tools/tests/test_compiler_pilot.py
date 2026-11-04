@@ -16,6 +16,30 @@ import compiler_retained_foreign as retained
 
 
 class CompilerPilotTests(unittest.TestCase):
+    def setUp(self):
+        # Real Git export and shallow-history controls have their own tests.
+        export = patch.object(pilot.compiler_source_export, "export", return_value=[])
+        self.source_export = export.start()
+        self.addCleanup(export.stop)
+
+    def test_source_export_refusal_stops_before_compiler_build_or_observations(self):
+        self.source_export.side_effect = ValueError("incomplete source history")
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                    patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                    patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+                    patch.object(pilot, "prepare_producer") as build, \
+                    patch.object(pilot.subprocess, "run") as consume:
+                summary = {}
+                with self.assertRaisesRegex(ValueError, "incomplete source history"):
+                    pilot.execute(output, summary, positives=("pass/group/example",), negatives=())
+            build.assert_not_called()
+            consume.assert_not_called()
+            self.assertEqual(summary["stages"], [dict(name="retain measured source", passed=False,
+                                                    error="incomplete source history",
+                                                    seconds=summary["stages"][0]["seconds"])])
+
     def test_ordinary_cli_copy_loop_retains_the_actual_project_directory(self):
         sample = "samples/cli/systems/journal"
         with tempfile.TemporaryDirectory() as temporary:
@@ -325,9 +349,9 @@ class CompilerPilotTests(unittest.TestCase):
             self.assertEqual(run.call_count, 3)
             ordinary.assert_called_once()
             self.assertEqual([row["passed"] for row in summary["stages"]],
-                             [True, False, False, True, True])
-            self.assertEqual(summary["stages"][1]["error"], "checking timeout")
-            self.assertEqual(summary["stages"][2]["error"], "runtime timeout")
+                             [True, True, False, False, True, True])
+            self.assertEqual(summary["stages"][2]["error"], "checking timeout")
+            self.assertEqual(summary["stages"][3]["error"], "runtime timeout")
             self.assertEqual(summary["sample_observations"], [dict(sample=sample, state="pass")])
 
     def test_changed_producer_stops_before_another_consumer(self):
