@@ -216,6 +216,10 @@ pub(crate) fn float_source_bounds(
     };
     let (flow, non_nan) = place_path(program, value)
         .map(|path| environment.float_fact(&path))
+        .or_else(|| {
+            super::place_paths::element_place(program, value)
+                .map(|element| environment.float_element_fact(&element))
+        })
         .unwrap_or((FloatInterval::UNBOUNDED, false));
     let converted = numeric_conversion_bounds(program, caller, environment, value, result_type);
     // A still-anonymous literal receives its format from the authenticated
@@ -481,6 +485,22 @@ pub(super) fn record_float_comparison_bounds(
         environment.mark_non_nan(left);
         return true;
     }
+    if comparison.operator == BinaryOperator::Equal
+        && let (Some(left), Some(right)) = (
+            super::place_paths::element_place(program, comparison.left),
+            super::place_paths::element_place(program, comparison.right),
+        )
+        && left == right
+        && place_type(comparison.left).is_some_and(|handle| {
+            matches!(
+                program.primitive_type_reference(handle),
+                Some(PrimitiveType::F32 | PrimitiveType::F64)
+            )
+        })
+    {
+        environment.mark_non_nan_element(left);
+        return true;
+    }
     let float_sides = if let Some(literal) = float_literal_value(program, comparison.right) {
         Some((comparison.left, literal, true))
     } else {
@@ -501,6 +521,22 @@ pub(super) fn record_float_comparison_bounds(
         }
         environment.narrow_float(name.clone(), interval);
         environment.mark_non_nan(name);
+        return true;
+    }
+    if let Some((element_expression, literal, element_on_left)) = float_sides
+        && literal.is_finite()
+        && let Some(handle) = place_type(element_expression)
+        && let Some(primitive @ (PrimitiveType::F32 | PrimitiveType::F64)) =
+            program.primitive_type_reference(handle)
+        && let Some(element) = super::place_paths::element_place(program, element_expression)
+        && let Some(mut interval) =
+            float_bound_from(comparison.operator, literal, element_on_left, primitive)
+    {
+        if let Some(declared) = float_range_constraint_interval(program, handle) {
+            interval = interval.intersect(declared);
+        }
+        environment.narrow_float_element(element.clone(), interval);
+        environment.mark_non_nan_element(element);
         return true;
     }
     false

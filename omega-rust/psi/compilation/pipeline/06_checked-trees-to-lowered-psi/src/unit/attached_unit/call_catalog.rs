@@ -105,6 +105,25 @@ pub(super) fn discover(
                 .ok_or(LoweringError::Unsupported(
                     "program-root callable is absent from checked input",
                 ))?;
+        // A callback can be a named implementation member whose declaration
+        // has no standalone satisfaction clause. Its checked use already names
+        // the exact inbound requirement; retain that interface with the body.
+        // This does not select a calling policy or grant foreign entry.
+        for usage in checked
+            .facts
+            .nominal_machine_uses
+            .uses
+            .iter()
+            .filter(|usage| {
+                usage.selected_machine == machine.symbol && usage.callback_entry.is_some()
+            })
+        {
+            for requirement in &usage.callback_requirements {
+                if !retained_boundary_roots.contains(requirement) {
+                    retained_boundary_roots.push(*requirement);
+                }
+            }
+        }
         // A retained body's service satisfaction edges are interface roots even
         // when no operation invokes those requirements. Ordinary trait
         // conformance is descriptive, not demand for all its implementations;

@@ -1,7 +1,7 @@
-// A target-scoped body is checked in every compilation. std's `darwin_poll`
-// leaf lives in its macOS implementation module, which `macos_gui` does not
-// re-export, so this call selects no declaration. The refusal names the call
-// instead of reporting an anonymous incomplete crash envelope for `pace`.
+// A target-scoped body is checked in every compilation. `darwin_poll` was a
+// macOS std leaf no loaded declaration provides any longer, so this call
+// resolves to nothing. The refusal names the call instead of reporting an
+// anonymous incomplete crash envelope for `pace`.
 use omega_language_std::console;
 use omega_language_std::macos_gui;
 

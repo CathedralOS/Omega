@@ -163,6 +163,7 @@ fn runtime_supplies(
 ) -> Result<terminal_interpreter::TerminalRuntimeSupplies, String> {
     program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            native_code_layouts: None,
             installation: Some(admitted.selection()),
             entry: Some(TargetMachineCallable::Machine(admitted.candidate())),
             host_imports: &[],

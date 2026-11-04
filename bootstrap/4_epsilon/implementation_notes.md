@@ -27,8 +27,12 @@ arena references. The scanner rescans one token at a time only after the
 complete lexical phase succeeds. Its token start, code, end, and literal value
 are immediate `Int` results: lookahead may repeat bounded scanning work, but it
 authors no transient token objects into the generated program's fixed immutable
-heap. The ambiguous arm-level `return expression?` uses the same scalar
-lookahead to recognize a complete following `pattern ->` prefix. Parser success
+heap. The current pre-migration evaluator still parses the retired arm-level
+`return expression?` with scalar lookahead for a following `pattern ->` prefix.
+The ratified [expression-arm contract](LANGUAGE.md#8-machines-states-and-transitions)
+instead returns expression results directly and forwards normal call results;
+its parser, checking, execution and independent-model migration remains under
+**OMEGA-D** in [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md). Parser success
 wrappers contain only their native AST value and no duplicated cursor or span.
 The closure deliberately still has no `main` of its own: the canonical
 evaluator `main` is the bound edge source

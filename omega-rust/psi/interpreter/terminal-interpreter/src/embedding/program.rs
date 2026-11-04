@@ -494,6 +494,7 @@ impl<'artifact> TerminalProgram<'artifact> {
                 folded_constant_target: None,
                 target_machines: None,
                 target_layouts: None,
+                native_code_layouts: None,
             });
         if request.x86_flags.is_some()
             && request.target_machines.is_none_or(|selected| {
@@ -513,6 +514,24 @@ impl<'artifact> TerminalProgram<'artifact> {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                 "memory-ordering environment requires its admitted matching target",
             ));
+        }
+        if let Some(layouts) = request.native_code_layouts {
+            let Some(target) = request.target_machines else {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "native layout inspection requires its admitted target",
+                ));
+            };
+            if !layouts.accepts(self.program.identity.clone(), target.target())
+                || layouts
+                    .layouts()
+                    .iter()
+                    .any(|layout| self.program.catalogs.machine(layout.machine).is_none())
+            {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "native layout inspection names another program, target or machine",
+                ));
+            }
+            installation.native_code_layouts = Some(std::sync::Arc::new(layouts.clone()));
         }
         installation.memory_ordering = request.memory_ordering;
         installation.x86_flags = request.x86_flags;
@@ -1086,6 +1105,7 @@ mod private_entry_target_tests {
             .unwrap();
             let installation = program
                 .admit_runtime_supplies(crate::boundary::effects::TerminalRuntimeSupplyRequest {
+                    native_code_layouts: None,
                     x86_flags: None,
                     memory_ordering: None,
                     entry: artifact.semantic_module().entry,

@@ -2510,7 +2510,16 @@ fn visit_type_parameters(
             TypeParameterKind::Machine { contract } => {
                 let signature = match contract {
                     crate::data::MachineParameterContract::Structural(signature) => Some(signature),
-                    crate::data::MachineParameterContract::Nominal { instantiated, .. } => {
+                    crate::data::MachineParameterContract::Nominal {
+                        receiving_trait,
+                        receiving_arguments,
+                        instantiated,
+                        ..
+                    } => {
+                        retained.declaration_description_dependency(*receiving_trait);
+                        for argument in receiving_arguments {
+                            visit_type_reference(program, retained, *argument);
+                        }
                         instantiated.as_deref()
                     }
                     crate::data::MachineParameterContract::RequirementIdentity => None,
