@@ -5850,8 +5850,7 @@ pass/drops/runtime_nested_empty_array_owner_cleanup_exit checked 40039ms check-t
 pass/drops/runtime_nested_nominal_producer_loans_exit checked 36001ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nested_temporary_capture_cleanup_exit checked 60977ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nominal_array_replacement_exit checked 52055ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/runtime_nominal_case_observation_exit incomplete 52541ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	`main` calls `replace_after_observation`; `replace_after_observation` has no executable body: this compiler does not lower a state of it yet (cleanup cannot reconstruct its remaining region partition); in state `replace_after_observation::entry`
+pass/drops/runtime_nominal_case_observation_exit checked 9931ms check-target:macos_arm64 @6c3dcb823e47
 pass/drops/runtime_nominal_cleanup_compound_contract_exit checked 43820ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nominal_state_loan_alias_exit checked 42431ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nominal_state_loan_cleanup_order_exit checked 55727ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -5880,8 +5879,7 @@ pass/drops/runtime_scalar_temporary_nominal_continuation_exit checked 36188ms ch
 pass/drops/runtime_scalar_temporary_residual_partition_exit checked 3713ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_selected_case_mutation_bindings_exit rejected 40517ms check-target:macos_arm64 @ee4dbb4b2d56
 	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(26), callee: Some(MachineId(8)), operation: OperationId(262), reason: "callee stored-reference effects are unresolved" }
-pass/drops/runtime_selected_case_mutation_complement_exit incomplete 18996ms check-target:macos_arm64 @ee4dbb4b2d56
-	`main` calls `select_after_observation`; `select_after_observation` has no executable body: this compiler does not lower a state of it yet (cleanup cannot reconstruct its remaining region partition); in state `select_after_observation::entry`
+pass/drops/runtime_selected_case_mutation_complement_exit checked 9940ms check-target:macos_arm64 @6c3dcb823e47
 pass/drops/runtime_selected_linear_residual_death_exit incomplete 41387ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
 	`main` calls `scenario`; `scenario` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural value: operand custody)); in state `scenario::entry`, statement 1
 pass/drops/runtime_selected_nominal_owner_cleanup_exit checked 26089ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -13775,8 +13773,7 @@ pass/packages/retained_dependency_bodies_exit checked 4034ms check-target:macos_
 pass/packages/rootless_numeric_provider_consumer checked 11498ms check-target:macos_arm64 @ccdb99ca2214
 pass/packages/rootless_numeric_provider_review checked 13156ms @ccdb99ca2214
 pass/packages/runtime_attached_owner_crash_guard_scope_exit checked 3639ms check-target:macos_arm64 @ccdb99ca2214
-pass/packages/runtime_public_attached_owner_cleanup_exit incomplete 11042ms check-target:macos_arm64 @ee4dbb4b2d56
-	`main` calls `select_after_observation`; `select_after_observation` has no executable body: this compiler does not lower a state of it yet (cleanup cannot reconstruct its remaining region partition); in state `select_after_observation::entry`
+pass/packages/runtime_public_attached_owner_cleanup_exit checked 7678ms check-target:macos_arm64 @6c3dcb823e47
 pass/parameters/byte_store_root_after_scalar_formal_exit checked 11779ms check-target:macos_arm64 @ccdb99ca2214
 pass/parameters/shared_and_mut_borrow_params_compile checked 2944ms @ccdb99ca2214
 pass/parser/deep_nesting_within_limit checked 2816ms @ccdb99ca2214
