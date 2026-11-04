@@ -52,11 +52,19 @@ Its [twin](replaced_source/invalid/main.omg) installs invocation-local storage.
 These are additional productions of the same borrowing requirement.
 
 The [caller-view example](caller_view/main.omg) forms a checked `Packet` view
-of a caller-owned `BackingPacket` before forwarding it. Their reference fields
-have different names. Both width choices must return the original byte 11,
-and the backing record must still read 11. Its [twin](caller_view/invalid/main.omg)
-changes only the selected method to return invocation-local storage. These new
-programs are frozen for baseline comparison; no passing result is claimed yet.
+of a caller-owned `BackingPacket` before forwarding it. Their byte fields have
+different names. Both width choices must return the original byte 11, and the
+backing record must still read 11. Its [twin](caller_view/invalid/main.omg)
+changes only the selected method to return invocation-local storage.
+
+The first probe put references inside both records. Fixed-base run
+[41685737527](https://github.com/CathedralOS/Omega/actions/runs/41685737527)
+refused that cast before the call, as did candidate run
+[41685737741](https://github.com/CathedralOS/Omega/actions/runs/41685737741).
+It did not test returned-view composition. This probe uses supported scalar
+records to isolate the caller's existing view; it retains the same byte, width
+choices and local-storage twin. The earlier source remains at `34f4d51`.
+No passing result is claimed for the new probe yet.
 
 The [target-qualification example](target_qualification/main.omg) calls an
 ordinary `SelectedTarget::target_only` requirement from a selected family member.
