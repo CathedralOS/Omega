@@ -1,4 +1,5 @@
 // A returned f64 equals the live field it came from.
+// Expected exit: 0
 const KEPT: f64 = 7.0;
 data Ends { kept: f64; other: f64; }
 

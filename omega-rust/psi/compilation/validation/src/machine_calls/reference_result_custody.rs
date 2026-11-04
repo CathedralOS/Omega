@@ -1029,6 +1029,16 @@ pub fn declared_carrier_references(
         {
             return visit(program, *base_type, path, output, scopes, scope);
         }
+        // An activation claim's descriptor lends from no other holder: its
+        // backing is the committed storage of the activation that established
+        // it, carried by the claim's own linear custody. It therefore adds no
+        // borrowed leaf to the frontier of a record or case that stores it.
+        if let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(reference)
+            && crate::activation_claim_byte_carrier(program, *symbol).is_some()
+        {
+            return Some(());
+        }
         let selected = scopes.definition(program, reference, scope);
         let (data, scope) = selected?;
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape {

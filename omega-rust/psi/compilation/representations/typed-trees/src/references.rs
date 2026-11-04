@@ -1203,6 +1203,7 @@ fn visit_callable_symbol(
             policy,
             schema,
             policy_machine,
+            storage,
             ..
         } = plan
             && *callable == symbol
@@ -1210,6 +1211,24 @@ fn visit_callable_symbol(
             visit_symbol(retained, *policy);
             visit_symbol(retained, *schema);
             visit_symbol(retained, *policy_machine);
+            visit_type_reference(program, retained, storage.carrier);
+            for field in [&storage.base, &storage.length] {
+                visit_symbol(retained, field.symbol);
+                visit_type_reference(program, retained, field.type_reference);
+            }
+            if let crate::typed_trees::AccessLifecycleOwner::Run {
+                carrier,
+                storage,
+                count,
+                ..
+            } = &storage.owner
+            {
+                visit_type_reference(program, retained, *carrier);
+                for field in [storage, count] {
+                    visit_symbol(retained, field.symbol);
+                    visit_type_reference(program, retained, field.type_reference);
+                }
+            }
         }
     }
     let Some(application) = program.closed_requirement_application(symbol) else {
