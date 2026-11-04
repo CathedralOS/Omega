@@ -212,6 +212,7 @@ impl OperationFrame<'_, '_> {
                 operation_result_place(produced_place, producer, structural_type),
                 result,
                 produced,
+                access.discard_result_on_return,
             );
         }
         if access.structural_result.is_some() {

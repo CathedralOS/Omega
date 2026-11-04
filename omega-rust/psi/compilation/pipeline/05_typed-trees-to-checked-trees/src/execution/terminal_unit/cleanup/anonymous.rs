@@ -111,6 +111,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     invocation: &OperationPlan,
     trace: &super::super::control::LocalConstructionTrace,
 ) -> Option<Vec<OperationPlan>> {
+    let caller_trace = trace.mark();
     let coordinate = invocation.invocation_coordinate()?;
     let completion_phase = |phase| {
         trace.phase(phase);
@@ -133,6 +134,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         shapes,
     )?;
 
+    completion_phase("normal completion: selected descriptor producers");
     // Capture recognition preserves ancestry; it is not evidence that this
     // carrier has already ended. The descriptor owner above has checked input
     // retention and bound the exact loan group. Publish its selected physical
@@ -182,6 +184,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         selected_descriptors.push(completion);
     }
     completions = selected_descriptors;
+    completion_phase("normal completion: temporary owner roster");
     let statement = coordinate.statement_index;
     let values = &facts.values.structural_values;
     let mut dying = Vec::new();
@@ -207,11 +210,13 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         },
     );
     if dying.is_empty() {
+        trace.restore(&caller_trace);
         return Some(completions);
     }
 
     // Completed value dependencies and captured lifetime roots authenticate
     // storage independently. Neither relation selects an additional death.
+    completion_phase("normal completion: retained operand dependencies");
     let mut retained = Vec::new();
     for argument in invocation.structural_operands() {
         let root = if let Some(ordinal) = argument.source_structural_result_binding_ordinal() {
@@ -236,6 +241,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         };
         retained.extend(values.value_dependencies(root.root)?);
     }
+    completion_phase("normal completion: call occurrence");
     let flow = facts.flow.control.state(machine.symbol, state.symbol)?;
     let mut source_calls = facts
         .flow
@@ -251,12 +257,14 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     if source_calls.next().is_some() {
         return None;
     }
+    completion_phase("normal completion: input lifetime roots");
     let mut retained_owners = Vec::new();
     for operand in facts.flow.control.operands.span(source_call.operands)? {
         for root in crate::flow::captured_lifetime_roots(program, &facts.flow.control, operand)? {
             crate::shared::collections::push_unique(&mut retained_owners, root);
         }
     }
+    completion_phase("normal completion: completed operand occurrences");
     let (_, statement_node) = indexed_statements(program, state.statement_nodes)
         .find(|(position, _)| *position == statement as usize)?;
     let completed = crate::checks::ownership_occurrences::completed_expressions(
@@ -369,5 +377,6 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
             cleanup_actions,
         });
     }
+    trace.restore(&caller_trace);
     Some(completions)
 }

@@ -169,6 +169,7 @@ pub(super) fn writing_event(
         event,
         result,
         structural_result: None,
+        discard_result_on_return: false,
     })
 }
 
@@ -256,6 +257,7 @@ pub(super) fn once_event(
             replacement,
         },
         result: None,
+        discard_result_on_return: result.multiplicity == language_semantics::Multiplicity::Affine,
         structural_result: Some(result),
     })
 }

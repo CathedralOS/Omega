@@ -131,4 +131,8 @@ pub struct CheckedAtomicAccessPlan {
     /// A single attempt establishes this whole canonical outcome. It never
     /// binds an observed-prior scalar in place of its three-case result.
     pub structural_result: Option<CheckedUnitStructuralResultBindingPlan>,
+    /// Automatic disposal of an untransferred affine result. The shared result
+    /// owner clears this when a whole value moves; selected-edge cleanup and
+    /// source permission events still decide its exact disposition.
+    pub discard_result_on_return: bool,
 }
