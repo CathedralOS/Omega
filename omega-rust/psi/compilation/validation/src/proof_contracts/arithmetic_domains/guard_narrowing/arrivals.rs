@@ -462,6 +462,9 @@ fn expression_observations(
 /// A transition often arrives as `local == true`, where `local` is the
 /// authored comparison. The local name and the boolean equality carry no
 /// place interval; the comparison does. Polarity follows `== false` and `!`.
+/// Only an immutable local still holds its initializer. A mutable local's
+/// current value may differ from that initializer, so the name stops here
+/// and transports no initializer interval.
 fn comparison_leaf(
     program: &dyn crate::CheckingInput,
     state: &State,
@@ -478,6 +481,7 @@ fn comparison_leaf(
         }
         if let ExpressionNode::Name(path) = program.expression_table.expression(condition)
             && let Some((_, local)) = program.state_local_declaration(state, path.head_symbol)
+            && !local.is_mutable
             && local.initial_value.is_valid()
             && local.initial_value != condition
         {
