@@ -3,8 +3,8 @@
 
 use omega::language::core::representation;
 public boundary data InternetAddress;
-public data AddressWord { address: u32; }
-machine AddressWord::drop(word: &mut AddressWord) {}
+public data AddressWord dropped by drop_address_word { address: u32; }
+machine drop_address_word(word: &mut AddressWord) {}
 public data AddressCarrier<T> { payload: T; }
 public AddressRepresentation satisfies OpaqueRepresentation<InternetAddress, AddressCarrier<AddressCarrier<AddressWord>>> { }
 

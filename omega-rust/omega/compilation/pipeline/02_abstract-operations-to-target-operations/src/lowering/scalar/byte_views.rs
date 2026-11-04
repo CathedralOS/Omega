@@ -14,7 +14,7 @@ use semantic_vocabulary::IntegerValue;
 use semantic_vocabulary::{
     IntegerSign, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use target_operations::TargetByteView;
 use target_operations::{
     TargetBooleanExpression, TargetIntegerExpression, TargetStructuralParameter,
@@ -62,7 +62,7 @@ pub(in crate::lowering) fn is_immutable_byte_carrier_parameter(
     parameter.access == StructuralAccess::SharedBorrow
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && structural_types
-            .get(&parameter.structural_type)
+            .get(parameter.structural_type)
             .is_some_and(|declaration| {
                 matches!(
                     declaration.shape,
@@ -79,7 +79,7 @@ pub(in crate::lowering) fn is_byte_parameter(
 ) -> bool {
     terminal_semantics::view_descriptor_parameter(parameter, structural_types.values().copied())
         && structural_types
-            .get(&parameter.structural_type)
+            .get(parameter.structural_type)
             .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
 }
 
@@ -91,7 +91,7 @@ pub(in crate::lowering) fn byte_view_referent_size(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     structural_types: &StructuralTypeLookup<'_>,
 ) -> Option<u32> {
-    match structural_types.get(&parameter.structural_type)?.shape {
+    match structural_types.get(parameter.structural_type)?.shape {
         StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
             ..
         }) => Some(16),
@@ -112,7 +112,7 @@ pub(in crate::lowering) fn is_owner_loan(
     structural_types: &StructuralTypeLookup<'_>,
 ) -> bool {
     abstract_operations::control_flow::owner_loans::is_bounded_owner_loan(parameter, |identity| {
-        structural_types.get(&identity).copied()
+        structural_types.get(identity).copied()
     })
 }
 
@@ -122,7 +122,7 @@ pub(in crate::lowering) fn is_owned_byte_parameter(
 ) -> bool {
     abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter(
         parameter,
-        |identity| structural_types.get(&identity).copied(),
+        |identity| structural_types.get(identity).copied(),
     )
 }
 
@@ -244,7 +244,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
             source,
         )?;
         if structural_types
-            .get(&selected)
+            .get(selected)
             .is_some_and(|row| matches!(row.shape, StructuralTypeShape::FixedArray { .. }))
         {
             let length =
@@ -264,7 +264,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         let Some(terminal_psi::StructuralTypeDeclaration {
             shape: StructuralTypeShape::ByteSequence(carrier),
             ..
-        }) = structural_types.get(&selected).copied()
+        }) = structural_types.get(selected).copied()
         else {
             return Err(invalid());
         };
@@ -374,7 +374,7 @@ pub(in crate::lowering) fn resolve_byte_view(
     values: &BTreeMap<ValueId, KnownScalar>,
     lengths: &BTreeMap<ValueId, PlaceId>,
     place: PlaceId,
-    active: &mut Vec<PlaceId>,
+    active: &mut [PlaceId],
 ) -> Result<(TargetByteView, StructuralAccess), LoweringError> {
     let invalid = || {
         refusal(
@@ -388,7 +388,7 @@ pub(in crate::lowering) fn resolve_byte_view(
     if let Some((psi_operation, result)) =
         descriptor_result(function, place, structural_types, backings.homes)
         && structural_types
-            .get(&result.structural_type)
+            .get(result.structural_type)
             .is_some_and(|row| row.shape.is_borrowed_byte_carrier())
     {
         if backings
@@ -428,7 +428,7 @@ pub(in crate::lowering) fn resolve_byte_view(
             semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { structural_type: identity, .. }
                 if identity == structural_type.id)
             || !structural_type.shape.is_borrowed_byte_view()
-            || structural_types.get(&structural_type.id).copied() != Some(structural_type)
+            || structural_types.get(structural_type.id).copied() != Some(structural_type)
         { return Err(invalid()); }
         return Ok((TargetByteView::Literal {
             psi_operation: *psi_operation, place, structural_type: structural_type.id,
@@ -445,7 +445,7 @@ pub(in crate::lowering) fn resolve_byte_view(
             AbstractOperation::EstablishElementView { destination, .. } if *destination == place)
     }) {
         if !structural_types
-            .get(&result.structural_type)
+            .get(result.structural_type)
             .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
         {
             return Err(invalid());
@@ -471,7 +471,7 @@ pub(in crate::lowering) fn resolve_byte_view(
     }
     if let Some(semantic) = function.arrival_parameter(place) {
         let declaration = structural_types
-            .get(&semantic.structural_type)
+            .get(semantic.structural_type)
             .ok_or_else(invalid)?;
         let StructuralTypeShape::ByteSequence(carrier) = declaration.shape else {
             return Err(invalid());
@@ -524,8 +524,6 @@ pub(in crate::lowering) fn resolve_byte_view(
             crate::lowering::structural_layout::structural_shape(
                 semantic.structural_type,
                 structural_types,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
             )?
         } else {
             ValueShape::borrowed_reference(
@@ -559,7 +557,7 @@ pub(in crate::lowering) fn resolve_byte_view(
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
         || !structural_types
-            .get(&result.structural_type)
+            .get(result.structural_type)
             .is_some_and(|declaration| {
                 matches!(
                     declaration.shape,
@@ -574,7 +572,7 @@ pub(in crate::lowering) fn resolve_byte_view(
             &(
                 "subslice result carrier",
                 result,
-                structural_types.get(&result.structural_type),
+                structural_types.get(result.structural_type),
             ),
         ));
     }
@@ -596,7 +594,7 @@ pub(in crate::lowering) fn resolve_byte_view(
         backings,
         source,
     )?;
-    if !structural_types.get(&selected).is_some_and(|declaration| {
+    if !structural_types.get(selected).is_some_and(|declaration| {
         matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
     }) {
         return Err(invalid());
@@ -655,7 +653,7 @@ fn owned_byte_result<'a>(
             && result.qualification_establishments.is_empty()
             && result.claims.is_empty()
             && structural_types
-                .get(&result.structural_type)
+                .get(result.structural_type)
                 .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence()))
         .then_some((psi_operation, result))
     });
@@ -739,7 +737,7 @@ fn validate_whole_operand(
         )?;
         if source.access != terminal_psi::StructuralAccess::SharedBorrow
             || !indices.is_empty()
-            || !structural_types.get(&selected).is_some_and(|declaration| {
+            || !structural_types.get(selected).is_some_and(|declaration| {
                 matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
                     || matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
                         && fixed_byte_extent(structural_types.values().copied(), selected).is_some()

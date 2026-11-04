@@ -16,7 +16,7 @@
 //! Early Build's source-only requirement queries remain separate.
 
 pub(crate) mod external_binding_rows;
-mod selected_declarations;
+pub(crate) mod selected_declarations;
 pub use selected_declarations::prepare_selected_plan_declarations;
 mod provenance_replay;
 pub(crate) mod provider_rows;

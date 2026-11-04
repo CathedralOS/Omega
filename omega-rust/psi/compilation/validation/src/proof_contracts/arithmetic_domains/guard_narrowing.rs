@@ -221,9 +221,7 @@ pub(super) fn comparison_bound(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(String, Option<i64>, Option<i64>)> {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     if let (Some(name), Some(literal)) = (
         place_path(program, binary.left),
         literal_i64(program, binary.right),
@@ -307,9 +305,7 @@ pub(crate) fn short_circuit_operand_environment(
     expression: ExpressionHandle,
     environment: &ValueEnvironment,
 ) -> Option<ValueEnvironment> {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     if !matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
         || !meaning::has_builtin_binary_expression_meaning(program, machine, state, expression)
     {
@@ -858,9 +854,7 @@ fn exact_bound_binary<'program>(
     bound: ExpressionHandle,
     operator: BinaryOperator,
 ) -> Option<(&'program TableBinaryExpression, PrimitiveType)> {
-    let Some(binary) = program.expression_table.binary_node(bound) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(bound)?;
     if binary.operator != operator || !meaning::builtin_arithmetic(program, machine, state, bound) {
         return None;
     }
@@ -927,9 +921,7 @@ fn signed_joint_subtract_guard(
         (BinaryOperator::GreaterOrEqual, false) => (comparison.left, comparison.right),
         _ => return None,
     };
-    let Some(add) = program.expression_table.binary_node(bound) else {
-        return None;
-    };
+    let add = program.expression_table.binary_node(bound)?;
     if add.operator != BinaryOperator::Add
         || !meaning::builtin_arithmetic(program, machine, state, bound)
     {
@@ -950,9 +942,7 @@ fn signed_joint_subtract_guard(
     } {
         return None;
     }
-    let Some(extreme) = signed_primitive_bound(left_primitive, lower) else {
-        return None;
-    };
+    let extreme = signed_primitive_bound(left_primitive, lower)?;
     if literal_i64(program, extreme_literal) != Some(extreme) {
         return None;
     }
@@ -1043,9 +1033,7 @@ fn signed_joint_multiply_quotient_guard(
         return None;
     }
     let use_minimum = if positive { lower_bound } else { !lower_bound };
-    let Some(boundary) = signed_primitive_bound(left_primitive, use_minimum) else {
-        return None;
-    };
+    let boundary = signed_primitive_bound(left_primitive, use_minimum)?;
     if literal_i64(program, divide.left) != Some(boundary) {
         return None;
     }

@@ -29,9 +29,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<CheckedScalarComputationHandle> {
-        let Some(binary) = self.program.expression_table.binary_node(expression) else {
-            return None;
-        };
+        let binary = self.program.expression_table.binary_node(expression)?;
         if !matches!(
             binary.operator,
             BinaryOperator::Equal | BinaryOperator::NotEqual

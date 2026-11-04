@@ -56,6 +56,7 @@ pub(crate) fn lower_trait_definition(
                 spelling: clause_signature.spelling,
                 lifetime_parameters: &clause_signature.lifetime_parameters,
                 type_parameters: clause_signature.type_parameters,
+                conformance_bounds: &clause_signature.conformance_bounds,
                 parameters: clause_signature.parameters,
                 native_callback_parameters: &clause_signature.native_callback_parameters,
                 return_type_handle: clause_signature.return_type,
@@ -147,7 +148,7 @@ fn lower_trait_requirement_node(
     syntax_trees: &SyntaxTrees,
     handle: syntax::types::TypeReferenceHandle,
 ) -> Result<TraitRequirement, Diagnostic> {
-    let (name, lifetime_arguments, arguments) = match syntax_type_references(&syntax_trees)
+    let (name, lifetime_arguments, arguments) = match syntax_type_references(syntax_trees)
         .type_reference(handle)
     {
         syntax::types::TypeReferenceNode::Named(name) => (name, Vec::new(), HandleSpan::empty()),
@@ -158,7 +159,7 @@ fn lower_trait_requirement_node(
             ..
         } => (
             base_name,
-            lower_names(syntax_trees, &lifetime_arguments),
+            lower_names(syntax_trees, lifetime_arguments),
             lower_child_type_references(lowerer, syntax_trees, *arguments)?,
         ),
         _ => {

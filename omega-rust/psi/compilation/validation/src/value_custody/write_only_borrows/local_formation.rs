@@ -64,9 +64,7 @@ fn capture(
     else {
         return None;
     };
-    let Some(borrow) = expression_table(program).borrow_expression(local.initial_value) else {
-        return None;
-    };
+    let borrow = expression_table(program).borrow_expression(local.initial_value)?;
     if borrow.access != ReferenceAccess::WriteOnly
         || !crate::place_has_builtin_coordinates(program, machine, Some(state), borrow.target)
     {

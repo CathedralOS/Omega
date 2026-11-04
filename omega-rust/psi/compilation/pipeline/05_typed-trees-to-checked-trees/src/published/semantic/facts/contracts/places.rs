@@ -176,6 +176,21 @@ pub(super) fn contract_expression_place(
         if contract.kind != ContractProofFactKind::Ensures || !owner_matches {
             return None;
         }
+        let origin = super::super::points::contract_fact_origin(contract)?;
+        for member in &result.members {
+            facts
+                .contract_member_projections
+                .insert(facts::ContractMemberProjection {
+                    origin,
+                    fact: contract.fact,
+                    expression: member.expression,
+                    receiver_type: member.receiver_type,
+                    authored_field: member.authored_field,
+                    applied_field: member.applied_field,
+                    applied_case: member.applied_case,
+                    authored_case: member.authored_case,
+                });
+        }
         // Reserved results have no source binder symbol. Keep their exact
         // occurrence root and declared field coordinates, rather than an opaque
         // expression with unresolved fields that review cannot reconstruct.
@@ -253,16 +268,14 @@ fn contract_name_path_place(
         return None;
     } else if path.head_symbol.is_valid() {
         (facts.append_symbol_place(path.head_symbol), 1usize)
-    } else if let Some(parameter_symbol) =
-        contract_owner_parameter_symbol(program, proof, contract.owner, path, members.first())
-    {
+    } else {
+        let parameter_symbol =
+            contract_owner_parameter_symbol(program, proof, contract.owner, path, members.first())?;
         // A head name that resolves to a parameter of the contract's owner
         // (for example `item` in `requires item in Item::Ready`) roots the
         // place at that parameter, matching how call-site obligations
         // instantiate the same contract against caller arguments.
         (facts.append_symbol_place(parameter_symbol), 1usize)
-    } else {
-        return None;
     };
 
     for (offset, member_name) in members.iter().skip(start_index).enumerate() {

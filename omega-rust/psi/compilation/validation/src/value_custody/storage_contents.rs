@@ -222,9 +222,9 @@ pub enum ContentsRequirement {
     StoredValue,
     /// Owned storage a consuming machine may carry through a `drop(value)`
     /// call: like `NumericOwned` it forbids loans, recursive carriers, and
-    /// unclassified storage, but the declaration may own an attached `::drop`
-    /// hook — the caller's transfer edge, not the classifier, proves the hook
-    /// is invoked — and `[erased]` members are admitted because they never
+    /// unclassified storage, but the declaration may select a cleanup hook
+    /// with `dropped by` — the caller's transfer edge, not the classifier,
+    /// proves the hook is invoked — and `[erased]` members are admitted because they never
     /// produce runtime contents. An erased member is still resolved so its
     /// declared type exists; its contents never materialize.
     CleanupOwned,
@@ -399,9 +399,10 @@ fn owned_or_shared_view_fields(
     let Some(data) = definition(program, symbol) else {
         return false;
     };
-    // A linear declaration is not plain owned storage and a `::drop` carrier
-    // belongs to the cleanup family — the shared views change neither.
-    if data.properties.multiplicity == Multiplicity::Linear || owns_drop_hook(program, symbol) {
+    // A linear declaration is not plain owned storage and a `dropped by`
+    // carrier belongs to the cleanup family — the shared views change neither.
+    if data.properties.multiplicity == Multiplicity::Linear || program.data_selects_cleanup(symbol)
+    {
         return false;
     }
     let shared_view = |field: &DataField| {
@@ -625,7 +626,7 @@ fn resolve(
                             | ContentsRequirement::CleanupOwned
                             | ContentsRequirement::StructuralConstruction
                             | ContentsRequirement::BorrowedStorage
-                    ) && owns_drop_hook(program, *base_symbol))
+                    ) && program.data_selects_cleanup(*base_symbol))
                 {
                     return None;
                 }
@@ -882,7 +883,6 @@ fn resolve(
 /// `owned_or_shared_view_fields` peels them one record deep: constraint
 /// wrappers ride the loan's declared type and change neither the viewed
 /// shape nor which owner keeps the backing.
-
 pub(crate) fn is_plain_value_domain(
     program: &dyn crate::CheckingInput,
     domain: &typed_trees::types::DomainConstraint,
@@ -925,12 +925,6 @@ fn definition(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> Optio
         DataDefinitionLookup::Unique(position) => program.data_definitions().get(position as usize),
         _ => None,
     }
-}
-
-/// Whether a machine attached to `symbol` realizes `::drop`, resolved
-/// through the build-scope memo when one is open.
-fn owns_drop_hook(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> bool {
-    crate::value_custody::type_properties::memoized_owns_drop_hook(program, symbol)
 }
 
 fn check_contents(
@@ -1025,7 +1019,7 @@ fn check_contents(
                 | ContentsRequirement::CleanupOwned
                 | ContentsRequirement::StructuralConstruction
                 | ContentsRequirement::BorrowedStorage
-        ) && owns_drop_hook(program, *symbol))
+        ) && program.data_selects_cleanup(*symbol))
     {
         return false;
     }

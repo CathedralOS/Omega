@@ -33,6 +33,12 @@ waited 3,039-5,282 seconds (up to 88 minutes) for one of the two slots —
 longer than any per-step re-acquisition pattern can survive inside a
 `--timeout`.
 
+Each completed hold appends one line to the pool directory's `history.jsonl`
+(worktree, command, seconds waited, seconds held, exit code), so slot use can
+be measured instead of reconstructed from PR prose. `corpus_gate.py` sizes its
+default worker count to one holder's share of the host:
+min(12, cores / slots, memory / (600 MiB x slots)), 5 on a 10-core 16 GB Mac.
+
 ## One hold for a whole chain
 
 Cover local checks, tests, corpus runs and builds with a single acquisition:

@@ -1,4 +1,4 @@
-use crate::grammar::contracts::conformance::parse_conformance::parse_optional_satisfies_type_arguments;
+use crate::grammar::contracts::conformance::parse_conformance::parse_conformance_trait_application;
 use crate::grammar::type_syntax::parse_type::parse_type_reference_handle;
 use crate::grammar::type_syntax::properties::parse_property_brackets;
 use crate::tokens::token_cursor::{Input, ParseResult};
@@ -23,9 +23,8 @@ pub(crate) enum GenericParameterSyntax {
     StaticBinders,
     TraitRequirements,
     /// A requirement signature inside a trait body. Runtime-capable `Value`
-    /// binders are admitted so a finite `requires Binder == literal || ...`
-    /// family can enumerate them; conformance binders stay on the trait or
-    /// provider declaration where a dynamic envelope can still refuse them.
+    /// binders and exact static implementation operands are admitted here;
+    /// dynamic family eligibility remains the dispatch owner's judgment.
     RequirementSignature,
     MachineDeclaration,
     /// A `data` declaration header. Like `StaticBinders` it admits static
@@ -76,12 +75,15 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
     let allow_conformance_binders = matches!(
         syntax,
         GenericParameterSyntax::TraitRequirements
+            | GenericParameterSyntax::RequirementSignature
             | GenericParameterSyntax::MachineDeclaration
             | GenericParameterSyntax::DataDeclaration
     );
     let trait_requirement_parameters = matches!(
         syntax,
-        GenericParameterSyntax::TraitRequirements | GenericParameterSyntax::DataDeclaration
+        GenericParameterSyntax::TraitRequirements
+            | GenericParameterSyntax::RequirementSignature
+            | GenericParameterSyntax::DataDeclaration
     );
     let allow_value_parameters = matches!(
         syntax,
@@ -200,11 +202,12 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
                 )));
             }
             let rest = input.take_contextual("satisfies")?;
-            let (trait_name, rest) = rest.take_identifier()?;
-            let (arguments, rest) = parse_optional_satisfies_type_arguments(syntax_trees, rest)?;
+            let ((trait_name, lifetime_arguments, arguments), rest) =
+                parse_conformance_trait_application(syntax_trees, rest)?;
             conformance_bounds.push(syntax_trees::item::GenericConformanceBound {
                 binder: name.clone(),
                 trait_name,
+                lifetime_arguments,
                 arguments,
             });
             // Trait applications supply every static slot positionally.
@@ -296,7 +299,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             && input.at_punctuation(PunctuationKind::LeftBracket)
         {
             return Err(input.error_here(
-                "a proposition parameter takes its signature in a mandatory `where proposition Name(...)` clause, not property brackets",
+                "a proposition parameter takes its signature in a mandatory `requires proposition Name(...);` clause, not property brackets",
             ));
         }
         let bounds = if input.at_punctuation(PunctuationKind::LeftBracket) {

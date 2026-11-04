@@ -2,7 +2,7 @@
 //! falls under, the exact row lookup, and the error when a row is missing
 //! or contradicts its operation.
 
-use crate::scalar_leaf_schema::goal_free_scalar_leaf;
+use crate::scalars::scalar_leaf_schema::goal_free_scalar_leaf;
 use crate::{
     GoalFreeScalarLeafSchema, ScalarLeafCrashPolicy, ScalarLeafDenotation,
     ScalarLeafFrontierPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape, ScalarLeafResultShape,
@@ -332,13 +332,13 @@ pub fn is_unconditionally_total_scalar(operation: &OperationKind) -> bool {
 }
 
 /// Unique-match row lookup: exactly one row must carry `tag`.
-pub(crate) fn exactly_one_row_for_tag<'row, R>(
-    rows: &'row [R],
+pub(crate) fn exactly_one_row_for_tag<R>(
+    rows: &[R],
     tag: OperationSemanticTag,
     row_tag: impl Fn(&R) -> OperationSemanticTag,
     missing: impl FnOnce(OperationSemanticTag) -> OperationSemanticError,
     duplicate: impl FnOnce(OperationSemanticTag) -> OperationSemanticError,
-) -> Result<&'row R, OperationSemanticError> {
+) -> Result<&R, OperationSemanticError> {
     let mut matches = rows.iter().filter(|row| row_tag(row) == tag);
     let row = matches.next().ok_or_else(|| missing(tag))?;
     if matches.next().is_some() {

@@ -11,7 +11,7 @@ use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractFunction;
 use calling_conventions::{ValuePlacement, ValueShape};
 use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use target_operations::{
     TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralHomeRequirement,
     TargetStructuralParameter, TargetUnitOperation,
@@ -40,8 +40,6 @@ pub(in crate::lowering) fn lower_structural_argument(
     established_views: &BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
     operations: &[TargetUnitOperation],
     scalar_sources: &ScalarSources<'_>,
-    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
     // Qualifications are discharged by current-graph semantic admission and
     // replayed before native selection. This projection reconstructs physical
@@ -148,8 +146,6 @@ pub(in crate::lowering) fn lower_structural_argument(
                 callee,
                 home,
                 structural_types,
-                shape_cache,
-                active,
             )?
             .ok_or(LoweringError::UnknownStructuralArgumentPlace {
                 machine: function.machine,
@@ -174,8 +170,6 @@ pub(in crate::lowering) fn lower_structural_argument(
             source_shape.byte_size,
             source_placement.clone().into(),
             structural_types,
-            shape_cache,
-            active,
         )?
     {
         return Ok(loan);
@@ -190,8 +184,6 @@ pub(in crate::lowering) fn lower_structural_argument(
             source_structural_type,
             &argument.path,
             structural_types,
-            shape_cache,
-            active,
         )?;
     let indices = runtime_indices(indices, function, scalar_sources)?;
     let mut byte_field_capacity = None;
@@ -207,18 +199,13 @@ pub(in crate::lowering) fn lower_structural_argument(
                     access: Some(StructuralAccess::SharedBorrow),
                 }) if callee_parameter.access == StructuralAccess::SharedBorrow
                     && structural_types
-                        .get(&callee_parameter.structural_type)
+                        .get(callee_parameter.structural_type)
                         .is_some_and(|row| row.shape.is_shared_readable_byte_view()) => {}
                 _ => return Err(argument_type_mismatch(callee, argument.place)),
             }
             (
                 callee_parameter.structural_type,
-                structural_shape(
-                    callee_parameter.structural_type,
-                    structural_types,
-                    shape_cache,
-                    active,
-                )?,
+                structural_shape(callee_parameter.structural_type, structural_types)?,
             )
         }
         selected => (
@@ -276,14 +263,14 @@ pub(in crate::lowering) fn lower_structural_argument(
             });
         let presented_is_byte_view = matches!(
             structural_types
-                .get(&callee_parameter.structural_type)
+                .get(callee_parameter.structural_type)
                 .map(|declaration| &declaration.shape),
             Some(StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
             ))
         );
         let presented_is_owner = structural_types
-            .get(&callee_parameter.structural_type)
+            .get(callee_parameter.structural_type)
             .is_some_and(|declaration| {
                 declaration.shape
                     == StructuralTypeShape::ByteSequence(
@@ -408,8 +395,6 @@ pub(in crate::lowering) fn local_array_loan(
     callee: MachineId,
     home: &TargetStructuralHomeRequirement,
     structural_types: &StructuralTypeLookup<'_>,
-    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<Option<TargetStructuralArgument>, LoweringError> {
     let Some((producer, result)) = home.operation_result() else {
         return Ok(None);
@@ -445,8 +430,6 @@ pub(in crate::lowering) fn local_array_loan(
             psi_operation: producer,
         },
         structural_types,
-        shape_cache,
-        active,
     )
 }
 
@@ -469,8 +452,6 @@ pub(in crate::lowering) fn fixed_array_view_argument(
     root_byte_size: u32,
     source: TargetStructuralArgumentSource,
     structural_types: &StructuralTypeLookup<'_>,
-    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<Option<TargetStructuralArgument>, LoweringError> {
     let mismatch = || LoweringError::StructuralCallArgumentTypeMismatch {
         callee,
@@ -483,7 +464,7 @@ pub(in crate::lowering) fn fixed_array_view_argument(
     if argument.path.is_empty()
         && root.structural_type == callee_parameter.structural_type
         && structural_types
-            .get(&root.structural_type)
+            .get(root.structural_type)
             .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
     {
         return Ok(None);
@@ -503,8 +484,6 @@ pub(in crate::lowering) fn fixed_array_view_argument(
                 root.structural_type,
                 window.backing_path,
                 structural_types,
-                shape_cache,
-                active,
             )?
             .2
         };
@@ -518,7 +497,7 @@ pub(in crate::lowering) fn fixed_array_view_argument(
         let stored_extent = if argument.path.is_empty()
             && matches!(
                 structural_types
-                    .get(&root.structural_type)
+                    .get(root.structural_type)
                     .map(|row| &row.shape),
                 Some(StructuralTypeShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BoundedView { .. }
@@ -543,18 +522,16 @@ pub(in crate::lowering) fn fixed_array_view_argument(
                 root.structural_type,
                 &argument.path,
                 structural_types,
-                shape_cache,
-                active,
             )?;
             (array_type, backing_offset)
         };
         let Some(StructuralTypeShape::FixedArray { element, .. }) = structural_types
-            .get(&array_type)
+            .get(array_type)
             .map(|declaration| &declaration.shape)
         else {
             return Err(mismatch());
         };
-        let element_shape = structural_shape(*element, structural_types, shape_cache, active)?;
+        let element_shape = structural_shape(*element, structural_types)?;
         let stride =
             checked_align_up_u32(element_shape.byte_size, u32::from(element_shape.alignment))
                 .ok_or_else(too_large)?;
@@ -568,12 +545,7 @@ pub(in crate::lowering) fn fixed_array_view_argument(
     // The verified view declaration decides whether extent is carried at
     // runtime. A bounded byte view has one pointer cell; dynamic byte and
     // element views additionally carry their extent. Neither changes backing.
-    let carrier = structural_shape(
-        callee_parameter.structural_type,
-        structural_types,
-        shape_cache,
-        active,
-    )?;
+    let carrier = structural_shape(callee_parameter.structural_type, structural_types)?;
     if shape != ValueShape::borrowed_reference(carrier.byte_size, carrier.alignment)
         || backing_end.is_none_or(|end| end > u64::from(root_byte_size))
     {

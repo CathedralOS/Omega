@@ -1,7 +1,7 @@
 // Expected exit: 0. Each selected branch moves the same live source once.
 use omega::language::core::drop;
-data Token [linear] { value: i32; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: i32; }
+machine drop_token(token: &mut Token) {}
 machine consume(token: Token) -> i32 { drop(token); 0 }
 machine observe(token: &Token) -> i32 { token.value }
 data Envelope { token: Token; }

@@ -506,11 +506,11 @@ fn form_call_selection(
         });
     /// Split a type-parameter signature into its `Machine`-kind contract
     /// requirements and its `Type`-kind generic slots, in declaration order.
-    fn contract_and_type_parameters<'p>(
-        parameters: &'p [TypeParameter],
+    fn contract_and_type_parameters(
+        parameters: &[TypeParameter],
     ) -> (
-        Vec<(&'p TypeParameter, &'p MachineParameterContract)>,
-        Vec<&'p TypeParameter>,
+        Vec<(&TypeParameter, &MachineParameterContract)>,
+        Vec<&TypeParameter>,
     ) {
         (
             parameters
@@ -853,6 +853,7 @@ pub(crate) fn validate_data_machine_selection(
     selected_symbol: SymbolHandle,
     selected_name: &str,
     generic_types: &[&TypeParameter],
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_declaration_machine_selection(
@@ -865,7 +866,7 @@ pub(crate) fn validate_data_machine_selection(
         generic_types,
         typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
         0,
-        &[],
+        substitutions,
         diagnostics,
     );
 }
@@ -960,14 +961,6 @@ fn validate_declaration_machine_selection(
     }
 }
 
-fn machine_parameter_contract(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<(&TypeParameter, &typed_trees::signature::StateSignature)> {
-    let (parameter, contract) = machine_parameter_contract_definition(program, symbol)?;
-    Some((parameter, machine_parameter_signature(program, contract)))
-}
-
 fn machine_parameter_contract_definition(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
@@ -976,6 +969,15 @@ fn machine_parameter_contract_definition(
         if let Some(found) = machine_parameter_contract_definition_in(
             program,
             program.machine_type_parameters(machine),
+            symbol,
+        ) {
+            return Some(found);
+        }
+    }
+    for declaration in program.traits() {
+        if let Some(found) = machine_parameter_contract_definition_in(
+            program,
+            program.trait_type_parameters(declaration),
             symbol,
         ) {
             return Some(found);
@@ -1027,6 +1029,12 @@ fn machine_parameter_contract_definition_in<'program>(
         };
         if parameter.symbol == symbol {
             return Some((parameter, contract));
+        }
+        // This search visits every machine parameter in the program, not only
+        // callable ones. A declaration-identity parameter names a machine or
+        // requirement and has no signature, so it has no nested parameters.
+        if matches!(contract, MachineParameterContract::RequirementIdentity) {
+            continue;
         }
         let signature = machine_parameter_signature(program, contract);
         if let Some(found) = machine_parameter_contract_definition_in(
@@ -1093,7 +1101,15 @@ fn declared_type_parameters<'a>(
     {
         return program.machine_type_parameters(machine);
     }
-    &[]
+    program
+        .trait_machine_signature(target_symbol)
+        .map(|(_, signature)| program.requirement_invocation_contract_parameters(signature))
+        .or_else(|| {
+            program
+                .machine_parameter_signature(target_symbol)
+                .map(|(_, signature)| program.requirement_invocation_contract_parameters(signature))
+        })
+        .unwrap_or(&[])
 }
 
 fn machine_and_state<'a>(
@@ -1343,14 +1359,19 @@ fn provider_tuple_matches_source(
         };
         let parameter = parameters
             .iter()
-            .filter(|parameter| match (kind, &parameter.kind) {
-                (StaticOperandCategory::Type, TypeParameterKind::Type)
-                | (
-                    StaticOperandCategory::Const,
-                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+            .filter(|parameter| {
+                matches!(
+                    (kind, &parameter.kind),
+                    (StaticOperandCategory::Type, TypeParameterKind::Type)
+                        | (
+                            StaticOperandCategory::Const,
+                            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+                        )
+                        | (
+                            StaticOperandCategory::Machine,
+                            TypeParameterKind::Machine { .. }
+                        )
                 )
-                | (StaticOperandCategory::Machine, TypeParameterKind::Machine { .. }) => true,
-                _ => false,
             })
             .nth(*ordinal);
         *ordinal += 1;

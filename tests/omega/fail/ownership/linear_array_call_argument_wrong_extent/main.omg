@@ -2,8 +2,8 @@
 // statement calls, even when every supplied child has valid linear custody.
 use omega::language::core::drop;
 
-data Receipt [linear] { code: i32; }
-machine Receipt::drop(receipt: &mut Receipt) {}
+data Receipt [linear] dropped by drop_receipt { code: i32; }
+machine drop_receipt(receipt: &mut Receipt) {}
 
 machine make(code: i32) -> Receipt {
     let receipt: Receipt = Receipt { code: code };

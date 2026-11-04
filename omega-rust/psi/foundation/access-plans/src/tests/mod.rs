@@ -91,8 +91,8 @@ fn uart_layout() -> LayoutPlanReport {
     LayoutPlanReport {
         schema_report_fingerprint: 1,
         entries: vec![
-            layout_field_entry("status".into(), LayoutPlacementReport::At { offset: 0 }),
-            layout_field_entry("transmit".into(), LayoutPlacementReport::At { offset: 4 }),
+            layout_field_entry("status", LayoutPlacementReport::At { offset: 0 }),
+            layout_field_entry("transmit", LayoutPlacementReport::At { offset: 4 }),
             LayoutFieldEntryReport {
                 field: "control".into(),
                 member_identity: None,
@@ -286,7 +286,7 @@ fn stable_word_placement() -> ValidatedAccessPlan {
     let layout = LayoutPlanReport {
         schema_report_fingerprint: 0x5ab1e,
         entries: vec![layout_field_entry(
-            "word".into(),
+            "word",
             LayoutPlacementReport::At { offset: 0 },
         )],
         offsets: Some(vec![0]),
@@ -363,7 +363,7 @@ fn destructive_word_placement() -> ValidatedAccessPlan {
     let layout = LayoutPlanReport {
         schema_report_fingerprint: 0xe17e_7a4e,
         entries: vec![layout_field_entry(
-            "fifo".into(),
+            "fifo",
             LayoutPlacementReport::At { offset: 0 },
         )],
         offsets: Some(vec![0]),
@@ -439,7 +439,7 @@ fn atomic_word_placement_with_operations(
     let layout = LayoutPlanReport {
         schema_report_fingerprint,
         entries: vec![layout_field_entry(
-            "head".into(),
+            "head",
             LayoutPlacementReport::At { offset: 0 },
         )],
         offsets: Some(vec![0]),

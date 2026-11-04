@@ -17,7 +17,7 @@ use bounded_process::{
     BoundedCaptureBudget, BoundedProcessInput, BoundedProcessPrepared, run_bounded_process,
 };
 pub use bounded_process::{BoundedCaptureLimits, BoundedProcessLimits};
-use omega_build::{
+use orchestration::{
     BuildReport, BuildRequest, BuildSession, BuildTargets, NativeDestination, ProjectProduct,
     execute_package_command,
 };
@@ -407,7 +407,7 @@ fn run(sample: Sample) {
         Evidence::Captured | Evidence::Numbered | Evidence::Named => {}
         Evidence::Adjacent => {
             let (_, executable) =
-                omega_build::publication::publish_native_artifact(report, &product_directory)
+                orchestration::publication::publish_native_artifact(report, &product_directory)
                     .unwrap();
             for input_path in &inputs {
                 let case_directory = input_path.parent().unwrap();
@@ -464,7 +464,7 @@ fn run(sample: Sample) {
             )
             .unwrap();
             let (_, executable) =
-                omega_build::publication::publish_native_artifact(report, &product_directory)
+                orchestration::publication::publish_native_artifact(report, &product_directory)
                     .unwrap();
             fs::write(
                 directory.join("native.sha256"),
@@ -602,7 +602,7 @@ fn invocation(sample: Sample, arguments: &[String]) -> Invocation {
 /// Build one sample's product from `root` into `product_directory`.
 fn build(root: PathBuf, product_directory: PathBuf) -> BuildReport {
     let profile = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
-    let outcomes = omega_build::build(BuildRequest {
+    let outcomes = orchestration::build(BuildRequest {
         root_path: root,
         build_directory: Some(product_directory),
         targets: BuildTargets::Single(profile),

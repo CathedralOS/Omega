@@ -239,10 +239,9 @@ fn establishes_scalar_predicates_visited(
                 membership.domain_symbol,
                 membership.semantic_domain,
             );
-            if parent.is_none() || !domain_subject_reference(program, domain, membership.value) {
-                ScalarPredicateJudgment::Unknown
-            } else {
-                let parent = parent.expect("parent domain is present");
+            if let Some(parent) = parent
+                && domain_subject_reference(program, domain, membership.value)
+            {
                 let constraint = DomainConstraint {
                     symbol: membership.domain_symbol,
                     semantic_id: membership.semantic_domain,
@@ -261,6 +260,8 @@ fn establishes_scalar_predicates_visited(
                     &constraint,
                     visited,
                 )
+            } else {
+                ScalarPredicateJudgment::Unknown
             }
         } else if let Some(expression) = fact.as_expression() {
             let returned = exit_return_expression(program, exit);
@@ -335,18 +336,17 @@ fn establishes_scalar_predicates_visited(
                             };
                             if scoped_arithmetic_implication(program, machine, &hypotheses, &goal)
                                 == StrictArithmeticImplicationJudgment::Proven
+                                || completed_value_proves_domain_predicate(
+                                    program,
+                                    machine,
+                                    state,
+                                    exit.statement_index,
+                                    returned,
+                                    domain.symbol,
+                                    *expression,
+                                    &[],
+                                )
                             {
-                                ScalarPredicateJudgment::Proven
-                            } else if completed_value_proves_domain_predicate(
-                                program,
-                                machine,
-                                state,
-                                exit.statement_index,
-                                returned,
-                                domain.symbol,
-                                *expression,
-                                &[],
-                            ) {
                                 ScalarPredicateJudgment::Proven
                             } else {
                                 ScalarPredicateJudgment::Unknown

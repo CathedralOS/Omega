@@ -277,10 +277,9 @@ pub(super) fn record_transition(
     if entry_state(program, machine).is_some_and(|entry| entry.symbol == destination.symbol) {
         return;
     }
-    let mut ordinal = 0;
     let mut values = Vec::new();
     let mut bounds = Vec::new();
-    for parameter in program.state_parameters(destination) {
+    for (ordinal, parameter) in program.state_parameters(destination).iter().enumerate() {
         let captured = argument_values.get(ordinal);
         let operand = captured_operands.get(ordinal).filter(|operand| {
             program.state_parameters(destination).len() == arguments.len()
@@ -290,7 +289,6 @@ pub(super) fn record_transition(
                     completed_argument_matches(operand, state.symbol, statement_index, *argument)
                 })
         });
-        ordinal += 1;
         let scalar = program
             .primitive_type_reference(parameter.type_reference)
             .is_some_and(|primitive| {

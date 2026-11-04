@@ -125,12 +125,12 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
             let symbol = selection
                 .trait_lookup(syntax, &trait_definition.name)
                 .unique()?;
-            let parameter_names = syntax_items(&syntax)
+            let parameter_names = syntax_items(syntax)
                 .type_parameters(trait_definition.type_parameters)
                 .iter()
                 .map(|parameter| parameter.name.as_str(syntax).to_string())
                 .collect();
-            let signatures = syntax_items(&syntax)
+            let signatures = syntax_items(syntax)
                 .state_signatures(trait_definition.machines)
                 .iter()
                 .enumerate()
@@ -147,7 +147,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
                     .unwrap_or_else(SymbolHandle::invalid)
             };
             for handle in
-                syntax_type_references(&syntax).type_reference_handles(trait_definition.parents)
+                syntax_type_references(syntax).type_reference_handles(trait_definition.parents)
             {
                 match syntax.type_references.type_reference(*handle) {
                     TypeReferenceNode::Named(name) => requirements.push(TraitRequirementInput {
@@ -160,7 +160,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
                         ..
                     } => requirements.push(TraitRequirementInput {
                         symbol: requirement_symbol(base_name),
-                        arguments: syntax_type_references(&syntax)
+                        arguments: syntax_type_references(syntax)
                             .type_reference_handles(*arguments)
                             .to_vec(),
                     }),
@@ -168,7 +168,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
                 }
             }
             requirements.extend(
-                syntax_items(&syntax)
+                syntax_items(syntax)
                     .identifier_path_members(trait_definition.requires)
                     .iter()
                     .map(|name| TraitRequirementInput {
@@ -217,7 +217,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
             .trait_name
             .as_str(syntax)
             .to_string();
-        let arguments = syntax_type_references(&syntax)
+        let arguments = syntax_type_references(syntax)
             .type_reference_handles(conformance.declaration.trait_arguments)
             .to_vec();
         let Some(conformed_trait) = traits.get(&trait_symbol) else {
@@ -245,7 +245,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
             .zip(arguments.iter().copied())
             .collect::<HashMap<_, _>>();
 
-        let mut closed_members = syntax_items(&syntax)
+        let mut closed_members = syntax_items(syntax)
             .conformance_members(conformance.declaration.members)
             .to_vec();
         let mut requirements = Vec::new();
@@ -593,7 +593,7 @@ fn substitute_type_reference(
             arguments,
             lifetime_arguments,
         } => {
-            let original = syntax_type_references(&syntax)
+            let original = syntax_type_references(syntax)
                 .type_reference_handles(arguments)
                 .to_vec();
             let substituted = original
@@ -620,7 +620,7 @@ fn substitute_type_reference(
             trait_name,
             trait_arguments,
         } => {
-            let original = syntax_type_references(&syntax)
+            let original = syntax_type_references(syntax)
                 .type_reference_handles(trait_arguments)
                 .to_vec();
             let substituted = original
@@ -662,7 +662,7 @@ fn instantiate_default_signature(
     let substitution = substitution
         .iter()
         .filter(|(name, _)| {
-            !syntax_items(&syntax)
+            !syntax_items(syntax)
                 .type_parameters(signature.type_parameters)
                 .iter()
                 .any(|parameter| parameter.name.as_str(syntax) == name.as_str())
@@ -675,7 +675,7 @@ fn instantiate_default_signature(
     let snapshot = syntax.clone();
     let type_watermark = syntax.type_references.node_count();
     let copied = syntax.copy_state_signature_from(&snapshot, signature);
-    for (handle, name) in syntax_type_references(&syntax).named_nodes_from(type_watermark, syntax) {
+    for (handle, name) in syntax_type_references(syntax).named_nodes_from(type_watermark, syntax) {
         let Some(argument) = substitution.get(&name) else {
             continue;
         };
@@ -871,7 +871,7 @@ fn substitute_expression_static_arguments(
                     .replace_expression(expression, ExpressionNode::Call(call.clone()));
             }
             substitute_expression_static_arguments(syntax, call.receiver, substitution, seen);
-            for argument in syntax_expressions(&syntax)
+            for argument in syntax_expressions(syntax)
                 .expression_handles(call.arguments)
                 .to_vec()
             {
@@ -882,7 +882,7 @@ fn substitute_expression_static_arguments(
             substitute_expression_static_arguments(syntax, dispatch.subject, substitution, seen);
             let arms = syntax.expressions.match_arms(dispatch.arms).to_vec();
             for arm in arms {
-                let patterns = syntax_expressions(&syntax)
+                let patterns = syntax_expressions(syntax)
                     .match_pattern_dependencies(arm.pattern)
                     .collect::<Vec<_>>();
                 for pattern in patterns {
@@ -1030,7 +1030,7 @@ fn static_argument_for_actual(
             lifetime_arguments,
             arguments,
         } => {
-            let nested = syntax_type_references(&syntax)
+            let nested = syntax_type_references(syntax)
                 .type_reference_handles(*arguments)
                 .iter()
                 .map(|argument| static_argument_for_actual(syntax, *argument))
@@ -1118,6 +1118,23 @@ fn machine_from_signature(
         });
         HandleSpan::from_parts(clause, 1)
     });
+    let ordinary_parameters = syntax
+        .items
+        .type_parameters(signature.type_parameters)
+        .iter()
+        .filter(|parameter| {
+            !matches!(
+                parameter.kind,
+                syntax_trees::item::TypeParameterKind::Implementation
+            )
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut type_parameters = HandleSpan::empty();
+    for parameter in ordinary_parameters {
+        let handle = syntax.items.append_type_parameter(parameter);
+        type_parameters.push_contiguous(handle);
+    }
     Machine {
         target_family_interface: false,
         name: machine_name,
@@ -1136,9 +1153,9 @@ fn machine_from_signature(
         boundary: false,
         generic_data_template: Default::default(),
         lifetime_parameters: signature.lifetime_parameters.clone(),
-        type_parameters: signature.type_parameters,
+        type_parameters,
         satisfies,
-        conformance_bounds: Vec::new(),
+        conformance_bounds: signature.conformance_bounds.clone(),
         terminates_guarantee: signature.terminates_guarantee,
         ranking_subjects: HandleSpan::<ExpressionHandle>::empty(),
         ranking_view: HandleSpan::empty(),

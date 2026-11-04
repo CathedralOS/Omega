@@ -348,7 +348,7 @@ fn place_alias_replacement(
             |(candidate, _)| (candidate.arena_index(), candidate.generation()),
         )
         .ok()?;
-    Some((path.clone(), aliases[index].1))
+    Some((*path, aliases[index].1))
 }
 
 fn replace_place_alias(

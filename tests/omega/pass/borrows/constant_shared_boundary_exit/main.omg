@@ -10,8 +10,8 @@ machine inspect(protocol: &Guid) -> u64 {
     (protocol.tag as u64) + (protocol.bytes[0] as u64) + (protocol.bytes[1] as u64)
 }
 machine produce() -> Guid { PROTOCOL }
-data Receipt { value: u64; }
-machine Receipt::drop(receipt: &mut Receipt) {}
+data Receipt dropped by drop_receipt { value: u64; }
+machine drop_receipt(receipt: &mut Receipt) {}
 machine issue() -> Receipt { Receipt { value: 23 } }
 boundary trait Reader {
     machine read(protocol: &Guid) -> u64 reaches;

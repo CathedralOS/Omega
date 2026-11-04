@@ -5,6 +5,45 @@ use crate::{TypedTrees, data, domain, signature};
 use arena::{Handle, HandleSpan};
 
 impl TypedTrees {
+    /// Authored ordinary formals in a public application. Realized Value
+    /// binders have their own exact suffix in a closed signature; they are
+    /// executable parameters without becoming new authored ordinary formals.
+    pub fn applied_signature_authored_parameters<'program>(
+        &'program self,
+        declared: &signature::StateSignature,
+        applied: &'program signature::StateSignature,
+    ) -> Option<&'program [signature::StateParameter]> {
+        let count = self.state_signature_parameters(declared).len();
+        let parameters = self.state_signature_parameters(applied);
+        if count == parameters.len() {
+            return Some(parameters);
+        }
+        let closed = self.closed_requirement_application(applied.symbol)?;
+        if closed.template != declared.symbol {
+            return None;
+        }
+        let runtime = closed
+            .local_arguments
+            .iter()
+            .zip(closed.invocation_contract_parameters)
+            .filter_map(|(argument, binder)| {
+                matches!(
+                    argument,
+                    super::RequirementLocalArgument::RuntimeValue { .. }
+                )
+                .then_some(binder.symbol)
+            });
+        if !parameters
+            .get(count..)?
+            .iter()
+            .map(|parameter| parameter.symbol)
+            .eq(runtime)
+        {
+            return None;
+        }
+        parameters.get(..count)
+    }
+
     /// Callable application preserves telescope positions while freshening
     /// unsupplied local binders. Rejoin by those positions, never by spelling:
     /// the caller's actual can have the same name as an unrelated local.
@@ -27,10 +66,7 @@ impl TypedTrees {
             return Some(applied_types[position].symbol);
         }
         let declared_values = self.state_signature_parameters(declared);
-        let applied_values = self.state_signature_parameters(applied);
-        if declared_values.len() != applied_values.len() {
-            return None;
-        }
+        let applied_values = self.applied_signature_authored_parameters(declared, applied)?;
         declared_values
             .iter()
             .position(|candidate| candidate.symbol == parameter)
@@ -129,7 +165,14 @@ impl CallableApplication {
                             .iter()
                             .any(|(parameter, _)| parameter == symbol)
                 })
-                .map(|(symbol, name)| (symbol, program.symbols.get(symbol).kind, name.to_owned()))
+                .map(|(symbol, name)| {
+                    let kind = if self.runtime_values.contains(&symbol) {
+                        symbols::SymbolKind::Parameter
+                    } else {
+                        program.symbols.get(symbol).kind
+                    };
+                    (symbol, kind, name.to_owned())
+                })
                 .collect::<Vec<_>>();
             let owner = self.symbol(declared.symbol);
             if owner.is_valid() && owner == self.owned_signature {
@@ -172,7 +215,49 @@ impl CallableApplication {
                 applied_parameters.push(parameter);
             }
             applied.type_parameters = program.data_type_parameters.insert_many(applied_parameters);
+            for bound in &mut applied.conformance_bounds {
+                bound.binder = self.symbol(bound.binder);
+                bound.arguments = bound
+                    .arguments
+                    .iter()
+                    .map(|argument| self.type_reference(program, *argument))
+                    .collect::<Result<Vec<_>, _>>()?;
+            }
             applied.parameters = self.parameters(program, &parameters)?;
+            // The same fresh symbol owns the retained invocation binder and
+            // executable formal. Contract substitution therefore reads its
+            // completed ordinary operand, without a second header observation.
+            for (declared, applied_parameter) in program
+                .state_signature_type_parameters(declared)
+                .iter()
+                .cloned()
+                .zip(
+                    program
+                        .state_signature_type_parameters(&applied)
+                        .iter()
+                        .cloned(),
+                )
+                .collect::<Vec<_>>()
+            {
+                if !self.runtime_values.contains(&declared.symbol) {
+                    continue;
+                }
+                let data::TypeParameterKind::Value { type_reference } = applied_parameter.kind
+                else {
+                    return Err("runtime requirement projection is not a Value binder");
+                };
+                program.state_parameters.append_to_span(
+                    &mut applied.parameters,
+                    signature::StateParameter {
+                        symbol: applied_parameter.symbol,
+                        name: applied_parameter.name,
+                        type_reference,
+                        is_const: false,
+                        is_mutable: false,
+                        relevance: language_core::BindingRelevance::Relevant,
+                    },
+                );
+            }
             applied.return_type = self.type_reference(program, declared.return_type)?;
             applied.contracts = HandleSpan::empty();
             for mut contract in program.state_signature_contracts(declared).to_vec() {
@@ -243,20 +328,26 @@ impl CallableApplication {
                         trait_definition,
                         requirement,
                         trait_arguments,
-                        ..
+                        instantiated,
                     } => {
                         let arguments = trait_arguments
                             .into_iter()
                             .map(|argument| self.type_reference(program, argument))
                             .collect::<Result<Vec<_>, _>>()?;
-                        let instantiated = self
-                            .nominal(program, trait_definition, requirement, &arguments)?
-                            .map(Box::new);
-                        data::MachineParameterContract::Nominal {
-                            trait_definition,
-                            requirement,
-                            trait_arguments: arguments,
-                            instantiated,
+                        if let Some(signature) = instantiated {
+                            data::MachineParameterContract::Nominal {
+                                trait_definition,
+                                requirement,
+                                trait_arguments: arguments,
+                                instantiated: Some(Box::new(self.signature(program, &signature)?)),
+                            }
+                        } else {
+                            self.nominal_contract(
+                                program,
+                                trait_definition,
+                                requirement,
+                                arguments,
+                            )?
                         }
                     }
                     data::MachineParameterContract::RequirementIdentity => {
@@ -336,6 +427,16 @@ impl CallableApplication {
                     membership.domain_arguments =
                         self.type_arguments(program, membership.domain_arguments)?;
                     membership.domain_symbol = self.symbol(membership.domain_symbol);
+                    let arguments = program
+                        .type_reference_table
+                        .type_reference_handles(membership.domain_arguments)
+                        .to_vec();
+                    membership.semantic_domain = Self::domain_identity(
+                        program,
+                        membership.domain_symbol,
+                        &arguments,
+                        membership.semantic_domain,
+                    )?;
                     domain::ProofFact::Membership(membership)
                 }
                 domain::ProofFact::Proposition(mut application) => {

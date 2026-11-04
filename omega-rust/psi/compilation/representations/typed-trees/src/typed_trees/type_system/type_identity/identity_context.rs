@@ -27,12 +27,24 @@ mod argument_roles_tests;
 
 #[derive(Default)]
 pub(crate) struct TypeIdentityContext<'binders> {
+    /// Review describes generic applications by their retained arguments,
+    /// including callable operands nested inside types and const expressions.
+    pub(crate) portable_machine_applications:
+        Option<&'binders super::portable_machine_applications::PortableMachineApplications>,
     pub(crate) storage_value_indices: bool,
     /// Declared-carrier correspondence erases refinement shells at every depth.
     pub(crate) declared_carrier: bool,
     pub(crate) application_scopes: &'binders [super::AppliedTypeIdentityScope<'binders>],
     pub(crate) application_owner: SymbolHandle,
     pub(crate) application_argument_owner: SymbolHandle,
+    /// A caller-established exact region correspondence, applied once after
+    /// source and supplying scopes resolve the authored slot. Identity
+    /// normalization consumes these rows; it grants no borrow authority.
+    pub(crate) resolved_lifetimes:
+        &'binders [(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+    /// Declaration-schema alpha coordinates for exact region slots. Payload
+    /// names never identify these binders across declarations.
+    pub(crate) lifetime_binders: &'binders [(LifetimeParameterIdentity, usize)],
     pub(crate) invalid_application: Option<&'binders Cell<bool>>,
     pub(crate) encountered_regions: Option<&'binders Cell<bool>>,
     pub(crate) binders: &'binders [(SymbolHandle, String)],
@@ -223,10 +235,33 @@ impl TypeIdentityContext<'_> {
     }
 
     fn encode_lifetime(&self, program: &TypedTrees, region: LifetimeParameterIdentity) -> String {
+        let region = self
+            .resolved_lifetimes
+            .iter()
+            .find(|(parameter, _)| *parameter == region)
+            .map_or(region, |(_, argument)| *argument);
+        if let Some((_, binder)) = self
+            .lifetime_binders
+            .iter()
+            .find(|(parameter, _)| *parameter == region)
+        {
+            return compound(
+                RegionForm::Region,
+                [
+                    atom(Label::Owner, "schema"),
+                    atom(Label::Ordinal, &binder.to_string()),
+                ],
+            );
+        }
         if self.qualification == TypeIdentityQualification::PackageQualified {
-            if let Some(identity) =
+            let identity = if self.portable_machine_applications.is_some() {
+                super::lifetime_parameters::portable_lifetime_parameter_identity_in_context(
+                    program, region, self,
+                )
+            } else {
                 super::lifetime_parameters::portable_lifetime_parameter_identity(program, region)
-            {
+            };
+            if let Some(identity) = identity {
                 return identity;
             }
             if let Some(invalid) = self.invalid_application {
@@ -304,6 +339,11 @@ impl TypeIdentityContext<'_> {
         symbol: SymbolHandle,
         path: String,
     ) -> String {
+        if let Some(projection) = self.portable_machine_applications
+            && let Some(identity) = projection.nominal_name(program, symbol, self)
+        {
+            return identity;
+        }
         match super::derived_declarations::nominal_name(program, symbol, self, false) {
             Ok(Some(identity)) => return identity,
             Err(reason) => {

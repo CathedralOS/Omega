@@ -22,8 +22,8 @@
 //! storage contract defines.
 
 use super::validate_alignment;
-use crate::fnv1a::Fnv1a;
 use crate::task_plans::identities::commitment_digest;
+use semantic_vocabulary::Fnv1a;
 
 use crate::{
     AdmittedStackContributionReportId, CanonicalSuspensionCrossing,
@@ -809,7 +809,7 @@ fn admitted_contribution_commitment(
     hash.raw(&candidate.receipt.normalized_identity().to_le_bytes());
     hash.u64(candidate.bytes);
     hash.u64(candidate.alignment);
-    SameStackContributionCommitment(hash.finish().into())
+    SameStackContributionCommitment(hash.finish())
 }
 
 fn stack_plan_projection_report_fingerprint(

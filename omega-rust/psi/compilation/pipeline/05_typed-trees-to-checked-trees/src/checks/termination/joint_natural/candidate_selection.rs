@@ -239,6 +239,8 @@ pub(super) fn prepare(
                 else {
                     return Some(Err("a rank upper expression lacks independent formation"));
                 };
+                // These are the upper expression's caller inputs. Its retained
+                // call formations own any callee contexts separately.
                 let bindings = inputs
                     .iter()
                     .filter(|input| input.observation == validation::RankPremiseObservation::Value)
@@ -248,6 +250,7 @@ pub(super) fn prepare(
                             path: input.path.clone(),
                         };
                         validation::RuntimeRankApplicationBinding {
+                            calls: Vec::new(),
                             formal: coordinate.clone(),
                             actual: coordinate,
                             entry_indexes: input.entry_indexes.clone(),
@@ -307,6 +310,15 @@ pub(super) fn prepare(
             _ => None,
         })
         .collect::<Vec<_>>();
+    let authored_endpoints = candidates
+        .iter()
+        .enumerate()
+        .flat_map(|(peer, ranks)| ranks.iter().map(move |rank| (peer, rank)))
+        .filter_map(|(peer, rank)| match rank.bound.as_ref()? {
+            Bound::Authored { expression, .. } => Some((peer, *expression)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
     for (position, (machine, candidates)) in machines.iter().zip(&mut candidates).enumerate() {
         if !candidates.is_empty() {
             continue;
@@ -350,6 +362,12 @@ pub(super) fn prepare(
         } else {
             0
         };
+        let transported = authored_endpoints
+            .iter()
+            .flat_map(|(peer, expression)| {
+                transported_bounds(program, machine, machines[*peer], *expression, values)
+            })
+            .collect::<Vec<_>>();
         for (subject, selected_application) in subjects {
             if order == Order::Descending {
                 if let Some(rank) = observe(
@@ -369,7 +387,8 @@ pub(super) fn prepare(
                 .iter()
                 .cloned()
                 .map(Bound::Coordinate)
-                .chain(closed_bounds.iter().cloned().map(Bound::Closed));
+                .chain(closed_bounds.iter().cloned().map(Bound::Closed))
+                .chain(transported.iter().cloned());
             for bound in bounds {
                 if order == Order::BoundedDistance
                     && !values.proves_values_relation(
@@ -404,4 +423,118 @@ pub(super) fn prepare(
         order,
         field_paths,
     }))
+}
+
+/// A helper with no ranking of its own may measure toward the endpoint a peer
+/// authored, read through the helper's own call to that peer. Each formal the
+/// endpoint reads must arrive as one of the helper's whole, unreassigned
+/// parameters, so the helper's entry already holds the value the peer will
+/// see. The pairing only proposes a bound; every actual edge and complete
+/// cycle is still proved by the component search.
+fn transported_bounds(
+    program: &dyn validation::CheckingInput,
+    helper: &Machine,
+    owner: &Machine,
+    expression: typed_trees::expression::ExpressionHandle,
+    values: &CurrentScalarValues<'_>,
+) -> Vec<Bound> {
+    let entry = &program.machine_states(helper)[0];
+    let owner_state = &program.machine_states(owner)[0];
+    let formals = program.state_parameters(owner_state);
+    let actuals = program.state_parameters(entry);
+    let read = read_formals(program, formals, expression);
+    let mut bounds = Vec::<Bound>::new();
+    for (statement, _) in crate::flow::indexed_statements(program, entry.statement_nodes) {
+        for site in validation::collect_call_sites_in_statement(program, helper, entry, statement) {
+            let target = site.target_symbol(program);
+            if target != owner.symbol && target != owner_state.symbol {
+                continue;
+            }
+            let arguments = validation::call_site_argument_expressions(program, &site);
+            let pairs = read
+                .iter()
+                .map(|formal| {
+                    let place = validation::canonical_place_from_expression(
+                        program,
+                        *arguments.get(*formal)?,
+                    )?;
+                    let actual = actuals.iter().position(|parameter| {
+                        place.root == facts::PlaceRoot::Symbol(parameter.symbol)
+                            && !parameter.is_mutable
+                    })?;
+                    place.segments.is_empty().then_some((*formal, actual))
+                })
+                .collect::<Option<Vec<_>>>();
+            let Some(pairs) = pairs else {
+                continue;
+            };
+            let roster = pairs
+                .iter()
+                .map(|(formal, _)| formals[*formal].clone())
+                .collect::<Vec<_>>();
+            let supplied = pairs
+                .iter()
+                .map(|(formal, _)| arguments[*formal])
+                .collect::<Vec<_>>();
+            let Some((formation, entry_value)) = values
+                .bind_integer_expression_formals(owner, owner_state, expression, &roster, &supplied)
+                .and_then(|bound| values.integer_expression_formation(helper, &bound))
+            else {
+                continue;
+            };
+            if bounds.iter().any(
+                |known| matches!(known, Bound::Transported { formals, .. } if *formals == pairs),
+            ) {
+                continue;
+            }
+            bounds.push(Bound::Transported {
+                owner: owner_state.symbol,
+                expression,
+                formals: pairs,
+                entry_value,
+                formation,
+            });
+        }
+    }
+    bounds
+}
+
+/// Positions of the formals an authored expression reads.
+fn read_formals(
+    program: &dyn validation::CheckingInput,
+    formals: &[typed_trees::signature::StateParameter],
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Vec<usize> {
+    struct Reads {
+        symbols: Vec<symbols::SymbolHandle>,
+        visited: Vec<typed_trees::expression::ExpressionHandle>,
+    }
+    impl Extend<symbols::SymbolHandle> for Reads {
+        fn extend<T: IntoIterator<Item = symbols::SymbolHandle>>(&mut self, symbols: T) {
+            self.symbols.extend(symbols);
+        }
+    }
+    impl typed_trees::references::TypedReferences for Reads {
+        fn expression(&mut self, expression: typed_trees::expression::ExpressionHandle) -> bool {
+            if self.visited.contains(&expression) {
+                return false;
+            }
+            self.visited.push(expression);
+            true
+        }
+        fn type_reference(&mut self, _: typed_trees::types::TypeReferenceHandle) -> bool {
+            false
+        }
+    }
+    let mut reads = Reads {
+        symbols: Vec::new(),
+        visited: Vec::new(),
+    };
+    typed_trees::references::visit_expression(program, &mut reads, expression);
+    formals
+        .iter()
+        .enumerate()
+        .filter(|(_, formal)| reads.symbols.contains(&formal.symbol))
+        .map(|(position, _)| position)
+        .collect()
 }

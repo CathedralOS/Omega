@@ -73,6 +73,12 @@ pub(super) fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall)
     for callback in &call.callbacks {
         encode_native_callback_argument(bytes, callback);
     }
+    encode_option(bytes, call.descriptor_input, |bytes, guard| {
+        crate::codec_bytes::push_encoded(bytes, (guard.count_scalar_argument as u64).to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, (guard.structural_argument as u64).to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, guard.max_bytes.to_le_bytes());
+        encode_integer_type(bytes, guard.count_type);
+    });
 }
 
 /// The retained registrar roster row: authored-use operation, thunk slot,
@@ -91,9 +97,13 @@ pub fn encode_native_callback_argument(
     encode_shape(bytes, callback.application.shape);
     encode_placement(bytes, &callback.application.placement);
     encode_native_place(bytes, &callback.destination);
-    encode_option(bytes, callback.field_byte_offset, |bytes, offset| {
-        crate::codec_bytes::push_encoded(bytes, (offset as u64).to_le_bytes())
-    });
+    encode_option(
+        bytes,
+        callback.field_placements.as_ref(),
+        |bytes, placements| {
+            calling_conventions::encode_private_callback_placements(bytes, placements);
+        },
+    );
     encode_call_plan(bytes, &callback.registrar_boundary_entry_plan.call);
     encode_state_plan_identity(bytes, &callback.registrar_boundary_entry_plan.state);
     encode_len(bytes, callback.registrar_context.binders.len());

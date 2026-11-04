@@ -68,6 +68,7 @@ fn has_calling_interface(
     if parameter.kind != TypeParameterKind::Implementation
         || bound.binder != parameter.symbol
         || bound.trait_symbol != policy.symbol
+        || !bound.lifetime_arguments.is_empty()
         || !bound.arguments.is_empty()
         || !program.trait_machine_signatures(calling).is_empty()
         || !program.trait_type_parameters(policy).is_empty()

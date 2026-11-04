@@ -1,5 +1,4 @@
 use crate::grammar::bodies::trait_default::parse_trait_default_machine_body;
-use crate::grammar::contracts::parse_contract_clauses::retired_where_conformance;
 use crate::grammar::contracts::signature::parse_signature_clauses;
 use crate::grammar::declarations::operator::parse_operator_spelling;
 use crate::grammar::parameters::contracts::parse_machine_parameter_contracts;
@@ -55,22 +54,17 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         parse_trait_parents(syntax_trees, input)?
     };
     input = next;
-    if refines.is_some() && input.at_contextual("where") {
+    if refines.is_some() && input.at_contextual("requires") {
         return Err(input.error_here(
-            "a transparent refinement takes no `where` clauses; bounds on its parameters belong to the base trait",
+            "a transparent refinement takes no `requires` clauses; bounds on its parameters belong to the base trait",
         ));
     }
     let ((), next) = parse_proposition_parameter_contracts(syntax_trees, type_parameters, input)?;
     input = next;
+    let ((), next) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
+    validate_machine_parameter_contracts(syntax_trees, type_parameters, next)?;
+    input = next;
     let conformance_bounds = generic_parameters.conformance_bounds;
-    if input.at_contextual("where") {
-        let after_where = input.take_contextual("where")?;
-        let subject = after_where.take_identifier().map_or_else(
-            |_| "T".to_owned(),
-            |(subject, _)| subject.as_str(syntax_trees).to_owned(),
-        );
-        return Err(after_where.error_here(retired_where_conformance(&subject)));
-    }
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut requires = crate::storage::handle_spans::HandleSpanBuilder::new();
     let mut machines = crate::storage::handle_spans::HandleSpanBuilder::new();
@@ -140,37 +134,33 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
                  the default -- drop the keyword and keep the body",
             ));
         }
-        let spelling = if input.at_contextual("operator") {
-            input = input.take_contextual("operator")?;
-            if input
-                .tokens
-                .first()
-                .is_some_and(|token| token.punctuation().is_some())
-            {
-                let (spelling, rest) = parse_operator_spelling(input)?;
-                input = rest;
-                Some(spelling)
-            } else {
-                None
-            }
+        // A token binds to an ordinary `machine + Name(...)` requirement
+        // (expressions.md, operator declarations); there is no separate
+        // `operator` introducer or second executable identity. The retired
+        // spelling refuses with the replacement rather than parsing as an
+        // alias, matching the product parser's `RetiredOperatorDeclaration`.
+        if input.at_contextual("operator") {
+            return Err(input.error_here(
+                "the `operator` introducer is retired: a trait requirement binds operator \
+                 syntax as an ordinary machine -- write `machine + name(...)`, or \
+                 `machine name(...)` without a token",
+            ));
+        }
+        input = input.take_keyword(KeywordKind::Machine, "machine")?;
+        // `machine + Name(...)` is the ordinary grammar a token-bearing
+        // requirement is spelled in, and it is what a concrete crowned
+        // declaration already uses. The vocabulary and the
+        // non-punctuation/semicolon guard are the same ones
+        // `declarations::machines` applies to every `machine`-headed form, so
+        // a trait requirement is not a separate dialect.
+        let spelling = if input.tokens.first().is_some_and(|token| {
+            token.punctuation().is_some() && token.punctuation() != Some(PunctuationKind::Semicolon)
+        }) {
+            let (spelling, rest) = parse_operator_spelling(input)?;
+            input = rest;
+            Some(spelling)
         } else {
-            input = input.take_keyword(KeywordKind::Machine, "machine")?;
-            // `machine + Name(...)` is the ordinary grammar a token-bearing
-            // requirement is spelled in (expressions.md, executable supply),
-            // and it is what a concrete crowned declaration already uses. The
-            // vocabulary and the non-punctuation/semicolon guard are the same
-            // ones `declarations::machines` applies to every `machine`-headed
-            // form, so a trait requirement is not a separate dialect.
-            if input.tokens.first().is_some_and(|token| {
-                token.punctuation().is_some()
-                    && token.punctuation() != Some(PunctuationKind::Semicolon)
-            }) {
-                let (spelling, rest) = parse_operator_spelling(input)?;
-                input = rest;
-                Some(spelling)
-            } else {
-                None
-            }
+            None
         };
         let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
         signature.spelling = spelling;
@@ -402,7 +392,6 @@ fn refinement_reaches_clause_boundary(input: Input<'_, '_>) -> bool {
         || input.at_contract_continuation_keyword()
         || input.at_contextual("requires")
         || input.at_contextual("ensures")
-        || input.at_contextual("where")
 }
 
 fn parse_refinement_axis_bool<'tokens, 'source>(
@@ -423,14 +412,14 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ()> {
     loop {
-        if !input.at_contextual("where") {
+        if !input.at_contextual("requires") {
             break;
         }
-        let after_where = input.take_contextual("where")?;
-        if !after_where.at_contextual("proposition") {
+        let after_requires = input.take_contextual("requires")?;
+        if !after_requires.at_contextual("proposition") {
             break;
         }
-        let after_proposition = after_where.take_contextual("proposition")?;
+        let after_proposition = after_requires.take_contextual("proposition")?;
         let (name, after_name) = after_proposition.take_identifier()?;
         let Some(parameter_index) = syntax_trees
             .items
@@ -439,7 +428,7 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
             .position(|parameter| parameter.name.as_str(syntax_trees) == name.as_str(syntax_trees))
         else {
             return Err(after_name.error_here(format!(
-                "`where proposition {}` has no matching `<proposition {}>` parameter",
+                "`requires proposition {}` has no matching `<proposition {}>` parameter",
                 name.as_str(syntax_trees),
                 name.as_str(syntax_trees),
             )));
@@ -481,7 +470,7 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
         })
     {
         return Err(input.error_here(format!(
-            "proposition parameter `{}` requires an authored declaration-site signature: write `where proposition {}(...)`;",
+            "proposition parameter `{}` requires an authored declaration-site signature: write `requires proposition {}(...);`",
             missing.name.as_str(syntax_trees),
             missing.name.as_str(syntax_trees),
         )));
@@ -535,6 +524,7 @@ fn parse_trait_machine_signature<'tokens, 'source>(
             name,
             lifetime_parameters: generic_parameters.lifetime_parameters,
             type_parameters: generic_parameters.type_parameters,
+            conformance_bounds: generic_parameters.conformance_bounds,
             parameters,
             native_callback_parameters,
             return_type,

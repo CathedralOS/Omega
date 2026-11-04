@@ -23,7 +23,7 @@ pub use native_providers::{
     RetainedNativeProviderInputs,
 };
 
-pub use crate::provider_admission::TerminalCompilerBuiltinProposal;
+pub use crate::providers::provider_admission::TerminalCompilerBuiltinProposal;
 
 pub use boundary_applications::{
     TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
@@ -114,7 +114,7 @@ impl TerminalNativeRealizationProposal {
             .program_entry
             .physical_calling_application()
             .ok_or("physical adapter selected without a physical arrival contract")?;
-        let physical = crate::entry_settlement::PhysicalProgramEntry::bind(
+        let physical = crate::settlement::entry_settlement::PhysicalProgramEntry::bind(
             artifact,
             application,
             &self.providers.checked_adapters,
@@ -144,7 +144,7 @@ impl TerminalNativeRealizationProposal {
         package_terminal_authority_permissions.sort_by(|left, right| {
             left.service_schema()
                 .as_bytes()
-                .cmp(&right.service_schema().as_bytes())
+                .cmp(right.service_schema().as_bytes())
                 .then_with(|| {
                     package_terminal_authority_permission_identities
                         .text(left.requirement_identity())

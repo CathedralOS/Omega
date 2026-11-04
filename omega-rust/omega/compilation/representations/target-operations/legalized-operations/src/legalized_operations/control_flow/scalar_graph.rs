@@ -35,12 +35,14 @@ pub struct LegalizedScalarFunction {
 impl LegalizedScalarFunction {
     /// The block keyed `block`, when the function declares it.
     pub fn block(&self, block: BlockId) -> Option<&LegalizedScalarBlock> {
-        self.blocks.iter().find(|row| row.id == block)
+        self.block_index(block).map(|index| &self.blocks[index])
     }
 
-    /// The position of the block keyed `block`.
+    /// The position of the block keyed `block`. Legalization projects blocks
+    /// one-for-one from the validated optimization function, so they keep its
+    /// strictly increasing block order.
     pub fn block_index(&self, block: BlockId) -> Option<usize> {
-        self.blocks.iter().position(|row| row.id == block)
+        self.blocks.binary_search_by_key(&block, |row| row.id).ok()
     }
 
     /// Whether a retained instruction, terminator or outgoing edge reads this value.
@@ -1627,6 +1629,8 @@ pub struct LegalizedNormalizedForeignCall {
     pub structural_indices: Vec<Vec<LegalizedRuntimeIndexOperand>>,
     pub result: target_operations::TargetBoundaryResult,
     pub callbacks: Vec<target_operations::TargetNativeCallbackArgument>,
+    /// The target producer's count guard for a descriptor-reading import.
+    pub descriptor_input: Option<target_operations::DescriptorInputGuard>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

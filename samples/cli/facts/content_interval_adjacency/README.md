@@ -147,8 +147,8 @@ Commits:
 
 Rust files:
 
-- `omega-rust/omega/compilation/driver/tests/support/mathematical_actuals.rs`
-- `omega-rust/omega/compilation/driver/tests/support/terminal_inspection.rs`
+- `omega-rust/omega/compilation/compiler/tests/support/mathematical_actuals.rs`
+- `omega-rust/omega/compilation/compiler/tests/support/terminal_inspection.rs`
 - `omega-rust/psi/compilation/validation/src/lib.rs`
 - `omega-rust/psi/compilation/validation/src/machine_calls/call_cycles/rank_relevance.rs`
 - `omega-rust/psi/compilation/validation/src/machine_calls/call_cycles/runtime_ranking.rs`

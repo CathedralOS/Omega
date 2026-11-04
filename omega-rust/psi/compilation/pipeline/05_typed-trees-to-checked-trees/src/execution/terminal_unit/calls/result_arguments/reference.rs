@@ -2,6 +2,7 @@
 //! binding. Source checking already owns formation and lifetime admission;
 //! this operation retains the descriptor crossing and selected referent path.
 use super::super::argument_paths::borrowed_argument_endpoint;
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::calls::argument_paths::projected_evaluated_path;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::structural_access_for_type_reference;
@@ -81,7 +82,11 @@ pub(crate) fn argument(
         let (_, prefix) =
             borrowed_argument_endpoint(program, referent, path, parameter.type_reference)?;
         path = prefix;
-        let (selected, suffix) = projected_evaluated_path(
+        let ProjectedArgumentPath {
+            storage_type: selected,
+            path: suffix,
+            ..
+        } = projected_evaluated_path(
             program,
             machine,
             state.symbol,

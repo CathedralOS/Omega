@@ -10,6 +10,9 @@ use semantic_vocabulary::compiler_evaluation::{
 };
 use terminal_psi::{ProofApplicationScope, ProofDeclarationId, TargetMachineCallable};
 
+mod failures;
+pub(crate) use failures::require_root_failure_admission;
+
 pub struct AdmittedCompilerEvaluation {
     providers: crate::AdmittedProviderSelections,
     artifact: terminal_psi::TerminalPsiIdentity,
@@ -68,25 +71,13 @@ pub fn admit_compiler_evaluation(
             root_facts.name
         ));
     }
-    let mut selected = Vec::new();
-    for (requirement, body) in providers.providers().chain(
-        providers
-            .assumed_bindings()
-            .iter()
-            .map(|binding| (binding.required, binding.implementation)),
-    ) {
-        selected.push((
-            scope
-                .callable_declaration(TargetMachineCallable::Boundary(requirement))
-                .ok_or("compiler-evaluation provider requirement lost its declaration")?,
-            scope
-                .callable_declaration(TargetMachineCallable::Machine(body))
-                .ok_or("compiler-evaluation selected body lost its declaration")?,
-        ));
-    }
-    let closure = scope
-        .applications()
-        .invocation_reachability(target, &selected, &[root]);
+    require_root_failure_admission(artifact.module(), root)?;
+    let invocation = compiler_invocation_scope(scope, target, &providers, root)?;
+    let CompilerInvocationScope {
+        selected,
+        closure,
+        dependencies,
+    } = invocation;
     for binding in providers.assumed_bindings() {
         for requirement in
             std::iter::once(binding.required).chain(binding.supply_path.iter().copied())
@@ -99,21 +90,6 @@ pub fn admit_compiler_evaluation(
             }
         }
     }
-    let mut dependencies = closure.machines.clone();
-    dependencies.extend(closure.calls.iter().copied());
-    for (_, machine) in scope.plan.machines.iter() {
-        if closure.machines.contains(&machine.machine) {
-            dependencies.extend(
-                scope
-                    .plan
-                    .symbols
-                    .span_or_empty(machine.states)
-                    .iter()
-                    .copied(),
-            );
-        }
-    }
-    dependencies.extend(scope.plan.declaration_closure(&dependencies.clone()));
     for (_, owner) in scope.pending_evaluation_conditions.iter() {
         if owner.0 == 0 || dependencies.contains(owner) {
             return Err("constant invocation retains a pending target proof condition in its demanded closure; it cannot establish its own pending target condition".into());
@@ -219,10 +195,70 @@ pub fn admit_compiler_evaluation(
     })
 }
 
-fn declaration(
+/// Include state-level preconditions when admitting a constant invocation.
+/// Use the same selected calls for effect checks and prerequisite checks.
+pub(crate) struct CompilerInvocationScope {
+    pub selected: Vec<(ProofDeclarationId, ProofDeclarationId)>,
+    pub closure:
+        semantic_vocabulary::proof_applications::ProofApplicationReachability<ProofDeclarationId>,
+    pub dependencies: Vec<ProofDeclarationId>,
+}
+
+pub(crate) fn compiler_invocation_scope(
+    scope: &ProofApplicationScope,
+    target: &str,
+    providers: &crate::AdmittedProviderSelections,
+    root: ProofDeclarationId,
+) -> Result<CompilerInvocationScope, String> {
+    let root = scope
+        .plan
+        .callable_for_target(root, target)
+        .ok_or("compiler-evaluation declaration has no selected target body")?;
+    let mut selected = Vec::new();
+    for (requirement, body) in providers.providers().chain(
+        providers
+            .assumed_bindings()
+            .iter()
+            .map(|binding| (binding.required, binding.implementation)),
+    ) {
+        selected.push((
+            scope
+                .callable_declaration(TargetMachineCallable::Boundary(requirement))
+                .ok_or("compiler-evaluation provider requirement lost its declaration")?,
+            scope
+                .callable_declaration(TargetMachineCallable::Machine(body))
+                .ok_or("compiler-evaluation selected body lost its declaration")?,
+        ));
+    }
+    let closure = scope
+        .applications()
+        .invocation_reachability(target, &selected, &[root]);
+    let mut dependencies = closure.machines.clone();
+    dependencies.extend(closure.calls.iter().copied());
+    for (_, machine) in scope.plan.machines.iter() {
+        if closure.machines.contains(&machine.machine) {
+            dependencies.extend(
+                scope
+                    .plan
+                    .symbols
+                    .span_or_empty(machine.states)
+                    .iter()
+                    .copied(),
+            );
+        }
+    }
+    dependencies.extend(scope.plan.declaration_closure(&dependencies.clone()));
+    Ok(CompilerInvocationScope {
+        selected,
+        closure,
+        dependencies,
+    })
+}
+
+fn header(
     scope: &ProofApplicationScope,
     declaration: ProofDeclarationId,
-) -> Result<&CompilerEvaluationDeclaration, String> {
+) -> Result<&terminal_psi::ProofCallableHeader, String> {
     let mut headers = scope
         .callable_headers
         .iter()
@@ -233,7 +269,17 @@ fn declaration(
     if headers.next().is_some() {
         return Err("compiler-evaluation declaration has competing checked facts".into());
     }
-    header.compiler_evaluation.as_ref().map_err(Clone::clone)
+    Ok(header)
+}
+
+fn declaration(
+    scope: &ProofApplicationScope,
+    declaration: ProofDeclarationId,
+) -> Result<&CompilerEvaluationDeclaration, String> {
+    header(scope, declaration)?
+        .compiler_evaluation
+        .as_ref()
+        .map_err(Clone::clone)
 }
 
 fn require_selection(

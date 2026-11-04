@@ -114,23 +114,22 @@ use checked_trees::{
     CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
     CheckedGuardedJumpPlan, CheckedNominalAffineUnitCleanupMachinePlan,
     CheckedNominalAffineUnitCleanupPlans, CheckedPartialAffineUnitCleanupMachinePlan,
-    CheckedPartialAffineUnitCleanupPlans, CheckedProviderAttachmentRequirementPlan,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
-    CheckedStructuralResultPlan, CheckedStructuralScalarArgumentPlan,
-    CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitCallCoordinate, CheckedUnitCallResult, CheckedUnitCallRoute,
-    CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEffectPlans as EffectPlans, CheckedUnitEntryClaimPlan,
-    CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlanGapReason as GapReason,
-    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralDomainPlan,
-    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
-    ContractProofFactOwner,
+    CheckedPartialAffineUnitCleanupPlans, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedStructuralAccess, CheckedStructuralControlSuccessorPlan,
+    CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
+    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarParameterPlan,
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate, CheckedUnitCallResult,
+    CheckedUnitCallRoute, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans as EffectPlans,
+    CheckedUnitEntryClaimPlan, CheckedUnitNominalAffineCallerRequirementPlan,
+    CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
+    CheckedUnitPlanGapReason as GapReason, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
+    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner,
 };
 use diagnostics::Diagnostic;
 use language_semantics::{
@@ -158,7 +157,6 @@ pub(crate) mod control;
 mod initialized_locals;
 mod local_storage;
 pub(crate) mod plan_gaps;
-mod providers;
 mod receiver_aliases;
 use validation::reference_result_custody as reference_results;
 mod scalar_locals;
@@ -729,7 +727,6 @@ pub(crate) fn build_checked_unit_effect_plans(
             plan.attachment_type_identity
                 .iter()
                 .copied()
-                .into_iter()
                 .chain(plan.result.structural_identity())
                 .chain(
                     plan.states
@@ -893,17 +890,17 @@ pub(crate) fn build_checked_unit_effect_plans(
             }
             // A boundary result retains its own type; an ordinary structural
             // result's types belong to its callee's Unit body.
-            CheckedUnitEffectOperationPlan::Call(call) => match (call.route(), call.result()) {
-                (
+            CheckedUnitEffectOperationPlan::Call(call) => {
+                if let (
                     CheckedUnitCallRoute::Boundary,
                     CheckedUnitCallResult::Structural {
                         binding: result, ..
                     },
-                ) => {
+                ) = (call.route(), call.result())
+                {
                     retained_type_identities.insert(result.type_identity);
                 }
-                _ => {}
-            },
+            }
             CheckedUnitEffectOperationPlan::EstablishReference { result, source, .. } => {
                 // A materialized view and its original scalar backing need not
                 // occur in any signature; both are operation dependencies.
@@ -1033,7 +1030,11 @@ pub(crate) fn build_checked_unit_effect_plans(
             ..
         } = &node.kind
         {
-            match validation::observed_storage_type_references(
+            // This global discovery roster includes undemanded and
+            // unapplied bodies. A missing finite catalog path is producer
+            // coverage, not a new Source formation rule. Demanded lowering
+            // runs this same query and reports its complete path error.
+            if let Ok(references) = validation::observed_storage_type_references(
                 program,
                 *source_type,
                 &[],
@@ -1042,23 +1043,14 @@ pub(crate) fn build_checked_unit_effect_plans(
                 field_identity,
                 atomic_ordering.is_some(),
             ) {
-                Ok(references) => {
-                    for (reference, substitutions) in references.entries() {
-                        if let Some(identity) = shapes.add_type(reference, &[], substitutions) {
-                            retained_type_identities.insert(identity);
-                        }
-                        if let Some(identity) =
-                            shapes.add_stored_type(reference, &[], substitutions)
-                        {
-                            retained_type_identities.insert(identity);
-                        }
+                for (reference, substitutions) in references.entries() {
+                    if let Some(identity) = shapes.add_type(reference, &[], substitutions) {
+                        retained_type_identities.insert(identity);
+                    }
+                    if let Some(identity) = shapes.add_stored_type(reference, &[], substitutions) {
+                        retained_type_identities.insert(identity);
                     }
                 }
-                // This global discovery roster includes undemanded and
-                // unapplied bodies. A missing finite catalog path is producer
-                // coverage, not a new Source formation rule. Demanded lowering
-                // runs this same query and reports its complete path error.
-                Err(_) => {}
             }
         }
     }
@@ -1286,7 +1278,7 @@ fn body_route(
     let statements = program.statement_table.statements(state.statement_nodes);
     // Transitions are control: loops, guarded arms and returned values out
     // of arms. A state's own contracts, and a local or by-value parameter
-    // whose owner may run a nominal `::drop` at return, need the graph's
+    // whose owner may run a selected cleanup hook at return, need the graph's
     // state signature and normal-exit cleanup; the sequence has neither. A
     // linear owner is consumed explicitly by construction, never dropped at
     // return.

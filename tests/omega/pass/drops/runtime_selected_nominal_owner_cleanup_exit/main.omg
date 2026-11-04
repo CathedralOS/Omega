@@ -36,10 +36,10 @@ boundary trait WindowsConsoleIo {
 
 // A consumed owner drops during the selected call. A skipped owner remains
 // behind younger B and C until normal completion, including nested selection.
-data Token { value: u64; byte: i32; }
+data Token dropped by drop_token { value: u64; byte: i32; }
 data Wrapped { token: Token; }
 
-machine Token::drop(token: &mut Token) reaches Console {
+machine drop_token(token: &mut Token) reaches Console {
     Console::write_byte(token.byte);
 }
 machine consume(value: Wrapped) -> u64 reaches Console { value.token.value }
@@ -88,9 +88,9 @@ machine overwritten_condition(enabled: bool) -> bool reaches Console {
         && survivor.value == 10 && youngest.value == 11
 }
 
-data Receipt [linear] { value: u64; }
+data Receipt [linear] dropped by drop_receipt { value: u64; }
 data ReceiptEnvelope { receipt: Receipt; }
-machine Receipt::drop(receipt: &mut Receipt) {
+machine drop_receipt(receipt: &mut Receipt) {
     receipt.value = 0;
 }
 machine mint_receipt() -> Receipt { Receipt { value: 11 } }

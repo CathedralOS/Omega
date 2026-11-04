@@ -16,15 +16,15 @@ pub enum CheckedCallOrigin {
 impl CheckedCallOrigin {
     /// Read the call only inside its complete owning application. The
     /// declaration recipe alone grants no statement or invocation authority.
-    pub fn declaration<'plan>(
+    pub fn declaration(
         self,
-        plan: &'plan crate::CheckedRankArrivalPlan,
+        plan: &crate::CheckedRankArrivalPlan,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
     ) -> Result<
         (
-            &'plan crate::CheckedRankApplicationFormation,
-            &'plan crate::CheckedDeclarationCall,
+            &crate::CheckedRankApplicationFormation,
+            &crate::CheckedDeclarationCall,
         ),
         &'static str,
     > {

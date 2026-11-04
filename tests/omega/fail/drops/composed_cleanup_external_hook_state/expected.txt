@@ -1,1 +1,1 @@
-reserved cleanup machine
+names a nested machine private to `drop_token`

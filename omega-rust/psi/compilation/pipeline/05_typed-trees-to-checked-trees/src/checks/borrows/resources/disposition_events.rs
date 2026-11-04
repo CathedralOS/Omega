@@ -55,12 +55,9 @@ pub(crate) fn plan_reborrow_disposition_events(
         }) {
             // The lifecycle ledger is joined by its one reader; a drifted
             // ledger is a disposition failure, not a second reconstruction.
-            let Ok((activation, weakening)) = exact_loan_lifecycle_rows(
-                flow,
-                flow_state,
-                resource.loan,
-                borrow.loans.get(resource.loan).statement_index,
-            ) else {
+            let Ok((activation, weakening)) =
+                exact_loan_lifecycle_rows(borrow, flow, flow_state, resource.loan)
+            else {
                 return Err(reborrow_disposition_drift());
             };
             events.push(LifecycleEvent {
@@ -71,9 +68,11 @@ pub(crate) fn plan_reborrow_disposition_events(
                 loan_order: resource.loan.arena_index(),
                 kind: LifecycleEventKind::Activate { activation },
             });
-            let weakening_fact = flow.borrow_lifetimes.weakenings.get(weakening);
             events.push(LifecycleEvent {
-                boundary: weakening_event_boundary(weakening_fact.source, weakening_fact.reason)?,
+                boundary: weakening_event_boundary(
+                    resource.weakening_source,
+                    resource.weakening_reason,
+                )?,
                 resource: ParentResourceIndex::Direct(index),
                 loan_order: resource.loan.arena_index(),
                 kind: LifecycleEventKind::Weaken { weakening },

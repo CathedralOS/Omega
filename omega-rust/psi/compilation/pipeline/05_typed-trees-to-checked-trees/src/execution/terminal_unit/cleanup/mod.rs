@@ -191,11 +191,8 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
     for (source_parameter, checked_parameter) in
         source_parameters.iter().zip(&structural_parameters).rev()
     {
-        let Some((cleanup_machine, cleanup_state, cleanup_receiver)) =
-            nominal_cleanup_shape(program, source_parameter.type_reference)
-        else {
-            return None;
-        };
+        let (cleanup_machine, cleanup_state, cleanup_receiver) =
+            nominal_cleanup_shape(program, source_parameter.type_reference)?;
         let cleanup_target = callable_target(plans, cleanup_machine.symbol)?;
         if !nominal_cleanup_target_matches(
             program,
@@ -238,17 +235,17 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
     })
 }
 
-/// The nominal `::drop` machine selected for a parameter's data type and its
+/// The cleanup hook `dropped by` selects for a parameter's data type and its
 /// sole explicit parameter: the closed carrier owns exactly one designated
 /// checked-body cleanup machine. Regions do not alter its layout or replace
 /// the hook identity; type arguments must already have a closed definition.
-pub(crate) fn nominal_cleanup_shape<'a>(
-    program: &'a dyn ::validation::CheckingInput,
+pub(crate) fn nominal_cleanup_shape(
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<(
-    &'a typed_trees::machine::Machine,
-    &'a typed_trees::state::State,
-    &'a typed_trees::signature::StateParameter,
+    &typed_trees::machine::Machine,
+    &typed_trees::state::State,
+    &typed_trees::signature::StateParameter,
 )> {
     let cleanup_machine =
         validation::nominal_cleanup_machine_for_type(program, type_reference, &[])?;

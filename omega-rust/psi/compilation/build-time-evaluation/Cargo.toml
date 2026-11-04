@@ -17,7 +17,7 @@ validation = { path = "../validation" }
 arena = { path = "../../foundation/arena" }
 access-plans = { path = "../../foundation/access-plans" }
 checked-interpreter = { path = "../../interpreter/checked-interpreter" }
-psi-terminal-production = { path = "../driver/terminal-production" }
+psi-terminal-production = { path = "../psi-compiler/terminal-production" }
 terminal-interpreter = { path = "../../interpreter/terminal-interpreter" }
 terminal-installation = { path = "../validation/terminal-installation" }
 terminal-codec = { path = "../representations/terminal-psi/codec" }

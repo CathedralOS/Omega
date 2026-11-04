@@ -82,10 +82,10 @@ pub(in crate::legalization) struct Leaf {
 }
 
 /// The referent root of one custody occurrence. Production lowering states this
-/// shape once (`abstract_operations_to_target_operations::ReferenceRoot`); the
+/// shape once (`target_operations::ReferenceRoot`); the
 /// replay resolves the same three cases against the optimized source graph
 /// rather than declaring a second spelling of them.
-pub(in crate::legalization) use abstract_operations_to_target_operations::ReferenceRoot as Root;
+pub(in crate::legalization) use target_operations::ReferenceRoot as Root;
 
 /// Turn captured origins into typed storage cursors. An ingress reference
 /// names its incoming descriptor in custody; its pointee is external storage
@@ -701,7 +701,7 @@ fn push_field_leaf(
         return None;
     }
     let mut child_path = path.to_vec();
-    child_path.push(StructuralPathSegment::Field(field.identity.clone()));
+    child_path.push(StructuralPathSegment::Field(field.identity));
     pending.push((child, child_path));
     Some(())
 }
@@ -1857,7 +1857,7 @@ fn call_results(
                     function,
                     custody,
                     types,
-                    &source,
+                    source,
                     psi_operation,
                     &root,
                 )?;
@@ -2638,7 +2638,7 @@ pub(in crate::legalization) fn apply(
                     if let Some(case) = case {
                         prefix.push(StructuralPathSegment::Case(case));
                     }
-                    prefix.push(StructuralPathSegment::Field(declaration.identity.clone()));
+                    prefix.push(StructuralPathSegment::Field(declaration.identity));
                     operands.push((argument, *nested, prefix));
                 }
             }

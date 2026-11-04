@@ -62,7 +62,13 @@ fn check_operation(
     if checked.target_machine() != representative.symbol
         || checked.target_state() != operation.representative_state
     {
-        return Err("selected representative crash evidence targets another invocation");
+        checked.executable_contract_identity(
+            &facts.contract_plans,
+            &facts.proof,
+            operation.public_machine,
+            representative.symbol,
+            operation.representative_state,
+        )?;
     }
     if !checked.surviving_buckets().is_empty() {
         return Err("selected representative retains a possible crash in the public invocation");
@@ -133,9 +139,13 @@ fn check_operation(
                     if checked.target_machine() != target_machine
                         || checked.target_state() != target_state
                     {
-                        return Err(
-                            "selected theorem invocation crash evidence targets another call",
-                        );
+                        checked.executable_contract_identity(
+                            &facts.contract_plans,
+                            &facts.proof,
+                            plan.machine,
+                            target_machine,
+                            target_state,
+                        )?;
                     }
                 }
             }

@@ -501,7 +501,7 @@ pub(super) fn validate_literal_case_constraints(
     if !out_of_scope.is_empty() {
         diagnostics.push(Diagnostic::error(format!(
             "data `{}` case `{case_name}` constraint names `{}`, which is not in scope: \
-             a case `where` fact may read the case's payload bindings, common fields and \
+             a case `requires` fact may read the case's payload bindings, common fields and \
              lexically available contract names (a sibling case's payload is never in scope)",
             literal.type_name.as_str(),
             out_of_scope.join("`, `"),
@@ -642,7 +642,7 @@ fn validate_literal_facts(
                 match judgments.next().unwrap_or(StructuralJudgment::Unknown) {
                     StructuralJudgment::Proven => {}
                     StructuralJudgment::Refuted => predicate_diagnostics.push(Diagnostic::error(format!(
-                        "{subject} literal violates {fact_label}: a `where` \
+                        "{subject} literal violates {fact_label}: a `requires` \
                          fact evaluates FALSE at this construction (ch12: construction is \
                          the gate)"
                     ))),
@@ -651,7 +651,7 @@ fn validate_literal_facts(
                     ).is_some_and(|conditions| observations.retain_range_obligations(conditions)) => {},
                     StructuralJudgment::Unknown => predicate_diagnostics.push(Diagnostic::error(format!(
                         "{subject} literal cannot prove {fact_label}: a \
-                         `where` fact is not established by the values observed at this \
+                         `requires` fact is not established by the values observed at this \
                          construction -- establish the required bounds before constructing the value"
                     ))),
                 }

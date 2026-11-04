@@ -183,6 +183,30 @@ impl<'program> StorageProjectionCursor<'program> {
         Some(())
     }
 
+    /// A fixed declaration coordinate can refine a conservative write label.
+    /// A slice index still needs descriptor extent evidence and cannot enter
+    /// this declaration-only judgment, even when its selector is a literal.
+    pub(in crate::machine_calls::calls::write_frames) fn advance_fixed(
+        &mut self,
+        segment: &PlaceSegment,
+    ) -> Option<()> {
+        match segment {
+            PlaceSegment::Field { .. } | PlaceSegment::Case { .. } => {}
+            PlaceSegment::FixedIndex { index } => {
+                let reference = self.normalize()?;
+                match self.program.type_reference_table.type_reference(reference) {
+                    TypeReferenceNode::FixedArray {
+                        length: FixedArrayLength::Literal(length),
+                        ..
+                    } if index < length => {}
+                    _ => return None,
+                }
+            }
+            _ => return None,
+        }
+        self.advance(segment)
+    }
+
     /// Authenticate a final collection window without inventing an owned
     /// array type. Descriptor crossings are handled by the address/read owner;
     /// this supplies only the declared element-coordinate bounds.

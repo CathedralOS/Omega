@@ -4,10 +4,9 @@
 use crate::checked_trees::flow::terminal::structural_return::CheckedUnitStructuralReturnPlan;
 use crate::checked_trees::flow::terminal::{
     CheckedBoundaryMachinePlan, CheckedCallScalarArgument, CheckedComposedUnitControlMachinePlan,
-    CheckedProviderAttachmentRequirementPlan, CheckedScalarStateTerminator,
-    CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitCallCoordinate, CheckedUnitCallPlan, CheckedUnitCallResult,
-    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedScalarStateTerminator, CheckedStructuralScalarParameterPlan,
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate, CheckedUnitCallPlan,
+    CheckedUnitCallResult, CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralDomainPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
@@ -1125,9 +1124,6 @@ pub struct CheckedUnitEffectMachinePlan {
     /// Erased formals whose carriers are proof-only and admit no scalar
     /// lane. The contract term lane carries their semantic type identities.
     pub erased_proof_parameters: Vec<CheckedErasedProofParameterPlan>,
-    /// Exact boundary requirements replacing one authored provider-backed
-    /// attachment field. Empty means no attachment specialization occurred.
-    pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
     /// Dense source-order declarations for the bounded empty-record affine
     /// local prefix.
     pub trivial_affine_locals: Vec<CheckedTrivialAffineStructuralLocalPlan>,

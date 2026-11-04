@@ -1,8 +1,9 @@
 use super::members::{
-    checked_contract_member_path, data_predicate_subject, data_subject_binder_position,
-    is_data_subject_field_expression, project_contract_member_expression,
+    AuthoredMember, checked_contract_member_path, data_predicate_subject,
+    data_subject_binder_position, is_data_subject_field_expression,
+    project_contract_member_expression,
 };
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::PackageReviewContractExpression;
@@ -10,7 +11,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn contract_parameter_field_symbol(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     parameter: &typed_trees::signature::StateParameter,
     field_name: &str,
 ) -> Option<SymbolHandle> {
@@ -40,7 +41,7 @@ pub(crate) fn contract_parameter_field_symbol(
 }
 
 pub(crate) fn project_contract_name_expression(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     expression: typed_trees::expression::ExpressionHandle,
@@ -67,7 +68,10 @@ pub(crate) fn project_contract_name_expression(
             context,
             checked_fact,
             facts::PlaceRoot::Symbol(context.data_symbol.expect("guarded data subject")),
-            &[path.symbol],
+            &[AuthoredMember {
+                expression,
+                field: path.symbol,
+            }],
         )?
         .into_iter()
         .try_fold(
@@ -181,7 +185,13 @@ pub(crate) fn project_contract_name_expression(
         context,
         checked_fact,
         semantic_root,
-        &member_symbols[1..],
+        &member_symbols[1..]
+            .iter()
+            .map(|field| AuthoredMember {
+                expression,
+                field: *field,
+            })
+            .collect::<Vec<_>>(),
     )?
     .into_iter()
     .try_fold(projected, |receiver, (case_variant, member_symbol)| {

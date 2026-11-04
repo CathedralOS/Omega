@@ -47,6 +47,67 @@ the time goes and remove the cause rather than waiting on it or working around i
   may invoke, stamp, compare, and report but never parse, lower, manufacture
   semantic evidence, or decide trust.
 
+## Explain the change
+
+Write for a reader who knows what the project does but has not read the diff
+or worked on this subsystem.
+Use an inverted pyramid in PR descriptions, commit bodies, progress/final
+reports, explanatory documentation and comments. Start with the specific
+situation and what changes for the person using or maintaining the software.
+The first one or two sentences must make the problem and result clear in
+ordinary language. Apply this to the title too, within the commit-lane rules.
+Choose that opening from the behavior the change affects, not the names of
+the mechanisms edited. Say plainly when the intended result is still unfinished.
+
+An opening such as "Preserve post-call facts through returned scalar views"
+requires subsystem knowledge. "Keep value information after calls" removes
+some jargon but still leaves the reader to work out the benefit. Build the
+explanation in layers, as in this example:
+
+"A program can now subtract 9 after calling a helper that guarantees the number
+is at least 9. The compiler used to forget that guarantee and reject the
+calculation."
+
+"The problem occurred when the program kept a reference to the number in an
+array. Updating an array entry and updating the number it points to are
+different operations, but the compiler was treating uncertainty about the
+entry as uncertainty about the number. It now tracks those locations separately."
+
+Only after that explanation does the reader have a reason to learn which
+stored-reference paths and call-completion checks changed. A result such as
+"the example now returns 73" needs the same treatment: explain what that value
+demonstrates. For internal work, name the maintenance or development benefit
+without inventing an end-user feature.
+
+Each paragraph should answer a question the preceding text raises. Explain the
+example before showing unfamiliar syntax, and the cause before naming the
+mechanism that fixes it. A plain opening followed by a list of internal terms
+still fails. Readers should be able to stop after a paragraph with a useful
+understanding, rather than needing a later paragraph to decode it.
+
+Simplify the explanation, not just the vocabulary. "Permission information" is
+still opaque unless the reader learns who may read or write which data and for
+how long. Once a term is explained, use its canonical name consistently. Source
+comments begin with the local reason for the code, then the constraint that
+must hold. For example: "A saved copy must keep pointing at the original data
+when the caller replaces the variable." Then give any necessary details about
+how that is maintained. Use the surrounding code's context; do not narrate
+obvious operations or add a tutorial.
+
+Put validation and detailed provenance after the explanation. Keep a limitation
+beside any result it materially qualifies, and preserve exact evidence
+identities, failures and unverified cases. Link long records or use details
+sections. A small change may need only one paragraph; do not inflate it to fill
+a template.
+
+Check accuracy and clarity separately. Verify claims against the final diff
+and observed behavior, inspecting unclear code instead of inventing a plausible
+story. Then set the diff and session history aside and read the title and
+opening alone. Can you explain what happens differently and why it matters
+without repeating unexplained labels from the text? Check each following
+paragraph the same way. Familiarity with the implementation can hide missing
+explanations. Rewrite when scope changes; omit the session's chronology.
+
 ## Law of completion
 
 Our superhuman advantage is carrying the entire difficult task end to end.
@@ -228,7 +289,7 @@ capability.
    source/library/sample/fixture migration and retired-syntax deletion bullets
    to completion. Read its full acceptance
    and verify its remaining gap with an optimized exact-source producer
-   for the recorded fixed base. Reuse a warm `build/gate-cli` or retained
+   for the recorded fixed base. Reuse a warm `target/` or retained
    producer with verified inputs; build only when those inputs changed or no
    valid producer exists. Never use an unverified cached binary. Name
    the exact requirement the next witness will discharge. Never filter discovery
@@ -530,6 +591,9 @@ profiles bound to the actual binary digests. See
     `--filter facts/saved_observation_snapshot` selects 105.
   - Unfiltered and whole-domain runs, the [full baseline](tools/testing.md#full-baseline),
     and any other whole-corpus or whole-workspace sweep are the user's to start.
+  - A base compare over 40 fixtures runs on hosted CI:
+    `corpus_gate.py --compare <base> --remote --filter ...`. Hosted runs are
+    free; this machine's build slots are not.
   - A comparison must reach the code it compares. Before trusting base and
     candidate agreeing, confirm a fixture got past parsing, admission and
     package review into the stage the change touched. Two builds failing the
@@ -550,6 +614,11 @@ profiles bound to the actual binary digests. See
   bootstrap gates, test selection, slow builds — lives in
   [tools/testing.md](tools/testing.md). Read it before running more than the
   affected crate's check.
+- Before each build or test, name the decision, smallest meaningful check,
+  applicable reusable evidence, and expected time and resources. If it
+  overruns, inspect progress and record a reasoned decision rather than blindly
+  waiting or restarting. Reviewers need not repeat expensive checks without a
+  material evidence gap; required CI and release gates still apply.
 - Reuse valid completed evidence when its inputs and affected consumers still
   apply; retain its revision, command and outcome. A broader run needs a concrete
   change-specific obligation that focused affected-path tests and relevant
@@ -671,14 +740,18 @@ The rules that touch every edit:
   use `Handle<T>`/`HandleSpan<T>`; `Vec` is construction scratch, not the
   durable shape. Arena/vector-backed symbol tables over local hash maps; a
   map keyed by compiler-owned objects is a review trigger for missing
-  representation structure. Symbols are handle-first — string names are
+  representation structure. Dense IDs (`semantic_id!` types, arena handles)
+  index flat tables (`IdTable`/`IdSet` once they land; until then a `Vec`
+  indexed by the ID), and derived data is computed once by its owner, not
+  cached; `tools/check_rules.py` fails a file whose count of ID-keyed maps or
+  cache-shaped bindings rises. Symbols are handle-first — string names are
   debug/export payload, not identity. Source text stays in loading,
   diagnostic, and debug payload roles.
 - Entrypoints stay prominent: `main.rs` owns startup and visible dispatch
   to real subsystems. Split at responsibility boundaries.
-- Comments explain non-obvious intent; `lib.rs` headers carry the reasoning
-  signatures cannot — mechanism, justification, honest boundaries,
-  provenance.
+- Comments explain non-obvious intent. A `lib.rs` header first says what the
+  module does for its caller, then explains the reasoning signatures cannot
+  carry. Follow [Explain the change](#explain-the-change).
 - Commit subjects are `lane: statement` — pick the lane by changed
   responsibility per [commit naming](#commit-naming) below.
 - `TASKS.md` supplies capability priorities and remaining acceptance; the
@@ -726,11 +799,10 @@ The rules that touch every edit:
   165 spelling-only asserts, and three PRs added 14 more within an hour of
   this rule. `tools/check_rules.py` now fails admission when a file's reads
   exceed its count in `tools/source_text_reads.txt`.
-- Write direct prose: state the idea in literal words.
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   the sample loop, `rust-systems-programmer` for Rust implementation and review,
   `architecture-cleanup`, `task-board-cleanup`, `local-swarm`, `devin-swarm`,
-  `codex-swarm`, `cursor-swarm`.
+  `codex-swarm`, `cursor-swarm`, `claude-swarm`.
 
 Deliberate configuration — do not "fix" it: `clippy.toml` thresholds are
 raised and dev/test profiles use `debug = 0` and `opt-level = 1`;
@@ -854,6 +926,14 @@ To reuse a worktree for a new task, simply reset its detached HEAD to the latest
 Only remove worktrees (`git worktree remove .agents/worktree/<short-name>`) when
 explicitly requested or when reclaiming disk space.
 
+In a Claude Code cloud session, `.agents/worktree/warm` arrives checked out at
+a recent main commit with that commit's compiler build already restored
+([tools/warm_build.py](tools/warm_build.py)). Run
+`python3 tools/warm_build.py wait`, then use it as the workbench and record its
+commit as the fixed base. Do not move it to a newer main first: main's frequent
+changes to the lowest crates make that rebuild as slow as a cold build
+(12 minutes).
+
 Before launching a new swarm or creating a new worker, successfully fetch remote
 `main` (`git fetch origin main`) and record its exact commit. Do not modify, pull into,
 or fast-forward the primary checkout; preserve it intact as a stable reference.
@@ -895,6 +975,10 @@ not a completed launch preflight.
   [cursor-swarm](.agents/skills/cursor-swarm/SKILL.md). Each worker is a
   Cursor Task subagent with its own VM and branch, started from fetched
   remote main. Select its model through the exposed Task fields.
+- A requested Claude Code cloud wave follows
+  [claude-swarm](.agents/skills/claude-swarm/SKILL.md). Each worker is a
+  Claude Code cloud session with its own container and branch, started at a
+  pinned base. Select its model through `create_session`'s `model` field.
 - Parallel sessions take distinct samples, chosen by root cause, not by
   file. Shared implementation paths are fine; each session works in its
   own worktree and reconciles at rebase. Reuse another session's repair when
@@ -928,8 +1012,8 @@ bootstrap implementation; those meanings stay distinct in subjects.
 | `psi` | Target-neutral source semantics through Terminal Psi: parsing, resolution, typing, checking, proof, interpretation, and Psi optimization in `omega-rust/psi/` or `source/psi/`. |
 | `omega` | The Terminal-Psi-consuming compiler stage: Omega representations, transforms, optimization, and realization semantics in `omega-rust/omega/compilation/{representations,pipeline,realization}/` or corresponding `source/omega/` implementation. Never a project-wide default. |
 | `backend` | Target, ISA, ABI, object/image encoding, layout, and execution primitives in `omega-rust/omega/compilation/backend/` and their product-source equivalents. Transform policy in `pipeline/` remains `omega`. |
-| `compiler` | Product compilation coordination and reports in `omega-rust/omega/compilation/driver/`, the source-free native driver in `omega-rust/omega/compilation/native-production/`, or an inseparable compiler contract change spanning Psi and Omega. A coordinator call-site adjustment accompanying a stage fix keeps the stage's lane. |
-| `build` | The product's Build activation in `omega-rust/omega/compilation/build-evaluation/`, plus product build declarations such as `source/omega/build.omg`. Provider planning and trust admission under `realization/` use `omega`; CLI policy-file handling uses `cli`. Repository build commands and CI use `repo`. |
+| `compiler` | Product compilation coordination and reports in `omega-rust/omega/compilation/compiler/`, the source-free native driver in `omega-rust/omega/compilation/native-production/`, or an inseparable compiler contract change spanning Psi and Omega. A coordinator call-site adjustment accompanying a stage fix keeps the stage's lane. |
+| `build` | The build system in `omega-rust/omega/build-system/`: project and package flows in `orchestration/` and Build activation in `build-settings/`, plus product build declarations such as `source/omega/build.omg`. Provider planning and trust admission under `realization/` use `omega`; CLI policy-file handling uses `cli`. Repository build commands and CI use `repo`. |
 | `packages` | Package acquisition, graphs, review, admission, installation, and update workflows in `omega-rust/omega/packages/`. Package command wiring accompanying those changes keeps `packages`. |
 | `cli` | Command parsing, flags, help, and command dispatch in `omega-rust/omega/application/cli/src/`, plus the corresponding product entrypoint. The command's underlying compiler or package behavior uses its owning lane. |
 | `tooling` | Shipped developer tools and shared host support in `omega-rust/omega/foundation/`, including artifact file writing and measurements. Semantic trust records and admission under `realization/trust-model/` use `omega`. |
@@ -973,12 +1057,11 @@ follow the same rule: they take the lane of the behavior they pin, or
 Oct 25 to Nov 1. A squash merge takes the pull request title as its subject,
 so `compiler-check` checks the title against this table.
 
-The body is prose paragraphs after a blank line, with numbers in place of
-adjectives. Cover what applies: what the previous behavior was and why it
-was wrong; which alternatives were rejected; which constraint shaped the
-diff; which gates ran, named with counts rather than the word `pass`; what
-is known red or deliberately left undone. Omit the body only when the
-subject carries the full reasoning (typo, rename, mechanical revert).
+The body follows [Explain the change](#explain-the-change), after a blank line.
+Include design constraints or rejected alternatives only when they help explain
+the final change. Describe validation by what it establishes, with measured
+results where relevant. Omit the body only when the subject carries the full
+reasoning (typo, rename, mechanical revert).
 
 Commit messages carry no tool attribution: no "Generated with ..." line, no
 `Co-Authored-By` trailer naming an agent or vendor.

@@ -53,8 +53,8 @@ pub use value_custody::places::binding_observations::{
 pub use value_custody::places::collection_operations;
 pub use value_custody::places::declared_reference_access;
 pub use value_custody::places::{
-    applied_data_member_field, corresponding_loan_owner_path, corresponding_place_projection,
-    declaration_type_reference, declared_case_projection_field, state_root_type,
+    applied_data_member_field, declaration_type_reference, declared_case_projection_field,
+    state_root_type,
 };
 pub use value_custody::static_inline_storage::{
     runtime_inline_array_extent, validate_prepared_inline_storage,
@@ -72,7 +72,7 @@ pub use machine_calls::calls::{
     call_type_arguments, closed_requirement_dispatch_is_valid, machine_has_unit_result,
     named_conformance_target_requirement, nested_boundary_applications_compose,
     requirement_contract_signature, result_initializer_call_is_admitted, selected_call_arguments,
-    selected_requirement_signature, target_family_members,
+    selected_call_result_domain_matches, selected_requirement_signature, target_family_members,
     unit_result_initializer_call_is_admitted, unit_return_call_is_admitted,
     unit_statement_call_is_admitted,
 };
@@ -152,7 +152,8 @@ pub use proof_contracts::contract_entailment::{
     immutable_entry_integer_projection, instantiate_immutable_entry_indexed_read_identity,
 };
 pub use proof_contracts::contract_results::{
-    ReservedResultPlace, callable_contract_scopes, reserved_result_owner, reserved_result_place,
+    ReservedResultMember, ReservedResultPlace, callable_contract_scopes, reserved_result_owner,
+    reserved_result_place,
 };
 pub use proof_contracts::domains::{
     integer_domain_membership, scalar_domain_definition_predicate, scalar_domain_local_predicate,
@@ -160,7 +161,7 @@ pub use proof_contracts::domains::{
     scalar_field_restriction, scalar_membership_carrier, scalar_membership_is_tag,
     scalar_membership_predicates, scalar_membership_value_carrier,
     scalar_membership_value_predicates, scalar_predicate_domains, scalar_type_routed_domains,
-    scalar_type_tags, validate_executable_domain_test_carriers,
+    scalar_type_tags, validate_domain_membership_carriers,
 };
 pub use proof_contracts::parameter_domains::parameter_domain_constraints;
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
@@ -304,8 +305,8 @@ pub use crate::machine_calls::denotational_calls::{
 pub use crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity;
 pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases;
 pub use crate::value_custody::cleanup::{
-    nominal_cleanup_machine_for_type, nominal_cleanup_owner, nominal_cleanup_target,
-    validate_reserved_cleanup_selections,
+    data_cleanup_machine, nominal_cleanup_machine_for_type, nominal_cleanup_owner,
+    nominal_cleanup_target, validate_reserved_cleanup_selections,
 };
 pub use crate::value_custody::content_conservation::{
     ContentBoundaryBodyRequirement, ContentConservationSourcePlan,
@@ -398,6 +399,7 @@ pub use proof_contracts::quotients::{
     ValidatedQuotientOperation, admit_checked_quotient_requests,
     checked_quotient_relation_identity, validate_quotient_formations,
 };
+pub use value_custody::constants::completed_integer_constant;
 pub use value_custody::expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
 pub use value_custody::expression_types::bounded_byte_buffer_capacity;
 pub use value_custody::expression_types::match_subject_primitive_type;
@@ -476,9 +478,8 @@ pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
 pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use proof_contracts::arithmetic_domains::{OccurrenceIntegerBounds, occurrence_integer_bounds};
 pub use proof_contracts::arithmetic_domains::{
-    StoredIntegerReach, standing_integer_bounds, stored_integer_bounds,
-    stored_integer_source_projection, stored_integer_source_projections,
-    stored_integer_source_reach,
+    StoredIntegerReach, UnestablishedStoredEncoding, standing_integer_bounds,
+    stored_integer_bounds, stored_integer_source_projections, stored_integer_source_reach,
 };
 pub use proof_contracts::arithmetic_domains::{
     occurrence_integer_expression_bounds, occurrence_integer_expression_recipe,
@@ -487,6 +488,7 @@ pub use proof_contracts::contract_entailment::arithmetic_judgment::IntegerDenota
 pub use proof_contracts::contract_entailment::call_requirements::selected_value_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::call_requirements::structural_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::collection_bounds::CollectionBoundsObservations;
+pub use proof_contracts::contract_entailment::exit_predicates::normal_exit_proves;
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
 pub use proof_contracts::contract_entailment::law_conformance::{
     InheritedRequirementApplication, inherited_requirement_proposition_application,
@@ -569,9 +571,8 @@ pub(crate) use optimization::digest_encoder;
 pub use queries::expression_traversal;
 mod frozen_program;
 mod queries;
-pub use queries::layout_checking::{
-    LayoutCheckingContext, layout_checking_targets, pending_layout_geometry,
-};
+pub(crate) use queries::layout_checking::layout_checking_targets;
+pub use queries::layout_checking::{LayoutCheckingContext, pending_layout_geometry};
 mod machine_calls;
 mod program_validation;
 mod proof_contracts;
@@ -591,8 +592,9 @@ pub use program_validation::{
     FrozenDependencyBody, OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,
     ProvenContractExpressions, admit_prepared_program_effects, checking_thread_pool,
     dependency_body_read_totals, dependency_entailment_totals, judge_contract_entailment,
-    prepare_specialized_program, validate_checked_operator_realization_contract,
-    validate_generic_machine_contract_entailment, validate_program,
+    prepare_specialized_program, statement_source_span,
+    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
+    validate_program,
 };
 pub(crate) use program_validation::{DependencyBodyRead, note_dependency_body_read};
 
@@ -627,7 +629,8 @@ pub use value_custody::places::{
     canonical_place_from_expression, canonical_place_from_expression_in_state,
     canonical_place_source_type_application, canonical_place_type_reference,
     canonical_qualification_path, collection_element_type_reference,
-    contextual_canonical_place_from_expression, data_member_symbol_by_name, declared_data_type,
+    contextual_canonical_place_from_expression, corresponding_loan_owner_path,
+    corresponding_place_projection, data_member_symbol_by_name, declared_data_type,
     effective_member_symbol, expression_place_type_reference, expression_root_symbol,
     expression_type_reference_in_state, expression_type_symbol, first_valid_name_path_symbol,
     index_place_segment, loan_carrier_has_owned_storage, machine_symbol_from_type_reference_handle,
@@ -637,8 +640,8 @@ pub use value_custody::places::{
     projected_statement_receiver_type_reference, push_field_place_segments,
     qualification_storage_path, receiver_projections, resolve_member_symbol_from_type_symbol,
     runtime_field_subject, source_type_application_from_segments, state_scoped_name_symbol,
-    structural_member_identity, symbol_type_symbol, unique_data_definition_by_symbol,
-    whole_collection_view_source,
+    storage_operand, storage_place_from_expression_in_state, structural_member_identity, symbol_type_symbol,
+    unique_data_definition_by_symbol, whole_collection_view_source,
 };
 
 /// Walk a type-reference table once into a positional row vector: row 0 is
@@ -666,6 +669,7 @@ pub use value_custody::activation_storage::{
     ActivationStorageContract, ActivationStorageOperation,
     activation_accessor_has_empty_write_frame, activation_claim_byte_carrier,
     activation_storage_bound, exact_toolchain_activation_storage_contract,
+    type_carries_activation_claim,
 };
 pub use value_custody::atomic_fences::{
     AtomicFenceContract, exact_toolchain_atomic_fence_contract,
@@ -688,7 +692,7 @@ pub use value_custody::type_references::{
 };
 
 pub use value_custody::const_expressions::{
-    ImmutableConstRecordProjection, immutable_record_projection,
+    ConstProjectionStep, ImmutableConstProjection, fixed_array_geometry, immutable_const_projection,
 };
 
 // One produced-storage association serves checking and flow consumers.

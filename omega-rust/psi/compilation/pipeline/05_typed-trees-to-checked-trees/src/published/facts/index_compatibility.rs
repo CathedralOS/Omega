@@ -64,7 +64,7 @@ pub(super) fn build_index_compatibility_facts(
         let state_calls = StateCallIndex::new(program, flow, state_flow);
         for resolved in &state_calls.calls {
             let call = resolved.fact;
-            let Some(parameters) = resolved.parameters(program, machine.symbol) else {
+            let Some(parameters) = resolved.site.parameters(program, machine.symbol) else {
                 continue;
             };
             let arguments = validation::call_site_argument_expressions(program, &resolved.site);

@@ -38,6 +38,39 @@ pub(super) fn declaration_parameters(
     Some(parameters)
 }
 
+/// Formal-to-actual places of each expression operand declared by another
+/// participant and evaluated at `evaluator`'s entry.
+pub(super) fn transported_bindings(
+    admitted: &CheckedRankArrivalPlan,
+    evaluator: symbols::SymbolHandle,
+    operands: [arena::Handle<CheckedRankOperand>; 2],
+) -> Option<Vec<(validation::CanonicalPlace, validation::CanonicalPlace)>> {
+    let place = |coordinate: checked_trees::CheckedRankCoordinateHandle| {
+        let coordinate = admitted.coordinates.get(coordinate);
+        Some(validation::CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(coordinate.parameter),
+            segments: admitted.path_segments.span(coordinate.path)?.to_vec(),
+        })
+    };
+    let mut bindings = Vec::new();
+    for operand in operands {
+        let CheckedRankOperand::Expression {
+            state, formation, ..
+        } = admitted.rank_operands.get(operand)
+        else {
+            continue;
+        };
+        if *state == evaluator || !formation.is_valid() {
+            continue;
+        }
+        let formation = admitted.application_formations.get(*formation);
+        for binding in admitted.bindings.span(formation.bindings)? {
+            bindings.push((place(binding.entry)?, place(binding.destination)?));
+        }
+    }
+    Some(bindings)
+}
+
 pub(super) fn difference<'program>(
     builder: &mut Builder<'program, '_>,
     admitted: &'program CheckedRankArrivalPlan,

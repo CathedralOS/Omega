@@ -61,7 +61,8 @@ pub(super) fn prove(
             .map(|(_, maximum)| maximum)
             .into_iter()
             .chain(
-                validation::expression_interval(facts.expression_intervals, range.start)
+                program
+                    .expression_interval(range.start)
                     .and_then(|interval| interval.high),
             )
             .min()
@@ -70,7 +71,8 @@ pub(super) fn prove(
         .map(|(minimum, _)| minimum)
         .into_iter()
         .chain(
-            validation::expression_interval(facts.expression_intervals, range.end)
+            program
+                .expression_interval(range.end)
                 .and_then(|interval| interval.low),
         )
         .max()
@@ -101,7 +103,8 @@ fn at_most_constant(
     }
     if expression_enforced_declared_range(program, machine, state, expression)
         .is_some_and(|(_, maximum)| maximum <= limit)
-        || validation::expression_interval(facts.expression_intervals, expression)
+        || program
+            .expression_interval(expression)
             .and_then(|interval| interval.high)
             .is_some_and(|maximum| maximum <= limit)
     {

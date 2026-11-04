@@ -63,7 +63,7 @@ pub(super) fn read(
 ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
     let invalid =
         super::super::refusal("clock timespec operands differ from the installed contract");
-    let call = super::super::call_operands(effect, &invalid)?;
+    let call = super::super::call_operands(effect, invalid)?;
     let selector = super::selector(call.arguments, signature)?;
     if call.structural_arguments.len() != 1
         || call.structural_arguments[0].structural_type != layout.structural_type
@@ -110,7 +110,7 @@ pub(super) fn sleep(
     namespace: ClockNamespace,
 ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
     let invalid = super::super::refusal("nanosleep operands differ from the installed contract");
-    let call = super::super::call_operands(effect, &invalid)?;
+    let call = super::super::call_operands(effect, invalid)?;
     let [
         TerminalScalarValue::Integer {
             scalar_type,

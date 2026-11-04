@@ -17,7 +17,7 @@ enum ConstArgumentInput {
 }
 
 pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(), Diagnostic> {
-    let applications = program
+    let mut applications = program
         .type_reference_table
         .type_reference_rows()
         .filter_map(|(reference, node)| {
@@ -32,10 +32,93 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
             else {
                 return None;
             };
-            Some((reference, *base_symbol, *arguments))
+            Some((
+                *base_symbol,
+                program
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                    .to_vec(),
+                program
+                    .type_reference_table
+                    .operand_lifetime_owner(reference),
+            ))
         })
         .collect::<Vec<_>>();
-    for (application, declaration, arguments) in applications {
+    // Declaration-owned applications have the same receiving telescope as
+    // Generic type nodes. Their argument occurrences still own source recipes;
+    // header storage does not make a raw ConstExpression a canonical actual.
+    applications.extend(program.conformances().iter().map(|declaration| {
+        (
+            declaration.trait_symbol,
+            program
+                .type_reference_table
+                .type_reference_handles(declaration.arguments)
+                .to_vec(),
+            declaration.symbol,
+        )
+    }));
+    for declaration in program.traits() {
+        applications.extend(
+            program
+                .trait_requirements(declaration)
+                .iter()
+                .map(|parent| {
+                    (
+                        parent.symbol,
+                        program
+                            .type_reference_table
+                            .type_reference_handles(parent.arguments)
+                            .to_vec(),
+                        declaration.symbol,
+                    )
+                }),
+        );
+        if let Some(base) = &declaration.refines {
+            applications.push((
+                base.symbol,
+                program
+                    .type_reference_table
+                    .type_reference_handles(base.arguments)
+                    .to_vec(),
+                declaration.symbol,
+            ));
+        }
+    }
+    let bounds = program
+        .machines()
+        .iter()
+        .map(|item| (item.symbol, &item.conformance_bounds))
+        .chain(
+            program
+                .traits()
+                .iter()
+                .map(|item| (item.symbol, &item.conformance_bounds)),
+        )
+        .chain(
+            program
+                .data_definitions()
+                .iter()
+                .map(|item| (item.symbol, &item.conformance_bounds)),
+        )
+        .chain(
+            program
+                .type_aliases()
+                .iter()
+                .map(|item| (item.symbol, &item.conformance_bounds)),
+        );
+    for (owner, bounds) in bounds {
+        applications.extend(bounds.iter().map(|bound| {
+            // Lifted bounds still name the declaration where their operands
+            // were authored, not the nested machine retaining the same bound.
+            let owner = if bound.binder.is_valid() {
+                program.symbols.get(bound.binder).parent
+            } else {
+                owner
+            };
+            (bound.trait_symbol, bound.arguments.clone(), owner)
+        }));
+    }
+    for (declaration, arguments, owner) in applications {
         let parameters = if let Some(data) = program.unique_data_definition_by_symbol(declaration) {
             program.data_type_parameters(data).to_vec()
         } else if let Some(interface) = program.trait_definition_by_symbol(declaration) {
@@ -71,10 +154,6 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
         } else {
             continue;
         };
-        let arguments = program
-            .type_reference_table
-            .type_reference_handles(arguments)
-            .to_vec();
         if parameters.len() != arguments.len() {
             continue;
         }
@@ -83,12 +162,23 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
             .zip(&arguments)
             .map(|(parameter, argument)| (parameter.symbol, *argument))
             .collect::<Vec<_>>();
-        let owner = program
-            .type_reference_table
-            .operand_lifetime_owner(application);
         for (parameter, argument) in parameters.iter().zip(arguments.iter().copied()) {
             if argument.arena_index() as usize <= frontier {
                 continue;
+            }
+            // Fresh declaration arguments need their source scope even when
+            // a receiving callback contract substitutes them later. Existing
+            // copied supplier custody takes precedence over this header owner.
+            if owner.is_valid()
+                && !program
+                    .type_reference_table
+                    .operand_lifetime_owner(argument)
+                    .is_valid()
+            {
+                program
+                    .type_reference_table
+                    .retain_operand_lifetime_owner(argument, owner)
+                    .map_err(Diagnostic::error)?;
             }
             let TypeParameterKind::Const { type_reference } = parameter.kind else {
                 continue;
@@ -239,13 +329,24 @@ mod tests {
                     [(SymbolKind::TypeParameter, SymbolNameRef::Static("N"))],
                 )
                 .start();
-            let mut program = TypedTrees::default();
-            program.symbols = builder.finish();
+            let mut program = TypedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
             let carrier = program
                 .type_reference_table
                 .insert(TypeReferenceNode::Named {
                     symbol: u64_symbol,
                     name: Identifier::generated("u64"),
+                });
+            // Lowering a suffixed literal retains its landed builtin carrier
+            // (`retain_builtin_type_reference`); the `u8` control below needs
+            // that same row so its selected carrier is known, not open.
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: children.handle_at(symbols::BuiltinTypeAtom::U8.ordinal() as u32),
+                    name: Identifier::generated("u8"),
                 });
             let parameters = program.data_type_parameters.insert_many([TypeParameter {
                 symbol: parameter,
@@ -278,12 +379,22 @@ mod tests {
             ));
             let value =
                 if argument_scope {
+                    // Every evaluated declaration retains its evidence root;
+                    // closed queries follow it rather than the encoded value.
+                    let materialized_initializer =
+                        program.expression_table.insert(ExpressionNode::Integer(
+                            IntegerLiteral::from_value(0).with_landing(IntegerLanding {
+                                landed_type: LandedIntegerType::U64,
+                                domain: ArithmeticDomain::Exact,
+                            }),
+                        ));
                     program.push_const_declaration(ConstDeclaration {
                         symbol: zero,
                         declared_type: carrier,
+                        materialized_initializer,
                         evaluated_value: Some(
                             language_core::constant_value::EvaluatedConstant::Encoded(
-                                language_semantics::const_value::CanonicalConstValue::integer(
+                                language_semantics::const_value::CanonicalConstIdentity::integer(
                                     "u64", 0,
                                 )
                                 .encoding,

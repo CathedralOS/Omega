@@ -405,10 +405,10 @@ pub(crate) fn assert_check_type_mismatch(
 // demonstration itself and the nested rose tree whose payload carries it.
 // Each fixture used to re-encode these functions verbatim.
 
-/// `Id Two zero one` — the empty child position: no closed inhabitant,
-/// so a node whose `B` selects it has no reachable children.
+// `Id Two zero one` — the empty child position: no closed inhabitant,
+// so a node whose `B` selects it has no reachable children.
 
-/// `Id Two zero zero` — the single child position, inhabited by `refl`.
+// `Id Two zero zero` — the single child position, inhabited by `refl`.
 
 /// `B = λ(a : A). caseTwo(λ_.Type 0, Id Two zero one, Id Two zero zero,
 /// fst a)` — child positions selected by tag: none under nil, one under

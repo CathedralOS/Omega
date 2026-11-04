@@ -1,10 +1,13 @@
 //! Checked fixed representation application evaluation and installation.
-use crate::provider_declarations::{retain_provider_defaults, source_checking_applications};
+use crate::product::provider_declarations::{
+    retain_provider_defaults, source_checking_applications,
+};
 use source::DependencyScope;
 use typed_trees::references::collect_selected_program_type_occurrences;
 
 mod layout_installation;
 pub(crate) use layout_installation::compute_plan_laid_layouts_in;
+use layout_installation::compute_prepared_plan_laid_layouts_in;
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -18,7 +21,7 @@ pub struct FixedLayoutTargetScope {
     pub target: String,
     pub facts: Option<layout_plans::LayoutTargetFacts>,
     pub entry_declarations: Option<Vec<symbols::SymbolHandle>>,
-    pub provider_declarations: Vec<crate::provider_declarations::ProviderSelection>,
+    pub provider_declarations: Vec<crate::product::provider_declarations::ProviderSelection>,
 }
 
 /// Close Source representation applications before the settled judgment.
@@ -41,7 +44,10 @@ pub fn evaluate_fixed_layout_applications(
     }
     typed_trees_to_typed_trees::prepare_execution_applications(typed)?;
     let defaults = retain_provider_defaults(
-        crate::provider_declarations::ProviderPlanningContext::new(typed, DependencyScope::Product),
+        crate::product::provider_declarations::ProviderPlanningContext::new(
+            typed,
+            DependencyScope::Product,
+        ),
     )?;
     let mut topology =
         typed_trees::typed_trees::calls::application_graph::source_application_plan(typed);
@@ -107,7 +113,8 @@ pub fn evaluate_fixed_layout_applications(
     let mut domain = crate::build_time_evaluation::EvaluationDomain::all();
     domain.layout_targets = targets;
     domain.layout_applications = Some(inputs);
-    compute_plan_laid_layouts_in(typed, selection_authority, &domain)?;
+    // Every query since preparation above only read the program.
+    compute_prepared_plan_laid_layouts_in(typed, selection_authority, &domain)?;
     layout_installation::validate_layout_application_coverage(
         typed,
         domain.layout_applications.as_deref(),

@@ -1,8 +1,8 @@
 // A returned field loan keeps its anonymous owner through the receiving call.
 // Expected exit: 0
 data Counter { value: u32 in Wrapping; }
-data Note { counter: &mut Counter; value: i32; }
-machine Note::drop(note: &mut Note) { note.counter.value = note.counter.value + 1; }
+data Note dropped by drop_note { counter: &mut Counter; value: i32; }
+machine drop_note(note: &mut Note) { note.counter.value = note.counter.value + 1; }
 machine issue(counter: &mut Counter) -> Note { Note { counter: counter, value: 41 } }
 machine read(value: &i32) -> i32 { value }
 machine retained(counter: &mut Counter) -> bool {

@@ -20,6 +20,7 @@ mod opaque_property_receipts;
 mod runtime_index_fields;
 mod runtime_value_applications;
 mod selections;
+mod value_location_alignment;
 
 pub use selections::bind_pre_specialization_authored_selections;
 
@@ -191,6 +192,9 @@ pub fn prepare_typed_trees(
     // pass in a product compiler. Demands are invocation-owned, so recheck them
     // before any exact-input memo can return a prior language judgment.
     validation::validate_wire_protocol(&program, request.wire_compatibility_demands)?;
+    // A value-form alignment query names its storage subject before any
+    // layout consumer or specialization copies the request.
+    value_location_alignment::settle(&mut program)?;
     // Input completeness belongs to this stage.
     if !request.admits_pending_inputs {
         deferred_constants::require_evaluated_constants(&program)?;
@@ -248,6 +252,11 @@ pub fn prepare_typed_trees(
         &program,
         &provider_candidates,
     );
+    // Call-region inference consumes completed argument values, including
+    // constructors nested directly in calls. Seed their postorder before the
+    // first specialization round; later rounds refresh newly produced values.
+    data_applications::retain_declared_field_scopes(&mut program)?;
+    let _ = crate::constructed_results::retain_constructed_result_types(&mut program)?;
     drop(pre_loop_guard);
     let spec_loop_guard = phase_profile::guard("psi.04.specialization_loop");
     loop {
@@ -376,10 +385,12 @@ pub fn prepare_typed_trees(
     // A carrier that was open before binding must be judged after its caller
     // telescope and inferred destinations have closed, before frozen checking.
     phase_profile::scope("psi.04.post_specialization.domain_test_carriers", || {
+        // Specialized contract facts name their copied binders; the authored
+        // contract environments supply those binders' closed types.
         let contracts = arena::Arena::default();
         let owners =
-            validation::expression_owners::OwnerEnvironmentIndex::new(&program, &contracts);
-        validation::validate_executable_domain_test_carriers(&program, &contracts, &owners)
+            validation::expression_owners::OwnerEnvironmentIndex::for_preparation(&program);
+        validation::validate_domain_membership_carriers(&program, &contracts, &owners)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     phase_profile::scope("psi.04.post_specialization.assembly_admit", || {
@@ -472,6 +483,8 @@ fn normalize_open_index_identities(program: &mut TypedTrees) -> Result<(), Vec<D
 pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let type_frontier = program.type_reference_table.type_reference_count();
     program.retain_static_argument_contexts();
+    data_applications::retain_declared_field_scopes(program)?;
+    let _ = crate::constructed_results::retain_constructed_result_types(program)?;
     loop {
         let signatures = program.closed_requirement_applications().count();
         specialize_machine_calls(program, false)?;
@@ -507,6 +520,7 @@ pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Ve
 /// evaluation owner still admits each demanded invocation before execution.
 pub fn prepare_constant_execution(mut program: TypedTrees) -> Result<TypedTrees, Vec<Diagnostic>> {
     let type_frontier = program.type_reference_table.type_reference_count();
+    value_location_alignment::settle(&mut program)?;
     elaborate(&mut program)?;
     validation::resolve_dynamic_call_targets(&mut program)?;
     program.retain_static_argument_contexts();

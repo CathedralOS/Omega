@@ -10,7 +10,8 @@
 //! and wire plans. Omega schedules these services; it never reinterprets them.
 //!
 //! `build_time_evaluation.rs` is the lifecycle root. The evaluators are grouped
-//! by subject: `const_evaluation/`, `layouts/`, and `machine_execution/`.
+//! by subject: `const_evaluation/`, `layouts/`, and `machine_execution/`;
+//! `product/` admits what Build declares about the Product.
 //! `const_evaluation/selected_constants.rs` owns deferred evaluation order;
 //! layout providers answer geometry without choosing source checks or mutations.
 //! `syntax_probes.rs` owns their temporary frontend work; `validation::reflection` owns
@@ -26,11 +27,10 @@
 // The build-time-evaluation tests' front-end pipelines, one file shared with
 // the integration targets; see its module documentation.
 
-pub mod assumed_bindings;
+pub use product::assumed_bindings;
 mod build_time_evaluation;
 mod const_evaluation;
 mod evaluation_accounting;
-mod fnv;
 pub use evaluation_accounting::{
     CanonicalScalarEvaluationReceipt, PureEvaluationOutcome, PureEvaluationProgram,
     PureEvaluationReceipt, PureEvaluationRecord, PureTerminalEvaluationOutcome,
@@ -38,13 +38,15 @@ pub use evaluation_accounting::{
 };
 mod layouts;
 mod machine_execution;
-pub mod product_declarations;
-pub mod product_policy;
-pub mod provider_declarations;
+mod product;
+pub use product::product_declarations;
+pub use product::product_policy;
+pub use product::provider_declarations;
 mod reflection;
 mod scalar_applications;
 pub use scalar_applications::{
     ScalarScopeEvaluation, complete_scalar_applications, evaluate_scalar_applications,
+    evaluate_scalar_applications_with_address_model,
 };
 mod syntax_probes;
 mod unique;
@@ -113,4 +115,4 @@ pub use machine_execution::selected_target_bodies::{
 pub use validation::native_locators;
 pub use validation::product_entries;
 
-pub mod native_bindings;
+pub use product::native_bindings;

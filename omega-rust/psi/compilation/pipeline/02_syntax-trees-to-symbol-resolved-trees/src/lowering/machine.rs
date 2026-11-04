@@ -156,7 +156,7 @@ fn lower_lexical_machine_parts(
     lowerer.current_machine_is_boundary = machine.boundary;
     lowerer.current_machine_root_index = Some(lowerer.symbol_resolved_trees.machines.len());
     lowerer.current_machine_name = Some(machine.name.as_str(syntax_trees).to_owned());
-    lowerer.current_evidence_term_names = syntax_items(&syntax_trees)
+    lowerer.current_evidence_term_names = syntax_items(syntax_trees)
         .capability_contracts(machine.contracts)
         .iter()
         .filter_map(|contract| contract.binding.as_ref())
@@ -184,7 +184,7 @@ fn lower_lexical_machine_parts(
                 .iter()
                 .copied()
                 .zip(
-                    syntax_items(&syntax_trees)
+                    syntax_items(syntax_trees)
                         .state_handles(machine.states)
                         .iter()
                         .copied(),
@@ -264,12 +264,12 @@ fn lower_lexical_machine_parts(
     // an admission claim. Supply is decided before the
     // push so the interner borrow does not overlap the machines borrow.
     let supply_mode = {
-        let via_binding = syntax_items(&syntax_trees)
+        let via_binding = syntax_items(syntax_trees)
             .satisfies_clauses(machine.satisfies)
             .iter()
             .find_map(|clause| clause.via.as_ref())
             .map(|value| external_binding_identity(syntax_trees, value));
-        let has_via_expression = syntax_items(&syntax_trees)
+        let has_via_expression = syntax_items(syntax_trees)
             .satisfies_clauses(machine.satisfies)
             .iter()
             .any(|clause| clause.via_expression.is_valid());
@@ -294,7 +294,7 @@ fn lower_lexical_machine_parts(
             // actually authors a fact. Claim-free symbols such as the
             // axiomatic Real package's operations assert nothing and need no
             // grant; they remain ordinary boundary supply.
-            let authors_fact = syntax_items(&syntax_trees)
+            let authors_fact = syntax_items(syntax_trees)
                 .capability_contracts(machine.contracts)
                 .iter()
                 .any(|contract| {
@@ -495,7 +495,7 @@ fn with_pending_machine_scope<T>(
     let previous_name = lowerer
         .current_machine_name
         .replace(pending.source.name.as_str(syntax).to_owned());
-    let evidence_names = syntax_items(&syntax)
+    let evidence_names = syntax_items(syntax)
         .capability_contracts(pending.source.contracts)
         .iter()
         .filter_map(|contract| contract.binding.as_ref())
@@ -564,6 +564,11 @@ pub(crate) fn lower_generic_conformance_bounds(
                 binder_name: lower_name(syntax_trees, &bound.binder),
                 trait_symbol: SymbolHandle::invalid(),
                 trait_name: lower_name(syntax_trees, &bound.trait_name),
+                lifetime_arguments: bound
+                    .lifetime_arguments
+                    .iter()
+                    .map(|name| lower_name(syntax_trees, name))
+                    .collect(),
                 arguments: lower_child_type_references(lowerer, syntax_trees, bound.arguments)?,
             })
         })
@@ -607,7 +612,7 @@ fn build_termination_plan(
         TerminationInterface::InternalDerived
     };
 
-    let subjects = syntax_expressions(&syntax_trees).expression_handles(machine.ranking_subjects);
+    let subjects = syntax_expressions(syntax_trees).expression_handles(machine.ranking_subjects);
     let implementation_witness = (!subjects.is_empty()).then(|| {
         let (ranking_view, view_path) = elaborate_ranking_view(
             lowerer,
@@ -626,7 +631,7 @@ fn build_termination_plan(
             view_path,
             // TPR3: an argumented view's arguments, rendered source-like in
             // order (`Nat::IncreasingTo(limit)` carries `["limit"]`).
-            view_arguments: syntax_expressions(&syntax_trees)
+            view_arguments: syntax_expressions(syntax_trees)
                 .expression_handles(machine.ranking_view_arguments)
                 .iter()
                 .map(|argument| render_ranked_subject(syntax_trees, *argument))
@@ -665,7 +670,7 @@ fn render_ranked_subject(
     match syntax_trees.expressions.expression(subject) {
         // Range endpoints are commonly literals (`in 0..=capacity`).
         ExpressionNode::Integer(literal) => literal.to_string(),
-        ExpressionNode::Name(path) => syntax_expressions(&syntax_trees)
+        ExpressionNode::Name(path) => syntax_expressions(syntax_trees)
             .identifier_path_members(*path)
             .joined_path_with_in(syntax_trees, "."),
         ExpressionNode::Member(member) => format!(
@@ -702,7 +707,7 @@ fn elaborate_ranking_view(
 ) -> (RankingViewId, String) {
     use language_semantics::RankingViewId;
 
-    let order = syntax_items(&syntax_trees).identifier_path_members(machine.ranking_view);
+    let order = syntax_items(syntax_trees).identifier_path_members(machine.ranking_view);
     if !order.is_empty() {
         let path = order.joined_path_in(syntax_trees);
         let id = RankingViewId::canonical(&path).unwrap_or(RankingViewId::NULL);
@@ -758,7 +763,7 @@ fn elaborate_single_subject_default(
     };
     let trees = &lowerer.symbol_resolved_trees;
     let pending = (RankingViewId::NULL, String::new());
-    let Some(subject_name) = syntax_expressions(&syntax_trees)
+    let Some(subject_name) = syntax_expressions(syntax_trees)
         .identifier_path_members(*path)
         .last()
     else {
@@ -842,7 +847,7 @@ fn lower_ranking_expressions(
 ) -> Result<HandleSpan<ExpressionHandle>, Diagnostic> {
     let mut lowered = Vec::new();
 
-    for expression in syntax_expressions(&syntax_trees).expression_handles(source_expressions) {
+    for expression in syntax_expressions(syntax_trees).expression_handles(source_expressions) {
         let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
         lowered.push(expression);
     }

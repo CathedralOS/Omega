@@ -1,16 +1,16 @@
 // Early disposal through the ordinary consuming `omega::language::core::drop`
 // transfers the whole guard into the callee, whose cleanup edge runs
-// `Guard::drop`. The caller's `g` then holds no established value, so reading
+// `drop_guard`. The caller's `g` then holds no established value, so reading
 // a field through it is a use of a consumed owner: the scalar must be read
 // before the transfer, not after.
 
 use omega::language::core::drop;
 
-data Guard {
+data Guard dropped by drop_guard {
     handle: i32;
 }
 
-machine Guard::drop(guard: &mut Guard) {
+machine drop_guard(guard: &mut Guard) {
 }
 
 data Main {}

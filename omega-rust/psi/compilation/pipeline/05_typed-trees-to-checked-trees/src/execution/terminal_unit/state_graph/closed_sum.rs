@@ -26,6 +26,7 @@ use super::{
     ShapeCollector, Signature, TransitionExit, TransitionGuardNode, TransitionTargetNode,
     TypeReferenceNode, returns, terminal_calls,
 };
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::state_graph::{
     EdgeCalls, FusedStates, SuccessorEdge, successor_bindings,
@@ -256,7 +257,11 @@ pub(super) fn build(
     if let DispatchSubject::Place { subject: place, .. } = dispatch
         && !place.segments.is_empty()
     {
-        let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
+        let ProjectedArgumentPath {
+            storage_type: projected,
+            path,
+            ..
+        } = crate::execution::terminal_unit::calls::projected_argument_path(
             program,
             state.symbol,
             transition_start,

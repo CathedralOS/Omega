@@ -16,6 +16,7 @@ use super::{
     Builder, ExpressionHandle, ExpressionNode, StatementNode, TypeReferenceNode,
     structural_values::canonical_place_is_borrowable,
 };
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::calls::projected_argument_path;
 use crate::execution::terminal_unit::calls::projected_observed_path;
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
@@ -193,7 +194,7 @@ impl Builder<'_, '_> {
             }
             None => CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
         };
-        let (projected, path) = projected_argument_path(
+        let projection = projected_argument_path(
             self.program,
             self.state,
             self.statement_index,
@@ -205,8 +206,12 @@ impl Builder<'_, '_> {
         // instead lends its referee's storage, including a borrowed array
         // parameter or an array behind a stored reference. Reuse the common
         // storage projection so only stored shells gain explicit crossings.
-        let (projected, path) = if slice_view_shell(self.program, projected, &[]).is_some() {
-            (projected, path)
+        let ProjectedArgumentPath {
+            storage_type: projected,
+            path,
+            ..
+        } = if slice_view_shell(self.program, projection.storage_type, &[]).is_some() {
+            projection
         } else {
             projected_observed_path(
                 self.program,

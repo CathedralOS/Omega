@@ -1,7 +1,9 @@
 //! Build the ordinary scalar evaluation graph from retained checked operations.
 //! A declaration application supplies captured formal values and its admitted
 //! call/cast receipts; it does not turn its body into a separate evaluator.
-//! Structural operands still require statement-owned loan or value captures.
+//! Structural operands require statement-owned loan/value captures or an
+//! observation's independently admitted declaration-input homes. An entry
+//! observation owns its complete operand graph and all of its call receipts.
 
 use super::call_arguments::{CallOperandCustody, ComputedCallOperands};
 use super::{boundary_calls, integers, normal_return};
@@ -45,6 +47,14 @@ pub(super) struct DeclarationScope<'program> {
     pub(super) application: checked_trees::CheckedRankApplicationFormationHandle,
 }
 
+/// Operand aliases belong to a statement's execution roster only when that
+/// statement owns the graph. An entry observation owns its operands through
+/// the complete RankObservation root, including declaration call receipts.
+pub(super) enum RootScope {
+    Statement,
+    RankObservation,
+}
+
 pub(super) struct Builder<'program, 'plans> {
     pub(super) program: &'program dyn ::validation::CheckingInput,
     pub(super) shapes: ShapeCollector<'program>,
@@ -72,6 +82,7 @@ pub(super) struct Builder<'program, 'plans> {
     pub(super) plans: &'plans mut CheckedScalarComputationPlans,
     pub(super) structural_values: &'plans mut checked_trees::CheckedStructuralValuePlans,
     pub(super) statement_nodes_start: usize,
+    pub(super) root_scope: RootScope,
     /// A normalized source operand is one evaluation. Retain that identity for
     /// every scalar carrier within this statement; distinct authored handles
     /// and distinct contextual carriers remain separate computations.
@@ -254,6 +265,14 @@ impl Builder<'_, '_> {
         role: CheckedScalarExpressionRole,
         root: ComputationHandle,
     ) -> Option<()> {
+        if matches!(self.root_scope, RootScope::RankObservation)
+            && !matches!(role, CheckedScalarExpressionRole::RankObservation { .. })
+        {
+            // Keep the operand node in the observation graph. Publishing it
+            // again at synthetic statement zero would demand a statement call
+            // occurrence for a declaration-owned invocation.
+            return Some(());
+        }
         let statement_ordinal = u32::try_from(self.statement_index).ok()?;
         let mut published =
             self.plans
@@ -398,9 +417,7 @@ impl Builder<'_, '_> {
         expected_type: PrimitiveType,
     ) -> Option<ComputationHandle> {
         let operand = self.same_carrier_cast_operand(expression)?;
-        let Some(cast) = self.program.expression_table.cast_node(expression) else {
-            return None;
-        };
+        let cast = self.program.expression_table.cast_node(expression)?;
         if self.program.primitive_type_reference(cast.target_type) != Some(expected_type) {
             return None;
         }
@@ -863,7 +880,7 @@ impl Builder<'_, '_> {
                             state: target_state.symbol,
                         },
                         source_expression: expression,
-                        source_call: source_call.into(),
+                        source_call,
                         call_ordinal,
                         arguments,
                         structural_arguments,

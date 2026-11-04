@@ -218,6 +218,7 @@ pub struct FlowControlFacts {
     pub operand_retained_roots: Arena<facts::PlaceRoot>,
     pub operand_retained_leaves: Arena<super::FlowOperandRetainedLeaf>,
     pub operand_retained_suppliers: Arena<super::FlowOperandRetainedSupplier>,
+    pub operand_reborrow_sources: Arena<super::FlowOperandReborrowSource>,
     pub output_lifetime_sources: Arena<super::FlowOutputLifetimeSources>,
     pub operand_retained_regions: Arena<super::FlowOperandRetainedRegion>,
     pub operand_retained_paths: Arena<facts::PlaceSegment>,
@@ -225,6 +226,7 @@ pub struct FlowControlFacts {
     pub calls: Arena<FlowCallFact>,
     /// Authored argument expressions, spanned by [`FlowCallFact::authored_arguments`].
     pub call_arguments: Arena<typed_trees::expression::ExpressionHandle>,
+    pub call_argument_positions: Arena<u32>,
     pub exits: Arena<FlowExitFact>,
     pub outgoing: Arena<super::FlowStateOutgoingFact>,
     pub exit_parameter_origins: Arena<super::FlowExitParameterOrigin>,
@@ -303,17 +305,33 @@ impl FlowControlFacts {
             operand_retained_roots: Arena::default(),
             operand_retained_leaves: Arena::default(),
             operand_retained_suppliers: Arena::default(),
+            operand_reborrow_sources: Arena::default(),
             output_lifetime_sources: Arena::default(),
             operand_retained_regions: Arena::default(),
             operand_retained_paths: Arena::default(),
             calls,
             call_arguments: Arena::default(),
+            call_argument_positions: Arena::default(),
             exits,
             outgoing: Arena::default(),
             exit_parameter_origins: Arena::default(),
             states: states.into(),
             retired_calls: Vec::new(),
         }
+    }
+
+    /// The checking owner has already formed this complete source permutation.
+    /// An absent span is natural order; an unavailable nonempty span contributes
+    /// no argument observations rather than reconstructing source evaluation.
+    pub fn call_argument_evaluation_order(&self, call: &FlowCallFact) -> Vec<usize> {
+        if call.argument_evaluation_order.is_empty() {
+            return (0..call.authored_arguments.len()).collect();
+        }
+        self.call_argument_positions
+            .span_or_empty(call.argument_evaluation_order)
+            .iter()
+            .map(|position| *position as usize)
+            .collect()
     }
 
     /// The call row of `state` at an authored statement and call ordinal.
@@ -584,12 +602,14 @@ paged_flow_roots!(FlowControlFacts {
         operand_retained_roots,
         operand_retained_leaves,
         operand_retained_suppliers,
+        operand_reborrow_sources,
         output_lifetime_sources,
         operand_retained_regions,
         operand_retained_paths,
         statements,
         calls,
         call_arguments,
+        call_argument_positions,
         exits,
         outgoing,
         exit_parameter_origins,

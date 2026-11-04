@@ -6,11 +6,12 @@ use crate::{ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes}
 use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_homes::{AllocatedProgram, AllocatedProgramFacts};
-use selected_instructions::PreAllocationMachineEffectPlan;
-use selected_instructions_to_selected_instructions::{
+use selected_instruction_analyses::SelectedProgramView;
+use selected_instruction_analyses::{
     MachineEffectStageError, OwnedSelectedProgram, SelectedProgramRef, ValidatedAllocationLegality,
-    ValidatedLiveRanges, ValidatedLiveness, ValidatedSelectedAnalysis, analyze_machine_effects,
+    ValidatedLiveRanges, ValidatedLiveness, analyze_machine_effects,
 };
+use selected_instructions::PreAllocationMachineEffectPlan;
 
 use super::{AllocationEvidence, AllocationOutput};
 

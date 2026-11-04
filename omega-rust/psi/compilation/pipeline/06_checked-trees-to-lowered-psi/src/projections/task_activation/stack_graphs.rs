@@ -113,13 +113,13 @@ pub(crate) fn task_call_graph<'program>(
 /// Resolve an entry state symbol to its exact owning machine and state. A
 /// state symbol is globally unique, so a zero or plural resolution means the
 /// checked program retained a drifted call target and must fail closed.
-pub(crate) fn exact_frame_target<'program>(
-    typed: &'program checked_trees::typed_trees::TypedTrees,
+pub(crate) fn exact_frame_target(
+    typed: &checked_trees::typed_trees::TypedTrees,
     entry: SymbolHandle,
 ) -> Result<
     (
-        &'program checked_trees::machine::Machine,
-        &'program checked_trees::state::State,
+        &checked_trees::machine::Machine,
+        &checked_trees::state::State,
     ),
     Vec<Diagnostic>,
 > {
@@ -354,13 +354,13 @@ fn frame_state_closure<'program>(
 /// Targets that name no machine state -- requirement slots, machine
 /// parameters, dynamic descriptor calls -- return `None`; they place no
 /// checked frame on this stack.
-fn checked_call_target<'program>(
-    typed: &'program checked_trees::typed_trees::TypedTrees,
+fn checked_call_target(
+    typed: &checked_trees::typed_trees::TypedTrees,
     target: SymbolHandle,
 ) -> Result<
     Option<(
-        &'program checked_trees::machine::Machine,
-        &'program checked_trees::state::State,
+        &checked_trees::machine::Machine,
+        &checked_trees::state::State,
     )>,
     Vec<Diagnostic>,
 > {

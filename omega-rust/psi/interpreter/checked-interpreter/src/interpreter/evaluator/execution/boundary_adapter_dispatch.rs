@@ -11,6 +11,7 @@ impl<'program> Evaluator<'program> {
         target_symbol: SymbolHandle,
         machine_arguments: &[typed_trees::expression::StaticMachineArgument],
         arguments: &[ExpressionHandle],
+        source: Option<validation::CallSite<'_>>,
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         if receiver_symbol.is_valid()
@@ -18,7 +19,7 @@ impl<'program> Evaluator<'program> {
                 self.selected_boundary_adapter(receiver_symbol, target_symbol, machine_arguments)
         {
             return self
-                .run_boundary_adapter(dispatch, arguments, frame)
+                .run_boundary_adapter(dispatch, arguments, source, frame)
                 .map(Some);
         }
         self.try_operator_application(target_symbol, ExpressionHandle::invalid(), arguments, frame)
@@ -55,9 +56,10 @@ impl<'program> Evaluator<'program> {
         &mut self,
         dispatch: checked_trees::CheckedBoundaryAdapterDispatch,
         arguments: &[ExpressionHandle],
+        source: Option<validation::CallSite<'_>>,
         frame: &mut Frame,
     ) -> EvalResult<Value> {
-        self.run_selected_realization(dispatch.realization_state, arguments, frame)
+        self.run_selected_realization(dispatch.realization_state, arguments, source, frame)
     }
 
     /// Run one selected realization entry state. Static conformance dispatch
@@ -67,6 +69,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         realization_state: SymbolHandle,
         arguments: &[ExpressionHandle],
+        source: Option<validation::CallSite<'_>>,
         frame: &mut Frame,
     ) -> EvalResult<Value> {
         let (machine, state) = self
@@ -75,21 +78,7 @@ impl<'program> Evaluator<'program> {
         // Providers receive exactly the requirement's authored arguments.
         // Checking rejects any satisfier parameter its requirement lacks, so
         // no provider instance or receiver is allocated or inserted here.
-        let destinations = self
-            .program
-            .state_parameters(state)
-            .iter()
-            .map(|parameter| parameter.type_reference)
-            .collect::<Vec<_>>();
-        if destinations.len() != arguments.len() {
-            return trap(
-                "selected boundary adapter argument count differs from its checked signature",
-            );
-        }
-        let mut evaluated = Vec::with_capacity(destinations.len());
-        for (argument, destination) in arguments.iter().zip(&destinations) {
-            evaluated.push(self.eval_state_argument(*argument, *destination, frame)?);
-        }
+        let evaluated = self.eval_state_arguments(state, arguments, source, frame)?;
         let guard_depth = self.guard_depth;
         self.guard_depth = 0;
         let result = self.run_state_collect(machine, state, evaluated);
@@ -133,7 +122,7 @@ impl<'program> Evaluator<'program> {
                         .map(|row| row.realization_state)
                 });
         if let Some(realization_state) = selected_state {
-            return self.run_selected_realization(realization_state, arguments, frame);
+            return self.run_selected_realization(realization_state, arguments, None, frame);
         }
         let machine = self
             .find_machine_by_symbol(type_symbol)

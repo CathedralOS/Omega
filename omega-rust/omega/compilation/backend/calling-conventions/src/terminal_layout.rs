@@ -1,8 +1,16 @@
 //! Native storage geometry for canonical Terminal declarations.
 //! Instruction lowering and task stack planning consume this same owner.
+//!
+//! `StructuralLayouts` computes every structural type's shape once per module,
+//! in dependency order, and answers each later question with a table lookup.
+//! A type whose geometry cannot be realized keeps its error in the table; the
+//! error surfaces only when a consumer asks for that type.
 use crate::ValueShape;
-use semantic_vocabulary::{IeeeFloatFormat, ScalarApplicationId, ScalarType, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
+use semantic_vocabulary::{
+    IdSet, IdTable, IeeeFloatFormat, NonDenseIdentities, ScalarApplicationId, ScalarType,
+    StructuralTypeId,
+};
+use std::collections::BTreeSet;
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,46 +24,127 @@ pub enum TerminalLayoutError {
     UnsupportedStructuralSum(StructuralTypeId),
 }
 
-pub fn structural_shape(
-    structural_type: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
-) -> Result<ValueShape, TerminalLayoutError> {
-    resolve_structural_shape(
-        structural_type,
-        declarations,
-        cache,
-        active,
-        &mut reject_unclosed_extent,
-    )?
-    .ok_or(TerminalLayoutError::UnclosedArrayExtent(structural_type))
+type Declarations<'a> = IdTable<StructuralTypeId, &'a StructuralTypeDeclaration>;
+/// Shapes already resolved during one walk; `None` is not yet known.
+type KnownShapes = IdTable<StructuralTypeId, Option<ValueShape>>;
+
+/// One module's structural declarations and the native shape of each.
+#[derive(Debug, Clone, Default)]
+pub struct StructuralLayouts<'a> {
+    declarations: Declarations<'a>,
+    shapes: IdTable<StructuralTypeId, Result<ValueShape, TerminalLayoutError>>,
 }
 
-/// Discover the scalar inputs required by these physical storage roots using
-/// the same geometry walk as lowering. References and views store descriptors;
-/// their referents are separate roots only when an access demands their layout.
-/// Unknown extents do not invent sizes or prevent discovery in sibling fields.
-pub fn required_scalar_extents(
-    roots: impl IntoIterator<Item = StructuralTypeId>,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Result<BTreeSet<ScalarApplicationId>, TerminalLayoutError> {
-    let mut required = BTreeSet::new();
-    let mut cache = BTreeMap::new();
-    let mut active = BTreeSet::new();
-    for root in roots {
-        resolve_structural_shape(
-            root,
+impl<'a> StructuralLayouts<'a> {
+    /// Declarations must arrive in identity order as one consecutive run.
+    pub fn new(
+        rows: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
+    ) -> Result<Self, NonDenseIdentities> {
+        let declarations = IdTable::from_rows(rows.into_iter().map(|row| (row.id, row)))?;
+        let mut known = declarations.map(|_, _| None);
+        let mut active = IdSet::new();
+        // Each root's result is the one a fresh walk from that root reports.
+        // Only realized shapes are shared between roots: an error inside a
+        // reference cycle names the first repeated type reached from its root.
+        let shapes = declarations.map(|structural_type, _| {
+            resolve_structural_shape(
+                structural_type,
+                &declarations,
+                &mut known,
+                &mut active,
+                &mut reject_unclosed_extent,
+            )?
+            .ok_or(TerminalLayoutError::UnclosedArrayExtent(structural_type))
+        });
+        Ok(Self {
             declarations,
-            &mut cache,
-            &mut active,
-            &mut |_, application| {
-                required.insert(application);
-                Ok(None)
-            },
-        )?;
+            shapes,
+        })
     }
-    Ok(required)
+
+    pub fn shape(
+        &self,
+        structural_type: StructuralTypeId,
+    ) -> Result<ValueShape, TerminalLayoutError> {
+        self.shapes.get(structural_type).copied().unwrap_or(Err(
+            TerminalLayoutError::UnknownStructuralType(structural_type),
+        ))
+    }
+
+    pub fn field_shape(
+        &self,
+        field: &StructuralFieldType,
+        owner: StructuralTypeId,
+    ) -> Result<ValueShape, TerminalLayoutError> {
+        match field {
+            StructuralFieldType::Structural(nested) => self.shape(*nested),
+            _ => scalar_field_shape(field, owner),
+        }
+    }
+
+    pub fn sum_layout(
+        &self,
+        structural_type: StructuralTypeId,
+    ) -> Result<crate::ConventionalSumLayout, TerminalLayoutError> {
+        let declaration = self
+            .declarations
+            .get(structural_type)
+            .ok_or(TerminalLayoutError::UnknownStructuralType(structural_type))?;
+        let (common_fields, cases) = match &declaration.shape {
+            StructuralTypeShape::Sum { cases } => (&[][..], cases),
+            StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
+            _ => {
+                return Err(TerminalLayoutError::UnsupportedStructuralSum(
+                    structural_type,
+                ));
+            }
+        };
+        conventional_sum_layout_from_parts(structural_type, common_fields, cases, &mut |field| {
+            self.field_shape(field, structural_type).map(Some)
+        })?
+        .ok_or(TerminalLayoutError::UnclosedArrayExtent(structural_type))
+    }
+
+    pub fn scalar_storage_type(&self, structural_type: StructuralTypeId) -> Option<ScalarType> {
+        scalar_storage_type(structural_type, &self.declarations)
+    }
+
+    /// Discover the scalar inputs required by these physical storage roots using
+    /// the same geometry walk as lowering. References and views store descriptors;
+    /// their referents are separate roots only when an access demands their layout.
+    /// Unknown extents do not invent sizes or prevent discovery in sibling fields.
+    pub fn required_scalar_extents(
+        &self,
+        roots: impl IntoIterator<Item = StructuralTypeId>,
+    ) -> Result<BTreeSet<ScalarApplicationId>, TerminalLayoutError> {
+        // A realized shape reached no extent application, so the discovery
+        // walk only needs to enter types whose shape is still open.
+        let mut known = self.shapes.map(|_, shape| shape.ok());
+        let mut active = IdSet::new();
+        let mut required = BTreeSet::new();
+        for root in roots {
+            resolve_structural_shape(
+                root,
+                &self.declarations,
+                &mut known,
+                &mut active,
+                &mut |_, application| {
+                    required.insert(application);
+                    Ok(None)
+                },
+            )?;
+        }
+        Ok(required)
+    }
+}
+
+/// Consumers read declarations through the layouts that already realized them.
+impl<'a> std::ops::Deref for StructuralLayouts<'a> {
+    type Target = Declarations<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.declarations
+    }
 }
 
 fn reject_unclosed_extent(
@@ -67,15 +156,15 @@ fn reject_unclosed_extent(
 
 fn resolve_structural_shape(
     structural_type: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &Declarations<'_>,
+    known: &mut KnownShapes,
+    active: &mut IdSet<StructuralTypeId>,
     extent: &mut impl FnMut(
         StructuralTypeId,
         ScalarApplicationId,
     ) -> Result<Option<u64>, TerminalLayoutError>,
 ) -> Result<Option<ValueShape>, TerminalLayoutError> {
-    if let Some(shape) = cache.get(&structural_type) {
+    if let Some(Some(shape)) = known.get(structural_type) {
         return Ok(Some(*shape));
     }
     if !active.insert(structural_type) {
@@ -85,7 +174,7 @@ fn resolve_structural_shape(
     }
     let result = (|| {
         let declaration = declarations
-            .get(&structural_type)
+            .get(structural_type)
             .copied()
             .ok_or(TerminalLayoutError::UnknownStructuralType(structural_type))?;
         match &declaration.shape {
@@ -143,7 +232,7 @@ fn resolve_structural_shape(
                         &field.field_type,
                         structural_type,
                         declarations,
-                        cache,
+                        known,
                         active,
                         extent,
                     )?;
@@ -183,7 +272,7 @@ fn resolve_structural_shape(
                     return Ok(Some(ValueShape::integer(0, 1)));
                 }
                 let element =
-                    resolve_structural_shape(*element, declarations, cache, active, extent)?;
+                    resolve_structural_shape(*element, declarations, known, active, extent)?;
                 let (Some(length), Some(element)) = (length, element) else {
                     return Ok(None);
                 };
@@ -198,95 +287,51 @@ fn resolve_structural_shape(
                     if length == 0 { 1 } else { element.alignment },
                 )))
             }
-            StructuralTypeShape::Sum { cases } => conventional_sum_layout_from_parts(
-                structural_type,
-                &[],
-                cases,
-                declarations,
-                cache,
-                active,
-                extent,
-            )
-            .map(|layout| layout.map(|layout| layout.shape)),
-            StructuralTypeShape::Mixed { fields, cases } => conventional_sum_layout_from_parts(
-                structural_type,
-                fields,
-                cases,
-                declarations,
-                cache,
-                active,
-                extent,
-            )
-            .map(|layout| layout.map(|layout| layout.shape)),
+            StructuralTypeShape::Sum { cases } => {
+                conventional_sum_layout_from_parts(structural_type, &[], cases, &mut |field| {
+                    resolve_structural_field_shape(
+                        field,
+                        structural_type,
+                        declarations,
+                        known,
+                        active,
+                        extent,
+                    )
+                })
+                .map(|layout| layout.map(|layout| layout.shape))
+            }
+            StructuralTypeShape::Mixed { fields, cases } => {
+                conventional_sum_layout_from_parts(structural_type, fields, cases, &mut |field| {
+                    resolve_structural_field_shape(
+                        field,
+                        structural_type,
+                        declarations,
+                        known,
+                        active,
+                        extent,
+                    )
+                })
+                .map(|layout| layout.map(|layout| layout.shape))
+            }
         }
     })();
-    active.remove(&structural_type);
+    active.remove(structural_type);
     let shape = result?;
-    if let Some(shape) = shape {
-        cache.insert(structural_type, shape);
+    if let Some(shape) = shape
+        && let Some(known) = known.get_mut(structural_type)
+    {
+        *known = Some(shape);
     }
     Ok(shape)
-}
-
-pub fn scalar_storage_type(
-    structural_type: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Option<ScalarType> {
-    let StructuralTypeShape::PrimitiveScalar(scalar) = declarations.get(&structural_type)?.shape
-    else {
-        return None;
-    };
-    runtime_abi::ScalarStorageCodec::from_scalar(scalar).map(|_| scalar)
-}
-
-pub fn structural_sum_layout(
-    structural_type: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
-) -> Result<crate::ConventionalSumLayout, TerminalLayoutError> {
-    let declaration = declarations
-        .get(&structural_type)
-        .copied()
-        .ok_or(TerminalLayoutError::UnknownStructuralType(structural_type))?;
-    match &declaration.shape {
-        StructuralTypeShape::Sum { cases } => conventional_sum_layout_from_parts(
-            structural_type,
-            &[],
-            cases,
-            declarations,
-            cache,
-            active,
-            &mut reject_unclosed_extent,
-        )?
-        .ok_or(TerminalLayoutError::UnclosedArrayExtent(structural_type)),
-        StructuralTypeShape::Mixed { fields, cases } => conventional_sum_layout_from_parts(
-            structural_type,
-            fields,
-            cases,
-            declarations,
-            cache,
-            active,
-            &mut reject_unclosed_extent,
-        )?
-        .ok_or(TerminalLayoutError::UnclosedArrayExtent(structural_type)),
-        _ => Err(TerminalLayoutError::UnsupportedStructuralSum(
-            structural_type,
-        )),
-    }
 }
 
 fn conventional_sum_layout_from_parts(
     structural_type: StructuralTypeId,
     common_fields: &[terminal_psi::StructuralFieldDeclaration],
     cases: &[terminal_psi::StructuralCaseDeclaration],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
-    extent: &mut impl FnMut(
-        StructuralTypeId,
-        ScalarApplicationId,
-    ) -> Result<Option<u64>, TerminalLayoutError>,
+    field_shape: &mut dyn FnMut(
+        &StructuralFieldType,
+    ) -> Result<Option<ValueShape>, TerminalLayoutError>,
 ) -> Result<Option<crate::ConventionalSumLayout>, TerminalLayoutError> {
     if cases.is_empty() {
         return Err(TerminalLayoutError::EmptyStructuralType(structural_type));
@@ -294,16 +339,7 @@ fn conventional_sum_layout_from_parts(
     let common = common_fields
         .iter()
         .filter(|field| !field.relevance.is_erased())
-        .map(|field| {
-            resolve_structural_field_shape(
-                &field.field_type,
-                structural_type,
-                declarations,
-                cache,
-                active,
-                extent,
-            )
-        })
+        .map(|field| field_shape(&field.field_type))
         .collect::<Result<Vec<_>, _>>()?;
     let payloads = cases
         .iter()
@@ -311,16 +347,7 @@ fn conventional_sum_layout_from_parts(
             case.fields
                 .iter()
                 .filter(|field| !field.relevance.is_erased())
-                .map(|field| {
-                    resolve_structural_field_shape(
-                        &field.field_type,
-                        structural_type,
-                        declarations,
-                        cache,
-                        active,
-                        extent,
-                    )
-                })
+                .map(|field| field_shape(&field.field_type))
                 .collect::<Result<Vec<_>, _>>()
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -339,39 +366,32 @@ fn conventional_sum_layout_from_parts(
         .map_err(|_| TerminalLayoutError::StructuralTypeTooLarge(structural_type))
 }
 
-pub fn structural_field_shape(
-    field: &StructuralFieldType,
-    owner: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
-) -> Result<ValueShape, TerminalLayoutError> {
-    resolve_structural_field_shape(
-        field,
-        owner,
-        declarations,
-        cache,
-        active,
-        &mut reject_unclosed_extent,
-    )?
-    .ok_or(TerminalLayoutError::UnclosedArrayExtent(owner))
-}
-
 fn resolve_structural_field_shape(
     field: &StructuralFieldType,
     owner: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &Declarations<'_>,
+    known: &mut KnownShapes,
+    active: &mut IdSet<StructuralTypeId>,
     extent: &mut impl FnMut(
         StructuralTypeId,
         ScalarApplicationId,
     ) -> Result<Option<u64>, TerminalLayoutError>,
 ) -> Result<Option<ValueShape>, TerminalLayoutError> {
     if let StructuralFieldType::Structural(nested) = field {
-        return resolve_structural_shape(*nested, declarations, cache, active, extent);
+        return resolve_structural_shape(*nested, declarations, known, active, extent);
     }
     scalar_field_shape(field, owner).map(Some)
+}
+
+fn scalar_storage_type(
+    structural_type: StructuralTypeId,
+    declarations: &Declarations<'_>,
+) -> Option<ScalarType> {
+    let StructuralTypeShape::PrimitiveScalar(scalar) = declarations.get(structural_type)?.shape
+    else {
+        return None;
+    };
+    runtime_abi::ScalarStorageCodec::from_scalar(scalar).map(|_| scalar)
 }
 
 fn scalar_field_shape(
@@ -469,14 +489,11 @@ pub fn scalar_shape(scalar: ScalarType) -> ValueShape {
     }
 }
 
-fn empty_primitive_array(
-    mut current: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> bool {
+fn empty_primitive_array(mut current: StructuralTypeId, declarations: &Declarations<'_>) -> bool {
     let mut empty = false;
     for _ in 0..declarations.len() {
         match declarations
-            .get(&current)
+            .get(current)
             .map(|declaration| &declaration.shape)
         {
             Some(StructuralTypeShape::FixedArray { element, length }) => {

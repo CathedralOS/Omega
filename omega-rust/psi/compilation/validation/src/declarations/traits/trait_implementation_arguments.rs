@@ -70,7 +70,7 @@ pub(super) fn validate_trait_implementation_arguments(
             validate(
                 bound.trait_symbol,
                 &bound.arguments,
-                &[],
+                &bound.lifetime_arguments,
                 definition.symbol,
                 format!(
                     "trait `{}` evidence binder `{}`",
@@ -128,7 +128,7 @@ pub(super) fn validate_trait_implementation_arguments(
             validate(
                 bound.trait_symbol,
                 &bound.arguments,
-                &[],
+                &bound.lifetime_arguments,
                 machine.symbol,
                 format!(
                     "machine `{}` evidence binder `{}`",
@@ -219,7 +219,7 @@ pub(crate) fn validate_implementation_application(
             declaration,
             owner,
             &[AppliedTypeIdentityScope {
-                declaration: declaration,
+                declaration,
                 arguments: &substitutions,
                 lifetimes: &lifetimes,
             }],
@@ -299,20 +299,22 @@ fn validate_binding(
         .collect::<Vec<_>>();
     // Compare the declared application under its complete caller-owned tuple.
     // Rendered commitment payloads do not substitute for exact local identity.
-    let actual_arguments = super::conformance_applications::applied_trait_argument_identities(
-        program,
-        application.trait_definition,
-        program
-            .type_reference_table
-            .type_reference_handles(implementation.arguments),
-        implementation.symbol,
-        owner,
-        &[AppliedTypeIdentityScope {
-            declaration: implementation.symbol,
-            arguments: &actuals,
-            lifetimes: &lifetimes,
-        }],
-    );
+    let actual_arguments = typed_trees::trait_definition::AppliedTraitScope::from_conformance(
+        program.typed_program(),
+        implementation,
+    )
+    .and_then(|scope| {
+        super::conformance_applications::applied_scope_argument_identities(
+            program,
+            &scope,
+            owner,
+            &[AppliedTypeIdentityScope {
+                declaration: implementation.symbol,
+                arguments: &actuals,
+                lifetimes: &lifetimes,
+            }],
+        )
+    });
     if application.trait_definition != carrier.base
         || !actual_arguments.is_some_and(|actual| actual == expected_arguments)
     {

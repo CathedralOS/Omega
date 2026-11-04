@@ -3,7 +3,7 @@
 //! Supplied permissions are not inferred from filenames, provider names,
 //! semantic roles, or broad risk labels.
 
-mod declarations;
+pub(crate) mod declarations;
 mod policy;
 
 pub use policy::project_checked_terminal_permission_policy;

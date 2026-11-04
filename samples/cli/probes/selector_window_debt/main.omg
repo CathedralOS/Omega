@@ -12,8 +12,8 @@ use omega::language::core::drop;
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-data Token { byte: i32; }
-machine Token::drop(token: &mut Token) { token.byte = 0; }
+data Token dropped by drop_token { byte: i32; }
+machine drop_token(token: &mut Token) { token.byte = 0; }
 
 machine reset(index: &mut u64) { index = 0; }
 

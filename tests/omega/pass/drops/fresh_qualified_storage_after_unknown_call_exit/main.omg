@@ -2,7 +2,7 @@
 use omega::language::core::content;
 use omega::language::core::drop;
 data Slot { }
-data Capacity [linear] { stamp: u64; active: u64; units: u64; released: bool; }
+data Capacity [linear] dropped by drop_capacity { stamp: u64; active: u64; units: u64; released: bool; }
 domain Capacity::Held requires self.stamp != 0 established by acquire;
 domain Capacity::Vacant requires self.active == 0;
 domain Capacity::Available = Capacity::Held & Capacity::Vacant;
@@ -10,7 +10,7 @@ machine Held::content(capacity: &Capacity) -> CountedQuantity<Slot>
 satisfies Content<Capacity, CountedQuantity<Slot>>::project {
     CountedQuantity { magnitude: embed(capacity.units) as Nat }
 }
-machine Capacity::drop(capacity: &mut Capacity)
+machine drop_capacity(capacity: &mut Capacity)
 requires capacity.active == 0 && capacity.released { }
 machine acquire() -> Capacity in Capacity::Available {
     Capacity { stamp: 17, active: 0, units: 1, released: false }

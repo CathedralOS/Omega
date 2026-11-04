@@ -1,7 +1,7 @@
 //! Independent observations only: exact Build records under the repository
 //! fixture policy; native/Terminal production under the actual project's policy.
 use std::{collections::BTreeSet, path::Path};
-#[path = "../../../../../omega-rust/omega/compilation/driver/tests/support/fixture_package_inputs.rs"]
+#[path = "../../../../../omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
 fn records(root: &Path, output: &Path) {
@@ -56,7 +56,7 @@ fn records(root: &Path, output: &Path) {
 
 fn runtime(root: &Path, output: &Path) {
     use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
-    use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
+    use orchestration::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
     let target = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
     let prepared = prepare_local_project(
         root,

@@ -82,6 +82,41 @@ run does not repeat the sample sweep. Producer preparation took 1,095.736 second
 the selected source checks and native/Terminal executions took 182.139 seconds.
 
 Linux x86_64, Linux ARM64 and Mac ARM64 records retain their actual producer
-epochs. Windows x86_64, the product producer and broader representation-family
-acceptance remain open. This run selects this single fact row on one additional
-host.
+epochs. The product producer and broader representation-family acceptance
+remain open. This run selects this single fact row on one additional host.
+
+[Run 41480419172](https://github.com/CathedralOS/Omega/actions/runs/41480419172)
+requalifies the Linux x86_64 row with optimized Rust producer
+`dcd2509c66fa4717e28a0b781c10f44fe6a3100d` after repairing target-local loan
+retirement. A descriptor read inside a selected transition target used to retain
+one activation without its exit weakening after restoring the guard context.
+The selected exit now retires only its newly activated, state-owned statement
+resources through the existing execution-order expiry rule; captured exit facts
+and guard continuations retain their original meaning. The strict resource
+verifier remains unchanged.
+
+All 22 selected source checks meet their original oracles, including the nine
+guard-only twins, nested-result loan control and overlapping typed-region
+control. All eleven positives agree at native/Terminal exit 0: the ten guarded
+row programs and the typed-region parameter prerequisite. Source programs,
+bounds, storage and runtime oracles are unchanged. Producer preparation took
+174.151 seconds; checking took 160.249 seconds and execution 103.964 seconds.
+The CLI and runner hashes match the preceding single-fixture acceptance, and
+unchanged ordinary sample observations are retained rather than repeated.
+
+[Run 41481468044](https://github.com/CathedralOS/Omega/actions/runs/41481468044)
+qualifies the unchanged nine-place row and rejected-payload control on matching
+Windows x86_64 with optimized Rust producer
+`5ee8ffe84a9c497e989f9016f01f2536da4bfabf`. All ten positives agree at
+native/Terminal exit 0, and all nine guard-only twins reject for the original
+unestablished recast target. The 112 frozen input files match the prior row;
+the producer includes the selected-exit retirement repair now published in
+[#1478](https://github.com/CathedralOS/Omega/pull/1478). Actual Windows producer
+identity is retained rather than relabeled as the Linux qualification.
+
+Producer preparation took 785.359 seconds, source checking 135.125 seconds and
+native/Terminal execution 97.000 seconds. This matching-host qualification
+records only its ten Windows observations and reuses the unchanged ordinary
+samples. The Rust-reference row now has observations on all four hosted targets;
+the Omega-written producer and broader representation-family requirements
+remain open.

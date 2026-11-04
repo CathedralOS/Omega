@@ -46,9 +46,11 @@ pub(crate) fn generate_dynamic_family_specializations(
     // another applied map before this fixed-point round; its producer must
     // prepare the complete callable view before demand inspection. The existing
     // preparation query retains prior views and appends only missing scopes.
-    program
+    let signatures = program
         .prepare_applied_callable_signatures()
         .map_err(|message| vec![Diagnostic::error(message)])?;
+    super::finalize_callable_signature_identities(program, signatures)
+        .map_err(|diagnostic| vec![diagnostic])?;
     // Collect the complete demand set before mutating the graph: (realization
     // template symbol, roster tuples). One selected conformance covers the
     // roster alone — the same row reused by several selections generates once,

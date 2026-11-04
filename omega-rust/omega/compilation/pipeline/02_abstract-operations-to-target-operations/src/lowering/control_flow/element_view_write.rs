@@ -43,7 +43,7 @@ pub(super) fn lower(
             destination,
         )?;
     let StructuralTypeShape::ElementView { element, .. } = &structural_types
-        .get(&view_structural_type)
+        .get(view_structural_type)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?
         .shape
     else {

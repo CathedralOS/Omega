@@ -4,7 +4,7 @@ use super::type_refinement::{
 };
 use super::{
     MachineBlockingRow, MachineStateIndex, MachineSuspensionRow, machine_and_state,
-    machine_parameter_contract, machine_parameter_signature,
+    machine_parameter_contract_definition, machine_parameter_signature,
 };
 use crate::borrow_contracts::CallableBorrowContract;
 use crate::borrow_contracts::PreparedCallableBorrowRefinement;
@@ -120,13 +120,25 @@ pub(super) fn validate_selected_callable_shape(
         return;
     }
 
-    if let Some((actual_parameter, actual_signature)) =
-        machine_parameter_contract(program, selected_symbol)
+    if let Some((actual_parameter, actual_contract)) =
+        machine_parameter_contract_definition(program, selected_symbol)
     {
         let label = format!(
             "machine parameter `{}` forwarded into `{generic_call}`",
             actual_parameter.name
         );
+        // A declaration-identity parameter names a machine or requirement and
+        // has no signature, so it cannot be supplied where a callable is due.
+        if matches!(
+            actual_contract,
+            typed_trees::data::MachineParameterContract::RequirementIdentity
+        ) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{label}: declaration identity and callable requirement are different parameter roles"
+            )));
+            return;
+        }
+        let actual_signature = machine_parameter_signature(program, actual_contract);
         let applied = program.applied_machine_callable(
             application,
             ordinal,
@@ -243,6 +255,10 @@ fn validate_callable_shape(
         "machine argument `{}` for `{generic_call}`",
         actual_machine.name
     );
+    let actual_parameters = program.requirement_callable_parameters(
+        requirement,
+        &program.machine_callable_parameters(actual_machine),
+    );
     validate_callable_formation(
         program,
         &label,
@@ -252,7 +268,7 @@ fn validate_callable_shape(
             lexical_owner: actual_machine.symbol,
             contract_owner: actual_machine.symbol,
             lifetime_parameters: &actual_machine.lifetime_parameters,
-            type_parameters: program.machine_type_parameters(actual_machine),
+            type_parameters: &actual_parameters,
             parameters: program.state_parameters(actual_state),
             return_type: actual_state.return_type,
             terminates: matches!(
@@ -706,14 +722,26 @@ fn complete_callable_type_matches(
     bindings: &mut Vec<TypeBinding>,
     binder_bindings: &[BinderBinding],
 ) -> bool {
-    if !required_type_matches(
-        program,
-        actual,
-        required,
-        generic_types,
-        bindings,
-        binder_bindings,
-    ) {
+    // The structural walk infers missing operands. A complete supplied tuple
+    // instead owes the canonical full application identity below: prepared
+    // constructors may have a different symbol/arity from their authored
+    // generic origin without denoting a different type. Borrow-region and
+    // callable-contract formation remain independent mandatory judgments.
+    let needs_inference = generic_types.iter().any(|parameter| {
+        !bindings
+            .iter()
+            .any(|binding| binding.symbol == parameter.symbol)
+    });
+    if needs_inference
+        && !required_type_matches(
+            program,
+            actual,
+            required,
+            generic_types,
+            bindings,
+            binder_bindings,
+        )
+    {
         return false;
     }
     if !actual.is_valid() || !required.is_valid() {

@@ -30,7 +30,7 @@ pub use dependencies::{
     DependencyOperation, DependencyPurpose, DependencyRow, DependencyRowError,
     is_dependency_call_name, project_dependency_rows,
 };
-pub use prelude::build_prelude_source;
+pub use prelude::{build_prelude_source, default_build_source};
 pub use syntax_projection::{
     BuildEntrySyntaxProjection, package_authored_type_name, project_build_declaration_from_source,
     project_build_declaration_in_entry, project_build_entry_syntax,

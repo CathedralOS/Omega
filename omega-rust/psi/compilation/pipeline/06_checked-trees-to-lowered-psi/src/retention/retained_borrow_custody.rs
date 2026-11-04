@@ -215,7 +215,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
             Ok((lower_custody(identities, checked, fact)?, owner))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    rows.sort_by(|left, right| left.0.callable_identity.cmp(&right.0.callable_identity));
+    rows.sort_by_key(|left| left.0.callable_identity);
     if rows
         .windows(2)
         .any(|pair| pair[0].0.callable_identity == pair[1].0.callable_identity)
@@ -270,7 +270,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
             fixed_service_reach: Vec::new(),
             owning_service: None,
             id,
-            identity: row.callable_identity.clone(),
+            identity: row.callable_identity,
             owner,
             attachment: None,
             scalar_parameters: Vec::new(),
@@ -280,6 +280,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: vec![BoundaryContentGuarantee::RetainedBorrow(row)],
+            result_reference_regions: Vec::new(),
             reference_outputs: Vec::new(),
             published_service_ceiling: Vec::new(),
         });

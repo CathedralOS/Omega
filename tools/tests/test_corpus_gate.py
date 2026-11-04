@@ -102,6 +102,7 @@ class CachedBaselineSelectionTests(unittest.TestCase):
             cache = root / "base.txt"
             cache.write_text(corpus_records.render([record("pass/old/program")]))
             with patch.object(corpus_gate, "baseline_path", return_value=cache), \
+                 patch.object(corpus_gate, "shared_compare_root", return_value=root), \
                  patch.object(corpus_gate, "checkout_base", return_value=root), \
                  patch.object(corpus_gate, "build_runner") as build:
                 rows = corpus_gate.base_records_for(
@@ -121,6 +122,7 @@ class CachedBaselineSelectionTests(unittest.TestCase):
                 selections.append(os.environ.get(corpus_gate.FILTER_VARIABLE))
                 return [record("pass/old/program")]
             with patch.object(corpus_gate, "baseline_path", return_value=cache), \
+                 patch.object(corpus_gate, "shared_compare_root", return_value=root), \
                  patch.object(corpus_gate, "checkout_base", return_value=root), \
                  patch.object(corpus_gate, "build_runner", return_value=root / "runner"), \
                  patch.object(corpus_gate, "run_runner", side_effect=measure):
@@ -140,6 +142,7 @@ class FrozenBaselineRunnerTests(unittest.TestCase):
             runner = root / "frozen-runner"
             cache = root / "base.txt"
             with patch.object(corpus_gate, "baseline_path", return_value=cache), \
+                 patch.object(corpus_gate, "shared_compare_root", return_value=root), \
                  patch.object(corpus_gate, "checkout_base", return_value=root), \
                  patch.object(corpus_gate, "git_out", return_value="exact-base"), \
                  patch.object(corpus_gate, "build_runner") as build, \
@@ -156,12 +159,114 @@ class FrozenBaselineRunnerTests(unittest.TestCase):
             main.parent.mkdir(parents=True)
             main.write_text("machine main() {}")
             with patch.object(corpus_gate, "baseline_path", return_value=root / "base.txt"), \
+                 patch.object(corpus_gate, "shared_compare_root", return_value=root), \
                  patch.object(corpus_gate, "checkout_base", return_value=root), \
                  patch.object(corpus_gate, "git_out", return_value="other-base"), \
                  patch.object(corpus_gate, "run_runner") as measure, \
                  self.assertRaises(corpus_gate.InfrastructureFailure):
                 corpus_gate.base_records_for("exact-base", "", ["pass/old/program"], root / "frozen")
             measure.assert_not_called()
+
+
+def git(directory, *arguments):
+    return subprocess.run(["git", "-C", str(directory), *arguments], check=True,
+                          capture_output=True, text=True).stdout.strip()
+
+
+def repository_with_commits(directory: Path, count: int) -> list:
+    git(directory, "init", "-q")
+    git(directory, "config", "user.email", "test@example.invalid")
+    git(directory, "config", "user.name", "test")
+    revisions = []
+    for index in range(count):
+        (directory / "file.txt").write_text(str(index))
+        git(directory, "add", "file.txt")
+        git(directory, "commit", "-q", "-m", f"commit {index}")
+        revisions.append(git(directory, "rev-parse", "HEAD"))
+    return revisions
+
+
+class SharedCompareState(unittest.TestCase):
+    """Base worktrees and base rows belong to the checkout, not to the worktree
+    that asked first, and one session at a time measures a commit."""
+
+    def test_paths_resolve_beside_the_common_git_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            main = Path(directory).resolve() / "main"
+            main.mkdir()
+            revision = repository_with_commits(main, 1)[0]
+            worktree = main / ".agents" / "worktree" / "lane"
+            git(main, "worktree", "add", "-q", "--detach", str(worktree), revision)
+            with patch.object(corpus_gate, "ROOT", worktree):
+                self.assertEqual(corpus_gate.baseline_path(revision, "native-linux_x86_64"),
+                                 main / "build" / "corpus_baselines"
+                                 / f"{revision}-native-linux_x86_64.txt")
+                self.assertEqual(corpus_gate.compare_worktree(revision),
+                                 main / "build" / "compare-bases" / revision[:12])
+
+    def test_held_lock_refuses_a_second_holder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "base.lock"
+            with corpus_gate.file_lock(path) as first:
+                self.assertTrue(first)
+                with corpus_gate.file_lock(path, blocking=False) as second:
+                    self.assertFalse(second)
+            with corpus_gate.file_lock(path, blocking=False) as again:
+                self.assertTrue(again)
+
+    def test_rows_measured_while_waiting_are_not_measured_again(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache = root / "base.txt"
+
+            @contextlib.contextmanager
+            def other_session_finished(revision):
+                cache.write_text(corpus_records.render([record("pass/old/program")]))
+                yield
+
+            with patch.object(corpus_gate, "baseline_path", return_value=cache), \
+                 patch.object(corpus_gate, "revision_lock", other_session_finished), \
+                 patch.object(corpus_gate, "checkout_base") as checkout, \
+                 patch.object(corpus_gate, "build_runner") as build:
+                rows = corpus_gate.base_records_for("base", "", ["pass/old/program"])
+            self.assertEqual([row["fixture"] for row in rows], ["pass/old/program"])
+            checkout.assert_not_called()
+            build.assert_not_called()
+
+    def test_cached_rows_skip_the_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory) / "base.txt"
+            cache.write_text(corpus_records.render([record("pass/old/program")]))
+            with patch.object(corpus_gate, "baseline_path", return_value=cache), \
+                 patch.object(corpus_gate, "revision_lock") as lock:
+                corpus_gate.base_records_for("base", "", ["pass/old/program"])
+            lock.assert_not_called()
+
+    def test_checkout_reuses_one_worktree_per_commit_and_evicts_unheld_old_ones(self):
+        with tempfile.TemporaryDirectory() as directory:
+            main = Path(directory).resolve() / "main"
+            main.mkdir()
+            revisions = repository_with_commits(main, 5)
+            with patch.object(corpus_gate, "ROOT", main), \
+                 patch.object(corpus_gate, "COMPARE_BASES_KEPT", 2):
+                cmp = main / "build" / "compare-bases"
+                first = corpus_gate.checkout_base(revisions[0])
+                self.assertEqual(git(first, "rev-parse", "HEAD"), revisions[0])
+                (first / "target").mkdir()
+                self.assertEqual(corpus_gate.checkout_base(revisions[0]), first)
+                self.assertTrue((first / "target").is_dir())
+                for index, revision in enumerate(revisions[1:3], start=1):
+                    corpus_gate.checkout_base(revision)
+                    os.utime(cmp / revision[:12], (index * 10, index * 10))
+                os.utime(first, (0, 0))
+                # Another session holds the oldest base: it survives eviction.
+                with corpus_gate.file_lock(cmp / f"{revisions[0][:12]}.lock"):
+                    corpus_gate.checkout_base(revisions[3])
+                kept = sorted(entry.name for entry in cmp.iterdir() if entry.is_dir())
+                self.assertEqual(kept, sorted(revision[:12] for revision in
+                                              (revisions[0], revisions[2], revisions[3])))
+                self.assertNotIn(str(cmp / revisions[1][:12]),
+                                 git(main, "worktree", "list"))
 
 
 class OptionalHistoryProvenance(unittest.TestCase):
@@ -442,6 +547,21 @@ class PublicationRefusalLegCoverage(unittest.TestCase):
         return record("pass/build/physical_adapter", status="rejected",
                       diagnostics=["native entry requires physical adapter"],
                       facts=facts)
+
+    def test_source_publication_uses_its_realized_target_not_the_recording_host(self):
+        (self.fixture / "expected_native_rejection.txt").unlink()
+        (self.fixture / "expected_native_rejection.macos_arm64.txt").write_text("requires physical adapter\n")
+        (self.fixture / "expected_native_exit.linux_arm64.txt").write_text("0\n")
+        observed = self.refusal(**{"check-target": "macos_arm64"})
+        self.assertEqual(self.weigh(observed, native_leg=False), [])
+        self.assertTrue(corpus_records.native_rejection_satisfied(observed))
+
+    def test_interpreter_execution_cannot_satisfy_a_publication_refusal(self):
+        for facts in ({"interpreter-exit": "0"}, {"interpreter-signal": "5"}, {"interpreter": "agrees"}):
+            with self.subTest(facts=facts):
+                observed = self.refusal(**facts)
+                self.assertTrue(self.weigh(observed, native_leg=True))
+                self.assertFalse(corpus_records.native_rejection_satisfied(observed))
 
     def test_check_leg_weighs_the_oracle_where_it_realized_a_target(self):
         observed = self.refusal(**{"check-target": "uefi_x86_64"})
@@ -1546,7 +1666,19 @@ class ReasonFreeRecord(unittest.TestCase):
         self.output.seek(0)
         self.output.truncate()
         self.assertEqual(self.run_gate(rows, golden_records=rows), 0)
-        self.assertIn("measured at jobs=runner default", self.output.getvalue())
+        self.assertIn(f"measured at jobs={corpus_gate.default_jobs()}", self.output.getvalue())
+
+    def test_default_jobs_shares_cores_and_memory_between_slot_holders(self):
+        with patch.object(corpus_gate.os, "cpu_count", return_value=10), \
+             patch.object(corpus_gate.os, "sysconf",
+                          side_effect=lambda name: {"SC_PAGE_SIZE": 16384,
+                                                    "SC_PHYS_PAGES": 2 ** 20}[name]):
+            self.assertEqual(corpus_gate.default_jobs(), 5)
+        with patch.object(corpus_gate.os, "cpu_count", return_value=32), \
+             patch.object(corpus_gate.os, "sysconf",
+                          side_effect=lambda name: {"SC_PAGE_SIZE": 4096,
+                                                    "SC_PHYS_PAGES": 2 ** 20}[name]):
+            self.assertEqual(corpus_gate.default_jobs(), 3)
 
 
 class StampProvenance(unittest.TestCase):

@@ -10,9 +10,9 @@ fn runtime_borrows_the_produced_terminal_storage() {
 
 #[test]
 fn compilation_and_cli_do_not_own_runtime_integration() {
-    let compiler = include_str!("../../../compilation/driver/src/lib.rs");
+    let compiler = include_str!("../../../compilation/compiler/src/lib.rs");
     assert!(!compiler.contains("pub mod runtime"));
-    let manifest = include_str!("../../../compilation/driver/Cargo.toml");
+    let manifest = include_str!("../../../compilation/compiler/Cargo.toml");
     let production = manifest.split("[dev-dependencies]").next().unwrap();
     assert!(!production.contains("terminal-interpreter ="));
     assert!(!production.contains("terminal-runtime ="));

@@ -400,6 +400,11 @@ impl AppliedProofBindings {
                 let correspondence = crate::machine_calls::calls::call_binding_correspondence(
                     program, caller, &site,
                 )
+                .inspect_err(|reason| {
+                    if super::super::struct_trace() {
+                        eprintln!("STRUCT requirement application refused caller={caller:?} handle={handle:?} stage=correspondence reason={reason}");
+                    }
+                })
                 .ok()?;
                 if correspondence.public_owner != owner_symbol(owner)
                     || correspondence.declaration != application.binding_declaration
@@ -412,7 +417,7 @@ impl AppliedProofBindings {
                 // erasure cannot make their original operands disappear from
                 // admission. This is the same transport as a concrete call,
                 // using only the declared public signature.
-                let mut bindings = Self::for_application(
+                let Some(mut bindings) = Self::for_application(
                     program,
                     &SelectedCallContract::Signature(declared),
                     handle,
@@ -420,7 +425,17 @@ impl AppliedProofBindings {
                     &correspondence.runtime_parameters,
                     &[],
                     correspondence.declaration,
-                )?;
+                ) else {
+                    if super::super::struct_trace() {
+                        eprintln!(
+                            "STRUCT requirement application refused caller={caller:?} handle={handle:?} stage=static-intake correspondence={:?} runtime={:?} retained={:?}",
+                            correspondence.parameters,
+                            correspondence.runtime_parameters,
+                            expression_table(program).static_machine_application_bindings(handle)
+                        );
+                    }
+                    return None;
+                };
                 bindings.transport_parameters(&correspondence.parameters)?;
                 return Some(bindings);
             }
@@ -1409,13 +1424,13 @@ fn enclosing_type_reference(
 ) -> Option<TypeReferenceHandle> {
     let machine = program.machine_by_symbol(lexical_owner)?;
     for parameter in program.machine_type_parameters(machine) {
-        if parameter.name.as_str() == name && matches!(parameter.kind, TypeParameterKind::Type) {
-            if let Some(reference) = program
+        if parameter.name.as_str() == name
+            && matches!(parameter.kind, TypeParameterKind::Type)
+            && let Some(reference) = program
                 .type_reference_table
                 .find_named_type_reference(parameter.symbol)
-            {
-                return Some(reference);
-            }
+        {
+            return Some(reference);
         }
         let TypeParameterKind::Machine { contract } = &parameter.kind else {
             continue;
@@ -1427,13 +1442,13 @@ fn enclosing_type_reference(
             continue;
         }
         for binder in program.state_signature_type_parameters(view.signature()) {
-            if binder.name.as_str() == name && matches!(binder.kind, TypeParameterKind::Type) {
-                if let Some(reference) = program
+            if binder.name.as_str() == name
+                && matches!(binder.kind, TypeParameterKind::Type)
+                && let Some(reference) = program
                     .type_reference_table
                     .find_named_type_reference(binder.symbol)
-                {
-                    return Some(reference);
-                }
+            {
+                return Some(reference);
             }
         }
     }

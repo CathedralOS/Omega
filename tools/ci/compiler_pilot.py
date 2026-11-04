@@ -7,6 +7,7 @@ this caller additionally refuses missing rows and success without execution.
 """
 
 import argparse
+from copy import deepcopy
 from dataclasses import dataclass
 import hashlib
 import json
@@ -155,6 +156,16 @@ def validate_report(report, expected, *, both, revision, target):
         if row["fixture"].startswith("fail/"):
             if row["status"] != "rejected" or row.get("expected_satisfied") is not True:
                 raise ValueError(f"{row['fixture']}: missing intended rejection")
+        elif (both or "check-target" in row.get("facts", {})) and corpus_gate.native_rejection_oracle(
+                ROOT / "tests/omega" / row["fixture"],
+                target if both else row["facts"]["check-target"]).is_file():
+            # A product can check successfully and still owe a target refusal.
+            # Authenticate its authored reason without calling it an execution.
+            observed = deepcopy(row)
+            failures = corpus_gate.native_rejection_failures(
+                [observed], ROOT / "tests/omega", target, native_leg=both)
+            if failures or not corpus_gate.corpus_records.native_rejection_satisfied(observed):
+                raise ValueError(f"{row['fixture']}: missing authored native publication refusal")
         elif both:
             facts = row.get("facts", {})
             exits_agree = (facts.get("interpreter") == "agrees"
@@ -345,11 +356,20 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         validate_report(json.loads(report_path.read_text(encoding="utf-8")), fixtures,
                         both=both, revision=revision, target=summary["target"])
 
+    refused = None
     if positives or checking_only or negatives:
         checking = tuple(dict.fromkeys(positives + checking_only + negatives))
-        stage("checking and rejection controls", lambda: corpus("checking", checking))
+        try:
+            stage("checking and rejection controls", lambda: corpus("checking", checking))
+        except ValueError as error:
+            # The run stays red, but a remote base comparison
+            # (`corpus_gate.py --compare --remote`) still needs the
+            # native/Terminal rows of a base whose checking oracles fail.
+            refused = error
     if positives:
         stage("native and Terminal execution", lambda: corpus("both", positives, both=True))
+    if refused is not None:
+        raise refused
     if cli_fixtures:
         def ordinary_cli():
             rows = []

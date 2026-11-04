@@ -1,6 +1,6 @@
 # drop_lifetime_owner
 
-A drop hook on a lifetime-parameterized owner: `data Owner<'first, 'second>` holds two borrowed `i32` fields with distinct lifetime binders, and `Owner::drop(owner: &mut Owner<'first, 'second>)` re-declares them so the cleanup edge selects the hook for any instantiation.
+A drop hook on a lifetime-parameterized owner: `data Owner<'first, 'second>` holds two borrowed `i32` fields with distinct lifetime binders, and `drop_owner(owner: &mut Owner<'first, 'second>)` re-declares them so the cleanup edge selects the hook for any instantiation.
 
 ## Learnings
 

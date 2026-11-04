@@ -40,7 +40,7 @@ pub(crate) fn project_boundary_application_realizations(
     }
     let derived = selected_dispatch::derive_checked_nongeneric_operator_application_realizations(
         compilation,
-        compilation.custody.execution().provider_source.plans(),
+        compilation.custody.execution().plans(),
         applications.iter().copied(),
     )?;
     let mut staged: Vec<StagedRealization> = Vec::new();
@@ -132,7 +132,7 @@ fn project_specialized_checked_body_applications(
 ) -> Result<(), Vec<Diagnostic>> {
     let derived = selected_dispatch::derive_checked_specialized_operator_application_realizations(
         compilation,
-        compilation.custody.execution().provider_source.plans(),
+        compilation.custody.execution().plans(),
         applications.iter().copied(),
     )?;
     for realization in derived {

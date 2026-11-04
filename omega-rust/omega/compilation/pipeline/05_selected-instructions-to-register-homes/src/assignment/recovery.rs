@@ -1,16 +1,18 @@
+use crate::FixedViewCopyPolicy;
+use crate::{PreAllocationResult, SelectedLoweringResult};
+use crate::{
+    PressureRematerializationPolicy, StagedOptimizedSelectedReanalysis,
+    probe_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_precolored_segment_homes,
+    stage_optimized_fixed_view_copies, stage_optimized_selected_reanalysis,
+};
 use crate::{
     RegisterAllocationError, RetainedAllocation,
     stage_optimized_active_resident_rematerialization_pressure,
 };
 use register_homes::{RecoveryClassificationPolicy, SpillChoicePolicy};
-use selected_instructions_to_selected_instructions::{
-    FixedViewCopyPolicy, PressureRematerializationPolicy, StagedOptimizedAllocationLegality,
-    StagedOptimizedLiveRanges, StagedOptimizedSelectedReanalysis,
-    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
-    probe_optimized_fixed_precolored_segment_homes,
+use selected_instruction_analyses::{
+    StagedOptimizedAllocationLegality, StagedOptimizedLiveRanges,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
-    stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
-    stage_optimized_selected_reanalysis,
 };
 
 /// The shared fixed-view preflight: fixed/precolored segment-home analysis,
@@ -154,7 +156,7 @@ pub(crate) fn stage_active_resident_register_allocation(
 /// the route. Any other assignment failure keeps the post-lowering homes
 /// error surface.
 pub(crate) fn stage_selected_lowering_register_allocation(
-    run: StagedSelectedLoweringOptimizationRun,
+    run: SelectedLoweringResult,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
     let mut home_reuse = crate::assignment::home_assignment::compute::FunctionHomeReuse::default();
     match crate::assignment::transformed::assign_optimized_register_homes_after_selected_lowering(
@@ -186,7 +188,7 @@ pub(crate) fn stage_selected_lowering_register_allocation(
 /// runtime spill instead of failing the route. Any other assignment
 /// failure keeps the post-run homes error surface.
 pub(crate) fn stage_pre_allocation_register_allocation(
-    run: StagedPreAllocationOptimizationRun,
+    run: PreAllocationResult,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
     let mut home_reuse = crate::assignment::home_assignment::compute::FunctionHomeReuse::default();
     match crate::assignment::transformed::assign_optimized_register_homes_after_pre_allocation(

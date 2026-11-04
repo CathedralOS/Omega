@@ -2,9 +2,9 @@
 use omega::language::core::drop;
 data Counter { value: u64; }
 data Payload { value: u64; }
-data Guard { output: &mut Counter; code: u64; }
+data Guard dropped by drop_guard { output: &mut Counter; code: u64; }
 data Pair { first: Payload; second: Guard; }
-machine Guard::drop(guard: &mut Guard) { guard.output.value = guard.code; }
+machine drop_guard(guard: &mut Guard) { guard.output.value = guard.code; }
 machine change(pair: &mut Pair, incoming: Guard) -> u64 {
     let old: Guard = pair.second;
     drop(old);

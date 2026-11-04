@@ -636,7 +636,7 @@ class GateCliTests(unittest.TestCase):
         profile.start()
         self.addCleanup(profile.stop)
 
-    def test_default_build_is_optimized_and_isolated(self):
+    def test_default_build_is_optimized_and_reuses_the_checkout_target(self):
         built = subprocess.CompletedProcess([], 0, "", "")
         with patch.object(gate.shutil, "which", return_value=None), \
                 patch.object(gate.subprocess, "run", return_value=built) as runner, \
@@ -648,6 +648,17 @@ class GateCliTests(unittest.TestCase):
         self.assertEqual(environment["CARGO_PROFILE_DEV_OPT_LEVEL"], "1")
         self.assertEqual(environment["CARGO_TARGET_DIR"], str(gate.GATE_CLI_DIR))
         self.assertTrue(cli.startswith(str(gate.GATE_CLI_DIR)))
+
+    def test_gate_build_is_the_checkout_target_directory(self):
+        # A second target directory recompiles the whole compiler (12 minutes
+        # cold on a 4-core cloud session) when the session already built it.
+        with patch.dict(gate.os.environ, {}, clear=False):
+            gate.os.environ.pop("CARGO_TARGET_DIR", None)
+            self.assertEqual(gate.checkout_target_dir(),
+                             gate.windows_safe_target_dir(gate.ROOT / "target"))
+        with patch.dict(gate.os.environ, {"CARGO_TARGET_DIR": "elsewhere"}):
+            self.assertEqual(gate.checkout_target_dir(),
+                             gate.windows_safe_target_dir(gate.ROOT / "elsewhere"))
 
     def test_failed_build_returns_nothing(self):
         failed = subprocess.CompletedProcess([], 101, "", "error[E0425]")
@@ -663,7 +674,8 @@ class GateCliTests(unittest.TestCase):
             shared.parent.mkdir(parents=True)
             shared.write_bytes(b"image")
 
-            with patch.object(gate, "GATE_CLI_DIR", shared.parent.parent):
+            with patch.object(gate, "GATE_CLI_DIR", shared.parent.parent), \
+                    patch.object(gate, "GATE_SCRATCH_DIR", Path(directory) / "build"):
                 copy = gate.snapshot_cli(str(shared))
             self.assertNotEqual(copy, str(shared))
             self.assertEqual(Path(copy).read_bytes(), b"image")
@@ -686,6 +698,7 @@ class GateCliTests(unittest.TestCase):
                 yield
 
             with patch.object(gate, "GATE_CLI_DIR", shared.parent.parent), \
+                    patch.object(gate, "GATE_SCRATCH_DIR", Path(directory) / "build"), \
                     patch.object(gate, "gate_cli_lock", fake_lock), \
                     patch.object(gate.shutil, "copy2",
                                  side_effect=lambda *a, **k: order.append("copy")):
@@ -880,8 +893,37 @@ class FactsSelectionTests(unittest.TestCase):
                     patch.object(gate, "run", return_value=completed) as runner:
                 result = gate.measure("omega", "samples/cli/facts/length/local", "windows_x86_64", 10)
             self.assertEqual(result["state"], "pass")
+            self.assertEqual(result["execution"], {"native_exit": 0, "interpreter_exit": 0})
             self.assertEqual(runner.call_args.args[0], ["omega", "run", "--both", str(project.entry)])
             self.assertEqual(gate.program_stderr("native exit 0\ninterp exit: 0\n"), "")
+
+    def test_fact_wrapper_success_cannot_hide_declined_or_missing_execution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "samples" / "cli" / "facts" / "length" / "local"
+            root.mkdir(parents=True)
+            (root / "main.omg").write_text("// Expected exit: 0\nmachine main() {}\n", encoding="utf-8")
+            project = sample_projects.Project(directory=root, entry=root / "main.omg", role="program")
+            for stderr in [
+                    "native exit 0\ninterp: DECLINED (unsupported reference result)\n",
+                    "native exit 0\n",
+                    "interp exit: 0\n",
+                    "native exit 0\ninterp exit: 1\n",
+                    "native exit 0\ninterp exit: 0\ninterp exit: 0\n"]:
+                with self.subTest(stderr=stderr), \
+                        patch.object(gate, "project_at", return_value=project), \
+                        patch.object(gate, "accept_review", return_value=(None, "")), \
+                        patch.object(gate, "run", return_value=subprocess.CompletedProcess([], 0, "", stderr)):
+                    result = gate.measure("omega", "samples/cli/facts/length/local", "linux_x86_64", 10)
+                self.assertEqual(result["state"], "oracle-failed")
+                self.assertIn("execution agreement", result["detail"])
+
+    def test_both_execution_retains_numeric_and_crash_observations(self):
+        self.assertEqual(gate.both_execution_observation("native exit 7\ninterp exit: 7\n"),
+                         {"native_exit": 7, "interpreter_exit": 7})
+        crash = "native signal 4\ninterp crash: Trap (host presentation agrees)\n"
+        self.assertEqual(gate.both_execution_observation(crash),
+                         {"native_status": "native signal 4", "interpreter_crash": "interp crash: Trap (host presentation agrees)"})
+        self.assertIsNone(gate.both_execution_observation(crash.replace("signal 4", "exit 0")))
 
 
 class RunHistoryTests(unittest.TestCase):
@@ -960,6 +1002,57 @@ class RunHistoryTests(unittest.TestCase):
                              {"passed": 1, "scored": 1, "states": {"pass": 1}, "retried": 0})
             self.assertEqual(record["filter"], "games")
             self.assertEqual(record["results"], results)
+
+
+class NativePublicationControls(unittest.TestCase):
+    def observe(self, directory, check_code=0, publication_code=1,
+                publication_error="missing provider", exit_oracle=False):
+        root = Path(directory)
+        (root / "main.omg").write_text("// Expected exit: 0\nmachine main() {}\n")
+        (root / "build.omg").write_text(
+            'machine build(builder: &mut Build) {\n'
+            ' Build::application(builder, "publication_control");\n'
+            ' Build::bind(builder, macos_arm64::ProgramEntry, main);\n}\n')
+        (root / "expected_native_rejection.macos_arm64.txt").write_text("missing provider\n")
+        if exit_oracle:
+            (root / "expected_native_exit.macos_arm64.txt").write_text("0\n")
+        project = sample_projects.Project(directory=root, entry=root / "main.omg", role="program")
+        calls = []
+
+        def command(arguments, timeout, **kwargs):
+            calls.append(arguments)
+            if "--check" in arguments:
+                return subprocess.CompletedProcess(arguments, check_code, "", "missing provider" if check_code else "")
+            return subprocess.CompletedProcess(arguments, publication_code, "", publication_error)
+
+        with patch.object(gate, "project_at", return_value=project), \
+                patch.object(gate, "accept_review", return_value=(None, "")), \
+                patch.object(gate, "run", side_effect=command):
+            result = gate.measure("omega", directory, "macos_arm64", 10)
+        return result, calls
+
+    def test_source_then_native_refusal_is_scored_without_launching(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, calls = self.observe(directory)
+        self.assertEqual(result["state"], "rejected")
+        self.assertEqual(result["native-rejection"], "match")
+        self.assertTrue(result["source_checked"])
+        self.assertEqual(result["publication_exit"], 1)
+        self.assertEqual(len(calls), 2)
+        self.assertIn("--check", calls[0])
+        self.assertNotIn("--check", calls[1])
+        self.assertTrue(all("run" not in command for command in calls))
+        self.assertNotIn("execution", result)
+
+    def test_source_error_wrong_reason_panic_and_conflicting_exit_do_not_pass(self):
+        cases = [dict(check_code=1), dict(publication_code=0),
+                 dict(publication_code=101), dict(publication_error="unrelated error"),
+                 dict(exit_oracle=True)]
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                result, _ = self.observe(directory, **case)
+                self.assertNotIn(result["state"], ("pass", "rejected"))
+                self.assertNotIn("execution", result)
 
 
 if __name__ == "__main__":

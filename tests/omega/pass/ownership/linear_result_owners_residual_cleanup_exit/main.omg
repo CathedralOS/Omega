@@ -5,13 +5,13 @@
 // cleanup hook, after the receipts were retired through their consumer.
 use omega::language::core::drop;
 
-data Receipt [linear] { code: i32; }
+data Receipt [linear] dropped by drop_receipt { code: i32; }
 
-machine Receipt::drop(receipt: &mut Receipt) {}
+machine drop_receipt(receipt: &mut Receipt) {}
 
-data Note { tally: i32; }
+data Note dropped by drop_note { tally: i32; }
 
-machine Note::drop(note: &mut Note) {}
+machine drop_note(note: &mut Note) {}
 
 data Bundle { receipt: Receipt; note: Note; }
 

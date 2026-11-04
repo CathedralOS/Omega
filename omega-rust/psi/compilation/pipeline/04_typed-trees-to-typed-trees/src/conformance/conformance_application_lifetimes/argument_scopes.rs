@@ -14,12 +14,30 @@ use validation::canonical_place_from_expression_in_state;
 /// The shared projection narrows Type-binder actuals to their supplying prefix.
 pub(super) fn source_application(
     program: &dyn validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     argument: typed_trees::expression::ExpressionHandle,
 ) -> Option<(TypeReferenceHandle, Vec<TypeReferenceHandle>)> {
-    let place =
-        canonical_place_from_expression_in_state(program, state.symbol, usize::MAX, argument)?;
-    validation::canonical_place_source_type_application(program, state.symbol, usize::MAX, &place)
+    if let Some(place) =
+        canonical_place_from_expression_in_state(program, state.symbol, usize::MAX, argument)
+    {
+        // A projected place must retain its complete supplying prefix.
+        return validation::canonical_place_source_type_application(
+            program,
+            state.symbol,
+            usize::MAX,
+            &place,
+        );
+    }
+    // A completed value has its own type, not the consumer's expected type.
+    // Explicit loan formation still supplies its target here: the caller omits
+    // that new unnamed shell when collecting nested declared region operands.
+    let source = program
+        .expression_table
+        .borrow_expression(argument)
+        .map_or(argument, |borrow| borrow.target);
+    validation::expression_result_type_reference(program, machine, state, source)
+        .map(|reference| (reference, Vec::new()))
 }
 
 #[derive(Clone, Copy)]

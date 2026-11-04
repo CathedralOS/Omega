@@ -92,11 +92,13 @@ pub(super) fn assign_trait_symbols(
             state_parameters,
             child_type_references,
             type_constraints,
-        }
+        trait_proposition_slots: &trait_proposition_slots,
+trait_machine_identity_slots: &trait_machine_identity_slots,
+}
         .resolve_type_parameter_kind_symbols(
             trait_definition.type_parameters,
             &local_type_parameters,
-            crate::symbols::top_level::MachineParameterArm::Skip,
+            crate::symbols::top_level::MachineParameterArm::ResolveWithAuthoredTraitArguments,
             true,
         );
 
@@ -147,7 +149,9 @@ pub(super) fn assign_trait_symbols(
                     state_parameters,
                     child_type_references,
                     type_constraints,
-                },
+                trait_proposition_slots: &trait_proposition_slots,
+trait_machine_identity_slots: &trait_machine_identity_slots,
+},
                 machine,
                 machine_symbol,
                 &local_type_parameters,

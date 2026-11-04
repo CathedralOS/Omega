@@ -71,7 +71,7 @@ fn field_write_preserves_memberships(
         |selected| {
             let mut written = path.to_vec();
             written.push(terminal_psi::StructuralPathSegment::Field(
-                selected.identity.clone(),
+                selected.identity,
             ));
             optimization_unit_semantics::structural_write_preserves_memberships(
                 function,

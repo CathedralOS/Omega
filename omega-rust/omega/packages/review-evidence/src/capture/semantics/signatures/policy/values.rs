@@ -1,7 +1,7 @@
 //! Complete behavioral values shared by public declaration signatures.
 
 use super::rejected;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::semantics::declarations::{
     nominal_identity, progress_profile, project_service_progress_routes,
 };
@@ -43,7 +43,7 @@ pub(crate) fn crashes(
 /// subject. Rejoin that profile to its exact source declaration before adding
 /// the full establishment routes absent from the old review record.
 pub(crate) fn termination(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     guarantee: &language_semantics::TerminationGuarantee,
     projected: PackageReviewTermination,
 ) -> Result<PackagePolicyTermination, Vec<Diagnostic>> {

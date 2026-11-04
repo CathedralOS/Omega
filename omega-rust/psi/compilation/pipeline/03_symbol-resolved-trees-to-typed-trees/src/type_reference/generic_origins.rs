@@ -281,6 +281,34 @@ pub(super) fn application<'source>(
     Ok(selected)
 }
 
+/// Recover a lifetime-bearing use after structural synthesis erased its static
+/// tuple. The shared definition establishes carrier equality; only this exact
+/// source occurrence may supply region-bearing operands to typed checking.
+pub(super) fn region_application<'source>(
+    source: &'source resolved::SymbolResolvedTrees,
+    name: &DiagnosticName,
+    symbol: SymbolHandle,
+    lifetimes: &[DiagnosticName],
+) -> Result<Option<&'source TypeReference>, Diagnostic> {
+    let Some(application) = application(source, None, name, symbol)? else {
+        return Ok(None);
+    };
+    let TypeReference::Generic(original) = application else {
+        return Err(mismatch(name));
+    };
+    if original.base_symbol == symbol
+        || original.lifetime_arguments.len() != lifetimes.len()
+        || !original
+            .lifetime_arguments
+            .iter()
+            .zip(lifetimes)
+            .all(|(original, current)| original.as_str() == current.as_str())
+    {
+        return Err(mismatch(name));
+    }
+    Ok(Some(application))
+}
+
 /// The original roster traversal, retained for programs whose origin rows
 /// hold a malformed handle: the indexed path must never reorder where that
 /// mismatch surfaces.
@@ -349,10 +377,7 @@ impl<'typed> ReplayTyped<'typed> {
     fn reborrow(&mut self) -> ReplayTyped<'_> {
         match self {
             Self::Direct(typed) => ReplayTyped::Direct(typed),
-            Self::Lazy { base, replay } => ReplayTyped::Lazy {
-                base: *base,
-                replay,
-            },
+            Self::Lazy { base, replay } => ReplayTyped::Lazy { base, replay },
         }
     }
 

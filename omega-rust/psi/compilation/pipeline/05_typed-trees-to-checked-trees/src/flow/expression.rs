@@ -88,6 +88,7 @@ struct CompletedValue {
     /// independently of the projected value's reference leaves. Scalar value
     /// snapshots do not consume this place-only relationship.
     backing: Handle<checked_trees::FlowOperandFact>,
+    address_projection: Option<HandleSpan<facts::PlaceSegment>>,
     evaluated_inputs: HandleSpan<checked_trees::FlowOperandFact>,
     conditional_inputs_from: Option<usize>,
     referents: Option<HandleSpan<checked_trees::FlowOperandReferent>>,
@@ -97,12 +98,11 @@ struct CompletedValue {
     reference_leaves: Option<HandleSpan<checked_trees::FlowCapturedReferenceLeaf>>,
 }
 
-/// The evaluator retains the full ordered roster and its explicit argument
-/// suffix separately. A namespace/receiver observation is not a state formal;
+/// The evaluator retains the full ordered roster. The call's receiver identity
+/// separates its explicit argument suffix from a namespace/receiver observation;
 /// statement calls and transitions already supply arguments only.
 struct InvocationInputs<'evaluated> {
     operands: &'evaluated [checked_trees::FlowOperandFact],
-    arguments: &'evaluated [checked_trees::FlowOperandFact],
 }
 
 #[derive(Default)]
@@ -311,26 +311,25 @@ pub(super) fn append_statement_calls<'plans>(
             }
         }
         StatementNode::Call(call) => {
-            let mut captured = Vec::new();
-            for (position, argument) in program
-                .statement_table
-                .expression_handles(call.arguments)
-                .iter()
-                .enumerate()
+            let arguments = program.statement_table.expression_handles(call.arguments);
+            let mut captured = vec![checked_trees::FlowOperandFact::default(); arguments.len()];
+            // Source-custody publication reports an incoherent schedule. It
+            // contributes no operand facts during this preliminary flow walk.
+            for position in validation::CallSite::Statement(call)
+                .argument_evaluation_order(program)
+                .into_iter()
+                .flatten()
             {
                 let destination =
                     execution.invocation_parameter_type(InvocationSite::Statement, position);
-                captured.push(
-                    execution
-                        .evaluated_operand_as(*argument, destination, contexts, constraints)
-                        .capture,
-                );
+                captured[position] = execution
+                    .evaluated_operand_as(arguments[position], destination, contexts, constraints)
+                    .capture;
             }
             let completed = execution.invoke(
                 InvocationSite::Statement,
                 InvocationInputs {
                     operands: &captured,
-                    arguments: &captured,
                 },
                 contexts,
                 constraints,
@@ -579,7 +578,27 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 ExpressionHandle::invalid()
             }
         };
+        call.authored_receiver = match site {
+            InvocationSite::Expression(expression) => {
+                match self.program.expression_table.expression(expression) {
+                    ExpressionNode::Call(call) => call.receiver,
+                    _ => ExpressionHandle::invalid(),
+                }
+            }
+            InvocationSite::Statement | InvocationSite::Transition(_) => {
+                ExpressionHandle::invalid()
+            }
+        };
         call.invocation_storage = self.storage_snapshot;
+        // Installed and returned descriptors share these exact evaluated
+        // occurrences. Publish them before capturing any normal-return stores.
+        call.operands = self
+            .context
+            .control
+            .operands
+            .insert_many(captured_operands.iter().copied());
+        let argument_operands = call.argument_operands();
+
         let binding_writes = writes
             .as_deref()
             .and_then(|writes| writes.descriptor_stores());
@@ -589,7 +608,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 self.capture_call_stores(
                     site,
                     borrowed_call,
-                    inputs.arguments,
+                    argument_operands,
                     binding_writes.as_deref(),
                 )
             },
@@ -637,11 +656,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             bindings: binding_writes,
             observations,
         });
-        call.operands = self
-            .context
-            .control
-            .operands
-            .insert_many(captured_operands.iter().copied());
         // Call publication filters only guarantees substituted through stale
         // operand places. Live caller facts describe the storage after the
         // evaluated operands and must survive independently of their snapshots.
@@ -856,6 +870,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             observed_descriptor
         } else {
             completed.backing
+        };
+        capture.address_projection = if observed_descriptor.is_valid() {
+            None
+        } else {
+            completed.address_projection
         };
         capture.type_reference = if destination.is_valid() {
             destination
@@ -1104,6 +1123,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         capture.evaluated_inputs = completed.evaluated_inputs;
         capture.conditional_inputs_from = completed.conditional_inputs_from;
         capture.backing = completed.backing;
+        capture.address_projection = completed.address_projection;
         capture.type_reference = reference;
         if let Some(leaves) = completed.reference_leaves {
             capture.retention = completed.retention.unwrap_or_default();
@@ -1139,7 +1159,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 },
             );
         }
-        self.retain_descriptor_permission(&mut capture, constraints);
+        // Replacing the final reference cell locates its storage without
+        // reading its old pointer. Receivers crossed to reach that cell, and
+        // ordinary value captures, still retain their pointer-read permission.
+        if expression != self.reference_slot_target {
+            self.retain_descriptor_permission(&mut capture, constraints);
+        }
         capture
     }
 
@@ -1224,6 +1249,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             type_reference: TypeReferenceHandle::invalid(),
             completion: checked_trees::FlowOperandCompletion::Observation,
             backing: Handle::invalid(),
+            address_projection: None,
             evaluated_inputs: HandleSpan::empty(),
             conditional_inputs_from: None,
             value_source: Handle::invalid(),
@@ -1572,6 +1598,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             completion,
             value_source,
             backing,
+            address_projection,
             evaluated_inputs,
             conditional_inputs_from,
             referents,
@@ -1684,6 +1711,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     *constraints,
                     case_access,
                     possible_storage,
+                    address_projection,
                 ));
                 *retention = self.capture_member_retention(expression, &receiver.capture);
                 self.retain_value_observation(
@@ -1746,11 +1774,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         *constraints,
                     );
                 }
+                // Flow reads no arithmetic decisions: a closed comparison
+                // folds without exact-cast facts.
                 return crate::values::evaluate_closed_boolean_expression(
                     self.program,
                     self.context.operators,
                     expression,
-                    self.context.exact_integer_casts,
+                    &[],
                 );
             }
             ExpressionNode::Call(call)
@@ -1793,22 +1823,32 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     let receiver = self.evaluated_operand(call.receiver, contexts, constraints);
                     captured.push((call.receiver, receiver.capture));
                 }
-                for (position, argument) in self
+                let prefix = captured.len();
+                let arguments = self
                     .program
                     .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .enumerate()
+                    .expression_handles(call.arguments);
+                captured.resize(
+                    prefix + arguments.len(),
+                    (
+                        ExpressionHandle::invalid(),
+                        checked_trees::FlowOperandFact::default(),
+                    ),
+                );
+                for position in (validation::CallSite::Expression { expression, call })
+                    .argument_evaluation_order(self.program)
+                    .ok()?
                 {
+                    let argument = arguments[position];
                     let destination = self.invocation_parameter_type(
                         InvocationSite::Expression(expression),
                         position,
                     );
-                    captured.push((
-                        *argument,
-                        self.evaluated_operand_as(*argument, destination, contexts, constraints)
+                    captured[prefix + position] = (
+                        argument,
+                        self.evaluated_operand_as(argument, destination, contexts, constraints)
                             .capture,
-                    ));
+                    );
                 }
                 self.record_named_operator_invocations(call, &named_uses, &captured, *constraints);
                 // Formation metadata belongs to the exact actuals before
@@ -1830,7 +1870,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     InvocationSite::Expression(expression),
                     InvocationInputs {
                         operands: &operands,
-                        arguments: &operands[usize::from(call.receiver.is_valid())..],
                     },
                     contexts,
                     constraints,
@@ -1898,6 +1937,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 }
                 self.install_call_stores(completed.call, completed.stores);
                 self.capture_returned_retention(
+                    completed.call,
                     expression,
                     destination,
                     call,
@@ -2045,6 +2085,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         &start_operand,
                         Some(&end_operand),
                         possible_storage,
+                        address_projection,
                     ));
                     // `self.expression(indexed.index)` would publish the
                     // range node's own result tags after evaluating both
@@ -2074,6 +2115,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         &index_operand,
                         None,
                         possible_storage,
+                        address_projection,
                     ));
                     self.record_operator_invocation(
                         expression,

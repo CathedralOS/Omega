@@ -287,26 +287,26 @@ impl Denotation {
         goal: TermHandle,
         remaining: &mut u64,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        if let Some((ty, left, right)) = self.identity_parts(goal) {
-            if self.arena.structurally_equal(ty, self.two) {
-                let (BooleanEval::Literal(left_literal), BooleanEval::Literal(right_literal)) = (
-                    self.boolean_eval(left, remaining),
-                    self.boolean_eval(right, remaining),
-                ) else {
-                    return Ok(None);
-                };
-                return Ok(if left_literal == right_literal {
-                    // The goal endpoints compute to the same constructor:
-                    // `refl` closes the branch by conversion, whatever
-                    // the premise was.
-                    Some(self.arena.insert(Term::Refl {
-                        ty: self.two,
-                        value: left,
-                    }))
-                } else {
-                    None
-                });
-            }
+        if let Some((ty, left, right)) = self.identity_parts(goal)
+            && self.arena.structurally_equal(ty, self.two)
+        {
+            let (BooleanEval::Literal(left_literal), BooleanEval::Literal(right_literal)) = (
+                self.boolean_eval(left, remaining),
+                self.boolean_eval(right, remaining),
+            ) else {
+                return Ok(None);
+            };
+            return Ok(if left_literal == right_literal {
+                // The goal endpoints compute to the same constructor:
+                // `refl` closes the branch by conversion, whatever
+                // the premise was.
+                Some(self.arena.insert(Term::Refl {
+                    ty: self.two,
+                    value: left,
+                }))
+            } else {
+                None
+            });
         }
         self.closed_inhabitant(goal)
     }
@@ -343,10 +343,10 @@ impl Denotation {
     /// atoms seated inside the connective denotations (`Id` endpoints,
     /// `Σ` components, the disjunction family's branch payloads).
     fn first_boolean_atom(&mut self, term: TermHandle, remaining: &mut u64) -> Option<TermHandle> {
-        if let BooleanEval::Blocked(atom) = self.boolean_eval(term, remaining) {
-            if self.neutral_atom_is_two(atom) {
-                return Some(atom);
-            }
+        if let BooleanEval::Blocked(atom) = self.boolean_eval(term, remaining)
+            && self.neutral_atom_is_two(atom)
+        {
+            return Some(atom);
         }
         match self.arena.get(term) {
             Term::Apply { function, argument } => {

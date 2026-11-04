@@ -109,6 +109,7 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     flow: &FlowFacts,
+    retentions: &[super::forwarded_lifetimes::LoanRetention],
 ) -> Result<(Vec<LoanResource>, Vec<ResourceDraft>), Vec<Diagnostic>> {
     let mut direct = Vec::new();
     let mut reborrows = Vec::new();
@@ -174,20 +175,26 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                         continue;
                     }
 
-                    let (activation_handle, weakening_handle) = match exact_loan_lifecycle_rows(
-                        flow,
-                        flow_state,
-                        loan_handle,
-                        loan.statement_index,
-                    ) {
-                        Ok(rows) => rows,
-                        Err(drift) => {
-                            diagnostics.push(drift);
-                            continue;
-                        }
-                    };
+                    let (activation_handle, _weakening_handle) =
+                        match exact_loan_lifecycle_rows(borrow, flow, flow_state, loan_handle) {
+                            Ok(rows) => rows,
+                            Err(mut drift) => {
+                                if let Some((machine, source_state)) =
+                                    validation::find_state(program, state.state_symbol)
+                                {
+                                    drift.message.push_str(&format!(
+                                        "; source scope {}::{}",
+                                        machine.name, source_state.name
+                                    ));
+                                }
+                                diagnostics.push(drift);
+                                continue;
+                            }
+                        };
                     let activation = flow.borrow_lifetimes.activations.get(activation_handle);
-                    let weakening = flow.borrow_lifetimes.weakenings.get(weakening_handle);
+                    let retention =
+                        super::forwarded_lifetimes::get(retentions, loan_handle)?.clone();
+                    let weakening = super::forwarded_lifetimes::end(flow, &retention);
 
                     let parent_lifetime = CheckedDirectBorrowParentLifetime {
                         machine_symbol: state.machine_symbol,
@@ -216,6 +223,7 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                         },
                         access: loan.kind.clone(),
                         activation_source: activation.source,
+                        retention,
                         weakening_source: weakening.source,
                         weakening_reason: weakening.reason,
                         parent_lifetime,
@@ -232,20 +240,48 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                         ));
                         continue;
                     };
-                    let (child_activation, child_weakening) = match exact_loan_lifecycle_rows(
-                        flow,
-                        flow_state,
-                        loan_handle,
-                        loan.statement_index,
-                    ) {
-                        Ok(rows) => rows,
-                        Err(drift) => {
-                            diagnostics.push(drift);
-                            continue;
+                    let (child_activation, child_weakening) =
+                        match exact_loan_lifecycle_rows(borrow, flow, flow_state, loan_handle) {
+                            Ok(rows) => rows,
+                            Err(mut drift) => {
+                                if let Some((machine, source_state)) =
+                                    validation::find_state(program, state.state_symbol)
+                                {
+                                    drift.message.push_str(&format!(
+                                        "; source scope {}::{}",
+                                        machine.name, source_state.name
+                                    ));
+                                }
+                                diagnostics.push(drift);
+                                continue;
+                            }
+                        };
+                    let activation = flow.borrow_lifetimes.activations.get(child_activation);
+                    let retention =
+                        super::forwarded_lifetimes::get(retentions, loan_handle)?.clone();
+                    let weakening = super::forwarded_lifetimes::end(flow, &retention);
+                    let sources = borrow.loan_suppliers.span_or_empty(loan.supplying_loans);
+                    let source_loan = match sources {
+                        [] => *parent_loan,
+                        [source] => *source,
+                        _ => {
+                            return Err(vec![Diagnostic::error(
+                                "reborrow formation has no unique current descriptor source",
+                            )]);
                         }
                     };
-                    let activation = flow.borrow_lifetimes.activations.get(child_activation);
-                    let weakening = flow.borrow_lifetimes.weakenings.get(child_weakening);
+                    if !borrow.state_owns_loan(state, source_loan)
+                        || borrow
+                            .loans
+                            .get(source_loan)
+                            .kind
+                            .direct_reborrow_effect(&loan.kind)
+                            .is_none()
+                    {
+                        return Err(vec![Diagnostic::error(
+                            "reborrow exceeds its source descriptor's access",
+                        )]);
+                    }
                     let parent_weakenings = flow
                         .borrow_lifetimes
                         .weakenings
@@ -268,8 +304,8 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                     let Some(parent_lexical_status) = parent_lexical_status_at_child_end(
                         parent_weakening_fact.source,
                         parent_weakening_fact.reason,
-                        weakening.source,
-                        weakening.reason,
+                        flow.borrow_lifetimes.weakenings.get(child_weakening).source,
+                        flow.borrow_lifetimes.weakenings.get(child_weakening).reason,
                     ) else {
                         diagnostics.push(Diagnostic::error(
                             "checked direct-reborrow parent status has an unsupported weakening boundary",
@@ -298,7 +334,7 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                         .filter(|(_, constraint)| {
                             constraint.kind
                                 == checked_trees::FlowConstraintKind::BorrowLoan {
-                                    loan: *parent_loan,
+                                    loan: source_loan,
                                 }
                         })
                         .filter_map(|(offset, _)| span_handle(statement.entry_constraints, offset))
@@ -329,6 +365,8 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                         parent_access: parent.kind.clone(),
                         access_effect,
                         activation_source: activation.source,
+                        retention,
+                        source_loan,
                         weakening_source: weakening.source,
                         weakening_reason: weakening.reason,
                         parent_loan: *parent_loan,

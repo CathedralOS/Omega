@@ -9,7 +9,6 @@ use crate::execution::terminal_unit::calls::{
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_occurrences;
 use crate::execution::terminal_unit::control::statement_sequence::StatementSequence;
-use crate::execution::terminal_unit::providers::checked_provider_attachment_requirements;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, checked_state_contracts_have_plan, is_unit, machine_binders,
     parameter_storage_plans, return_unit_affine_discards, state_flow,
@@ -167,7 +166,7 @@ pub(crate) fn build_checked_machine_residual_parts(
         None => (Vec::new(), 0),
     };
     trace.phase("statement sequence");
-    let sequence = statement_sequence::build(
+    let mut sequence = statement_sequence::build(
         program,
         facts,
         scalar_callees,
@@ -184,6 +183,20 @@ pub(crate) fn build_checked_machine_residual_parts(
         prefix_statement_count,
         std::ops::Bound::Unbounded,
         call_frames,
+        trace,
+    )?;
+    let returned = sequence.structural_result.clone();
+    sequence.finish_reference_retirement(
+        program,
+        facts,
+        prepared_calls,
+        shapes,
+        &structural_parameters,
+        &local_rows,
+        &entry_claims,
+        machine,
+        state,
+        returned.as_ref(),
         trace,
     )?;
     // This owner publishes a normal completion. Abnormal terminators belong
@@ -214,7 +227,7 @@ pub(crate) fn build_checked_machine_residual_parts(
                         .and_then(|index| index.checked_add(1))
                         .unwrap_or(local.declaration_ordinal),
                     declaration_ordinal: local.declaration_ordinal,
-                    type_identity: local.type_identity.clone(),
+                    type_identity: local.type_identity,
                 },
             )
         })
@@ -339,21 +352,6 @@ pub(crate) fn build_checked_machine_residual_parts(
     let body_qualifications =
         super::super::types::body_structural_qualifications(program, facts, machine.symbol);
 
-    trace.phase("provider attachment requirements");
-    let provider_attachment_requirements = match attachment_type_identity.as_ref() {
-        Some(attachment) => checked_provider_attachment_requirements(
-            program,
-            shapes,
-            machine,
-            state,
-            *attachment,
-            &structural_parameters,
-            source_calls,
-            &operations,
-        )?,
-        None => Vec::new(),
-    };
-
     trace.phase("service reach");
     let erased_scalar_parameters =
         crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, state)?;
@@ -374,7 +372,6 @@ pub(crate) fn build_checked_machine_residual_parts(
             parameter_storage,
             erased_scalar_parameters,
             erased_proof_parameters,
-            provider_attachment_requirements,
             trivial_affine_locals,
             entry_claims,
             body_qualifications,

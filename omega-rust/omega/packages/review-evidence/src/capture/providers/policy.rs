@@ -2,6 +2,7 @@
 
 pub(crate) mod bindings;
 mod families;
+pub(super) mod realizations;
 mod rows;
 
 use crate::capture::PackageReviewInput;
@@ -50,7 +51,10 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
     // The candidate under review cannot manufacture selected-instance custody.
     // Derive this source-only projection from the original compiler program;
     // ordinary native products obtain their associations from Terminal instead.
-    let selected_instances = selected_execution.provider_source.project_instances()?;
+    let selected_instances = compilation
+        .custody
+        .source_inspection()
+        .project_instances()?;
     // Every selected plan reads this capture's same declaration vocabulary.
     // Reuse it across plans; each signature still receives fresh mutable tables.
     let mut signatures = services::SignatureProjection::new(*compilation);
@@ -78,7 +82,6 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
         .count();
     if projected_installation_reaches
         != selected_execution
-            .provider_source
             .plans()
             .installation_reach_resolutions()
             .len()
@@ -116,10 +119,7 @@ fn project_plan(
     // A toolchain-settled plan (e.g. the canonical `FilesystemHost` mint)
     // names no authored provider type and deliberately covers only the
     // leaves the toolchain can bind honestly.
-    let toolchain_settled = selected_execution
-        .provider_source
-        .plans()
-        .is_toolchain_settled(plan);
+    let toolchain_settled = selected_execution.plans().is_toolchain_settled(plan);
     let schema_declaration = nominal_identity(compilation, retained.provider.schema.symbol())?;
     validate_selected_provider_declaration_owner(
         &schema_declaration,

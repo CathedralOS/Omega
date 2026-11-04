@@ -2,17 +2,123 @@
 //! The full consumed source commitment includes private supplier bodies and
 //! transitive semantic dependencies. Keeping it in each accepted meaning makes
 //! a resolution-only update unable to silently preserve changed trust.
-use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::project_trait_requirement_contracts;
+use crate::capture::{PackageReviewInput, SourceDeclarationInput};
 use crate::record::PackageReviewCallableContract;
 use diagnostics::Diagnostic;
 
 pub(super) fn project(input: &PackageReviewInput<'_>) -> Result<Vec<String>, Vec<Diagnostic>> {
-    let facts = input.custody.execution().provider_source.plans();
+    render(
+        input.custody.execution().plans(),
+        input.custody.sources(),
+        input.custody.execution().selected_target_profile,
+        |identity| project_contract(input, identity),
+    )
+}
+
+/// Save only contracts named by Build's explicit assumed relationships. A
+/// dormant declaration's projection error is reported only if a selected
+/// relationship needs that declaration during permission comparison.
+pub(crate) struct PreparedAssumedContracts {
+    declarations: Vec<(
+        String,
+        Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>>,
+    )>,
+}
+
+impl PreparedAssumedContracts {
+    pub(crate) fn capture(
+        input: &SourceDeclarationInput<'_>,
+        requirements: &[symbols::SymbolHandle],
+    ) -> Self {
+        let mut declarations = Vec::new();
+        for definition in input.traits() {
+            for signature in input.trait_machine_signatures(definition) {
+                if requirements.contains(&signature.symbol) {
+                    let identity =
+                        input.trait_requirement_callable_identity_text(definition, signature);
+                    if !declarations.iter().any(|(prior, _)| prior == &identity) {
+                        let contracts = project_contract(input, &identity);
+                        declarations.push((identity, contracts));
+                    }
+                }
+            }
+        }
+        Self { declarations }
+    }
+
+    pub(crate) fn render(
+        &self,
+        facts: &effects::SelectedProviderPlanFacts,
+        sources: &package_compilation::CheckedSourceCustody,
+        target: Option<target::TargetProfile>,
+    ) -> Result<Vec<String>, Vec<Diagnostic>> {
+        render(facts, sources, target, |identity| {
+            self.declarations
+                .iter()
+                .find(|(candidate, _)| candidate == identity)
+                .ok_or_else(|| {
+                    super::rejected(
+                        "assumed binding contract lost its exact requirement declaration",
+                    )
+                })?
+                .1
+                .clone()
+        })
+    }
+}
+
+fn project_contract(
+    input: &SourceDeclarationInput<'_>,
+    identity: &str,
+) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
+    for definition in input.traits() {
+        for signature in input.trait_machine_signatures(definition) {
+            if input.trait_requirement_callable_identity_text(definition, signature) == identity {
+                let mut lifetimes = definition.lifetime_parameters.clone();
+                lifetimes.extend(signature.lifetime_parameters.iter().cloned());
+                let context = crate::capture::contracts::facts::ContractProjectionContext {
+                    subject_kind: "assumed binding requirement",
+                    subject_name: identity,
+                    owner: checked_trees::ContractProofFactOwner::StateSignature {
+                        owner_symbol: definition.symbol,
+                        state_symbol: signature.symbol,
+                    },
+                    point: facts::ProgramPoint::State {
+                        machine_symbol: definition.symbol,
+                        state_symbol: signature.symbol,
+                    },
+                    parameters: input.state_signature_parameters(signature),
+                    domain_symbol: None,
+                    data_symbol: None,
+                    lifetime_binders: &lifetimes,
+                    lifetime_substitutions: &[],
+                    selection_exposure: if definition.is_public {
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+                    } else {
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+                    },
+                };
+                let contracts =
+                    project_trait_requirement_contracts(input, signature, &context, &[])?;
+                return Ok(contracts);
+            }
+        }
+    }
+    Err(super::rejected(
+        "assumed binding contract lost its exact requirement declaration",
+    ))
+}
+
+fn render(
+    facts: &effects::SelectedProviderPlanFacts,
+    sources: &package_compilation::CheckedSourceCustody,
+    target: Option<target::TargetProfile>,
+    contract: impl Fn(&str) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>>,
+) -> Result<Vec<String>, Vec<Diagnostic>> {
     if facts.assumed_bindings().is_empty() {
         return Ok(Vec::new());
     }
-    let sources = input.custody.sources();
     let source = sources.source_consumption_commitment().ok_or_else(|| {
         super::rejected("assumed binding risk has no exact package source closure")
     })?;
@@ -21,45 +127,6 @@ pub(super) fn project(input: &PackageReviewInput<'_>) -> Result<Vec<String>, Vec
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>()
-    };
-    let contract = |identity: &str| -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
-        for definition in input.traits() {
-            for signature in input.trait_machine_signatures(definition) {
-                if input.trait_requirement_callable_identity_text(definition, signature) == identity
-                {
-                    let mut lifetimes = definition.lifetime_parameters.clone();
-                    lifetimes.extend(signature.lifetime_parameters.iter().cloned());
-                    let context = crate::capture::contracts::facts::ContractProjectionContext {
-                        subject_kind: "assumed binding requirement",
-                        subject_name: identity,
-                        owner: checked_trees::ContractProofFactOwner::StateSignature {
-                            owner_symbol: definition.symbol,
-                            state_symbol: signature.symbol,
-                        },
-                        point: facts::ProgramPoint::State {
-                            machine_symbol: definition.symbol,
-                            state_symbol: signature.symbol,
-                        },
-                        parameters: input.state_signature_parameters(signature),
-                        domain_symbol: None,
-                        data_symbol: None,
-                        lifetime_binders: &lifetimes,
-                        lifetime_substitutions: &[],
-                        selection_exposure: if definition.is_public {
-                            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
-                        } else {
-                            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
-                        },
-                    };
-                    let contracts =
-                        project_trait_requirement_contracts(input, signature, &context, &[])?;
-                    return Ok(contracts);
-                }
-            }
-        }
-        Err(super::rejected(
-            "assumed binding contract lost its exact requirement declaration",
-        ))
     };
     let relationships = facts
         .assumed_bindings()
@@ -114,7 +181,7 @@ pub(super) fn project(input: &PackageReviewInput<'_>) -> Result<Vec<String>, Vec
         rows.push(format!(
             "Extremely high risk - assumed binding contract\nroot Product: {}; target: {}\nrequired: {} [{}]\nsupplied: {} [{}]\nsubject mapping: positional, runtime-only; no additional domain establishment authority\nassumed entry difference (supplier requires absent from caller): {}\nassumed exit difference (caller ensures absent from supplier): {}\nconnection assessment: {}\nselected implementations: {}\ntransitive relationships: {}\nselected closure: {}\nconsumed semantic source closure: {}\ndependency path: {:?}\n",
             sources.package_identity().map(|identity| hex(&identity.digest())).unwrap_or_default(),
-            input.custody.execution().selected_target_profile.map(|target| target.target_name()).unwrap_or(""),
+            target.map(|target| target.target_name()).unwrap_or(""),
             row.required, render(&required)?, row.supplied, render(&supplied)?,
             render(&missing_entry)?, render(&missing_exit)?, assessment(&required, &supplied),
             implementations, relationships, hex(facts.identity_digest().as_bytes()), hex(&source.digest()), sources.dependency_closure()
@@ -195,15 +262,12 @@ fn parameter_subjects(contracts: &[PackageReviewCallableContract]) -> Vec<u32> {
         PackageReviewContractKind as Kind,
     };
     fn visit(expression: &Expression, found: &mut Vec<u32>) {
-        match expression {
-            Expression::Binary { left, right, .. } => {
-                if let Expression::Parameter(index) = left.as_ref() {
-                    found.push(*index);
-                }
-                visit(left, found);
-                visit(right, found);
+        if let Expression::Binary { left, right, .. } = expression {
+            if let Expression::Parameter(index) = left.as_ref() {
+                found.push(*index);
             }
-            _ => {}
+            visit(left, found);
+            visit(right, found);
         }
     }
     let mut found = Vec::new();

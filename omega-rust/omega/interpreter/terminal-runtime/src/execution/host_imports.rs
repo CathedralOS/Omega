@@ -51,6 +51,7 @@ mod native_provider;
 mod native_word;
 mod network_address;
 mod numeric;
+mod reference_state;
 mod scalar_codec;
 mod scalar_record;
 mod standard_input;
@@ -303,7 +304,7 @@ pub(super) struct HostContext<'host> {
 impl<'host> HostContext<'host> {
     pub(super) fn finish_native_provider(&self) -> Result<(), TerminalRuntimeError> {
         self.native.finish().map_err(|error| {
-            TerminalRuntimeError::missing("native-provider-retirement", error.reason)
+            TerminalRuntimeError::missing(super::NATIVE_PROVIDER_RETIREMENT, error.reason)
         })
     }
     pub(super) fn new(
@@ -534,6 +535,15 @@ pub(super) fn bind<'host>(
                     instance.bind_import(*slot, adapter)?;
                     continue;
                 }
+                if let Some(adapter) = reference_state::ReferenceStateImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
                 if let Some(adapter) = clock::ClockImport::admit(
                     program,
                     declaration,
@@ -596,7 +606,7 @@ pub(super) fn bind<'host>(
                     declaration,
                     binding,
                     provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
-                    std::sync::Arc::clone(&addresses),
+                    std::sync::Arc::clone(addresses),
                 )? {
                     instance.bind_import(*slot, adapter)?;
                     continue;

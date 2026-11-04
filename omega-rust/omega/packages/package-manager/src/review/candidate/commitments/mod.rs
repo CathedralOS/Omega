@@ -1,6 +1,6 @@
 //! Canonical commitments over compiler review evidence.
 
-use build_evaluation::BuildObservationSummary;
+use build_settings::BuildObservationSummary;
 
 /// Package review consumes the build-evaluation owner's canonical identity;
 /// it does not maintain a second observation encoder.

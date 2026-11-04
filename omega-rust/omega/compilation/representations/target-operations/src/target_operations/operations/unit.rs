@@ -615,6 +615,9 @@ pub enum TargetUnitOperation {
         /// Completion establishes this exact scalar or structural home.
         /// ABI indirection belongs to the evaluated plan, not semantic access.
         result: TargetBoundaryResult,
+        /// The bounded count guard selection must emit before invoking a
+        /// descriptor-reading import, recorded once by the target producer.
+        descriptor_input: Option<crate::DescriptorInputGuard>,
     },
     PortWrite {
         psi_operation: OperationId,
@@ -795,6 +798,16 @@ impl TargetUnitOperation {
                 ..
             }
             | Self::EstablishActivationClaim {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::SplitActivationClaim {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::MergeActivationClaim {
                 psi_operation,
                 result_home,
                 ..

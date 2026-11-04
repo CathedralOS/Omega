@@ -3,14 +3,14 @@ use omega::language::core::drop;
 
 public data ByteUnit {}
 
-public data Region [linear] {
+public data Region [linear] dropped by drop_region {
     start: u64;
     end: u64;
 }
 
 // The type owner authorizes the only cleanup plan; linear custody still
 // has to be transferred or dropped exactly once.
-machine Region::drop(region: &mut Region) {}
+machine drop_region(region: &mut Region) {}
 
 public domain Region::Owned;
 

@@ -84,7 +84,10 @@ pub fn parameter_expression_result_type_reference(
             .map(|place| place.type_reference)
             .or_else(|| {
                 crate::value_custody::places::parameter_scoped_type_reference(
-                    program, parameters, expression,
+                    program,
+                    owner_symbol,
+                    parameters,
+                    expression,
                 )
             })
             .or_else(|| {

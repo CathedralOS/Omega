@@ -34,7 +34,63 @@ fn failure(reason: &'static str) -> TerminalInterpretError {
     TerminalInterpretError::EntryResultObservation(reason)
 }
 
+impl EntryResults {
+    /// Make a completed operation's value available to checks that must run
+    /// before the entry finishes. Keep it private until the entry succeeds.
+    fn captured_value(
+        &self,
+        result: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<Option<TerminalScalarValue>, String> {
+        let (expected, value) = self
+            .rows
+            .get(&result)
+            .ok_or("scalar entry check names an unrequested result occurrence")?;
+        if *expected != scalar_type {
+            return Err("scalar entry check changed its captured result carrier".into());
+        }
+        Ok(*value)
+    }
+}
+
 impl TerminalExecution<'_> {
+    /// The admitted entry owns its required captures. An embedding may request
+    /// additional observations, but cannot omit a capture used by a local check.
+    pub(crate) fn request_scalar_entry_checks(
+        &mut self,
+        checks: terminal_installation::ScalarEntryChecks,
+        explicit: Option<TerminalEntryResultRequest<'_>>,
+    ) -> Result<(), TerminalInterpretError> {
+        if self.scalar_entry_checks.is_some() {
+            return Err(failure("scalar entry checks were already installed"));
+        }
+        if explicit.is_some_and(|request| request.machine != self.current_machine) {
+            return Err(failure(
+                "entry result observations name a different root activation",
+            ));
+        }
+        let mut results = explicit
+            .map(|request| request.results.to_vec())
+            .unwrap_or_default();
+        for &(result, scalar_type) in checks.results() {
+            if let Some((_, expected)) = results.iter().find(|(value, _)| *value == result) {
+                if *expected != scalar_type {
+                    return Err(failure(
+                        "scalar entry check and explicit observation disagree on the result carrier",
+                    ));
+                }
+            } else {
+                results.push((result, scalar_type));
+            }
+        }
+        self.request_entry_results(TerminalEntryResultRequest {
+            machine: self.current_machine,
+            results: &results,
+        })?;
+        self.scalar_entry_checks = Some(checks);
+        Ok(())
+    }
+
     pub(crate) fn request_entry_results(
         &mut self,
         request: TerminalEntryResultRequest<'_>,
@@ -108,6 +164,31 @@ impl TerminalExecution<'_> {
             ));
         }
         *observed = Some(value);
+        self.discharge_scalar_entry_checks()
+    }
+
+    /// Check newly available captured operands before execution advances. A
+    /// callee or recursive activation cannot fill the root's capture slots.
+    fn discharge_scalar_entry_checks(&mut self) -> Result<(), TerminalInterpretError> {
+        let Some(checks) = &mut self.scalar_entry_checks else {
+            return Ok(());
+        };
+        let observations = self.entry_results.as_ref().ok_or_else(|| {
+            failure("scalar entry checks lost their required result observations")
+        })?;
+        checks
+            .discharge_ready(|result, scalar_type| observations.captured_value(result, scalar_type))
+            .map_err(TerminalInterpretError::ScalarApplicationEvaluation)
+    }
+
+    pub(crate) fn require_scalar_entry_checks_complete(
+        &self,
+    ) -> Result<(), TerminalInterpretError> {
+        if let Some(checks) = &self.scalar_entry_checks {
+            checks
+                .require_complete()
+                .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?;
+        }
         Ok(())
     }
 

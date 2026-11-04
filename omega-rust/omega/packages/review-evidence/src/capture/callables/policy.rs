@@ -37,7 +37,10 @@ pub(crate) fn project_checked_callable_policy<'a>(
     }
     let owner_queries = ContractOwnerQueries::new(compilation.checking_input, &compilation.facts);
     let compilation = &PackageReviewInput {
-        contract_owner_queries: Some(&owner_queries),
+        source: crate::capture::SourceDeclarationInput {
+            contract_owner_queries: Some(&owner_queries),
+            ..input.source
+        },
         ..input
     };
     let build = compilation.custody.build().selected_build_machine_symbol;

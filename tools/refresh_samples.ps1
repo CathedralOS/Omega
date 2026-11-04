@@ -15,6 +15,6 @@ if ($mbxVersion -lt [version]'1.7.0') {
 
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
-# The gate builds the opt-level 1 CLI it measures into build\gate-cli\.
+# The gate builds the opt-level 1 CLI it measures in the checkout's target\.
 python tools/sample_native_gate.py
 exit $LASTEXITCODE

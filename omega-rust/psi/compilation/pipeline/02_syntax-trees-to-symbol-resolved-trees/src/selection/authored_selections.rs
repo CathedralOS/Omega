@@ -176,7 +176,7 @@ pub(crate) fn finalize_authored_expression_selections(
     pending_proof_memberships: &[PendingAuthoredProofMembership],
 ) -> Result<(), Diagnostic> {
     for pending_expression in pending {
-        if body_expressions(&program).authored_expression_exposure(pending_expression.expression)
+        if body_expressions(program).authored_expression_exposure(pending_expression.expression)
             != Some(pending_expression.exposure)
         {
             return Err(Diagnostic::error(
@@ -192,14 +192,14 @@ pub(crate) fn finalize_authored_expression_selections(
         .iter()
         .copied()
         .filter_map(|expression| {
-            if body_expressions(&program)
+            if body_expressions(program)
                 .authored_selection_occurrences(expression)
                 .len()
                 != 0
             {
                 return None;
             }
-            body_expressions(&program)
+            body_expressions(program)
                 .authored_expression_exposure(expression)
                 .map(|exposure| (expression, exposure))
         })
@@ -230,7 +230,7 @@ pub(crate) fn finalize_authored_expression_selections(
         if membership.authored_domain_selection.is_some() {
             continue;
         }
-        let members = resolved_declarations(&program)
+        let members = resolved_declarations(program)
             .domain_path_members
             .span_or_empty(membership.domain);
         let source_span = path_span(members, SourceSpan::default());
@@ -384,10 +384,7 @@ fn collect_authored_statement_call_candidates(
                     && nonempty(call.target.source_span()) =>
             {
                 candidates.push(AuthoredStatementCallCandidate {
-                    site: AuthoredStatementCallSite::Statement {
-                        statements: statements,
-                        offset,
-                    },
+                    site: AuthoredStatementCallSite::Statement { statements, offset },
                     source_span: call.target.source_span(),
                     compiler_partition: partition,
                     target: resolved_or_late(call.target_symbol, LateBinding::CheckedCall),
@@ -682,6 +679,63 @@ fn attach_statement_call_occurrence(
 
 fn nonempty(source_span: SourceSpan) -> bool {
     source_span.span.start < source_span.span.end
+}
+
+/// Complete the original operand occurrences after normalized map selection.
+/// Attachments retain copy identity; a span-only lookup cannot issue custody.
+pub(super) fn finalize_normalized_static_operands(
+    program: &mut SymbolResolvedTrees,
+    occurrences: &[AuthoredDeclarationSelectionOccurrenceId],
+    exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
+    partition: Option<CompilerDerivedSelectionPartition>,
+    operands: &[super::static_arguments::ResolvedStaticOperand],
+) -> Result<(), Diagnostic> {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
+    for operand in operands {
+        let mut candidates = occurrences
+            .iter()
+            .filter_map(|occurrence| program.authored_declaration_selections().get(*occurrence))
+            .filter(|row| {
+                row.source_span() == operand.source
+                    && row.kind() == Kind::StaticArgument
+                    && row.exposure() == exposure.unwrap_or(language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation)
+                    && (exposure.is_none() || row.compiler_partition() == partition)
+            });
+        let original = candidates.next().copied().ok_or_else(|| {
+            Diagnostic::error("normalized member has no attached static selection occurrence")
+                .with_source_span(operand.source)
+        })?;
+        if candidates.next().is_some() {
+            return Err(Diagnostic::error(
+                "normalized member has ambiguous attached static selection occurrences",
+            )
+            .with_source_span(operand.source));
+        }
+        match original.target() {
+            Target::LateBound(LateBinding::CheckedStaticArgument) => program
+                .finalize_authored_declaration_selection(
+                    original.occurrence_id(),
+                    LateBinding::CheckedStaticArgument,
+                    operand.entry,
+                )
+                .map_err(|reason| {
+                    Diagnostic::error(format!(
+                        "normalized static selection finalization failed: {reason:?}"
+                    ))
+                    .with_source_span(operand.source)
+                })?,
+            Target::Resolved(target) if target.selected_symbol() == operand.entry => {}
+            _ => {
+                return Err(Diagnostic::error(
+                    "normalized member conflicts with its original static selection",
+                )
+                .with_source_span(operand.source));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Retain explicit realization-machine references only after closed
@@ -1007,7 +1061,7 @@ fn collect_statement_static_argument_candidates(
                 candidates,
             );
             if application.member.is_valid()
-                && let Some(member) = body_expressions(&program).static_member(application.member)
+                && let Some(member) = body_expressions(program).static_member(application.member)
             {
                 collect_statement_static_argument_candidates(
                     program,
@@ -1031,7 +1085,7 @@ fn contract_clause_expression_handles(
 ) -> HashSet<ExpressionHandle, symbols::BuildSymbolHasher> {
     let mut handles = HashSet::default();
     for (_, contract) in program.tables.declarations.signature_contracts.iter() {
-        for fact in resolved_declarations(&program)
+        for fact in resolved_declarations(program)
             .proof_facts
             .span_or_empty(contract.facts)
         {
@@ -1126,6 +1180,31 @@ fn collect_expression_subtree(
         | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => {}
     }
+}
+
+/// Package names direct lookup to a dependency; they need no declaration
+/// symbols of their own. Recognize only the complete loader-certified prefix.
+/// Real modules and members after it still supply their ordinary selections.
+fn package_qualifier_member_count(
+    program: &SymbolResolvedTrees,
+    members: &[DiagnosticName],
+    reference: SourceSpan,
+) -> usize {
+    let mut prefix = String::new();
+    let mut package_members = 0;
+    for (offset, member) in members.iter().enumerate() {
+        if offset != 0 {
+            prefix.push_str("::");
+        }
+        prefix.push_str(member.as_str());
+        if program
+            .symbols
+            .is_source_package_qualifier(reference, &prefix)
+        {
+            package_members = offset + 1;
+        }
+    }
+    package_members
 }
 
 fn expression_candidates(
@@ -1275,17 +1354,26 @@ fn expression_candidates(
                     .map_err(|message| Diagnostic::error(message).with_source_span(reference))?;
             }
             let symbols = expressions.name_path_member_symbols(path.member_symbols);
+            let package_members = if path.head_symbol.is_valid() || members.len() < 2 {
+                0
+            } else {
+                // A generated wrapper may have no source location. The name's
+                // own tokens identify the file whose imports authorize it.
+                package_qualifier_member_count(
+                    program,
+                    members,
+                    path_span(members, expression_span),
+                )
+            };
             for (offset, member) in members.iter().enumerate() {
                 let symbol = symbols
                     .get(offset)
                     .copied()
                     .unwrap_or_else(SymbolHandle::invalid);
-                // A bare unresolved root is a lexical value place (parameter
-                // or local), not a declaration selection. Resolved lexical
-                // binders are excluded for the same reason. Later segments
-                // remain authored field/case/declaration selections and may
-                // still require checked contextual resolution.
-                if (offset == 0 && !symbol.is_valid())
+                // Local bindings and package addresses do not select
+                // declarations. Keep real module, field and case selections,
+                // including suffixes that still need contextual resolution.
+                if ((offset == 0 || offset < package_members) && !symbol.is_valid())
                     || (symbol.is_valid() && !is_selectable_declaration_symbol(program, symbol))
                 {
                     continue;
@@ -1406,7 +1494,7 @@ fn collect_static_argument_candidates(
                 candidates,
             );
             if application.member.is_valid()
-                && let Some(member) = body_expressions(&program).static_member(application.member)
+                && let Some(member) = body_expressions(program).static_member(application.member)
             {
                 collect_static_argument_candidates(
                     program,
@@ -1493,7 +1581,7 @@ pub(crate) fn finalize_constant_expression_selections(
     let expressions = initializers
         .into_iter()
         .filter_map(|expression| {
-            body_expressions(&program)
+            body_expressions(program)
                 .authored_expression_exposure(expression)
                 .map(|exposure| (expression, exposure))
         })
@@ -1526,8 +1614,7 @@ fn finalize_expression_groups(
     // number of authored selections a large package carries.
     let mut group_index: HashMap<_, usize> = HashMap::default();
     for (expression, exposure) in authored_expressions {
-        let compiler_partition =
-            body_expressions(&program).compiler_selection_partition(expression);
+        let compiler_partition = body_expressions(program).compiler_selection_partition(expression);
         for candidate in expression_candidates(
             program,
             expression,

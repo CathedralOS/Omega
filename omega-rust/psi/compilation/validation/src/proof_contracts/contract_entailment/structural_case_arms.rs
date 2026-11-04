@@ -101,9 +101,7 @@ pub(crate) fn recognize_guarded_structural_value_arms<'program>(
         let TransitionGuardNode::When(guard) = transition.guard else {
             return None;
         };
-        let Some(equality) = program.expression_table.binary_node(guard) else {
-            return None;
-        };
+        let equality = program.expression_table.binary_node(guard)?;
         if equality.operator != BinaryOperator::Equal {
             return None;
         }
@@ -415,15 +413,13 @@ fn local_symbol_is_dead_in_remaining_prefix(
         |root: ExpressionHandle| expression_mentions_symbol(program, root, local_symbol);
     for &stmt_idx in execution.iter().skip(next_execution_position) {
         let stmt = &statements[stmt_idx];
-        if in_state_prefix_only {
-            if let StatementNode::Transition(transition) = stmt {
-                if let TransitionGuardNode::When(guard) = transition.guard
-                    && mentions_local(guard)
-                {
-                    return false;
-                }
-                continue;
+        if in_state_prefix_only && let StatementNode::Transition(transition) = stmt {
+            if let TransitionGuardNode::When(guard) = transition.guard
+                && mentions_local(guard)
+            {
+                return false;
             }
+            continue;
         }
         for (_, root) in program.tables.expression_roots(stmt) {
             if mentions_local(root) {
@@ -1588,7 +1584,7 @@ fn recognize_structural_state_leaves_from<'a>(
 
                     if outcomes.len() > 1
                         && outcomes.iter().all(|(_, outcome_judge)| {
-                            outcome_judge.has_no_new_effects_or_guarantees_since(&judge)
+                            outcome_judge.has_no_new_effects_or_guarantees_since(judge)
                         })
                     {
                         let dead_local = local_symbol_is_dead_in_remaining_prefix(
@@ -2134,6 +2130,9 @@ fn recognize_structural_state_leaves_from<'a>(
                     // Its separately checked ranking licenses the IH; unfolding
                     // the body again would either loop or assume its result.
                     && !(call_expression.is_some() && path.contains(&target_state.symbol))
+                    && !call_expression.is_some_and(|expression| {
+                        judge.has_runtime_induction(state.symbol, expression, target_state.symbol)
+                    })
                 {
                     if !visitors.is_empty()
                         && visitors.iter().all(|observer| {
@@ -2442,6 +2441,27 @@ pub(super) fn prefix_site_is_reachable(
     source: &typed_trees::state::State,
     observer: &(dyn StructuralPrefixVisitor + '_),
 ) -> bool {
+    prefix_site_is_reachable_with_entry(program, source, observer, None)
+}
+
+/// Inspect the body whose entry is being checked independently. Calls to other
+/// independent entries still stop there; this query establishes no facts.
+pub(super) fn prefix_site_is_reachable_from_entry(
+    program: &dyn crate::CheckingInput,
+    source: &typed_trees::state::State,
+    observer: &(dyn StructuralPrefixVisitor + '_),
+) -> bool {
+    let owner = crate::machine_calls::calls::machine_state_by_symbol(program, source.symbol)
+        .map(|(machine, _)| machine.symbol);
+    prefix_site_is_reachable_with_entry(program, source, observer, owner)
+}
+
+fn prefix_site_is_reachable_with_entry(
+    program: &dyn crate::CheckingInput,
+    source: &typed_trees::state::State,
+    observer: &(dyn StructuralPrefixVisitor + '_),
+    entered_machine: Option<SymbolHandle>,
+) -> bool {
     let mut pending = vec![source.symbol];
     let mut visited = Vec::new();
     while let Some(symbol) = pending.pop() {
@@ -2454,7 +2474,7 @@ pub(super) fn prefix_site_is_reachable(
         else {
             return true;
         };
-        if observer.stops_at_machine(owner.symbol) {
+        if Some(owner.symbol) != entered_machine && observer.stops_at_machine(owner.symbol) {
             continue;
         }
         if symbol == observer.site().state {

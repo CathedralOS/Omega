@@ -1,10 +1,10 @@
 //! Compact, non-authoritative report fingerprints over validated plans,
 //! selections, claims and receipts.
 
-use crate::fnv1a::Fnv1a as Fingerprint;
 use crate::task_plans::stack_composition::WcsuStackPlanProjection;
 use crate::{ActivationPlanCandidate, LiveCarryStorage};
 use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
+use semantic_vocabulary::Fnv1a as Fingerprint;
 
 pub(crate) fn activation_plan_report_fingerprint(
     plan: &ActivationPlanCandidate,

@@ -63,7 +63,10 @@ impl Engine<'_> {
             // possible. Congruence can expose contradictory public facts or
             // a constraint such as c == 2*c; a cyclic alias would lose that
             // obligation and repeatedly expand during normalization.
-            self.harvest_substitution(&previous, &canonical);
+            // The previous call may already denote a captured input read.
+            // Bind the refreshed opaque name to that known value, rather
+            // than replacing the input read with a fresh opaque application.
+            self.harvest_substitution(&canonical, &previous);
             comparisons.push((BinaryOperator::Equal, previous, canonical));
         }
         true

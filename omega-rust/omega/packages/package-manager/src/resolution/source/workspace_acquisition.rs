@@ -25,7 +25,7 @@ use std::sync::Arc;
 pub struct WorkspaceMemberObservation {
     declaration: SourceBuildDeclaration,
     pub(crate) source: super::PackageSourceCustody,
-    pub(crate) selections: Vec<build_evaluation::BuildDependencySelection>,
+    pub(crate) selections: Vec<build_settings::BuildDependencySelection>,
     dependencies: Vec<Arc<super::ResolvedBuildSources>>,
 }
 
@@ -33,10 +33,10 @@ impl WorkspaceMemberObservation {
     pub fn new(
         acquired: &AcquiredBuildSource,
         declaration: SourceBuildDeclaration,
-        returned: &build_evaluation::ReturnedBuild,
+        returned: &build_settings::ReturnedBuild,
         dependencies: Vec<Arc<super::ResolvedBuildSources>>,
     ) -> Result<Self, String> {
-        if declaration.declaration() != returned.declaration()
+        if Some(declaration.declaration()) != returned.declaration()
             || returned.demanded_sources().len() != dependencies.len()
             || returned
                 .demanded_sources()

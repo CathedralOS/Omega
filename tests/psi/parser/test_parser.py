@@ -1330,7 +1330,7 @@ def clause_row(
 
 def machine_form_cases(program: str) -> None:
     """Satisfactions, termination promises, operator tokens, `requires machine`
-    and `where proposition` contracts, proposition and evidence binders,
+    and `requires proposition` contracts, proposition and evidence binders,
     transparent refinements and mathematical definitions."""
     NONE = (1, 0, 0)
     MACHINE_ROOT, DATA_ROOT, TRAIT_ROOT, CONFORMANCE_ROOT, DEFINITION_ROOT = 3, 2, 4, 5, 9
@@ -1547,7 +1547,7 @@ def machine_form_cases(program: str) -> None:
     assert actual.machines[0][35:37] == (0, 1), actual.machines
     assert actual.machines[1][35:37] == (1, 0), actual.machines
 
-    source = (b"trait T<proposition P> where proposition P(); {} "
+    source = (b"trait T<proposition P> requires proposition P(); {} "
               b"trait R = Base { machine * blocks; }")
     status, payload = run(program, source)
     assert status == 0, f"trait-contract-reset: status {status}"
@@ -1562,9 +1562,9 @@ def machine_form_cases(program: str) -> None:
     assert actual.machines[0][13:15] == (0, 1), actual.machines
     assert actual.machines[0][35:37] == (0, 1), actual.machines
 
-    # Proposition binders take their signature from `where proposition`;
+    # Proposition binders take their signature from `requires proposition`;
     # an evidence binder `Name satisfies Trait<...>` names an implementation.
-    source = (b"trait Reflexive<C, proposition Relation>\nwhere proposition Relation(left: C, right: C);\n{\n"
+    source = (b"trait Reflexive<C, proposition Relation>\nrequires proposition Relation(left: C, right: C);\n{\n"
               b"    machine reflexive(value: C)\n    ensures Relation(value, value);\n}")
     declaration_accepted(
         program, "proposition-binder-contract", source,
@@ -1573,7 +1573,7 @@ def machine_form_cases(program: str) -> None:
             (6, *span(source, b"Relation"), 0, 0, 0, *span(source, b"proposition Relation")),
         ),
         contracts=((2, *span(source, b"Relation", 2), 2, 0, 0, 2, 0, 0, 0, 0,
-                    *span(source, b"where proposition Relation(left: C, right: C);")),),
+                    *span(source, b"requires proposition Relation(left: C, right: C);")),),
         traits=((*span(source, b"Reflexive"), 0, 2, 0, 0, 0, 1, 0, 0, *whole(source), 0, 1, 0, 0),),
     )
     source = b"trait Calling<Policy satisfies CallingPolicy> {}"
@@ -1593,16 +1593,16 @@ def machine_form_cases(program: str) -> None:
 
     # A transparent refinement `trait Name = Base { ... }` narrows its base's
     # operational axes: members name `*` or one requirement and hold only
-    # `reaches`, `suspends`, `blocks` and `terminates`, each ending at `;`.
-    source = (b'public trait LocalLogger = Logger {\n    machine *\n        reaches;\n        suspends false;\n        blocks false;\n        terminates;\n}')
+    # `reaches`, `suspends`, `blocks` and `terminates`, the member ending at `;`.
+    source = (b'public trait LocalLogger = Logger {\n    machine *\n        reaches\n        suspends false\n        blocks false\n        terminates;\n}')
     actual = declaration_accepted(
         program, "refinement-of-every-requirement", source,
         roots=((TRAIT_ROOT, 0, *whole(source)),),
         clauses=(
-            clause_row(REACHES, (0, 0), 0, span(source, b"reaches;")),
-            clause_row(SUSPENDS, (0, 0), 0, span(source, b"suspends false;"), True),
-            clause_row(BLOCKS, (0, 0), 1, span(source, b"blocks false;"), True),
-            clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates;")),
+            clause_row(REACHES, (0, 0), 0, span(source, b"reaches")),
+            clause_row(SUSPENDS, (0, 0), 0, span(source, b"suspends false"), True),
+            clause_row(BLOCKS, (0, 0), 1, span(source, b"blocks false"), True),
+            clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates")),
         ),
         traits=((*span(source, b"LocalLogger"), 0, 0, 0, 0, 0, 1, 0, 1, *whole(source), 0, 0, 1, 0),),
     )
@@ -1614,8 +1614,8 @@ def machine_form_cases(program: str) -> None:
         program, "refinement-of-named-requirements", source,
         members=(member(source, b"_"), member(source, b"Clock")),
         clauses=(
-            clause_row(SUSPENDS, (0, 0), 0, span(source, b"suspends;")),
-            clause_row(REACHES, (0, 2), 0, span(source, b"reaches _ + Clock;")),
+            clause_row(SUSPENDS, (0, 0), 0, span(source, b"suspends")),
+            clause_row(REACHES, (0, 2), 0, span(source, b"reaches _ + Clock")),
         ),
         traits=((*span(source, b"Quiet"), 0, 1, 0, 0, 0, 2, 0, 0, *whole(source), 0, 0, 1, 1),),
     )
@@ -1668,14 +1668,14 @@ def machine_form_cases(program: str) -> None:
         program, "generic-conformance-after-semicolon", source,
         roots=((MACHINE_ROOT, 0, *span(source, b"machine f() requires a;")),
                (CONFORMANCE_ROOT, 0, *span(source, b"Impl<T> satisfies Trait<T> { }"))),
-        conformances=((*span(source, b"Impl"), 0, 1, 1, 1, 0, 0, 0, 0, *span(source, b"Impl<T> satisfies Trait<T> { }")),),
+        conformances=((*span(source, b"Impl"), 0, 1, 1, 1, 0, 0, *span(source, b"Impl<T> satisfies Trait<T> { }")),),
     )
     source = b"machine f() requires a; Impl<T, O satisfies Order<T>> satisfies Sorted<T> { }"
     declaration_accepted(
         program, "evidence-conformance-after-semicolon", source,
         roots=((MACHINE_ROOT, 0, *span(source, b"machine f() requires a;")),
                (CONFORMANCE_ROOT, 0, *through(source, b"Impl", b"{ }"))),
-        conformances=((*span(source, b"Impl"), 0, 2, 3, 1, 0, 0, 0, 0, *through(source, b"Impl", b"{ }")),),
+        conformances=((*span(source, b"Impl"), 0, 2, 3, 1, 0, 0, *through(source, b"Impl", b"{ }")),),
     )
 
     for name, source, diagnostic, fragment, occurrence, counts in (
@@ -1701,21 +1701,21 @@ def machine_form_cases(program: str) -> None:
          166, b"via", 1, {"generic_parameter_count": 1, "member_count": 2}),
         ("proposition-binder-name", b"trait T<proposition> {}", 33, b">", 1, {}),
         ("evidence-binder-trait", b"trait T<P satisfies> {}", 179, b">", 1, {}),
-        ("proposition-contract-end", b"trait R<proposition P> where proposition P(x: u8) {}", 166, b"{", 1,
+        ("proposition-contract-end", b"trait R<proposition P> requires proposition P(x: u8) {}", 166, b"{", 1,
          {"generic_parameter_count": 1, "type_reference_count": 1, "parameter_count": 1}),
-        ("proposition-contract-name", b"trait R<proposition P> where proposition (x: u8); {}", 165, b"(", 1,
+        ("proposition-contract-name", b"trait R<proposition P> requires proposition (x: u8); {}", 165, b"(", 1,
          {"generic_parameter_count": 1}),
         ("refinement-base", b"trait X = { }", 182, b"{", 1, {}),
         ("refinement-takes-no-clauses", b"trait X = Base requires P; {}", 116, b"requires", 1, {"type_reference_count": 1}),
         ("refinement-takes-no-parent", b"trait X = Base { requires P; }", 117, b"requires", 1, {"type_reference_count": 1}),
         ("refinement-requirement", b"trait X = Base { machine ( }", 183, b"(", 1, {"type_reference_count": 1}),
-        ("refinement-axis", b"trait X = Base { machine * suspends maybe; }", 184, b"maybe", 1, {"type_reference_count": 1}),
+        ("refinement-axis", b"trait X = Base { machine * suspends maybe; }", 94, b"maybe", 1, {"type_reference_count": 1}),
         ("refinement-adds-no-requires", b"trait X = Base { machine * requires a; }", 105, b"requires", 1,
          {"type_reference_count": 1}),
         ("refinement-takes-no-witness", b"trait X = Base { machine * terminates by n; }", 105, b"by", 1,
          {"type_reference_count": 1}),
-        ("refinement-declares-no-signature", b"trait X = Base { machine f(x: u8); }", 117, b"(", 1,
-         {"type_reference_count": 1, "machine_count": 1}),
+        ("refinement-declares-no-signature", b"trait X = Base { machine f(x: u8); }", 94, b"(", 1,
+         {"type_reference_count": 1}),
         ("refinement-clause-end", b"trait X = Base { machine * reaches A }", 94, b"}", 1,
          {"type_reference_count": 1, "member_count": 1}),
         ("definition-name", b"let : u8 = 1;", 185, b":", 1, {}),
@@ -1999,9 +1999,9 @@ def nested_machine_cases(program: str) -> None:
 def complete_nested_machine_cases(program: str) -> None:
     source = (
         b"machine outer<T>(x: u64) -> u64 requires x > 0 ensures result > 0 "
-        b"reaches blocks; suspends; crashes Trap { x "
+        b"reaches blocks suspends crashes Trap { x "
         b"machine left(y: u64) -> u64 requires y > 1 ensures result > 1 "
-        b"reaches blocks; suspends; crashes Trap { y machine leaf(z: u64) -> u64 { z } } "
+        b"reaches blocks suspends crashes Trap { y machine leaf(z: u64) -> u64 { z } } "
         b"machine right(y: u64) -> u64 { y machine leaf(z: u64) -> u64 { z } } }"
     )
     status, payload = run(program, source)
@@ -2028,9 +2028,9 @@ def complete_nested_machine_cases(program: str) -> None:
     )
     contracted = (
         b"machine outer<machine F>(x: u8) -> u8 "
-        b"where machine F(value: u8) -> u8; { x "
+        b"requires machine F(value: u8) -> u8; { x "
         b"machine inner<machine G>(y: u8) -> u8 "
-        b"where machine G(value: u8) -> u8; "
+        b"requires machine G(value: u8) -> u8; "
         b"requires y > 0 ensures result > 0 { y } }"
     )
     status, payload = run(program, contracted)

@@ -23,7 +23,7 @@ the public guarantee directly. Every executable binds all four hosted targets.
 | constant | [source](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
 | nested machine | [source](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
 | other machine | [source](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| target body | [source](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| other target | [source](other_target/main.omg) | [invalid](other_target/invalid/main.omg) |
 
 Twins change only the input to the dynamic requirement from 100 to 99. They
 reject for the unproved requirement, independently of suspension acknowledgement.
@@ -88,3 +88,31 @@ from 100 to 99 and rejects the unproved requirement. Provider rows name each
 hosted target. Scheduler parking, operational-envelope categories other than
 suspension and blocking, package qualification metadata, product-source parity,
 and native execution on the other hosts remain parent acceptance.
+
+## Other-target place
+
+Parent: `BUILD-OWNED-TARGET-SELECTION` in [TASKS.md](../../../../TASKS.md).
+The former `target_body` place spelled four target-prefixed `invoke` machines,
+the retired same-path family form. [`other_target`](other_target/main.omg)
+carries the same fact, operand, bound and oracle through ordinary named
+implementations instead. One boundary requirement `SelectedInvoke::invoke`
+publishes `ensures result == 100u64`, `suspends`, and its reach into a tag check;
+`X86Invoke` and `ArmInvoke` each call `DeferredValue::get` on the dyn selector
+unchanged, and explicit `Build::select_provider` rows pick `X86Invoke` for
+`windows_x86_64` and `linux_x86_64` and `ArmInvoke` for `macos_arm64` and
+`linux_arm64`. Each implementation and its entry wrapper check a tag (17 for
+x86-64, 29 for AArch64), so a wrong row traps instead of passing silently.
+The twin still changes only the dyn operand from 100 to 99 and rejects the
+unproved requirement in both implementations.
+
+Observed with an optimized dev-profile producer built at
+`90f3fe11ae75eb63246767979fe483cfe0c312f8` on Linux x86-64: the old place
+passed `omega run --both` (native exit 0, Terminal exit 0); the first migrated
+draft was refused because the entry wrapper called the suspending `main`
+without acknowledging suspension (`call to main has operational envelope
+suspend but acknowledges neither suspension nor blocking`), a source fix
+(`suspend main();`), not a compiler gap. The migrated place then exits 0 in both
+engines; the twin rejects with `cannot prove requires contract for call dyn
+DeferredValue::get ... 99 == 100`; selecting `ArmInvoke` for `linux_x86_64` in a
+scratch copy traps natively (signal 4) and in Terminal Psi. No compiler change
+was needed. Other hosted targets keep their authored rows, unexecuted here.

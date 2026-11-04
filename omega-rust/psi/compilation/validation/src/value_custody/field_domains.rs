@@ -438,12 +438,64 @@ pub fn declared_result_field_domain_identities(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Vec<FieldDomainIdentity> {
-    let mut rows = declared_result_field_domain_paths(program, reference);
-    for row in declared_owned_field_domain_identities(program, reference) {
-        if !rows.contains(&row) {
-            rows.push(row);
-        }
-    }
+    declared_result_field_domain_contracts(program, reference)
+        .into_iter()
+        .map(|row| row.identity)
+        .collect()
+}
+
+/// A call must keep promises such as "this memory stores Word" when its
+/// implementation still names a generic type. Retain the declared operands
+/// with the result identity so the call can apply its exact arguments.
+#[derive(Clone)]
+pub struct FieldDomainContract {
+    pub identity: FieldDomainIdentity,
+    pub arguments: Vec<TypeReferenceHandle>,
+}
+
+/// Every qualified result field must keep its declared arguments after a call.
+/// The existing readable and owned walks retain those operands alongside the
+/// same canonical identities, in the same order.
+pub fn declared_result_field_domain_contracts(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Vec<FieldDomainContract> {
+    let carrier = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
+    let mut rows = if matches!(
+        program.type_reference_table.type_reference(carrier),
+        TypeReferenceNode::Reference { .. }
+    ) {
+        Vec::new()
+    } else {
+        declared_type_domain_rows(program, reference)
+            .into_iter()
+            .filter(|row| !row.transfer && !row.path.is_empty())
+            .map(|row| FieldDomainContract {
+                identity: (row.path, row.domain_symbol, row.semantic_domain),
+                arguments: row.arguments,
+            })
+            .collect::<Vec<_>>()
+    };
+    let owned = declared_owned_field_obligations(program, reference).domains;
+    // Large returned records can carry thousands of field requirements. Index
+    // their identities once instead of scanning all earlier fields for each
+    // owned requirement. Keep every readable row and the first owned addition,
+    // including its declared arguments, in the original traversal order.
+    let keep_owned = {
+        let mut seen: std::collections::HashSet<_> = rows.iter().map(|row| &row.identity).collect();
+        owned
+            .iter()
+            .map(|row| seen.insert(&row.identity))
+            .collect::<Vec<_>>()
+    };
+    rows.extend(
+        owned
+            .into_iter()
+            .zip(keep_owned)
+            .filter_map(|(row, keep)| keep.then_some(row)),
+    );
     rows
 }
 
@@ -453,7 +505,7 @@ pub fn declared_result_field_domain_identities(
 /// their custody, or prove their enclosing case inactive.
 #[derive(Clone, Default)]
 pub struct OwnedFieldObligations {
-    pub identities: Vec<FieldDomainIdentity>,
+    pub domains: Vec<FieldDomainContract>,
     pub custody: Vec<Vec<facts::PlaceSegment>>,
     pub unresolved: Vec<Vec<facts::PlaceSegment>>,
 }
@@ -486,7 +538,11 @@ pub fn declared_owned_field_domain_identities(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Vec<FieldDomainIdentity> {
-    declared_owned_field_obligations(program, reference).identities
+    declared_owned_field_obligations(program, reference)
+        .domains
+        .into_iter()
+        .map(|row| row.identity)
+        .collect()
 }
 
 /// The same owned-field walk with completeness retained. These are obligations,
@@ -543,10 +599,13 @@ fn declared_owned_field_obligations_uncached(
             {
                 output.custody.push(prefix.clone());
             }
-            output.identities.extend(
-                domain_constraint_identities(program, reference)
+            output.domains.extend(
+                declared_domain_constraint_records(program, reference)
                     .into_iter()
-                    .map(|(symbol, identity)| (prefix.clone(), symbol, identity)),
+                    .map(|domain| FieldDomainContract {
+                        identity: (prefix.clone(), domain.symbol, domain.semantic_id),
+                        arguments: domain.arguments.clone(),
+                    }),
             );
         }
         if let Some(data) = program
@@ -588,12 +647,16 @@ fn declared_owned_field_obligations_uncached(
                 &mut element,
             );
             for index in 0..*length {
-                for (path, symbol, identity) in &element.identities {
+                for row in &element.domains {
+                    let (path, symbol, identity) = &row.identity;
                     let mut indexed = Vec::with_capacity(prefix.len() + path.len());
                     indexed.extend_from_slice(prefix);
                     indexed.push(facts::PlaceSegment::FixedIndex { index });
                     indexed.extend_from_slice(&path[1..]);
-                    output.identities.push((indexed, *symbol, *identity));
+                    output.domains.push(FieldDomainContract {
+                        identity: (indexed, *symbol, *identity),
+                        arguments: row.arguments.clone(),
+                    });
                 }
                 for path in &element.unresolved {
                     let mut indexed = prefix.clone();
@@ -786,6 +849,92 @@ pub fn domain_constraint_identities(
         .into_iter()
         .map(|domain| (domain.symbol, domain.semantic_id))
         .collect()
+}
+
+/// Whether `value as T` drops a membership the operand carries. A routed or
+/// predicate-free domain names a meaning, not a property of the bits, so a
+/// target that omits it erases it (domains.md, "Exact coercion and erasure").
+/// A predicate membership still holds on the unchanged value and is never
+/// erased here. A recast re-views the same storage, and an unresolved target
+/// erases nothing. A target alias keeps its atomic constituents.
+pub fn cast_erases_membership(
+    program: &dyn crate::CheckingInput,
+    cast: &typed_trees::expression::TableCastExpression,
+    domain_symbol: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+) -> bool {
+    fn names(
+        program: &dyn crate::CheckingInput,
+        symbol: SymbolHandle,
+        wanted: SymbolHandle,
+        stack: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        if symbol == wanted {
+            return true;
+        }
+        if stack.contains(&symbol) {
+            return false;
+        }
+        let Some(alias) = program
+            .domain_definition(symbol)
+            .and_then(|domain| domain.alias.as_ref())
+        else {
+            return false;
+        };
+        stack.push(symbol);
+        let found = alias
+            .constituents
+            .iter()
+            .any(|part| names(program, part.domain_symbol, wanted, stack));
+        stack.pop();
+        found
+    }
+    if cast.form.is_recast() || !cast.result_type.is_valid() {
+        return false;
+    }
+    let meaning_only = domain_requires_provenance(program, domain_symbol)
+        || program
+            .domain_definition(domain_symbol)
+            .is_some_and(|domain| !domain.predicate_presence.is_present());
+    // An alias constituent names its domain without index arguments, so it
+    // keeps only the atomic instance, never one instance of an indexed family.
+    let atomic = program
+        .domain_definition(domain_symbol)
+        .is_some_and(|domain| domain.semantic_id == semantic_domain);
+    meaning_only
+        && !domain_constraint_identities(program, cast.result_type)
+            .iter()
+            .any(|(symbol, identity)| {
+                (*symbol == domain_symbol && *identity == semantic_domain)
+                    || (*symbol != domain_symbol
+                        && atomic
+                        && names(program, *symbol, domain_symbol, &mut Vec::new()))
+            })
+}
+
+/// Whether the value `expression` delivers lost this membership to an
+/// erasing cast. A borrow lends the value it names, so `&(x as T)` lends a
+/// value without the meaning `T` omits, though the bytes stay in `x`.
+/// A recast or an unresolved cast ends the walk without erasing.
+pub fn expression_erases_membership(
+    program: &dyn crate::CheckingInput,
+    mut expression: typed_trees::expression::ExpressionHandle,
+    domain_symbol: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+) -> bool {
+    while let Some(borrow) = program.expression_table.borrow_expression(expression) {
+        expression = borrow.target;
+    }
+    while let Some(cast) = program.expression_table.cast_node(expression) {
+        if cast.form.is_recast() || !cast.result_type.is_valid() {
+            return false;
+        }
+        if cast_erases_membership(program, cast, domain_symbol, semantic_domain) {
+            return true;
+        }
+        expression = cast.value;
+    }
+    false
 }
 
 /// The exact declared domain constraints of a type-reference conjunction,

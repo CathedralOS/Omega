@@ -24,15 +24,15 @@ pub use predicates::{
 
 pub use fact_plan::contexts::view::FactContextView;
 pub use fact_plan::contexts::{
-    BooleanFact, DomainMembershipFact, FactContext, FactContextGroup, FactContexts, FactRef,
-    ProgramPoint, SymbolFactSet, TypeConstraintFact, view,
+    AssignedFactRef, BooleanFact, DomainMembershipFact, FactContext, FactContextGroup,
+    FactContexts, FactRef, ProgramPoint, SymbolFactSet, TypeConstraintFact, view,
 };
 pub use fact_plan::evidence::{
-    BoundaryQualificationIssuerRecord, ContractFactKind, DataDefinitionFactDependency,
-    DataDefinitionFactRecord, DomainDefinitionFactDependency, DomainDefinitionFactRecord, Fact,
-    FactOrigin, FactPayload, FloatPredicate, InstantiatedExpression, InstructionEffectOperation,
-    IntegerRange, ProofObligationKind, QualificationCorrespondence, QualificationEvidence,
-    QualificationPayloadIdentity, ScalarValue,
+    BoundaryQualificationIssuerRecord, ContractFactKind, ContractMemberProjection,
+    DataDefinitionFactDependency, DataDefinitionFactRecord, DomainDefinitionFactDependency,
+    DomainDefinitionFactRecord, Fact, FactOrigin, FactPayload, FloatPredicate,
+    InstantiatedExpression, InstructionEffectOperation, IntegerRange, ProofObligationKind,
+    QualificationCorrespondence, QualificationEvidence, QualificationPayloadIdentity, ScalarValue,
 };
 pub use fact_plan::places::resolution::{
     canonical_place_label_from_parts, effective_member_symbol, payload_variant_for_field,

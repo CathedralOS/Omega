@@ -52,7 +52,7 @@ pub fn project_checked_terminal_permission_policy<'a>(
             .map(|(method, requirement)| {
                 services::project_declaration(
                     &mut signatures,
-                    &resolved.schema,
+                    resolved.schema,
                     resolved.symbol,
                     *requirement,
                     method,

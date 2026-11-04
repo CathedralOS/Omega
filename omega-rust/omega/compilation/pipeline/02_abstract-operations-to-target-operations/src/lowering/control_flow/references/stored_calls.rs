@@ -130,7 +130,7 @@ pub(in crate::lowering) fn catalog(
             };
             let Some(StructuralTypeShape::Reference { referent, access }) = root
                 .and_then(|root| leaf_type(types, root, &output.path))
-                .and_then(|carrier| types.get(&carrier).map(|declaration| &declaration.shape))
+                .and_then(|carrier| types.get(carrier).map(|declaration| &declaration.shape))
             else {
                 continue;
             };
@@ -180,8 +180,15 @@ pub(in crate::lowering) fn catalog(
                     // This is an emission obligation, not a signature-derived
                     // memory effect. Selection and image replay independently
                     // demand this exact bounded prefix guard before the import.
-                    && crate::descriptor_input_guard(declaration, binding, types.catalog())
-                        .is_ok_and(|guard| guard.is_some())
+                    && target_operations::descriptor_input_guard(
+                        declaration,
+                        binding,
+                        types.catalog(),
+                        |buffer| {
+                            crate::lowering::borrowed_storage::capture_type(buffer, types)
+                        },
+                    )
+                    .is_ok_and(|guard| guard.is_some())
             },
         )
     else {
@@ -262,7 +269,7 @@ pub(in crate::lowering) fn catalog(
                                 let carrier =
                                     leaf_type(types, parameter.structural_type, &destination.path)?;
                                 let StructuralTypeShape::Reference { access, .. } =
-                                    types.get(&carrier)?.shape
+                                    types.get(carrier)?.shape
                                 else {
                                     return None;
                                 };
@@ -421,7 +428,7 @@ pub(in super::super) fn stage(
                     let StructuralTypeShape::Reference {
                         access: required, ..
                     } = types
-                        .get(&carrier_type)
+                        .get(carrier_type)
                         .ok_or_else(|| invalid("reference carrier is undeclared"))?
                         .shape
                     else {

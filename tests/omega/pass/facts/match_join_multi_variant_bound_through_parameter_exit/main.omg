@@ -21,8 +21,10 @@ machine receive(val: u64) -> u64 {
     val
 }
 
-machine main() crashes Trap {
-    let m: Mode = Mode::Mid { val: 40 };
+// The mode arrives as a formal parameter, so only Mode's data `requires`
+// bounds `joined`; a constant actual would let the checker read the helper's
+// exact result instead.
+machine run(m: Mode) crashes Trap {
     let joined: u64 = evaluate(m);
     let diff1: u64 = 60u64 - receive(joined);
     let diff2: u64 = receive(joined) - 20u64;
@@ -32,4 +34,8 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    run(Mode::Mid { val: 40 });
 }

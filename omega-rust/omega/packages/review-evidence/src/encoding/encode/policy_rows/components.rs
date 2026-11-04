@@ -46,22 +46,30 @@ pub(super) fn terminal(
             },
         )?;
         for permission in permissions {
-            builder.push(
-                PackagePolicyRowKind::TerminalPermission,
-                true,
-                false,
-                |encoder| {
-                    encode_nominal(encoder, service)?;
-                    encode_nominal(encoder, &permission.requirement)
-                },
-                |encoder| {
-                    encoder.field("service", |encoder| encode_nominal(encoder, service))?;
-                    encoder.field_by("permission", permission, terminal_permissions::permission)
-                },
-            )?;
+            terminal_permission(builder, service, permission)?;
         }
     }
     Ok(())
+}
+
+pub(super) fn terminal_permission(
+    builder: &mut Builder,
+    service: &crate::record::PackageReviewNominalIdentity,
+    permission: &crate::record::PackagePolicyTerminalPermission,
+) -> Result<(), PackageReviewEncodingError> {
+    builder.push(
+        PackagePolicyRowKind::TerminalPermission,
+        true,
+        false,
+        |encoder| {
+            encode_nominal(encoder, service)?;
+            encode_nominal(encoder, &permission.requirement)
+        },
+        |encoder| {
+            encoder.field("service", |encoder| encode_nominal(encoder, service))?;
+            encoder.field_by("permission", permission, terminal_permissions::permission)
+        },
+    )
 }
 
 pub(super) fn representation(

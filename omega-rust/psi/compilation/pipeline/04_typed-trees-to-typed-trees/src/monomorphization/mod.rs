@@ -135,6 +135,9 @@ impl Candidate<'_> {
 /// from the represented descriptor of an earlier completed call argument.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) enum RuntimeValueBinding {
+    /// A reusable callable projection owes an ordinary Value formal, but no
+    /// representative caller's subject or executable recipe belongs to it.
+    Carrier,
     Authored(StaticMachineArgument),
     CapturedArgument {
         site: CallSite,
@@ -967,6 +970,21 @@ pub(crate) fn finalize_type_domain_instance_identities(
             denotation_dimension: roles.denotation_dimension.map(|_| semantic_id),
             arithmetic_policy: roles.arithmetic_policy.map(|_| semantic_id),
         };
+    }
+    Ok(())
+}
+
+/// A promise about `Word` must stop naming the generic parameter it replaced.
+/// Substituted signatures carry copied domain IDs until their complete type and
+/// contract graphs are finalized. Visit only this producer's new signatures;
+/// unchanged declarations and already prepared applications are not rescanned.
+pub(crate) fn finalize_callable_signature_identities(
+    program: &mut TypedTrees,
+    signatures: impl IntoIterator<Item = typed_trees::signature::StateSignature>,
+) -> Result<(), Diagnostic> {
+    for signature in signatures {
+        let references = typed_trees::references::collect_signature_references(program, &signature);
+        finalize_referenced_domain_instance_identities(program, references)?;
     }
     Ok(())
 }

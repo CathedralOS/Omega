@@ -113,3 +113,32 @@ pub fn restricted_build_request_acceptance_text(
 fn rejected(message: &'static str) -> PackageReviewEncodingError {
     PackageReviewEncodingError::new(message)
 }
+
+/// Runtime consent compares only requested permissions and explicit assumed
+/// contracts. Full package review uses the same row encoders for these meanings.
+pub(crate) fn runtime_permission_rows(
+    package: PackageKeyIdentity,
+    target: target::TargetProfile,
+    permissions: &[(
+        crate::record::PackageReviewNominalIdentity,
+        crate::record::PackagePolicyTerminalPermission,
+    )],
+    assumed: &[String],
+) -> Result<Vec<PackagePolicyRow>, PackageReviewEncodingError> {
+    let count = permissions
+        .len()
+        .checked_add(assumed.len())
+        .ok_or_else(|| rejected("runtime permission row count overflows"))?;
+    let mut builder = Builder::new(
+        package,
+        target,
+        count,
+        PackagePolicyRowLimits::default().bounded(),
+        true,
+    )?;
+    assembly::assumed(&mut builder, assumed)?;
+    for (service, permission) in permissions {
+        components::terminal_permission(&mut builder, service, permission)?;
+    }
+    builder.finish().map(|(rows, _)| rows)
+}

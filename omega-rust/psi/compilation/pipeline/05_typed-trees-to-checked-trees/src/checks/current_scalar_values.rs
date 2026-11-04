@@ -71,9 +71,13 @@ struct Binding {
     value: Option<ScopedArithmeticValue>,
     alternatives: Vec<ScopedArithmeticValue>,
     immutable_coordinate: bool,
-    /// None is unresolved borrowed backing and expires on any write.
-    /// Owned snapshots use Some(empty); their own home name remains separate.
-    read_dependencies: Option<Vec<String>>,
+    /// A by-value binding declared without `mut`. No store or call can reach
+    /// it: a write needs a mutable place, and so does a `&mut` loan. Its
+    /// current value therefore survives every effect even when the input has
+    /// no storage graph to ask, as in build-time admission over bare typed
+    /// trees. Unlike `immutable_coordinate`, it remains an ordinary store-
+    /// alias candidate.
+    unwritable: bool,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -104,6 +108,36 @@ struct Length {
     value: Option<ScopedArithmeticValue>,
 }
 
+/// The value a tracked entry holds, compared to find the entries a statement
+/// established or changed.
+#[derive(PartialEq)]
+enum EntryValue {
+    Binding(Option<ScopedArithmeticValue>, Vec<ScopedArithmeticValue>),
+    Value(Option<ScopedArithmeticValue>),
+    Condition(
+        Vec<ScopedArithmeticHypothesis>,
+        Vec<ScopedArithmeticHypothesis>,
+    ),
+}
+
+/// A storage length's graph place. A result length names no storage.
+fn length_place(subject: &LengthSubject) -> Option<validation::CanonicalPlace> {
+    match subject {
+        LengthSubject::Storage(symbol) => Some(validation::CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(*symbol),
+            segments: Vec::new(),
+        }),
+        LengthSubject::Field { owner, path } => Some(validation::CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(*owner),
+            segments: path
+                .iter()
+                .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
+                .collect(),
+        }),
+        LengthSubject::Result(_) | LengthSubject::ResultField { .. } => None,
+    }
+}
+
 pub(crate) struct CurrentScalarValues<'program> {
     program: &'program dyn ::validation::CheckingInput,
     machine: &'program Machine,
@@ -119,6 +153,12 @@ pub(crate) struct CurrentScalarValues<'program> {
     hypotheses: Vec<ScopedArithmeticHypothesis>,
     in_transition_target: bool,
     scalar_observations: std::cell::OnceCell<Vec<validation::CapturedScalarObservation>>,
+    /// The snapshot each tracked place's entry was established at; absent is
+    /// incoming storage.
+    anchors: Vec<(
+        validation::CanonicalPlace,
+        validation::completed_storage::versions::Snapshot,
+    )>,
 }
 
 impl<'program> CurrentScalarValues<'program> {
@@ -208,7 +248,8 @@ impl<'program> CurrentScalarValues<'program> {
                     }),
                     alternatives: Vec::new(),
                     immutable_coordinate: false,
-                    read_dependencies: Some(Vec::new()),
+                    unwritable: !parameter.is_mutable
+                        && validation::reference_shell(program, parameter.type_reference).is_none(),
                 })
             })
             .collect::<Vec<_>>();
@@ -245,7 +286,7 @@ impl<'program> CurrentScalarValues<'program> {
                         )),
                         alternatives: Vec::new(),
                         immutable_coordinate: true,
-                        read_dependencies: Some(Vec::new()),
+                        unwritable: true,
                     })
                 }),
         );
@@ -294,6 +335,7 @@ impl<'program> CurrentScalarValues<'program> {
             hypotheses: Vec::new(),
             in_transition_target: target.is_valid(),
             scalar_observations: std::cell::OnceCell::new(),
+            anchors: Vec::new(),
         };
         let owned_frames = frames
             .is_none()
@@ -341,14 +383,16 @@ impl<'program> CurrentScalarValues<'program> {
             if validation::is_arm_pattern_marker(statement) {
                 continue;
             }
+            let before = values
+                .program
+                .storage_graph()
+                .map(|_| values.anchored_entries());
             match statement {
                 StatementNode::Transition(transition) => {
                     let TransitionGuardNode::When(guard) = transition.guard else {
                         return None;
                     };
-                    values.invalidate_operand_writes(
-                        frames.map(|frames| frames.expression_write_frame(machine, guard)),
-                    );
+                    values.retire_operand_effects(guard);
                     // A missing primary target preserves its true arm; a
                     // missing continuation preserves its false arm.
                     let holds = match (
@@ -366,7 +410,7 @@ impl<'program> CurrentScalarValues<'program> {
                 // from the parser's storage placeholder.
                 StatementNode::LocalData(local) if !local.role.has_ordinary_initializer() => {}
                 StatementNode::LocalData(local) => {
-                    values.invalidate_operand_effects(program, machine, statement, frames);
+                    values.retire_operand_effects(local.initial_value);
                     let actuals = values.capture_call_actuals(local.initial_value);
                     let value = values.capture(program, machine, state, local.initial_value);
                     let conditions = values.capture_conditions(local.initial_value, 0);
@@ -403,18 +447,17 @@ impl<'program> CurrentScalarValues<'program> {
                         .map(|(primitive, _)| primitive)
                         .or_else(|| integer_carrier(program, local.type_reference))
                     {
-                        let (value, read_dependencies) =
-                            if let Some((_, readable)) = reference_scalar {
-                                let (value, dependencies) = values.reference_scalar_initializer(
-                                    statement,
-                                    local.initial_value,
-                                    primitive,
-                                    frames,
-                                );
-                                (readable.then_some(value).flatten(), dependencies)
-                            } else {
-                                (value, Some(Vec::new()))
-                            };
+                        let value = if let Some((_, readable)) = reference_scalar {
+                            let value = values.reference_scalar_initializer(
+                                statement,
+                                local.initial_value,
+                                primitive,
+                                frames,
+                            );
+                            readable.then_some(value).flatten()
+                        } else {
+                            value
+                        };
                         // The executed initializer has one value even when its
                         // computation is unavailable to arithmetic reasoning.
                         // Keep that observation, not a replay of the initializer.
@@ -442,12 +485,13 @@ impl<'program> CurrentScalarValues<'program> {
                             value,
                             alternatives,
                             immutable_coordinate: false,
-                            read_dependencies,
+                            unwritable: !local.is_mutable && reference_scalar.is_none(),
                         });
                     }
                 }
                 StatementNode::Assignment(assignment) => {
-                    values.invalidate_operand_effects(program, machine, statement, frames);
+                    values.retire_operand_effects(assignment.value);
+                    let stored_at = values.statement_snapshot(ordinal);
                     let target_remains_current = frames.is_some_and(|frames| {
                         frames.assignment_destination_remains_current(machine, statement)
                     });
@@ -479,12 +523,8 @@ impl<'program> CurrentScalarValues<'program> {
                     }
                     let alternatives =
                         values.capture_alternatives(program, machine, state, assignment.value);
-                    let preserved_fields =
-                        values.disjoint_scalar_fields_for_store(statement, frames);
                     if stored_value.is_some() {
-                        values.invalidate_operand_writes(
-                            frames.map(|frames| frames.assignment_write_frame(machine, statement)),
-                        );
+                        values.retire_unpreserved(stored_at);
                     }
                     let mut fields = values.captured_field_lengths(assignment.value, 0);
                     if let Some(value) = values.collection_length(assignment.value, 0)
@@ -557,11 +597,8 @@ impl<'program> CurrentScalarValues<'program> {
                             ordinal,
                         );
                     } else {
-                        values.invalidate_operand_writes(
-                            frames.map(|frames| frames.assignment_write_frame(machine, statement)),
-                        );
+                        values.retire_unpreserved(stored_at);
                     }
-                    values.restore_disjoint_scalar_fields(preserved_fields);
                     // The store uses the address captured before operand effects.
                     // A rebound selector can no longer name that home; publishing
                     // through its old spelling would manufacture a current rank.
@@ -588,19 +625,21 @@ impl<'program> CurrentScalarValues<'program> {
                     }
                 }
                 StatementNode::Call(call) => {
-                    values.invalidate_operand_effects(program, machine, statement, frames);
-                    values.invalidate_operand_writes(
-                        frames.map(|frames| frames.may_write_frame(machine, call)),
-                    );
+                    let at = values.statement_snapshot(ordinal);
+                    values.retire_unpreserved(at);
                     values.assume_statement_ensures(call, ordinal);
                 }
                 StatementNode::Expression(_) => {
-                    values.invalidate_operand_effects(program, machine, statement, frames)
+                    let at = values.statement_snapshot(ordinal);
+                    values.retire_unpreserved(at)
                 }
                 // Control metadata has no store; instruction statements above
                 // retain their ordinary effects. Assertions are obligations,
                 // never premises introduced by this value transfer.
                 StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
+            }
+            if let Some(before) = before {
+                values.anchor_changed_entries(&before, ordinal);
             }
         }
         if target.is_valid() {
@@ -609,101 +648,258 @@ impl<'program> CurrentScalarValues<'program> {
                 return None;
             }
             if let TransitionGuardNode::When(guard) = transition.guard {
-                values.invalidate_operand_writes(
-                    frames.map(|frames| frames.expression_write_frame(machine, guard)),
-                );
+                values.retire_operand_effects(guard);
                 values.assume(program, machine, state, guard, transition.target == target);
             }
         }
-        if target.is_valid() {
-            if let typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
+        if target.is_valid()
+            && let typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
                 program.statement_table.transition_target(target)
-            {
-                for argument in program.statement_table.expression_handles(*arguments) {
-                    values.invalidate_operand_writes(
-                        frames.map(|frames| frames.expression_write_frame(machine, *argument)),
-                    );
-                }
+        {
+            for argument in program.statement_table.expression_handles(*arguments) {
+                values.retire_operand_effects(*argument);
             }
         }
         Some(values)
     }
 
-    fn invalidate_operand_effects(
-        &mut self,
-        _program: &dyn ::validation::CheckingInput,
-        machine: &Machine,
-        statement: &StatementNode,
-        frames: Option<&validation::CallFrameResolver<'_>>,
-    ) {
-        // Complete existing operand frames include nested calls, rather than
-        // assuming a syntactic assignment or local declaration is effect-free.
-        if let Some(frames) = frames {
-            self.invalidate_operand_writes(Some(
-                frames.statement_value_write_frame(machine, statement),
-            ));
-        } else if statement_has_call(statement) {
-            self.invalidate_operand_writes(None);
+    /// Retire the entries the evaluation of `expression` may have written. An
+    /// operand flow recorded no position for runs no call or atomic access, so
+    /// its evaluation wrote nothing.
+    pub(crate) fn retire_operand_effects(&mut self, expression: ExpressionHandle) {
+        if let Some(at) = self.operand_snapshot(expression) {
+            self.retire_unpreserved(Some(at));
+        } else if validation::executable_subtree_any(
+            self.program,
+            expression,
+            typed_trees::SubtreeEdges::VALUES,
+            |_, node| match node {
+                ExpressionNode::Call(_) | ExpressionNode::Atomic(_) => {
+                    typed_trees::SubtreeVisit::Found
+                }
+                _ => typed_trees::SubtreeVisit::Descend,
+            },
+        ) {
+            self.retire_unpreserved(None);
         }
     }
 
-    /// Retire current value identities before observing operands that may run
-    /// earlier calls. Unknown effects preserve no addressable scalar association;
-    /// immutable invocation coordinates retain their captured value.
-    pub(crate) fn invalidate_operand_writes(&mut self, frame: Option<facts::NormalizedWriteFrame>) {
-        let paths = frame.and_then(|frame| frame.into_complete_paths());
-        for binding in &mut self.current {
-            // Machine Value/Const coordinates belong to this invocation, not
-            // addressable storage. Even an opaque write cannot change their
-            // exact captured value; ordinary locals still lose their identity.
-            if binding.immutable_coordinate {
+    fn operand_snapshot(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<validation::completed_storage::versions::Snapshot> {
+        validation::completed_storage::versions::operand_snapshot(
+            self.program.storage_graph()?,
+            self.state.symbol,
+            expression,
+        )
+    }
+
+    fn statement_snapshot(
+        &self,
+        ordinal: usize,
+    ) -> Option<validation::completed_storage::versions::Snapshot> {
+        validation::completed_storage::versions::statement_snapshot(
+            self.program,
+            self.program.storage_graph()?,
+            self.state.symbol,
+            ordinal,
+        )
+    }
+
+    /// Each tracked entry with a graph place, with the value it holds.
+    fn anchored_entries(&self) -> Vec<(validation::CanonicalPlace, EntryValue)> {
+        let place =
+            |root: SymbolHandle, segments: Vec<facts::PlaceSegment>| validation::CanonicalPlace {
+                root: facts::PlaceRoot::Symbol(root),
+                segments,
+            };
+        let field_path = |path: &[SymbolHandle]| {
+            path.iter()
+                .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
+                .collect::<Vec<_>>()
+        };
+        let mut entries = Vec::new();
+        for binding in &self.current {
+            entries.push((
+                place(binding.symbol, Vec::new()),
+                EntryValue::Binding(binding.value.clone(), binding.alternatives.clone()),
+            ));
+        }
+        for field in &self.fields {
+            entries.push((
+                place(field.owner, scalar_fields::source_path(&field.path)),
+                EntryValue::Value(field.value.clone()),
+            ));
+        }
+        for condition in &self.conditions {
+            entries.push((
+                place(condition.owner, field_path(&condition.path)),
+                EntryValue::Condition(
+                    condition.hypotheses(true).to_vec(),
+                    condition.hypotheses(false).to_vec(),
+                ),
+            ));
+        }
+        for length in &self.lengths {
+            let Some(length_place) = length_place(&length.subject) else {
+                continue;
+            };
+            entries.push((length_place, EntryValue::Value(length.value.clone())));
+        }
+        entries
+    }
+
+    /// Anchor every entry this statement established or changed at its snapshot.
+    fn anchor_changed_entries(
+        &mut self,
+        before: &[(validation::CanonicalPlace, EntryValue)],
+        ordinal: usize,
+    ) {
+        let Some(snapshot) = self.statement_snapshot(ordinal) else {
+            return;
+        };
+        for (place, value) in self.anchored_entries() {
+            if before
+                .iter()
+                .any(|(earlier, earlier_value)| *earlier == place && *earlier_value == value)
+            {
                 continue;
             }
-            if paths.as_ref().is_none_or(|paths| {
-                paths.iter().any(|path| {
-                    validation::frame_paths_overlap(path, &binding.name)
-                        || binding
-                            .read_dependencies
-                            .as_ref()
-                            .is_none_or(|dependencies| {
-                                dependencies.iter().any(|dependency| {
-                                    validation::frame_paths_overlap(path, dependency)
-                                })
-                            })
+            self.anchor_at(place, snapshot);
+        }
+    }
+
+    fn anchor_at(
+        &mut self,
+        place: validation::CanonicalPlace,
+        snapshot: validation::completed_storage::versions::Snapshot,
+    ) {
+        match self
+            .anchors
+            .iter_mut()
+            .find(|(anchored, _)| *anchored == place)
+        {
+            Some((_, anchor)) => *anchor = snapshot,
+            None => self.anchors.push((place, snapshot)),
+        }
+    }
+
+    fn anchor_of(
+        &self,
+        place: &validation::CanonicalPlace,
+    ) -> validation::completed_storage::versions::Snapshot {
+        self.anchors
+            .iter()
+            .find(|(anchored, _)| anchored == place)
+            .map_or_else(arena::Handle::invalid, |(_, anchor)| *anchor)
+    }
+
+    /// Retire, at version `at`, every tracked entry whose place a write
+    /// reached since its anchor. Machine Value/Const coordinates belong to this
+    /// invocation, not addressable storage, and a stable descriptor's length
+    /// survives endpoint stores. Without a graph position the effect is
+    /// unknown: every other entry retires.
+    ///
+    /// A replay calls this at each write of the state prefix, in order. An
+    /// entry that survives at `at` is re-anchored there, so the next call
+    /// walks only the writes after `at` instead of the whole prefix again;
+    /// a std program spent seconds repeating those walks. When `at` lies on
+    /// every path to the next position, the shorter walk gives the same
+    /// answer. When it does not, the walk runs past `at` to the state's
+    /// start and the entry retires: a less precise answer, never an unsound
+    /// one. An entry that already holds no value has nothing to retire and
+    /// skips its walk.
+    pub(crate) fn retire_unpreserved(
+        &mut self,
+        at: Option<validation::completed_storage::versions::Snapshot>,
+    ) {
+        let graph = self.program.storage_graph();
+        let mut survived = Vec::new();
+        let mut preserved = |place: validation::CanonicalPlace| match (at, graph) {
+            (Some(at), Some(graph)) => {
+                let kept = validation::completed_storage::versions::place_preserved_since(
+                    self.program,
+                    graph,
+                    at,
+                    &place,
+                    self.anchor_of(&place),
+                );
+                if kept {
+                    survived.push(place);
+                }
+                kept
+            }
+            _ => false,
+        };
+        let bindings = self
+            .current
+            .iter()
+            .map(|binding| {
+                binding.immutable_coordinate
+                    || binding.unwritable
+                    || (binding.value.is_none() && binding.alternatives.is_empty())
+                    || preserved(validation::CanonicalPlace {
+                        root: facts::PlaceRoot::Symbol(binding.symbol),
+                        segments: Vec::new(),
+                    })
+            })
+            .collect::<Vec<_>>();
+        let fields = self
+            .fields
+            .iter()
+            .map(|field| {
+                field.value.is_none()
+                    || preserved(validation::CanonicalPlace {
+                        root: facts::PlaceRoot::Symbol(field.owner),
+                        segments: scalar_fields::source_path(&field.path),
+                    })
+            })
+            .collect::<Vec<_>>();
+        let conditions = self
+            .conditions
+            .iter()
+            .map(|condition| {
+                preserved(validation::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(condition.owner),
+                    segments: condition
+                        .path
+                        .iter()
+                        .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
+                        .collect(),
                 })
-            }) {
+            })
+            .collect::<Vec<_>>();
+        let lengths = self
+            .lengths
+            .iter()
+            .map(|length| {
+                length.stable
+                    || length.value.is_none()
+                    || length_place(&length.subject).map_or(at.is_some(), &mut preserved)
+            })
+            .collect::<Vec<_>>();
+        if let Some(at) = at {
+            for place in survived {
+                self.anchor_at(place, at);
+            }
+        }
+        for (binding, preserved) in self.current.iter_mut().zip(bindings) {
+            if !preserved {
                 binding.value = None;
                 binding.alternatives.clear();
             }
         }
-        self.conditions.retain(|condition| {
-            paths.as_ref().is_some_and(|paths| {
-                !paths
-                    .iter()
-                    .any(|path| validation::frame_paths_overlap(path, &condition.name))
-            })
-        });
-        for field in &mut self.fields {
-            if paths.as_ref().is_none_or(|paths| {
-                paths.iter().any(|path| {
-                    validation::frame_paths_overlap(path, &field.name)
-                        || field
-                            .read_dependencies
-                            .iter()
-                            .any(|dependency| validation::frame_paths_overlap(path, dependency))
-                })
-            }) {
+        for (field, preserved) in self.fields.iter_mut().zip(fields) {
+            if !preserved {
                 field.value = None;
             }
         }
-        for length in &mut self.lengths {
-            if !length.stable
-                && paths.as_ref().is_none_or(|paths| {
-                    paths
-                        .iter()
-                        .any(|path| validation::frame_paths_overlap(path, &length.name))
-                })
-            {
+        let mut conditions = conditions.into_iter();
+        self.conditions
+            .retain(|_| conditions.next().unwrap_or(false));
+        for (length, preserved) in self.lengths.iter_mut().zip(lengths) {
+            if !preserved {
                 length.value = None;
             }
         }
@@ -1350,6 +1546,25 @@ fn entry_collection_length(
     fixed_length(program, reference, identity)
 }
 
+/// A descriptor length is read as a `u64` count, so a private length atom lies
+/// in the `u64` interval whenever it is transported into a scoped expression.
+/// Without that interval an exact `items.len - 1` or `items.len + 1` in a
+/// declaration (such as a rank endpoint) could never prove it fits its carrier,
+/// even under a `requires items.len > 0` hypothesis. A known length is already
+/// an exact integer and needs no interval.
+fn carrier_bounded_length(length: ScopedArithmeticValue) -> ScopedArithmeticValue {
+    let ScopedArithmeticValue::Atom { .. } = length else {
+        return length;
+    };
+    ScopedArithmeticValue::BoundedInteger {
+        value: Box::new(length),
+        interval: validation::BigIntInterval {
+            low: Some(numerics::bignum::BigInt::zero()),
+            high: Some(numerics::bignum::BigInt::from_u64(u64::MAX)),
+        },
+    }
+}
+
 fn fixed_length(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
@@ -1938,6 +2153,7 @@ fn scoped_operations(
                     .or_else(|| {
                         length_occurrence(program, expression, lengths)
                             .and_then(|length| length.value.clone())
+                            .map(carrier_bounded_length)
                     })
                     .or_else(|| scalar_field_occurrence(occurrence, expression, bindings, fields))
                     .or_else(|| field_occurrence(program, machine, state, expression))
@@ -2001,18 +2217,6 @@ fn charge(value: &ScopedArithmeticValue, budget: &mut usize, depth: usize) -> Op
         | ScopedArithmeticValue::Integer(_) => {}
     }
     Some(())
-}
-
-fn statement_has_call(statement: &StatementNode) -> bool {
-    // With no complete operand frame, no expression-bearing statement grants
-    // preservation. Pure assignments are handled only with an actual frame.
-    matches!(
-        statement,
-        StatementNode::Call(_)
-            | StatementNode::Assignment(_)
-            | StatementNode::LocalData(_)
-            | StatementNode::Expression(_)
-    )
 }
 
 /// The current descriptor observation's proven upper bound, after every

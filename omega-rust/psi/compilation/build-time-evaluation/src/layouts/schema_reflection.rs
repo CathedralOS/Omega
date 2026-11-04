@@ -15,11 +15,11 @@ pub(crate) fn local_schema_field_discriminator(schema: &str, field: &str) -> u64
     // every reflected scope rejects collisions before exposing it, and exact
     // schema structure supplies durable identity. Zero remains the unused-tail
     // sentinel.
-    let mut hash = crate::fnv::OFFSET_BASIS;
+    let mut hash = semantic_vocabulary::Fnv1a::new();
     for byte in schema.bytes().chain(*b"::").chain(field.bytes()) {
-        crate::fnv::byte(&mut hash, byte);
+        hash.byte(byte);
     }
-    if hash == 0 { 1 } else { hash }
+    hash.finish_or(1)
 }
 
 #[derive(Debug, Clone)]

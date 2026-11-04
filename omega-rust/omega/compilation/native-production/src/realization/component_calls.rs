@@ -104,7 +104,7 @@ impl<'input> ComponentNativeCall<'input> {
                 .program_fingerprint
                 .as_bytes(),
         );
-        digest.u64(u64::from(selection.receiving_boundary().get()));
+        digest.u64(selection.receiving_boundary().get());
         digest.raw(&application.commitment);
         digest.u64(bytes);
         digest.u32(demand.stack_alignment());
@@ -145,16 +145,12 @@ impl<'input> ComponentNativeCall<'input> {
         })
     }
 
-    pub const fn call(&self) -> &AdmittedNativeComponentCall<'input> {
-        self.call
-    }
-
     pub fn settlement(&self) -> NativeProviderSettlement<'_> {
         NativeProviderSettlement {
             provider_execution: self,
             provider_plan: self.plan,
             realization: NativeBoundaryRealization::Component {
-                call: self.call,
+                call: self.call.facts(),
                 authority: self.image.authority(),
                 locator: &self.locator,
                 same_stack: &self.same_stack,

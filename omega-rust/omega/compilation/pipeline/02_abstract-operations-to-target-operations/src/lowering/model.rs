@@ -4,12 +4,14 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 
-pub use terminal_psi_to_abstract_operations::{
+pub use provider_admission::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    /// The callback cohort was admitted for another Terminal program.
+    ForeignNativeCallbackCohort,
     ReferenceCarrierUnavailable {
         machine: MachineId,
         source: terminal_psi::StructuralArgument,
@@ -27,6 +29,14 @@ pub enum LoweringError {
     InvalidAccessLifecycle {
         machine: semantic_vocabulary::MachineId,
         operation: semantic_vocabulary::OperationId,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        reason: &'static str,
+    },
+    /// A descriptor-reading import whose count guard cannot be derived from
+    /// its exact admitted native ABI.
+    DescriptorInputGuard {
+        machine: MachineId,
+        operation: OperationId,
         boundary: semantic_vocabulary::BoundaryMachineId,
         reason: &'static str,
     },
@@ -208,6 +218,8 @@ pub enum LoweringError {
         required_access: terminal_psi::StructuralAccess,
         reason: &'static str,
     },
+    /// The module catalog must name its structural types as one dense run.
+    NonDenseStructuralTypes(semantic_vocabulary::NonDenseIdentities),
     UnknownStructuralType(StructuralTypeId),
     RecursiveStructuralType(StructuralTypeId),
     EmptyStructuralType(StructuralTypeId),

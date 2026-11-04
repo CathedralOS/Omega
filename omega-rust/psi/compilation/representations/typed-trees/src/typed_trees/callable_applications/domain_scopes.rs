@@ -6,6 +6,38 @@ use super::CallableApplication;
 use crate::{TypedTrees, domain, types};
 use symbols::SymbolHandle;
 
+#[cfg(test)]
+mod tests;
+
+impl CallableApplication {
+    /// An instance ID is derived from its exact index tuple, not copied from
+    /// the declaration being applied. Publish the new ID with the substituted
+    /// operands so later membership checks cannot observe two different
+    /// identities for the same applied contract.
+    pub(super) fn domain_identity(
+        program: &mut TypedTrees,
+        declaration: SymbolHandle,
+        arguments: &[types::TypeReferenceHandle],
+        original: language_semantics::SemanticDomainId,
+    ) -> Result<language_semantics::SemanticDomainId, &'static str> {
+        if arguments.is_empty() || !declaration.is_valid() {
+            return Ok(original);
+        }
+        let Some(domain) = program.domain_definition(declaration) else {
+            // Authored, unresolved domains are still owned by normalization.
+            return Ok(original);
+        };
+        let identity = domain::indexed_domain_instance_name(
+            program,
+            domain,
+            domain::index_parameters(program, domain),
+            arguments,
+        )
+        .map_err(|_| "applied domain arguments have no canonical instance identity")?;
+        Ok(program.semantic_domains.intern(&identity))
+    }
+}
+
 impl TypedTrees {
     pub fn prepare_closed_domain_application(
         &mut self,
@@ -50,6 +82,7 @@ impl TypedTrees {
         let mut application = CallableApplication {
             // This is a logical theory view, not a fresh executable signature.
             owned_signature: SymbolHandle::invalid(),
+            runtime_values: Vec::new(),
             region_scope: declaration,
             trait_region_application: None,
             lifetime_declaration: declaration,

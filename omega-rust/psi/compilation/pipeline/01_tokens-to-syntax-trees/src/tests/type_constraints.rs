@@ -257,12 +257,7 @@ fn fixed_array_equation_elements_use_existing_generic_type_grammar() {
 
 #[test]
 fn fixed_array_equation_operands_use_the_type_grammars_rejections() {
-    for operand in [
-        "[Element;]",
-        "[Element; -1]",
-        "[Element; Count + 1]",
-        "[; 4]",
-    ] {
+    for operand in ["[Element;]", "[; 4]"] {
         let source = format!(
             "data Buffer<Backing, Element, const Count: u64> requires Backing == {operand} {{ storage: Backing; }}"
         );
@@ -271,14 +266,79 @@ fn fixed_array_equation_operands_use_the_type_grammars_rejections() {
             .expect("tokenize malformed type");
         assert!(parse_syntax_trees(&tokens).is_err(), "{operand}");
     }
+    // The type grammar retains a computed extent for checked semantic
+    // evaluation instead of judging its value; an equation operand accepts
+    // exactly what a field type accepts.
+    for operand in ["[Element; -1]", "[Element; Count + 1]"] {
+        let equation = format!(
+            "data Buffer<Backing, Element, const Count: u64> requires Backing == {operand} {{ storage: Backing; }}"
+        );
+        let parsed = super::parse_source_verbose(
+            &equation,
+            "tokenize computed extent",
+            "computed extents are retained for semantic evaluation",
+        );
+        let operand_type = parsed
+            .expressions
+            .iter_expressions()
+            .find_map(|(_, expression)| match expression {
+                ExpressionNode::TypeExpression(type_reference) => Some(*type_reference),
+                _ => None,
+            })
+            .expect("the equation operand keeps its type role");
+        let field = format!("data Buffer<Element, const Count: u64> {{ storage: {operand}; }}");
+        let field_parsed = super::parse_source_verbose(
+            &field,
+            "tokenize computed extent",
+            "computed extents are retained for semantic evaluation",
+        );
+        let syntax_trees::item::Item::Data(data) =
+            field_parsed.root_items().next().expect("data item")
+        else {
+            panic!("data");
+        };
+        let [DataMember::Field(storage)] = field_parsed.items.data_members(data.members) else {
+            panic!("one field");
+        };
+        for (trees, array) in [
+            (&parsed, operand_type),
+            (&field_parsed, storage.type_reference),
+        ] {
+            let TypeReferenceNode::FixedArray {
+                length: syntax_trees::types::FixedArrayLength::Expression(extent),
+                ..
+            } = trees.type_references.type_reference(array)
+            else {
+                panic!("computed extent retained as an expression: {operand}");
+            };
+            assert!(matches!(
+                trees.type_references.type_reference(*extent),
+                TypeReferenceNode::ConstExpression(_)
+            ));
+        }
+    }
 }
 
 #[test]
 fn fixed_array_type_operand_is_not_runtime_value_syntax() {
-    let tokens = Lexer::new("machine main() -> u64 { [u8; 4] }")
-        .tokenize()
-        .expect("tokenize type in value position");
-    assert!(parse_syntax_trees(&tokens).is_err());
+    // `[u8; 4]` keeps its type role in a value position rather than becoming
+    // an array value. Role resolution and validation reject executable use.
+    let parsed = super::parse_source(
+        "machine main() -> u64 { [u8; 4] }",
+        "type operands share the complete expression grammar",
+    );
+    assert!(
+        parsed
+            .expressions
+            .iter_expressions()
+            .any(|(_, expression)| matches!(expression, ExpressionNode::TypeExpression(_)))
+    );
+    assert!(
+        !parsed
+            .expressions
+            .iter_expressions()
+            .any(|(_, expression)| matches!(expression, ExpressionNode::ArrayLiteral(_)))
+    );
 }
 
 #[test]

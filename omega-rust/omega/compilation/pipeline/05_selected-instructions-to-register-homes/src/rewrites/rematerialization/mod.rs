@@ -10,6 +10,10 @@ mod custody;
 use optimization_core::OptimizationWorkBudget;
 
 use crate::{
+    PressureRematerializationError, PressureRematerializationPolicy,
+    ValidatedPressureRematerialization,
+};
+use crate::{
     RegisterHomeError, ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
 };
 use register_homes::{
@@ -17,15 +21,14 @@ use register_homes::{
     RecoveryClassificationIdentity, RecoveryClassificationPolicy, SpillChoiceIdentity,
     SpillChoicePolicy,
 };
+use selected_instruction_analyses::{
+    AllocationLegalityError, LiveRangeError, LivenessError, RecoveryClassificationError,
+    SpillChoiceError, StagedOptimizedAllocationLegality,
+    StagedOptimizedAllocationLegalityCustodyReceipt, ValidatedAllocationLegality,
+    ValidatedLiveRanges, ValidatedLiveness,
+};
 use selected_instructions::{
     LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
-};
-use selected_instructions_to_selected_instructions::{
-    AllocationLegalityError, LiveRangeError, LivenessError, PressureRematerializationError,
-    PressureRematerializationPolicy, RecoveryClassificationError, SpillChoiceError,
-    StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
-    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
-    ValidatedPressureRematerialization,
 };
 
 pub(crate) use compute::{

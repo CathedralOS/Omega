@@ -326,7 +326,7 @@ impl SelectedProgramEntrySignature {
         {
             let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
             digest.raw(&canonical);
-            ProgramEntrySignatureIdentity(digest.finish().into())
+            ProgramEntrySignatureIdentity(digest.finish())
         }
     }
 

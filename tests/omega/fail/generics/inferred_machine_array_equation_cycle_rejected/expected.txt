@@ -1,1 +1,1 @@
-where equations define `Left` through itself
+requires equations define `Left` through itself

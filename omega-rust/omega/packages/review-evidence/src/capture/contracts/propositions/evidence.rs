@@ -1,5 +1,5 @@
 use crate::capture::EvidenceOption;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -15,7 +15,7 @@ use crate::record::{
 };
 
 pub(crate) fn project_evidence_interface(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     evidence: typed_trees::types::TypeReferenceHandle,
     proposition_binders: &[(SymbolHandle, String)],
 ) -> Result<PackageReviewEvidenceInterface, Vec<Diagnostic>> {
@@ -84,7 +84,7 @@ pub(crate) fn project_evidence_interface(
 }
 
 pub(crate) fn collect_evidence_requirements(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     trait_symbol: SymbolHandle,
     trait_arguments: &[typed_trees::types::TypeReferenceHandle],
     trait_lifetime_arguments: &[typed_trees::name::Identifier],

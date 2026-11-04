@@ -40,6 +40,7 @@ pub enum PackagePolicyMachineParameterContract {
 pub struct PackagePolicyMachineParameterSignature {
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
+    pub(crate) conformance_bounds: Vec<crate::record::PackageReviewConformanceBound>,
     pub(crate) parameters: Vec<PackageReviewSignatureParameter>,
     pub(crate) return_type: Option<PackageReviewTypeIdentity>,
     pub(crate) contracts: Vec<PackageReviewCallableContract>,
@@ -60,6 +61,7 @@ impl PackagePolicyMachineParameterContract {}
 impl PackagePolicyMachineParameterSignature {
     field_projection_accessors!(copied lifetime_parameter_count: usize);
     field_projection_accessors!(sliced type_parameters: &[PackagePolicyTypeParameter]);
+    field_projection_accessors!(sliced conformance_bounds: &[crate::record::PackageReviewConformanceBound]);
     field_projection_accessors!(sliced parameters: &[PackageReviewSignatureParameter]);
     crate::record::accessors::package_policy_callable_signature_accessors!();
 }

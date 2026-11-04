@@ -530,6 +530,58 @@ fn site_path_classification(
     (path_guard_conjuncts, path_guard_consequences)
 }
 
+/// A constant expression is evaluated before the program runs, so its
+/// generated entry has nobody to receive a crash. A helper call that can crash
+/// therefore cannot form the bound; refuse it here, naming the helper's
+/// causes, instead of letting the entry fail later as an unlowerable body.
+pub(crate) fn check_constant_expression_entries_cannot_crash(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    let typed = program.typed_program();
+    let mut entries = Vec::new();
+    for (_, recipe) in typed.constant_recipes.iter() {
+        if !recipe.position.expression().is_valid() {
+            continue;
+        }
+        for context in typed
+            .constant_expression_contexts
+            .span_or_empty(recipe.contexts)
+        {
+            if context.evaluation_entry.is_valid()
+                && !entries.contains(&(context.evaluation_entry, recipe.position.expression()))
+            {
+                entries.push((context.evaluation_entry, recipe.position.expression()));
+            }
+        }
+    }
+    if entries.is_empty() {
+        return Ok(());
+    }
+    let summaries = crate::published::facts::infer_checked_crash_causes(program, facts);
+    let mut diagnostics = Vec::new();
+    for (entry, expression) in entries {
+        let Some((_, causes)) = summaries.iter().find(|(machine, _)| *machine == entry) else {
+            continue;
+        };
+        if causes.is_empty() {
+            continue;
+        }
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "constant expression `{}` can crash with {causes:?}; a build-time value must be formed without an unhandled crash route",
+                typed.expression_table.display_name(expression),
+            ))
+            .with_source_span(typed.expression_table.source_span(expression)),
+        );
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 /// Published-ceiling coverage of explicit `crash` transitions, calls and
 /// selected operators. Float result-policy sites share the path-conditioned
 /// pass above and retain their raw-result obligation. Integer Trapping sites
@@ -880,9 +932,8 @@ fn collect_integer_order_relations(
     );
 }
 
-#[allow(clippy::too_many_arguments)]
-
 /// Both operands' canonical crash identities as one pair.
+#[allow(clippy::too_many_arguments)]
 fn crash_operand_identities(
     program: &dyn ::validation::CheckingInput,
     left: ExpressionHandle,

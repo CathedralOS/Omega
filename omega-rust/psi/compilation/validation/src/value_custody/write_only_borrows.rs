@@ -1313,7 +1313,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through closed invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, an integer primitive carrying only an arithmetic-policy constraint, or a carrier qualified only by plain declared domains whose membership is proven on the stored value, a whole eligible statically discardable record or closed statically discardable material sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or statically discardable material records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds byte element whose predicate-only fixed carrier membership is independently preserved, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, named or non-plain domain qualification, range stores into a domain-qualified carrier, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; the destination must have content-independent coordinates, compatible write authority, and a supported replaceable leaf. Stores retain their complete type, bounds, default-domain and displaced-custody obligations; locating a destination grants no permission to read its contents"
     )));
 }
 
@@ -1359,7 +1359,7 @@ fn validate_transition_target(
     }
 }
 
-/// The callee parameters an argument list corresponds to, in authored order.
+// The callee parameters an argument list corresponds to, in authored order.
 
 /// Each call argument checked against its positional declared parameter —
 /// the caller resolves the callee state's parameter types when it can.

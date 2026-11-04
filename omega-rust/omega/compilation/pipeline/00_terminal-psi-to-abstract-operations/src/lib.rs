@@ -33,18 +33,16 @@
 //! reconstructing them.
 
 mod artifact_admission;
-pub(crate) use optimization_core::digest_encoder;
-mod boundary_application_settlement;
-mod callback_settlement;
-mod comparison_settlement;
-mod entry_settlement;
 mod lowering;
 mod native_admission;
 mod native_execution_scope;
 mod optimization;
-pub mod provider_admission;
-mod provider_installation;
+// Provider admission and its sealed evidence live in their own package; this
+// stage runs the admission and keeps reading it under the same module name.
+use ::provider_admission as providers;
+pub use ::provider_admission::provider_admission;
 mod retained_terminal;
+mod settlement;
 #[cfg(test)]
 mod terminal_decode_once;
 
@@ -52,7 +50,7 @@ pub use native_admission::{
     AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,
     admit_prepared_native_realization, artifact_lowering_error,
 };
-pub use provider_admission::{
+pub use providers::provider_admission::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
     NativeCallbackArgumentProposal, SettledCompilerBuiltin,
 };
@@ -74,19 +72,21 @@ pub use artifact_admission::{
     ArtifactSections, NativeExecutionSelection, NativeScalarApplications,
     TerminalAccessViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
 };
-pub use boundary_application_settlement::BoundaryApplicationSettlement;
-pub use callback_settlement::settle_native_callback_placements;
-pub(crate) use callback_settlement::{
-    CallbackRegistrarOccurrence, settle_callback_registrar_imports,
-};
-pub use entry_settlement::{
-    NativeProgramEntrySettlement, NativeProgramEntrySettlementError, SelectedProgramEntryCall,
-    ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
-};
 pub use lowering::LoweringError;
 pub use optimization::{
     VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
     VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
 };
-pub use provider_installation::SelectedProviderAdapter;
-pub use provider_installation::{AdmittedProviderInstallation, ProviderInstallationError};
+pub use providers::provider_installation::SelectedProviderAdapter;
+pub use providers::provider_installation::{
+    AdmittedProviderInstallation, ProviderInstallationError,
+};
+pub use settlement::boundary_application_settlement::BoundaryApplicationSettlement;
+pub use settlement::callback_settlement::settle_native_callback_placements;
+pub(crate) use settlement::callback_settlement::{
+    CallbackRegistrarOccurrence, settle_callback_registrar_imports,
+};
+pub use settlement::entry_settlement::{
+    NativeProgramEntrySettlement, NativeProgramEntrySettlementError, SelectedProgramEntryCall,
+    ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
+};

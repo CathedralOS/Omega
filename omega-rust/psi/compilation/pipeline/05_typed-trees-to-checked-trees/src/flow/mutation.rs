@@ -589,13 +589,11 @@ fn boundary_frame_access_places(
             validation::call_target_parameters(program, borrow_call.target_symbol)
     {
         let arguments = call_site_argument_expressions(program, site);
-        if parameters.iter().count() != arguments.len() {
+        if parameters.len() != arguments.len() {
             refinable = false;
         } else {
-            let mut argument_index = 0usize;
-            for parameter in parameters {
+            for (argument_index, parameter) in parameters.iter().enumerate() {
                 let argument = arguments[argument_index];
-                argument_index += 1;
                 if !ceiling::is_exclusive_reference(program, parameter.type_reference) {
                     continue;
                 }

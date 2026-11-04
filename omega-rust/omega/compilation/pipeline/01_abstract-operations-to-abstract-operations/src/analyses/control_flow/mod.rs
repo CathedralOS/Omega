@@ -42,10 +42,10 @@ pub(super) use loops::loops;
 /// Index a roster by a caller-derived key. The analyses that build a keyed
 /// view of a roster all then compare those views by key and by length, so the
 /// maps must all dedup duplicate keys the same way a `BTreeMap` collect does.
-pub(in crate::analyses) fn by_key<'a, K: Ord, V>(
-    rows: &'a [V],
+pub(in crate::analyses) fn by_key<K: Ord, V>(
+    rows: &[V],
     key: impl Fn(&V) -> K,
-) -> std::collections::BTreeMap<K, &'a V> {
+) -> std::collections::BTreeMap<K, &V> {
     rows.iter().map(|row| (key(row), row)).collect()
 }
 
@@ -84,11 +84,17 @@ pub(crate) struct DominatorAnalysis {
     pub functions: Vec<FunctionDominators>,
 }
 
+/// The row for `machine` in an analysis roster built in unit function order,
+/// which unit validation keeps strictly increasing by machine.
+fn machine_row<T>(rows: &[(MachineId, T)], machine: MachineId) -> Option<&(MachineId, T)> {
+    rows.binary_search_by_key(&machine, |(candidate, _)| *candidate)
+        .ok()
+        .map(|index| &rows[index])
+}
+
 impl DominatorAnalysis {
     pub fn function(&self, machine: MachineId) -> Option<&FunctionDominators> {
-        self.functions
-            .iter()
-            .find(|(candidate, _)| *candidate == machine)
+        machine_row(&self.functions, machine)
     }
 
     /// The machine's dominator rows, or the empty slice when the roster omits
@@ -106,9 +112,7 @@ pub(crate) struct StronglyConnectedComponentAnalysis {
 
 impl StronglyConnectedComponentAnalysis {
     pub fn function(&self, machine: MachineId) -> Option<&(MachineId, Vec<Vec<BlockId>>)> {
-        self.functions
-            .iter()
-            .find(|(candidate, _)| *candidate == machine)
+        machine_row(&self.functions, machine)
     }
 }
 

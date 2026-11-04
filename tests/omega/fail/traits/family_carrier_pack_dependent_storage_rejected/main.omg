@@ -9,7 +9,7 @@ data Holder<T> {
 proposition held<T>(value: Holder<T>) = true;
 
 trait Holding<C, proposition Held>
-where proposition Held(value: C);
+requires proposition Held(value: C);
 {
     machine hold(value: C)
     ensures Held(value);

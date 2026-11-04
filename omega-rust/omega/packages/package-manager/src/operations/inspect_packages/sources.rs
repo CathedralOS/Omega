@@ -24,7 +24,7 @@ pub(super) fn review(
     sources: &PackageInspectionSources,
     target: TargetProfile,
     accepted: Option<&PackageLockTarget>,
-    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    root_build_snapshot: Option<&build_settings::BuildSnapshotRequest>,
     session: &mut PackageBuildSession,
     source_bindings: &mut PackageSourceBindings,
     execute: &mut crate::review::PackageReviewExecutor<'_>,

@@ -27,7 +27,9 @@ invokes ProgramStorageEntry
     ProgramStorageEntry::enter(image, storage);
 }
 
+// This empty ceiling excludes the port writes reached through its helpers.
 machine selected_continuation(image: Extent in Granted, storage: Extent in Granted)
+reaches
 {
     transition image.base == 4096 && image.length == 4096 && storage.base == 8192 && storage.length == 4096 {
         true -> report(image, storage)

@@ -1,6 +1,6 @@
 // Repairing another element cannot return the local view's original loan.
-data Token { byte: i32; }
-machine Token::drop(token: &mut Token) { token.byte = 0; }
+data Token dropped by drop_token { byte: i32; }
+machine drop_token(token: &mut Token) { token.byte = 0; }
 
 machine misplaced(tokens: &mut [Token])
 requires tokens.len >= 3

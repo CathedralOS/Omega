@@ -247,9 +247,7 @@ pub(crate) fn direct_self_field_member(
             if member.case_variant.is_some() {
                 return None;
             }
-            let Some(path) = expression_table(program).name_path_node(member.receiver) else {
-                return None;
-            };
+            let path = expression_table(program).name_path_node(member.receiver)?;
             let receiver = expression_table(program).name_path_members(path.members);
             (receiver.len() == 1 && receiver[0].is_self_receiver()).then(|| member.member.as_str())
         }
@@ -813,7 +811,8 @@ mod canonical_projection;
 pub use canonical_projection::{
     CanonicalPlace, canonical_collection_element_place, canonical_place_from_expression,
     canonical_place_from_expression_in_state, element_place_segment, index_place_segment,
-    place_root_may_be_symbol, push_field_place_segments,
+    place_root_may_be_symbol, push_field_place_segments, storage_operand, storage_place_from_expression_in_state,
+    window_coordinate,
 };
 mod contextual_projection;
 pub use contextual_projection::contextual_canonical_place_from_expression;

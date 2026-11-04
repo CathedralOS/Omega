@@ -472,6 +472,29 @@ class CompilerPilotTests(unittest.TestCase):
                     pilot.execute(output, {}, positives=(), negatives=())
                 build.assert_not_called()
 
+    def test_failed_checking_still_measures_execution_and_stays_red(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            producer = Mock(revision="a" * 40, target="linux_x86_64",
+                            runner_profile={"sha256": "b" * 64})
+            legs = []
+            def corpus(arguments, **kwargs):
+                both = "--both" in arguments
+                legs.append("both" if both else "checking")
+                report = self.report(both=both)
+                if not both:
+                    report["oracle_failures"] = [{"fixture": pilot.NEGATIVES[0]}]
+                Path(arguments[arguments.index("--json") + 1]).write_text(json.dumps(report))
+                return Mock(returncode=1)
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                 patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                 patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+                 patch.object(pilot, "observation_golden", return_value=output / "golden"), \
+                 patch.object(pilot.subprocess, "run", side_effect=corpus):
+                with self.assertRaisesRegex(ValueError, "oracle"):
+                    pilot.execute(output, {}, producer=producer)
+            self.assertEqual(legs, ["checking", "both"])
+
     def test_first_host_keeps_unknown_history_separate_from_other_host_results(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -526,6 +549,28 @@ class CompilerPilotTests(unittest.TestCase):
     def test_complete_runtime_and_rejections_pass(self):
         self.validate(self.report())
         self.validate(self.report(True), True)
+
+    def test_target_publication_control_needs_its_real_reason_and_no_execution(self):
+        fixture = "pass/providers/missing_target_supply"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = root / "tests/omega" / fixture
+            directory.mkdir(parents=True)
+            for target in ("macos_arm64", "linux_x86_64"):
+                (directory / f"expected_native_rejection.{target}.txt").write_text(f"missing supply on {target}\n")
+            for both in (False, True):
+                target = "linux_x86_64" if both else "macos_arm64"
+                facts = {"interpreter": "unchecked"} if both else {"check-target": target}
+                row = dict(fixture=fixture, tier="pass", status="rejected", expected_satisfied=True,
+                           facts=dict(facts, **{"native-rejection": "match"}),
+                           diagnostics=[f"missing supply on {target}"])
+                report = self.report(both)
+                report["observations"] = [row]
+                with patch.object(pilot, "ROOT", root):
+                    pilot.validate_report(report, (fixture,), both=both, revision="a" * 40, target="linux_x86_64")
+                    row["diagnostics"] = ["unrelated refusal"]
+                    with self.assertRaises(ValueError):
+                        pilot.validate_report(report, (fixture,), both=both, revision="a" * 40, target="linux_x86_64")
 
     def test_golden_movement_is_not_a_failed_oracle(self):
         report = self.report()

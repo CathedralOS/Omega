@@ -81,6 +81,11 @@ impl FlowReferentFormation {
 /// An invalid retention handle means that dependency was unavailable.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandRetention {
+    /// A checked producer formed a new projected view from these completed
+    /// descriptors. Empty withholds formation evidence. Unlike `suppliers`,
+    /// these rows do not transport an existing pointer or grant permission;
+    /// the resource owner must authenticate every source and borrowing parent.
+    pub reborrow_sources: HandleSpan<FlowOperandReborrowSource>,
     /// Complete nonempty possible contents footprint captured by the producing
     /// operation. Unknown element selectors retain structural dimensions only.
     /// This permits interference checks, never address equality, membership,
@@ -204,6 +209,17 @@ pub struct FlowOperandRetainedSupplier {
     pub contract: Option<FlowOperandLifetimeContract>,
 }
 
+/// Keep the reference actually read when a helper returns a view of its data.
+/// The source path selects a descriptor in that captured value; only the new
+/// suffix projects into its referent. A completed invocation authenticates
+/// the return relation separately from the source's borrowing permission.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct FlowOperandReborrowSource {
+    pub operand: Handle<FlowOperandFact>,
+    pub source_path: HandleSpan<facts::PlaceSegment>,
+    pub projection: HandleSpan<facts::PlaceSegment>,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandRetainedLeaf {
     pub path: HandleSpan<facts::PlaceSegment>,
@@ -236,6 +252,10 @@ pub struct FlowOperandFact {
     pub completion: FlowOperandCompletion,
     /// Actual receiver or source descriptor dependency, independently of value identity.
     pub backing: Handle<FlowOperandFact>,
+    /// Typed path below the completed address receiver. Present even when its
+    /// absolute address is unavailable; None withholds projection evidence,
+    /// while Some(empty) denotes the same complete receiver window.
+    pub address_projection: Option<HandleSpan<facts::PlaceSegment>>,
     /// Captured computation operands in evaluation order, including a selected
     /// short-circuit route. Presence alone does not guarantee execution on every
     /// completion. These are neither stored children nor extra backing loans.
@@ -277,6 +297,21 @@ pub struct FlowOperandFact {
 pub enum FlowOperandCompletion {
     #[default]
     Observation,
+    /// Contents of an admitted state input at the captured storage cut. This
+    /// names its incoming slot namespace, not an evaluated child or address.
+    /// Descriptor consumers must authenticate the selected incoming loan.
+    IncomingContents {
+        root: facts::PlaceRoot,
+        path: HandleSpan<facts::PlaceSegment>,
+    },
+    /// A descriptor leaf observed after this actual invocation completed.
+    /// This preserves its result coordinate, not a second evaluation, exact
+    /// pointer geometry, or permission inferred from its lifetime frontier.
+    InvocationResult {
+        invocation: Handle<super::FlowCallFact>,
+        result_type: typed_trees::types::TypeReferenceHandle,
+        path: HandleSpan<facts::PlaceSegment>,
+    },
     Constructed(HandleSpan<FlowOperandChild>),
     Selected(HandleSpan<FlowOperandAlternative>),
     /// A projection of one already completed owned copy. The value's contents
@@ -295,6 +330,8 @@ impl FlowOperandFact {
         match self.completion {
             FlowOperandCompletion::Constructed(children) => children,
             FlowOperandCompletion::Observation
+            | FlowOperandCompletion::IncomingContents { .. }
+            | FlowOperandCompletion::InvocationResult { .. }
             | FlowOperandCompletion::Selected(_)
             | FlowOperandCompletion::Copied { .. } => HandleSpan::empty(),
         }

@@ -69,27 +69,25 @@ pub(crate) fn plan(
                 | PreparedStructuralPathSegment::CapturedIndex(_)
                 | PreparedStructuralPathSegment::Static(StructuralPathSegment::FixedIndex(_))
         );
-        if index {
-            if let Some(shape) = descriptor_shape(types, root, &type_path) {
-                // A view's extent belongs to that collection, so capture before
-                // its marker as well as before its index expression.
-                let prefix = if position > 0
-                    && matches!(
-                        path[position - 1],
-                        PreparedStructuralPathSegment::ViewExtent { .. }
-                    ) {
-                    position - 1
-                } else {
-                    position
-                };
-                pending = Some((
-                    prefix,
-                    Capture::DescriptorValue {
-                        shape,
-                        preferred: None,
-                    },
-                ));
-            }
+        if index && let Some(shape) = descriptor_shape(types, root, &type_path) {
+            // A view's extent belongs to that collection, so capture before
+            // its marker as well as before its index expression.
+            let prefix = if position > 0
+                && matches!(
+                    path[position - 1],
+                    PreparedStructuralPathSegment::ViewExtent { .. }
+                ) {
+                position - 1
+            } else {
+                position
+            };
+            pending = Some((
+                prefix,
+                Capture::DescriptorValue {
+                    shape,
+                    preferred: None,
+                },
+            ));
         }
         if matches!(
             segment,
@@ -206,7 +204,8 @@ pub(crate) fn endpoint_use(
     )
 }
 
-fn descriptor_shape(
+/// Read a view's descriptor shape at the exact selected source path.
+pub(crate) fn descriptor_shape(
     types: &[StructuralTypeDeclaration],
     root: StructuralTypeId,
     path: &[StructuralPathSegment],

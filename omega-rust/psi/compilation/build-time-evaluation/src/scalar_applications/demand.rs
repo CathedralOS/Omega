@@ -1,5 +1,5 @@
 //! Discover the whole demand closure before freezing each entry's captures.
-//! Only executable reads and geometry extents constrain execution order.
+//! Executable reads, geometry and call prerequisites constrain execution order.
 
 use crate::unique::{extend_unique, push_unique};
 use semantic_vocabulary::{MachineId, ScalarApplicationId, ScalarType, ValueId};
@@ -9,27 +9,28 @@ use terminal_interpreter::{
 };
 use terminal_psi::{ScalarApplication, ScalarRangeObservation};
 
-pub(super) struct Job {
+pub(super) struct Job<'artifact> {
     pub application: ScalarApplicationId,
-    pub execution: Execution,
+    pub execution: Execution<'artifact>,
     dependencies: Vec<ScalarApplicationId>,
     pub results: Vec<(ValueId, ScalarType)>,
 }
 
-pub(super) enum Execution {
+pub(super) enum Execution<'artifact> {
     Layout,
     Entry {
         machine: MachineId,
         installation: TerminalRuntimeSupplies,
+        prerequisites: terminal_installation::ScalarEntryPrerequisites<'artifact>,
     },
 }
 
-pub(super) fn discover(
+pub(super) fn discover<'artifact>(
     program: &TerminalProgram<'_>,
-    observations: &ScalarApplicationObservations<'_>,
+    observations: &ScalarApplicationObservations<'artifact>,
     requested: &[ScalarApplicationId],
     conditions: &mut ScalarConditionSelection<'_>,
-) -> Result<Vec<Job>, String> {
+) -> Result<Vec<Job<'artifact>>, String> {
     let mut demanded = Vec::new();
     extend_unique(&mut demanded, requested.iter().copied());
     extend_unique(&mut demanded, conditions.applications()?);
@@ -87,12 +88,22 @@ pub(super) fn discover(
                         );
                     }
                     extend_unique(&mut demanded, requirements.scalar_entry_conditions);
+                    let prerequisites = terminal_installation::ScalarEntryPrerequisites::prepare(
+                        observations,
+                        application,
+                    )?;
+                    let prerequisite_applications = prerequisites.applications()?;
                     (
                         Execution::Entry {
                             machine,
                             installation,
+                            prerequisites,
                         },
-                        requirements.scalar_applications,
+                        {
+                            let mut dependencies = requirements.scalar_applications;
+                            extend_unique(&mut dependencies, prerequisite_applications);
+                            dependencies
+                        },
                     )
                 }
             };
@@ -136,8 +147,20 @@ pub(super) fn execution_order(jobs: &[Job]) -> Result<Vec<usize>, String> {
                 .iter()
                 .any(|(position, _)| *position == dependency_position)
             {
+                let reason = match &jobs[position].execution {
+                    Execution::Entry { prerequisites, .. } => {
+                        prerequisites.dependency_reason(dependency)?
+                    }
+                    Execution::Layout => None,
+                };
+                if let Some(reason) = reason {
+                    return Err(format!(
+                        "A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: {reason}; scalar evaluation has a dependency cycle at application {}",
+                        dependency.get()
+                    ));
+                }
                 return Err(format!(
-                    "scalar evaluation has a dependency cycle at application {}",
+                    "A constant calculation depends on its own unfinished result; scalar evaluation has a dependency cycle at application {}",
                     dependency.get()
                 ));
             }

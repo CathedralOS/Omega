@@ -104,10 +104,10 @@ pub(crate) fn actual_at<'program>(
     let receiver_offset = usize::from(
         matches!(&site, validation::CallSite::Expression { call, .. } if call.receiver.is_valid()),
     );
-    let ordinal = parameters[..position].iter().count();
+    let ordinal = parameters[..position].len();
     let operand_position = { ordinal + receiver_offset };
     let argument = {
-        let ordinal = parameters[..position].iter().count();
+        let ordinal = parameters[..position].len();
         Some(*validation::call_site_argument_expressions(program, &site).get(ordinal)?)
     };
     Some(Actual {
@@ -478,6 +478,22 @@ pub(super) fn membership_evidence(
     let Some(place) = requirement.place.as_place() else {
         return Some(MembershipEvidence::default());
     };
+    // The bytes of `&(x as T)` stay in `x`, so the place below still finds
+    // `x`'s facts. The lent value itself lost any meaning `T` omits, and a
+    // requirement on that meaning has no evidence.
+    if actual.path.is_empty()
+        && let Some(argument) = actual.argument
+        && let Some((_, _, domain_symbol, semantic_domain)) =
+            requirement.payload.domain_membership()
+        && validation::field_domains::expression_erases_membership(
+            program,
+            argument,
+            domain_symbol,
+            semantic_domain,
+        )
+    {
+        return Some(MembershipEvidence::default());
+    }
     let Some(required) = crate::flow::canonical_place_from_semantic_place(
         program,
         &facts.semantic,
@@ -907,7 +923,7 @@ fn proves_bound_predicate_mode<'program>(
     let mut current = predicate.clone();
     current.bindings.clear();
     if boolean_predicates::map_observations(&mut current.expression, &mut |operand| {
-        let observation = predicate.binding(&operand)?;
+        let observation = predicate.binding(operand)?;
         let actual = actual(observation)?;
         // Scalar observation is a universal judgment over the completed value
         // inventory, including selected alternatives. Do it before asking for
@@ -987,7 +1003,7 @@ fn proves_bound_predicate_mode<'program>(
                     facts,
                     state,
                     call,
-                    &captured,
+                    captured,
                     primitive,
                     &operand_contexts,
                     fold_observed_values,
@@ -1163,7 +1179,7 @@ pub(crate) fn entry_predicate(
     let predicate = boolean_predicates::bind_entry(program, target, predicate)?;
     let mut expression = predicate.expression.clone();
     boolean_predicates::map_observations(&mut expression, &mut |operand| {
-        let observation = predicate.binding(&operand)?;
+        let observation = predicate.binding(operand)?;
         let actual = body_observation_actual(program, state, call, target, observation)?;
         let primitive = operand.primitive_type()?;
         let captured = captured_value(program, facts, state, call, &actual)?;

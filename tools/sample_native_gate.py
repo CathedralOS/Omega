@@ -60,12 +60,12 @@ refusals. Every run is also recorded under `--history-dir` (default
 `build/sample-gate-runs/`) with its revision, target and summary, so the pass
 rate has a history to compare against.
 
-Without `--cli` the gate builds one opt-level 1 CLI per checkout into
-`build/gate-cli/` and reuses it incrementally, but each run executes a private
-copy of that binary: a run holds the copy open, never the shared image, so two
-gates in one checkout can build, measure and rebuild concurrently. The build
-and the copy share one lock, because on Windows even a reader blocks the
-replacement a rebuild makes.
+Without `--cli` the gate builds the CLI in the checkout's own Cargo target
+directory, so a compiler the session already built is reused instead of
+compiled a second time. Each run executes a private copy of that binary: a run
+holds the copy open, never the shared image, so two gates in one checkout can
+build, measure and rebuild concurrently. The build and the copy share one lock,
+because on Windows even a reader blocks the replacement a rebuild makes.
 
 `--programs-only` selects application work without probe/control trees. Its
 completed record feeds the default work queue but does not establish full
@@ -91,11 +91,13 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from dataclasses import replace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from corpus_gate import host_target, windows_safe_target_dir
 from sample_projects import ROOT, discover as discover_projects, project_at, rejection_verdict, work_kind
 from compiler_profile import CompilerProfileError, optimized_environment, require_optimized
+from native_oracles import native_exit_oracle, native_rejection_oracle
 
 # Freestanding targets have no host oracle: a UEFI image cannot run on the
 # development host, so scoring it against `Expected exit` would report a
@@ -307,12 +309,8 @@ def fixture_oracles(sample, target):
     `expected_native_exit.txt`, matching the corpus gate's target-specific
     oracle spelling. Returns the authored file per channel, or None.
     """
-    exit_path = None
-    for name in (f"expected_native_exit.{target}.txt", "expected_native_exit.txt"):
-        candidate = os.path.join(sample, name)
-        if os.path.isfile(candidate):
-            exit_path = candidate
-            break
+    selected_exit = native_exit_oracle(Path(sample), target)
+    exit_path = str(selected_exit) if selected_exit.is_file() else None
     return {
         "exit": exit_path,
         "stdout": os.path.join(sample, "expected_stdout.txt")
@@ -331,6 +329,24 @@ def program_stderr(stderr):
     """Strip `omega run` wrapper lines; what remains is the program's stderr."""
     lines = stderr.replace("\r\n", "\n").split("\n")
     return "\n".join(line for line in lines if not WRAPPER_LINE.match(line))
+
+
+def both_execution_observation(stderr):
+    """A wrapper success alone does not establish either engine's outcome."""
+    lines = stderr.replace("\r\n", "\n").splitlines()
+    native = [line for line in lines if re.fullmatch(r"native (exit -?\d+|signal \d+)", line)]
+    terminal = [line for line in lines if line.startswith("interp")]
+    if len(native) != 1 or len(terminal) != 1:
+        return None
+    exit_code = re.fullmatch(r"native exit (-?\d+)", native[0])
+    if exit_code and terminal == [f"interp exit: {exit_code[1]}"]:
+        return {"native_exit": int(exit_code[1]), "interpreter_exit": int(exit_code[1])}
+    # The CLI reports checked crash/host-presentation agreement separately.
+    # A normal native exit cannot satisfy that observation.
+    if native != ["native exit 0"] and re.fullmatch(
+            r"interp crash: .+ \(host presentation agrees\)", terminal[0]):
+        return {"native_status": native[0], "interpreter_crash": terminal[0]}
+    return None
 
 
 def accept_review(cli, sample, target, timeout):
@@ -500,6 +516,8 @@ def measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_
     if project.entry is None:
         return {"sample": sample, "state": "discovery-error", "detail": "missing unambiguous entry; declare sample.json entry"}
     if project.role == "intended-invalid":
+        if native_rejection_oracle(Path(sample), target).is_file():
+            return {"sample": sample, "state": "error", "detail": "native refusal requires a source-valid program role"}
         # Source controls stop at checking. An explicit invocation-input file
         # instead requests native admission; the intended refusal must still
         # match its own diagnostic, never a crash or missing package consent.
@@ -570,6 +588,35 @@ def measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_
         if completed.returncode != 0:
             return failure(sample, "check-fail", completed.stdout + completed.stderr)
         return {"sample": sample, "state": "checked", "detail": "check-only: binds no program entry"}
+    publication_refusal = native_rejection_oracle(Path(sample), target)
+    if publication_refusal.is_file():
+        # First establish that the ordinary source and package check succeeds.
+        # Then compile without launching: only the authored target refusal counts.
+        if any(fixture_oracles(sample, target).values()):
+            return {"sample": sample, "state": "error", "detail": "native refusal conflicts with an execution oracle"}
+        try:
+            fragments = tuple(line.strip() for line in publication_refusal.read_text(encoding="utf-8").splitlines() if line.strip())
+        except (OSError, UnicodeError) as error:
+            return {"sample": sample, "state": "error", "detail": str(error)}
+        if not fragments:
+            return {"sample": sample, "state": "error", "detail": "native refusal has no diagnostic fragments"}
+        checked = run([cli, "--check", "--target", target, str(project.entry)], timeout)
+        if checked is None:
+            return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
+        if checked.returncode != 0:
+            return failure(sample, "check-fail", checked.stdout + checked.stderr)
+        compiled = run([cli, "--target", target, str(project.entry)], timeout)
+        if compiled is None:
+            return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
+        expected = replace(project, rejection=fragments, rejection_any=(), rejection_casefold=False)
+        matched, detail = rejection_verdict(expected, compiled.returncode, compiled.stderr)
+        observed = both_execution_observation(compiled.stderr)
+        matched = matched and observed is None
+        return {"sample": sample, "state": "rejected" if matched else "rejection-failed",
+                "oracle": "native-rejection", "native-rejection": "match" if matched else "mismatch",
+                "source_checked": True, "publication_exit": compiled.returncode,
+                "detail": detail if observed is None else "publication refusal cannot include execution",
+                "diagnostic": compiled.stderr}
     # A project carrying `input.txt` runs under the corpus-runner fixture
     # contract: the file is the launched program's stdin. Its authored
     # `expected_*` files then score their channels exactly; a channel without
@@ -628,6 +675,9 @@ def measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_
             message, prefix = review_output, "does not check: "
         return failure(sample, "no-native-build", message, prefix)
     mismatches = []
+    execution = both_execution_observation(completed.stderr) if both_engines else None
+    if both_engines and execution is None:
+        mismatches.append("missing explicit native/Terminal execution agreement")
     if fixture and authored["exit"] is not None:
         expectation = normalized(authored["exit"]).strip()
         if expectation == "trap":
@@ -659,7 +709,10 @@ def measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_
     if mismatches:
         return {"sample": sample, "state": "oracle-failed", "detail": "; ".join(mismatches),
                 "diagnostic": combined}
-    return {"sample": sample, "state": "pass", "detail": ""}
+    result = {"sample": sample, "state": "pass", "detail": ""}
+    if execution is not None:
+        result["execution"] = execution
+    return result
 
 
 def shared_runs_directory():
@@ -721,9 +774,9 @@ def main():
     escape_unencodable_output()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cli",
-                        help="compiler to measure; by default the gate builds an "
-                             "opt-level 1 CLI into build/gate-cli/ and executes a "
-                             "private copy of it")
+                        help="compiler to measure; by default the gate builds the "
+                             "opt-level 1 CLI in the checkout's Cargo target "
+                             "directory and executes a private copy of it")
     parser.add_argument("--target", default=host_target(),
                         help="defaults to this host's target")
     parser.add_argument("--filter", help="comma-separated path fragments")
@@ -816,10 +869,12 @@ def main():
 
     check_only = ("checked", "check-fail")
     negatives = [result for result in results if result.get("role") == "intended-invalid"]
+    publication_controls = [result for result in results if result.get("oracle") == "native-rejection"]
     scored = [
         r
         for r in results
         if r.get("role") != "intended-invalid"
+        and r.get("oracle") != "native-rejection"
         and r["state"] not in ("no-oracle", "not-host-runnable", *check_only)
     ]
     passed = len(buckets.get("pass", []))
@@ -827,7 +882,7 @@ def main():
     print(
         f"\nsample_native_gate: {passed}/{len(scored)} samples meet their documented "
         f"oracle on {arguments.target} "
-        f"({len(results) - len(scored) - probes - len(negatives)} unscored: no oracle or not host-runnable)"
+        f"({len(results) - len(scored) - probes - len(negatives) - len(publication_controls)} unscored: no oracle or not host-runnable)"
     )
     if probes:
         print(
@@ -836,7 +891,11 @@ def main():
             f"{len(buckets.get('check-fail', []))} refused"
         )
     if negatives:
-        print(f"sample_native_gate: {len(buckets.get('rejected', []))}/{len(negatives)} intended-invalid controls match their authored rejection")
+        matched = sum(row["state"] == "rejected" for row in negatives)
+        print(f"sample_native_gate: {matched}/{len(negatives)} intended-invalid controls match their authored rejection")
+    if publication_controls:
+        matched = sum(row.get("native-rejection") == "match" for row in publication_controls)
+        print(f"sample_native_gate: {matched}/{len(publication_controls)} native publication refusals match; these are not executions")
     timing = timing_summary(results, wall_seconds)
     print(
         f"sample_native_gate: {timing['wall_seconds']:.0f}s wall with {arguments.jobs} jobs, "
@@ -878,10 +937,26 @@ def timing_summary(results, wall_seconds):
     }
 
 
-# Where the gate's shared, incremental opt-level 1 build lives. The build is
-# expensive — a cold compiler is minutes — so every gate in one checkout reuses
-# it. Only the built binary is copied per run; see `snapshot_cli`.
-GATE_CLI_DIR = windows_safe_target_dir(ROOT / "build" / "gate-cli")
+def checkout_target_dir():
+    """The Cargo target directory an ordinary build in this checkout uses.
+
+    A cold compiler is 12 minutes on a 4-core cloud session, so the gate must
+    reuse the build the session already made rather than compile its own copy.
+    `optimized_environment` only restates the dev profile's opt-level 1, so the
+    gate's build and a plain `cargo build -p omega` share every artifact
+    (measured: either one after the other finishes in under a second).
+    """
+    configured = Path(os.environ.get("CARGO_TARGET_DIR") or "target")
+    if not configured.is_absolute():
+        configured = ROOT / configured
+    return windows_safe_target_dir(configured)
+
+
+# Where the gate's build lives: the checkout's own target directory. Only the
+# built binary is copied per run; see `snapshot_cli`.
+GATE_CLI_DIR = checkout_target_dir()
+# The lock and per-run copies stay in `build/`, outside Cargo's directory.
+GATE_SCRATCH_DIR = ROOT / "build"
 # One lock for the shared build directory. Cargo serializes concurrent builds
 # of the same target directory itself, but the copy out of it (`snapshot_cli`)
 # must not overlap another build replacing `debug/omega`; on Windows even a
@@ -890,8 +965,8 @@ GATE_CLI_DIR = windows_safe_target_dir(ROOT / "build" / "gate-cli")
 # build. The lock makes build-and-copy one atomic step across gates while
 # leaving execution of the copied binary parallel.
 def gate_cli_lock_path():
-    """The lock guarding `GATE_CLI_DIR`, beside it in `build/`."""
-    return GATE_CLI_DIR.parent / "gate-cli.lock"
+    """The lock guarding copies out of `GATE_CLI_DIR`, in `build/`."""
+    return GATE_SCRATCH_DIR / "gate-cli.lock"
 
 
 # A holder holds the lock for a full incremental build plus a copy. A cold
@@ -956,9 +1031,9 @@ def build_gate_cli():
     testing.md asks for an optimized compiler: package review of a std-using
     sample takes minutes with the unoptimized dev build. Measured on 31
     projects, the opt-level 1 CLI took 66 s where the dev build took 436 s
-    with identical results. A dedicated target directory keeps this build
-    from replacing the developer's own target/debug/omega. The build is
-    incremental, so an unchanged compiler costs seconds.
+    with identical results. The dev profile is now opt-level 1 itself, so the
+    build shares the checkout's target directory: a compiler the session
+    already built costs under a second here instead of a second cold build.
 
     The returned path is the shared build output. A run executes a private
     copy of it (`snapshot_cli`), never this path itself, so a concurrent gate
@@ -1000,8 +1075,8 @@ def snapshot_cli(cli):
     Copies under the build lock, so the source is not replaced mid-copy.
     """
     with gate_cli_lock():
-        os.makedirs(GATE_CLI_DIR.parent, exist_ok=True)
-        directory = tempfile.mkdtemp(prefix="gate-cli-run-", dir=str(GATE_CLI_DIR.parent))
+        os.makedirs(GATE_SCRATCH_DIR, exist_ok=True)
+        directory = tempfile.mkdtemp(prefix="gate-cli-run-", dir=str(GATE_SCRATCH_DIR))
         atexit.register(shutil.rmtree, directory, ignore_errors=True)
         target = Path(directory) / Path(cli).name
         shutil.copy2(cli, target)

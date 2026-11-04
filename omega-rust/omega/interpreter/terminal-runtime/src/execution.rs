@@ -144,6 +144,9 @@ pub enum TerminalRuntimeError {
     Execution(TerminalInstanceError),
 }
 
+/// Raised after guest execution, when the private native sponsor retires.
+const NATIVE_PROVIDER_RETIREMENT: &str = "native-provider-retirement";
+
 impl TerminalRuntimeError {
     /// Unsupported execution can surface at admission, instantiation or runtime.
     /// Keep those unavailable comparisons distinct from malformed artifacts and
@@ -161,8 +164,25 @@ impl TerminalRuntimeError {
             TerminalInterpretError::UnsupportedCapability(_)
                 | TerminalInterpretError::UnsupportedSemanticVariant(_)
                 | TerminalInterpretError::ScalarEntryQualificationUnsupported
-                | TerminalInterpretError::AffineProjectionNotRepresentable
+                | TerminalInterpretError::AffineProjectionNotRepresentable { .. }
         )
+    }
+
+    /// Standalone Terminal execution (`omega run --engine terminal`) may call
+    /// a refusal unavailability only when no guest instruction has run. Every
+    /// error raised by or after `invoke` follows guest effects: execution
+    /// errors and native-provider retirement. Earlier admission, installation,
+    /// instantiation and host-binding refusals precede the first instruction.
+    pub fn unavailable_before_guest_effects(&self) -> bool {
+        match self {
+            Self::Execution(_) => false,
+            Self::MissingProvision { capability, .. }
+                if *capability == NATIVE_PROVIDER_RETIREMENT =>
+            {
+                false
+            }
+            _ => self.comparison_unavailable(),
+        }
     }
 
     pub(super) fn missing(capability: &'static str, reason: impl Into<String>) -> Self {
@@ -523,4 +543,21 @@ fn layout_target_facts(
                 "selected target has no representation context".into(),
             )
         })
+}
+
+#[cfg(test)]
+mod unavailability_tests {
+    use super::{NATIVE_PROVIDER_RETIREMENT, TerminalRuntimeError};
+
+    #[test]
+    fn only_refusals_before_the_guest_runs_are_standalone_unavailability() {
+        let before = TerminalRuntimeError::missing("runtime-provider-installation", "absent");
+        assert!(before.comparison_unavailable());
+        assert!(before.unavailable_before_guest_effects());
+        let after = TerminalRuntimeError::missing(NATIVE_PROVIDER_RETIREMENT, "worker failed");
+        assert!(after.comparison_unavailable());
+        assert!(!after.unavailable_before_guest_effects());
+        let malformed = TerminalRuntimeError::InvalidProvision("malformed");
+        assert!(!malformed.unavailable_before_guest_effects());
+    }
 }

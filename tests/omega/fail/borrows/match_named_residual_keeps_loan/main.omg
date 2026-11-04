@@ -3,16 +3,16 @@
 use omega::language::core::drop;
 
 data Counter { value: u32 in Wrapping; }
-data Note<'storage> { counter: &'storage mut Counter; }
-data Receipt [linear] { value: i32; }
+data Note<'storage> dropped by drop_note<'storage> { counter: &'storage mut Counter; }
+data Receipt [linear] dropped by drop_receipt { value: i32; }
 data Bundle<'storage> { receipt: Receipt; note: Note<'storage>; }
 data Outer<'storage> { bundle: Bundle<'storage>; spare: i32; }
 
 machine append(counter: &mut Counter, digit: u32 in Wrapping) {
     counter.value = counter.value * 10 + digit;
 }
-machine Note::drop(note: &mut Note) { append(note.counter, 4); }
-machine Receipt::drop(receipt: &mut Receipt) {}
+machine drop_note<'storage>(note: &mut Note<'storage>) { append(note.counter, 4); }
+machine drop_receipt(receipt: &mut Receipt) {}
 machine issue<'storage>(counter: &'storage mut Counter) -> Outer<'storage> {
     append(counter, 1);
     Outer {

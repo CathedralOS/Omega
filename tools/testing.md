@@ -50,6 +50,19 @@ must be resolved before landing. Do not repeat broad suites to attribute one tes
 
 ### Merge validation budget
 
+For each proposed build or test, name the decision it answers, the affected
+behavior, and why applicable existing evidence is insufficient. Estimate time
+and resources, including compilation. Reuse evidence only when its revision,
+toolchain, configuration, relevant dependencies and consumers still apply;
+distinguish cold and warm observations. Retain command, inputs and outcome.
+
+If a run exceeds its budget, inspect progress, CPU activity, logs and blockers
+before deciding whether to continue, narrow or revise it. Record the decision
+and reason; do not blindly wait, restart or expand the suite. A justified slow
+run may continue. A budget is not an automatic timeout or a passing result.
+Reviewers rerun checks to resolve material evidence gaps, not every expensive
+build by default. Required CI and release gates remain mandatory.
+
 Before starting a build, record a short plan in the PR or claim: the behavior
 changed, the smallest checks that establish it, reusable observations, and the
 expected build plus execution time. Choose by affected behavior, not by a
@@ -176,7 +189,12 @@ landings when the Windows namespace has no main cache. GitHub's
 [cache access rules](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache)
 exclude sibling-branch caches. Land each completed witness separately on that
 branch; the next run can retain its warmed Cargo objects and still authenticates
-the exact producer and inputs.
+the exact producer and inputs. Fetch and verify the published commit without
+routinely merging unrelated `main` changes into that warm branch. Keep the
+qualified compiler inputs for the next witness; integrate new main only for an
+actual conflict or a prerequisite the witness needs. A restored cache still
+rebuilds changed Rust inputs, so a routine post-merge integration can spend the
+same cold-build time that branch reuse was meant to avoid.
 
 Locally, the same selector is `python tools/ci/compiler_pilot.py --fixtures IDS`
 or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must name existing normalized directories under `pass/` or `fail/`
@@ -448,7 +466,7 @@ check. The front-end, checking, lowering, Terminal, optimizer, realization
 and package crates carry no behavior tests; do not add them back. A test that
 scans a crate's own sources as an architecture guard is the one exception. The `compiler`
 crate's only test target is `corpus_runner`; see
-`omega-rust/omega/compilation/driver/tests/README.md`.
+`omega-rust/omega/compilation/compiler/tests/README.md`.
 
 ## Cache independence
 
@@ -776,7 +794,7 @@ them. On a warm cache, the same binary replays its earlier judgment, so a
 trace prints nothing and a knockout reports the verdict recorded without it.
 Give each run that relies on such a switch an empty `HOME` (`LOCALAPPDATA` on
 Windows, `XDG_CACHE_HOME` on Linux). Different builds never share records:
-`omega-rust/omega/compilation/driver/build.rs` digests every `.rs`, `.toml`
+`omega-rust/omega/compilation/compiler/build.rs` digests every `.rs`, `.toml`
 and `.omg` file under `omega-rust/` and `source/library/`, the workspace Cargo
 files, `rustc -vV` and the profile and flags. The selected library's content
 joins that digest, which names each record and is checked again in its header.
@@ -804,9 +822,33 @@ Name the fixtures the change can move: `--compare` refuses to run without
 `--filter` or `--shard`, because both sides of an unfiltered comparison run the
 whole corpus, about two hours on a Windows host.
 
-The base is built from its commit in a separate worktree (`build/cmp`) with its
-own build directory, so neither uncommitted edits nor artifacts from this tree
-can leak into it. An already built immutable base can be reused with
+A compare over 40 fixtures runs on hosted CI with `--remote`, and a local one
+that large refuses without `--local`:
+
+```bash
+python3 tools/corpus_gate.py --compare origin/main --remote --filter calls/,host/
+```
+
+`--remote` pushes the committed HEAD to the work branch it continues (it must
+already be pushed, as the draft PR requires; `--remote work/NAME` names it),
+dispatches the `Compiler queue pilot` at the base and at the head with the same
+exact fixture list, waits for both, and diffs their rows with the local
+compare's exit codes. Hosted runners are free for this repository and start in
+about 0.1 minutes; a Linux run takes about 15 minutes including its build, no
+slower than a local base build, and the Mac builds nothing. The default leg is
+checking only on `linux_x86_64`; `--native` or `--both` also compares
+native/Terminal rows on the matching host (`linux_x86_64`, `linux_arm64`,
+`windows_x86_64` or `macos_arm64`). The base's rows are cached like local
+ones, so a second remote compare against that base dispatches only the head.
+The pilot takes exact `pass/` and `fail/` IDs, so `run/` fixtures and `--shard`
+stay local.
+
+The base is built from its commit in a separate worktree
+(`build/compare-bases/<sha>`) with its own build directory, so neither uncommitted edits nor artifacts from
+this tree can leak into it. That worktree and the base's cached rows live in the
+`build/` beside the common git directory, shared by every worktree of the
+checkout: one session at a time measures a commit, and the next finds its runner
+and rows. The newest three base worktrees are kept. An already built immutable base can be reused with
 `--baseline-runner <binary>` alongside `--compare <revision>`. The gate still
 checks the exact baseline checkout revision, optimized profile, and fixture-root
 protocol, but does not invoke a Rust build. Retain the executable digest and its
@@ -905,8 +947,8 @@ Direct runner or CLI invocations should select the matching library explicitly
 when sharing build artifacts across checkouts. Release library validation still
 checks the selected content; this does not waive compiler or package identity.
 
-`--compare` caches the base under ignored
-`build/corpus_baselines/<sha>[-leg].txt`. Use it when the checked-in golden
+`--compare` caches the base under the shared, ignored
+`build/corpus_baselines/<sha>[-leg].txt`; a native leg names its target. Use it when the checked-in golden
 disagrees with your checkout over another lane's in-flight movement, which is
 the usual case: a run against the shared golden cannot separate that drift from
 yours, and re-recording the shared golden would pin their regression as
@@ -943,6 +985,20 @@ executed program. Wrong diagnostics, another status or execution facts make
 `--record` refuse the row. Use this only for an authored publication refusal,
 not for missing implementation in a program intended to run.
 
+`expected_native_rejection.<target>.txt` overrides the portable refusal file.
+Source rows use their actual `check-target`, while native rows use the target
+being realized. A control may therefore require refusal on three hosted targets
+and an ordinary exit on the fourth. The pilot keeps that control on the same
+product path and validates the refusal without counting an engine execution.
+
+For an ordinary sample whose source is valid, declare its normal `program` role
+in `sample.json` when a control-folder name would infer `intended-invalid`.
+The native sample gate completes normal package review, checks the source, then
+compiles without launching and requires exit 1 plus every target refusal fragment.
+A source error, unrelated refusal, panic or successful build cannot satisfy it.
+The result records `native-rejection:match` separately from executions. Existing
+source-invalid controls keep their checking-only path.
+
 `expected_native_exit.txt` holds one decimal process exit code or `trap`.
 The latter requires SIGTRAP for ARM64, SIGILL for Unix x86-64, or
 STATUS_ILLEGAL_INSTRUCTION for Windows x86-64. Missing execution, timeout,
@@ -975,7 +1031,7 @@ bounded migration replay explicitly compares with `corpus_outcomes.txt`, leaves
 new runtime facts visible as moves, and uses the exact reviewed
 `tests/omega/interpreter_migration.json` designation. Unimplemented interpreter
 debt stays nonzero and never exempts a wrong native result. The bounded replay
-command is in [the corpus tests guide](../omega-rust/omega/compilation/driver/tests/README.md#reviewed-interpreter-migration-debt).
+command is in [the corpus tests guide](../omega-rust/omega/compilation/compiler/tests/README.md#reviewed-interpreter-migration-debt).
 
 `--checked-interpreter` explicitly selects the independent checked-tree source
 oracle instead of Terminal. It compiles the same reviewed fixture inputs and
@@ -986,7 +1042,7 @@ storage or authority. Records include
 `interpreter-engine:checked-tree`, and the separate default goldens are
 `corpus_checked_interpreted.txt` and `corpus_checked_both_<target>.txt` when
 combined with `--both`. An absent golden still requires an explicit `--golden`.
-The [corpus tests guide](../omega-rust/omega/compilation/driver/tests/README.md)
+The [corpus tests guide](../omega-rust/omega/compilation/compiler/tests/README.md)
 documents the bounded source/Trap replay. Checked-engine declines cannot satisfy
 the same unchanged authored exit or stdout promises.
 
@@ -1121,9 +1177,10 @@ python3 tools/corpus_scoreboard.py --cross-golden   # exits 1 on a stale success
 `macos_arm64 native: 64 authored / 172 executed / 746 fixtures` — where
 "authored" means executed with a matching `expected_native_exit.txt`
 oracle. `--base <rev>` diffs two goldens and lists `lost` authored runs as
-regressions; wave reports lead with this number, not commit counts. A
-`regressed` count in the lead line is the standing loss the golden itself
-remembers -- see
+regressions. Wave reports follow [Explain the change](../AGENTS.md#explain-the-change):
+explain which programs now run or fail before giving these counts, and keep
+regressions visible in that summary. A `regressed` count in the scoreboard's
+summary line is the standing loss the golden itself remembers -- see
 [recording a regression](#recording-a-regression-without-pinning-it).
 
 The scoreboard reads the golden, which moves only for fixtures a lander ran;
@@ -1214,16 +1271,18 @@ for a historical 148-project tree; current selection comes from discovery, not
 that historical count.
 
 `tools/sample_native_gate.py` runs each sample's `omega update`, then builds
-and runs it. Without `--cli` it first builds an opt-level 1 CLI into
-`build/gate-cli/` (with `mbx`, or Cargo when `mbx` is absent) and measures
-that: package review of a std-using sample takes minutes with the
-unoptimized dev binary, and 31 projects took 66 s with the optimized CLI
-against 436 s with the dev build, with identical results. The build is
-incremental and leaves `target/debug/omega` alone. The shared
-`build/gate-cli/` caches that build across every gate in one checkout, but a
-run never executes the shared image: it copies the built binary aside under a
+and runs it. Without `--cli` it first builds the opt-level 1 CLI (with `mbx`,
+or Cargo when `mbx` is absent) in the checkout's own Cargo target directory
+(`target/`, or `CARGO_TARGET_DIR`) and measures that. Package review of a
+std-using sample takes minutes with an unoptimized binary: 31 projects took
+66 s with the optimized CLI against 436 s unoptimized, with identical results.
+The dev profile is opt-level 1, so the gate's build and a plain
+`cargo build -p omega` share every artifact, and a compiler the session already
+built costs the gate under a second. A separate gate directory used to compile
+the whole compiler a second time, 12 minutes cold on a 4-core cloud session.
+A run never executes the shared image: it copies the built binary aside under
 `build/gate-cli.lock` and runs the copy, so two gates can reuse and rebuild the
-shared directory at once without one holding an open image the other's build
+target directory at once without one holding an open image the other's build
 cannot replace (witnessed 2026-10-17: the second of two concurrent gates failed
 with `failed to remove file build/gate-cli/debug/omega.exe: Access is denied`).
 An explicit `--cli` older
@@ -1489,7 +1548,7 @@ speedup.
 
 [release_record.py](release/release_record.py) runs the
 [release matrix](../wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
-the eight `RC-*` gates with their exact contract invocations on one host, and
+the six `RC-*` gates with their exact contract invocations on one host, and
 writes that lane's release record (`commit`, toolchain, host, commands,
 results, elapsed time, expected skips, direct-execution observation). `close`
 joins the four lanes' same-commit records into the release closure. It does

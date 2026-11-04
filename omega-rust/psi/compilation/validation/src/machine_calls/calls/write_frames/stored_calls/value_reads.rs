@@ -64,8 +64,11 @@ pub(in crate::machine_calls::calls::write_frames) fn completed_value_reads(
 }
 
 impl CompletedValueReads {
-    /// Publish only the first captured descriptor's address. The old capture
-    /// inventory cannot supply a later pointer load through its referent.
+    /// Publish every supplier of the first captured descriptor. A coarse write
+    /// footprint does not discard its structured supplier coordinates. Consumers
+    /// requiring one exact referent must still validate those coordinates and
+    /// agree across the complete frontier. This inventory cannot supply a later
+    /// pointer load through the descriptor's referent.
     pub(in crate::machine_calls::calls::write_frames) fn reference_sources(
         &self,
         program: &dyn crate::CheckingInput,
@@ -90,7 +93,6 @@ impl CompletedValueReads {
             .into_iter()
             .map(|source| {
                 (source.lifetime_access.is_none()
-                    && source.origin.precision == FramePathPrecision::Exact
                     && source.origin.source.output_identity().is_none())
                 .then(|| source.origin.into())
             })
@@ -159,7 +161,7 @@ impl CompletedValueReads {
                 &self.after.stored,
             )?);
         }
-        read_backing::from_reads(reads, Vec::new())
+        read_backing::from_reads(program, reads, Vec::new())
     }
 
     /// Existing scalar observations need a complete invalidation footprint,

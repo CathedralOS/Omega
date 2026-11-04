@@ -3,7 +3,7 @@
 Start at [`src/package_manager.rs`](src/package_manager.rs): recover the project
 transaction, admit install/update/resume requests, resolve the candidate,
 and reconcile findings for publication. Application Build's
-[`package_commands.rs`](../../compilation/build/src/package_commands.rs) runs
+[`package_commands.rs`](../../build-system/orchestration/src/package/package_commands.rs) runs
 the target-review loop. Compiler preparation and read-only inspection have
 separate entrances in [`operations`](src/operations/mod.rs).
 
@@ -47,7 +47,7 @@ one whole-pass executor, shared by commands and audit. Package policy does not
 prepare Builds, publish components or finish compiler reviews.
 Supporting packages are siblings under [packages/](../README.md).
 The independent [declaration](../build-declarations/README.md),
-[output](../build-output/README.md) and [compilation-input](../compilation-inputs/README.md)
+[output](../build-output/README.md) and [compilation-input](../package-compilation/README.md)
 packages are below both the compiler and this command application. Their placement
 does not make the compiler depend on install/update orchestration. Source
 acquisition constructs input custody; compiler consumption records the exact
@@ -124,7 +124,7 @@ format.
 
 Per the owner ruling of 2026-10-03, ordinary checks and native production use
 accepted compilation, not the candidate-review pipeline. The application
-[`omega-build`](../../compilation/build/README.md) owns their compiler invocation,
+[`orchestration`](../../build-system/orchestration/README.md) owns their compiler invocation,
 including inspection and SDK consumers. Package management's
 `admit_project_compilation` returns ordered requests plus a completion owner
 retaining staging, aggregate sponsors and source custody. Completion maps occurrence
@@ -205,12 +205,12 @@ lock meaning is distinct from actual invocation grants.
 
 The top-level invocation owns one `PackageBuildSession` across its review
 targets and rounds. Application Build's
-[`package_inspection.rs`](../../compilation/build/src/package_inspection.rs)
+[`package_inspection.rs`](../../build-system/orchestration/src/package/package_inspection.rs)
 creates and disposes the audit's owner and executes its ordered target roster.
 The CLI's
 [`packages::run`](../../application/cli/src/cli/packages/mod.rs) retains the
 install/update owner across automatic acceptance and resume rounds, lending it
-to `omega_build::execute_package_command`. A later user-issued command creates its own
+to `orchestration::execute_package_command`. A later user-issued command creates its own
 session. Discard requires only project-state recovery, without a Build owner.
 Package commands close staging before publishing accepted project files;
 operation and decision-file failures return to the owner for disposal.
@@ -232,7 +232,7 @@ progress, not an accepted root-wide review.
 Its [`occurrences.rs`](src/review/candidate/passes/occurrences.rs) admits each
 build/product occurrence and joins compiler evidence, using the same roster as
 lock comparison and reconstruction. Application Build's
-[`package_review.rs`](../../compilation/build/src/package_review.rs) owns the
+[`package_review.rs`](../../build-system/orchestration/src/package/package_review.rs) owns the
 dependency loop, compiler calls and cache-miss recovery. Acquisition and parsed
 source are shared; checked targets,
 generated bundles, bindings, component descriptions and reviews are not.

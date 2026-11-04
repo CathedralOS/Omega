@@ -79,6 +79,7 @@ pub(crate) enum OperationFlow {
 /// semantic work or charging it twice.
 pub struct TerminalExecution<'artifact> {
     pub(crate) scalar_applications: Option<terminal_installation::ScalarApplicationValues>,
+    pub(crate) scalar_entry_checks: Option<terminal_installation::ScalarEntryChecks>,
     pub(crate) entry_results: Option<crate::boundary::entry_results::EntryResults>,
     pub(crate) account: Option<EvaluationInvocationAccount>,
     /// A host fault is not a resumable pause. Retain its exact site and custody
@@ -133,6 +134,15 @@ pub struct TerminalExecution<'artifact> {
     /// backing. These candidates are global housekeeping, never retention roots
     /// or ownership evidence; revisit them after later descriptor releases.
     pub(crate) retired_descriptor_homes: Vec<StructuralRuntimePlace>,
+    /// A produced home's removal from `structural_values` ends its custody,
+    /// never the fact that an operation of this frame produced it. Return
+    /// validation consults these tombstones for invocation-owned reference
+    /// sources; each candidate still proves its exact referent view. A
+    /// carrier's captured referent row retires with it, so a descriptor
+    /// disposal does not erase the produced referent association a declared
+    /// origin cites.
+    pub(crate) retired_structural_homes:
+        Vec<(PlaceId, TerminalStructuralValue, Option<ReferenceReferent>)>,
     /// Mutable primitive contents live outside call frames. Machine-local
     /// place maps are only views into this stable logical storage arena.
     pub(crate) structural_primitive_storage: ScalarStorageRows<StructuralRuntimePlace>,
@@ -670,6 +680,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             local_structural_identities,
             next_scalar_collection_identity: 1024,
             retired_descriptor_homes: Vec::new(),
+            retired_structural_homes: Vec::new(),
             structural_scalar_fields: ScalarStorageRows::new(account.as_ref()),
             private_entry_ram: Vec::new(),
             provider_storage: RuntimeProviderStorage::new(account.as_ref()),
@@ -697,6 +708,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             next_operation: 0,
             entry_results: None,
             scalar_applications: None,
+            scalar_entry_checks: None,
             call_stack: Vec::new(),
             awaiting_effect: None,
             result: None,

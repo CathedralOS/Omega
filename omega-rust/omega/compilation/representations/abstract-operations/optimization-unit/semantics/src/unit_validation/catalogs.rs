@@ -37,14 +37,21 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
     unit: &'unit PsiOptimizationUnit,
     cycle_policy: &function_structure::ControlCyclePolicy,
 ) -> Result<UnitIndexes<'unit>, OptimizationUnitValidationError> {
-    let mut machines = BTreeMap::new();
-    for function in &unit.functions {
-        if machines.insert(function.machine, function).is_some() {
-            return Err(OptimizationUnitValidationError::DuplicateMachine(
-                function.machine,
-            ));
-        }
+    // Strict order is what lets `PsiOptimizationUnit::function` binary search.
+    if let Some(pair) = unit
+        .functions
+        .windows(2)
+        .find(|pair| pair[0].machine >= pair[1].machine)
+    {
+        return Err(OptimizationUnitValidationError::UnorderedMachine(
+            pair[1].machine,
+        ));
     }
+    let machines = unit
+        .functions
+        .iter()
+        .map(|function| (function.machine, function))
+        .collect::<BTreeMap<_, _>>();
     if unit
         .pruned_machines
         .windows(2)
@@ -430,7 +437,6 @@ fn validate_structural_field_range_authority(
             .chain(
                 node.operation
                     .cleanup_rosters()
-                    .into_iter()
                     .flat_map(|(edge, actions)| {
                         actions.iter().map(move |action| (edge, action.path()))
                     }),
@@ -876,7 +882,7 @@ fn validate_structural_field_range_authority(
                 if requires {
                     let value = event
                         .replacement()
-                        .or_else(|| match event {
+                        .or(match event {
                             abstract_operations::AbstractAtomicEvent::ReadModifyWrite {
                                 operand,
                                 ..

@@ -36,6 +36,7 @@ mod input_sources;
 mod primitive_results;
 pub(super) use input_sources::{compose_source, instantiate_source};
 pub(super) use primitive_results::extent_view_types;
+mod selected_sources;
 mod state_equations;
 
 pub(super) fn call_result_origins(
@@ -60,14 +61,19 @@ pub(super) fn call_result_origins(
             inputs,
         );
     };
-    let alternatives =
-        if primitive_results::result_origins(program, machine, state, expected, include_shared)
-            .is_some()
-        {
-            vec![state.symbol]
-        } else {
-            super::call_targets::checked_body_alternatives(program, machine, state)?
-        };
+    let alternatives = if primitive_results::result_origins(
+        program,
+        machine,
+        state,
+        state.return_type,
+        include_shared,
+    )
+    .is_some()
+    {
+        vec![state.symbol]
+    } else {
+        super::call_targets::checked_body_alternatives(program, machine, state)?
+    };
     // Instantiate every alternative against the same completed actual values
     // before joining. Member formals belong to distinct namespaces, so their
     // raw coordinates cannot be compared or selected by the realization host.
@@ -127,29 +133,47 @@ fn call_body_result_origins(
     let applied_result = crate::machine_calls::calls::call_result_type(program, expression)?;
     let parameters = program.state_parameters(state);
     let arguments = expression_table(program).expression_handles(call.arguments);
+    crate::machine_calls::calls::type_arguments::call_type_arguments(
+        program,
+        caller_machine,
+        None,
+        machine,
+        state,
+        &call.machine_arguments,
+        arguments,
+    )?;
     // Operand exposure and writes belong to the chronological call transfer.
     // Reference-shaped operands include ordinary borrowed collection windows;
     // their type alone cannot decide whether a descriptor binding was exposed.
     // Instantiate the returned leaves against that same captured caller prefix.
-    let primitive_origin =
-        primitive_results::result_origins(program, machine, state, expected, include_shared);
+    let primitive_origin = primitive_results::result_origins(
+        program,
+        machine,
+        state,
+        state.return_type,
+        include_shared,
+    );
     if inference.active_states.contains(&state.symbol)
         || (primitive_origin.is_none()
             && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
                 || !machine.body_is_present))
-        || !program.machine_type_parameters(machine).is_empty()
-        || !call.machine_arguments.is_empty()
         || call.receiver.is_valid() != machine.attached_data.is_some()
-        || arguments.len() != parameters.iter().count()
+        || arguments.len() != parameters.len()
         || !super::isolation::aggregate_storage_types_match(program, applied_result, expected)
     {
         return None;
     }
+    // Generic declarations can establish input-relative origins before their
+    // layout is closed. Prove the call's static correspondence above, then
+    // analyze its declared storage structure and substitute runtime actuals.
+    // An opaque type or an unresolved body still leaves the origin unknown;
+    // supplying type arguments alone never supplies a reference relation.
     let mut relative = if let Some(origin) = primitive_origin {
         origin
     } else {
+        let values = inference.argument_values(program, arguments);
         let indices = inference.argument_indices(program, arguments);
-        inference.with_invocation(program, state, &[], &indices, |inference| {
+        inference.with_invocation(program, state, &values, &indices, |inference| {
             state_result_origins(
                 program,
                 machine,
@@ -197,8 +221,16 @@ pub(super) fn state_result_origins<'program>(
     if inference.active_states.contains(&state.symbol) {
         return None;
     }
+    let parameter_count = program.state_parameters(state).len();
+    let values = inference
+        .entry_boolean_values(state)
+        .filter(|values| values.len() == parameter_count)
+        .map_or_else(
+            || vec![super::inference::BoolTruth::Unknown; parameter_count],
+            |values| values.to_vec(),
+        );
     inference.active_states.push(state.symbol);
-    let result = state_equations::solve(
+    let mut result = state_equations::solve(
         program,
         state,
         expected_result,
@@ -207,6 +239,11 @@ pub(super) fn state_result_origins<'program>(
         include_shared,
     );
     inference.active_states.pop();
+    // Solve all normal-result equations before captured inputs select physical
+    // sources. Provisional unions and state-only memo entries stay unspecialized.
+    if let Some(origins) = &mut result {
+        selected_sources::retain_reachable_sources(program, state, &values, origins);
+    }
     result
 }
 
@@ -854,7 +891,7 @@ fn merge_named_edge<'program>(
     };
     let arguments = program.statement_table.expression_handles(edge_arguments);
     let parameters = program.state_parameters(target_state);
-    if arguments.len() != parameters.iter().count() {
+    if arguments.len() != parameters.len() {
         return None;
     }
     // A named state may omit its own `-> T` annotation; one that declares it

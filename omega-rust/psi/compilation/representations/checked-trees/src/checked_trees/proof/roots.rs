@@ -256,6 +256,31 @@ impl ProofFacts {
         Some(self.contract_calls.get(handle))
     }
 
+    /// A target binding needs one unambiguous source call. Use the existing
+    /// keyed rows while refusing a missing or duplicated coordinate.
+    pub fn unique_contract_call_at(
+        &self,
+        key: &(SymbolHandle, SymbolHandle, usize, usize),
+    ) -> Option<&ContractCallFact> {
+        let handle = self.call_index.with_rows(
+            &self.contract_calls,
+            |call| {
+                (
+                    call.caller_machine_symbol,
+                    call.caller_state_symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                )
+            },
+            key,
+            |rows| match rows {
+                [single] => Some(*single),
+                _ => None,
+            },
+        )?;
+        Some(self.contract_calls.get(handle))
+    }
+
     /// The `contract_exits` rows recorded at one exit coordinate
     /// `(machine_symbol, state_symbol, transition_target)`, in arena order.
     pub fn contract_exits_at(

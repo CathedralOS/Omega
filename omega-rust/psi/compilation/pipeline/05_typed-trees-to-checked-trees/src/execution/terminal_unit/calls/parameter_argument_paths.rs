@@ -7,6 +7,7 @@
 
 use super::argument_paths::borrowed_argument_endpoint;
 use super::argument_presentation::classify;
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::calls::argument_paths::{
     fixed_byte_array_range_path, open_byte_range_path, projected_argument_path,
     projected_borrowed_path, projected_evaluated_path,
@@ -362,7 +363,11 @@ impl ParameterArgument<'_> {
     }
 
     fn exact_projection_path(self) -> Option<ArgumentPath> {
-        let (selected, path) = projected_evaluated_path(
+        let ProjectedArgumentPath {
+            storage_type: selected,
+            path,
+            ..
+        } = projected_evaluated_path(
             self.program,
             self.machine,
             self.state,
@@ -380,7 +385,11 @@ impl ParameterArgument<'_> {
     /// formal's borrowed slice view.
     fn slice_view_projection_path(self) -> Option<ArgumentPath> {
         let (program, target) = (self.program, self.target);
-        let (projected, path) = projected_borrowed_path(
+        let ProjectedArgumentPath {
+            storage_type: projected,
+            path,
+            ..
+        } = projected_borrowed_path(
             program,
             self.machine,
             self.state,
@@ -400,7 +409,11 @@ impl ParameterArgument<'_> {
         byte_view: bool,
     ) -> Option<ArgumentPath> {
         let (program, target) = (self.program, self.target);
-        let (projected, path) = projected_argument_path(
+        let ProjectedArgumentPath {
+            storage_type: projected,
+            path,
+            ..
+        } = projected_argument_path(
             program,
             self.state,
             self.statement_index,
@@ -441,7 +454,11 @@ impl ParameterArgument<'_> {
         {
             return Some(path);
         }
-        let (projected, path) = projected_evaluated_path(
+        let ProjectedArgumentPath {
+            storage_type: projected,
+            path,
+            ..
+        } = projected_evaluated_path(
             program,
             self.machine,
             state,

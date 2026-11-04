@@ -9,5 +9,5 @@ version.workspace = true
 compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 optimization-core = { path = "../../foundation/optimization-core" }
-psi-compiler = { path = "../../../psi/compilation/driver" }
+psi-compiler = { path = "../../../psi/compilation/psi-compiler" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }

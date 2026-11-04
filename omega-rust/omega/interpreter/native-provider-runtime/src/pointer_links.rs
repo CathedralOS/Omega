@@ -46,6 +46,38 @@ impl NativeProviderProcess {
             _ => Err(invalid("native pointer comparison reply is malformed").into()),
         }
     }
+
+    /// Compare an actual returned word with an already admitted home/range in
+    /// the worker. The word is only a selector: it is never dereferenced and
+    /// cannot create a home, access permission or storage lifetime.
+    pub fn returned_pointer_matches(
+        &mut self,
+        value: &[u8],
+        target: NativePointerTarget,
+    ) -> Result<bool, NativeProviderError> {
+        if value.len() != 8 || self.faulted || target.home.era != self.era {
+            return Err(invalid("returned pointer has no current native incarnation").into());
+        }
+        self.homes
+            .get(&target.home.ordinal)
+            .ok_or_else(|| invalid("returned pointer target has no home"))?
+            .pointer(target.offset, target.byte_size, target.alignment)?;
+        let mut packet = Packet::new(7);
+        packet.bytes(value)?;
+        for number in [
+            target.home.ordinal,
+            target.offset as u64,
+            target.byte_size as u64,
+            target.alignment as u64,
+        ] {
+            packet.number(number);
+        }
+        match self.exchange(packet)?.as_slice() {
+            [0] => Ok(false),
+            [1] => Ok(true),
+            _ => Err(invalid("returned pointer comparison reply is malformed").into()),
+        }
+    }
     fn pointer_packet(
         &self,
         tag: u8,
@@ -81,6 +113,24 @@ impl NativeProviderProcess {
 }
 
 impl Worker {
+    pub(super) fn returned_pointer_matches(&self, mut cursor: Cursor<'_>) -> io::Result<Vec<u8>> {
+        let actual = cursor.bytes()?;
+        if actual.len() != 8 {
+            return Err(invalid("returned pointer word has invalid width"));
+        }
+        let home = cursor.number()?;
+        let offset = cursor.usize()?;
+        let extent = cursor.usize()?;
+        let alignment = cursor.usize()?;
+        cursor.finish()?;
+        let target = self
+            .homes
+            .get(&home)
+            .ok_or_else(|| invalid("returned pointer target has no mapped home"))?
+            .pointer(offset, extent, alignment)?;
+        Ok(vec![u8::from(actual == (target as u64).to_le_bytes())])
+    }
+
     pub(super) fn pointer_link(
         &mut self,
         mut cursor: Cursor<'_>,

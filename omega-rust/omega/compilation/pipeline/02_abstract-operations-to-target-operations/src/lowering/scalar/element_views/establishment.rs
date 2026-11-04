@@ -52,18 +52,10 @@ pub(super) fn source(
     // admission retains membership and loan obligations separately.
     let (root_structural_type, backing) =
         if let Some(semantic) = function.structural_parameter(source.place) {
-            if !matches!(
-                semantic.access,
-                StructuralAccess::SharedBorrow | terminal_psi::mutating_access_pair_pattern!()
-            ) || (source.access == StructuralAccess::MutableBorrow
-                && !matches!(
-                    semantic.access,
-                    terminal_psi::mutating_access_pair_pattern!()
-                ))
-                || semantic.multiplicity != StructuralMultiplicity::Unrestricted
-            {
-                return Err(invalid());
-            }
+            // A parameter can own a record containing the lent collection.
+            // Its multiplicity describes that record, not access to the
+            // selected backing. Check the complete projection below, as for
+            // local storage and completed values.
             let parameter = parameters
                 .iter()
                 .find(|parameter| parameter.place == source.place)
@@ -118,8 +110,6 @@ pub(super) fn source(
     {
         return Err(invalid());
     }
-    let mut shape_cache = BTreeMap::new();
-    let mut active = BTreeSet::new();
     let regions = crate::lowering::structural_layout::reference_projection_regions(
         root_structural_type,
         field_path,
@@ -128,13 +118,7 @@ pub(super) fn source(
     .filter(|regions| regions.readable)
     .ok_or_else(invalid)?;
     let (projected_storage, projected_shape, source_byte_offset, runtime_elements) =
-        runtime_storage_projection(
-            regions.root,
-            regions.path,
-            structural_types,
-            &mut shape_cache,
-            &mut active,
-        )?;
+        runtime_storage_projection(regions.root, regions.path, structural_types)?;
     let indices = crate::lowering::control_flow::scalar_sources::runtime_indices(
         regions.selector_runs(runtime_elements),
         function,
@@ -168,12 +152,8 @@ pub(super) fn source(
             (*original, &relation.source_layout),
             (element, &relation.target_layout),
         ] {
-            let shape = crate::lowering::structural_layout::structural_shape(
-                identity,
-                structural_types,
-                &mut shape_cache,
-                &mut active,
-            )?;
+            let shape =
+                crate::lowering::structural_layout::structural_shape(identity, structural_types)?;
             if u64::from(shape.byte_size) != layout.size
                 || u64::from(shape.alignment) != layout.alignment
                 || layout.leaves.iter().any(|leaf| {
@@ -214,12 +194,8 @@ pub(super) fn source(
             {
                 return Err(invalid());
             }
-            let source_shape = crate::lowering::structural_layout::structural_shape(
-                original,
-                structural_types,
-                &mut shape_cache,
-                &mut active,
-            )?;
+            let source_shape =
+                crate::lowering::structural_layout::structural_shape(original, structural_types)?;
             if u64::from(source_shape.byte_size) != source_layout.size
                 || u64::from(source_shape.alignment) != source_layout.alignment
                 || source_layout.leaves.iter().any(|leaf| {
@@ -255,12 +231,8 @@ pub(super) fn source(
             )
         }
     };
-    let element_shape = crate::lowering::structural_layout::structural_shape(
-        element,
-        structural_types,
-        &mut shape_cache,
-        &mut active,
-    )?;
+    let element_shape =
+        crate::lowering::structural_layout::structural_shape(element, structural_types)?;
     let element_stride = crate::lowering::structural_layout::checked_align_up_u32(
         element_shape.byte_size,
         u32::from(element_shape.alignment),
@@ -313,17 +285,16 @@ pub(super) fn source(
     {
         return Err(invalid());
     }
-    if let Some(layout) = representation {
-        if layout.size != u64::from(element_stride)
+    if let Some(layout) = representation
+        && (layout.size != u64::from(element_stride)
             || layout.alignment != u64::from(element_shape.alignment)
             || layout.leaves.iter().any(|leaf| {
                 scalar_leaf_offset(structural_types, element, &leaf.path, leaf.scalar_type)
                     .map(u64::from)
                     != Some(leaf.offset)
-            })
-        {
-            return Err(invalid());
-        }
+            }))
+    {
+        return Err(invalid());
     }
     let (window_offset, extent) = match (byte_window, extent_kind) {
         (Some((start, end)), terminal_semantics::CollectionExtent::Fixed(length))

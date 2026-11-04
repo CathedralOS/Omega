@@ -257,7 +257,7 @@ fn prove(
     let target =
         typed_trees::state::state_by_symbol(program.machine_states(callee), callee_state.symbol)?;
     let parameters = program.state_parameters(target);
-    if parameters.iter().count() != arguments.len()
+    if parameters.len() != arguments.len()
         || !typed_trees::state::state_by_symbol(program.machine_states(caller), caller_state.symbol)
             .is_some()
     {

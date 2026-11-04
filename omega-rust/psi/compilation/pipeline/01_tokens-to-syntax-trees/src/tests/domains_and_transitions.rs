@@ -262,11 +262,11 @@ fn retains_complete_default_domain_predicate() {
 }
 
 #[test]
-fn rejects_case_local_where_clause() {
+fn rejects_case_local_requires_clause() {
     let error = super::parse_source_error(
-        "data Interval { case Range(lo: u64, hi: u64) where lo <= hi; }",
+        "data Interval { case Range(lo: u64, hi: u64) requires lo <= hi; }",
         "tokenize retired case predicate",
-        "case-local where must reject",
+        "case-local requires must reject",
     );
     assert!(
         error
@@ -645,12 +645,22 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
     let StatementNode::Transition(transition) = parsed.statements.statement(statement) else {
         panic!("second arm should be a transition")
     };
-    let syntax_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
-        panic!("data-pattern arm should lower to a guard expression");
+    // The destructure stays a structural pattern on the captured subject;
+    // declaration selection classifies its head. The `if` guard rides on that
+    // pattern, with each bound field read as a member of the saved subject.
+    assert!(matches!(
+        transition.guard,
+        syntax_trees::statement::TransitionGuardNode::Always
+    ));
+    let [pattern] = parsed.statements.transition_patterns(transition.patterns) else {
+        panic!("data-pattern arm retains one subject pattern");
     };
-    let ExpressionNode::Binary(comparison) = parsed.expressions.expression(guard) else {
+    assert!(pattern.is_structural);
+    let ExpressionNode::Binary(comparison) = parsed.expressions.expression(pattern.pattern.guard)
+    else {
         panic!("data-pattern guard should be a comparison");
     };
+    assert_eq!(comparison.operator, BinaryOperator::Greater);
     assert!(matches!(
         parsed.expressions.expression(comparison.left),
         ExpressionNode::Member(_)
@@ -795,24 +805,45 @@ fn outcome_proof_selectors_do_not_change_the_runtime_statement_plan() {
 }
 
 #[test]
-fn rejects_duplicate_and_noncase_outcome_proof_selectors() {
-    for (source, expected) in [
-        (
-            "machine inspect(result: Outcome) { transition result { Outcome::Success { ; selected: local, selected: other } -> {} } }",
-            "outcome proof selector `selected` is bound more than once",
-        ),
-        (
-            "machine inspect(result: Record) { transition result { Record { ; selected: local } -> {} } }",
-            "outcome proof selectors require an exact",
-        ),
-    ] {
-        let error = super::parse_source_error(
-            source,
-            "tokenize rejected selector arm",
-            "invalid selector arm must reject",
-        );
-        assert!(error.message.contains(expected), "got: {}", error.message);
-    }
+fn rejects_duplicate_and_defers_noncase_outcome_proof_selectors() {
+    let error = super::parse_source_error(
+        "machine inspect(result: Outcome) { transition result { Outcome::Success { ; selected: local, selected: other } -> {} } }",
+        "tokenize rejected selector arm",
+        "duplicate selector arm must reject",
+    );
+    assert!(
+        error
+            .message
+            .contains("outcome proof selector `selected` is bound more than once"),
+        "got: {}",
+        error.message
+    );
+
+    // Record and case heads share one pattern shape until declaration
+    // selection; proof checking rejects selectors on a non-case arm. Parsing
+    // must hand that checker the authored selector unchanged.
+    let parsed = super::parse_source_verbose(
+        "machine inspect(result: Record) { transition result { Record { ; selected: local } -> {} } }",
+        "tokenize non-case selector arm",
+        "head classification belongs to declaration selection",
+    );
+    let machine = super::root_machine(&parsed, "machine root item");
+    let state = super::entry_state(&parsed, machine);
+    let transition = parsed
+        .items
+        .statements(state.statements)
+        .iter()
+        .find_map(|handle| match parsed.statements.statement(*handle) {
+            StatementNode::Transition(transition) => Some(transition),
+            _ => None,
+        })
+        .expect("selector arm");
+    let selectors = parsed
+        .statements
+        .outcome_proof_selectors(transition.proof_selectors);
+    assert_eq!(selectors.len(), 1);
+    assert_eq!(selectors[0].output_field.as_str(&parsed), "selected");
+    assert_eq!(selectors[0].binding.as_str(&parsed), "local");
 }
 
 #[test]
@@ -840,15 +871,40 @@ fn parses_record_field_value_pattern_as_subject_member_equality() {
         })
         .next()
         .expect("first transition arm");
-    let syntax_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
-        panic!("field-value arm must have an equality guard");
-    };
-    let ExpressionNode::Binary(equality) = parsed.expressions.expression(guard) else {
-        panic!("field-value pattern should lower to binary equality");
-    };
-    assert_eq!(equality.operator, BinaryOperator::Equal);
+    // A field-value entry stays an equality on that member of the subject
+    // inside the structural pattern; it is neither a binding nor a separate
+    // arm guard. Bare fields still bind member reads of the saved subject.
     assert!(matches!(
-        parsed.expressions.expression(equality.left),
+        transition.guard,
+        syntax_trees::statement::TransitionGuardNode::Always
+    ));
+    let [pattern] = parsed.statements.transition_patterns(transition.patterns) else {
+        panic!("field-value arm retains one subject pattern");
+    };
+    assert!(pattern.is_structural);
+    let [ok, version] = parsed.expressions.match_fields(pattern.pattern.fields) else {
+        panic!("both authored fields are retained");
+    };
+    assert_eq!(ok.member.as_str(&parsed), "ok");
+    let syntax_trees::expression::MatchFieldAction::Equal(value) = &ok.action else {
+        panic!("field-value pattern should compare the subject member");
+    };
+    assert!(matches!(
+        parsed.expressions.expression(*value),
+        ExpressionNode::Integer(_)
+    ));
+    assert_eq!(version.member.as_str(&parsed), "version");
+    assert!(matches!(
+        version.action,
+        syntax_trees::expression::MatchFieldAction::Bind(_)
+    ));
+    let syntax_trees::statement::TransitionTargetNode::Value(target) =
+        parsed.statements.transition_target(transition.target)
+    else {
+        panic!("value arm");
+    };
+    assert!(matches!(
+        parsed.expressions.expression(*target),
         ExpressionNode::Member(_)
     ));
 }

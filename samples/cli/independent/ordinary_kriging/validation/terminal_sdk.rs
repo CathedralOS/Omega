@@ -2,7 +2,7 @@
 //! Terminal streams for each frozen input. Application numerics stay in Omega.
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
-use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
+use orchestration::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use std::{fs, io::Cursor, path::PathBuf};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
 

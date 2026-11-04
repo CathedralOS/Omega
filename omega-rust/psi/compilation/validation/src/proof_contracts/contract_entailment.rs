@@ -88,6 +88,7 @@ mod construction_predicates;
 mod zero_predicates;
 pub use zero_predicates::data_predicates_admit_zero;
 pub(crate) use zero_predicates::domain_predicates_admit_zero;
+pub(crate) mod exit_predicates;
 pub(crate) mod statement_predicates;
 
 pub(crate) use construction_predicates::construction_predicate_judgments;
@@ -128,8 +129,8 @@ mod type_consequences;
 pub(crate) use operand_fits::{
     CompletedIntegerFormation, OperandFitOutcome, anonymous_comparison_operand_fits_at_occurrence,
     anonymous_value_fit_at_occurrence, exact_binary_formation_at_occurrence,
-    exact_cast_fits_at_occurrence, float_integer_conversion_fits_at_occurrence,
-    integer_operands_exclude_at_occurrence,
+    exact_binary_formation_in_specification, exact_cast_fits_at_occurrence,
+    float_integer_conversion_fits_at_occurrence, integer_operands_exclude_at_occurrence,
 };
 pub(crate) use type_consequences::{predicate_case_type_contexts, predicate_type_contexts};
 mod structural_terms;
@@ -404,9 +405,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     let ensures_terms: Vec<Option<(StructuralTerm, StructuralTerm)>> = ensures
         .iter()
         .map(|fact| {
-            let Some(binary) = expression_table(program).binary_node(*fact) else {
-                return None;
-            };
+            let binary = expression_table(program).binary_node(*fact)?;
             let entry = program.machine_states(machine).first()?;
             let parameters = program.state_parameters(entry);
             if binary.operator != BinaryOperator::Equal
@@ -499,8 +498,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             } else {
                 let mut bound = judge.clone();
                 if !result_is_parameter {
-                    std::sync::Arc::make_mut(&mut bound.substitutions)
-                        .insert(0, (RESULT_BINDER.to_owned(), value.clone()));
+                    bound.bind_returned_value(value);
                 }
                 (bound.judge(program, fact), None)
             };
@@ -565,11 +563,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             }
             if paths.iter().all(|path| {
                 let mut bound = path.normal_judge.clone();
-                bound.intake_case_equation(
-                    StructuralTerm::Variable(RESULT_BINDER.to_owned()),
-                    path.value.clone(),
-                    0,
-                );
+                bound.bind_returned_value(&path.value);
                 matches!(bound.judge(program, fact), StructuralJudgment::Proven)
             }) {
                 return StructuralJudgment::Proven;
@@ -693,8 +687,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 }
             }
             if !result_is_parameter {
-                std::sync::Arc::make_mut(&mut bound.substitutions)
-                    .insert(0, (RESULT_BINDER.to_owned(), arm.value.clone()));
+                bound.bind_returned_value(&arm.value);
             }
             match bound.judge(program, fact) {
                 StructuralJudgment::Proven => {}

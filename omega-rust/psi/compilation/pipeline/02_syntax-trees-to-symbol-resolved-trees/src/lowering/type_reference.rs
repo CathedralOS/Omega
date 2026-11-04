@@ -70,7 +70,7 @@ fn lower_type_reference_contents(
 ) -> Result<TypeReference, Diagnostic> {
     lowerer
         .encountered_pending_type_arguments
-        .extend(syntax_type_references(&syntax_trees).pending_const_arguments(type_reference));
+        .extend(syntax_type_references(syntax_trees).pending_const_arguments(type_reference));
     // Provisional and probe drives lower references before generic synthesis;
     // a surviving generic application is only an obligation on the final pass.
     if !lowerer.structural_type_equations_pending {
@@ -82,7 +82,7 @@ fn lower_type_reference_contents(
     }
     let mut materialization_source = symbol_resolved_trees::expression::ExpressionHandle::invalid();
     if let Some(normalization) =
-        syntax_type_references(&syntax_trees).const_argument_normalization(type_reference)
+        syntax_type_references(syntax_trees).const_argument_normalization(type_reference)
     {
         crate::constant::validate_normalized_const_argument(
             syntax_trees,
@@ -113,7 +113,7 @@ fn lower_type_reference_contents(
             materialization_source = expression;
         }
         for origin in
-            syntax_type_references(&syntax_trees).const_argument_origins(normalization.selections)
+            syntax_type_references(syntax_trees).const_argument_origins(normalization.selections)
         {
             // Derived instance arguments still owe the same declaration,
             // value, and receiving-slot custody. Only authored exposure is
@@ -142,7 +142,7 @@ fn lower_type_reference_contents(
                 },
             );
         }
-        for reference in syntax_type_references(&syntax_trees)
+        for reference in syntax_type_references(syntax_trees)
             .const_argument_builtin_operators(normalization.builtin_operators)
         {
             if lowerer
@@ -231,7 +231,7 @@ fn lower_type_reference_contents(
     } else {
         lower_type_reference_node(lowerer, syntax_trees, type_reference)?
     };
-    let origin = syntax_type_references(&syntax_trees).generic_application_origin(type_reference);
+    let origin = syntax_type_references(syntax_trees).generic_application_origin(type_reference);
     if origin.is_valid() {
         let application = lower_generic_application_origin(lowerer, syntax_trees, origin)?;
         let instance = lowerer
@@ -368,7 +368,7 @@ fn lower_type_reference_node(
                     supplied_operand_owner: Default::default(),
                     base_symbol: SymbolHandle::invalid(),
                     base_name: lower_name(syntax_trees, base_name),
-                    lifetime_arguments: lower_names(syntax_trees, &lifetime_arguments),
+                    lifetime_arguments: lower_names(syntax_trees, lifetime_arguments),
                     arguments: lowered_arguments,
                 },
             }))
@@ -395,7 +395,7 @@ fn lower_type_reference_node(
         }),
         TypeReferenceNode::Unit => Ok(TypeReference::Unit),
     }?;
-    let input = syntax_type_references(&syntax_trees)
+    let input = syntax_type_references(syntax_trees)
         .supplied_operand_owner(type_reference)
         .map_err(Diagnostic::error)?;
     let owner = crate::resolution::operand_owners::retain(lowerer, input);
@@ -413,10 +413,10 @@ pub(crate) fn lower_fixed_array_length(
             // Lower the owned use even after closure: it validates retained
             // normalization and carries declaration/operator custody forward.
             let child = lower_type_reference_child(lowerer, syntax_trees, *value)?;
-            if syntax_type_references(&syntax_trees)
+            if syntax_type_references(syntax_trees)
                 .const_argument_normalization(*value)
                 .is_some_and(|normalization| !normalization.materialized_expression.is_valid())
-                && let Some(name) = syntax_type_references(&syntax_trees)
+                && let Some(name) = syntax_type_references(syntax_trees)
                     .type_reference(*value)
                     .as_named()
             {
@@ -466,7 +466,7 @@ pub(crate) fn lower_child_type_references(
     // argument first, then place the finished run as one contiguous block.
     let mut lowered = Vec::with_capacity(arguments.len());
 
-    for argument in syntax_type_references(&syntax_trees).type_reference_handles(arguments) {
+    for argument in syntax_type_references(syntax_trees).type_reference_handles(arguments) {
         lowered.push(lower_type_reference_handle(
             lowerer,
             syntax_trees,
@@ -567,13 +567,13 @@ pub(super) fn retain_const_argument_slots(
     lowered_arguments: HandleSpan<TypeReference>,
     selection_start: usize,
 ) {
-    for (ordinal, argument) in syntax_type_references(&syntax_trees)
+    for (ordinal, argument) in syntax_type_references(syntax_trees)
         .type_reference_handles(arguments)
         .iter()
         .enumerate()
     {
         let Some(normalization) =
-            syntax_type_references(&syntax_trees).const_argument_normalization(*argument)
+            syntax_type_references(syntax_trees).const_argument_normalization(*argument)
         else {
             continue;
         };
@@ -581,7 +581,7 @@ pub(super) fn retain_const_argument_slots(
         // applications carry their own spans; equal value encodings
         // never establish which parent parameter received a value.
         for selected in
-            syntax_type_references(&syntax_trees).const_argument_origins(normalization.selections)
+            syntax_type_references(syntax_trees).const_argument_origins(normalization.selections)
         {
             for (selection, pending) in lowerer
                 .pending_const_argument_selections

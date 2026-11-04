@@ -1,6 +1,6 @@
 // PASS canary: an owned receiver parameter on a linear type is ordinary
 // parameter syntax — it discharges only through an authorized disposition.
-// `Receipt` declares no `Receipt::drop` cleanup plan, so neither normal
+// `Receipt` selects no `dropped by` cleanup, so neither normal
 // completion nor `drop` may retire the claim; the declared consuming
 // contract is the receiver's terminal disposition, exactly as it is for an
 // ordinary `receipt: Receipt` parameter.

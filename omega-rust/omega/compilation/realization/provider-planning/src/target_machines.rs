@@ -13,11 +13,14 @@ use symbols::SymbolHandle;
 use target::TargetProfile;
 
 mod authored_providers;
-pub use authored_providers::{AuthoredTargetProviders, TargetProviderInventoryRequest};
-mod provider_publication;
-pub use provider_publication::{
-    PreparedTargetProviderPublication, TargetProviderPreparationRequest, provider_selection_roots,
+pub(crate) use authored_providers::AuthoredTargetProviders;
+mod prepared_providers;
+pub use prepared_providers::{
+    PreparedProductProviders, ProductProviderPreparation, ProviderPublicationCatalog,
 };
+mod provider_publication;
+pub(crate) use provider_publication::TargetProviderPreparationRequest;
+pub use provider_publication::{PreparedTargetProviderPublication, provider_selection_roots};
 
 /// Project retained declarations onto one realization using their exact handles.
 pub fn settle_provider_defaults(

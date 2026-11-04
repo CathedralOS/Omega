@@ -62,18 +62,18 @@ fn native_package_evidence_digest(
     let mut digest = DomainDigestEncoder::new(b"omega.native-package-evidence.sha256.v1\0");
     let root = package_root.as_os_str().as_encoded_bytes();
     digest.u64(root.len() as u64);
-    digest.raw(&root);
+    digest.raw(root);
     digest.u64(application_name.len() as u64);
     digest.raw(application_name.as_bytes());
     let identifier = application_identifier.as_str().as_bytes();
     digest.u64(identifier.len() as u64);
-    digest.raw(&identifier);
+    digest.raw(identifier);
     digest.raw(executable_container_digest.as_bytes());
     digest.u64(components.len() as u64);
     for component in components {
         let relative = component.relative_path.as_os_str().as_encoded_bytes();
         digest.u64(relative.len() as u64);
-        digest.raw(&relative);
+        digest.raw(relative);
         digest.u64(component.byte_count as u64);
         digest.raw(component.digest.as_bytes());
     }
@@ -196,6 +196,59 @@ impl NativePackagePublicationReceipt {
         matching.next().is_none().then_some(component)
     }
 
+    /// Replay this receipt's own commitments without trusting the fields that
+    /// produced them: the evidence digest recomputed from the recorded root,
+    /// name, identifier, executable container digest and ordered members; a
+    /// root named `<name>.app`; exactly the contract members in their fixed
+    /// order (`Contents/Info.plist`, then `Contents/MacOS/<name>`); and the
+    /// executable member's byte count equal to the retained executable byte
+    /// count. A changed identifier, member order, or root fails the replay.
+    pub fn has_consistent_package_evidence(&self) -> bool {
+        let contract_members = [
+            Path::new("Contents").join("Info.plist"),
+            Path::new("Contents")
+                .join("MacOS")
+                .join(&self.application_name),
+        ];
+        let members_match = self.components.len() == contract_members.len()
+            && self
+                .components
+                .iter()
+                .zip(&contract_members)
+                .all(|(component, expected)| component.relative_path == *expected);
+        let root_matches = self.package_root.file_name()
+            == Some(std::ffi::OsStr::new(&format!(
+                "{}.app",
+                self.application_name
+            )));
+        let executable_matches = self
+            .executable_component()
+            .is_some_and(|component| component.byte_count == self.executable_byte_count);
+        members_match
+            && root_matches
+            && executable_matches
+            && self.package_evidence_digest
+                == native_package_evidence_digest(
+                    &self.package_root,
+                    &self.application_name,
+                    &self.application_identifier,
+                    self.executable_container_digest,
+                    &self.components,
+                )
+    }
+
+    /// Whether this package receipt and the flat executable receipt describe
+    /// the same installed executable: this receipt replays on its own, and
+    /// its inner executable path, container digest and byte count equal the
+    /// executable receipt's. Two receipts that each replay alone but name
+    /// different executables are not one publication.
+    pub fn binds_executable(&self, executable: &crate::ExecutablePublicationReceipt) -> bool {
+        self.has_consistent_package_evidence()
+            && self.inner_executable_path().as_deref() == Some(executable.output_path())
+            && self.executable_container_digest == executable.container_digest()
+            && self.executable_byte_count == executable.container_byte_count()
+    }
+
     /// The inner executable path implied by this receipt's own root and
     /// component list; never trusted independently of the executable
     /// receipt's `output_path`.
@@ -242,11 +295,22 @@ fn plist_identifier(plist: &[u8]) -> Option<&str> {
     value.split_once("</string>").map(|(value, _)| value)
 }
 
-/// Enumerate the installed regular files under `root`, package-relative and
-/// sorted, so shape comparison is order-free in the filesystem but fixed in
-/// the receipt.
-fn installed_package_files(root: &Path) -> Result<Vec<PathBuf>, String> {
-    let mut files = Vec::new();
+/// What one package entry is on disk. Directories are part of the recorded
+/// shape: an extra empty directory changes the tree as much as an extra file.
+/// Anything that is neither a directory nor a regular file (a symlink, a
+/// socket) is recorded as `Other` and therefore never matches the contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum PackageEntryKind {
+    Directory,
+    RegularFile,
+    Other,
+}
+
+/// Enumerate every entry under `root`, package-relative and sorted, so shape
+/// comparison is order-free in the filesystem but fixed in the receipt.
+/// Symlinks are classified without being followed.
+fn package_tree_entries(root: &Path) -> Result<Vec<(PathBuf, PackageEntryKind)>, String> {
+    let mut entries_found = Vec::new();
     let mut pending = vec![root.to_path_buf()];
     while let Some(directory) = pending.pop() {
         let entries = std::fs::read_dir(&directory)
@@ -257,21 +321,42 @@ fn installed_package_files(root: &Path) -> Result<Vec<PathBuf>, String> {
             let file_type = entry.file_type().map_err(|error| {
                 format!("failed to inspect {}: {error}", entry.path().display())
             })?;
-            if file_type.is_dir() {
+            let kind = if file_type.is_dir() {
                 pending.push(entry.path());
+                PackageEntryKind::Directory
+            } else if file_type.is_file() {
+                PackageEntryKind::RegularFile
             } else {
-                files.push(
-                    entry
-                        .path()
-                        .strip_prefix(root)
-                        .expect("walked entry is inside the package root")
-                        .to_path_buf(),
-                );
-            }
+                PackageEntryKind::Other
+            };
+            let relative = entry
+                .path()
+                .strip_prefix(root)
+                .expect("walked entry is inside the package root")
+                .to_path_buf();
+            entries_found.push((relative, kind));
         }
     }
-    files.sort();
-    Ok(files)
+    entries_found.sort();
+    Ok(entries_found)
+}
+
+/// The exact contract tree for `members`: each member as a regular file and
+/// every directory between the package root and a member, nothing else.
+fn expected_package_tree(members: &[(PathBuf, Vec<u8>)]) -> Vec<(PathBuf, PackageEntryKind)> {
+    let mut entries = Vec::new();
+    for (relative, _) in members {
+        entries.push((relative.clone(), PackageEntryKind::RegularFile));
+        for ancestor in relative.ancestors().skip(1) {
+            if ancestor.as_os_str().is_empty() {
+                continue;
+            }
+            entries.push((ancestor.to_path_buf(), PackageEntryKind::Directory));
+        }
+    }
+    entries.sort();
+    entries.dedup();
+    entries
 }
 
 /// Stage, validate, install, and replay one complete `.app` package.
@@ -285,6 +370,39 @@ pub fn publish_macos_application_package(
     application_identifier: &target::ApplicationIdentifier,
     executable_bytes: &[u8],
     executable_container_digest: ExecutableContainerDigest,
+) -> Result<NativePackagePublicationReceipt, String> {
+    publish_package_with_observers(
+        build_dir,
+        application_name,
+        application_identifier,
+        executable_bytes,
+        executable_container_digest,
+        PublicationObservers::NONE,
+    )
+}
+
+/// Points between the publication steps where tests disturb the tree on
+/// disk, so the staged and installed shape comparisons are each observed
+/// rejecting a tree they did not write. Production passes no observers.
+struct PublicationObservers<'a> {
+    after_staging: &'a dyn Fn(&Path),
+    after_installation: &'a dyn Fn(&Path),
+}
+
+impl PublicationObservers<'_> {
+    const NONE: PublicationObservers<'static> = PublicationObservers {
+        after_staging: &|_| {},
+        after_installation: &|_| {},
+    };
+}
+
+fn publish_package_with_observers(
+    build_dir: &Path,
+    application_name: &str,
+    application_identifier: &target::ApplicationIdentifier,
+    executable_bytes: &[u8],
+    executable_container_digest: ExecutableContainerDigest,
+    observers: PublicationObservers<'_>,
 ) -> Result<NativePackagePublicationReceipt, String> {
     if publication::executable_container_digest(executable_bytes) != executable_container_digest {
         return Err(
@@ -319,11 +437,7 @@ pub fn publish_macos_application_package(
         (Path::new("Contents").join("Info.plist"), plist),
         (executable_leaf.clone(), executable_bytes.to_vec()),
     ];
-    let mut expected_shape: Vec<PathBuf> = members
-        .iter()
-        .map(|(relative, _)| relative.clone())
-        .collect();
-    expected_shape.sort();
+    let expected_shape = expected_package_tree(&members);
     let app_root = build_dir.join(format!("{application_name}.app"));
     let staged = build_dir.join(format!(".{application_name}.app.{}.tmp", id()));
     let _ = std::fs::remove_dir_all(&staged);
@@ -343,7 +457,8 @@ pub fn publish_macos_application_package(
                 return Err("staged package member failed exact replay".to_owned());
             }
         }
-        if installed_package_files(&staged)? != expected_shape {
+        (observers.after_staging)(&staged);
+        if package_tree_entries(&staged)? != expected_shape {
             return Err("staged macOS package shape is not the exact contract tree".to_owned());
         }
         Ok(())
@@ -368,8 +483,9 @@ pub fn publish_macos_application_package(
     // three-way identity join — plist identifier, retained realization
     // identity, and the CodeDirectory identity inside the installed
     // executable. Any disagreement removes the package.
+    (observers.after_installation)(&app_root);
     let installed_result = (|| -> Result<(), String> {
-        if installed_package_files(&app_root)? != expected_shape {
+        if package_tree_entries(&app_root)? != expected_shape {
             return Err("installed macOS package shape is not the exact contract tree".to_owned());
         }
         for (relative, bytes) in &members {

@@ -106,9 +106,7 @@ impl StructuralJudge<'_> {
             typed_trees::expression::StaticMachineArgument,
         )],
     ) -> Option<CaseGuarantee> {
-        let Some(binary) = self.program.expression_table.binary_node(fact) else {
-            return None;
-        };
+        let binary = self.program.expression_table.binary_node(fact)?;
         if !crate::proof_contracts::bound_expression_meaning::has_exact_declaration_case_membership_meaning(
             self.program, scope, parameters, fact, binary,
         ) {
@@ -121,15 +119,13 @@ impl StructuralJudge<'_> {
             binary.left,
         );
         let (definition, variant) = applied_case_classifier(self.program, binary.right, reference)?;
-        let Some(subject) = structural_terms::structural_term(
+        let subject = structural_terms::structural_term(
             self.program,
             None,
             Some((scope, parameters)),
             binary.left,
             None,
-        ) else {
-            return None;
-        };
+        )?;
         Some(CaseGuarantee {
             subject: Self::substitute_call_term(&subject, map, machine_map),
             data: definition.symbol,
@@ -159,6 +155,27 @@ impl StructuralJudge<'_> {
         if binary.operator == BinaryOperator::And {
             self.instantiated_contract_case_guarantees(owner, binary.left, map, guarantees);
             self.instantiated_contract_case_guarantees(owner, binary.right, map, guarantees);
+            return;
+        }
+        if binary.operator == BinaryOperator::Or {
+            // A checked normal return establishes the complete disjunction,
+            // not either alternative alone. Eliminate only a sibling that the
+            // existing selected-declaration judgment independently refutes
+            // under these preserved, completed argument observations.
+            let scope = match owner {
+                SelectedCallContract::Concrete(machine, _) => machine.symbol,
+                _ => specification_calls::owner_symbol(owner),
+            };
+            let parameters = owner_parameters(self.program, owner);
+            for (alternative, sibling) in [(binary.left, binary.right), (binary.right, binary.left)]
+            {
+                if matches!(
+                    self.captured_operand_predicate_judgment(scope, parameters, sibling, map),
+                    StructuralJudgment::Refuted
+                ) {
+                    self.instantiated_contract_case_guarantees(owner, alternative, map, guarantees);
+                }
+            }
             return;
         }
         if !structural_terms::is_case_observation(self.program, fact) {

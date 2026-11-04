@@ -3,6 +3,11 @@
 //! Each page keeps its worker-produced `Vec` allocations. A handle's generation
 //! selects the page and its arena index selects the page-local slot. Semantic
 //! spans remain within one page and therefore continue to resolve as slices.
+//!
+//! Generations need not be dense: flow facts write one page per visited
+//! machine, named by roster position, so skipped machines leave gaps. A
+//! directory indexed by generation therefore names each page's position, and
+//! every lookup is one array index instead of a search over the page roster.
 
 mod page;
 use page::ArenaPage;
@@ -49,6 +54,10 @@ pub struct PagedArenaSet<T: Default> {
     first_generation: u32,
     first_page: ArenaPage<T>,
     additional_pages: Vec<(u32, ArenaPage<T>)>,
+    /// Entry `generation - first_generation - 1` holds the one-based position
+    /// of that generation's page in `additional_pages`; zero names no page.
+    /// It ends at the last page, so equal page rosters have equal directories.
+    page_positions: Vec<u32>,
     current_generation: u32,
     active_count: usize,
     dummy: T,
@@ -62,6 +71,7 @@ impl<T: Default + Clone> Clone for PagedArenaSet<T> {
             first_generation: self.first_generation,
             first_page: self.first_page.clone(),
             additional_pages: self.additional_pages.clone(),
+            page_positions: self.page_positions.clone(),
             current_generation: self.current_generation,
             active_count: self.active_count,
             dummy: self.dummy.clone(),
@@ -72,6 +82,7 @@ impl<T: Default + Clone> Clone for PagedArenaSet<T> {
         self.first_generation = source.first_generation;
         self.first_page.clone_from(&source.first_page);
         self.additional_pages.clone_from(&source.additional_pages);
+        self.page_positions.clone_from(&source.page_positions);
         self.current_generation = source.current_generation;
         self.active_count = source.active_count;
         self.dummy.clone_from(&source.dummy);
@@ -130,6 +141,7 @@ impl<T: Default> PagedArenaSet<T> {
             first_generation: generation,
             first_page: Arena::with_generation(generation).into(),
             additional_pages: Vec::new(),
+            page_positions: Vec::new(),
             current_generation: generation,
             active_count: 0,
             dummy: T::default(),
@@ -157,6 +169,7 @@ impl<T: Default> PagedArenaSet<T> {
     pub fn take_additional_pages(&mut self) -> Self {
         let mut taken = Self::with_generation(self.first_generation);
         taken.additional_pages = std::mem::take(&mut self.additional_pages);
+        taken.page_positions = std::mem::take(&mut self.page_positions);
         taken.active_count = taken
             .additional_pages
             .iter()
@@ -299,34 +312,13 @@ impl<T: Default> PagedArenaSet<T> {
     }
 
     pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
-        let generation = handle.generation();
-        if generation == self.first_generation {
+        if handle.generation() == self.first_generation {
             return self.first_page.get_mut(handle);
         }
-        if generation < self.first_generation {
-            return &mut self.dummy;
+        match self.page_position(handle.generation()) {
+            Some(position) => self.additional_pages[position].1.get_mut(handle),
+            None => &mut self.dummy,
         }
-        let dense_index = usize::try_from(generation - self.first_generation - 1).ok();
-        let index =
-            if self.additional_pages.last().map(|(page_gen, _)| *page_gen) == Some(generation) {
-                Some(self.additional_pages.len() - 1)
-            } else if let Some(idx) = dense_index
-                && self
-                    .additional_pages
-                    .get(idx)
-                    .map(|(page_gen, _)| *page_gen)
-                    == Some(generation)
-            {
-                Some(idx)
-            } else {
-                self.additional_pages
-                    .binary_search_by_key(&generation, |(page_gen, _)| *page_gen)
-                    .ok()
-            };
-        if let Some(idx) = index {
-            return self.additional_pages[idx].1.get_mut(handle);
-        }
-        &mut self.dummy
     }
 
     pub fn is_valid(&self, handle: Handle<T>) -> bool {
@@ -430,6 +422,7 @@ impl<T: Default> PagedArenaSet<T> {
     pub fn reset_retain_capacity(&mut self) {
         self.first_page.reset_retain_capacity();
         self.additional_pages.clear();
+        self.page_positions.clear();
         self.current_generation = self.first_generation;
         self.active_count = 0;
         self.dummy = T::default();
@@ -461,9 +454,7 @@ impl<T: Default> PagedArenaSet<T> {
             .wrapping_add(self.page_count() as u64);
         for page in self.pages() {
             if !current.is_some_and(|cur| std::ptr::eq(page, cur)) {
-                if page.append_epoch().is_none() {
-                    return None;
-                }
+                page.append_epoch()?;
                 epoch = epoch
                     .wrapping_mul(0x9E37_79B9_7F4A_7C15)
                     .wrapping_add(page.revision());
@@ -530,32 +521,11 @@ impl<T: Default> PagedArenaSet<T> {
         if generation == self.first_generation {
             return &mut self.first_page;
         }
-        if self.additional_pages.last().map(|(page_gen, _)| *page_gen) == Some(generation) {
-            let last_idx = self.additional_pages.len() - 1;
-            return &mut self.additional_pages[last_idx].1;
-        }
-        if self
-            .additional_pages
-            .last()
-            .is_none_or(|(last_gen, _)| *last_gen < generation)
-        {
-            self.additional_pages
-                .push((generation, Arena::with_generation(generation).into()));
-            let last_idx = self.additional_pages.len() - 1;
-            return &mut self.additional_pages[last_idx].1;
-        }
-        let idx = match self
-            .additional_pages
-            .binary_search_by_key(&generation, |(page_gen, _)| *page_gen)
-        {
-            Ok(idx) => idx,
-            Err(pos) => {
-                self.additional_pages
-                    .insert(pos, (generation, Arena::with_generation(generation).into()));
-                pos
-            }
+        let position = match self.page_position(generation) {
+            Some(position) => position,
+            None => self.insert_page(generation, Arena::with_generation(generation).into()),
         };
-        &mut self.additional_pages[idx].1
+        &mut self.additional_pages[position].1
     }
 
     fn page(&self, handle: Handle<T>) -> Option<&Arena<T>> {
@@ -566,58 +536,51 @@ impl<T: Default> PagedArenaSet<T> {
         self.page_for_generation_mut(handle.generation())
     }
 
+    #[inline]
     fn page_for_generation(&self, generation: u32) -> Option<&Arena<T>> {
         if generation == self.first_generation {
             return Some(&self.first_page);
         }
-        if generation < self.first_generation {
-            return None;
-        }
-        if let Some((last_gen, page)) = self.additional_pages.last()
-            && *last_gen == generation
-        {
-            return Some(page);
-        }
-        let dense_index = usize::try_from(generation - self.first_generation - 1).ok()?;
-        if let Some((page_gen, page)) = self.additional_pages.get(dense_index)
-            && *page_gen == generation
-        {
-            return Some(page);
-        }
-        let idx = self
-            .additional_pages
-            .binary_search_by_key(&generation, |(page_gen, _)| *page_gen)
-            .ok()?;
-        Some(&self.additional_pages[idx].1)
+        let position = self.page_position(generation)?;
+        Some(&self.additional_pages[position].1)
     }
 
     fn page_for_generation_mut(&mut self, generation: u32) -> Option<&mut Arena<T>> {
         if generation == self.first_generation {
             return Some(&mut self.first_page);
         }
-        if generation < self.first_generation {
-            return None;
-        }
-        let dense_index = usize::try_from(generation - self.first_generation - 1).ok()?;
-        let index =
-            if self.additional_pages.last().map(|(page_gen, _)| *page_gen) == Some(generation) {
-                self.additional_pages.len() - 1
-            } else if self
-                .additional_pages
-                .get(dense_index)
-                .map(|(page_gen, _)| *page_gen)
-                == Some(generation)
-            {
-                dense_index
-            } else {
-                self.additional_pages
-                    .binary_search_by_key(&generation, |(page_gen, _)| *page_gen)
-                    .ok()?
-            };
-        Some(&mut self.additional_pages[index].1)
+        let position = self.page_position(generation)?;
+        Some(&mut self.additional_pages[position].1)
     }
 
-    fn insert_page(&mut self, generation: u32, page: ArenaPage<T>) {
+    /// Position in `additional_pages` of a later generation's page.
+    #[inline]
+    fn page_position(&self, generation: u32) -> Option<usize> {
+        let offset = generation
+            .checked_sub(self.first_generation)?
+            .checked_sub(1)?;
+        let position = *self.page_positions.get(usize::try_from(offset).ok()?)?;
+        usize::try_from(position).ok()?.checked_sub(1)
+    }
+
+    fn record_page_position(&mut self, generation: u32, position: usize) {
+        let offset = usize::try_from(generation - self.first_generation - 1)
+            .expect("paged arena generation exceeds usize");
+        if self.page_positions.len() <= offset {
+            self.page_positions.resize(offset + 1, 0);
+        }
+        self.page_positions[offset] =
+            u32::try_from(position + 1).expect("paged arena page roster overflow");
+    }
+
+    fn index_page_positions(&mut self) {
+        self.page_positions.clear();
+        for position in 0..self.additional_pages.len() {
+            self.record_page_position(self.additional_pages[position].0, position);
+        }
+    }
+
+    fn insert_page(&mut self, generation: u32, page: ArenaPage<T>) -> usize {
         assert!(
             generation > self.first_generation,
             "additional page generation must exceed first generation"
@@ -628,14 +591,21 @@ impl<T: Default> PagedArenaSet<T> {
             .is_none_or(|(last_gen, _)| *last_gen < generation)
         {
             self.additional_pages.push((generation, page));
-            return;
+            let position = self.additional_pages.len() - 1;
+            self.record_page_position(generation, position);
+            return position;
         }
         match self
             .additional_pages
             .binary_search_by_key(&generation, |(page_gen, _)| *page_gen)
         {
             Ok(_) => panic!("paged arena generation {generation} already exists"),
-            Err(pos) => self.additional_pages.insert(pos, (generation, page)),
+            Err(position) => {
+                // Every later page moves up one position.
+                self.additional_pages.insert(position, (generation, page));
+                self.index_page_positions();
+                position
+            }
         }
     }
 }
@@ -643,6 +613,101 @@ impl<T: Default> PagedArenaSet<T> {
 impl<T: Default> Default for PagedArenaSet<T> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<T> compiler_storage::Record for PagedArenaFrontier<T> {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        self.generation.write(output)?;
+        self.next_arena_index.write(output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        let generation = u32::read(input)?;
+        let next_arena_index = u32::read(input)?;
+        if generation == 0 || next_arena_index == 0 {
+            return Err(input.error("paged arena frontier has an invalid coordinate"));
+        }
+        Ok(Self {
+            generation,
+            next_arena_index,
+            marker: PhantomData,
+        })
+    }
+}
+impl<T: Default + Clone + compiler_storage::Record + 'static> compiler_storage::Record
+    for PagedArenaSet<T>
+{
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            self.first_generation.write(output)?;
+            self.first_page.write(output)?;
+            self.additional_pages.write(output)?;
+            self.current_generation.write(output)?;
+            self.active_count.write(output)?;
+            self.dummy.write(output)
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            let mut result = Self {
+                first_generation: u32::read(input)?,
+                first_page: ArenaPage::read(input)?,
+                additional_pages: Vec::read(input)?,
+                page_positions: Vec::new(),
+                current_generation: u32::read(input)?,
+                active_count: usize::read(input)?,
+                dummy: T::read(input)?,
+            };
+            if result.first_generation == 0
+                || result.current_generation < result.first_generation
+                || result.first_page.storage_view().fresh_generation != result.first_generation
+            {
+                return Err(input.error("paged arena has an invalid first or current page"));
+            }
+            let mut previous_generation = result.first_generation;
+            for (generation, page) in &result.additional_pages {
+                if *generation <= previous_generation {
+                    return Err(
+                        input.error("paged arena page generations are not strictly ordered")
+                    );
+                }
+                if page.storage_view().fresh_generation != *generation {
+                    return Err(input.error("paged arena slot disagrees with its page generation"));
+                }
+                previous_generation = *generation;
+            }
+            if result
+                .pages()
+                .try_fold(0usize, |sum, page| sum.checked_add(page.len()))
+                != Some(result.active_count)
+            {
+                return Err(input.error("paged arena live row count disagrees with its pages"));
+            }
+            // The directory spans every generation up to the last page, so a
+            // retained roster pays for its gaps before they are allocated.
+            let span = result
+                .additional_pages
+                .last()
+                .map_or(0, |(generation, _)| generation - result.first_generation);
+            input.allocate(
+                usize::try_from(span)
+                    .ok()
+                    .and_then(|span| span.checked_mul(std::mem::size_of::<u32>()))
+                    .ok_or_else(|| input.error("paged arena directory exceeds usize"))?,
+            )?;
+            result.index_page_positions();
+            Ok(result)
+        })
     }
 }
 
@@ -796,6 +861,10 @@ mod tests {
             assert_eq!(handle.generation(), generation);
             assert_eq!(*merged.get(handle), generation * 10);
         }
+        // Generations between pages name no page.
+        assert!(!merged.is_valid(crate::Handle::from_parts(1, 26)));
+        assert!(!merged.is_valid(crate::Handle::from_parts(1, 3_999)));
+        assert!(!merged.is_valid(crate::Handle::from_parts(1, 4_001)));
     }
 
     #[test]
@@ -853,86 +922,5 @@ mod tests {
             let bytes = compiler_storage::encode(&value, limits).unwrap();
             assert!(compiler_storage::decode::<PagedArenaSet<u32>>(&bytes, limits).is_err());
         }
-    }
-}
-
-impl<T> compiler_storage::Record for PagedArenaFrontier<T> {
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        self.generation.write(output)?;
-        self.next_arena_index.write(output)
-    }
-    fn read<Context>(
-        input: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        let generation = u32::read(input)?;
-        let next_arena_index = u32::read(input)?;
-        if generation == 0 || next_arena_index == 0 {
-            return Err(input.error("paged arena frontier has an invalid coordinate"));
-        }
-        Ok(Self {
-            generation,
-            next_arena_index,
-            marker: PhantomData,
-        })
-    }
-}
-impl<T: Default + Clone + compiler_storage::Record + 'static> compiler_storage::Record
-    for PagedArenaSet<T>
-{
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        output.record(|output| {
-            self.first_generation.write(output)?;
-            self.first_page.write(output)?;
-            self.additional_pages.write(output)?;
-            self.current_generation.write(output)?;
-            self.active_count.write(output)?;
-            self.dummy.write(output)
-        })
-    }
-    fn read<Context>(
-        input: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        input.record(|input| {
-            let result = Self {
-                first_generation: u32::read(input)?,
-                first_page: ArenaPage::read(input)?,
-                additional_pages: Vec::read(input)?,
-                current_generation: u32::read(input)?,
-                active_count: usize::read(input)?,
-                dummy: T::read(input)?,
-            };
-            if result.first_generation == 0
-                || result.current_generation < result.first_generation
-                || result.first_page.storage_view().fresh_generation != result.first_generation
-            {
-                return Err(input.error("paged arena has an invalid first or current page"));
-            }
-            let mut previous_generation = result.first_generation;
-            for (generation, page) in &result.additional_pages {
-                if *generation <= previous_generation {
-                    return Err(
-                        input.error("paged arena page generations are not strictly ordered")
-                    );
-                }
-                if page.storage_view().fresh_generation != *generation {
-                    return Err(input.error("paged arena slot disagrees with its page generation"));
-                }
-                previous_generation = *generation;
-            }
-            if result
-                .pages()
-                .try_fold(0usize, |sum, page| sum.checked_add(page.len()))
-                != Some(result.active_count)
-            {
-                return Err(input.error("paged arena live row count disagrees with its pages"));
-            }
-            Ok(result)
-        })
     }
 }

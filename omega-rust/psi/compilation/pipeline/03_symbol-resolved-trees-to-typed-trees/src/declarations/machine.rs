@@ -23,14 +23,13 @@ pub(crate) fn lower_machine(
     lowerer: &mut Lowerer,
     machine: &resolved::machine::Machine,
 ) -> Result<typed::machine::Machine, Diagnostic> {
-    if let Some(factory) = access_borrow_factory(lowerer.source_trees, machine.symbol)? {
-        if !lowerer
+    if let Some(factory) = access_borrow_factory(lowerer.source_trees, machine.symbol)?
+        && !lowerer
             .typed_trees
             .access_borrow_factories
             .contains(&factory)
-        {
-            lowerer.typed_trees.access_borrow_factories.push(factory);
-        }
+    {
+        lowerer.typed_trees.access_borrow_factories.push(factory);
     }
     let derived = generic_data::is_derived(lowerer.source_trees, machine)?;
     let exposure = if derived {
@@ -372,23 +371,12 @@ fn lower_machine_contents(
     // Lift the complete static environment, not only its type parameters.
     // Bound identities and their arguments stay exact; call lowering forwards
     // those same evidence operands before the machine's authored operands.
-    for bound in crate::signatures::lexical_context::enclosing_bounds(lowerer.source_trees, machine)
-        .chain(&machine.conformance_bounds)
-    {
-        let mut arguments = Vec::new();
-        for argument in lowerer.source_trees.child_type_references(bound.arguments) {
-            arguments.push(lower_type_reference_into_table(lowerer, argument)?);
-        }
-        typed_machine
-            .conformance_bounds
-            .push(typed::machine::GenericConformanceBound {
-                binder: bound.binder,
-                binder_name: lower_name(&bound.binder_name),
-                trait_symbol: bound.trait_symbol,
-                trait_name: lower_name(&bound.trait_name),
-                arguments,
-            });
-    }
+    let source = lowerer.source_trees;
+    typed_machine.conformance_bounds = crate::signatures::evidence::lower_conformance_bounds(
+        lowerer,
+        crate::signatures::lexical_context::enclosing_bounds(source, machine)
+            .chain(&machine.conformance_bounds),
+    )?;
 
     let invocation_parameters = lowerer
         .source_trees

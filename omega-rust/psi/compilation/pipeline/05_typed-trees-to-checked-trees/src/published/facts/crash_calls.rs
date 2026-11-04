@@ -1,18 +1,20 @@
-//! Ordinary private crash summaries compose through exact invocation substitutions;
-//! authored published ceilings remain authoritative. Predicate reduction requires
-//! the callee's builtin operator meaning and entry custody for referenced actuals.
-//! Optional scalar annotations carry checked lowering evidence: after a fully
-//! concrete substitution they may discharge or confirm a route the domain-free
-//! identity cannot fold, and they never keep an undecidable origin from widening.
+//! Check which published crash conditions remain possible at each call.
+//! A selected requirement keeps its full public signature and the argument
+//! values evaluated for that invocation. Private helpers compose those same
+//! conditions with their own checked bodies.
+//! Symbolic conditions retain caller entry-value identities. Checked scalar
+//! expressions also use captured values and bounds; missing evidence leaves
+//! the possible crash in place.
 //!
 //! This file attaches checked crash calls and infers crash causes.
-//! `summary_predicates.rs` carries summary crash predicates and buckets,
-//! `route_substitution.rs` substitutes call arguments into published crash
-//! routes and `private_summaries.rs` solves private body summaries;
-//! `tests.rs` holds the crash call tests.
+//! `summary_predicates.rs` combines and groups possible crash conditions.
+//! `route_substitution.rs` replaces declared parameters with call arguments.
+//! `private_summaries.rs` finds crashes that can propagate through private calls.
+//! `requirement_contracts.rs` prepares each call's selected public signature.
 
 mod potential_causes;
 mod private_summaries;
+mod requirement_contracts;
 mod route_substitution;
 mod summary_predicates;
 
@@ -117,12 +119,13 @@ fn predicate_expression(
     {
         let left = lower(binary.left);
         let right = lower(binary.right);
-        let identity = program
-            .type_identities
-            .with(|types| {
-                CrashPredicateExpression::structural_identity(type_identity, types, left, right)
-            })
-            .unwrap_or(CrashPredicateExpression::Invalid);
+        let identity = CrashPredicateExpression::structural_identity(
+            type_identity,
+            &program.type_identities,
+            left,
+            right,
+        )
+        .unwrap_or(CrashPredicateExpression::Invalid);
         return if binary.operator == typed_trees::expression::BinaryOperator::NotEqual {
             CrashPredicateExpression::Unary {
                 operator: typed_trees::expression::UnaryOperator::LogicalNot as u8,
@@ -262,7 +265,7 @@ pub(super) fn attach_checked_crash_calls(
             content_conservation,
             crash_capsules,
             plans,
-            Some(summary_graph),
+            summary_graph,
         ),
     };
     let mut plan_indices = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
@@ -315,12 +318,25 @@ pub(super) fn attach_checked_crash_calls(
                         ) else {
                             continue;
                         };
-                        let Some((target_machine_symbol, target_state_symbol)) =
-                            private_summaries::selected_invocation_target(
-                                program,
-                                call_site,
-                                call_flow.target_symbol,
+                        let public_target = summary_graph
+                            .requirement_contracts
+                            .for_call(
+                                state_flow.machine_symbol,
+                                state_flow.state_symbol,
+                                call_flow.statement_index,
+                                call_flow.call_ordinal,
                             )
+                            .map(|selected| {
+                                (selected.capsule.target_machine(), selected.capsule.target_state())
+                            });
+                        let Some((target_machine_symbol, target_state_symbol)) = public_target
+                            .or_else(|| {
+                                private_summaries::selected_invocation_target(
+                                    program,
+                                    call_site,
+                                    call_flow.target_symbol,
+                                )
+                            })
                         else {
                             continue;
                         };
@@ -380,17 +396,28 @@ pub(super) fn attach_checked_crash_calls(
                                 target_plan.commitment,
                             )
                         } else {
-                            let Some(&capsule) = capsule_by_target
-                                .get(&(target_machine_symbol, target_state_symbol))
-                            else {
-                                continue;
-                            };
-                            let Some(signature) = requirement_signature(
-                                program,
-                                target_machine_symbol,
-                                target_state_symbol,
-                            ) else {
-                                continue;
+                            let selected = summary_graph.requirement_contracts.for_call(
+                                state_flow.machine_symbol,
+                                state_flow.state_symbol,
+                                call_flow.statement_index,
+                                call_flow.call_ordinal,
+                            );
+                            let (capsule, signature) = if let Some(selected) = selected {
+                                (&selected.capsule, &selected.source.signature)
+                            } else {
+                                let Some(&capsule) = capsule_by_target
+                                    .get(&(target_machine_symbol, target_state_symbol))
+                                else {
+                                    continue;
+                                };
+                                let Some(signature) = requirement_signature(
+                                    program,
+                                    target_machine_symbol,
+                                    target_state_symbol,
+                                ) else {
+                                    continue;
+                                };
+                                (capsule, signature)
                             };
                             let parameters = program.state_signature_parameters(signature);
                             (
@@ -515,11 +542,27 @@ pub(super) fn attach_checked_crash_calls(
 
     for plan in plans {
         let checked_calls = calls_by_caller.remove(&plan.machine).unwrap_or_default();
+        // Publish the fixed point already used for call refinement. A body
+        // governed only by published routes has no inferred row here.
+        let body_summary = program.machine_by_symbol(plan.machine).and_then(|machine| {
+            summary_by_machine.get(&plan.machine).map(|buckets| {
+                checked_trees::CheckedBodyCrashSummary::new(
+                    machine.symbol,
+                    machine.states,
+                    buckets
+                        .iter()
+                        .cloned()
+                        .filter_map(SummaryCrashBucket::into_checked)
+                        .collect(),
+                )
+            })
+        });
         plan.crash = plan
             .crash
             .clone()
             .with_checked_calls(checked_calls)
-            .expect("one checked crash-call record occupies each invocation coordinate");
+            .expect("one checked crash-call record occupies each invocation coordinate")
+            .with_checked_body_summary(body_summary);
     }
     inferred_body_summaries
 }
@@ -529,59 +572,79 @@ pub(crate) fn infer_checked_machine_crash_causes(
     facts: &checked_trees::CheckFacts,
     machine: SymbolHandle,
 ) -> Option<Vec<checked_trees::CrashCause>> {
-    let mut matching = infer_checked_crash_causes(program, facts)
-        .into_iter()
-        .filter(|(candidate, _)| *candidate == machine);
-    let (_, causes) = matching.next()?;
-    matching.next().is_none().then_some(causes)
+    let mut machines = program
+        .machines()
+        .iter()
+        .filter(|candidate| candidate.symbol == machine);
+    let source = machines.next()?;
+    if machines.next().is_some() {
+        return None;
+    }
+    let mut plans = facts
+        .contract_plans
+        .machines
+        .iter()
+        .filter(|plan| plan.machine == machine);
+    let plan = plans.next()?;
+    if plans.next().is_some() {
+        return None;
+    }
+    let summary = plan.crash.checked_body_summary(machine, source.states)?;
+    Some(body_summary_causes(summary))
 }
 
 pub(crate) fn infer_checked_crash_causes(
     program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
 ) -> Vec<(SymbolHandle, Vec<checked_trees::CrashCause>)> {
-    let content_conservation = validation::content_conservation_plans(program);
-    // Validation-only exact-cast facts are not retained in CheckedTrees. They
-    // feed only CallArgumentSubstitution.scalar, never its identity. Guard
-    // retention, equality and fixed-point closure still use the identity
-    // alone; a scalar annotation decides only a retained guard whose
-    // substituted identity cannot fold, through a closed integer comparison.
-    // This query does not publish the guard annotations it consumes.
-    let summaries = infer_private_body_summaries(
-        program,
-        &facts.operators,
-        &[],
-        &facts.semantic,
-        &facts.flow,
-        &content_conservation,
-        &facts.contract_plans.crash_capsules,
-        &facts.contract_plans.machines,
-        None,
-    );
-    let mut machine_counts = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
-    for candidate in program.machines() {
-        *machine_counts.entry(candidate.symbol).or_default() += 1;
-    }
-    let mut plan_counts = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
-    for candidate in &facts.contract_plans.machines {
-        *plan_counts.entry(candidate.machine).or_default() += 1;
-    }
-    summaries
-        .into_iter()
-        .filter(|(machine, _)| {
-            machine_counts.get(machine).copied() == Some(1)
-                && plan_counts.get(machine).copied() == Some(1)
-        })
-        .map(|(machine, buckets)| {
-            let mut causes = buckets
-                .into_iter()
-                .map(|bucket| bucket.cause)
-                .collect::<Vec<_>>();
-            causes.sort_unstable();
-            causes.dedup();
-            (machine, causes)
+    // Sort borrowed rows once so duplicate identities stay unknown without
+    // building another symbol map or rescanning every declaration per plan.
+    let key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
+    let mut machines = program.machines().iter().collect::<Vec<_>>();
+    machines.sort_unstable_by_key(|machine| key(machine.symbol));
+    let mut plans = facts.contract_plans.machines.iter().collect::<Vec<_>>();
+    plans.sort_unstable_by_key(|plan| key(plan.machine));
+    plans
+        .iter()
+        .enumerate()
+        .filter_map(|(position, plan)| {
+            if position > 0 && plans[position - 1].machine == plan.machine
+                || plans
+                    .get(position + 1)
+                    .is_some_and(|next| next.machine == plan.machine)
+            {
+                return None;
+            }
+            let position = machines
+                .binary_search_by_key(&key(plan.machine), |machine| key(machine.symbol))
+                .ok()?;
+            let machine = machines[position];
+            if position > 0 && machines[position - 1].symbol == machine.symbol
+                || machines
+                    .get(position + 1)
+                    .is_some_and(|next| next.symbol == machine.symbol)
+            {
+                return None;
+            }
+            let summary = plan
+                .crash
+                .checked_body_summary(machine.symbol, machine.states)?;
+            Some((machine.symbol, body_summary_causes(summary)))
         })
         .collect()
+}
+
+fn body_summary_causes(
+    summary: &checked_trees::CheckedBodyCrashSummary,
+) -> Vec<checked_trees::CrashCause> {
+    let mut causes = summary
+        .buckets()
+        .iter()
+        .map(checked_trees::CrashRouteBucket::cause)
+        .collect::<Vec<_>>();
+    causes.sort_unstable();
+    causes.dedup();
+    causes
 }
 
 /// The member name a produced entry operand carries. A case payload field

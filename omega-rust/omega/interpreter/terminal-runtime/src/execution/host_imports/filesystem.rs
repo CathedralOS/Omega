@@ -63,6 +63,21 @@ pub(super) enum FilesystemCall {
 }
 
 impl FilesystemCall {
+    pub(super) fn readonly_record_argument(&self, argument: usize) -> bool {
+        matches!(self, Self::Windows(call) if call.readonly_record_argument(argument))
+    }
+    pub(super) fn prepare_readonly_record(
+        &self,
+        argument: usize,
+        record: &super::native_provider::ReadonlyRecord<'_>,
+    ) -> Result<Option<Vec<u8>>, TerminalEffectRejection> {
+        match self {
+            Self::Windows(call) => call.prepare_readonly_record(argument, record),
+            Self::Darwin(_) => Err(rejection(
+                "this filesystem supply has no readonly native record translation",
+            )),
+        }
+    }
     pub(super) fn path_argument(&self, argument: usize) -> bool {
         match self {
             Self::Darwin(call) => call.path_argument(argument),

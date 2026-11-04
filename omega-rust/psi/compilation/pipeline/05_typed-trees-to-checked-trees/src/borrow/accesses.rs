@@ -174,11 +174,23 @@ fn collect_target_argument_accesses(
     }
 }
 
-/// A value join preserves its destination contract on each yielded value.
-/// Evaluating an arm is not enough: a reference result still has to retain
-/// the invocation's formal-directed access, including a computed call result.
-/// Subjects and patterns remain ordinary reads, not reference arguments.
+/// Evaluate an argument under its receiving type, then finish inputs that its
+/// completed value no longer borrows before collecting the next argument.
 fn collect_formal_argument_accesses(
+    collection: &mut BorrowAccessCollection<'_>,
+    argument: ExpressionHandle,
+    formal: typed_trees::types::TypeReferenceHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+) {
+    let first_access = collection.access_count();
+    collect_formal_argument_evaluation(collection, argument, formal, state_symbol, statement_index);
+    collection.finish_completed_value(first_access, argument, formal);
+}
+
+/// Record the reads and loans needed to evaluate one argument. Its completed
+/// receiving value then determines which direct input holds can end.
+fn collect_formal_argument_evaluation(
     collection: &mut BorrowAccessCollection<'_>,
     argument: ExpressionHandle,
     formal: typed_trees::types::TypeReferenceHandle,

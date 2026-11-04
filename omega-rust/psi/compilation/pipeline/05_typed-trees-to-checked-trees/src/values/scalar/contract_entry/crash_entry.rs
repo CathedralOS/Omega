@@ -1,7 +1,7 @@
-//! Exact invocation predicates over Boolean fields, total integer
-//! comparisons, and IEEE comparisons with exact literal endpoints. Each
-//! comparison operand is resolved once: its resolved carrier selects the
-//! integer or IEEE family and the same resolution lowers it.
+//! Read crash conditions over call arguments and their fields. Integer
+//! comparisons may also use completed constants; float comparisons retain
+//! their exact literals and IEEE rules. Resolve each operand once so its type
+//! classification and the expression used for checking cannot disagree.
 use crate::published::places::place_at;
 use crate::values::operator_is_builtin;
 
@@ -24,8 +24,8 @@ pub(crate) fn lower_machine_entry_crash_contract_expression(
     expression: ExpressionHandle,
     _exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
-    // Unread static/evidence binders do not erase concrete entry clauses.
-    // Reader rejoins every observed leaf to its exact formal type and meaning.
+    // Unused generic parameters do not prevent checking a concrete condition.
+    // The reader still checks each value's declared type and operator.
     let parameters = super::authored_entry_parameters(program, machine)?;
     let predicate = Reader {
         program,
@@ -207,20 +207,15 @@ struct Reader<'program> {
     logical_captures: Vec<LogicalMatchBinding>,
 }
 
-/// Bodyless requirements have an exact signature namespace, not a synthetic
-/// machine body. Scalar and structural leaves retain that signature's exact
-/// authored formal namespace.
+/// Check a requirement's crash condition against its own declared parameters.
+/// Bodyless requirements do not need a synthetic machine body.
 pub(crate) fn lower_signature_crash_contract_expression(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     signature: &typed_trees::signature::StateSignature,
     expression: ExpressionHandle,
 ) -> Option<CheckedBooleanExpression> {
-    if !signature.symbol.is_valid()
-        || !program
-            .state_signature_type_parameters(signature)
-            .is_empty()
-    {
+    if !signature.symbol.is_valid() {
         return None;
     }
     lower_declaration_crash_contract_expression(
@@ -232,8 +227,8 @@ pub(crate) fn lower_signature_crash_contract_expression(
     )
 }
 
-/// One closed authored formal telescope lowers a declaration's crash routes;
-/// both bodyless entrypoints supply only their own closedness precondition.
+/// Read the declaration's parameters. Unused generic parameters do not prevent
+/// checking a concrete condition; reading an unsupported type still rejects.
 fn lower_declaration_crash_contract_expression(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
@@ -304,9 +299,11 @@ type LogicalMatchBinding = validation::LogicalMatchBinding<FieldPath>;
 /// One comparison operand, resolved once: its carrier selects the comparison
 /// family and the same resolution lowers it.
 enum ComparisonOperand {
-    FloatLiteral {
+    Constant {
         value: CheckedScalarExpression,
         reference: TypeReferenceHandle,
+        integer: bool,
+        ieee: bool,
     },
     /// A subject read; `static_subject` is present when the read needs no
     /// runtime selector, the only read form IEEE comparisons admit.
@@ -323,19 +320,25 @@ enum ComparisonOperand {
 
 impl ComparisonOperand {
     fn is_ieee(&self) -> bool {
-        matches!(self, ComparisonOperand::FloatLiteral { .. })
+        matches!(self, ComparisonOperand::Constant { ieee: true, .. })
             || matches!(self, ComparisonOperand::Subject { ieee: true, .. })
     }
 
     fn is_integer(&self) -> bool {
         matches!(self, ComparisonOperand::IntegerLiteral)
+            || matches!(self, ComparisonOperand::Constant { integer: true, .. })
             || matches!(self, ComparisonOperand::Subject { integer: true, .. })
     }
 
     /// The IEEE operand this resolution supplies.
     fn ieee_operand(self) -> Option<(CheckedScalarExpression, TypeReferenceHandle)> {
         match self {
-            ComparisonOperand::FloatLiteral { value, reference } => Some((value, reference)),
+            ComparisonOperand::Constant {
+                value,
+                reference,
+                ieee: true,
+                ..
+            } => Some((value, reference)),
             ComparisonOperand::Subject {
                 static_subject: Some(_),
                 ieee: true,
@@ -552,6 +555,23 @@ impl<'program> Reader<'program> {
         {
             return None;
         }
+        // Read the checked value already produced for this declaration and
+        // keep its declared type for the ordinary comparison checks.
+        if let Some(constant) = validation::completed_integer_constant(self.program, expression) {
+            let reference = constant.type_reference?;
+            let (primitive, atom) = self.primitive(reference, depth + 1)??;
+            if constant.primitive != Some(primitive) || !fixed_integer_atom(atom) {
+                return None;
+            }
+            return Some(ComparisonOperand::Constant {
+                value: CheckedScalarExpression::IntegerLiteral {
+                    literal: validation::land_integer_value(&constant.value, primitive)?,
+                },
+                reference,
+                integer: true,
+                ieee: false,
+            });
+        }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Match(_) => self.logical_match_operand(expression, depth + 1),
             ExpressionNode::Float(literal) => {
@@ -564,7 +584,12 @@ impl<'program> Reader<'program> {
                 let value = CheckedScalarExpression::IeeeFloatLiteral {
                     value: typed_trees::expression::ieee_float_value(literal, literal.landing()?),
                 };
-                Some(ComparisonOperand::FloatLiteral { value, reference })
+                Some(ComparisonOperand::Constant {
+                    value,
+                    reference,
+                    integer: false,
+                    ieee: true,
+                })
             }
             ExpressionNode::Integer(_) => Some(ComparisonOperand::IntegerLiteral),
             ExpressionNode::Name(_)
@@ -610,6 +635,12 @@ impl<'program> Reader<'program> {
         for (position, operand) in operands.into_iter().enumerate() {
             match operand {
                 ComparisonOperand::Subject {
+                    value,
+                    reference,
+                    integer: true,
+                    ..
+                }
+                | ComparisonOperand::Constant {
                     value,
                     reference,
                     integer: true,

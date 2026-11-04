@@ -2,7 +2,7 @@
 //! Uses the same reviewed fixture inputs and retained native/Terminal products
 //! as the repository corpus runner. No production acceptance is persisted.
 use compiler::CompileReport;
-use omega_build::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
+use orchestration::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
 use std::{
     env, fs,
     io::Write,
@@ -17,7 +17,7 @@ use terminal_runtime::{
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-#[path = "../../../../omega-rust/omega/compilation/driver/tests/support/fixture_package_inputs.rs"]
+#[path = "../../../../omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
 /// The repository fixture policy's exact checked inputs for one control.
@@ -43,7 +43,7 @@ fn checked_request(root: &Path, build_dir: &Path) -> compiler::CheckedCompileReq
 /// Build one product of this sample through the public application Build.
 fn build(root: &Path, build_dir: &Path, product: ProjectProduct) -> CompileReport {
     let profile = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
-    let outcomes = omega_build::build(BuildRequest {
+    let outcomes = orchestration::build(BuildRequest {
         root_path: root.to_path_buf(),
         build_directory: Some(build_dir.to_path_buf()),
         targets: BuildTargets::Single(profile),
@@ -93,7 +93,7 @@ fn observe(
 // Read-only inspection of a sealed Check product; grants no selection authority.
 fn verify_value_equality_selection(root: &Path, evidence: &Path) {
     let mut session = compiler::CompilationSession::default();
-    let checked = omega_build::check_source(
+    let checked = orchestration::check_source(
         &mut session,
         checked_request(&root.join("main.omg"), &evidence.join("selection_check")),
     )
@@ -324,6 +324,8 @@ fn main() {
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
             entry: None,
             native_provider: None,
+            native_services: Default::default(),
+            filesystem: Default::default(),
             x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64")
                 .expect("host flags capture"),
             memory_ordering:
@@ -337,7 +339,7 @@ fn main() {
             fuel_allowance: 1_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(std::io::Cursor::new(input))),
-            clock: Some(TerminalClockSnapshot::capture_host_epoch().unwrap()),
+            clock: Some(TerminalClockSnapshot::capture_host_epoch().unwrap().into()),
         })
         .unwrap_or_else(|error| panic!("{name}: Terminal admission: {error:?}"));
         let exit = match result.status {
@@ -365,7 +367,7 @@ fn main() {
         return;
     }
     let (_, executable) =
-        omega_build::publication::publish_native_artifact(report, &evidence.join("native"))
+        orchestration::publication::publish_native_artifact(report, &evidence.join("native"))
             .unwrap();
     fs::copy(&executable, evidence.join("spectrometer.native")).unwrap();
     for (name, expected_exit) in &cases {

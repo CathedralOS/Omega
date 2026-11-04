@@ -1,13 +1,13 @@
 //! Optimizer module role: stage output. Current selected program with separate replay inputs.
 
 use crate::{
-    AllocationRecoveryRuleCatalogError, OptimizedAllocationLegalityCustodyError,
-    OptimizedLiteralFoldCustodyError, OptimizedLiveRangeCustodyError,
-    OptimizedLivenessCustodyError, OptimizedPreAllocationCustodyError, OwnedSelectedProgram,
-    StagedOptimizedLiveRanges, StagedPreAllocationOptimizationRun,
-    StagedSelectedLoweringOptimizationRun, validate_pre_allocation_optimization_custody,
-    validate_selected_lowering_optimization_custody,
+    OptimizedAllocationLegalityCustodyError, OptimizedLiteralFoldCustodyError,
+    OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError,
+    OptimizedPreAllocationCustodyError, OwnedSelectedProgram, StagedOptimizedLiveRanges,
+    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
+    validate_pre_allocation_optimization_custody, validate_selected_lowering_optimization_custody,
 };
+use selected_instruction_analyses::AllocationRecoveryRuleCatalogError;
 
 /// Only replay and custody assembly distinguish how the current program was obtained.
 #[derive(Debug)]
@@ -35,11 +35,20 @@ impl SelectedInstructionOptimizationOutput {
         &self.current
     }
 
-    /// Hand the stage's evidence to register allocation as produced. The
-    /// evidence was checked once when this output was built; allocation
-    /// consumes it without replaying it again.
-    pub fn into_evidence(self) -> SelectedInstructionOptimizationEvidence {
-        self.evidence
+    /// Hand register allocation the current program's facts and the
+    /// completed suite's ledger. The evidence was checked once when this
+    /// output was built; allocation consumes the result without replaying it.
+    pub fn into_selected_output(self) -> selected_instruction_analyses::SelectedOptimizationOutput {
+        use selected_instruction_analyses::SelectedOptimizationOutput as Output;
+        match self.evidence {
+            SelectedInstructionOptimizationEvidence::Identity(ranges) => Output::Identity(ranges),
+            SelectedInstructionOptimizationEvidence::LiteralFolds(run) => {
+                Output::SelectedLowering(run.into_completed())
+            }
+            SelectedInstructionOptimizationEvidence::PreAllocation(run) => {
+                Output::PreAllocation(run.into_completed())
+            }
+        }
     }
 }
 

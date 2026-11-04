@@ -271,7 +271,34 @@ fn exact_fixed_element(
         return usize::try_from(value).ok();
     }
     if let Some(initializer) = immutable_name_initializer(program, expression) {
+        if let Some(call) = expression_table(program).call_node(initializer) {
+            // The local snapshots one completed invocation. Its singleton
+            // postcondition names that value at every later read, against the
+            // caller that owns the local even when no argument names one.
+            let declaration = program
+                .symbols
+                .get(expression_name_symbol(program, expression)?);
+            let caller = program.symbols.get(declaration.parent).parent;
+            let (Some(low), Some(high)) =
+                crate::normal_return_integer_bounds(program, caller, initializer, call)?
+            else {
+                return None;
+            };
+            return (low == high)
+                .then_some(low)
+                .and_then(|value| usize::try_from(value).ok());
+        }
         return exact_fixed_element(program, initializer, depth + 1);
+    }
+    if let ExpressionNode::Match(dispatch) = expression_table(program).expression(expression) {
+        // Exactly one arm's value completes the match, so arms that all name
+        // one ordinal name it whichever arm is selected. The subject still
+        // executes; only the completed value is folded.
+        let mut arms = expression_table(program).match_arms(dispatch.arms).iter();
+        let first = exact_fixed_element(program, arms.next()?.value, depth + 1)?;
+        return arms
+            .all(|arm| exact_fixed_element(program, arm.value, depth + 1) == Some(first))
+            .then_some(first);
     }
     let ExpressionNode::Member(member) = expression_table(program).expression(expression) else {
         return None;
@@ -310,6 +337,16 @@ fn standing_fixed_element(
     element
 }
 
+fn expression_name_symbol(
+    program: &dyn CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let ExpressionNode::Name(path) = expression_table(program).expression(expression) else {
+        return None;
+    };
+    Some(path.symbol)
+}
+
 fn immutable_name_initializer(
     program: &dyn CheckingInput,
     expression: ExpressionHandle,
@@ -344,34 +381,35 @@ fn fixed_half_open_range(
     range: &typed_trees::expression::TableRangeExpression,
 ) -> Option<(usize, usize)> {
     let start = if range.start.is_valid() {
-        range_coordinate(program, range.start)?
+        window_coordinate(program, range.start)?
     } else {
         0
     };
     if !range.end.is_valid() {
         return None;
     }
-    let mut end = range_coordinate(program, range.end)?;
+    let mut end = window_coordinate(program, range.end)?;
     if range.end_inclusive {
         end = end.checked_add(1)?;
     }
     Some((start, end))
 }
 
-/// A half-open window coordinate. Literals fold as before. A selected match
-/// arm additionally substitutes its integer pattern for the subject, and an
-/// ensured call result substitutes that exact integer. `which + 2` in
-/// `match which { 0 -> items[0..which + 2] }` is therefore the same fixed
-/// window as `items[0..2]`. A wildcard arm assigns no pattern, so its
-/// endpoint stays a runtime index.
-fn range_coordinate(program: &dyn CheckingInput, endpoint: ExpressionHandle) -> Option<usize> {
-    let value = if let Some(value) = program.closed_integer_expression_value(endpoint) {
-        value.to_i64()?
-    } else {
-        let bindings = match_arm_bindings(program, endpoint)?;
-        folded_coordinate(program, endpoint, &bindings)?
-    };
-    usize::try_from(value).ok()
+/// A half-open window coordinate: the one element ordinal `endpoint` names.
+///
+/// A window's region is fixed geometry, so recast checking and place lowering
+/// both read its endpoints here; a second, narrower reading would let one
+/// layer admit a window the other cannot place. Coordinates use the same
+/// exact-ordinal routes as a fixed element selector: closed constants, a
+/// selected match arm's integer pattern substituted for its subject (`which +
+/// 2` in `match which { 0 -> items[0..which + 2] }` is `items[0..2]`), an
+/// ensured singleton call result, an immutable parameter's singleton
+/// `requires`, an immutable local's initializer or record-literal field, and
+/// a match whose every arm yields the same ordinal. Each route names a value
+/// that holds at every read of the endpoint, so the window needs no
+/// occurrence-specific fact. A wider interval keeps the window a runtime range.
+pub fn window_coordinate(program: &dyn CheckingInput, endpoint: ExpressionHandle) -> Option<usize> {
+    exact_fixed_element(program, endpoint, 0)
 }
 
 /// Bindings from value arms that contain `endpoint`. Contradictory patterns
@@ -580,7 +618,11 @@ pub fn canonical_place_from_expression(
                 segments: Vec::new(),
             })
         }
-        ExpressionNode::Borrow(inner) => canonical_place_from_expression(program, inner.target),
+        // A borrow lends storage, so it looks through a cast that keeps the
+        // bytes in place even when the cast erases a domain meaning.
+        ExpressionNode::Borrow(inner) => {
+            canonical_place_from_expression(program, storage_operand(program, inner.target))
+        }
         // A borrow recast re-views the operand's bytes at the same address:
         // the recast place is the operand's place. Same-carrier qualification
         // casts preserve the operand's storage place; value conversions
@@ -627,14 +669,22 @@ pub fn canonical_place_from_expression(
             }
             Some(place)
         }
+        // A projection reads storage: a field of an erasing cast is the
+        // operand's field, because the erased meaning qualified the whole value.
         ExpressionNode::Member(member) => {
-            let mut place = canonical_place_from_expression(program, member.receiver)?;
+            let mut place = canonical_place_from_expression(
+                program,
+                storage_operand(program, member.receiver),
+            )?;
             let symbol = effective_member_symbol(program, member.receiver, member);
             push_field_place_segments(program, &mut place.segments, symbol);
             Some(place)
         }
         ExpressionNode::Indexed(indexed) => {
-            let mut place = canonical_place_from_expression(program, indexed.collection)?;
+            let mut place = canonical_place_from_expression(
+                program,
+                storage_operand(program, indexed.collection),
+            )?;
             place
                 .segments
                 .push(index_place_segment(program, indexed.index));
@@ -647,7 +697,41 @@ pub fn canonical_place_from_expression(
     }
 }
 
+/// Whether `value as T` denotes its operand's facts. A cast that erases a
+/// meaning the operand's type carries yields a new value even though its
+/// bytes stay in the operand's storage: naming that storage would hand the
+/// meaning back to every reader of the result, such as a call argument.
+/// Storage questions use [`cast_shares_storage`] instead.
 pub(super) fn cast_preserves_place(
+    program: &dyn CheckingInput,
+    cast: &checked_trees::expression::TableCastExpression,
+) -> bool {
+    cast_shares_storage(program, cast)
+        && (cast.form.is_recast()
+            || !super::member_resolution::expression_type_position(program, cast.value)
+                .is_some_and(|position| {
+                    let super::member_resolution::MemberPosition::Reference(operand) = position
+                    else {
+                        return false;
+                    };
+                    // A cast between references re-views the same referent;
+                    // where it points is a storage question, never a new value.
+                    if crate::reference_shell(program, operand).is_some() {
+                        return false;
+                    }
+                    crate::field_domains::domain_constraint_identities(program, operand)
+                        .into_iter()
+                        .any(|(symbol, identity)| {
+                            crate::field_domains::cast_erases_membership(
+                                program, cast, symbol, identity,
+                            )
+                        })
+                }))
+}
+
+/// Whether `value as T` leaves the value in its operand's storage: a recast,
+/// or a cast between the same carrier whatever domains it keeps or erases.
+fn cast_shares_storage(
     program: &dyn CheckingInput,
     cast: &checked_trees::expression::TableCastExpression,
 ) -> bool {
@@ -759,7 +843,8 @@ pub fn place_root_may_be_symbol(
         }
         leaf = match expression_table(program).expression(leaf) {
             ExpressionNode::Borrow(inner) => inner.target,
-            ExpressionNode::Cast(cast) if cast_preserves_place(program, cast) => cast.value,
+            // Borrows and projections descend every storage-sharing cast.
+            ExpressionNode::Cast(cast) if cast_shares_storage(program, cast) => cast.value,
             ExpressionNode::Member(member) => member.receiver,
             ExpressionNode::Indexed(indexed) => indexed.collection,
             ExpressionNode::Name(path) => {
@@ -783,6 +868,38 @@ pub(super) fn name_materializes_value(
                 if path.symbol.is_valid()
                     && program.symbols.get(path.symbol).kind == SymbolKind::Const
         )
+}
+
+/// The storage `expression` lives in at this statement. Unlike the canonical
+/// place, it looks through every cast that keeps the value in its operand's
+/// storage, including one that erases a domain meaning: lowering asks where
+/// the bytes are, not which facts the value carries.
+pub fn storage_place_from_expression_in_state(
+    program: &dyn CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<CanonicalPlace> {
+    canonical_place_from_expression_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        storage_operand(program, expression),
+    )
+}
+
+/// The operand whose storage `expression` occupies: every same-carrier cast
+/// leaves the value's bytes where they were.
+pub fn storage_operand(
+    program: &dyn CheckingInput,
+    mut expression: ExpressionHandle,
+) -> ExpressionHandle {
+    while let Some(cast) = expression_table(program).cast_node(expression)
+        && cast_shares_storage(program, cast)
+    {
+        expression = cast.value;
+    }
+    expression
 }
 
 pub fn canonical_place_from_expression_in_state(

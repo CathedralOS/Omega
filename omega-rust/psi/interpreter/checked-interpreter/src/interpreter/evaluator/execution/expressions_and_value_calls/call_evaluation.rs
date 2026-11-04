@@ -64,6 +64,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             let value = self.run_selected_realization(
                 call.target_symbol,
                 expression_table(self.program).expression_handles(call.arguments),
+                Some(validation::CallSite::Expression {
+                    expression: handle,
+                    call,
+                }),
                 frame,
             )?;
             return Ok(self.guard_subject_value(handle, frame, value));
@@ -92,6 +96,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             let value = self.run_boundary_adapter(
                 dispatch,
                 expression_table(self.program).expression_handles(call.arguments),
+                Some(validation::CallSite::Expression {
+                    expression: handle,
+                    call,
+                }),
                 frame,
             )?;
             return Ok(self.guard_subject_value(handle, frame, value));
@@ -152,29 +160,22 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let qualified = self.expression_receiver_is_namespace(call.receiver);
         if let Some(request) = &call.private_layout_operation {
             let arguments = expression_table(self.program).expression_handles(call.arguments);
-            let [plan, offset] = arguments else {
+            let [plan, placement] = arguments else {
                 return trap(
-                    "compiler-known `Plan::place_private` requires one Plan and one u64 offset",
+                    "compiler-known `LayoutPlan::place_private` requires one plan and one placement",
                 );
             };
             let plan = self.eval_expression(*plan, frame)?;
-            let offset = match self.eval_expression(*offset, frame)? {
-                Value::Int(offset) => u64::try_from(offset).map_err(|_| {
-                    Halt::Trap(format!(
-                        "compiler-known `Plan::place_private` offset `{offset}` is outside the u64 range"
-                    ))
-                })?,
-                other => {
-                    return trap(format!(
-                        "compiler-known `Plan::place_private` offset is not an integer: {other:?}"
-                    ));
-                }
-            };
+            let placement = self.eval_expression(*placement, frame)?;
+            let placement =
+                crate::build_time::observe_build_time_value(&placement, &|reference| {
+                    self.read_reference(reference)
+                })?;
             self.private_layout_placements
                 .push(crate::PrivateLayoutPlacementReceipt {
                     operation_expression: handle,
                     selected_slot: request.selected_slot.clone(),
-                    offset,
+                    placement,
                 });
             return Ok(plan);
         }
@@ -255,21 +256,20 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         // sqrtsd/sqrtss contract oracle.
         if builtin == Some(BuiltinFunction::FloatSquareRoot)
             && call.receiver == ExpressionHandle::invalid()
+            && let Some((value, format)) = self.unary_float_argument(call, frame)?
         {
-            if let Some((value, format)) = self.unary_float_argument(call, frame)? {
-                return match value {
-                    value if value.is_float() => {
-                        let meaning = self.float_operand(&value, format)?;
-                        Ok(self.semantic_float_result(
-                            FloatSemantics::square_root(format, &meaning),
-                            format,
-                        ))
-                    }
-                    other => Err(Halt::Trap(format!(
-                        "sqrt expects a float argument, got {other:?}"
-                    ))),
-                };
-            }
+            return match value {
+                value if value.is_float() => {
+                    let meaning = self.float_operand(&value, format)?;
+                    Ok(self.semantic_float_result(
+                        FloatSemantics::square_root(format, &meaning),
+                        format,
+                    ))
+                }
+                other => Err(Halt::Trap(format!(
+                    "sqrt expects a float argument, got {other:?}"
+                ))),
+            };
         }
         // Internal enum-valued classifiers selected only by exact named-float
         // plans. The format is encoded in the unnameable builtin identity so
@@ -334,24 +334,23 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 | "float#is_normal"
                 | "float#is_subnormal"
         ) && call.receiver == ExpressionHandle::invalid()
+            && let Some((value, format)) = self.unary_float_argument(call, frame)?
         {
-            if let Some((value, format)) = self.unary_float_argument(call, frame)? {
-                return match value {
-                    value if value.is_float() => {
-                        let meaning = self.float_operand(&value, format)?;
-                        let result = match target {
-                            "float#is_nan" => FloatSemantics::is_nan(&meaning),
-                            "float#is_finite" => FloatSemantics::is_finite(&meaning),
-                            "float#is_infinite" => FloatSemantics::is_infinite(&meaning),
-                            "float#is_normal" => FloatSemantics::is_normal(format, &meaning),
-                            "float#is_subnormal" => FloatSemantics::is_subnormal(format, &meaning),
-                            _ => unreachable!(),
-                        };
-                        Ok(Value::Bool(result))
-                    }
-                    _ => unsupported("float classification argument is not a float"),
-                };
-            }
+            return match value {
+                value if value.is_float() => {
+                    let meaning = self.float_operand(&value, format)?;
+                    let result = match target {
+                        "float#is_nan" => FloatSemantics::is_nan(&meaning),
+                        "float#is_finite" => FloatSemantics::is_finite(&meaning),
+                        "float#is_infinite" => FloatSemantics::is_infinite(&meaning),
+                        "float#is_normal" => FloatSemantics::is_normal(format, &meaning),
+                        "float#is_subnormal" => FloatSemantics::is_subnormal(format, &meaning),
+                        _ => unreachable!(),
+                    };
+                    Ok(Value::Bool(result))
+                }
+                _ => unsupported("float classification argument is not a float"),
+            };
         }
 
         // `.len()` on an array-valued receiver returns the element count.
@@ -531,6 +530,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let arguments = self.eval_state_arguments(
             entry_state,
             expression_table(self.program).expression_handles(call.arguments),
+            Some(validation::CallSite::Expression {
+                expression: handle,
+                call,
+            }),
             frame,
         )?;
         // Suspend the guard flag while the callee RUNS: distinct same-shaped calls

@@ -3,8 +3,8 @@
 // dropped at the return.
 use omega::language::core::drop;
 
-data Guard { handle: i32; }
-machine Guard::drop(guard: &mut Guard) {
+data Guard dropped by drop_guard { handle: i32; }
+machine drop_guard(guard: &mut Guard) {
     guard.handle = 0;
 }
 

@@ -70,64 +70,16 @@ pub fn provider_selection_roots<'selection>(
 
 /// Prepare source relationships before Terminal production. Artifact demand
 /// remains unknown here; no candidate is selected or installed by preparation.
-pub struct TargetProviderPreparationRequest<'program> {
+pub(crate) struct TargetProviderPreparationRequest<'program> {
     pub context: ProviderPlanningContext<'program>,
     pub exact_toolchain_sources: &'program [(source::SourceId, [u8; 32])],
     /// None is reusable Source checking; Some is the complete Build deployment
     /// entry roster, with provider-only deployments represented by an empty slice.
     pub application_roots: Option<&'program [(String, SymbolHandle)]>,
     pub overrides: &'program [ProviderSelection],
-    pub assumed_bindings: &'program [effects::AssumedBindingContractSelection],
-    pub independent_components:
-        &'program [std::sync::Arc<component_description::VerifiedComponent>],
-    pub selected:
-        Option<&'program std::sync::Arc<provider_selection::SelectedTargetProviderPublication>>,
-    pub targets: &'program [(
-        String,
-        Result<std::sync::Arc<super::AuthoredTargetProviders>, Vec<Diagnostic>>,
-    )],
 }
 
 impl TargetProviderPreparationRequest<'_> {
-    /// Preserve preparation failures per target, including unavailable sibling
-    /// targets. Neither a failure nor an unused candidate invalidates production.
-    pub fn prepare(&self) -> PreparedTargetProviderPublication {
-        let targets = self
-            .targets
-            .iter()
-            .map(|(target, inventory)| {
-                if let Some(selected) = self.selected
-                    && selected.profile.target_name() == target
-                {
-                    return (
-                        target.clone(),
-                        self.canonical_roots(target).map(|application_roots| {
-                            provider_selection::TargetProviderChoice::Selected {
-                                selected: std::sync::Arc::clone(selected),
-                                application_roots,
-                            }
-                        }),
-                    );
-                }
-                let prepared = inventory
-                    .as_ref()
-                    .map_err(Clone::clone)
-                    .and_then(|inventory| self.prepare_target(target, inventory, &[]))
-                    .map(|prepared| {
-                        provider_selection::TargetProviderChoice::Prepared(
-                            prepared.without_correspondence(),
-                        )
-                    });
-                (target.clone(), prepared)
-            })
-            .collect();
-        PreparedTargetProviderPublication::new(
-            targets,
-            self.assumed_bindings.to_vec(),
-            self.application_roots.is_some(),
-        )
-    }
-
     pub(crate) fn prepare_target(
         &self,
         target: &str,
@@ -241,7 +193,7 @@ impl TargetProviderPreparationRequest<'_> {
         Ok(PreparedTargetChoices {
             application_roots,
             profile,
-            independent_components: self.independent_components.to_vec(),
+            independent_components: Vec::new(),
             candidates: prepared,
             defaults: inventory
                 .defaults()
@@ -256,7 +208,7 @@ impl TargetProviderPreparationRequest<'_> {
         })
     }
 
-    fn canonical_roots(
+    pub(crate) fn canonical_roots(
         &self,
         target: &str,
     ) -> Result<Option<Vec<provider_selection::CanonicalProviderDeclaration>>, Vec<Diagnostic>>

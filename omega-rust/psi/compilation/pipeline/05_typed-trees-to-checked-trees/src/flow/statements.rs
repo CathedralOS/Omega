@@ -158,6 +158,8 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                         build,
                         machine,
                         state,
+                        borrow_state,
+                        execution_order,
                         statement_index,
                         statement_fact,
                         transition,
@@ -478,15 +480,13 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             // footprint here or merge content aliases into physical stores.
             Some(Vec::new())
         } else {
-            build
-                .statement_storage_writes_at(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    statement_index,
-                    statement,
-                )
-                .map(|places| (*places).clone())
+            build.statement_storage_writes_at(
+                program,
+                machine.symbol,
+                state.symbol,
+                statement_index,
+                statement,
+            )
         };
         // Scalar observations require an exact logical coordinate. Binding
         // invalidation only needs a complete physical may-write enclosure;

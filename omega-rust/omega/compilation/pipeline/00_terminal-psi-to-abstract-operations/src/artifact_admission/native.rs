@@ -218,6 +218,24 @@ impl VerifiedNativeArtifactInput {
     pub fn module(&self) -> &terminal_psi::TerminalModule {
         self.optimization_input.context().module()
     }
+
+    /// The facts provider admission reads from this input.
+    pub fn admission_source(&self) -> provider_admission::AdmissionSource<'_> {
+        let input = &self.optimization_input;
+        provider_admission::AdmissionSource {
+            plan: self.plan(),
+            module: self.module(),
+            target_machine_selections: input.target_machine_selections(),
+            program_entry: input.selected_program_entry_call().map(|call| {
+                provider_admission::AdmittedProgramEntryCall {
+                    boundary: call.boundary(),
+                    entry: call.entry(),
+                    provider_plan: call.provider_plan(),
+                }
+            }),
+            private_entry_ram: self.private_entry_ram(),
+        }
+    }
 }
 
 impl NativeScopePreparation {
@@ -235,16 +253,14 @@ impl NativeScopePreparation {
                 "private entry RAM recipe belongs to another Terminal artifact".into(),
             ));
         }
-        if !recipes.is_empty() {
-            if recipes
+        if !recipes.is_empty()
+            && recipes
                 .iter()
                 .any(|recipe| recipe.layouts() != &self.layouts)
-            {
-                return Err(ArtifactLoweringError::TargetFamily(
-                    "private entry RAM recipe belongs to another target or selected geometry"
-                        .into(),
-                ));
-            }
+        {
+            return Err(ArtifactLoweringError::TargetFamily(
+                "private entry RAM recipe belongs to another target or selected geometry".into(),
+            ));
         }
         let establishments = recipes
             .iter()
@@ -337,7 +353,7 @@ impl VerifiedNativeArtifactInput {
 
     pub(crate) fn retain_admitted_native_callbacks(
         &mut self,
-        callbacks: Vec<crate::AdmittedNativeCallbackArgument>,
+        callbacks: provider_admission::AdmittedNativeCallbackCohort,
     ) {
         self.optimization_input.admitted_native_callbacks = callbacks;
     }
@@ -441,9 +457,11 @@ fn retain_native_plan(
         optimization_input: VerifiedPsiOptimizationInput {
             scalar_applications: None,
             selected_program_entry_call: None,
+            admitted_native_callbacks: provider_admission::AdmittedNativeCallbackCohort::empty(
+                plan.psi,
+            ),
             plan,
             context,
-            admitted_native_callbacks: Vec::new(),
             admitted_assumed_bindings: Vec::new(),
             target_machine_selections: selections,
             target_layout_selections: None,
@@ -542,7 +560,8 @@ mod private_entry_target_tests {
         .expect("complete real checked typed initializer");
         assert_eq!(recipe.layouts(), &layouts);
         assert_eq!(recipe.target(), "linux_x86_64");
-        for profile in [target::TargetProfile::MacosArm64] {
+        {
+            let profile = target::TargetProfile::MacosArm64;
             let other_selections = terminal_installation::admit_target_machine_selections(
                 artifact.view(),
                 profile.target_name(),

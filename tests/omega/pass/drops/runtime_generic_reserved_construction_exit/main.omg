@@ -1,9 +1,9 @@
 domain u64::Positive requires 1 <= self;
 
-data Token { value: u64 in Positive; }
+data Token dropped by drop_token { value: u64 in Positive; }
 data Holder<T> { value: T; }
 
-machine Token::drop(token: &mut Token)
+machine drop_token(token: &mut Token)
 requires token.value == 42
 {
     token.value = 1;

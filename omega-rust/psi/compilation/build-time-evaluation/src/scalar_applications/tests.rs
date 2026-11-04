@@ -5,7 +5,9 @@ use arena::Arena;
 use numerics::bignum::BigInt;
 use numerics::integer_bounds::IntegerBoundStep;
 use numerics::scalar_predicates::{PredicateNode, PredicateOperator, ScalarValue};
-use semantic_vocabulary::proof_applications::ProofApplicationMachine;
+use semantic_vocabulary::proof_applications::{
+    ProofApplicationCall, ProofApplicationMachine, ProofCallMachine,
+};
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ScalarType, StructuralTypeId, ValueId,
@@ -104,7 +106,7 @@ fn machine(identity: u64, operations: Vec<OperationKind>) -> TerminalMachine {
         block_entry_claims: Vec::new(),
         loan_completions: Vec::new(),
         content_entry_claims: Vec::new(),
-        result: TerminalMachineResult::Scalar(result.clone()),
+        result: TerminalMachineResult::Scalar(result),
         entry: BlockId::new(1).unwrap(),
         blocks: vec![Block {
             id: BlockId::new(1).unwrap(),
@@ -264,6 +266,7 @@ fn graph(expected: u64, cyclic: bool, signed_extent: bool) -> CanonicalTerminalA
         .conditions
         .retain_range(
             ScalarConditionSubject::Application(application(5)),
+            semantic_vocabulary::ScalarConditionRole::Result,
             ScalarRangeRequirement::Fixed {
                 minimum: BigInt::from_u64(16),
                 maximum: BigInt::from_u64(16),
@@ -295,6 +298,7 @@ fn graph(expected: u64, cyclic: bool, signed_extent: bool) -> CanonicalTerminalA
         .conditions
         .retain_predicate(
             ScalarConditionSubject::Application(application(5)),
+            semantic_vocabulary::ScalarConditionRole::Result,
             "total layout size".into(),
             nodes,
             root,
@@ -303,23 +307,132 @@ fn graph(expected: u64, cyclic: bool, signed_extent: bool) -> CanonicalTerminalA
     canonical(module)
 }
 
-fn canonical(module: TerminalModule) -> CanonicalTerminalArtifact {
+fn canonical(mut module: TerminalModule) -> CanonicalTerminalArtifact {
+    retain_graph_proof_scope(&mut module);
     let optimization = build_identity_optimization_execution_record(&module).unwrap();
     let artifact = CanonicalTerminalArtifact::from_parts(module, optimization, None).unwrap();
     CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap()
+}
+
+/// Give each hand-built graph the declaration, call and checked-header rows
+/// that lowering emits for its executable bodies. Completing an evaluated
+/// entry admits its root's checked crash summary before execution, so every
+/// entry needs an exact declaration with compiler-evaluation facts even when
+/// it has no prerequisite. Existing scope fixtures keep their authored
+/// identities and edges.
+fn retain_graph_proof_scope(module: &mut TerminalModule) {
+    use semantic_vocabulary::compiler_evaluation::{
+        CompilerEvaluationDeclaration, CompilerEvaluationEffects, DeclarationCustody,
+    };
+    use terminal_psi::{ProofCallableAssociation, ProofCallableHeader, ProofScopeDeclaration};
+
+    let mut identities = std::mem::take(&mut module.identities).into_builder();
+    let scope = &mut module.scalar_applications.proof_scope;
+    for machine in &module.machines {
+        let callable = TargetMachineCallable::Machine(machine.id);
+        if scope.callable_declaration(callable).is_some() {
+            continue;
+        }
+        let declaration = next_declaration(scope);
+        let identity = identities.intern(&graph_machine_name(machine.id));
+        scope
+            .declarations
+            .insert(ProofScopeDeclaration::Nominal(identity));
+        scope.callables.insert(ProofCallableAssociation::Callable {
+            declaration,
+            callable,
+        });
+        scope.plan.machines.insert(ProofApplicationMachine {
+            machine: declaration,
+            product_selected: true,
+            ..Default::default()
+        });
+    }
+    // Codec validation wants headers in increasing declaration order. Every
+    // fixture authors a header for each declaration it authors, so only the
+    // declarations appended above in machine order receive one here.
+    for machine in &module.machines {
+        let declaration = scope
+            .callable_declaration(TargetMachineCallable::Machine(machine.id))
+            .unwrap();
+        if !scope
+            .callable_headers
+            .iter()
+            .any(|(_, header)| header.declaration == declaration)
+        {
+            scope.callable_headers.insert(ProofCallableHeader {
+                declaration,
+                compiler_evaluation: Ok(CompilerEvaluationDeclaration {
+                    name: graph_machine_name(machine.id),
+                    custody: DeclarationCustody::Toolchain,
+                    effects: CompilerEvaluationEffects::default(),
+                    local_terminates: true,
+                    entry_requires: false,
+                    linear_carrier: None,
+                    static_application: None,
+                    selections: Ok(Vec::new()),
+                }),
+                ..ProofCallableHeader::default()
+            });
+        }
+        if scope
+            .calls
+            .machines
+            .iter()
+            .any(|(_, row)| row.machine == declaration)
+        {
+            continue;
+        }
+        let calls = machine
+            .operations()
+            .filter_map(|operation| match &operation.kind {
+                OperationKind::Call { callee, .. } => {
+                    let callee = scope
+                        .callable_declaration(TargetMachineCallable::Machine(*callee))
+                        .expect("test call target must have its declaration association");
+                    Some(ProofApplicationCall {
+                        callee,
+                        state: callee,
+                        ..Default::default()
+                    })
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let calls = scope.calls.calls.insert_many(calls);
+        scope.calls.machines.insert(ProofCallMachine {
+            machine: declaration,
+            calls,
+            ..Default::default()
+        });
+    }
+    module.identities = identities.build();
+}
+
+fn graph_machine_name(machine: MachineId) -> String {
+    format!("scalar-graph::machine{}", machine.get())
+}
+
+/// The next declaration ID; scope declarations are numbered from 1 in
+/// insertion order.
+fn next_declaration(
+    scope: &terminal_psi::ProofApplicationScope,
+) -> terminal_psi::ProofDeclarationId {
+    terminal_psi::ProofDeclarationId(u32::try_from(scope.declarations.len() + 1).unwrap())
 }
 
 #[test]
 fn canonical_scalar_jobs_do_not_capture_an_unselected_declarations_result() {
     let mut module = graph(24, false, false).view().module().clone();
     let scope = &mut module.scalar_applications.proof_scope;
+    let dormant = next_declaration(scope);
     scope
         .declarations
         .insert(terminal_psi::ProofScopeDeclaration::Unavailable(
             "dormant declaration".into(),
         ));
     scope.plan.machines.insert(ProofApplicationMachine {
-        machine: terminal_psi::ProofDeclarationId(1),
+        machine: dormant,
         authored_target: Some("windows_x86_64".into()),
         source_target: Some("windows_x86_64".into()),
         product_selected: true,
@@ -353,7 +466,8 @@ fn canonical_scalar_jobs_do_not_capture_an_unselected_declarations_result() {
         .scalar_applications
         .conditions
         .retain_range(
-            ScalarConditionSubject::Declaration(terminal_psi::ProofDeclarationId(1)),
+            ScalarConditionSubject::Declaration(dormant),
+            semantic_vocabulary::ScalarConditionRole::Result,
             ScalarRangeRequirement::Fixed {
                 minimum: BigInt::from_u64(0),
                 maximum: BigInt::from_u64(0),
@@ -507,6 +621,7 @@ fn sibling_extent_graph() -> CanonicalTerminalArtifact {
         .conditions
         .retain_range(
             ScalarConditionSubject::Application(application(7)),
+            semantic_vocabulary::ScalarConditionRole::Result,
             ScalarRangeRequirement::Fixed {
                 minimum: BigInt::from_u64(3),
                 maximum: BigInt::from_u64(3),
@@ -529,7 +644,7 @@ fn canonical_scalar_jobs_discover_sibling_conditions_before_execution() {
     let artifact = sibling_extent_graph();
     let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
     let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
-    let (mut observations, conditions) = evaluated(&artifact, &targets, &providers, 8);
+    let (observations, conditions) = evaluated(&artifact, &targets, &providers, 8);
     assert_eq!(conditions.ranges(), &[1]);
     assert!(conditions.predicates().is_empty());
     assert_eq!(
@@ -642,6 +757,88 @@ fn canonical_scalar_jobs_compose_geometry_entries_and_exact_observations() {
 }
 
 #[test]
+fn canonical_scalar_jobs_check_local_prerequisites_before_completion() {
+    for expected_operand in [16, 17] {
+        let mut module = graph(24, false, false).view().module().clone();
+        module
+            .scalar_applications
+            .conditions
+            .retain_range(
+                ScalarConditionSubject::Application(application(5)),
+                semantic_vocabulary::ScalarConditionRole::Prerequisite,
+                ScalarRangeRequirement::Fixed {
+                    minimum: BigInt::from_u64(expected_operand),
+                    maximum: BigInt::from_u64(expected_operand),
+                },
+                vec![IntegerBoundStep::Observation(
+                    ScalarRangeObservation::EntryResult {
+                        application: application(5),
+                        machine: machine_id(2),
+                        result: value_id(1),
+                        scalar_type: scalar(),
+                    },
+                )],
+            )
+            .unwrap();
+        let artifact = canonical(module);
+        let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
+        let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
+        let mut observations = ScalarApplicationObservations::new(
+            artifact.view(),
+            &targets,
+            &providers,
+            &terminal_installation::LayoutTargetFacts {
+                profile: targets.target().to_owned(),
+                pointer_size: 8,
+                pointer_alignment: 8,
+                little_endian: true,
+            },
+        )
+        .unwrap();
+        let result = evaluate_scalar_applications(
+            &mut observations,
+            "macos_arm64",
+            &[application(5)],
+            &mut TerminalFuelMeter::unbounded(),
+        );
+        if expected_operand == 16 {
+            result.unwrap();
+            assert_eq!(
+                observations.value(application(5)).unwrap(),
+                Some(integer(24))
+            );
+            assert_eq!(
+                observations
+                    .entry_result(application(5), machine_id(2), value_id(1), scalar())
+                    .unwrap(),
+                integer(16)
+            );
+            observations.discharge_range(1, None).unwrap();
+            observations.discharge_predicate(0).unwrap();
+        } else {
+            let error = result
+                .err()
+                .expect("a false local prerequisite must stop the entry before completion");
+            assert!(
+                error.contains("constant invocation prerequisite"),
+                "{error}"
+            );
+            assert!(
+                error.contains("bounds [16, 16] lie outside [17, 17]"),
+                "{error}"
+            );
+            assert_eq!(observations.value(application(5)).unwrap(), None);
+            assert!(
+                observations
+                    .entry_result(application(5), machine_id(2), value_id(1), scalar())
+                    .is_err(),
+                "a private capture from a failed entry must not become a completed observation"
+            );
+        }
+    }
+}
+
+#[test]
 fn canonical_scalar_jobs_refuse_cycles_and_false_conditions() {
     for cyclic in [false, true] {
         let artifact = graph(23, cyclic, false);
@@ -675,7 +872,14 @@ fn canonical_scalar_jobs_refuse_cycles_and_false_conditions() {
                 assert_eq!(observations.value(application(identity)).unwrap(), None);
             }
         } else {
-            evaluated.unwrap();
+            let error = evaluated
+                .err()
+                .expect("a false result predicate must reject the completed evaluation");
+            assert!(error.contains("predicate is false"), "{error}");
+            assert_eq!(
+                observations.value(application(5)).unwrap(),
+                Some(integer(24))
+            );
             assert!(
                 observations
                     .discharge_predicate(0)
@@ -686,7 +890,7 @@ fn canonical_scalar_jobs_refuse_cycles_and_false_conditions() {
                 TerminalProgram::borrow(artifact.view())
                     .instantiate(TerminalInstantiation::default())
                     .is_err(),
-                "provisional success does not admit ordinary execution"
+                "a completed value with a false result promise cannot admit ordinary execution"
             );
         }
     }
@@ -769,11 +973,14 @@ fn canonical_scalar_jobs_bind_provisional_inputs_to_the_target_and_entry() {
                 memory_ordering: None,
             })
             .unwrap();
+        let prerequisites =
+            terminal_installation::ScalarEntryPrerequisites::prepare(&observations, application(2))
+                .unwrap();
+        let admission = prerequisites.admit(&observations, None).unwrap();
         let result = program.instantiate(TerminalInstantiation {
             installation: Some(&installation),
             scalar_application: Some(TerminalScalarApplicationRequest {
-                application: application(2),
-                observations: &observations,
+                admission: &admission,
             }),
             ..Default::default()
         });

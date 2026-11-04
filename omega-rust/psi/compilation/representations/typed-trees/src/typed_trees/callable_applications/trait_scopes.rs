@@ -352,6 +352,15 @@ impl TypedTrees {
         application: &AppliedTraitScope<'_>,
         requirement: SymbolHandle,
     ) -> Option<&signature::StateSignature> {
+        if let Some(closed) = self.closed_requirement_application(requirement)
+            && application
+                .callable_refinement_clauses(self, closed.signature.name.as_str())
+                .is_empty()
+        {
+            return self
+                .requirement_application_matches_scope(requirement, application)
+                .then_some(closed.signature);
+        }
         let (owner, identity) = application.callable_contract_key(self)?;
         self.applied_callable_signatures
             .iter()
@@ -376,7 +385,11 @@ impl TypedTrees {
     /// Prepare reachable declaring scopes once, including every inherited path.
     /// An application owns logical contracts, not executable realizations;
     /// constructing this row confers no conformance or proof authority.
-    pub fn prepare_applied_callable_signatures(&mut self) -> Result<(), &'static str> {
+    /// Return only newly substituted signatures so their producer can finalize
+    /// derived domain identities before a caller reads the prepared contracts.
+    pub fn prepare_applied_callable_signatures(
+        &mut self,
+    ) -> Result<Vec<signature::StateSignature>, &'static str> {
         let roots = self.applied_trait_roots();
         let mut pending = Vec::new();
         for scope in roots {
@@ -396,6 +409,28 @@ impl TypedTrees {
                     let Some((owner, identity)) = scope.callable_contract_key(self) else {
                         continue;
                     };
+                    // A refined bound supplies a logical view of a closed
+                    // invocation too. Keep its exact ordinary Value formals;
+                    // strengthening the shared nominal instance would grant
+                    // those ceilings to unrelated base-trait callers.
+                    if !clauses.is_empty() {
+                        for closed in self.closed_requirement_applications().filter(|closed| {
+                            closed.template == signature.symbol
+                                && self.requirement_application_matches_scope(
+                                    closed.signature.symbol,
+                                    scope,
+                                )
+                        }) {
+                            pending.push((
+                                scope.declaration.symbol,
+                                owner,
+                                identity,
+                                closed.signature.symbol,
+                                scope.environment(),
+                                clauses.clone(),
+                            ));
+                        }
+                    }
                     pending.push((
                         scope.declaration.symbol,
                         owner,
@@ -407,6 +442,7 @@ impl TypedTrees {
                 }
             });
         }
+        let mut produced = Vec::new();
         for (trait_symbol, owner, identity, requirement, environment, clauses) in pending {
             if self
                 .applied_callable_signatures.iter().any(|(_, prepared)| {
@@ -416,20 +452,29 @@ impl TypedTrees {
             {
                 continue;
             }
-            let application = self.materialize_trait_application(&environment)?;
-            let arguments = self.trait_application_arguments(trait_symbol, &application)?;
-            // Ancestor substitutions resolve the final operands, but are not
-            // the declaring signature's telescope. Reusing that scratch scope
-            // would capture unrelated binders while copying local contracts.
-            let Some(mut applied) = CallableApplication {
-                trait_region_application: Some((environment.clone(), environment.frame_count())),
-                ..CallableApplication::default()
-            }
-            .nominal(self, trait_symbol, requirement, &arguments)?
-            else {
-                continue;
+            let mut applied = if let Some(closed) = self.closed_requirement_application(requirement)
+            {
+                closed.signature.clone()
+            } else {
+                let application = self.materialize_trait_application(&environment)?;
+                let arguments = self.trait_application_arguments(trait_symbol, &application)?;
+                // Ancestor substitutions resolve final operands without
+                // capturing the declaring signature's independent telescope.
+                let Some(applied) = CallableApplication {
+                    trait_region_application: Some((
+                        environment.clone(),
+                        environment.frame_count(),
+                    )),
+                    ..CallableApplication::default()
+                }
+                .nominal(self, trait_symbol, requirement, &arguments)?
+                else {
+                    continue;
+                };
+                applied
             };
             self.apply_callable_refinements(&mut applied, &clauses)?;
+            produced.push(applied.clone());
             self.applied_callable_signatures
                 .insert(AppliedCallableSignature {
                     owner: AppliedCallableOwner::Trait {
@@ -439,7 +484,7 @@ impl TypedTrees {
                     signature: applied,
                 });
         }
-        Ok(())
+        Ok(produced)
     }
 
     /// Materialize each simultaneous telescope in its outer scopes. This shared
@@ -458,7 +503,7 @@ impl TypedTrees {
         self.trait_application_arguments(trait_symbol, &application)
     }
 
-    fn materialize_trait_application(
+    pub(super) fn materialize_trait_application(
         &mut self,
         environment: &crate::trait_definition::TraitApplicationEnvironment,
     ) -> Result<CallableApplication, &'static str> {

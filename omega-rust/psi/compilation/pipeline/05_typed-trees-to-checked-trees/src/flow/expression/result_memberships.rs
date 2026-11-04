@@ -54,6 +54,7 @@ impl Execution<'_, '_, '_> {
         let realization = crate::flow::calls::checked_realization_result_identities(
             self.program,
             self.context,
+            self.machine.symbol,
             source,
         );
         let point = ProgramPoint::CallEnsures {
@@ -62,13 +63,17 @@ impl Execution<'_, '_, '_> {
             statement_index: self.statement_index,
             call_ordinal: ordinal,
         };
-        for (path, domain, identity) in rows {
+        for row in rows {
+            let (path, domain, identity) = row.identity.clone();
             // A checked adapter cannot borrow the boundary requirement's
             // inherited issuer promise. Preserve the ordinary result fence.
             if !crate::flow::calls::result_identity_is_available(
                 self.program,
+                self.machine.symbol,
+                value.expression,
+                source,
                 realization.as_deref().map(Vec::as_slice),
-                &(path.clone(), domain, identity),
+                &row,
             ) {
                 continue;
             }

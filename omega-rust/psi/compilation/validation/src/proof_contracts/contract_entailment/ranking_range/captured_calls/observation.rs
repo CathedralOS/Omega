@@ -66,11 +66,7 @@ impl CallProgress {
             .machine_states(callee)
             .first()
             .ok_or("the captured rank destination has no entry")?;
-        let parameters = program
-            .state_parameters(entry)
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>();
+        let parameters = program.state_parameters(entry).to_vec();
         let site =
             crate::collect_call_sites_in_statement(program, machine, state, self.statement_index)
                 .into_iter()
@@ -284,7 +280,7 @@ impl CallProgress {
                             .cloned()
                             .collect::<Vec<_>>();
                         let value = read(&projection)?;
-                        reads.push((required.coordinate.clone(), value, required.primitive_type));
+                        reads.push((required.clone(), value, required.primitive_type));
                     }
                     let snapshot = entry_observation.judge.bound_contract_term(
                         component.subject, entry.symbol, &parameters, callee.symbol,

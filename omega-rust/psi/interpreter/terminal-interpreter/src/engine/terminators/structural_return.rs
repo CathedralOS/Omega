@@ -3,7 +3,6 @@
 use super::*;
 use crate::boundary::errors::malformed;
 use crate::engine::custody::verified_structural_place;
-use crate::storage::byte_sequences::binding::ByteSequenceBinding;
 use crate::storage::scalar_array::TerminalScalarArrayResult;
 
 impl TerminalExecution<'_> {
@@ -442,7 +441,16 @@ impl TerminalExecution<'_> {
         }
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        self.structural_values.remove(source);
+        if let Some(retired) = self.structural_values.remove(source) {
+            let origin = self
+                .reference_referents
+                .get(&crate::boundary::values::StructuralRuntimePlace::from(
+                    &retired,
+                ))
+                .cloned();
+            self.retired_structural_homes
+                .push((*source, retired, origin));
+        }
         self.scalar_array_values.remove(source);
         self.byte_sequence_values.remove(source);
         self.element_view_values.remove(source);

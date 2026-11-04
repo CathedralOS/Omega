@@ -15,7 +15,7 @@ use terminal_psi::{
     StructuralAccess, StructuralPathQualification, StructuralPathSegment, StructuralTypeShape,
 };
 
-fn source<'captured>(
+pub(super) fn source<'captured>(
     selection: &TerminalBoundaryReferenceSelection,
     captures: &'captured [CapturedReferenceInput],
 ) -> Result<&'captured CapturedReferenceInput, TerminalInterpretError> {

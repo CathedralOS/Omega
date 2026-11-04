@@ -113,7 +113,7 @@ pub(crate) fn validate_stored_integer_value(
 /// stored-integer width, and a decode schema's carrier all read this one
 /// vocabulary.
 pub(crate) const fn byte_sized_width(width_bits: u16) -> bool {
-    width_bits != 0 && width_bits <= 64 && width_bits % 8 == 0
+    width_bits != 0 && width_bits <= 64 && width_bits.is_multiple_of(8)
 }
 
 /// Whether `source_value` — masked to its own carrier — lands inside the

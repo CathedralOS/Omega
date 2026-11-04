@@ -17,6 +17,7 @@ pub(crate) mod evidence_forwardings;
 pub(crate) mod machine_parameter_requirements;
 pub(crate) mod service_reaches;
 pub(crate) mod signature_free_requirements;
+mod static_arguments;
 
 use crate::resolution::lowerer::Lowerer;
 use diagnostics::Diagnostic;
@@ -128,6 +129,8 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     let machine_ordinals =
         conformance_blocks::normalize_closed_conformance_blocks(&mut lowerer.symbol_resolved_trees)
             .map_err(|diagnostic| vec![diagnostic])?;
+    static_arguments::bind(&mut lowerer.symbol_resolved_trees)
+        .map_err(|diagnostic| vec![diagnostic])?;
     lowerer.pending_machine_bodies.retain_mut(|pending| {
         match machine_ordinals
             .get(pending.machine_ordinal)
@@ -169,11 +172,11 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
 
 /// The authored-nominal machine contract beneath a type parameter, when it
 /// carries one, with its `::`-rendered requirement path.
-pub(super) fn authored_nominal_requirement<'parameter>(
-    parameter: &'parameter symbol_resolved_trees::data::TypeParameter,
+pub(super) fn authored_nominal_requirement(
+    parameter: &symbol_resolved_trees::data::TypeParameter,
 ) -> Option<(
-    &'parameter Vec<symbol_resolved_trees::name::DiagnosticName>,
-    &'parameter arena::HandleSpan<symbol_resolved_trees::types::TypeReference>,
+    &Vec<symbol_resolved_trees::name::DiagnosticName>,
+    &arena::HandleSpan<symbol_resolved_trees::types::TypeReference>,
     String,
 )> {
     let symbol_resolved_trees::data::TypeParameterKind::Machine {

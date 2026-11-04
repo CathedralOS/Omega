@@ -300,13 +300,6 @@ pub enum CheckedUnitStructuralFieldType {
     Structural {
         type_identity: TypeIdentityId,
     },
-    /// An authored dynamic boundary-trait field whose runtime carrier is
-    /// eliminated only by an exact provider-installation specialization.
-    /// The enclosing machine plan must retain one requirement row for every
-    /// boundary call routed through this field.
-    ProviderBacked {
-        provider_type_identity: TypeIdentityId,
-    },
     /// An erased semantic field does not require an executable structural
     /// carrier. Its exact normalized type identity remains independently
     /// checkable in terminal Psi.
@@ -673,10 +666,10 @@ pub fn is_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType)
 }
 
 /// The type plan carrying `identity` on a plan roster.
-pub fn checked_structural_type_by_identity<'plans>(
-    plans: &'plans [CheckedUnitStructuralTypePlan],
+pub fn checked_structural_type_by_identity(
+    plans: &[CheckedUnitStructuralTypePlan],
     identity: TypeIdentityId,
-) -> Option<&'plans CheckedUnitStructuralTypePlan> {
+) -> Option<&CheckedUnitStructuralTypePlan> {
     plans.iter().find(|plan| plan.identity == identity)
 }
 
@@ -686,7 +679,7 @@ mod field_identity_tests {
 
     #[test]
     fn receiving_type_identity_not_source_allocation_controls_field_equality() {
-        let mut identities = typed_trees::type_identity::TypeIdentityTable::default();
+        let identities = typed_trees::type_identity::TypeIdentityTable::default();
         let counter_reader = identities.intern("dyn Reader<Counter>");
         let other_reader = identities.intern("dyn Reader<Other>");
         let field = CheckedUnitStructuralFieldPlan {

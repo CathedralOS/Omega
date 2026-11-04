@@ -24,6 +24,7 @@ mod expressions;
 mod lookup;
 mod mathematical;
 mod measures;
+mod private_nested_calls;
 mod propositions;
 pub(crate) mod recursive_tail_calls;
 mod scope;
@@ -437,7 +438,8 @@ pub(crate) fn assign_body_symbols(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_outcome_specific_contracts,
     )
-    .map_err(|diagnostic| vec![diagnostic])
+    .map_err(|diagnostic| vec![diagnostic])?;
+    private_nested_calls::reject_private_nested_calls(&lowerer.symbol_resolved_trees)
 }
 
 pub(crate) fn assign_lexical_inputs(

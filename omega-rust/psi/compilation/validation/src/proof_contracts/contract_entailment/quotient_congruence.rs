@@ -145,9 +145,7 @@ fn quotient_equality_goal(
     program: &dyn crate::CheckingInput,
     fact: ExpressionHandle,
 ) -> Option<(&DataDefinition, ExpressionHandle, ExpressionHandle)> {
-    let Some(binary) = program.expression_table.binary_node(fact) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(fact)?;
     if binary.operator != BinaryOperator::Equal {
         return None;
     }

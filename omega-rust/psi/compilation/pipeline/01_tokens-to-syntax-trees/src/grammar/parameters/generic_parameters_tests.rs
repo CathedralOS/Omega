@@ -51,6 +51,7 @@ fn conformance_and_value_binders_keep_distinct_admission() {
             matches!(
                 syntax,
                 GenericParameterSyntax::TraitRequirements
+                    | GenericParameterSyntax::RequirementSignature
                     | GenericParameterSyntax::MachineDeclaration
                     | GenericParameterSyntax::DataDeclaration
             )
@@ -59,7 +60,9 @@ fn conformance_and_value_binders_keep_distinct_admission() {
             assert_eq!(parameters.conformance_bounds.len(), 1);
             if matches!(
                 syntax,
-                GenericParameterSyntax::TraitRequirements | GenericParameterSyntax::DataDeclaration
+                GenericParameterSyntax::TraitRequirements
+                    | GenericParameterSyntax::RequirementSignature
+                    | GenericParameterSyntax::DataDeclaration
             ) {
                 assert!(matches!(
                     trees.items.type_parameters(parameters.type_parameters)[0].kind,
@@ -92,7 +95,7 @@ fn conformance_and_value_binders_keep_distinct_admission() {
 }
 
 #[test]
-fn callable_data_and_alias_binders_do_not_start_as_trait_identities() {
+fn callable_binders_distinguish_identity_defaults_from_authored_contracts() {
     for syntax in [
         GenericParameterSyntax::DataDeclaration,
         GenericParameterSyntax::TraitRequirements,
@@ -114,18 +117,23 @@ fn callable_data_and_alias_binders_do_not_start_as_trait_identities() {
             assert!(contract.is_none());
         }
     }
-    for ending in ["{ value: u64; }", "= u64;"] {
+    for (declaration, ending) in [
+        ("data", "{ value: u64; }"),
+        ("data", "= u64;"),
+        ("trait", "{}"),
+    ] {
         for (clause, nominal) in [
             ("requires machine Selected(value: u64) -> u64;", false),
             ("requires machine Selected satisfies Hook::step;", true),
         ] {
-            let source = format!("data Carrier<machine Selected> {clause} {ending}");
+            let source = format!("{declaration} Carrier<machine Selected> {clause} {ending}");
             let tokens = Lexer::new(&source).tokenize().unwrap();
             let trees = crate::parse_syntax_trees(&tokens).expect("authored callable contract");
             let parameters = match trees.root_items().next().unwrap() {
                 Item::Data(data) => data.type_parameters,
                 Item::TypeAlias(alias) => alias.type_parameters,
-                _ => panic!("data or transparent alias"),
+                Item::Trait(trait_definition) => trait_definition.type_parameters,
+                _ => panic!("data, transparent alias or trait"),
             };
             let TypeParameterKind::Machine {
                 contract: Some(contract),
@@ -146,12 +154,48 @@ fn callable_data_and_alias_binders_do_not_start_as_trait_identities() {
             "",
             "requires machine Selected(value: u64) -> u64; requires machine Selected(value: u64) -> u64;",
         ] {
-            let source = format!("data Carrier<machine Selected> {clauses} {ending}");
+            if declaration == "trait" && clauses.is_empty() {
+                continue; // A bare trait machine slot retains declaration identity only.
+            }
+            let source = format!("{declaration} Carrier<machine Selected> {clauses} {ending}");
             let tokens = Lexer::new(&source).tokenize().unwrap();
             assert!(
                 crate::parse_syntax_trees(&tokens).is_err(),
                 "missing or duplicated contracts must refuse"
             );
         }
+    }
+}
+
+#[test]
+fn evidence_bounds_retain_explicit_trait_lifetimes_separately_from_static_slots() {
+    for syntax in [
+        GenericParameterSyntax::MachineDeclaration,
+        GenericParameterSyntax::DataDeclaration,
+        GenericParameterSyntax::TraitRequirements,
+    ] {
+        let (trees, parameters) = parse_parameters(
+            "<'held, Value, Selected satisfies Buffered<'held, Value, 3u64>>",
+            syntax,
+        )
+        .unwrap();
+        assert_eq!(parameters.lifetime_parameters.len(), 1);
+        let [bound] = parameters.conformance_bounds.as_slice() else {
+            panic!("one bound");
+        };
+        assert_eq!(bound.trait_name.as_str(&trees), "Buffered");
+        assert_eq!(bound.lifetime_arguments.len(), 1);
+        assert_eq!(bound.lifetime_arguments[0].as_str(&trees), "held");
+        assert_eq!(
+            trees
+                .type_references
+                .type_reference_handles(bound.arguments)
+                .len(),
+            2
+        );
+        assert!(
+            parse_parameters("<'held, Selected satisfies Buffered<Value, 'held>>", syntax,)
+                .is_err()
+        );
     }
 }

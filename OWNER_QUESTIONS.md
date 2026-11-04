@@ -67,258 +67,142 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### 1. How should users select interpreted execution and a possible future JIT?
+### 1. Is a layout used only inside unselected library code a Psi obligation under every target?
 
-AOT remains the established native execution path. How should users explicitly
-trigger standalone Terminal Psi interpretation? If we add a JIT later, should
-it be another explicitly selected execution mode, or should an opted-in runtime
-automatically compile hot code? Keep `--both` as a separate native/interpreter
-comparison choice rather than conflating comparison with engine selection.
+A fixed-representation use (`LayoutStorage`, `CLayout`) inside a body that no
+Build row selects and no entry reaches is laid out today by Psi's build-time
+admission under every selected target that carries representation facts. Since
+std moved its POSIX native bindings to Build rows (#1617, #1622, #1625), portable
+std code such as `posix_canonicalize` and `FilesystemPosixProvider`, and the
+Darwin C-layout stat and timespec records their closures use, is no longer
+reached through any target's provider defaults. It is therefore unscoped, and it
+is laid out under every target with facts (#1653 stopped also demanding it from
+targets without facts). A console-only program pays for laying out filesystem
+code it never calls, once per target.
 
-The concrete customer is running an ordinary Omega program through the chosen
-engine, including running it without first generating a native executable.
-The current CLI exposes native `omega run` and comparison through `--both`, but
-no interpreter-only option. This asks for the user-facing selection policy, not
-an implementation change or a decision that JIT must be built.
+The product requirement is compile latency of ordinary std-dependent programs.
+`tests/omega/pass/host/console_exit_process_exit` is recorded as
+`checked 11753ms` in `tests/omega/corpus_outcomes.txt` (`@ccdb99ca2214`, check
+target macos_arm64, host unrecorded). On main `de9648a198` plus #1653
+(`a151ce613a`), one `omega --check` of it took 148.5 s on a linux_x86_64 cloud
+container (the author's measurement), and 95.6 s on main `91b6625545` after
+#1656. Three smoke fixtures
+(`control_flow/borrowed_state_argument`,
+`control_flow/runtime_owned_state_parallel_swap_exit`,
+`write_only/state_forwarded_scalar_store_exit`) exceed the 120 s corpus cap. For
+the first of them, PR #1656 reports 33.9 s per check in fixed-layout evaluation
+across 85 layout applications in 6 target scopes at `5209eac451`. After its
+repair of the proof judge's quadratic scans, about 79 s of extra checking
+remains with no single hot frame. On `91b6625545` the console check spends 52 s
+in stage-05 checking of the newly demanded std code and only a few seconds in
+layout formation. Option A below would remove the layout share only; both
+options still resolve, type and check that code, so neither recovers the rest.
 
-Contracts checked: [embedding's engine/target separation](wiki/spec/build/embedding.md#target-environments-and-execution-engines)
-already treats interpreted and native execution independently from OS targets;
-[separate Terminal consumption](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
-allows compilation to stop at Terminal Psi for later interpretation or native
-lowering. The embedding execution contract says no JIT is required, and its
-[implementation ownership](wiki/spec/build/embedding.md#authority-evidence-and-ownership-of-implementation)
-treats the CLI as a library client. These establish independent interpretation
-but do not settle a standalone CLI selection surface or a future JIT trigger
-policy. Any future automatic JIT policy would be an explicit new design choice,
-not an implicit requirement of the existing interpreter contract.
+A Build row's target cannot scope the code: a source declaration acquires no
+target tag, and the row demands only a body-less boundary requirement, not its
+portable callers.
 
-### 2. Must a guard on a copy of an array element be rejected after the element is overwritten and restored?
+Option A, demand-limited layout: Psi lays out a fixed-representation
+application only under each target whose Build rows select, or whose entry
+reaches, a closure containing it. That includes rows for targets outside the
+requested output, so
+`tests/omega/fail/layouts/unselected_target_{helper,callback}_layout_underflow`
+and `unselected_target_layout_contract` keep rejecting. A use reached by no row
+and no entry is resolved, typed and checked, but not laid out under target facts.
+Its layout applicability is left to Omega's validation of whichever closure a
+later row selects. "Every supplied implementation is checked" then excludes
+target-fact layout formation for code no row or entry reaches.
 
-`tests/omega/fail/contracts/scalar_copy_guard_after_source_restore` is a reject
-twin that main now accepts. Its `inspect` machine reads `main.items[selector]`
-twice (`copied`, then `saved`), writes `0` to the element, writes `saved` back,
-and only then tests `copied >= 48 && copied <= 49` before transitioning to
-`bounded`, which `requires main.items[selector] >= 48` and `<= 49`. The twin
-expects `cannot prove requires contract`. On base `60f7e3cd4ee` a focused corpus
-run of the fixture reports `checked`, not `rejected`. The investigation traced
-this to #985 (`0020604823c`, 2026-10-31): the checker proves both requirements
-because `copied`, `saved` and `main.items[selector]` all denote the stored
-contents at state entry, and the restore writes back exactly that value. The program meets `bounded`'s
-requirements on every execution. Must it still be rejected? Is the twin's oracle
-a language rule, or a limit of the earlier analysis that the stronger one
-legitimately lifted?
+Option B, mandatory layout of all supplied code: every supplied
+fixed-representation application is laid out under every target with facts,
+whether or not anything reaches it. Layout formation is part of the ordinary
+source check of every supplied implementation, and the cost scales with a
+library's target-specific code times the number of targets, for every program
+that depends on it.
 
-Option A, the twin is stale: accepting is correct. The fixture moves out of
-`fail/contracts/` (to `pass/` or deleted) and its golden rows are re-recorded.
-The language then admits a guard on a scalar copy across a write that restores
-the source, when the written value is provably the copied one. Sibling controls
-that change the stored value (`scalar_copy_guard_after_source_write`,
-`scalar_copy_guard_after_selector_write`) keep rejecting; four soundness probes
-still reject too (aliasing write through another index, restore of a different
-value, re-read after a write, store of a late read into `main.saved`).
+Contracts checked, and why they do not decide it:
+- [Layout plans](wiki/spec/layouts/plans.md#compile-time-journey-and-build)
+  (lines 301-305) say "the using representation application selects the exact
+  implementation" and the compiler "supplies its authorized schema and target
+  facts"; lines 313-314 say "merely importing a package does not instantiate its
+  layouts". Neither says whether a use inside a checked but unselected body is a
+  using application or a mere import.
+- [Terminal Psi product](wiki/spec/terminal-psi/product.md) (lines 28-30) calls
+  "target-selected layout" a later realization fact; lines 216-219 say "selected
+  ... layout ... applicability is a realization obligation". These place
+  *selected* layout in Omega but say nothing of unselected uses.
+- [Multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
+  (lines 166-173), [scoped execution](wiki/spec/build/scoped_execution.md)
+  (lines 164-167, "including unselected target implementations") and
+  [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection)
+  (line 106) require ordinary source checks of every supplied implementation.
+  They do not say whether target-fact layout formation is one.
+- [Behavior exclusions](wiki/spec/build/behavior_exclusions.md) (lines 126-131)
+  already draw the same line for another obligation: "An unused unselected
+  implementation ... need not satisfy a product exclusion, but remains subject to
+  ordinary source checks."
+- [Machines](wiki/spec/language/machines.md) (lines 186-190),
+  [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection)
+  (lines 91-93, 107) and [Build-owned native binding](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)
+  (lines 36-39) keep target keys on Build rows, which is why a row cannot scope
+  the code.
+- The layout implementation note (`omega-rust/psi/compilation/build-time-evaluation/layouts.md`,
+  not a contract) leans both ways. Lines 43-45 say Build supplies "selected
+  providers" and that a scope with no application needs no facts. Lines 96-98 and
+  110-113 follow provider bodies "under each applicable target" and reject a bad
+  target-family member "even when deployment requests another target".
 
-Option B, the twin states a rule: the program must be rejected. The analysis
-must stop relating `copied` to the element once any write to the element
-intervenes, even a value-equal restore. That requires deliberately weakening
-the stored-value tracking in the scalar copy guard route
-(`current_values::proves_call`, `guard_observations.rs`) for restored values,
-rejecting a program that provably satisfies its contracts, and a written rule
-to cite.
+### 2. Must a lent local's domain qualification hold again when the borrow returns?
 
-Evidence, from the investigation on base `661760196df`: the call-site proof is
-`captured_boolean::judgment` -> `captured_contract_proven` ->
-`current_values::proves_call`, where the three values share one atom,
-`completed-scalar:IndexedValue{main.items, selector}`. #985 switched
-`numeric_observations` from `declared_integer_field_read` (declared fields only)
-to `integer_storage_read` (any fixed-integer storage read, array elements
-included). The golden row (`rejected`, `@ccdb99ca2214`) was recorded by #889
-(`c64728d90e8`) before #985 merged. The twin's shape comes from `10aeeb04a5b`,
-whose `guard_observations.rs` header says "a write followed by restoration
-still breaks the relation". That sentence is implementation commentary on
-the guard copy-relation route, not a language rule.
+A local binding can carry a domain qualification, for example
+`let mut bytes: [u8; 2] in Ascii = "ab";`. When it is lent through
+`&mut` to a callee whose formal carries the same qualification, the contracts
+do not say whether the local's qualification is a stored invariant, which the
+callee must restore before returning, or an input qualification, which may
+expire.
 
-Contracts checked:
-[primitive reads](wiki/spec/terminal-psi/fact_validity.md) (line 28) allow
-an equality between a copied result and an exact reaching stored value and
-say later writes cannot change either captured value, but name "missing
-stores" as preventing introduction; `copied` and `saved` have no reaching
-store, only state-entry contents. [Entry hypotheses](wiki/spec/terminal-psi/fact_validity.md)
-(line 67) bind "structural entry paths" and say current body values are not
-entry snapshots; whether a body read of an unchanged entry path may be
-identified with that path is not stated. [Mutation and subject
-identity](wiki/spec/language/state_contracts.md#mutation-and-subject-identity)
-(lines 175-198) says copies "transport facts about the captured value" and
-that overlapping destination facts are invalidated at a write, then the new
-value is established; it does not say a value-equal restore must lose facts
-about the copy. [Lifetimes](wiki/spec/language/lifetimes.md) (line 101) says
-integer snapshots are not live storage. No passage names scalar copy guards or
-requires a restore to break a relation. These establish that facts follow
-captured values and storage footprints but leave the restore case open.
+`tests/omega/fail/collections/fixed_array_write_rejects_element_domain` assumes
+it is a stored invariant. Its `corrupt(bytes: &mut [u8; 2] in Ascii, index: u64)`
+stores 255 into the lent array and is expected to reject with
+`cannot prove default-domain field requirement`. It compiles today. That fixture
+is left unchanged pending this decision.
 
-### 3. Does a coerced `dyn` selector narrow its call to the selected conformance's envelope, or keep the requirement ceiling?
+The product requirement is soundness of encoding domains on byte storage. If
+the local's qualification may expire, the caller's binding still has type
+`[u8; 2] in Ascii`, yet it may hold a non-ASCII byte after the call. Callers
+that later rely on the declared type would then rely on a fact that no longer
+holds, unless the qualification expires at the lend as well.
 
-Two accepted passages disagree. [Dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md)
-(lines 81-93) lists service reach, suspension, blocking, failure, termination
-and crash routes as per-requirement envelope axes and says "Coercion retains
-the selected conformance's exact envelope"; `suspend` and `block`
-acknowledgements "use the retained envelope, not the wider base declaration".
-[Effects](wiki/spec/language/effects.md) (lines 184-187) says dynamic and
-boundary calls "retain pinned requirement ceilings, not a narrower provider
-body eventually selected for them", and that their operational
-acknowledgements "still use the requirement envelope".
+Option A, stored invariant: a local's own domain qualification is owed at every
+consumption point, like a declared field domain. A callee that receives it
+through `&mut` must re-establish it before returning. A formal's additional
+input qualification still expires as it does today. Only the lent storage's own
+declaration is owed at return.
 
-Option A, the selector narrows: a selection known at check time, such as
-`QuietSource as dyn Source` carried through locals, fields, constants, private
-calls, joins and nested machines, contributes the selected conformance's
-published rows. An unknown selector (an unannotated public `dyn` parameter)
-keeps the requirement ceiling, and "eventually selected" in effects.md reads
-as a selection made by Build or at run time. `samples/cli/facts/dynamic_suspension`
-(suspension and blocking) and `samples/cli/facts/dynamic_selected_reach`
-(service reach) implement this reading. The `dynamic/` places of
-`samples/cli/facts/unannotated_direct_boundary_call` now reach `Mark` from the
-selected body, because their silent selection no longer carried the
-requirement's `Mark` row.
+Option B, input qualification: lending a qualified local makes its
+qualification an input to the callee, which may retire it as it may retire any
+additional input domain. The caller's fact about the local ends at the lend and
+must be re-established before the next use that requires it. The fixture
+migrates: it should expect acceptance, or move the rejection to a later use of
+`bytes` that needs `Ascii`.
 
-Option B, the ceiling stays: every `dyn` call contributes its requirement's
-whole envelope, whatever the coercion selected. dynamic_dispatch.md's
-"retained envelope" then means the requirement's envelope, and both fact rows
-above, with their pinned fixtures, are reverted.
-
-In both options public and annotated ceilings, Build-selected providers and
-unknown selectors keep the requirement row; only check-time coercions differ.
-
-### 4. What evidence lets open index normalization drop an identity element (`N + 0`, `N * 1`)?
-
-[Licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-lists zero/one identities among the normalizations a selected conformance
-licenses, each by its own law, and says connecting nullary algebra operations to
-constructor constants requires ordinary unfolding or citation. An open index
-spells an identity element as an integer leaf, `N + 0` or `N * 1`, and its
-expression fragment has no call, so no index can apply `zero()` or `one()`.
-`source/library/core/algebra.omg` states the identities over those nullary slot
-applications (`add(a, zero()) == a`) and says the checker has no compiler-known
-zero/one form. On base `05a6f6af37e` both spellings of an identity law leave
-`Indexed<N + 0>` and `Indexed<N>` distinct (`index compatibility condition ...
-is not established`): a trait whose laws name the literals (`add(a, 0) == a`,
-`multiply(a, 1) == a`) and a trait whose laws name the slot applications
-(`add(a, zero()) == a`). What evidence lets the normalizer drop a `0` or `1`
-leaf?
-
-Option A, the law names the literal: an identity law slot over the integer
-literal itself, detected by shape like commutativity and recorded on the
-selection beside the other laws. No connection between a nullary slot and a
-constant is needed because the law is stated about the leaf. The trait then
-fixes its operand to a numeric type, and left and right identity are separate
-laws.
-
-Option B, the library form plus a connection law: `CommutativeSemiring`'s
-identity laws over `zero()` and `one()`, plus a law slot `zero() == 0` (and
-`one() == 1`) that connects each nullary application to its constant. The
-normalizer drops a leaf only when the selected conformance declares both slots.
-
-Option C, no normalizer rule: identity elimination stays an ordinary
-established equality (a cited identity law and a local fact `N + 0 == N`), and
-open index normalization never removes a leaf. `N + 0` and `N` remain distinct
-instances whose compatibility needs that fact.
-
-The answer also fixes whether identities compose with distributivity
-(`A * (B + 1)` against `A * B + A`).
-
-Contracts checked: [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-names the identities and says nothing of their shape or of how an integer leaf
-meets a nullary slot. [Domains](wiki/spec/language/domains.md) says computed open
-indices retain their selected operation and normalized expression and that
-compatibility is a verification condition, not evaluation in type equality.
-[Canonical static identities](wiki/spec/language/evaluation.md#canonical-static-identities)
-keeps open symbolic indices as normalized artifact data and keeps machine
-evaluation out of type equality, which rules out evaluating `zero()` to `0`
-inside an identity. [Conformances](wiki/spec/language/conformances.md) says the
-index checker consumes selected evidence and does not infer an algebra from
-operator punctuation. None says how a literal leaf acquires an identity law.
-`samples/cli/facts/open_index_distributivity` records the distributivity
-evidence this question leaves out.
-
-### 5. Is the expanded sum of products the canonical form of an open index under a declared distributivity law?
-
-[Licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-says distributivity requires its law, that changing the canonical form is an
-explicit language compatibility event, and that index normalizer version 3
-retains the exact selected provider. Version 3 sorted operands under
-commutativity and flattened under associativity, and ignored a declared
-distributivity law. The compiler now applies a declared left-distributivity law
-by expanding `x * (y + z)` to `x * y + x * z` once per summand, flattening and
-sorting the result under the addition's own laws, and expanding a nested sum in
-the same way. It keeps `normalizer_version: 3` and caps an expansion at 64
-summands, keeping the unexpanded form beyond. A trait that declares
-distributivity in both directions (a distributive lattice) expands in neither.
-Which expressions are identified depends only on the laws a conformance
-licenses; this question settles the representative text, the version label and
-the cap.
-
-Option A, expansion is canonical and the version advances to 4: amend the
-sentence naming version 3 and record the compatibility event.
-
-Option B, expansion is canonical and the version stays 3: no recorded form
-changes, because an expression's form moves only when its trait declares a
-distributivity law, which no normalizer consulted until now, and the library's
-only such trait (`CommutativeSemiring`) has no index customer.
-
-Option C, another representative (factoring, or a polynomial with explicit
-coefficients): every form the implementation produces under the law changes.
-
-Contracts checked: [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-fixes the licensing and the version provenance but names no representative.
-`source/library/core/algebra.omg` describes the proof engine's tier-2
-normalizer as expanding a capped natural-coefficient polynomial form; that is
-commentary on the proof side, not a rule for index identity. [Domains](wiki/spec/language/domains.md)
-says computed open indices retain a normalized expression and that exact
-operation and law identities survive generic substitution and interface
-publication, without defining the expression's form.
-`samples/cli/facts/open_index_distributivity` pins the expansion with its reject
-twins.
-
-### 6. May a boundary requirement's own signature bind a generic evidence parameter?
-
-A target-prefixed family member may be generic over an implementation map, for
-example `forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32` in
-`samples/cli/facts/selected_crash_formal/target_body` and
-`selected<Index: u32, Implementation satisfies Choose<Cell>>(...)` in
-`samples/cli/facts/selected_value_application/target_body`. Moving such a
-family to ordinary named implementations selected by target-keyed Build rows
-needs a requirement with the same telescope:
-`boundary trait SelectedForward { machine forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32 ...; }`.
-The parser refuses it ("an evidence binder `Implementation satisfies
-Trait<...>` is not admitted in this parameter list"): requirement signatures
-admit type, const, value and machine parameters but no conformance binder,
-while machine, trait and data declarations admit one. The other places of
-these two folders are unaffected; only their target_body places keep the
-retired prefix.
-
-The product requirement is the one the migration serves: one portable call to a
-generic algorithm whose per-target bodies differ, such as a per-ISA kernel that
-is generic over the arithmetic or ordering map it is applied to.
-
-Option A, admit the binder: a requirement may declare `<I satisfies T<...>>`.
-The caller names the implementation at each call, exactly as for a generic
-machine; every implementation declares the same binder telescope and refines
-the requirement's contract for every admitted `I`; a Build row selects the
-requirement's implementation per target and never fills `I`. Specialization
-then closes each selected implementation at the caller's map.
-
-Option B, keep the exclusion: the evidence binder stays on an ordinary generic
-machine, and only non-generic leaves are selected per target. A fact whose
-selected body is itself generic over the map (these two) is then restated with
-the generic part outside the selected requirement, or moved to a trait-level
-binder (`boundary trait SelectedForward<I satisfies Reader<Zero>>`) if that form
-is intended.
-
-Contracts checked: [named conformances](wiki/spec/language/conformances.md#declaration-and-selection)
-define generic evidence binders and say a Build provider row cannot fill one,
-without saying where a binder may be declared.
-[Build-owned target selection](wiki/spec/build/provider_selection.md#build-owned-target-selection)
-and [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
-require ordinary named implementations of an exact requirement and are silent
-on generic requirement telescopes. [Lifetimes](wiki/spec/language/lifetimes.md#binders-and-source-applications)
-lets static callable requirements bind fresh per-invocation lifetimes, and the
-[static machine binder categories](wiki/spec/language/generics.md#static-machine-binder-categories)
-cover machine binders; neither covers evidence binders on a requirement.
+Contracts checked, and why they do not decide it:
+- [Mutable arguments and declared field domains](wiki/spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains)
+  (lines 143-146) say an ordinary `&mut T` argument carries "the declared
+  field/default-domain obligations of `T`", which the callee restores at return.
+  Lines 149-151 say "An additional input domain need not survive a call unless
+  the ordinary contract guarantees it." Neither says which of the two a local's
+  own qualification is.
+- [Byte containers and encoding domains](wiki/spec/language/domains.md#byte-containers-and-encoding-domains)
+  (line 684) says "Mutation must preserve or re-establish the facts on affected
+  places." Read alone, this favors Option A. Read together with the lines above,
+  it can mean only the facts a place still owes, which favors Option B.
+- The ratified witnesses cover the two neighbors but not this case:
+  - `tests/omega/pass/domains/qualified_mutable_scalar_input_domain_expires`
+    ("An additional input qualification is not an implicit postcondition")
+    breaks a formal's `&mut [u16; 4] in Terminated` and is accepted.
+  - The fact row `samples/cli/facts/additional_input_domain_mutation` writes 73
+    through `&write Cell in Before` into an unqualified local and is accepted.
+  - `tests/omega/fail/domains/write_only_declared_field_domain_requires_restoration`
+    protects a stored field `Holder.cell: Cell in Before`, which must be
+    restored at return.

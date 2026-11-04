@@ -3,7 +3,7 @@
 //! This does not construct a legacy review capsule, persist proof results, or
 //! admit the package. Every component retains its own checked association owner.
 
-mod assumed_bindings;
+pub(crate) mod assumed_bindings;
 mod authority;
 mod external;
 mod native_bindings;
@@ -45,14 +45,23 @@ pub fn project_checked_package_policy<'a>(
 ) -> Result<PackagePolicyBaseline, Vec<Diagnostic>> {
     let input = input.into();
     let queries = PolicyCheckingContexts::new(input.program, input.custody);
+    let mathematical_calls =
+        super::contracts::mathematical_calls::MathematicalCallQueries::new(&queries.candidate);
+    let original_mathematical_calls =
+        super::contracts::mathematical_calls::MathematicalCallQueries::new(&queries.custody);
     let external_providers = input.project_external_providers()?;
     let services = input.project_service_declarations()?;
     let compilation = &PackageReviewInput {
         service_declarations: Some(&services),
         external_providers: Some(&external_providers),
-        checking_input: &queries.candidate,
-        custody_checking_input: &queries.custody,
-        contract_owner_queries: None,
+        source: super::SourceDeclarationInput {
+            checking_input: &queries.candidate,
+            original_checking_input: &queries.custody,
+            contract_owner_queries: None,
+            mathematical_calls: Some(&mathematical_calls),
+            original_mathematical_calls: Some(&original_mathematical_calls),
+            ..input.source
+        },
         ..input
     };
     if compilation.custody.sources().package_identity() != Some(package)

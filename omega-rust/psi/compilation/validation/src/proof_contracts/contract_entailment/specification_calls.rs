@@ -532,11 +532,11 @@ fn declaration_anonymous_fit(
 
 /// The declaration-owned logical subject exposes carrier geometry, not an
 /// already admitted runtime value of the default domain currently being formed.
-fn pending_data_subject<'program>(
-    program: &'program dyn crate::CheckingInput,
+fn pending_data_subject(
+    program: &dyn crate::CheckingInput,
     owner: SymbolHandle,
     mut expression: ExpressionHandle,
-) -> Option<&'program typed_trees::data::DataDefinition> {
+) -> Option<&typed_trees::data::DataDefinition> {
     let definition = program.data_definition_by_symbol(owner)?;
     if !definition.predicate_subject_symbol.is_valid() || definition.where_facts.is_empty() {
         return None;
@@ -1403,8 +1403,8 @@ fn signature_by_symbol(
             // trait requirement does. Import that declared contract before
             // considering a selected body's stronger private guarantees.
             program
-                .machine_parameter_signature(symbol)
-                .map(|(_, signature)| signature)
+                .retained_static_machine_contract(symbol)
+                .map(|contract| contract.signature())
         })
 }
 
@@ -1745,7 +1745,7 @@ pub(super) fn call_scalar_substitution(
         SelectedCallContract::Concrete(machine, _) => program.machine_type_parameters(machine),
         SelectedCallContract::Signature(signature)
         | SelectedCallContract::DynamicSlot { signature, .. } => {
-            program.state_signature_type_parameters(signature)
+            program.requirement_invocation_contract_parameters(signature)
         }
     };
     let mut values = applied
@@ -1860,8 +1860,8 @@ fn selected_machine_result_type(
     symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     program
-        .machine_parameter_signature(symbol)
-        .map(|(_, signature)| signature.return_type)
+        .retained_static_machine_contract(symbol)
+        .map(|contract| contract.signature().return_type)
         .or_else(|| {
             super::structural_terms::selected_application_machine(program, symbol)
                 .and_then(|machine| program.machine_states(machine).first())
@@ -1905,7 +1905,7 @@ fn plain_machine_selection(
         && !selection.type_reference.is_valid()
         && selection.const_literal.is_none()
         && (program
-            .machine_parameter_signature(selection.symbol)
+            .retained_static_machine_contract(selection.symbol)
             .is_some()
             || super::structural_terms::selected_application_machine(program, selection.symbol)
                 .is_some())
@@ -1995,8 +1995,8 @@ fn term_has_complete_substitution(
             ..
         } => {
             let signature = program
-                .machine_parameter_signature(*target)
-                .map(|(_, signature)| signature);
+                .retained_static_machine_contract(*target)
+                .map(|contract| contract.signature());
             let concrete = super::structural_terms::selected_application_machine(program, *target)
                 .and_then(|machine| {
                     program

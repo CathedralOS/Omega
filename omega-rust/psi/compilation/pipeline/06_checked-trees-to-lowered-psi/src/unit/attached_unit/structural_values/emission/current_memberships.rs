@@ -122,7 +122,7 @@ impl Emission<'_, '_, '_> {
                 "membership source lacks its completed physical/source correspondence",
             ));
         }
-        let subject = validation::canonical_place_from_expression_in_state(
+        let subject = validation::storage_place_from_expression_in_state(
             &self.checked.typed,
             self.state,
             self.statement as usize,
@@ -195,14 +195,14 @@ impl Emission<'_, '_, '_> {
             .operations
             .structural_materialization_statement(source.place, self.state)?
             .and_then(|birth| {
-                flow_facts(&self.checked)
+                flow_facts(self.checked)
                     .control
                     .states
                     .iter()
                     .find_map(|(_, state)| {
                         (state.state_symbol == self.state)
                             .then(|| {
-                                flow_facts(&self.checked)
+                                flow_facts(self.checked)
                                     .control
                                     .statements
                                     .span_or_empty(state.statements)
@@ -279,7 +279,7 @@ impl Emission<'_, '_, '_> {
                 {
                     return true;
                 }
-                let contexts = flow_facts(&self.checked)
+                let contexts = flow_facts(self.checked)
                     .contexts
                     .semantic_constraint_contexts(operand.constraints)
                     .collect::<Vec<_>>();
@@ -332,14 +332,14 @@ impl Emission<'_, '_, '_> {
         if local.is_mutable || !local.initial_value.is_valid() {
             return None;
         }
-        let bound = validation::canonical_place_from_expression_in_state(
+        let bound = validation::storage_place_from_expression_in_state(
             &self.checked.typed,
             self.state,
             self.statement as usize,
             local.initial_value,
         )?;
         (bound.root == subject.root && subject.segments.starts_with(&bound.segments))
-            .then(|| bound.segments.len())
+            .then_some(bound.segments.len())
     }
 
     fn membership_source_path(

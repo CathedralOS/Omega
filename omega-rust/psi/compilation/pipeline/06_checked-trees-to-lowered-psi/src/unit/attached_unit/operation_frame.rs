@@ -381,6 +381,10 @@ impl<'f, 'c> OperationFrame<'f, 'c> {
 }
 
 impl OperationEnvironment<'_> {
+    pub(crate) fn structural_domains(&self) -> &[terminal_psi::StructuralDomainDeclaration] {
+        self.callees.domain_declarations
+    }
+
     pub(super) fn reborrow(&mut self) -> OperationEnvironment<'_> {
         OperationEnvironment {
             checked: self.checked,
@@ -913,7 +917,7 @@ impl OperationFrame<'_, '_> {
         let conditions = crate::unit::unit_cleanup::lower_cleanup_conditions(
             identities,
             self.checked,
-            &flow_facts(&self.checked)
+            &flow_facts(self.checked)
                 .terminal_unit_effects
                 .cleanup_control,
             *case_conditions,

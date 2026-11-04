@@ -2,7 +2,7 @@
 
 use super::super::calls::{
     contract_call_value_receiver, exact_checked_contract_call_target,
-    require_exact_contract_call_reference_arguments, resolved_contract_call_symbol,
+    require_checked_contract_call_arguments, resolved_contract_call_symbol,
 };
 use super::super::evidence::project_contract_call_evidence_arguments;
 use super::super::static_arguments::{
@@ -10,7 +10,7 @@ use super::super::static_arguments::{
     require_exact_conformance_static_argument_selections,
     require_exact_named_const_static_argument_selections,
 };
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::{PackageReviewContractCallTarget, PackageReviewContractExpression};
 use diagnostics::Diagnostic;
@@ -18,7 +18,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 
 pub(super) fn project_call_expression(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     expression: ExpressionHandle,
@@ -43,17 +43,18 @@ pub(super) fn project_call_expression(
             let target_symbol = resolved_symbol.ok_or_else(|| {
                 context.rejected("contract call has no exact resolved target symbol")
             })?;
-            require_exact_contract_call_reference_arguments(
+            require_checked_contract_call_arguments(
                 compilation,
                 context,
                 target_symbol,
+                expression,
                 call,
             )?;
             contract_call_static_parameter_kinds(
                 compilation,
                 context,
                 target_symbol,
-                call.machine_arguments.len(),
+                &call.machine_arguments,
             )?
         }
         PackageReviewContractCallTarget::BuiltinFunction(_) => {

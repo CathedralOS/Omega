@@ -32,26 +32,44 @@ fn fixture() -> (
         blocks: Vec::new(),
     };
     let frame = TargetFrameLayoutPlan {
-        post_allocation_machine: physical_instructions::PostAllocationMachineIdentity::from_bytes([0;32]),
-        callee_saved_requirements: register_homes::AllocatedCalleeSavedRequirementIdentity::from_bytes([0;32]),
-        callee_save_storage: machine_code::NonAuthoritativeCalleeSaveStorageIdentity::from_bytes([0;32]),
-        register_environment: register_model::TargetRegisterEnvironmentIdentity::from_bytes([0;32]),
-        physical_register_model: register_model::PhysicalRegisterModelIdentity::from_bytes([0;32]),
+        post_allocation_machine: physical_instructions::PostAllocationMachineIdentity::from_bytes(
+            [0; 32],
+        ),
+        callee_saved_requirements:
+            register_homes::AllocatedCalleeSavedRequirementIdentity::from_bytes([0; 32]),
+        callee_save_storage: machine_code::NonAuthoritativeCalleeSaveStorageIdentity::from_bytes(
+            [0; 32],
+        ),
+        register_environment: register_model::TargetRegisterEnvironmentIdentity::from_bytes(
+            [0; 32],
+        ),
+        physical_register_model: register_model::PhysicalRegisterModelIdentity::from_bytes([0; 32]),
         target: target::NativeTarget::linux_x64(),
         abi: register_model::FrameAbiPreservationConvention::SystemVAMD64,
         policy: machine_code::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
         functions: vec![FunctionTargetFrameLayout {
-            machine, contains_call: false, stack_pointer: register_model::RegisterViewId(0),
-            pre_call_stack_alignment: 16, frame_size_bytes: 16, red_zone_resident_bytes: 0,
+            machine,
+            contains_call: false,
+            stack_pointer: register_model::RegisterViewId(0),
+            pre_call_stack_alignment: 16,
+            frame_size_bytes: 16,
+            red_zone_resident_bytes: 0,
             abi_stack_alignment_bytes: 16,
-            outgoing_abi_area: machine_code::OutgoingAbiFrameArea { byte_size: 0, shadow_bytes: 0 },
+            outgoing_abi_area: machine_code::OutgoingAbiFrameArea {
+                byte_size: 0,
+                shadow_bytes: 0,
+            },
             local_storage_slots: vec![machine_code::LocalStorageFrameSlot {
-                id, frame_offset_bytes: 0, size_bytes: 16, alignment_bytes: 8,
+                id,
+                frame_offset_bytes: 0,
+                size_bytes: 16,
+                alignment_bytes: 8,
             }],
             stable_address_loans: vec![id],
             callee_save_slots: Vec::new(),
             return_address: machine_code::ReturnAddressFrameCustody::CallerActivationStack {
-                post_prologue_offset_bytes: 16, size_bytes: 8,
+                post_prologue_offset_bytes: 16,
+                size_bytes: 8,
             },
             stack_probe: machine_code::StackProbePlan {
                 interval_bytes: 4_096,
@@ -61,7 +79,8 @@ fn fixture() -> (
                 restores: Vec::new(),
                 released_bytes: 16,
                 return_address: machine_code::ReturnAddressFrameCustody::CallerActivationStack {
-                    post_prologue_offset_bytes: 16, size_bytes: 8,
+                    post_prologue_offset_bytes: 16,
+                    size_bytes: 8,
                 },
             },
         }],

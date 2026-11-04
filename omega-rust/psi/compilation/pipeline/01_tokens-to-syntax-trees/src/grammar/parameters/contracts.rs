@@ -22,15 +22,6 @@ pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, ()> {
     let mut input = input;
     loop {
-        if input.at_contextual("where")
-            && input
-                .take_contextual("where")?
-                .at_keyword(KeywordKind::Machine)
-        {
-            return Err(input.error_here(
-                "`where machine` is retired; write `requires machine` with its complete contract and terminating semicolon",
-            ));
-        }
         if !input.at_contextual("requires") {
             break;
         }
@@ -60,7 +51,10 @@ pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
         };
 
         match &syntax_trees.items.type_parameters(type_parameters)[parameter_index].kind {
-            syntax_trees::item::TypeParameterKind::Machine { contract: None } => {}
+            // A trait slot's identity-only default has no authored callable shape yet.
+            syntax_trees::item::TypeParameterKind::Machine {
+                contract: None | Some(MachineParameterContract::RequirementIdentity),
+            } => {}
             syntax_trees::item::TypeParameterKind::Type
                 if syntax_trees.items.type_parameters(type_parameters)[parameter_index].bounds
                     == syntax_trees::item::DataProperties::default() => {}

@@ -1,12 +1,12 @@
 // Expected exit: 0
 // A selection's complement observes writes performed before its choice.
 public data Counter { drops: u64 in Wrapping; }
-public data AffineLeaf<'storage> { counter: &'storage mut Counter; }
-public machine AffineLeaf::drop(leaf: &mut AffineLeaf<'storage>) {
+public data AffineLeaf<'storage> dropped by drop_affine_leaf<'storage> { counter: &'storage mut Counter; }
+public machine drop_affine_leaf<'storage>(leaf: &mut AffineLeaf<'storage>) {
     leaf.counter.drops = leaf.counter.drops + 1;
 }
-data Envelope<Value> { case Held(value: Value); case Empty; }
-machine Envelope::drop(envelope: &mut Envelope<Value>) {}
+data Envelope<Value> dropped by drop_envelope<Value> { case Held(value: Value); case Empty; }
+machine drop_envelope<Value>(envelope: &mut Envelope<Value>) {}
 machine inspect_affine(envelope: Envelope<AffineLeaf>) -> u64 {
     transition envelope {
         Envelope::Held { .. } -> (1)

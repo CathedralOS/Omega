@@ -89,7 +89,7 @@ pub(super) fn trait_parameter_tables(
         .map(|trait_definition| {
             (
                 trait_definition.symbol,
-                resolved_declarations(&program)
+                resolved_declarations(program)
                     .data_type_parameters
                     .span_or_empty(trait_definition.type_parameters)
                     .iter()
@@ -107,7 +107,7 @@ pub(super) fn trait_parameter_tables(
         .map(|definition| {
             (
                 definition.symbol,
-                resolved_declarations(&program)
+                resolved_declarations(program)
                     .data_type_parameters
                     .span_or_empty(definition.type_parameters)
                     .iter()
@@ -150,6 +150,8 @@ pub(super) fn assign_top_level_symbols(
 }
 
 fn assign_conformance_parameter_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
+    let (_, trait_proposition_slots, trait_machine_identity_slots) =
+        trait_parameter_tables(program);
     let type_constraints = &program.tables.types.constraints;
     let declarations = &mut program.tables.declarations;
     let data_type_parameters = &mut declarations.data_type_parameters;
@@ -179,6 +181,8 @@ fn assign_conformance_parameter_symbols(program: &mut SymbolResolvedTrees, symbo
             state_parameters,
             child_type_references,
             type_constraints,
+            trait_proposition_slots: &trait_proposition_slots,
+            trait_machine_identity_slots: &trait_machine_identity_slots,
         }
         .resolve_type_parameter_kind_symbols(
             conformance.type_parameters,
@@ -214,6 +218,8 @@ pub(super) struct SignatureSymbolTables<'a> {
     pub state_parameters: &'a mut Arena<StateParameter>,
     pub child_type_references: &'a mut Arena<TypeReference>,
     pub type_constraints: &'a Arena<TypeConstraint>,
+    pub trait_proposition_slots: &'a [(SymbolHandle, Vec<bool>)],
+    pub trait_machine_identity_slots: &'a [(SymbolHandle, Vec<bool>)],
 }
 
 impl SignatureSymbolTables<'_> {
@@ -275,9 +281,7 @@ impl SignatureSymbolTables<'_> {
                     );
                     TypeParameterKind::Value { type_reference }
                 }
-                TypeParameterKind::Machine { mut contract }
-                    if !matches!(machine_parameter_arm, MachineParameterArm::Skip) =>
-                {
+                TypeParameterKind::Machine { mut contract } => {
                     if matches!(
                         machine_parameter_arm,
                         MachineParameterArm::ResolveWithAuthoredTraitArguments
@@ -320,11 +324,10 @@ impl SignatureSymbolTables<'_> {
 }
 
 /// How much of the shared type-parameter pass a site's Machine arm performs:
-/// none (traits), contract resolution only (conformances), or contract
-/// resolution plus authored-nominal trait-argument symbols (machines).
+/// every current site resolves the contract plus its authored-nominal
+/// trait-argument symbols.
 #[derive(Clone, Copy)]
 pub(super) enum MachineParameterArm {
-    Skip,
     ResolveWithAuthoredTraitArguments,
 }
 
@@ -364,6 +367,25 @@ pub(super) fn assign_machine_parameter_signature_symbols(
         .span_or_empty(contract.type_parameters)
         .to_vec();
     local_type_parameters.extend_from_slice(inherited_type_parameters);
+
+    for bound in &mut contract.conformance_bounds {
+        bound.binder = local_type_parameters
+            .iter()
+            .find(|parameter| {
+                parameter.kind == TypeParameterKind::Implementation
+                    && parameter.name == bound.binder_name
+            })
+            .map_or(SymbolHandle::invalid(), |parameter| parameter.symbol);
+    }
+    assign_conformance_bound_symbols(
+        tables.symbols,
+        tables.child_type_references,
+        tables.type_constraints,
+        &local_type_parameters,
+        &mut contract.conformance_bounds,
+        tables.trait_proposition_slots,
+        tables.trait_machine_identity_slots,
+    );
 
     // A nested telescope owns the same kind payloads as a top-level one.
     // Reuse their complete resolution, including nominal trait arguments;

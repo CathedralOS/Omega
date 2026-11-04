@@ -1,7 +1,7 @@
 use omega::language::core::drop;
 
 // Owner binders, not method-local binders: two regions, one copy type and Count.
-data Owner<'left, 'right, Marker [copy], const Count: u64> {
+data Owner<'left, 'right, Marker [copy], const Count: u64> dropped by drop_owner<'left, 'right, Marker, Count> {
     left: &'left mut u64;
     right: &'right mut u64;
     marker: Marker;
@@ -9,7 +9,7 @@ data Owner<'left, 'right, Marker [copy], const Count: u64> {
 }
 machine change_left(destination: &mut u64) { destination = destination ^ 73; }
 machine change_right(destination: &mut u64) { destination = destination ^ 19; }
-machine Owner::drop(owner: &mut Owner<'left, 'right, Marker, Count>)
+machine drop_owner<'left, 'right, Marker [copy], const Count: u64>(owner: &mut Owner<'left, 'right, Marker, Count>)
 requires Count >= 1
 {
     let marker: &Marker = &owner.marker;

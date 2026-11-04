@@ -8,9 +8,7 @@ use optimization_core::{
 };
 
 use crate::ValidatedRegisterHomes;
-use selected_instructions_to_selected_instructions::{
-    ValidatedAllocationLegality, ValidatedLiveRanges,
-};
+use selected_instruction_analyses::{ValidatedAllocationLegality, ValidatedLiveRanges};
 
 use super::{
     PostAllocationManifestStage, PostAllocationOptimizationManifest,

@@ -62,10 +62,6 @@ fn prepare_target(
         exact_toolchain_sources: inputs.exact_toolchain_sources,
         application_roots: None,
         overrides: inputs.requested,
-        assumed_bindings: &[],
-        independent_components: &[],
-        selected: None,
-        targets: &[],
     }
     .prepare_target(target.target_name(), &inventory, &[])
     .map(|prepared| prepared.without_correspondence())

@@ -4,7 +4,7 @@
 //! type and proof copies share its exact expression-handle rejoin; source
 //! spelling and equal-looking subtrees never establish expression identity.
 
-use crate::expression::{ExpressionHandle, MatchSubjectCapture, StaticMachineArgument};
+use crate::expression::{ExpressionHandle, StaticMachineArgument};
 use crate::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
     CapabilityMember, CapabilityState, ConformanceItem, ConformanceMember, ConstDefinition,
@@ -422,6 +422,7 @@ impl SyntaxCopy<'_> {
                     .map(|bound| crate::item::GenericConformanceBound {
                         binder: bound.binder.clone(),
                         trait_name: bound.trait_name.clone(),
+                        lifetime_arguments: bound.lifetime_arguments.clone(),
                         arguments: self.copy_type_reference_handle_span(other, bound.arguments),
                     })
                     .collect(),
@@ -522,6 +523,7 @@ impl SyntaxCopy<'_> {
                 .map(|bound| GenericConformanceBound {
                     binder: bound.binder.clone(),
                     trait_name: bound.trait_name.clone(),
+                    lifetime_arguments: bound.lifetime_arguments.clone(),
                     arguments: self.copy_type_reference_handle_span(other, bound.arguments),
                 })
                 .collect(),
@@ -657,6 +659,7 @@ impl SyntaxCopy<'_> {
                 .map(|bound| GenericConformanceBound {
                     binder: bound.binder.clone(),
                     trait_name: bound.trait_name.clone(),
+                    lifetime_arguments: bound.lifetime_arguments.clone(),
                     arguments: self.copy_type_reference_handle_span(other, bound.arguments),
                 })
                 .collect(),
@@ -702,6 +705,7 @@ impl SyntaxCopy<'_> {
                 .map(|bound| GenericConformanceBound {
                     binder: bound.binder.clone(),
                     trait_name: bound.trait_name.clone(),
+                    lifetime_arguments: bound.lifetime_arguments.clone(),
                     arguments: self.copy_type_reference_handle_span(other, bound.arguments),
                 })
                 .collect(),

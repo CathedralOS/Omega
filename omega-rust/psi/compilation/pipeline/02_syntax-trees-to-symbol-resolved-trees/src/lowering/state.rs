@@ -192,6 +192,7 @@ pub(crate) fn lower_state_signature_node(
 spelling: signature.spelling,
 lifetime_parameters: &signature.lifetime_parameters,
 type_parameters: signature.type_parameters,
+conformance_bounds: &signature.conformance_bounds,
 parameters: signature.parameters,
 native_callback_parameters: &signature.native_callback_parameters,
 return_type_handle: signature.return_type,
@@ -219,6 +220,7 @@ pub(crate) struct StateSignatureParts<'a> {
     pub(crate) spelling: Option<OperatorSpelling>,
     pub(crate) lifetime_parameters: &'a [Identifier],
     pub(crate) type_parameters: HandleSpan<TypeParameter>,
+    pub(crate) conformance_bounds: &'a [syntax::item::GenericConformanceBound],
     pub(crate) parameters: HandleSpan<StateParameterHandle>,
     pub(crate) native_callback_parameters: &'a [NativeCallbackParameterNode],
     pub(crate) return_type_handle: TypeReferenceHandle,
@@ -245,6 +247,7 @@ pub(crate) fn lower_state_signature_parts(
         spelling,
         lifetime_parameters,
         type_parameters,
+        conformance_bounds,
         parameters,
         native_callback_parameters,
         return_type_handle,
@@ -262,6 +265,11 @@ pub(crate) fn lower_state_signature_parts(
     } = inputs;
     let type_parameters =
         crate::lowering::data::lower_type_parameters(lowerer, syntax_trees, type_parameters)?;
+    let conformance_bounds = crate::lowering::machine::lower_generic_conformance_bounds(
+        lowerer,
+        syntax_trees,
+        conformance_bounds,
+    )?;
     let parameters = lower_state_parameters(lowerer, syntax_trees, parameters)?;
     let return_type = return_type_handle
         .is_valid()
@@ -277,8 +285,9 @@ pub(crate) fn lower_state_signature_parts(
             name: crate::lowering::name::lower_name(syntax_trees, name),
             storage: StateSignatureStorage {
                 spelling,
-                lifetime_parameters: lower_names(syntax_trees, &lifetime_parameters),
+                lifetime_parameters: lower_names(syntax_trees, lifetime_parameters),
                 type_parameters,
+                conformance_bounds,
                 is_default,
                 parameters,
                 native_callback_parameters: native_callback_parameters
@@ -352,7 +361,7 @@ pub(crate) fn lower_machine_signature_contracts(
     contracts: HandleSpan<CapabilityContract>,
     states: HandleSpan<Handle<symbol_resolved_trees::state::State>>,
 ) -> Result<HandleSpan<SignatureContract>, Diagnostic> {
-    let has_outcome_rows = syntax_items(&syntax_trees)
+    let has_outcome_rows = syntax_items(syntax_trees)
         .capability_contracts(contracts)
         .iter()
         .any(|contract| {
@@ -651,7 +660,7 @@ pub(crate) fn lower_state_parameters(
     let mut span = HandleSpan::empty();
 
     for parameter in syntax_trees.items.state_parameters(parameters) {
-        let authored_type = syntax_items(&syntax_trees)
+        let authored_type = syntax_items(syntax_trees)
             .state_parameter(*parameter)
             .type_reference;
         let parameter = lower_state_parameter(lowerer, syntax_trees, *parameter)?;

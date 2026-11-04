@@ -40,6 +40,8 @@ use validation::transition_call_target;
 
 type Results = [(CheckedUnitStructuralResultBindingPlan, PlaceRoot)];
 
+mod completion;
+
 /// Death timing comes from the loan schedule; payload availability comes from
 /// facts at that exact boundary. Do not reread a selected, partially consumed
 /// sum merely because a later descriptor in its payload now expires.
@@ -270,6 +272,7 @@ pub(super) fn transferred_paths(
 #[derive(Clone, Copy)]
 pub(super) struct Retirement<'a> {
     pub(super) program: &'a dyn ::validation::CheckingInput,
+    pub(super) trace: &'a crate::execution::terminal_unit::control::LocalConstructionTrace,
     pub(super) facts: &'a CheckFacts,
     pub(super) prepared_calls:
         &'a crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
@@ -292,6 +295,10 @@ pub(super) struct Retirement<'a> {
     /// The selected completion transfers this exact holder before its deferred
     /// ancestor dispositions. It never settles a loan at statement entry.
     pub(super) returned: Option<&'a CheckedUnitStructuralReturnPlan>,
+    /// A function's final expression can still use its local values. Exit
+    /// cleanup must wait for those uses before releasing the data they need.
+    pub(super) scalar_completion:
+        Option<crate::execution::terminal_unit::storage_transfers::ScalarCompletion<'a>>,
     pub(super) transported_loans: &'a transport::TransportedLoans,
 }
 
@@ -1008,13 +1015,28 @@ impl Retirement<'_> {
             self.facts,
             self.prepared_calls,
             self.results,
-            source,
+            source.clone(),
             formation,
             &selection,
             self.operations,
         ) else {
             return false;
         };
+        if self.transferred_holder_retired(handle, reference, &[&transfers], None, active) {
+            return true;
+        }
+        self.completion_retires_holder(handle, source, formation, &selection, reference, active)
+    }
+
+    fn transferred_holder_retired(
+        &self,
+        handle: Handle<BorrowLoanFact>,
+        reference: typed_trees::types::TypeReferenceHandle,
+        transfers: &[&crate::execution::terminal_unit::storage_transfers::Transfers],
+        exit: Option<checked_trees::FlowClaimJoinExit>,
+        active: &mut Vec<RetirementNode>,
+    ) -> bool {
+        let loan = self.facts.borrow.loans.get(handle);
         let owner_path = self.facts.borrow.loan_owner_path(loan);
         let selected_path = |path: &[CheckedUnitStructuralPathSegment]| {
             loan_place_segments(self.program, reference, path).and_then(|segments| {
@@ -1032,15 +1054,17 @@ impl Retirement<'_> {
                     .collect::<Option<Vec<_>>>()
             })
         };
-        if !transfers
-            .definite
+        let definitely_transferred = transfers
             .iter()
-            .any(|path| selected_path(path).is_some_and(|path| owner_path.starts_with(&path)))
-        {
+            .flat_map(|row| &row.definite)
+            .any(|path| selected_path(path).is_some_and(|path| owner_path.starts_with(&path)));
+        let cleaned = !definitely_transferred
+            && exit.is_some_and(|exit| self.exit_cleanup_retires_holder(handle, reference, exit));
+        if !cleaned && !definitely_transferred {
             return false;
         }
         let mut found = false;
-        for transfer in transfers.possible {
+        for transfer in transfers.iter().flat_map(|row| &row.possible) {
             let Some(selected) = selected_path(&transfer.source) else {
                 return false;
             };
@@ -1048,11 +1072,12 @@ impl Retirement<'_> {
                 continue;
             }
             found = true;
-            let (destination, mut path) = match transfer.destination {
+            let (destination, mut path) = match &transfer.destination {
                 Destination::Unknown => return false,
-                Destination::Backing(value, mut path) => {
+                Destination::Backing(value, path) => {
+                    let mut path = path.clone();
                     path.extend_from_slice(&owner_path[selected.len()..]);
-                    if !self.backing_retired(value, &path, active) {
+                    if !self.backing_retired(*value, &path, active) {
                         return false;
                     }
                     continue;
@@ -1070,8 +1095,8 @@ impl Retirement<'_> {
                     // itself retired the holder.
                     if !self.call_receivers_retired(
                         handle,
-                        statement_index,
-                        structural_result,
+                        *statement_index,
+                        *structural_result,
                         active,
                     ) {
                         return false;
@@ -1084,7 +1109,7 @@ impl Retirement<'_> {
                 } => {
                     if !self
                         .order
-                        .precedes(statement_index as usize, self.statement_index as usize)
+                        .precedes(*statement_index as usize, self.statement_index as usize)
                     {
                         return false;
                     }
@@ -1093,8 +1118,8 @@ impl Retirement<'_> {
                         self.facts,
                         self.machine,
                         self.state,
-                        statement_index,
-                        &captured_selection,
+                        *statement_index,
+                        captured_selection,
                     ) else {
                         return false;
                     };
@@ -1102,7 +1127,7 @@ impl Retirement<'_> {
                         self.program,
                         self.state,
                         symbol,
-                        statement_index,
+                        *statement_index,
                     ) else {
                         return false;
                     };
@@ -1123,7 +1148,7 @@ impl Retirement<'_> {
                     let retired = resources
                         .filter(|(_, receiver)| {
                             receiver.owner_symbol == symbol
-                                && receiver.statement_index == statement_index as usize
+                                && receiver.statement_index == *statement_index as usize
                                 && self.facts.borrow.loan_owner_path(receiver) == receiving_path
                         })
                         .all(|(receiver, _)| {
@@ -1135,7 +1160,7 @@ impl Retirement<'_> {
                     }
                     continue;
                 }
-                Destination::Holder(destination, path) => (destination, path),
+                Destination::Holder(destination, path) => (destination, path.clone()),
             };
             // Formation at this boundary establishes live custody; it is not
             // the absent-future-child case handled by holder_retired_inner.
@@ -1146,7 +1171,7 @@ impl Retirement<'_> {
                 return false;
             }
             path.extend_from_slice(&owner_path[selected.len()..]);
-            if self.return_receives_carrier(&destination, &path, loan) {
+            if self.return_receives_carrier(destination, &path, loan) {
                 if self.uncommitted_owner != PlaceRoot::Symbol(Default::default()) {
                     return false;
                 }
@@ -1155,13 +1180,13 @@ impl Retirement<'_> {
             // Physical results can relay descriptors without publishing a
             // source-local loan. Follow their actual receiving operations;
             // whole-carrier retirement also proves this transported leaf ended.
-            if self.carrier_retired(&destination, active) {
+            if self.carrier_retired(destination, active) {
                 continue;
             }
             let mut bindings = self
                 .results
                 .iter()
-                .filter(|(binding, _)| binding == &destination);
+                .filter(|(binding, _)| binding == destination);
             let Some((_, PlaceRoot::Symbol(owner))) = bindings.next() else {
                 return false;
             };
@@ -1185,7 +1210,7 @@ impl Retirement<'_> {
                 return false;
             }
         }
-        found
+        found || cleaned
     }
 
     fn return_transfers_holder(&self, loan: &BorrowLoanFact) -> bool {

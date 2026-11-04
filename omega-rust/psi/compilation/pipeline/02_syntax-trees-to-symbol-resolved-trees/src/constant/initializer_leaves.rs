@@ -81,7 +81,7 @@ pub(crate) fn pending_const_initializer_leaves(
     ) -> Result<(), String> {
         // A carrier spelled as a bare parameter reselects the enclosing
         // application's already-closed argument handle.
-        if let Some(name) = syntax_type_references(&syntax)
+        if let Some(name) = syntax_type_references(syntax)
             .type_reference(type_reference)
             .as_named()
             && let Some(argument) = substitution.get(name.as_str(syntax))
@@ -98,7 +98,7 @@ pub(crate) fn pending_const_initializer_leaves(
         // A rewritten `Named` instance spelling carries its authored
         // application as origin evidence; resolve through it so the
         // synthesized name never has to re-resolve as a header symbol.
-        let origin = syntax_type_references(&syntax).generic_application_origin(type_reference);
+        let origin = syntax_type_references(syntax).generic_application_origin(type_reference);
         if origin.is_valid() && origin != type_reference {
             return collect(syntax, selection, expression, origin, substitution, leaves);
         }
@@ -232,7 +232,7 @@ pub(crate) fn pending_const_initializer_leaves(
                         "computed constant requires a closed generic application".to_owned(),
                     );
                 }
-                let next_substitution = substituted_generic_arguments(syntax, parameters, &argument_handles, substitution)?;
+                let next_substitution = substituted_generic_arguments(syntax, parameters, argument_handles, substitution)?;
                 match syntax.expressions.expression(expression) {
                     ExpressionNode::StructLiteral(literal) => collect_literal_fields(
                         syntax,

@@ -193,6 +193,8 @@ pub struct SatisfiesClauseSnapshot {
 pub struct GenericConformanceBoundSnapshot {
     pub binder: IdentifierSnapshot,
     pub trait_name: IdentifierSnapshot,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lifetime_arguments: Vec<IdentifierSnapshot>,
     pub arguments: Vec<TypeReferenceSnapshot>,
 }
 
@@ -1013,13 +1015,18 @@ fn snapshot_satisfies_clause(
     }
 }
 
-fn snapshot_generic_conformance_bound(
+pub(super) fn snapshot_generic_conformance_bound(
     syntax_trees: &SyntaxTrees,
     bound: &GenericConformanceBound,
 ) -> GenericConformanceBoundSnapshot {
     GenericConformanceBoundSnapshot {
         binder: snapshot_identifier(syntax_trees, &bound.binder),
         trait_name: snapshot_identifier(syntax_trees, &bound.trait_name),
+        lifetime_arguments: bound
+            .lifetime_arguments
+            .iter()
+            .map(|name| snapshot_identifier(syntax_trees, name))
+            .collect(),
         arguments: snapshot_type_references(syntax_trees, bound.arguments),
     }
 }

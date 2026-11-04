@@ -38,14 +38,15 @@ pub(super) fn reference_local_borrow_loans(
     machine_symbol: SymbolHandle,
     local_data: &checked_trees::statement::TableLocalData,
     loan_trackers: &[StateLoanTracker],
-) -> Vec<StatementBorrowLoan> {
+    sources: &super::BorrowFormationSources<'_, '_>,
+) -> Result<Vec<StatementBorrowLoan>, &'static str> {
     let Some(local_access) = reference_borrow_access_kind(program, local_data.type_reference)
         .or_else(|| {
             element_view_local_binding(program, state, machine_symbol, local_data)
                 .then_some(checked_trees::BorrowAccessKind::Read)
         })
     else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     // Saving a completed pointer retains that pointer's permission. Its
     // receiver supplied the slot read, never a spatial parent of the pointee.
@@ -54,7 +55,7 @@ pub(super) fn reference_local_borrow_loans(
             && loan.owner_path.is_empty()
             && loan.place.incoming_reference.is_valid()
     }) {
-        return vec![StatementBorrowLoan {
+        return Ok(vec![StatementBorrowLoan {
             incoming_origin: None,
             formation_expression: local_data.initial_value,
             formation_owner_path: Some(Vec::new()),
@@ -69,8 +70,8 @@ pub(super) fn reference_local_borrow_loans(
             supplying_loans: vec![source.handle],
             lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
             kind: local_access,
-            call_result: false,
-        }];
+            formation: super::BorrowFormation::Ordinary,
+        }]);
     }
     if let Some(mut loans) = super::returned_carriers::result_loans(
         program,
@@ -81,9 +82,10 @@ pub(super) fn reference_local_borrow_loans(
         local_data.initial_value,
         &[],
         loan_trackers,
-    ) {
+        sources,
+    )? {
         super::returned_carriers::attenuate(&mut loans, &local_access);
-        return loans;
+        return Ok(loans);
     }
     if let Some(mut loans) = super::aggregate_loans::stored_reference_loans(
         program,
@@ -96,7 +98,7 @@ pub(super) fn reference_local_borrow_loans(
         loan_trackers,
     ) {
         super::returned_carriers::attenuate(&mut loans, &local_access);
-        return loans;
+        return Ok(loans);
     }
     // A match joining borrowed arms lends every arm's exact target for the
     // result's whole live range: the run-time edge decides which source
@@ -108,24 +110,23 @@ pub(super) fn reference_local_borrow_loans(
     {
         // An arm can forward a name, project a descriptor, call a helper or
         // form a new borrow. Syntax does not select another provenance rule.
-        return expressions(program)
-            .match_arms(dispatch.arms)
-            .iter()
-            .flat_map(|arm| {
-                let selected_value = checked_trees::statement::TableLocalData {
-                    initial_value: arm.value,
-                    ..local_data.clone()
-                };
-                reference_local_borrow_loans(
-                    program,
-                    state,
-                    statement_index,
-                    machine_symbol,
-                    &selected_value,
-                    loan_trackers,
-                )
-            })
-            .collect();
+        let mut loans = Vec::new();
+        for arm in expressions(program).match_arms(dispatch.arms) {
+            let selected_value = checked_trees::statement::TableLocalData {
+                initial_value: arm.value,
+                ..local_data.clone()
+            };
+            loans.extend(reference_local_borrow_loans(
+                program,
+                state,
+                statement_index,
+                machine_symbol,
+                &selected_value,
+                loan_trackers,
+                sources,
+            )?);
+        }
+        return Ok(loans);
     }
     // All reference formations share the captured-place operation. It retains
     // the full admitted footprint of indexed views and the original backing
@@ -199,7 +200,7 @@ pub(super) fn reference_local_borrow_loans(
     let Some(geometry) =
         formed_geometry.or_else(|| inferred_place.map(accesses::BorrowAccessGeometry::declared))
     else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
 
     let is_call_result = !is_access_formation(program, local_data.initial_value)
@@ -217,7 +218,7 @@ pub(super) fn reference_local_borrow_loans(
         geometry,
         loan_trackers,
     );
-    rebased
+    Ok(rebased
         .iter()
         .map(|source| StatementBorrowLoan {
             formation_owner_path: Some(Vec::new()),
@@ -231,7 +232,9 @@ pub(super) fn reference_local_borrow_loans(
             place: source.place.clone(),
             retained_operand: source.retained_operand,
             source_owner_symbol: source.source_owner_symbol,
-            supplying_loans: Vec::new(),
+            supplying_loans: std::iter::once(source.source_loan)
+                .filter(|loan| loan.is_valid() && *loan != source.parent_loan)
+                .collect(),
             lineage: retained_reference_lineage(
                 program,
                 local_data.initial_value,
@@ -239,29 +242,13 @@ pub(super) fn reference_local_borrow_loans(
                 &rebased,
             ),
             kind: retained_access.clone(),
-            call_result: is_call_result,
+            formation: if is_call_result {
+                super::BorrowFormation::ReturnedDescriptor
+            } else {
+                super::BorrowFormation::Ordinary
+            },
         })
-        .collect()
-}
-
-/// Finds only an explicit borrow possibly wrapped in reference-carrier casts.
-/// Typed trees normalize the implicit mutable-to-shared attenuation cast to
-/// `Value`, so the stable discriminator here is its reference target and lack
-/// of a semantic-domain retag. Numeric/domain casts and helper-returned views
-/// remain derived and unretained.
-pub(super) fn direct_reborrow_target(
-    program: &dyn ::validation::CheckingInput,
-    expression: ExpressionHandle,
-) -> Option<ExpressionHandle> {
-    match program.expression_table.expression(expression) {
-        checked_trees::expression::ExpressionNode::Borrow(inner) => Some(inner.target),
-        checked_trees::expression::ExpressionNode::Cast(cast)
-            if is_reference_type(program, cast.target_type) && cast.semantic_domain.is_empty() =>
-        {
-            direct_reborrow_target(program, cast.value)
-        }
-        _ => None,
-    }
+        .collect())
 }
 
 /// The sealed placed factory forms a borrow from its captured source; it does

@@ -206,16 +206,13 @@ pub(crate) fn capture_binding_is_exact(
     if selected.len() != count {
         return Err("capture executable callback roster differs from map telescope");
     }
-    if count != 0 {
-        if !application.callable_application.is_valid()
+    if count != 0
+        && (!application.callable_application.is_valid()
             || selected
                 != expression_table(program)
-                    .static_machine_application_selected_machines(application.callable_application)
-        {
-            return Err(
-                "capture executable callbacks differ from their exact admitted map occurrence",
-            );
-        }
+                    .static_machine_application_selected_machines(application.callable_application))
+    {
+        return Err("capture executable callbacks differ from their exact admitted map occurrence");
     }
     Ok(())
 }

@@ -110,6 +110,28 @@ path/type/order drift. Check the required output size before enumerating array
 children: a forged huge dimension with a short residual list must not force an
 unbounded scan. No-code disposal emits no target instruction or runtime bitmap.
 
+## Runtime-count cell custody
+
+[Typed runs](../resources/typed_runs.md) retain an opaque ordered-cell custody
+summary, distinct from the literal structural path roster above. Terminal Psi
+retains the element type and qualifications, policy and validated placement,
+backing occurrence, explicit count, carry anchor, contained-loan obligations and
+checked cell transformations. Dynamic selection transfers the selected cell's
+actual custody, not fresh authority inferred from its type or index.
+
+Validation checks initialization, extraction, partition/concatenation and
+relocation against that summary, including zero-footprint logical positions.
+Calls and joins preserve its obligations. Ordinary element replacement and
+borrowed holes retain the existing restoration rules. Returning backing while
+cells remain live rejects; an authored consuming traversal may first dispose
+them, proving at each iteration that the remaining live run is smaller.
+
+This traversal is not a replacement for the static fixed-array residual schedule.
+Neither the interpreter nor native realization introduces a per-cell custody
+table, tag or liveness bitmap for a run. Source-free consumption preserves the
+checked transformations, actual cleanup effects and loans without re-enumerating
+the runtime element count in proof metadata.
+
 ## Borrowed-storage restoration
 
 The [source ownership window](../language/ownership.md#borrowed-storage-invariant-windows)
@@ -337,7 +359,7 @@ requirement, never permission to accept an invalid transfer. An address-stabilit
 a soundness obligation, whether realized by coalescing or another valid plan.
 
 Current producer and ABI limits are documented beside
-[Terminal production](../../../omega-rust/omega/compilation/driver/terminal-production/README.md#partial-ownership-and-cleanup)
+[Terminal production](../../../omega-rust/psi/compilation/psi-compiler/terminal-production/README.md#partial-ownership-and-cleanup)
 and [native lowering](../../../omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md#structural-results-and-residual-cleanup).
 Admitting a Terminal claim or result does not establish native storage or cleanup
 support.

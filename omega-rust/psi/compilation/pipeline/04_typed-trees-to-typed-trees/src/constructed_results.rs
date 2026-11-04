@@ -79,12 +79,14 @@ impl ValueTypeOwner {
     ) -> Option<Vec<TypeReferenceHandle>> {
         match self {
             Self::State { state, .. } => {
-                let place = validation::canonical_place_from_expression_in_state(
+                let Some(place) = validation::canonical_place_from_expression_in_state(
                     program,
                     state,
                     usize::MAX,
                     expression,
-                )?;
+                ) else {
+                    return self.result_type(program, expression).map(|_| Vec::new());
+                };
                 match canonical_place_source_type_application(program, state, usize::MAX, &place) {
                     Some((_, applications)) => Some(applications),
                     None if place.segments.is_empty() => Some(Vec::new()),
@@ -100,7 +102,14 @@ impl ValueTypeOwner {
                 program.state_parameters.span_or_empty(parameters),
                 expression,
             )
-            .map(|(_, applications)| applications),
+            .map(|(_, applications)| applications)
+            .or_else(|| {
+                if validation::canonical_place_from_expression(program, expression).is_some() {
+                    None
+                } else {
+                    self.result_type(program, expression).map(|_| Vec::new())
+                }
+            }),
         }
     }
 
@@ -136,6 +145,9 @@ fn occurrences(
     Vec<(ValueTypeOwner, ExpressionHandle)>,
     identity_context::ConstructorPeers,
 ) {
+    // Resolve each `result` expression without rescanning every function contract.
+    // This pass only reads the trees; drop its index before type preparation changes them.
+    let contract_input = validation::CheckingContext::new(program);
     let mut occurrences = Vec::new();
     let mut peers = identity_context::ConstructorPeers::new();
     for machine in program.machines() {
@@ -152,7 +164,7 @@ fn occurrences(
             for contract in contracts.iter().chain(program.state_contracts(state)) {
                 for fact in program.proof_facts.span_or_empty(contract.facts) {
                     identity_context::append(
-                        program,
+                        &contract_input,
                         ValueTypeOwner::State {
                             machine: machine.symbol,
                             state: state.symbol,
@@ -200,7 +212,7 @@ fn occurrences(
                 declarations.len() - 1
             });
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            identity_context::append(program, owner, fact, &mut peers);
+            identity_context::append(&contract_input, owner, fact, &mut peers);
             validation::append_fact_expression_roots(program, fact, &mut declarations[position].1);
         }
     }

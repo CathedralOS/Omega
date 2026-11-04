@@ -54,11 +54,11 @@ pub(crate) fn run(arguments: InspectTerminalArguments) {
     };
     match result {
         Ok(inspection) => {
-            if let Some(path) = output {
-                if let Err(error) = std::fs::write(path, inspection.artifact.to_bytes()) {
-                    eprintln!("cannot write Terminal artifact: {error}");
-                    std::process::exit(1);
-                }
+            if let Some(path) = output
+                && let Err(error) = std::fs::write(path, inspection.artifact.to_bytes())
+            {
+                eprintln!("cannot write Terminal artifact: {error}");
+                std::process::exit(1);
             }
             print!(
                 "{}",

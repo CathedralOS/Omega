@@ -1,23 +1,22 @@
-//! Complete source-prepared execution for one selected realization.
-//!
-//! Provider binding produces this immutable result. Terminal production borrows
-//! it; native admission still joins actual demand and receiving permissions.
+//! Target execution uses saved declarations and selected plans, without access
+//! to checked source. Explicit source inspection lives on the compilation
+//! wrapper, outside this record.
 
 use diagnostics::Diagnostic;
 use package_compilation::AcceptedSemanticBindingRole;
 use std::sync::Arc;
 
-/// Checked semantics after selected execution has been settled in the exact
-/// realization-owned dispatch order. This surface owns the now-closed review
-/// provenance alongside every checked-phase sidecar.
+/// The complete selected implementation data for one target. Source inspection
+/// and the checked interpreter use a separate owner on CheckedCompilation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedExecution {
     /// Complete direct-call supplies, constructed after host bindings resolve.
     /// Native demand and receiving authority still decide which may execute.
     pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
-    /// Immutable source and exact whole-plan ownership for lazy declarations.
-    /// Consumers borrow the same preparation rather than reopening source.
-    pub provider_source: Arc<provider_planning::SelectedProviderSource>,
+    pub selected_provider_plan_facts: Arc<effects::SelectedProviderPlanFacts>,
+    pub entry_service_requirements: Vec<symbols::SymbolHandle>,
+    pub trust_declarations: Arc<language_semantics::trust_declarations::TrustDeclarations>,
+    pub has_proof_obligations: bool,
     pub service_declarations: Arc<provider_planning::service_declarations::ServiceDeclarations>,
     pub external_providers: Arc<psi_terminal_production::PreparedExternalProviderDeclarations>,
     /// Native handoff and executable exclusion admission demand these source
@@ -53,24 +52,11 @@ impl SelectedExecution {
     /// A ProgramEntry is root-bound rather than a package callable, so this is
     /// the consumer's own nomination surface, not a package callable projection.
     pub fn program_entry_service_requirements(&self) -> Vec<symbols::SymbolHandle> {
-        let Some(entry) = self.selected_program_entry.as_ref() else {
-            return Vec::new();
-        };
-        let reaches = &self.provider_source.program().facts.service_reaches;
-        let Some(reach) = reaches.for_machine(entry.machine_symbol()) else {
-            return Vec::new();
-        };
-        let published = match reach.interface {
-            language_semantics::ServiceReachInterface::PublishedCeiling(row) => Some(row),
-            language_semantics::ServiceReachInterface::InternalInferred => None,
-        };
-        published
-            .into_iter()
-            .chain([reach.inferred_transitive, reach.concrete_transitive])
-            .flat_map(|row| reaches.rows.services(row))
-            .filter_map(|&service| reaches.services.definition(service))
-            .map(|definition| definition.symbol)
-            .collect()
+        self.entry_service_requirements.clone()
+    }
+
+    pub fn plans(&self) -> &effects::SelectedProviderPlanFacts {
+        &self.selected_provider_plan_facts
     }
 
     pub fn resolved_semantic_binding(

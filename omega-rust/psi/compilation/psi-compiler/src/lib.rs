@@ -1,0 +1,60 @@
+#![forbid(unsafe_code)]
+
+//! Psi compilation sequencing, independent of product scheduling and native output.
+//!
+//! Start at `source_parsing.rs` for admitted source frontiers: Psi owns loading,
+//! lexing, parsing and page publication; packages own discovery and source custody.
+//! `source_compilation.rs` consumes admitted syntax: `prepare` owns source
+//! evaluation, resolution and the paired typing continuation. Build execution
+//! borrows its declared inputs; `complete_authored` resumes that same owner,
+//! and `extend` consumes admitted generated syntax against its exact predecessor.
+//! `source_compilation/product_policy.rs` owns the post-join source judgments
+//! for Product choices, returning records for independent realization.
+//! Package acquisition, Build permissions and host effects stay outside this crate.
+//!
+//! `source_checking.rs` owns preparation, exact retained-judgment matching and
+//! checking for both Product and Build. Successful checking precedes product
+//! pruning; consumers supply admission facts, never a stage sequence.
+//! `terminal-production/src/terminal_production.rs` owns checked trees through
+//! Psi 06-08 and canonical publication, including separate consumer admissions.
+//! That shared operation sits below this source facade so early compile-time jobs
+//! can use it without recursively importing their source coordinator. Source/package assembly,
+//! source completion roles and distinct entry-root production remain outside
+//! this facade; this is not yet a complete one-call source-to-Terminal API.
+//! Observers record existing stage operations without choosing or replaying them.
+
+mod source_checking;
+mod source_compilation;
+mod source_parsing;
+
+pub use source_checking::{
+    CheckRequest, CheckedSource, CheckedTreeProductSelection, LibrarySliceKey, LibrarySliceRequest,
+    LibrarySliceTotals, ProductRepresentationInput, ProductSelections, RetainedCheck,
+    SelectedCheckedSource, SourceAdmission, library_slice_totals, whole_program_reuse_hits,
+};
+pub use source_parsing::{
+    ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
+};
+pub use typed_trees_to_checked_trees::declaration_page_fork_totals;
+pub use validation::{dependency_body_read_totals, dependency_entailment_totals};
+
+pub use source_compilation::{
+    AdmittedProductPolicy, BuildSourceInput, CompletedSource, PreparedSource, ProductPolicyRequest,
+    SourceCompilationRequest, SourceContinuation, SourceExtensionRequest, SourceFrontends,
+};
+
+pub use psi_terminal_production::{
+    BuildProviderProductionRequest, PortableTerminalProgram, PreparedExternalProviderDeclarations,
+    PreparedProviderInventory, PreparedTerminalRoots, ProducedBuildProvider,
+    ProducedTerminalApplication, ProducedTerminalProgram, ProgramEntryTerminalReceiptError,
+    PsiCompilationObserver, PsiCompilationStage, TerminalAdmissionRoot, TerminalApplicationCustody,
+    TerminalArtifactProductionError, TerminalBuildBindingCall, TerminalBuildBindingOperation,
+    TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildFilesystemCall,
+    TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildProviderRequirement,
+    TerminalBuildQueryCall, TerminalBuildQueryOperation, TerminalBuildRequestCall,
+    TerminalBuildRequestOperation, TerminalBuildRequests, TerminalBuildSelectionRequest,
+    TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
+    TerminalCompositionRoots, TerminalMachineSelection, TerminalProductionCustody,
+    TerminalProductionRequest, TerminalProgramRoots, UnmeasuredProduction,
+    lower_task_activation_demands,
+};

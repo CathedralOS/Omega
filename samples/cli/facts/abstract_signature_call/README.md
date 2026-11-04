@@ -36,7 +36,7 @@ transport of the premise subject and its read changes.
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant is the premise subject |
 | a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the premise subject and reads the record there |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine supplies the premise subject |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | one body per hosted target uses the subject and reads the record |
+| another selected target implementation | [`other_target/main.omg`](other_target/main.omg) | [`other_target/invalid/main.omg`](other_target/invalid/main.omg) | an ordinary named `SelectedObserveBody` implementation, selected by one Build row per hosted target, uses the subject and reads the record |
 
 The row has no root `main.omg`; `local` is its canonical local witness. The
 landed local plus twin came from the item's pin commit `49bf309359c`.
@@ -474,7 +474,7 @@ to a structurally false fact and proof checking fails closed:
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | same fragment from `main` |
 | a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | same fragment from `main` state `check` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | same fragment from `observe` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | same fragment per target body from `observe` |
+| another selected target implementation | [`other_target/invalid/main.omg`](other_target/invalid/main.omg) | same fragment from `observe` |
 
 Every twin also emits the companion diagnostic from the specialized application
 `apply$specialized$…` state `entry` calling `witness` with the same required
@@ -666,14 +666,27 @@ nine twins reject the premise. Windows, macOS, and QEMU were not run.
   unobserved by the current Intel run. Other static-argument applications,
   effects, authority and loans need their own demonstrated parent acceptance.
 
-## Build-owned target-body migration
+## Other selected target implementation
 
-The `target_body` place and its twin carry no source target prefix.
-`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
-implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
-by explicit target-keyed Build rows. The operation, inputs, contracts and exit
-oracle are unchanged. The entry wrapper and each implementation check a tag
-(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
-Linux x86-64 native and Terminal Psi agreement for the positive and source
-rejection for the twin; the other hosted targets keep their authored rows,
-unexecuted here.
+The `other_target` place and its twin carry no source target prefix and no
+`target_body` spelling. Ordinary named implementations (`X86...` and `Arm...`)
+of the `SelectedObserve` and `SelectedBodyCheck` requirements are selected by
+explicit target-keyed Build rows; `ProgramEntry` binds the entry wrapper for
+each hosted target. The operation, inputs, contracts and exit oracle are
+unchanged from the other places. The entry wrapper and each implementation check
+a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps at runtime.
+The twin changes only `premise`'s result and rejects with
+`structurally false` and `premise(kept)`. The place is pinned as
+`tests/omega/{pass,fail}/facts/abstract_signature_call_through_other_target_{exit,rejected}`.
+Evidence is recorded below under the validation heading; the other hosted targets
+keep their authored rows, unexecuted here.
+
+Validation at base `90f3fe11ae75eb63246767979fe483cfe0c312f8` with an optimized
+exact-source `omega` (release profile): all nine positive places pass
+`omega run --both` on Linux x86-64 (native exit 0, Terminal Psi exit 0), and all
+nine twins reject with `structurally false` and `premise(kept)`. The place needed
+no compiler change; the work is the rename from the `target_body` migration input
+to `other_target` and its corpus pins. The corpus-outcome rows for the two
+renamed fixtures keep their prior outcomes (`checked`, `rejected`) and were not
+re-recorded with the corpus runner. The other three hosted targets keep their
+authored rows, unexecuted here.

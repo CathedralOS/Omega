@@ -50,6 +50,25 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
 
+impl StructuralJudge<'_> {
+    /// A postcondition's `result` names the value this path actually returns.
+    /// Bind it in both proof stores: case facts deliberately do not follow
+    /// general value substitutions. Callers have checked that an input
+    /// parameter does not shadow the reserved `result` name.
+    pub(in crate::proof_contracts::contract_entailment) fn bind_returned_value(
+        &mut self,
+        value: &StructuralTerm,
+    ) {
+        self.intake_case_equation(
+            StructuralTerm::Variable(super::super::RESULT_BINDER.to_owned()),
+            value.clone(),
+            0,
+        );
+        Arc::make_mut(&mut self.substitutions)
+            .insert(0, (super::super::RESULT_BINDER.to_owned(), value.clone()));
+    }
+}
+
 pub(in crate::proof_contracts::contract_entailment) struct NormalReturnPath<'program> {
     pub value: StructuralTerm,
     pub judge: StructuralJudge<'program>,
@@ -1662,6 +1681,9 @@ impl<'program> StructuralJudge<'program> {
             )
             .is_some();
         let scalar_field_read = scalar_storage_read && matches!(node, ExpressionNode::Member(_));
+        let scalar_reference_read = self
+            .scalar_reference_read_type(scope.0, scope.1, expression)
+            .is_some();
         let mut children_to_evaluate = Vec::new();
         let child_references =
             operand_types::receiving_types(program, scope.0, expression, node, scope.2);
@@ -1701,6 +1723,26 @@ impl<'program> StructuralJudge<'program> {
                     children_to_evaluate.push((child, reference));
                 }
             });
+        }
+        if let ExpressionNode::Call(call) = node {
+            let order = (crate::CallSite::Expression { expression, call })
+                .argument_evaluation_order(program)
+                .ok()?;
+            if !order.is_natural() {
+                let arguments = expression_table(program).expression_handles(call.arguments);
+                let prefix = children_to_evaluate.len().checked_sub(arguments.len())?;
+                let mut children = children_to_evaluate
+                    .into_iter()
+                    .map(Some)
+                    .collect::<Vec<_>>();
+                children_to_evaluate = children[..prefix]
+                    .iter_mut()
+                    .filter_map(Option::take)
+                    .collect();
+                for position in order {
+                    children_to_evaluate.push(children.get_mut(prefix + position)?.take()?);
+                }
+            }
         }
         let operands = children_to_evaluate
             .into_iter()
@@ -1787,12 +1829,17 @@ impl<'program> StructuralJudge<'program> {
         let outcomes: Vec<NormalReturnPath<'program>> = contexts
             .into_iter()
             .map(|(mut judge, inputs)| {
-                let call_inputs =
-                    if let Some(call) = expression_table(program).call_node(expression) {
+                let call_inputs = if let Some(call) =
+                    expression_table(program).call_node(expression)
+                {
+                    let arguments = expression_table(program).expression_handles(call.arguments);
+                    let order = (crate::CallSite::Expression { expression, call })
+                        .argument_evaluation_order(program)
+                        .ok()?;
+                    if order.is_natural() {
                         let mut cursor = 0;
                         Some(
-                            expression_table(program)
-                                .expression_handles(call.arguments)
+                            arguments
                                 .iter()
                                 .map(|source| {
                                     let offset = inputs[cursor..]
@@ -1804,8 +1851,20 @@ impl<'program> StructuralJudge<'program> {
                                 .collect::<Option<Vec<_>>>()?,
                         )
                     } else {
-                        None
-                    };
+                        let prefix = inputs.len().checked_sub(arguments.len())?;
+                        let mut values = vec![None; arguments.len()];
+                        for (evaluated, position) in order.enumerate() {
+                            let (source, value) = inputs.get(prefix + evaluated)?;
+                            if *source != arguments[position] {
+                                return None;
+                            }
+                            values[position] = Some(value.clone());
+                        }
+                        Some(values.into_iter().collect::<Option<Vec<_>>>()?)
+                    }
+                } else {
+                    None
+                };
                 if requested_operations.stop == ObservationStop::BeforeOperation(expression)
                     || requested_operations.expressions.contains(&expression)
                     || matches!(demand, NormalValueDemand::ObserveOnly(_))
@@ -1896,37 +1955,56 @@ impl<'program> StructuralJudge<'program> {
                         NormalReturnPath::unobserved(judge).at_expression(expression, demand),
                     ]);
                 }
-                let receiver_changed =
-                    scalar_storage_read && judge.storage_write_sequence != receiver_write_sequence;
-                let path = match requested_operations.delivery {
-                    ValueDelivery::Required => judge.completed_value_path(
-                        expression,
-                        environment,
-                        scope,
-                        &inputs,
-                        call_values,
-                        receiver_changed,
-                        scalar_storage_read,
-                    )?,
-                    ValueDelivery::RetainObservations => {
-                        // Value metadata is provisional until its own complete
-                        // description succeeds. Operand effects and pre-operation
-                        // receipts above are already committed independently.
-                        judge
-                            .clone()
-                            .completed_value_path(
-                                expression,
-                                environment,
-                                scope,
-                                &inputs,
-                                call_values,
-                                receiver_changed,
-                                scalar_storage_read,
-                            )
-                            .unwrap_or_else(|| NormalReturnPath::unobserved(judge))
-                    }
+                let receiver_changed = (scalar_storage_read || scalar_reference_read)
+                    && judge.storage_write_sequence != receiver_write_sequence;
+                // A runtime selector chooses one value, while the complete
+                // supplier frontier contributes every proof alternative. These
+                // paths never narrow its physical origin/permission inventory.
+                let alternatives = if !receiver_changed && scalar_reference_read {
+                    let read_version = judge
+                        .read_storage_version(scope.1, expression)
+                        .or(judge.storage_version);
+                    judge.current_backing_values(scope.0, scope.1, expression, read_version)
+                } else {
+                    None
                 };
-                Some(vec![path.at_expression(expression, demand)])
+                let alternatives = alternatives
+                    .map(|values| values.into_iter().map(Some).collect::<Vec<_>>())
+                    .unwrap_or_else(|| vec![None]);
+                let mut completed = Vec::with_capacity(alternatives.len());
+                for contents in alternatives {
+                    let path = match requested_operations.delivery {
+                        ValueDelivery::Required => judge.clone().completed_value_path(
+                            expression,
+                            environment,
+                            scope,
+                            &inputs,
+                            call_values.clone(),
+                            receiver_changed,
+                            scalar_storage_read,
+                            contents,
+                        )?,
+                        ValueDelivery::RetainObservations => {
+                            // Failure of provisional metadata never erases the
+                            // independently completed operands and effects.
+                            judge
+                                .clone()
+                                .completed_value_path(
+                                    expression,
+                                    environment,
+                                    scope,
+                                    &inputs,
+                                    call_values.clone(),
+                                    receiver_changed,
+                                    scalar_storage_read,
+                                    contents,
+                                )
+                                .unwrap_or_else(|| NormalReturnPath::unobserved(judge.clone()))
+                        }
+                    };
+                    completed.push(path.at_expression(expression, demand));
+                }
+                Some(completed)
             })
             .collect::<Option<Vec<_>>>()?
             .into_iter()
@@ -2159,7 +2237,7 @@ impl<'program> StructuralJudge<'program> {
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn reference_subject_term(
-        &self,
+        &mut self,
         subject: &crate::machine_calls::calls::InvocationEntrySubject,
         actual: &StructuralTerm,
         environment: &[(String, StructuralTerm)],
@@ -2170,6 +2248,18 @@ impl<'program> StructuralJudge<'program> {
             .access
             .is_readable()
             .then_some(())?;
+        if subject.has_aggregate_view(program) {
+            let observation = self.capture_view_argument_fields(subject, actual, scope.0, scope.1);
+            if let Err(reason) = &observation
+                && super::super::struct_trace()
+            {
+                eprintln!(
+                    "STRUCT aggregate-view-observation-refused caller={} argument={:?} reason={reason}",
+                    scope.0.name, subject.argument,
+                );
+            }
+            return observation.ok();
+        }
         let scalar = subject.scalar_storage_coordinate(program, scope.1);
         let [source] = subject.sources.as_slice() else {
             // Origin authority quantifies over the complete join. Its actual

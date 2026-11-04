@@ -36,6 +36,7 @@ mod independent_component;
 mod native_product;
 mod package_build;
 mod prepared_build;
+pub use prepared_build::ProductSourceIdentity;
 mod prepared_source;
 pub mod publication;
 mod retained_native_program;
@@ -53,8 +54,8 @@ pub use compile_outcomes::{
 };
 pub use compile_request::options::CompileOptions;
 pub use compile_request::{
-    CheckedCompileRequest, CheckedExecutionRequest, CompileRequest, NativeProductRequest,
-    RequestedCompileProduct, SettledCheckReuse,
+    CheckedCompileRequest, CheckedExecutionRequest, CompileRequest, NativeImageDemand,
+    NativeProductRequest, RequestedCompileProduct, SettledCheckReuse,
 };
 pub use evaluated_build::{
     BuildAdmission, BuildConfig, ComputedBuildConfig, EvaluatedBuild,

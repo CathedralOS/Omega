@@ -30,7 +30,6 @@ pub(super) fn judgment(
     call: &FlowCallFact,
     contexts: &[facts::FactContextHandle],
     requirement: &Fact,
-    expression_intervals: &[validation::ExpressionInterval],
     frames: Option<&validation::CallFrameResolver<'_>>,
     whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
 ) -> Option<bool> {
@@ -71,7 +70,6 @@ pub(super) fn judgment(
                 reference.fact,
                 contract_call.target_state_symbol,
                 expression,
-                expression_intervals,
                 frames,
                 whole_contract_cache,
             ) {
@@ -176,7 +174,6 @@ fn captured_contract_proven(
     contract_handle: arena::Handle<checked_trees::ContractProofFact>,
     target: symbols::SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
-    expression_intervals: &[validation::ExpressionInterval],
     frames: Option<&validation::CallFrameResolver<'_>>,
     whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
 ) -> bool {
@@ -244,16 +241,7 @@ fn captured_contract_proven(
         "psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.captured_expr",
         || {
             captured_expression_proven(
-                program,
-                facts,
-                state,
-                call,
-                contexts,
-                contract,
-                target,
-                expression,
-                expression_intervals,
-                frames,
+                program, facts, state, call, contexts, contract, target, expression, frames,
             )
         },
     )
@@ -271,7 +259,6 @@ fn captured_expression_proven(
     contract: &checked_trees::ContractProofFact,
     target: symbols::SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
-    expression_intervals: &[validation::ExpressionInterval],
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     if call_values::proves_captured_arithmetic_requirement(program, facts, state, call, expression)
@@ -315,16 +302,7 @@ fn captured_expression_proven(
         use typed_trees::expression::BinaryOperator;
         let child = |expression| {
             captured_expression_proven(
-                program,
-                facts,
-                state,
-                call,
-                contexts,
-                contract,
-                target,
-                expression,
-                expression_intervals,
-                frames,
+                program, facts, state, call, contexts, contract, target, expression, frames,
             )
         };
         match binary.operator {
@@ -344,28 +322,22 @@ fn captured_expression_proven(
             .zip(validation::call_target_parameters(program, target))
             .is_some_and(|(arguments, parameters)| arguments.len() == parameters.len());
     if complete_arguments
-        && super::super::argument_intervals::proves(
-            program,
-            expression,
-            expression_intervals,
-            &|parameter| {
-                let name = program.expression_table.name_path_node(parameter)?;
-                if !program.expression_table.name_path_is_single_member(name) {
-                    return None;
-                }
-                let declared = validation::canonical_place_from_expression(program, parameter)?;
-                let actual = actual_for_formal_place(
-                    program, facts, state, call, contract, target, &declared,
-                )?;
-                // A value formal receives the completed scalar snapshot.
-                // A reference formal instead observes live referee contents;
-                // its argument-time hull cannot certify later invocation data.
-                program
-                    .primitive_type_reference(actual.parameter.type_reference)
-                    .filter(|primitive| primitive.accepts_integer_literal())?;
-                actual.argument
-            },
-        )
+        && super::super::argument_intervals::proves(program, expression, &|parameter| {
+            let name = program.expression_table.name_path_node(parameter)?;
+            if !program.expression_table.name_path_is_single_member(name) {
+                return None;
+            }
+            let declared = validation::canonical_place_from_expression(program, parameter)?;
+            let actual =
+                actual_for_formal_place(program, facts, state, call, contract, target, &declared)?;
+            // A value formal receives the completed scalar snapshot.
+            // A reference formal instead observes live referee contents;
+            // its argument-time hull cannot certify later invocation data.
+            program
+                .primitive_type_reference(actual.parameter.type_reference)
+                .filter(|primitive| primitive.accepts_integer_literal())?;
+            actual.argument
+        })
     {
         return true;
     }
@@ -869,7 +841,7 @@ fn exact_returned_loan(
         && place
             .segments
             .iter()
-            .all(|segment| crate::flow::fixed_selection_segment(segment))
+            .all(crate::flow::fixed_selection_segment)
         && loan_call_does_not_write(program, state_symbol, expression)
 }
 

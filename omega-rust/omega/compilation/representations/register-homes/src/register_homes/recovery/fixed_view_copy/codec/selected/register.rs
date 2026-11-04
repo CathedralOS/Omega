@@ -82,7 +82,7 @@ pub(super) fn decode_register(
         origin,
         definition_site: crate::cursor::optional(
             cursor,
-            |c| Ok(decode_definition_site(c)?),
+            decode_definition_site,
             FixedViewCopyDecodeError::UnknownOption,
         )?,
         entry_fixed_view: decode_option_u16(cursor)?.map(RegisterViewId),

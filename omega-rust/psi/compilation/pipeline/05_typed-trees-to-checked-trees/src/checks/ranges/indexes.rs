@@ -1,7 +1,9 @@
 use super::expressions::ensured_call_result_bounds;
 use super::expressions::expression_integer_value;
 use diagnostics::Diagnostic;
-use typed_trees::expression::{ExpressionHandle, TableIndexedExpression};
+use typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableCallExpression, TableIndexedExpression,
+};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
@@ -100,6 +102,46 @@ struct IndexChecks<'context, 'program, 'frames> {
 }
 
 impl ExpressionTransferSink for IndexChecks<'_, '_, '_> {
+    /// `align_of(view)` over a borrowed slice observes the first element,
+    /// which exists only for a nonempty view. Its proof-only `view[0]` owes
+    /// the same length fact as an ordinary first-element index, but it is not
+    /// an access: no verdict or lowering obligation is retained for it.
+    fn call_entry(&mut self, facts: &RangeFacts<'_>, call: &TableCallExpression) {
+        let Some(request) = &call.layout_query else {
+            return;
+        };
+        let first = request.nonempty_view;
+        if !first.is_valid() {
+            return;
+        }
+        let program = self.transfer.program;
+        let ExpressionNode::Indexed(indexed) = program.expression_table.expression(first) else {
+            return;
+        };
+        let mut failures = Vec::new();
+        let verdict = check_indexed_access(
+            program,
+            self.transfer.machine,
+            self.transfer.state,
+            facts,
+            first,
+            indexed,
+            &mut failures,
+            &mut Vec::new(),
+        );
+        if verdict == self::validation::BoundsCheckResult::ProvenScalar && failures.is_empty() {
+            return;
+        }
+        let view = program.expression_table.display_name(indexed.collection);
+        self.diagnostics.push(
+            Diagnostic::error(format!(
+                "`align_of({view})` observes the slice's first element and needs the nonempty fact `{view}.len >= 1`, which is not proved here in {}::{}",
+                self.transfer.machine.name, self.transfer.state.name
+            ))
+            .with_source_span(program.expression_table.source_span(first)),
+        );
+    }
+
     fn indexed_access(
         &mut self,
         facts: &RangeFacts<'_>,
@@ -121,23 +163,25 @@ impl ExpressionTransferSink for IndexChecks<'_, '_, '_> {
         // Retain the evaluated selector's singleton observation from the same
         // all-arrival range walk. This does not replace evaluation or its bound:
         // lowering uses it only to separate storage for overlap decisions.
-        let coordinate =
-            ::validation::expression_interval(facts.expression_intervals, indexed.index)
-                .and_then(|interval| {
-                    let low = interval.low?;
-                    (interval.high == Some(low)).then_some(low)
-                })
-                .or_else(|| expression_integer_value(self.transfer.program, facts, indexed.index))
-                .or_else(|| {
-                    let (low, high) = ensured_call_result_bounds(
-                        self.transfer.program,
-                        self.transfer.machine.symbol,
-                        indexed.index,
-                    )?;
-                    let low = low?;
-                    (high == Some(low)).then_some(low)
-                })
-                .and_then(|value| u64::try_from(value).ok());
+        let coordinate = self
+            .transfer
+            .program
+            .expression_interval(indexed.index)
+            .and_then(|interval| {
+                let low = interval.low?;
+                (interval.high == Some(low)).then_some(low)
+            })
+            .or_else(|| expression_integer_value(self.transfer.program, facts, indexed.index))
+            .or_else(|| {
+                let (low, high) = ensured_call_result_bounds(
+                    self.transfer.program,
+                    self.transfer.machine.symbol,
+                    indexed.index,
+                )?;
+                let low = low?;
+                (high == Some(low)).then_some(low)
+            })
+            .and_then(|value| u64::try_from(value).ok());
         self.verdicts.verdicts.push((
             expression,
             verdict == self::validation::BoundsCheckResult::ProvenScalar,

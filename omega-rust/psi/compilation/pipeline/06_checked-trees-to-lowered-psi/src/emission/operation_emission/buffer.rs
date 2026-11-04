@@ -578,31 +578,31 @@ impl OperationBuffer {
         projected_qualifications: &[terminal_psi::StructuralPathQualification],
     ) {
         for operation in self.operations.iter_mut().rev() {
-            if let OperationResult::Structural(result) = &mut operation.result {
-                if result.place == place {
-                    result.qualifications.extend_from_slice(qualifications);
-                    result.qualifications.sort();
-                    result.qualifications.dedup();
-                    result
-                        .projected_qualifications
-                        .extend_from_slice(projected_qualifications);
-                    result.projected_qualifications.sort();
-                    result.projected_qualifications.dedup();
-                }
+            if let OperationResult::Structural(result) = &mut operation.result
+                && result.place == place
+            {
+                result.qualifications.extend_from_slice(qualifications);
+                result.qualifications.sort();
+                result.qualifications.dedup();
+                result
+                    .projected_qualifications
+                    .extend_from_slice(projected_qualifications);
+                result.projected_qualifications.sort();
+                result.projected_qualifications.dedup();
             }
         }
         for (_, binding) in &mut self.structural_values {
-            if let StructuralBinding::OperationResult(result) = binding {
-                if result.place == place {
-                    result.qualifications.extend_from_slice(qualifications);
-                    result.qualifications.sort();
-                    result.qualifications.dedup();
-                    result
-                        .projected_qualifications
-                        .extend_from_slice(projected_qualifications);
-                    result.projected_qualifications.sort();
-                    result.projected_qualifications.dedup();
-                }
+            if let StructuralBinding::OperationResult(result) = binding
+                && result.place == place
+            {
+                result.qualifications.extend_from_slice(qualifications);
+                result.qualifications.sort();
+                result.qualifications.dedup();
+                result
+                    .projected_qualifications
+                    .extend_from_slice(projected_qualifications);
+                result.projected_qualifications.sort();
+                result.projected_qualifications.dedup();
             }
         }
     }

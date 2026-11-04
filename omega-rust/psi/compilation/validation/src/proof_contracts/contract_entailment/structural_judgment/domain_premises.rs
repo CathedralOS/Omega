@@ -800,6 +800,19 @@ impl StructuralJudge<'_> {
                 );
             }
         }
+        // Const actuals are admitted immutable canonical values. Runtime Value
+        // descriptors retain their separate represented-storage capture path;
+        // their pointed contents are not timeless BoundProjection hypotheses.
+        for parameter in program.machine_type_parameters(machine) {
+            let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            else {
+                continue;
+            };
+            self.intake_admitted_value_predicates(
+                type_reference,
+                StructuralTerm::BoundValue(parameter.symbol),
+            );
+        }
         let entry = program
             .machine_states(machine)
             .first()
@@ -1286,11 +1299,16 @@ impl StructuralJudge<'_> {
         active.pop();
     }
 
-    fn nominal_type_has_data_predicates(
+    pub(super) fn nominal_type_has_data_predicates(
         program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
         active: &mut Vec<SymbolHandle>,
     ) -> bool {
+        if let Some((element, _)) =
+            crate::field_domains::readable_fixed_array_elements(program, reference)
+        {
+            return Self::nominal_type_has_data_predicates(program, element, active);
+        }
         let Some(definition) =
             crate::field_domains::readable_nominal_definition(program, reference)
         else {
@@ -1670,7 +1688,7 @@ impl StructuralJudge<'_> {
                     .map(|(_, value)| (parameter.symbol, value.clone()))
             })
             .collect::<Vec<_>>();
-        if let Some(term) = self.bound_contract_term(
+        let term = self.bound_contract_term(
             expression,
             owner,
             parameters,
@@ -1679,7 +1697,13 @@ impl StructuralJudge<'_> {
             type_bindings,
             None,
             0,
-        ) {
+        );
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT admitted-predicate-bind owner={owner:?} expression={expression:?} term={term:?} bindings={bound:?}"
+            );
+        }
+        if let Some(term) = term {
             self.intake_equation(term, super::value_predicates::boolean_term(true), 0);
         }
     }

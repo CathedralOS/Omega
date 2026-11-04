@@ -21,6 +21,7 @@ pub(crate) struct AuthoredCall {
     pub source_target: SymbolHandle,
     pub scalar_arguments: Vec<(ExpressionHandle, PrimitiveType)>,
     pub structural_arguments: Vec<(u32, ExpressionHandle)>,
+    pub evaluation_order: Vec<usize>,
 }
 
 pub(crate) fn locate(
@@ -72,6 +73,7 @@ pub(crate) fn locate(
         source_target,
         scalar_arguments,
         structural_arguments,
+        evaluation_order: control.call_argument_evaluation_order(call),
     })
 }
 

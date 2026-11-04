@@ -31,7 +31,7 @@ pub(super) fn actions(
     parameters: &[CheckedUnitStructuralParameterPlan],
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<super::temporary_actions::SelectedActions> {
-    let selected = (|| {
+    (|| {
         let CheckedUnitEffectOperationPlan::ContinuationCleanup {
             boundary:
                 checked_trees::CheckedUnitCleanupBoundary::Replacement {
@@ -264,7 +264,7 @@ pub(super) fn actions(
                     None,
                     None,
                 )?
-                .1
+                .path
             };
             // A death can cover the replaced place or an enclosing value. Keep
             // only actions within the destination; replacing a whole array keeps
@@ -329,7 +329,7 @@ pub(super) fn actions(
                         checked_trees::CheckedUnitPartialAffineDiscardPlan {
                             source: source.clone(),
                             path: destination.path.clone(),
-                            type_identity: destination.type_identity.clone(),
+                            type_identity: destination.type_identity,
                             case_conditions: action.case_conditions(),
                         },
                     );
@@ -404,7 +404,7 @@ pub(super) fn actions(
                 &mut actions,
                 CheckedNormalCleanupAction::RetireHome {
                     source: old_value.source.clone(),
-                    type_identity: destination.type_identity.clone(),
+                    type_identity: destination.type_identity,
                 },
             );
         }
@@ -412,6 +412,5 @@ pub(super) fn actions(
             actions,
             selected_regions,
         })
-    })();
-    selected
+    })()
 }

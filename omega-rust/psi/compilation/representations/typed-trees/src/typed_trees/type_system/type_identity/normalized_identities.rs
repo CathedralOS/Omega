@@ -42,38 +42,38 @@ pub type NormalizedTypeIdentity = TypeIdentityId;
 
 /// One program's hash-consed structural type keys. Records are append-only
 /// within a revision, so a handle stays valid for as long as the table it
-/// came from; the rendered text is the structural key, so the map needs no
+/// came from; the rendered text is the structural key, so the table needs no
 /// revision guard of its own.
-#[derive(Clone, Default, compiler_storage::Record)]
+///
+/// Parallel checking workers intern through `&self`. Finding an existing key
+/// takes no lock, and only a key minted for the first time waits on other
+/// mints; see `arena::OwnedTextInterner`. Handles are numbered in first-intern
+/// order and compare only within this table.
+#[derive(Clone, Default, PartialEq, Eq, Debug, compiler_storage::Record)]
 pub struct TypeIdentityTable {
-    texts: Vec<Box<str>>,
-    slots: std::collections::HashMap<Box<str>, TypeIdentityId, symbols::BuildSymbolHasher>,
+    texts: arena::OwnedTextInterner,
 }
 
 impl TypeIdentityTable {
     /// The canonical handle for one rendered structural key, minting a slot
     /// the first time that key appears.
-    pub fn intern(&mut self, text: &str) -> TypeIdentityId {
-        super::intern_boxed_text(
-            text,
-            &mut self.texts,
-            &mut self.slots,
-            TypeIdentityId::from_slot,
-        )
+    pub fn intern(&self, text: &str) -> TypeIdentityId {
+        TypeIdentityId::from_slot(self.texts.intern(text))
     }
 
     /// The retained rendering of one handle: diagnostics and artifact
     /// encoding only.
     pub fn text(&self, identity: TypeIdentityId) -> Option<&str> {
-        identity
-            .slot()
-            .and_then(|slot| self.texts.get(slot).map(AsRef::as_ref))
+        self.texts.text(identity.slot()?)
     }
 
     /// The handle a previously interned key names: wire decoders and boundary
     /// readers rehydrate their `String` payload through this reverse join.
     pub fn by_text(&self, text: &str) -> TypeIdentityId {
-        self.slots.get(text).copied().unwrap_or_default()
+        self.texts
+            .slot(text)
+            .map(TypeIdentityId::from_slot)
+            .unwrap_or_default()
     }
 }
 

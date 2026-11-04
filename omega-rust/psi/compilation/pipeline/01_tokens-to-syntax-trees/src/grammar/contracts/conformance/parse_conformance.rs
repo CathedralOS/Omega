@@ -1,6 +1,6 @@
 use crate::diagnostics::parse_error::ParseError;
 use crate::grammar::expressions::parse_expression::parse_expression_handle;
-use crate::grammar::type_syntax::parse_type::parse_type_reference_handle;
+use crate::grammar::type_syntax::parse_type::parse_static_argument_reference;
 use crate::storage::tables::{items, type_refs};
 use crate::tokens::token_cursor::{Input, ParseResult};
 use arena::HandleSpan;
@@ -128,25 +128,7 @@ pub(crate) fn parse_satisfies_type_argument<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
-    if input
-        .tokens
-        .first()
-        .is_some_and(crate::tokens::token_cursor::is_identifier_token_for_parser)
-    {
-        let (first, mut rest) = input.take_identifier()?;
-        if rest.at_punctuation(PunctuationKind::ColonColon) {
-            let mut members = vec![first];
-            while rest.at_punctuation(PunctuationKind::ColonColon) {
-                rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
-                let (member, next) = rest.take_identifier()?;
-                members.push(member);
-                rest = next;
-            }
-            let name = crate::tokens::paths::join_path_identifier(syntax_trees, &members);
-            return Ok((type_refs(syntax_trees).insert_named(name), rest));
-        }
-    }
-    parse_type_reference_handle(syntax_trees, input)
+    parse_static_argument_reference(syntax_trees, input)
 }
 pub(crate) fn parse_conformance_trait_application<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,

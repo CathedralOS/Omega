@@ -18,9 +18,7 @@ pub(super) struct ScalarField {
     pub(super) owner: SymbolHandle,
     pub(super) path: Vec<ScalarProjection>,
     pub(super) carrier: PrimitiveType,
-    pub(super) name: String,
     pub(super) value: Option<ScopedArithmeticValue>,
-    pub(super) read_dependencies: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -28,24 +26,15 @@ pub(super) struct CapturedScalarField {
     pub(super) path: Vec<ScalarProjection>,
     pub(super) carrier: PrimitiveType,
     pub(super) value: ScopedArithmeticValue,
-    pub(super) read_dependencies: Vec<String>,
 }
 
 impl ScalarField {
-    pub(super) fn for_owner(
-        program: &dyn validation::CheckingInput,
-        owner: SymbolHandle,
-        field: CapturedScalarField,
-    ) -> Self {
-        let name = validation::frame_coordinate_path(program, owner, &source_path(&field.path))
-            .expect("a captured scalar projection has a valid storage root");
+    pub(super) fn for_owner(owner: SymbolHandle, field: CapturedScalarField) -> Self {
         Self {
             owner,
             path: field.path,
             carrier: field.carrier,
-            name,
             value: Some(field.value),
-            read_dependencies: field.read_dependencies,
         }
     }
 }
@@ -316,7 +305,7 @@ impl CurrentScalarValues<'_> {
                 value: self.capture(self.program, self.machine, self.state, *argument),
                 alternatives: Vec::new(),
                 immutable_coordinate: true,
-                read_dependencies: Some(Vec::new()),
+                unwritable: true,
             })
             .collect::<Vec<_>>();
         // A selector may read a field of an explicitly supplied structural
@@ -328,7 +317,7 @@ impl CurrentScalarValues<'_> {
             .flat_map(|(formal, actual)| {
                 self.captured_scalar_fields(*actual, 0)
                     .into_iter()
-                    .map(|field| ScalarField::for_owner(self.program, formal.symbol, field))
+                    .map(|field| ScalarField::for_owner(formal.symbol, field))
             })
             .collect::<Vec<_>>();
         let occurrence = self.occurrence_at(self.program, callee, state, &[]);
@@ -401,7 +390,6 @@ impl CurrentScalarValues<'_> {
                             path,
                             carrier: observation.primitive_type,
                             value: observation.value,
-                            read_dependencies: observation.read_dependencies,
                         });
                     }
                 }
@@ -479,7 +467,6 @@ impl CurrentScalarValues<'_> {
                             path: prefix.clone(),
                             carrier,
                             value,
-                            read_dependencies: Vec::new(),
                         });
                     }
                 }
@@ -502,7 +489,6 @@ impl CurrentScalarValues<'_> {
                             path: field.path[prefix.len()..].to_vec(),
                             carrier: field.carrier,
                             value: field.value.clone()?,
-                            read_dependencies: field.read_dependencies.clone(),
                         })
                     })
                     .collect()
@@ -536,10 +522,7 @@ impl CurrentScalarValues<'_> {
             captured = captured
                 .into_iter()
                 .zip(dependencies)
-                .filter_map(|(mut field, paths)| {
-                    field.read_dependencies = paths?;
-                    Some(field)
-                })
+                .filter_map(|(field, paths)| paths.map(|_| field))
                 .collect();
         }
         captured
@@ -586,8 +569,7 @@ impl CurrentScalarValues<'_> {
             let mut path = prefix.to_vec();
             path.extend(field.path);
             field.path = path;
-            self.fields
-                .push(ScalarField::for_owner(self.program, owner, field));
+            self.fields.push(ScalarField::for_owner(owner, field));
         }
     }
 }

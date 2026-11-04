@@ -22,7 +22,7 @@ defines these distinctions precisely.
 Examples illustrate the intended source model, not a claim that every target or
 native route is implemented. Unsupported routes must reject rather than weaken
 a contract. Implementation limits belong beside the
-[native realization code](../../omega-rust/omega/compilation/driver/README.md#native-realization).
+[native realization code](../../omega-rust/omega/compilation/compiler/README.md#native-realization).
 
 ## Boundary Surfaces
 
@@ -346,6 +346,13 @@ authority remain separate obligations. `main` follows the same rules; a
 Cathedral application's deployment manifest separately bounds its permission.
 The same reach rule applies to directly named boundary calls; provider
 selection is not creation of a global mutable Console object.
+
+A dynamic call with an established implementation selection propagates its
+retained checked contract, which may be narrower than the trait's bound. Unknown
+selections use the requirement ceiling; joins account for every possible choice.
+This does not let a provider chosen later by Build erase boundary reach or let
+private-body analysis shrink an explicitly published ceiling. See
+[dynamic envelopes](chapter_14_traits.md#operational-envelopes).
 
 The same propagation works through a named static callback:
 
@@ -941,7 +948,7 @@ notifications for a new activation. It still respects the acyclic `invokes` grap
 executor affinity, and [callback entry-stack contract](../spec/resources/entry_stacks.md#foreign-callback-entry).
 A native declaration alone proves no absence of opaque re-entry.
 
-The [native implementation note](../../omega-rust/omega/compilation/driver/README.md#callback-custody-boundaries)
+The [native implementation note](../../omega-rust/omega/compilation/compiler/README.md#callback-custody-boundaries)
 separates current materialization support from complete authored-use, registration,
 and lifetime custody. A retained callback companion or installed-entry record
 alone does not establish that protocol.

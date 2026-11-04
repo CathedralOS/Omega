@@ -1,11 +1,26 @@
 # Provider-dependent scalar contract endpoint
 
-The selected checked provider closes `limit()` to 7; `requires value <= limit()`
-carries that bound into exact subtraction `7u64 - value`.
+The selected provider makes `limit()` equal to 7. The input contract
+`requires value <= limit()` preserves the bound needed to prove `7u64 - value`.
 
-Owning task: **CANONICALIZE-SCALAR-RANGE-CONTRACTS**, specifically the retained
-contract-expression work root and fold-publication route for provider-dependent
-clause endpoints. No endpoint-only nominal domain substitutes for the clause.
+This row tests bounds computed by a selected provider and written in an ordinary
+`requires` clause. It belongs to **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. No named
+domain is needed solely to express that bound.
+
+The [generic-function production](closed_owner/README.md) carries the same fact
+when the selected provider call supplies constants inside a function that still
+has its own generic parameter. It also checks both match outcomes and field
+neighbors at runtime.
+
+The [pending-call production](pending_call/README.md) keeps that same bound when
+the helper first makes a call with its own requirement. Its twins require that
+same pending helper result to admit the call. All nine positives run with
+native/Terminal agreement, and every circular twin rejects during checking.
+
+The [guarded-crash production](guarded_crash/README.md) keeps the same bound
+when its helper has a guarded crash contract. It requires the compiler to prove
+the invocation safe before running the helper; changing only the divisor to zero
+must reject during admission.
 
 The frozen [local positive](local/main.omg) is the discovery program. Its public
 acceptance command is:

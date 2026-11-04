@@ -64,6 +64,41 @@ pub enum TerminalEffectResult {
     Structural(TerminalStructuralValue),
     /// An immutable, storage-backed byte view, not an opaque structural atom.
     ByteSequence(TerminalByteSequenceValue),
+    /// An authenticated endpoint of this invocation's captured input storage.
+    CapturedReference(super::storage_inputs::TerminalBoundaryReferenceSelection),
+    /// A host-produced reference whose referent is materialized guest storage,
+    /// never an opaque token. The interpreter mints the carrier and commits
+    /// the supplied payload beneath it, so the result's exclusive or shared
+    /// loan is real storage the caller's projections can read and write.
+    Reference(TerminalReferenceResult),
+}
+
+/// The referent payload a host reference result supplies. The carrier itself
+/// is minted at commit; only the referent's declared contents cross the
+/// boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalReferencePayload {
+    /// The referent's declared type and complete scalar contents, in the same
+    /// canonical-path form `TerminalScalarAggregateValue` uses for results.
+    ScalarAggregate(TerminalScalarAggregateValue),
+    /// The operation's contract is uniformly zeroed storage (calloc/memset
+    /// semantics): the interpreter materializes zeroed cells for the full
+    /// declared referent shape instead of an exact scalar payload.
+    Zeroed,
+}
+
+/// The materialized referent a host reference result supplies.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalReferenceResult {
+    /// What the host reports about the referent beneath the minted carrier.
+    pub referent: TerminalReferencePayload,
+    /// `&`-typed fields beneath the referent: canonical field paths select
+    /// each nested carrier; its own referent is materialized recursively.
+    /// Every `&` field the referent declares must appear exactly once.
+    pub references: Vec<(
+        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        TerminalReferenceResult,
+    )>,
 }
 
 impl TerminalExecution<'_> {
@@ -125,7 +160,12 @@ impl TerminalExecution<'_> {
         if let Some(result) = result.as_structural()
             && ((requires_materialized_host_custody(&self.structural_types(), result.structural_type)
                 && !self.supports_scalar_aggregate_result(result)
-                && !self.supports_byte_sequence_result(result))
+                && !self.supports_byte_sequence_result(result)
+                && !self.supports_captured_reference_result(boundary, result)
+                && !(self.supports_host_reference_result(result)
+                    && boundary.result_reference_regions.iter().any(|region|
+                        region.path.is_empty() && matches!(region.origin,
+                            terminal_psi::TerminalDynamicReferenceOrigin::Invocation { .. }))))
                 || self.structural_values.contains_key(&result.place)
                 || self
                     .live_affine_frontier
@@ -139,6 +179,54 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
+        Ok(())
+    }
+
+    pub(crate) fn supports_captured_reference_result(
+        &self,
+        boundary: &BoundaryMachineDeclaration,
+        result: &terminal_psi::StructuralOperationResult,
+    ) -> bool {
+        result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty()
+            && !boundary.result_reference_regions.is_empty()
+            && boundary.result_reference_regions.iter().all(|region| {
+                region.path.is_empty()
+                    && matches!(
+                        region.origin,
+                        terminal_psi::TerminalDynamicReferenceOrigin::Parameter { .. }
+                    )
+            })
+            && matches!(
+                self.structural_types()
+                    .get(&result.structural_type)
+                    .map(|row| &row.shape),
+                Some(StructuralTypeShape::Reference {
+                    access: terminal_psi::StructuralAccess::SharedBorrow
+                        | terminal_psi::StructuralAccess::MutableBorrow,
+                    ..
+                })
+            )
+    }
+
+    pub(crate) fn commit_boundary_reference_result(
+        &mut self,
+        result: &terminal_psi::StructuralOperationResult,
+        prepared: crate::storage::reference::PreparedReference,
+    ) -> Result<(), TerminalInterpretError> {
+        let mut carrier = TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate()?,
+            result.structural_type,
+            Vec::new(),
+        );
+        carrier.projected_qualifications = prepared.projected_qualifications;
+        self.reference_referents.insert(
+            crate::boundary::values::StructuralRuntimePlace::from(&carrier),
+            prepared.referent,
+        )?;
+        self.structural_values.insert(result.place, carrier)?;
+        self.track_affine_result(result);
         Ok(())
     }
 
@@ -159,6 +247,36 @@ impl TerminalExecution<'_> {
                     }
                 ))
             )
+    }
+
+    /// A reference result is admissible from a host only when it carries no
+    /// claims and its referent materializes as a finite scalar aggregate —
+    /// the exact payload the host's `TerminalReferenceResult` commits.
+    fn supports_host_reference_result(
+        &self,
+        result: &terminal_psi::StructuralOperationResult,
+    ) -> bool {
+        result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty()
+            && self
+                .reference_contract(result.structural_type)
+                .is_ok_and(|(referent, _)| {
+                    self.structural_types()
+                        .get(&referent)
+                        .is_some_and(|declaration| {
+                            crate::boundary::values::ScalarAggregatePlan::new(
+                                declaration,
+                                |identity| self.structural_types().get(&identity),
+                            )
+                            .is_ok()
+                        })
+                        || terminal_semantics::zeroed_structural_leaves_modulo_references(
+                            self.structural_types().values(),
+                            referent,
+                        )
+                        .is_some()
+                })
     }
 
     fn supports_scalar_aggregate_result(
@@ -345,6 +463,20 @@ impl TerminalExecution<'_> {
                 )?;
                 self.structural_values.insert(declaration.place, value)?;
                 self.track_affine_result(declaration);
+            }
+            (
+                OperationResult::Structural(declaration),
+                BoundaryMachineResult::Structural(expected),
+                TerminalEffectResult::Reference(supply),
+            ) if declaration.structural_type == expected.structural_type
+                && declaration.multiplicity == expected.multiplicity
+                && declaration.qualifications == expected.qualifications
+                && declaration.projected_qualifications.is_empty()
+                && expected.projected_qualifications.is_empty()
+                && declaration.claims.is_empty()
+                && self.supports_host_reference_result(declaration) =>
+            {
+                self.publish_host_reference_result(declaration, supply)?;
             }
             _ => return Err(malformed()),
         }

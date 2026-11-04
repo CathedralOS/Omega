@@ -128,7 +128,7 @@ fn lower_data_definition_with_argument_origins(
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
     let mut members = HandleSpan::empty();
-    for parameter in syntax_items(&syntax_trees).type_parameters(data_definition.type_parameters) {
+    for parameter in syntax_items(syntax_trees).type_parameters(data_definition.type_parameters) {
         let syntax::item::TypeParameterKind::Value { type_reference } = &parameter.kind else {
             continue;
         };
@@ -169,7 +169,7 @@ fn lower_data_definition_with_argument_origins(
                 .push((DeclaredTypeOrigin::Field(handle), authored_type));
         }
     }
-    let retired_identities = syntax_items(&syntax_trees)
+    let retired_identities = syntax_items(syntax_trees)
         .data_members(data_definition.members)
         .iter()
         .filter_map(|member| match member {
@@ -185,7 +185,7 @@ fn lower_data_definition_with_argument_origins(
                 carrier: lower_type_reference_handle(lowerer, syntax_trees, quotient.carrier)?,
                 relation: lower_names(
                     syntax_trees,
-                    syntax_items(&syntax_trees).identifier_path_members(quotient.relation),
+                    syntax_items(syntax_trees).identifier_path_members(quotient.relation),
                 ),
                 relation_symbol: SymbolHandle::invalid(),
                 equivalence: quotient
@@ -193,7 +193,7 @@ fn lower_data_definition_with_argument_origins(
                     .as_ref()
                     .map(|selection| {
                         Ok::<_, Diagnostic>(QuotientEquivalenceSelection {
-                            relation: syntax_items(&syntax_trees)
+                            relation: syntax_items(syntax_trees)
                                 .identifier_path_members(selection.relation)
                                 .iter()
                                 .map(|name| lower_name(syntax_trees, name))
@@ -328,6 +328,7 @@ pub(crate) fn lower_type_parameters(
 spelling: contract.spelling,
 lifetime_parameters: &contract.lifetime_parameters,
 type_parameters: contract.type_parameters,
+conformance_bounds: &contract.conformance_bounds,
 parameters: contract.parameters,
 native_callback_parameters: &contract.native_callback_parameters,
 return_type_handle: contract.return_type,

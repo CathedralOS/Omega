@@ -189,12 +189,12 @@ fn project_terminal_native_body(
         &selected,
         target_profile,
     )?;
-    let checked_adapters = crate::provider_admission::retain_selected_provider_adapters(
+    let checked_adapters = crate::providers::provider_admission::retain_selected_provider_adapters(
         &selected,
         request.provider_declarations,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
-    crate::provider_admission::validate_external_provider_owners(
+    crate::providers::provider_admission::validate_external_provider_owners(
         &terminal_module.external_providers,
         &terminal_module.identities,
         request.provider_declarations,
@@ -259,14 +259,15 @@ fn project_terminal_native_body(
         project_callback_occurrences(&callback_placements, artifact, &selected, &checked_adapters)?;
     // Native placement is derived from canonical applications and target plans.
     // The same route handles newly produced and reloaded Terminal artifacts.
-    let callback_arguments = crate::provider_admission::project_native_callback_arguments(
-        &callback_placements,
-        &callback_occurrences,
-    )?;
+    let callback_arguments =
+        crate::providers::provider_admission::project_native_callback_arguments(
+            &callback_placements,
+            &callback_occurrences,
+        )?;
     backend_plan::validate_callback_thunk_joins(artifact.view(), &callback_occurrences)
         .map_err(|message| vec![Diagnostic::error(message)])?;
     let boundary_application_coverage = request.boundaries.settle(artifact, &selected)?;
-    let comparisons = crate::comparison_settlement::settle_comparison_occurrences(
+    let comparisons = crate::settlement::comparison_settlement::settle_comparison_occurrences(
         terminal_module,
         &selected,
         &boundary_application_coverage,
@@ -389,7 +390,7 @@ fn project_callback_occurrences(
         .map(|placement| placement.application_index)
         .collect::<Vec<_>>();
     application_indices.sort_unstable();
-    let operations = crate::callback_settlement::CallbackTerminalOperations::new(
+    let operations = crate::settlement::callback_settlement::CallbackTerminalOperations::new(
         module
             .callback_applications
             .iter()

@@ -158,6 +158,15 @@ impl FrameInference {
         }
     }
 
+    /// Entry snapshots belong to one exact state. A nested result query must
+    /// not substitute the outer body's live Boolean bindings for its inputs.
+    pub(super) fn entry_boolean_values(&self, state: &State) -> Option<&[BoolTruth]> {
+        self.parameter_values
+            .as_ref()
+            .filter(|values| values.state == state.symbol)
+            .map(|values| values.entry_values.as_slice())
+    }
+
     pub(super) fn selects_state(&self, state: &State) -> bool {
         self.parameter_values
             .as_ref()
@@ -387,23 +396,37 @@ impl ParameterValues {
             // A completed private scalar binding is a snapshot in this walk.
             // Treat authored and normalized locals alike; never replay an
             // initializer later when a stored selector is consumed.
-            let private_integer = local.symbol.is_valid()
+            let private_scalar = local.symbol.is_valid()
                 && local.role == language_core::LocalBindingRole::Value
                 && local.relevance == language_core::BindingRelevance::Relevant
                 && !super::type_reference_is_reference(program, local.type_reference)
-                && crate::value_custody::recasts::exact_primitive_type(
-                    program,
-                    local.type_reference,
-                )
-                .is_some_and(|primitive| primitive.is_fixed_integer())
-                && !binding_is_exclusively_exposed(program, state, local.symbol)
-                && !binding_is_written(
+                && !binding_is_exclusively_exposed(program, state, local.symbol);
+            if !private_scalar {
+                return;
+            }
+            let boolean = crate::value_custody::recasts::exact_primitive_type(
+                program,
+                program
+                    .type_reference_table
+                    .unconstrained_type_reference(local.type_reference),
+            ) == Some(typed_trees::types::PrimitiveType::Bool);
+            if boolean
+                && !binding_has_write_effects(
                     program,
                     state,
                     local.symbol,
                     BindingObservation::WholeValue,
-                );
-            if private_integer {
+                )
+            {
+                let value = bool_truth(program, state, self, local.initial_value);
+                self.values.push((local.symbol, Some(value)));
+            } else if crate::value_custody::recasts::exact_primitive_type(
+                program,
+                local.type_reference,
+            )
+            .is_some_and(|primitive| primitive.is_fixed_integer())
+                && !binding_is_written(program, state, local.symbol, BindingObservation::WholeValue)
+            {
                 let value = self.index_value(program, local.initial_value);
                 self.indices.push((local.symbol, value));
             }
@@ -440,6 +463,9 @@ fn bool_truth(
     current: &ParameterValues,
     expression: ExpressionHandle,
 ) -> BoolTruth {
+    if !expression.is_valid() {
+        return BoolTruth::Unknown;
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Boolean(value) => {
             if *value {

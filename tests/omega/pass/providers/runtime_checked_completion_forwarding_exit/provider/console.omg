@@ -7,6 +7,11 @@ macos_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i3
 public NativeConsole satisfies Console {
     machine exit_process(return_code: i32) reaches Console { first(return_code); }
 }
+// An unused alternative may return. Only the selected exit implementation
+// must prove that it reaches the external exit operation on every path.
+public UnusedReturning satisfies Console {
+    machine exit_process(return_code: i32) reaches Console { }
+}
 machine first(return_code: i32) reaches Console {
     let forwarded: i32 = return_code;
     second(identity(forwarded));

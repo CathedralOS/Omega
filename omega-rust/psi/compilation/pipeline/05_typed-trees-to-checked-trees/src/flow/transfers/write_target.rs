@@ -56,7 +56,9 @@ pub(in crate::flow) fn statement_write(
                 machine_symbol,
                 state_symbol,
                 statement_index,
-                local_data.initial_value,
+                // A store copies the bytes it reads; the transfer below drops
+                // only the memberships an erasing cast removed.
+                validation::storage_operand(program, local_data.initial_value),
             ),
         ),
         StatementNode::Assignment(assignment) => {
@@ -97,7 +99,7 @@ pub(in crate::flow) fn statement_write(
                 machine_symbol,
                 state_symbol,
                 statement_index,
-                assignment.value,
+                validation::storage_operand(program, assignment.value),
             );
             (target_place, assignment.value, source_place)
         }
@@ -159,7 +161,7 @@ pub(in crate::flow) fn narrow_pinned_selectors(
         .is_some()
         && target_segments
             .iter()
-            .all(|segment| crate::flow::fixed_selection_segment(segment));
+            .all(crate::flow::fixed_selection_segment);
     if stable_value_target
         && target_segments
             != semantic

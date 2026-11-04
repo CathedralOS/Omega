@@ -157,6 +157,7 @@ fn module() -> TerminalModule {
         // Parameter two exposes a writable reference descriptor. Its complete
         // opaque completion contract retains the original stored loan as a
         // lifetime anchor; it does not promise the old pointer's identity.
+        result_reference_regions: Vec::new(),
         reference_outputs: vec![BoundaryReferenceOutput {
             destination: BoundaryReferenceDestination::Parameter(2),
             path: Vec::new(),

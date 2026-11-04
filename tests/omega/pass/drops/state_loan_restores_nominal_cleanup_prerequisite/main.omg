@@ -1,5 +1,5 @@
-data Room { count: u32 in Wrapping; }
-machine Room::drop(room: &mut Room) requires room.count == 10 { room.count = 99; }
+data Room dropped by drop_room { count: u32 in Wrapping; }
+machine drop_room(room: &mut Room) requires room.count == 10 { room.count = 99; }
 machine restore(room: &mut Room) ensures room.count == 10 {
  transition { _ -> observe(room) }
  machine observe(room: &mut Room) { room.count = 11; room.count = 10; }

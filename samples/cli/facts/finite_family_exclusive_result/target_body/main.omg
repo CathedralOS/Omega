@@ -44,11 +44,49 @@ machine check(drops: &mut [u64; 1]) crashes Trap {
     machine bad() { crash Trap; }
 }
 
-linux_x86_64 machine helper(counter: &mut [u64; 1]) crashes Trap { check(counter); }
-linux_arm64 machine helper(counter: &mut [u64; 1]) crashes Trap { check(counter); }
-macos_arm64 machine helper(counter: &mut [u64; 1]) crashes Trap { check(counter); }
-windows_x86_64 machine helper(counter: &mut [u64; 1]) crashes Trap { check(counter); }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+boundary trait SelectedHelper {
+    machine helper(counter: &mut [u64; 1]) reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+X86Helper satisfies SelectedHelper {
+    machine helper(counter: &mut [u64; 1]) reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        check(counter);
+    }
+}
+ArmHelper satisfies SelectedHelper {
+    machine helper(counter: &mut [u64; 1]) reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        check(counter);
+    }
+}
 machine main() crashes Trap {
     let mut counter: [u64; 1] = [0];
-    helper(&mut counter);
+    SelectedHelper::helper(&mut counter);
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

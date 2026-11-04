@@ -887,7 +887,7 @@ pub(crate) fn fold(
 ) -> Option<BoundPredicate> {
     let mut result = predicate.clone();
     map_observations(&mut result.expression, &mut |operand| {
-        let binding = predicate.binding(&operand)?;
+        let binding = predicate.binding(operand)?;
         // Only Boolean leaves can be replaced here. Integer observations stay
         // symbolic, so resolving their live values (including relational truth
         // closure) cannot affect this fold. Still require every leaf's binding.
@@ -1179,9 +1179,7 @@ pub(crate) fn truth(
 ) -> Option<bool> {
     let mut all = predicates.to_vec();
     all.push(required.clone());
-    let Some((mut expressions, observations)) = normalize(&all) else {
-        return None;
-    };
+    let (mut expressions, observations) = normalize(&all)?;
     let normalized_required = expressions.pop().expect("required formula");
     let truths = formula_closure(
         &expressions,

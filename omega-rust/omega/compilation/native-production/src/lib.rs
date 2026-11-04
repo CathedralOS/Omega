@@ -2,7 +2,7 @@
 
 //! The native compiler: retained Terminal plus realization inputs to an image.
 //!
-//! Start at `compiler.rs`. It prepares the supplied realization,
+//! Start at `compile.rs`. It prepares the supplied realization,
 //! admits entry/providers and drives the abstract, target and physical stages.
 //! Callback bodies take the same provider admission and physical pipeline,
 //! using their own artifact-local native proposal and no application entry.
@@ -15,7 +15,7 @@
 //! It consumes exact source-issued inputs without acquiring or interpreting source.
 
 mod application;
-mod compiler;
+mod compile;
 mod components;
 mod observations;
 mod pipeline;
@@ -28,7 +28,7 @@ mod scalar_completion;
 mod pipeline_boundary;
 
 pub use application::{TerminalApplication, admit_package_permissions};
-pub use compiler::compile;
+pub use compile::{admit_runtime, compile};
 pub use components::ComponentCompilation;
 pub use observations::{NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations};
 pub use preparation::{PreparedNativeCompilation, prepare};

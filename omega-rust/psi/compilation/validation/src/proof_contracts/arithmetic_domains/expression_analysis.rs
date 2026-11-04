@@ -176,6 +176,7 @@ pub(super) fn analyze(
         lexical_owner: machine.symbol,
         parameters: &[],
         declaration_facts: &[],
+        specification_facts: None,
         state,
         environment,
         target_primitive,
@@ -185,6 +186,41 @@ pub(super) fn analyze(
         checks_trap_coverage: true,
         checks_occurrence_fit: true,
         retain_trap_receipts,
+    }
+    .analyze(expression, diagnostics, &mut decisions);
+    CheckedAnalysis { value, decisions }
+}
+
+/// Contract formation reads only preceding admitted premises. It has no
+/// executable statement prefix and cannot observe the enclosing proposition.
+pub(super) fn analyze_specification(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    environment: &ValueEnvironment,
+    prior_facts: &[ExpressionHandle],
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> CheckedAnalysis {
+    let mut decisions = ArithmeticDecisions::default();
+    let return_ranges = super::ReturnInference::default();
+    let value = ExpressionWalk {
+        program,
+        machine: Some(machine),
+        lexical_owner: machine.symbol,
+        parameters: &[],
+        declaration_facts: &[],
+        specification_facts: Some(prior_facts),
+        state,
+        environment,
+        target_primitive: None,
+        target_domain: ArithmeticDomain::Exact,
+        owner,
+        return_ranges: Some(&return_ranges),
+        checks_trap_coverage: true,
+        checks_occurrence_fit: true,
+        retain_trap_receipts: false,
     }
     .analyze(expression, diagnostics, &mut decisions);
     CheckedAnalysis { value, decisions }
@@ -212,6 +248,7 @@ pub(super) fn analyze_declaration(
         lexical_owner,
         parameters,
         declaration_facts: prior_facts,
+        specification_facts: None,
         state: None,
         environment,
         target_primitive,
@@ -254,6 +291,7 @@ pub(super) fn analyze_arrival(
         lexical_owner: machine.symbol,
         parameters: &[],
         declaration_facts: &[],
+        specification_facts: None,
         state,
         environment,
         target_primitive,
@@ -291,6 +329,7 @@ pub(super) fn analyze_meaning(
         lexical_owner: machine.symbol,
         parameters: &[],
         declaration_facts: &[],
+        specification_facts: None,
         state,
         environment: &ValueEnvironment::new(),
         target_primitive: None,
@@ -320,6 +359,7 @@ struct ExpressionWalk<'a> {
     lexical_owner: symbols::SymbolHandle,
     parameters: &'a [typed_trees::signature::StateParameter],
     declaration_facts: &'a [ExpressionHandle],
+    specification_facts: Option<&'a [ExpressionHandle]>,
     state: Option<&'a State>,
     environment: &'a ValueEnvironment,
     target_primitive: Option<PrimitiveType>,

@@ -1,5 +1,5 @@
 // A selected subtraction is not an ordinary endpoint difference.
-public trait Difference<T> { operator - subtract(left: T, right: T) -> T; }
+public trait Difference<T> { machine - subtract(left: T, right: T) -> T; }
 Unrelated satisfies Difference<u64> {
     machine subtract(left: u64, right: u64) -> u64 { 3 }
 }

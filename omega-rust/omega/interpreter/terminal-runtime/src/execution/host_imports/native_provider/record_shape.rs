@@ -114,7 +114,7 @@ pub(in crate::execution::host_imports) fn matches_signed_record_array(
     let Ok(integer) = IntegerType::new(IntegerSign::Signed, bits) else {
         return false;
     };
-    if bits % 8 != 0 || !alignment.is_power_of_two() {
+    if !bits.is_multiple_of(8) || !alignment.is_power_of_two() {
         return false;
     }
     let expected = ScalarType::Integer(integer);
@@ -179,6 +179,11 @@ pub(in crate::execution::host_imports) fn matches_signed_record_array(
 pub(in crate::execution::host_imports) enum IntegerRecordField {
     Scalar(IntegerSign, u16),
     Array(IntegerSign, u16, u64),
+    ReferenceRecord(
+        &'static [IntegerRecordField],
+        terminal_psi::StructuralAccess,
+    ),
+    ReferenceArray(IntegerSign, u16, u64, terminal_psi::StructuralAccess),
 }
 
 /// Match a C scalar slot or scalar array against the complete selected recipe.
@@ -194,7 +199,7 @@ pub(in crate::execution::host_imports) fn matches_integer_storage(
     let Ok(integer) = IntegerType::new(sign, bits) else {
         return false;
     };
-    if bits % 8 != 0 {
+    if !bits.is_multiple_of(8) {
         return false;
     }
     let scalar = ScalarType::Integer(integer);
@@ -264,15 +269,75 @@ pub(in crate::execution::host_imports) fn matches_integer_record(
     let Ok(codec) = StorageCodec::admit(program, layouts, root) else {
         return false;
     };
-    if !codec.references.is_empty() {
-        return false;
-    }
     let mut offset = 0usize;
     let mut leaves = 0usize;
+    let mut alignment = 1usize;
+    let mut references = 0usize;
     for &contract in expected {
+        if let IntegerRecordField::ReferenceRecord(..) | IntegerRecordField::ReferenceArray(..) =
+            contract
+        {
+            let Some(placement) = codec.references.iter().find(|field| field.offset == offset)
+            else {
+                return false;
+            };
+            let [Path::Field(identity)] = placement.path.as_slice() else {
+                return false;
+            };
+            let Some(field) = fields
+                .iter()
+                .find(|field| field.id == *identity && !field.relevance.is_erased())
+            else {
+                return false;
+            };
+            let StructuralFieldType::Structural(child) = &field.field_type else {
+                return false;
+            };
+            let Some(StructuralTypeShape::Reference { referent, access }) =
+                program.structural_type(*child).map(|row| &row.shape)
+            else {
+                return false;
+            };
+            if placement.referent != *referent
+                || placement.access != *access
+                || !offset.is_multiple_of(8)
+                || codec.alignment < 8
+            {
+                return false;
+            }
+            let matches = match contract {
+                IntegerRecordField::ReferenceRecord(expected, required) => {
+                    *access == required
+                        && matches_integer_record(program, layouts, *referent, expected)
+                }
+                IntegerRecordField::ReferenceArray(sign, bits, count, required) => {
+                    *access == required
+                        && matches_integer_storage(
+                            program,
+                            layouts,
+                            *referent,
+                            sign,
+                            bits,
+                            Some(count),
+                        )
+                }
+                _ => false,
+            };
+            if !matches {
+                return false;
+            }
+            let Some(next) = offset.checked_add(8) else {
+                return false;
+            };
+            offset = next;
+            alignment = alignment.max(8);
+            references += 1;
+            continue;
+        }
         let (sign, bits, count) = match contract {
             IntegerRecordField::Scalar(sign, bits) => (sign, bits, 1),
             IntegerRecordField::Array(sign, bits, count) => (sign, bits, count),
+            _ => return false,
         };
         let Ok(integer) = IntegerType::new(sign, bits) else {
             return false;
@@ -329,6 +394,7 @@ pub(in crate::execution::host_imports) fn matches_integer_record(
         if codec.alignment < bytes {
             return false;
         }
+        alignment = alignment.max(bytes);
         for index in 0..count {
             let mut path = vec![Path::Field(*identity)];
             if matches!(contract, IntegerRecordField::Array(..)) {
@@ -349,7 +415,12 @@ pub(in crate::execution::host_imports) fn matches_integer_record(
             leaves += 1;
         }
     }
-    codec.extent == offset && codec.fields.len() == leaves
+    // C record size includes final alignment padding. That padding supplies
+    // no semantic field; every declared field and array leaf still matched
+    // its exact path and offset above. Larger arbitrary tails do not match.
+    offset.checked_next_multiple_of(alignment) == Some(codec.extent)
+        && codec.fields.len() == leaves
+        && codec.references.len() == references
 }
 
 pub(super) fn validate<'declaration>(

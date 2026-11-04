@@ -91,6 +91,8 @@ pub struct GenericConformanceBoundSnapshot {
     pub binder_symbol: u32,
     pub trait_name: String,
     pub trait_symbol: u32,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lifetime_arguments: Vec<String>,
     pub arguments: Vec<TypeReferenceSnapshot>,
 }
 
@@ -195,6 +197,8 @@ pub struct StateSignatureSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -496,6 +500,11 @@ fn state_signature_snapshot(
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect(),
+        conformance_bounds: signature
+            .conformance_bounds
+            .iter()
+            .map(|bound| conformance_bound_snapshot(program, bound))
+            .collect(),
         is_default: signature.is_default,
         parameters: program
             .state_signature_parameters(signature)
@@ -597,6 +606,11 @@ pub(super) fn conformance_bound_snapshot(
         binder_symbol: bound.binder.arena_index(),
         trait_name: bound.trait_name.to_string(),
         trait_symbol: bound.trait_symbol.arena_index(),
+        lifetime_arguments: bound
+            .lifetime_arguments
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
         arguments: bound
             .arguments
             .iter()

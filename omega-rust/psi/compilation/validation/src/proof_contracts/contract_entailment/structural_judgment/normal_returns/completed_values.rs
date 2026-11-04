@@ -17,10 +17,58 @@ impl<'program> StructuralJudge<'program> {
         call_values: Option<Vec<StructuralTerm>>,
         receiver_changed: bool,
         scalar_storage_read: bool,
+        reference_contents: Option<StructuralTerm>,
     ) -> Option<NormalReturnPath<'program>> {
         let program = self.program;
         let node = expression_table(program).expression(expression);
         let mut judge = self;
+        // Complete scalar contents through the common storage owner before
+        // descriptor projection can hide them. The captured operands select
+        // this read; an intervening receiver write forbids address replay.
+        let completed_reference = if let Some(contents) = reference_contents {
+            let declared = judge.scalar_reference_read_type(scope.0, scope.1, expression)?;
+            let result_type =
+                crate::value_custody::expression_types::readable_observation_type_reference(
+                    program, declared,
+                )?;
+            let mut observed = judge.capture_unknown_value(expression, scope)?;
+            if let StructuralTerm::CapturedValue {
+                result_type: carrier,
+                integer_range,
+                ..
+            } = &mut observed
+            {
+                // This is a performed scalar read, not a descriptor cast.
+                // The read owner supplied every current-content alternative;
+                // each normal path proves its own independently captured value.
+                *carrier = result_type;
+                *integer_range = judge
+                    .completed_integer_range_recipe(&contents)
+                    .map(Arc::new);
+            }
+            judge.assume_completed_value_equation(result_type, observed.clone(), contents);
+            if super::super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT completed-reference-contents expression={expression:?} descriptor_type={declared:?} scalar_type={result_type:?} observed={observed:?}"
+                );
+            }
+            Some(observed)
+        } else if !receiver_changed
+            && let Some(reference) = judge.scalar_reference_read_type(scope.0, scope.1, expression)
+        {
+            judge
+                .stored_value_observation(Some((scope.0, scope.1)), expression, |selector| {
+                    inputs
+                        .iter()
+                        .find(|(input, _)| *input == selector)
+                        .and_then(|(_, input)| input.observed_value().cloned())
+                })
+                .filter(|value| {
+                    structural_terms::scalar_operand_is_observed(program, reference, value)
+                })
+        } else {
+            None
+        };
         let descriptor_projection = (|| {
             let reference =
                 crate::expression_result_type_reference(program, scope.0, scope.1, expression)?;
@@ -50,7 +98,7 @@ impl<'program> StructuralJudge<'program> {
                 program, &judge, scope.0, scope.1, expression, receiver, selector,
             )
         })();
-        let descriptor_completed = descriptor_projection.is_some();
+        let descriptor_completed = descriptor_projection.is_some() || completed_reference.is_some();
         let completed_descriptor = if let Some(descriptor) = descriptor_projection {
             // The event remains opaque. Only its separately retained address
             // can be rejoined with frame-authorized current referent storage.
@@ -217,7 +265,8 @@ impl<'program> StructuralJudge<'program> {
                 Some(value) => value,
                 None => judge.capture_unknown_value(expression, scope)?,
             }
-        } else if let Some(value) = completed_descriptor
+        } else if let Some(value) = completed_reference
+            .or(completed_descriptor)
             .or(completed_borrow)
             .or(completed_measure)
             .or(completed_field)
@@ -443,7 +492,12 @@ impl<'program> StructuralJudge<'program> {
             // addresses, and IEEE floats share that coordinate, so an
             // exclusive loan retires the read only when it overlaps.
             // Source text is never its identity.
-            if value.observation_identity_key().is_none() {
+            // Reading a field through a pointer observes its contents now.
+            // The pointer's projection may have an identity, but it is not a
+            // snapshot of those contents and cannot carry their checked bounds.
+            if value.observation_identity_key().is_none()
+                || structural_terms::term_is_unobserved_descriptor(program, &value)
+            {
                 value = judge.capture_unknown_value(expression, scope)?;
             }
             if !receiver_changed {

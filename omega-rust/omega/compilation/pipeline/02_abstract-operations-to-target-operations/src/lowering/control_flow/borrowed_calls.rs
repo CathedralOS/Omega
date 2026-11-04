@@ -9,7 +9,6 @@ use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::MachineId;
-use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
     TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralParameter,
 };
@@ -108,12 +107,8 @@ pub(super) fn argument(
             &live.address_joins,
             &live.block_views,
             types,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
         )?
         .source;
-        let mut shape_cache = BTreeMap::new();
-        let mut active = BTreeSet::new();
         let (projected_type, projected_shape, source_byte_offset, runs) =
             if argument.path.is_empty() {
                 (
@@ -121,8 +116,6 @@ pub(super) fn argument(
                     crate::lowering::structural_layout::structural_shape(
                         home.structural_type(),
                         types,
-                        &mut shape_cache,
-                        &mut active,
                     )?,
                     0,
                     Vec::new(),
@@ -134,8 +127,6 @@ pub(super) fn argument(
                     argument.access,
                     Some(declaration.structural_type),
                     types,
-                    &mut shape_cache,
-                    &mut active,
                 )?
             };
         // Only an inline projection remains inside the aggregate's storage.
@@ -274,8 +265,6 @@ pub(super) fn storage_argument(
         &live.address_joins,
         &live.block_views,
         types,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
     )?;
     let root_type = root.declaration.structural_type;
     let access = root.declaration.access;
@@ -296,8 +285,6 @@ pub(super) fn storage_argument(
             argument.access,
             Some(declaration.structural_type),
             types,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
         )?;
     if !allowed
         || selected != declaration.structural_type
@@ -349,8 +336,6 @@ pub(super) fn address_join_window_argument(
     if !live.address_joins.contains(&argument.place) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let mut shape_cache = BTreeMap::new();
-    let mut active = BTreeSet::new();
     let root = crate::lowering::unit::argument_roots::resolve(
         argument.place,
         function,
@@ -359,8 +344,6 @@ pub(super) fn address_join_window_argument(
         &live.address_joins,
         &live.block_views,
         types,
-        &mut shape_cache,
-        &mut active,
     )?;
     if let Some(window) = crate::lowering::unit::roster_arguments::fixed_array_view_argument(
         argument,
@@ -372,8 +355,6 @@ pub(super) fn address_join_window_argument(
         root.backing_shape.byte_size,
         root.source.clone(),
         types,
-        &mut shape_cache,
-        &mut active,
     )? {
         return Ok(window);
     }
@@ -436,22 +417,18 @@ fn stored_descriptor_argument(
         types,
     )
     .ok_or_else(unsupported)?;
-    let mut shape_cache = BTreeMap::new();
-    let mut active = BTreeSet::new();
     let (selected, shape, offset, runs) =
         crate::lowering::structural_layout::runtime_storage_projection(
             regions.root,
             regions.path,
             types,
-            &mut shape_cache,
-            &mut active,
         )?;
     // Inline field contracts need no coincidentally equal global type entry.
     // Access was authenticated against the original full coordinate above;
     // this common comparison answers only unchanged descriptor geometry.
     let selected_shape = selected.shape(types).ok_or_else(unsupported)?;
     let destination_type = types
-        .get(&declaration.structural_type)
+        .get(declaration.structural_type)
         .ok_or_else(unsupported)?;
     let end = u64::from(offset).checked_add(u64::from(shape.byte_size));
     if !terminal_semantics::descriptor_geometry_matches(&selected_shape, &destination_type.shape)
@@ -509,8 +486,6 @@ pub(super) fn byte_argument(
     // own home. A scalar or unit result changes no custody. Resolve local
     // backing before a projected parameter lookup: geometry does not determine
     // whether the source storage is an incoming parameter or a local result.
-    let mut shape_cache = BTreeMap::new();
-    let mut active = BTreeSet::new();
     // Resolve every available backing through the same origin join. A
     // block-owned array lends its selected home just as an operation result
     // or machine arrival does; none is a borrowed descriptor by residence.
@@ -527,8 +502,6 @@ pub(super) fn byte_argument(
             &live.address_joins,
             &live.block_views,
             types,
-            &mut shape_cache,
-            &mut active,
         )?;
         if let Some(presentation) =
             crate::lowering::unit::roster_arguments::fixed_array_view_argument(
@@ -541,8 +514,6 @@ pub(super) fn byte_argument(
                 root.backing_shape.byte_size,
                 root.source,
                 types,
-                &mut shape_cache,
-                &mut active,
             )?
         {
             return Ok(presentation);
@@ -564,10 +535,7 @@ pub(super) fn byte_argument(
     }
     // A descriptor view carries pointer and extent; a bounded view over a
     // fixed array (`&[u8; N]`) carries only the pointer, its extent static.
-    let carrier_size = match types
-        .get(&declaration.structural_type)
-        .map(|row| &row.shape)
-    {
+    let carrier_size = match types.get(declaration.structural_type).map(|row| &row.shape) {
         Some(terminal_psi::StructuralTypeShape::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BoundedView { .. },
         )) => 8,

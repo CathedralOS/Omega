@@ -20,11 +20,12 @@ mod aggregate_layout;
 mod boundary_application;
 mod boundary_values;
 mod callback_materializations;
-mod fnv1a;
 mod host_operations;
 mod hosts;
 mod plans;
+mod structural_shapes;
 pub mod terminal_layout;
+pub use structural_shapes::{InvalidStructuralShape, classified_boundary_shape};
 
 pub use aggregate_layout::{
     ConventionalSumCaseLayout, ConventionalSumLayout, PackedFieldLayout,
@@ -35,7 +36,8 @@ pub use boundary_application::{
     BoundaryCallingApplicationCandidate, BoundaryNativeParameterGeometry,
     BoundaryNativeParameterShape, BoundaryOpaqueApplication, BoundarySignatureGeometry,
     CallbackDataGeometry, CallbackInlineFieldGeometry, CallbackSlotGeometry, NativeCallProjection,
-    NativeParameterTelescope, TerminalCallingTelescope, validate_fresh_native_parameter_identity,
+    NativeParameterTelescope, PrivateCallbackPlacements, TerminalCallingTelescope,
+    encode_private_callback_placements, validate_fresh_native_parameter_identity,
 };
 pub use boundary_values::{
     BoundaryValueClass, BoundaryValueField, BoundaryValueGraph, BoundaryValueShape,

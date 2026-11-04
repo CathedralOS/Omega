@@ -1,14 +1,14 @@
-data Child { value: u64; ready: bool; }
-data Element { child: Child; }
+data Child dropped by drop_child { value: u64; ready: bool; }
+data Element dropped by drop_element { child: Child; }
 
-machine Child::drop(child: &mut Child)
+machine drop_child(child: &mut Child)
 requires child.value == 9 && child.ready
 {
     child.value = 0;
     child.ready = false;
 }
 
-machine Element::drop(element: &mut Element)
+machine drop_element(element: &mut Element)
 requires element.child.value == 9 && element.child.ready
 ensures element.child.value == 9 && element.child.ready
 {}

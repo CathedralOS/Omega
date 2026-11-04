@@ -93,7 +93,7 @@ pub(super) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             source.binding_declaration = invocation.target;
             expressions_of_mut(program)
                 .set_static_machine_application_bindings(application, &bindings);
-            match invocation.site {
+            let signature = match invocation.site {
                 CallSite::Expression(expression) => {
                     let call = expressions_of(program)
                         .call_node(expression)
@@ -122,6 +122,8 @@ pub(super) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 }
             }
             .map_err(|message| vec![Diagnostic::error(message)])?;
+            super::super::finalize_callable_signature_identities(program, signature)
+                .map_err(|diagnostic| vec![diagnostic])?;
             changed = true;
         }
         if !changed {
@@ -129,13 +131,15 @@ pub(super) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
         }
         // An inferred inner call may expose the exact type of an outer actual.
         // Refresh the ordinary logical signatures before observing those uses.
-        program
+        let signatures = program
             .prepare_applied_callable_signatures()
             .map_err(|message| {
                 vec![Diagnostic::error(format!(
                     "inferred public method signature: {message}"
                 ))]
             })?;
+        super::super::finalize_callable_signature_identities(program, signatures)
+            .map_err(|diagnostic| vec![diagnostic])?;
     }
 }
 
@@ -253,10 +257,8 @@ fn infer(
     let types = invocation
         .parameters
         .iter()
-        .filter_map(|parameter| {
-            matches!(parameter.kind, TypeParameterKind::Type)
-                .then(|| (parameter.symbol, parameter.name.as_str().to_owned()))
-        })
+        .filter(|&parameter| matches!(parameter.kind, TypeParameterKind::Type))
+        .map(|parameter| (parameter.symbol, parameter.name.as_str().to_owned()))
         .collect::<Vec<_>>();
     let constants = invocation
         .parameters

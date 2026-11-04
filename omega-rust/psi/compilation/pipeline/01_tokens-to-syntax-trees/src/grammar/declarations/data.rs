@@ -12,7 +12,6 @@ use crate::grammar::type_syntax::properties::parse_property_brackets;
 use crate::storage::tables::{items, items_of};
 use crate::tokens::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use arena::HandleSpan;
-use language_core::Multiplicity;
 use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{
@@ -90,8 +89,10 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             items(syntax_trees).append_identifier_path_member(member)
         })?;
         input = next;
-        let equivalence = if input.at_contextual("where") {
-            input = input.take_contextual("where")?;
+        // `requires Relation satisfies Trait<...> as Implementation` selects the
+        // equivalence evidence; a quotient has no other requirement.
+        let equivalence = if input.at_contextual("requires") {
+            input = input.take_contextual("requires")?;
             let (selected_relation, next) = parse_path_handle_span(input, |member| {
                 items(syntax_trees).append_identifier_path_member(member)
             })?;
@@ -475,7 +476,7 @@ fn parse_case_member<'tokens, 'source>(
 
     // The complete data predicate is the only authored validity condition.
     // Cases carry no separately attributed source predicate.
-    if input.at_contextual("where") || input.at_contextual("requires") {
+    if input.at_contextual("requires") {
         return Err(input.error_here(
             "case-local predicate clauses are retired; write the predicate in the data declaration's default-domain `requires`",
         ));

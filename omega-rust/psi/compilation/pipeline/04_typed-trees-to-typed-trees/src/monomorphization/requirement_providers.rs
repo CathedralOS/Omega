@@ -5,7 +5,7 @@
 //! ordinary specialization retains its operands and immutable checking judges
 //! conformance. No private body supplies missing arguments or public premises.
 
-use super::{Diagnostic, TypedTrees, candidate, explicit_arguments, failed, saved_calls};
+use super::{Diagnostic, TypedTrees, candidate, failed, saved_calls};
 use crate::tables::expressions_of;
 use typed_trees::trait_definition::AppliedTraitScope;
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
@@ -68,28 +68,25 @@ pub(crate) fn generate_requirement_provider_specializations(
                     && program
                         .requirement_application_matches_scope(application.signature.symbol, &scope)
                 {
-                    demands.push((index, application.application));
+                    demands.push((index, application.signature.symbol));
                 }
             }
         }
     }
     let mut generated = 0;
-    for (index, application) in demands {
-        let owner = expressions_of(program)
-            .static_machine_application(application)
-            .lexical_owner;
-        let mut arguments = expressions_of(program)
-            .static_machine_application_arguments(application)
-            .to_vec();
-        super::body_rewriting::normalize_const_arguments(program, owner, &mut arguments)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
+    for (index, requirement) in demands {
+        let application = program
+            .closed_requirement_application(requirement)
+            .ok_or_else(|| failed("provider projection lost its exact requirement instance"))?;
         let mut provider = candidate::from_machine(program, index);
-        let machine = &program.machines()[index];
-        let Some(state) = program.machine_states(machine).first().cloned() else {
-            continue;
-        };
-        explicit_arguments::bind(program, &mut provider, &state, state.symbol, &arguments)?;
-        provider.binding_application = application;
+        let bindings =
+            projected_provider_bindings(program, &program.machines()[index], &application)?;
+        if !super::applications::bind_typed_tuple(program, &mut provider, &bindings) {
+            return Err(failed(
+                "provider projection does not match its complete declaration telescope",
+            ));
+        }
+        provider.binding_application = application.application;
         if provider.conflicted
             || provider.type_bindings.iter().any(Option::is_none)
             || provider.const_bindings.iter().any(Option::is_none)
@@ -115,4 +112,96 @@ pub(crate) fn generate_requirement_provider_specializations(
         generated += 1;
     }
     Ok(generated)
+}
+
+/// Public invocation coordinates and private provider binders have independent
+/// namespaces. Refinement relates their full telescopes; preparation transports
+/// that same ordinal/kind map without parsing a representative caller operand.
+fn projected_provider_bindings(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    application: &typed_trees::typed_trees::ClosedRequirementApplication<'_>,
+) -> Result<Vec<typed_trees::static_applications::StaticMachineBinding>, Vec<Diagnostic>> {
+    use typed_trees::data::TypeParameterKind;
+    use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+    use typed_trees::typed_trees::RequirementLocalArgument;
+    let (_, declared) = program
+        .trait_machine_signature(application.template)
+        .ok_or_else(|| failed("provider projection lost its public declaration"))?;
+    let public = program.state_signature_type_parameters(declared);
+    let private = program.requirement_callable_parameters(
+        application.signature,
+        &program.machine_callable_parameters(machine),
+    );
+    let retained =
+        expressions_of(program).static_machine_application_bindings(application.application);
+    if public.len() != private.len()
+        || public.len() != application.local_arguments.len()
+        || retained.len() != public.len()
+    {
+        return Err(failed(
+            "provider projection has an incomplete public or private invocation telescope",
+        ));
+    }
+    public
+        .iter()
+        .zip(private)
+        .zip(application.local_arguments)
+        .map(|((public, private), argument)| {
+            if std::mem::discriminant(&public.kind) != std::mem::discriminant(&private.kind) {
+                return Err(failed(
+                    "provider projection changed an invocation binder kind",
+                ));
+            }
+            let mut source = retained
+                .iter()
+                .filter(|binding| binding.parameter == public.symbol);
+            let binding = source
+                .next()
+                .filter(|_| source.next().is_none())
+                .ok_or_else(|| {
+                    failed("provider projection has a missing or duplicate source binding")
+                })?;
+            let value = match (&private.kind, argument, &binding.value) {
+                (
+                    TypeParameterKind::Value { .. },
+                    RequirementLocalArgument::RuntimeValue { carrier },
+                    StaticMachineBindingValue::RuntimeValue { .. },
+                ) => StaticMachineBindingValue::RuntimeValue {
+                    type_reference: *carrier,
+                    subject: Default::default(),
+                    expression: Default::default(),
+                },
+                (
+                    TypeParameterKind::Type,
+                    RequirementLocalArgument::Static(actual),
+                    StaticMachineBindingValue::Type(_),
+                ) => StaticMachineBindingValue::Type(*actual),
+                (
+                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+                    RequirementLocalArgument::Static(actual),
+                    StaticMachineBindingValue::Const(_),
+                ) => StaticMachineBindingValue::Const(*actual),
+                (
+                    TypeParameterKind::Machine { .. },
+                    RequirementLocalArgument::Static(_),
+                    StaticMachineBindingValue::Machine(actual),
+                ) => StaticMachineBindingValue::Machine(actual.clone()),
+                (
+                    TypeParameterKind::Implementation,
+                    RequirementLocalArgument::Static(_),
+                    StaticMachineBindingValue::Conformance(actual),
+                ) => StaticMachineBindingValue::Conformance(actual.clone()),
+                _ => {
+                    return Err(failed(
+                        "provider projection changed its retained operand role",
+                    ));
+                }
+            };
+            Ok(StaticMachineBinding {
+                parameter: private.symbol,
+                value,
+            })
+        })
+        .collect()
 }

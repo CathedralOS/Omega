@@ -20,14 +20,11 @@ pub struct TargetNativeCallbackArgument {
     pub terminal_operation: OperationId,
     pub placement_index: usize,
     pub callback_function: function_identity::MachineFunctionIdentity,
-    /// The private materialization destination this callback binds. For a
-    /// field destination, `application` is the root record parameter's
-    /// application and `field_byte_offset` names the private slot's byte
-    /// offset inside that record. `application` itself occupies no parameter
-    /// slot for a field destination — the write flows through the bound root
-    /// parameter's location.
+    /// The destination selected by the registrar. For a field destination,
+    /// `application` carries the root record pointer and `field_placements`
+    /// describes every part of the handler address written into that record.
     pub destination: NativePlace,
-    pub field_byte_offset: Option<usize>,
+    pub field_placements: Option<calling_conventions::PrivateCallbackPlacements>,
     pub application: calling_conventions::NativeParameterApplication,
     pub registrar_boundary_entry_plan: BoundaryEntryPlan,
     pub registrar_context: calling_conventions::CallbackMaterializationContext,

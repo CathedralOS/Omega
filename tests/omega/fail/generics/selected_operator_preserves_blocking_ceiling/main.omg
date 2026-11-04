@@ -1,5 +1,5 @@
 public trait Arithmetic<Value> {
-    operator + combine(left: Value, right: Value) -> Value blocks;
+    machine + combine(left: Value, right: Value) -> Value blocks;
 }
 
 boundary machine choose<Operations satisfies Arithmetic<i32>>(

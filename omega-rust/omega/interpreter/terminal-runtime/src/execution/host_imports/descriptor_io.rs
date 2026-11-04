@@ -69,18 +69,18 @@ impl<'input> DescriptorIoImport<'input> {
             input,
             output,
         )?;
-        if let Some(adapter) = &mut adapter {
-            if matches!(
+        if let Some(adapter) = &mut adapter
+            && matches!(
                 (adapter.contract.abi, adapter.contract.operation),
                 (DescriptorAbi::LinuxKernel, DescriptorOperation::Write)
-            ) {
-                adapter.linux_filesystem = super::filesystem::LinuxFilesystemWrite::admit(
-                    filesystem,
-                    program,
-                    declaration,
-                    binding,
-                );
-            }
+            )
+        {
+            adapter.linux_filesystem = super::filesystem::LinuxFilesystemWrite::admit(
+                filesystem,
+                program,
+                declaration,
+                binding,
+            );
         }
         if adapter.as_ref().is_some_and(|adapter| {
             matches!(adapter.contract.operation, DescriptorOperation::Read)
@@ -333,12 +333,11 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 {
                     return self.result(-1);
                 }
-                if !matches!(*descriptor, 1 | 2) {
-                    if let Some(filesystem) = &self.linux_filesystem {
-                        let descriptor =
-                            i32::try_from(*descriptor).map_err(|_| invalid_operands())?;
-                        return self.result(filesystem.write(descriptor, &bytes[..count])?);
-                    }
+                if !matches!(*descriptor, 1 | 2)
+                    && let Some(filesystem) = &self.linux_filesystem
+                {
+                    let descriptor = i32::try_from(*descriptor).map_err(|_| invalid_operands())?;
+                    return self.result(filesystem.write(descriptor, &bytes[..count])?);
                 }
                 self.output.append(*descriptor, &bytes[..count])?;
                 Ok(result)

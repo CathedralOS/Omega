@@ -18,7 +18,7 @@ macro_rules! fact_plan_root_roster {
             $($argument,)* places, place_segments, facts, scalar_values, boolean_predicates,
             boolean_predicate_bindings, integer_ranges, qualification_correspondences,
             domain_definition_facts, data_definition_facts, instantiated_expressions, refs,
-            symbol_sets, qualification_issuers,
+            assigned_refs, symbol_sets, qualification_issuers, contract_member_projections,
         );
     };
 }
@@ -47,6 +47,7 @@ pub type QualificationCorrespondenceHandle = Handle<QualificationCorrespondence>
 
 #[derive(Debug, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FactPlan {
+    pub contract_member_projections: Arena<crate::ContractMemberProjection>,
     pub qualification_issuers: Arena<crate::BoundaryQualificationIssuerRecord>,
     pub places: Arena<Place>,
     pub place_segments: Arena<PlaceSegment>,
@@ -60,6 +61,7 @@ pub struct FactPlan {
     pub data_definition_facts: Arena<DataDefinitionFactRecord>,
     pub instantiated_expressions: Arena<InstantiatedExpression>,
     pub refs: Arena<FactRef>,
+    pub assigned_refs: Arena<crate::AssignedFactRef>,
     pub contexts: contexts::FactContexts,
     pub symbol_sets: Arena<SymbolFactSet>,
 }
@@ -434,7 +436,55 @@ impl FactPlan {
         point: ProgramPoint,
         facts: HandleSpan<FactRef>,
     ) -> FactContextHandle {
-        self.contexts.append(FactContext { point, facts })
+        let mut assignments = self
+            .refs
+            .span_or_empty(facts)
+            .iter()
+            .filter_map(|reference| {
+                // A reference may name an opaque identity with no row here.
+                if !self.facts.is_valid(reference.fact) {
+                    return None;
+                }
+                let fact = self.facts.get(reference.fact);
+                if !matches!(
+                    fact.payload,
+                    FactPayload::AssignedValue { .. }
+                        | FactPayload::AssignedScalarValue { .. }
+                        | FactPayload::AssignedIntegerBounds { .. }
+                ) {
+                    return None;
+                }
+                Some(crate::AssignedFactRef {
+                    root: self.places.get(fact.place.as_place()?).root,
+                    fact: reference.fact,
+                })
+            })
+            .collect::<Vec<_>>();
+        // Stable: a root's assignments keep their context order.
+        assignments.sort_by_key(|assignment| assignment.root.group_key());
+        let assignments = self.assigned_refs.insert_many(assignments);
+        self.contexts.append(FactContext {
+            point,
+            facts,
+            assignments,
+        })
+    }
+
+    /// The assignment facts of `context` whose place has exactly `root`, in
+    /// context order.
+    pub fn assignments_with_root(
+        &self,
+        context: &FactContext,
+        root: PlaceRoot,
+    ) -> impl Iterator<Item = &Fact> {
+        let assignments = self.assigned_refs.span_or_empty(context.assignments);
+        let key = root.group_key();
+        let start = assignments.partition_point(|assignment| assignment.root.group_key() < key);
+        assignments[start..]
+            .iter()
+            .take_while(move |assignment| assignment.root.group_key() == key)
+            .filter(move |assignment| assignment.root == root)
+            .map(|assignment| self.facts.get(assignment.fact))
     }
 
     pub fn append_symbol_set(

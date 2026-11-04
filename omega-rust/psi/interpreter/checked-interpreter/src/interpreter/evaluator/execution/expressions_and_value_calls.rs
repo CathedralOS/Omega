@@ -584,7 +584,7 @@ impl<'program> Evaluator<'program> {
                 Halt::Trap("selected trait operator lost its realization state".to_owned())
             })?;
         let operands = [binary.left, binary.right];
-        let arguments = self.eval_state_arguments(state, &operands, frame)?;
+        let arguments = self.eval_state_arguments(state, &operands, None, frame)?;
 
         let entered_guard_depth = self.guard_depth;
         self.guard_depth = 0;

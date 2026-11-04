@@ -25,7 +25,7 @@ pub fn reconstruct_psi_optimization_function_seed(
             function.machine,
         ));
     }
-    let mut block_ids = BTreeSet::new();
+    let mut previous_block = None;
     for entry in &function.block_entries {
         if entry.operation_offset > function.operations.len() {
             return Err(OptimizationUnitBuildError::InvalidBlockOffset {
@@ -33,12 +33,13 @@ pub fn reconstruct_psi_optimization_function_seed(
                 offset: entry.operation_offset,
             });
         }
-        if !block_ids.insert(entry.block) {
-            return Err(OptimizationUnitBuildError::DuplicateBlock(
+        if previous_block.is_some_and(|previous| previous >= entry.block) {
+            return Err(OptimizationUnitBuildError::UnorderedBlock(
                 function.machine,
                 entry.block,
             ));
         }
+        previous_block = Some(entry.block);
     }
 
     let parameters = function

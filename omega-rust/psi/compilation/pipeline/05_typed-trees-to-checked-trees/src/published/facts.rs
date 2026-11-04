@@ -132,36 +132,6 @@ fn project_operational_rows(
     (suspensions, blocking)
 }
 
-/// The storage history of every checked body, built before validation's
-/// machine loop from validation-independent inputs, so that checking
-/// judgments read one history. It is the flow fixed point with no interval,
-/// cast, assignment or projection decisions; on the corpus witnesses its
-/// stores, writes and joins equal the later complete build's. A program whose
-/// pre-flow facts fail has no graph, and its judgments keep their own reads.
-pub(crate) fn build_storage_graph(
-    program_context: &::validation::CheckingContext<'_>,
-    proof_plan: &ProofPlan<'_>,
-    content: checked_trees::ContentProjectionFacts,
-    operational: OperationalPlan,
-    service_reach_inference: flow_effects::ServiceReachInferencePlan,
-) -> Option<checked_trees::FlowFacts> {
-    match build_facts(
-        program_context,
-        proof_plan,
-        content,
-        &[],
-        operational,
-        service_reach_inference,
-        validation::ProgramValidationFacts::default(),
-        &[],
-        &crate::flow::StateMutationSummaryCache::default(),
-        FactScope::StorageGraph,
-    ) {
-        Ok(BuiltFacts::StorageGraph(flow)) => Some(flow),
-        _ => None,
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_check_facts(
     program_context: &::validation::CheckingContext<'_>,
@@ -170,51 +140,9 @@ pub(crate) fn build_check_facts(
     integer_assignments: &[proof::checker::CheckedIntegerAssignment],
     operational: OperationalPlan,
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
-    validation_facts: validation::ProgramValidationFacts,
-    expression_intervals: &[validation::ExpressionInterval],
+    mut validation_facts: validation::ProgramValidationFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(CheckFacts, validation::PreparedEffectPlans), Vec<diagnostics::Diagnostic>> {
-    match build_facts(
-        program_context,
-        proof_plan,
-        content,
-        integer_assignments,
-        operational,
-        service_reach_inference,
-        validation_facts,
-        expression_intervals,
-        mutation_summaries,
-        FactScope::Complete,
-    )? {
-        BuiltFacts::Complete(facts, plans) => Ok((facts, plans)),
-        BuiltFacts::StorageGraph(_) => unreachable!("the complete scope builds every fact"),
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum FactScope {
-    StorageGraph,
-    Complete,
-}
-
-enum BuiltFacts {
-    StorageGraph(checked_trees::FlowFacts),
-    Complete(CheckFacts, validation::PreparedEffectPlans),
-}
-
-#[allow(clippy::too_many_arguments)]
-fn build_facts(
-    program_context: &::validation::CheckingContext<'_>,
-    proof_plan: &ProofPlan<'_>,
-    content: checked_trees::ContentProjectionFacts,
-    integer_assignments: &[proof::checker::CheckedIntegerAssignment],
-    operational: OperationalPlan,
-    service_reach_inference: flow_effects::ServiceReachInferencePlan,
-    mut validation_facts: validation::ProgramValidationFacts,
-    expression_intervals: &[validation::ExpressionInterval],
-    mutation_summaries: &crate::flow::StateMutationSummaryCache,
-    scope: FactScope,
-) -> Result<BuiltFacts, Vec<diagnostics::Diagnostic>> {
     // One resolver serves this immutable fact-construction window, including
     // stored-reference loans, flow classification, terminal ranking projections,
     // termination progress proofs, mutation frames, and crash-route refinement.
@@ -321,6 +249,15 @@ fn build_facts(
         "psi.05.build_check_facts.prewarm_mutation_summaries",
     );
     let flow_loop_guard = phase_profile::guard("psi.05.build_check_facts.flow_fixed_point");
+    // Most passes after the first are scheduled because permission
+    // preparation learned which claim each call returns. Flow construction
+    // does not read that correspondence, so when every input it does read is
+    // unchanged, building again reproduces the previous flow exactly; in a
+    // std program that rebuild was about 7.5 s of a 50 s compile. Reuse the
+    // previous construction only on an exact input match. Any change to the
+    // seeded semantic plan or the borrow, proof, domain, scalar-expression or
+    // operator facts still rebuilds from source.
+    let mut previous_construction: Option<FlowConstruction> = None;
     loop {
         phase_profile::count(
             "psi.05.build_check_facts.flow_fixed_point.outer_iterations",
@@ -332,31 +269,47 @@ fn build_facts(
             &mut prepared.semantic,
             &prepared.contextual_cleanup.entry_requirements,
         )?;
-        prepared.flow = phase_profile::scope(
-            "psi.05.build_check_facts.flow_fixed_point.build_flow_facts",
-            || {
-                build_flow_facts(
-                    program,
-                    &prepared.borrow,
-                    &prepared.proof,
-                    &mut prepared.semantic,
-                    &prepared.domains,
-                    &operational,
-                    &service_reach_inference,
-                    &prepared.values.scalar_expressions,
-                    &prepared.operators,
-                    &validation_facts.exact_integer_casts,
-                    expression_intervals,
-                    mutation_summaries,
-                    call_frames.as_ref(),
-                )
-            },
-        );
-        phase_profile::checkpoint(
-            "after flow construction",
-            "psi.05.build_check_facts.flow_fixed_point.build_flow_facts",
-        );
-        prepared.flow.control.seal_indexes();
+        let reusable = previous_construction
+            .as_ref()
+            .filter(|construction| construction.read_the_same_inputs(&prepared));
+        if let Some(construction) = reusable {
+            phase_profile::count(
+                "psi.05.build_check_facts.flow_fixed_point.reused_construction",
+                1,
+            );
+            prepared.semantic.clone_from(&construction.semantic_after);
+            prepared.flow.clone_from(&construction.flow);
+        } else {
+            let inputs = FlowConstructionInputs::capture(&prepared);
+            prepared.flow = phase_profile::scope(
+                "psi.05.build_check_facts.flow_fixed_point.build_flow_facts",
+                || {
+                    build_flow_facts(
+                        program,
+                        &prepared.borrow,
+                        &prepared.proof,
+                        &mut prepared.semantic,
+                        &prepared.domains,
+                        &operational,
+                        &service_reach_inference,
+                        &prepared.values.scalar_expressions,
+                        &prepared.operators,
+                        mutation_summaries,
+                        call_frames.as_ref(),
+                    )
+                },
+            );
+            phase_profile::checkpoint(
+                "after flow construction",
+                "psi.05.build_check_facts.flow_fixed_point.build_flow_facts",
+            );
+            prepared.flow.control.seal_indexes();
+            previous_construction = Some(FlowConstruction {
+                inputs,
+                semantic_after: prepared.semantic.clone(),
+                flow: prepared.flow.clone(),
+            });
+        }
         phase_profile::scope(
             "psi.05.build_check_facts.flow_fixed_point.bind_call_spans",
             || {
@@ -416,9 +369,11 @@ fn build_facts(
         "after flow fixed point",
         "psi.05.build_check_facts.flow_fixed_point",
     );
-    if scope == FactScope::StorageGraph {
-        return Ok(BuiltFacts::StorageGraph(prepared.flow));
-    }
+    // The one flow fixed point is the storage history every later judgment
+    // reads: the post-flow checks here and the deferred contract entailment.
+    // Validation's machine loop ran before it existed, so its judgments
+    // treated every write as opaque.
+    program_context.attach_storage_graph(std::sync::Arc::new(prepared.flow.clone()));
     phase_profile::checkpoint(
         "flow fixed-point iterations",
         "psi.05.build_check_facts.flow_fixed_point.outer_iterations",
@@ -590,6 +545,7 @@ fn build_facts(
         || {
             build_contract_plans(
                 program,
+                &proof,
                 &service_reaches,
                 &synchronous_invocations,
                 &suspensions,
@@ -707,7 +663,7 @@ fn build_facts(
 
     let mut stored_integer_writes = arena::Arena::new();
     stored_integer_writes.insert_many(validation_facts.stored_integer_writes);
-    Ok(BuiltFacts::Complete(
+    Ok((
         CheckFacts {
             quotient_formations: validation_facts.quotient_formations,
             stored_integer_writes,
@@ -775,3 +731,47 @@ pub(crate) fn refresh_realized_contract_envelopes(facts: &mut CheckFacts) {
 }
 
 pub(crate) use qualification_facts::build_content_facts;
+
+/// The facts one flow construction read, captured before it ran. Flow
+/// construction is a function of these plus declaration data that does not
+/// change inside the fixed point.
+struct FlowConstructionInputs {
+    semantic: facts::FactPlan,
+    borrow: checked_trees::BorrowFacts,
+    proof: checked_trees::ProofFacts,
+    domains: checked_trees::DomainFacts,
+    scalar_expressions: checked_trees::CheckedScalarExpressionPlans,
+    operators: checked_trees::CheckedOperatorFacts,
+}
+
+impl FlowConstructionInputs {
+    fn capture(prepared: &CheckFacts) -> Self {
+        Self {
+            semantic: prepared.semantic.clone(),
+            borrow: prepared.borrow.clone(),
+            proof: prepared.proof.clone(),
+            domains: prepared.domains.clone(),
+            scalar_expressions: prepared.values.scalar_expressions.clone(),
+            operators: prepared.operators.clone(),
+        }
+    }
+}
+
+/// One completed flow construction and the inputs it read.
+struct FlowConstruction {
+    inputs: FlowConstructionInputs,
+    semantic_after: facts::FactPlan,
+    flow: checked_trees::FlowFacts,
+}
+
+impl FlowConstruction {
+    fn read_the_same_inputs(&self, prepared: &CheckFacts) -> bool {
+        let inputs = &self.inputs;
+        inputs.semantic == prepared.semantic
+            && inputs.borrow == prepared.borrow
+            && inputs.proof == prepared.proof
+            && inputs.domains == prepared.domains
+            && inputs.scalar_expressions == prepared.values.scalar_expressions
+            && inputs.operators == prepared.operators
+    }
+}

@@ -68,34 +68,52 @@ pub(super) fn lower_type_reference_handle_with_context(
                 .insert(typed::types::TypeReferenceNode::Slice { element_type }))
         }
         resolved::types::TypeReference::Generic(generic) => {
-            // Nested applications publish child spans into this same arena.
-            // Finish recursion before inserting the parent's contiguous roster.
-            let source_arguments = source_trees.child_type_references(generic.arguments);
-            let mut lowered_arguments = Vec::with_capacity(source_arguments.len());
-            for argument in source_arguments {
-                let argument = lower!(argument)?;
-                lowered_arguments.push(argument);
-            }
-            let arguments = typed_trees
-                .type_reference_table
-                .insert_type_reference_handles(lowered_arguments);
+            if generic.arguments.is_empty()
+                && let Some(application) = super::generic_origins::region_application(
+                    source_trees,
+                    &generic.base_name,
+                    generic.base_symbol,
+                    &generic.lifetime_arguments,
+                )?
+            {
+                // The retained use supplies its own regions and type operands;
+                // the generated carrier's shared origin cannot supply them.
+                lower_type_reference_handle_with_context(
+                    source_trees,
+                    typed_trees,
+                    application,
+                    exposure,
+                )
+            } else {
+                // Nested applications publish child spans into this same arena.
+                // Finish recursion before inserting the parent's contiguous roster.
+                let source_arguments = source_trees.child_type_references(generic.arguments);
+                let mut lowered_arguments = Vec::with_capacity(source_arguments.len());
+                for argument in source_arguments {
+                    let argument = lower!(argument)?;
+                    lowered_arguments.push(argument);
+                }
+                let arguments = typed_trees
+                    .type_reference_table
+                    .insert_type_reference_handles(lowered_arguments);
 
-            super::retain_type_reference_selection(
-                source_trees,
-                typed_trees,
-                &generic.base_name,
-                generic.base_symbol,
-                exposure,
-                AuthoredDeclarationSelectionKind::TypeReference,
-            )?;
-            Ok(typed_trees
-                .type_reference_table
-                .insert(typed::types::TypeReferenceNode::Generic {
-                    base_symbol: generic.base_symbol,
-                    base_name: lower_name(&generic.base_name),
-                    lifetime_arguments: lower_names(&generic.lifetime_arguments),
-                    arguments,
-                }))
+                super::retain_type_reference_selection(
+                    source_trees,
+                    typed_trees,
+                    &generic.base_name,
+                    generic.base_symbol,
+                    exposure,
+                    AuthoredDeclarationSelectionKind::TypeReference,
+                )?;
+                Ok(typed_trees.type_reference_table.insert(
+                    typed::types::TypeReferenceNode::Generic {
+                        base_symbol: generic.base_symbol,
+                        base_name: lower_name(&generic.base_name),
+                        lifetime_arguments: lower_names(&generic.lifetime_arguments),
+                        arguments,
+                    },
+                ))
+            }
         }
         resolved::types::TypeReference::ConstExpression(expression) => {
             let expression = crate::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution(

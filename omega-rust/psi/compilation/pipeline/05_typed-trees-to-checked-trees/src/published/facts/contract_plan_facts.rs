@@ -13,7 +13,7 @@ use validation::contract_structure::{
 /// settles. Publishing a head before its member graph closes would commit an
 /// empty crash permission set and then silently change that public contract.
 struct ContractPublication<'program> {
-    type_identities: &'program arena::OwnedInterner<typed_trees::type_identity::TypeIdentityTable>,
+    type_identities: &'program typed_trees::type_identity::TypeIdentityTable,
     supply: language_semantics::MachineSupplyMode,
     external_binding: Option<language_semantics::ExternalBindingIdentity>,
     services: Vec<String>,
@@ -30,21 +30,19 @@ impl ContractPublication<'_> {
         &self,
         crashes: checked_trees::CrashInterface,
     ) -> checked_trees::MachineContractIdentity {
-        self.type_identities.with(|table| {
-            checked_trees::contract_identity(
-                self.supply,
-                self.external_binding.as_ref(),
-                &self.services,
-                self.invocations,
-                &self.published_invocations,
-                self.suspension,
-                self.blocking,
-                crashes,
-                &self.termination,
-                &self.declaration,
-                table,
-            )
-        })
+        checked_trees::contract_identity(
+            self.supply,
+            self.external_binding.as_ref(),
+            &self.services,
+            self.invocations,
+            &self.published_invocations,
+            self.suspension,
+            self.blocking,
+            crashes,
+            &self.termination,
+            &self.declaration,
+            self.type_identities,
+        )
     }
 }
 
@@ -105,6 +103,7 @@ fn publish_family_crash_envelopes(
 /// prover therefore cannot change an exported contract ID (acceptance 8).
 pub(crate) fn build_contract_plans(
     program: &dyn ::validation::CheckingInput,
+    proof: &checked_trees::ProofFacts,
     service_reaches: &checked_trees::ServiceReachFacts,
     synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
     suspensions: &checked_trees::SuspensionFacts,
@@ -340,10 +339,12 @@ pub(crate) fn build_contract_plans(
         || {
             crash_calls::prepare_crash_summary_graph(
                 program,
+                proof,
                 operators,
                 flow,
                 &crash_capsules,
                 &machines,
+                &content_conservation,
             )
         },
     )?;
@@ -654,9 +655,7 @@ pub(crate) fn build_callable_scalar_value_contract_plan(
         else {
             return None;
         };
-        let Some(binary) = program.expression_table.binary_node(*expression) else {
-            return None;
-        };
+        let binary = program.expression_table.binary_node(*expression)?;
         if binary.operator != BinaryOperator::Equal {
             return None;
         }
@@ -782,6 +781,17 @@ pub(crate) fn build_callable_scalar_value_contract_plan(
                             carrier,
                             membership.domain_symbol,
                         ) {
+                            // A scalar result has no structural catalog row to
+                            // qualify. Its checked guarantee stays a source
+                            // clause, as other non-structural ensures do.
+                            let whole_carrier =
+                                ::validation::unwrapped_type_reference(program, carrier)
+                                    .unwrap_or(carrier);
+                            if path.is_empty()
+                                && program.primitive_type_reference(whole_carrier).is_some()
+                            {
+                                continue;
+                            }
                             result_qualifications.push(
                                 checked_trees::CheckedStructuralPathQualification {
                                     path,

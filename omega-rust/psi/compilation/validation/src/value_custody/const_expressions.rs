@@ -24,6 +24,23 @@ pub(crate) fn validate_formation(
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
+    // Each element is its own recipe under the array's element carrier; the
+    // literal itself has no nominal result type to compare.
+    if let Some((elements, element_type)) = array_literal_elements(program, expression, expected) {
+        for element in elements {
+            validate_formation(
+                program,
+                caller,
+                state,
+                element,
+                element_type,
+                owner,
+                diagnostics,
+                formation_obligations,
+            );
+        }
+        return;
+    }
     let environment = crate::proof_contracts::arithmetic_domains::requires_value_environment(
         program, caller, state,
     );
@@ -180,6 +197,29 @@ pub(crate) fn has_carrier(
     {
         return false;
     }
+    // An array literal has no nominal carrier to retain. Its fixed extent and
+    // every element land under the expected array's own element carrier, as
+    // a record literal's fields land under its declared field carriers.
+    if matches!(
+        expression_table(program).expression(expression),
+        ExpressionNode::ArrayLiteral(_)
+    ) {
+        let Some((elements, element_type)) = array_literal_elements(program, expression, expected)
+        else {
+            return false;
+        };
+        let element_kind = match binding_kind {
+            TypeParameterKind::Value { .. } => TypeParameterKind::Value {
+                type_reference: element_type,
+            },
+            _ => TypeParameterKind::Const {
+                type_reference: element_type,
+            },
+        };
+        return elements
+            .iter()
+            .all(|element| has_carrier(program, *element, &element_kind, lexical_owner));
+    }
     // Construction retains the selected nominal application, not a type
     // guessed from the required destination or from the first field.
     let actual = match expression_table(program).expression(expression) {
@@ -201,6 +241,25 @@ pub(crate) fn has_carrier(
     actual.is_some_and(|actual| {
         super::type_references::type_references_match(program, actual, expected)
     })
+}
+
+/// The elements of an array literal whose count equals the expected fixed
+/// array's closed extent, paired with that array's element carrier.
+fn array_literal_elements(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    expected: typed_trees::types::TypeReferenceHandle,
+) -> Option<(
+    Vec<ExpressionHandle>,
+    typed_trees::types::TypeReferenceHandle,
+)> {
+    let ExpressionNode::ArrayLiteral(elements) = expression_table(program).expression(expression)
+    else {
+        return None;
+    };
+    let (element_type, length) = fixed_array_geometry(program, expected)?;
+    let elements = expression_table(program).expression_handles(*elements);
+    (elements.len() == length).then(|| (elements.to_vec(), element_type))
 }
 
 fn has_value_category(
@@ -278,40 +337,60 @@ fn has_value_category(
     true
 }
 
-/// Exact transient coordinates of a timeless Const record observation.
+/// One step from an immutable Const aggregate to a contained value: a record
+/// field by its declaration symbol, or a fixed-array element by a literal
+/// position inside the array's declared extent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConstProjectionStep {
+    Field(symbols::SymbolHandle),
+    Element(usize),
+}
+
+/// Exact transient coordinates of a timeless Const aggregate observation.
 #[derive(Debug, Clone)]
-pub struct ImmutableConstRecordProjection {
+pub struct ImmutableConstProjection {
     pub root: symbols::SymbolHandle,
-    pub fields: Vec<symbols::SymbolHandle>,
+    pub path: Vec<ConstProjectionStep>,
     pub carrier: typed_trees::types::TypeReferenceHandle,
 }
 
 /// A projection of one immutable lexical Const value is timeless. This query
-/// supplies only its declaration/field coordinates and scalar carrier, never a
-/// field predicate or a fact about runtime/borrowed storage. Runtime Value
-/// binders, references, locals, cases and unresolved field names fail closed.
-pub fn immutable_record_projection(
+/// supplies only its declaration/field/element coordinates and scalar carrier,
+/// never a field predicate or a fact about runtime/borrowed storage. Runtime
+/// Value binders, references, locals, cases, unresolved field names and
+/// non-literal or out-of-extent element positions fail closed.
+pub fn immutable_const_projection(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-) -> Option<ImmutableConstRecordProjection> {
+) -> Option<ImmutableConstProjection> {
+    enum Step<'node> {
+        Member(&'node typed_trees::expression::TableMemberExpression),
+        Element(ExpressionHandle),
+    }
     let mut current = expression;
-    let mut members = Vec::new();
+    let mut steps = Vec::new();
     let mut visited = Vec::new();
     loop {
         if !program.expression_table.expression_is_valid(current) || visited.contains(&current) {
             return None;
         }
         visited.push(current);
-        let ExpressionNode::Member(member) = expression_table(program).expression(current) else {
-            break;
-        };
-        if !member.member_symbol.is_valid() || member.case_variant.is_some() {
-            return None;
+        match expression_table(program).expression(current) {
+            ExpressionNode::Member(member) => {
+                if !member.member_symbol.is_valid() || member.case_variant.is_some() {
+                    return None;
+                }
+                steps.push(Step::Member(member));
+                current = member.receiver;
+            }
+            ExpressionNode::Indexed(indexed) => {
+                steps.push(Step::Element(indexed.index));
+                current = indexed.collection;
+            }
+            _ => break,
         }
-        members.push(member);
-        current = member.receiver;
     }
-    if members.is_empty() {
+    if steps.is_empty() {
         return None;
     }
     let ExpressionNode::Name(path) = expression_table(program).expression(current) else {
@@ -336,24 +415,58 @@ pub fn immutable_record_projection(
     if !super::type_references::exact_const_carrier_is_eligible(program, carrier) {
         return None;
     }
-    let mut fields = Vec::with_capacity(members.len());
-    for member in members.into_iter().rev() {
-        let field = super::places::applied_data_member_field(program, carrier, member)?;
-        if field.symbol != member.member_symbol
-            || program
-                .symbols
-                .get(program.symbols.get(field.symbol).parent)
-                .kind
-                == SymbolKind::Variant
-        {
-            return None;
+    let mut projection = Vec::with_capacity(steps.len());
+    for step in steps.into_iter().rev() {
+        match step {
+            Step::Member(member) => {
+                let field = super::places::applied_data_member_field(program, carrier, member)?;
+                if field.symbol != member.member_symbol
+                    || program
+                        .symbols
+                        .get(program.symbols.get(field.symbol).parent)
+                        .kind
+                        == SymbolKind::Variant
+                {
+                    return None;
+                }
+                projection.push(ConstProjectionStep::Field(field.symbol));
+                carrier = field.type_reference;
+            }
+            Step::Element(index) => {
+                let ExpressionNode::Integer(index) = expression_table(program).expression(index)
+                else {
+                    return None;
+                };
+                let index = usize::try_from(index.value_i64()?).ok()?;
+                let (element, length) = fixed_array_geometry(program, carrier)?;
+                if index >= length {
+                    return None;
+                }
+                projection.push(ConstProjectionStep::Element(index));
+                carrier = element;
+            }
         }
-        fields.push(field.symbol);
-        carrier = field.type_reference;
     }
-    Some(ImmutableConstRecordProjection {
+    Some(ImmutableConstProjection {
         root: parameter.symbol,
-        fields,
+        path: projection,
         carrier,
     })
+}
+
+/// The element carrier and closed extent of a declared fixed-array carrier.
+pub fn fixed_array_geometry(
+    program: &dyn crate::CheckingInput,
+    carrier: typed_trees::types::TypeReferenceHandle,
+) -> Option<(typed_trees::types::TypeReferenceHandle, usize)> {
+    match program
+        .type_reference_table
+        .type_reference(crate::peel_declared_constraints(program, carrier))
+    {
+        typed_trees::types::TypeReferenceNode::FixedArray {
+            element_type,
+            length: typed_trees::types::FixedArrayLength::Literal(length),
+        } => Some((*element_type, *length)),
+        _ => None,
+    }
 }

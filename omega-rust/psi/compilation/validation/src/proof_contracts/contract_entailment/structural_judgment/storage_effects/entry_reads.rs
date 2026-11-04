@@ -7,6 +7,9 @@ use super::super::StructuralTerm;
 use super::{CapturedStorageCoordinate, StructuralJudge};
 use typed_trees::{expression::ExpressionHandle, machine::Machine, state::State};
 
+/// Largest fixed array whose slots each keep an entry observation.
+const ENTRY_SLOT_OBSERVATION_LIMIT: usize = 64;
+
 impl StructuralJudge<'_> {
     /// A readable scalar parameter supplies initialized entry contents even
     /// when Requires says nothing about their value. Keep that unknown value
@@ -20,10 +23,7 @@ impl StructuralJudge<'_> {
         state: &State,
     ) {
         for parameter in self.program.state_parameters(state) {
-            if parameter.is_const
-                || parameter.relevance.is_erased()
-                || crate::reference_shell(self.program, parameter.type_reference).is_none()
-            {
+            if parameter.is_const || parameter.relevance.is_erased() {
                 continue;
             }
             let place = crate::CanonicalPlace {
@@ -42,7 +42,7 @@ impl StructuralJudge<'_> {
                     state,
                     parameter.type_reference,
                     place,
-                    value,
+                    Some(value),
                     &mut Vec::new(),
                 );
                 continue;
@@ -75,19 +75,59 @@ impl StructuralJudge<'_> {
         state: &State,
         reference: typed_trees::types::TypeReferenceHandle,
         place: crate::CanonicalPlace,
-        value: StructuralTerm,
+        value: Option<StructuralTerm>,
         active: &mut Vec<symbols::SymbolHandle>,
-    ) {
+    ) -> Option<StructuralTerm> {
         let program = self.program;
-        let Some(definition) =
-            crate::field_domains::readable_nominal_definition(program, reference)
-        else {
-            return;
-        };
+        // Arrays carry the same independently admitted element obligations as
+        // nominal fields. Keep each declared slot; no missing slot can reduce
+        // the frontier selected by a later runtime index.
+        if let Some((element, length)) =
+            crate::field_domains::readable_fixed_array_elements(program, reference)
+        {
+            if !Self::nominal_type_has_data_predicates(program, element, active) {
+                return None;
+            }
+            // Every judge for a state repeats this walk, so a per-slot copy of
+            // a 131072-slot table cost the Psi product gate about 45 ms per
+            // judge and over an hour per check. Past the limit an array keeps
+            // no entry slot observations, as before slot retention existed.
+            // ponytail: slot limit; one quantified observation over all slots
+            // would keep large arrays' bounds if a program needs them.
+            if length > ENTRY_SLOT_OBSERVATION_LIMIT {
+                return None;
+            }
+            for element_index in 0..length {
+                let mut child = place.clone();
+                child.segments.push(facts::PlaceSegment::FixedIndex {
+                    index: element_index,
+                });
+                self.retain_entry_scalar_fields(
+                    machine,
+                    state,
+                    element,
+                    child,
+                    value.clone().and_then(|value| {
+                        super::super::super::observed_projections::project_index(
+                            program,
+                            reference,
+                            value,
+                            StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(
+                                u64::try_from(element_index).ok()?,
+                            )),
+                        )
+                    }),
+                    active,
+                );
+            }
+            return None;
+        }
+        let definition = crate::field_domains::readable_nominal_definition(program, reference)?;
         if active.contains(&definition.symbol) {
-            return;
+            return None;
         }
         active.push(definition.symbol);
+        let mut observed_fields = Vec::new();
         for field in program
             .data_members(definition)
             .iter()
@@ -96,50 +136,184 @@ impl StructuralJudge<'_> {
             let path = [facts::PlaceSegment::Field {
                 symbol: field.symbol,
             }];
-            let Some(projected) = super::super::super::observed_projections::project_observed_value(
-                program,
-                reference,
-                value.clone(),
-                &path,
-            ) else {
+            let Some(field_reference) =
+                crate::project_type_reference_from_segments(program, reference, &path)
+            else {
                 continue;
             };
-            if !super::super::super::structural_terms::scalar_operand_is_observed(
-                program,
-                field.type_reference,
-                &projected,
-            ) {
-                continue;
-            }
+            let projected = value.clone().and_then(|value| {
+                super::super::super::observed_projections::project_observed_value(
+                    program, reference, value, &path,
+                )
+            });
             let mut child = place.clone();
             child.segments.extend_from_slice(&path);
             if crate::value_custody::expression_types::scalar_observation_meaning(
                 program,
-                field.type_reference,
+                field_reference,
             )
             .is_some()
             {
-                if let Err(reason) =
-                    self.retain_entry_scalar_observation(machine, state, child, projected)
-                    && super::super::super::struct_trace()
-                {
-                    eprintln!(
-                        "STRUCT entry-field refused machine={} field={} reason={reason}",
-                        machine.name, field.name
-                    );
+                let observed = projected.filter(|projected| {
+                    super::super::super::structural_terms::scalar_operand_is_observed(
+                        program,
+                        field_reference,
+                        projected,
+                    )
+                });
+                let observed = if let Some(observed) = observed {
+                    self.retain_entry_scalar_observation(machine, state, child, observed)
+                } else {
+                    self.retain_entry_predicate_scalar(machine, state, child)
+                };
+                match observed {
+                    Ok(observed) => observed_fields.push((field.symbol, observed)),
+                    Err(reason) if super::super::super::struct_trace() => {
+                        eprintln!(
+                            "STRUCT entry-field refused machine={} field={} reason={reason}",
+                            machine.name, field.name
+                        );
+                    }
+                    Err(_) => {}
                 }
             } else {
-                self.retain_entry_scalar_fields(
+                let nested = self.retain_entry_scalar_fields(
                     machine,
                     state,
-                    field.type_reference,
+                    field_reference,
                     child,
                     projected,
                     active,
                 );
+                // Inline data contributes its complete value. A reference field
+                // retains its descriptor/content distinction and cannot be
+                // filled by a logical constructor of the referenced contents.
+                if crate::reference_shell(program, field_reference).is_none()
+                    && let Some(nested) = nested
+                {
+                    observed_fields.push((field.symbol, nested));
+                }
             }
         }
+        // This is an admitted invocation input, not a receiving annotation.
+        // Bind its complete predicate only when every required field has an
+        // authenticated entry observation. The constructor is a logical view
+        // of those contents; it is never installed as a reference descriptor.
+        let mut completed = None;
+        if !program
+            .data_members(definition)
+            .iter()
+            .any(|member| member.as_variant().is_some())
+            && let Some(subject) = super::super::super::structural_terms::captured_constructor_term(
+                program,
+                definition,
+                None,
+                |field| {
+                    observed_fields
+                        .iter()
+                        .find(|(symbol, _)| *symbol == field.symbol)
+                        .map(|(_, value)| value.clone())
+                },
+            )
+        {
+            if super::super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT admitted-entry-predicate data={} receiving={reference:?} place={place:?} subject={subject:?}",
+                    definition.name
+                );
+            }
+            self.intake_admitted_value_predicates(reference, subject.clone());
+            completed = Some(subject);
+        } else if super::super::super::struct_trace() {
+            let missing = program
+                .data_members(definition)
+                .iter()
+                .filter_map(|member| member.as_field())
+                .filter(|field| {
+                    !observed_fields
+                        .iter()
+                        .any(|(symbol, _)| *symbol == field.symbol)
+                })
+                .map(|field| field.name.as_str())
+                .collect::<Vec<_>>();
+            eprintln!(
+                "STRUCT admitted-entry-predicate-refused data={} place={place:?} missing_fields={missing:?} phase=complete-current-field-roster-or-case",
+                definition.name
+            );
+        }
         active.pop();
+        completed
+    }
+
+    /// An admitted input's predicate names its entry scalar values even when
+    /// no descriptor load has executed. Such a variable is Entry only: it is
+    /// not current contents, a performed read, a loan, or a physical identity.
+    /// The common read owner may consume it only after the actual load chain
+    /// and preservation from that input cut have independently been proved.
+    fn retain_entry_predicate_scalar(
+        &mut self,
+        machine: &Machine,
+        state: &State,
+        place: crate::CanonicalPlace,
+    ) -> Result<StructuralTerm, &'static str> {
+        let geometry = crate::structural_scalar_coordinate(
+            self.program,
+            self.program.state_parameters(state),
+            place
+                .root
+                .as_symbol()
+                .ok_or("entry scalar has no declaration root")?,
+            &place.segments,
+        )
+        .ok_or("entry field has no ordinary scalar geometry")?;
+        let result_type =
+            crate::value_custody::expression_types::readable_observation_type_reference(
+                self.program,
+                geometry.result_type_reference,
+            )
+            .ok_or("entry scalar has no readable carrier")?;
+        self.program
+            .primitive_type_reference(result_type)
+            .filter(|primitive| *primitive == geometry.primitive_type)
+            .ok_or("entry scalar carrier disagrees with its stored interpretation")?;
+        self.capture_sequence += 1;
+        let value = StructuralTerm::CapturedValue {
+            statement: arena::Handle::invalid(),
+            expression: arena::Handle::invalid(),
+            callable: symbols::SymbolHandle::invalid(),
+            occurrence: self.capture_sequence,
+            result_type,
+            integer_range: None,
+        };
+        let root = place
+            .root
+            .as_symbol()
+            .ok_or("entry predicate has no declaration root")?;
+        if self
+            .entry_read_backing(machine, state, root, &place.segments)
+            .is_some()
+        {
+            return self.retain_entry_scalar_observation(machine, state, place, value);
+        }
+        self.program
+            .state_parameter_by_symbol(state, root)
+            .ok_or("entry predicate is not rooted in an admitted input")?;
+        let coordinate = self
+            .capture_entry_storage_place(place.clone())
+            .ok_or("entry predicate has no fixed declaration coordinate")?;
+        self.retain_storage_value(coordinate.clone(), value.clone(), true);
+        let stored = std::sync::Arc::make_mut(&mut self.stored_values)
+            .value_at_mut(&coordinate)
+            .ok_or("entry predicate lost its logical snapshot")?;
+        stored.current = None;
+        stored.backing = None;
+        stored.completed_read = None;
+        if super::super::super::struct_trace() {
+            eprintln!(
+                "STRUCT entry-predicate-only place={place:?} value={value:?} awaiting=performed-load-and-preservation"
+            );
+        }
+        Ok(value)
     }
 
     /// Whole entry values use the entry selector namespace too. A header
@@ -206,7 +380,15 @@ impl StructuralJudge<'_> {
                 first,
                 root,
                 requirement,
-            )?;
+            );
+            let Some(part) = part else {
+                if super::super::super::struct_trace() {
+                    eprintln!(
+                        "STRUCT entry-load-refused root={root:?} path={path:?} requirement={requirement:?} phase=complete-load-frontier"
+                    );
+                }
+                return None;
+            };
             for source in part.sources {
                 if !backing.sources.contains(&source) {
                     backing.sources.push(source);
@@ -334,8 +516,7 @@ impl StructuralJudge<'_> {
         let backing = self.freeze_entry_read_backing(state, backing);
         self.retain_storage_value(coordinate.clone(), value, true);
         let stored = std::sync::Arc::make_mut(&mut self.stored_values)
-            .iter_mut()
-            .find(|stored| stored.coordinate == coordinate)
+            .value_at_mut(&coordinate)
             .ok_or("the rank entry input lost its retained storage observation")?;
         stored.backing = Some(backing);
         stored.completed_read = None;

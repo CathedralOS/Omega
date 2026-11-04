@@ -1,7 +1,7 @@
 // Expected exit: 0. Selected-arm facts cover the terminal call's crash route.
 use omega::language::core::drop;
-data Receipt [linear] { code: i32; }
-machine Receipt::drop(receipt: &mut Receipt) {}
+data Receipt [linear] dropped by drop_receipt { code: i32; }
+machine drop_receipt(receipt: &mut Receipt) {}
 machine stop(item: Receipt) -> Receipt crashes Trap { crash Trap; }
 machine choose(stopping: bool, item: Receipt) -> Receipt crashes Trap stopping {
     transition stopping { true -> stop(item) false -> (item) }

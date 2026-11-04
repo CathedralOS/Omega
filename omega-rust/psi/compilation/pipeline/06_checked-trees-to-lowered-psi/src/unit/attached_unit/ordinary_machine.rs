@@ -33,7 +33,6 @@ use super::operation_frame::{
 };
 use super::parameters::lower_declared_service_reach;
 use super::parameters::lower_installation_machine_service_ceiling;
-use super::provider_attachments::lower_provider_attachment_places;
 use super::signatures::MachineSignature;
 use super::{
     CheckedUnitProviderCandidate, argument_evaluation, argument_schedule, byte_subslices,
@@ -128,7 +127,7 @@ pub(super) struct MachineEmission<'a> {
     local_places: Vec<StructuralPlaceDeclaration>,
     private_places: Vec<StructuralPlaceDeclaration>,
     next_literal_argument: usize,
-    staged_arguments: Vec<Vec<usize>>,
+    staged_arguments: Vec<super::argument_evaluation::ScalarArgumentCaptures>,
     staged_subslices: Vec<Vec<(usize, PlaceId)>>,
     staged_selectors: Vec<Vec<usize>>,
     staged_structural_arguments:
@@ -222,30 +221,10 @@ pub(super) fn emit(
         &plan.entry_claims,
         claim_bindings,
     )?;
-    let provider_boundaries = lowered_boundary_parameters
-        .iter()
-        .map(|boundary| (boundary.source, boundary.id))
-        .collect::<Vec<_>>();
     let attachment = plan
         .attachment_type_identity
         .map(|identity| lookup_type_id(type_ids, &identity))
         .transpose()?;
-    let provider_places = if let Some(attachment) = attachment {
-        let attachment_declaration =
-            terminal_psi::find_structural_type(structural_types, attachment)
-                .expect("lowered attachment declaration exists");
-        lower_provider_attachment_places(
-            identities,
-            checked,
-            attachment,
-            attachment_declaration,
-            &plan.provider_attachment_requirements,
-            &provider_boundaries,
-            &mut next_place,
-        )?
-    } else {
-        Vec::new()
-    };
     let local_places = plan
         .trivial_affine_locals
         .iter()
@@ -403,7 +382,8 @@ pub(super) fn emit(
         &evaluation.place_observations,
     );
     primitive_locals::register_mut_formal_storage_homes(&mut evaluation, &parameter_storage)?;
-    let staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
+    let staged_arguments =
+        vec![super::argument_evaluation::ScalarArgumentCaptures::default(); plan.operations.len()];
     let staged_subslices = vec![Vec::<(usize, PlaceId)>::new(); plan.operations.len()];
     let retained_scalar_prefix = None;
     let cleanup_receivers = machine_signatures
@@ -847,7 +827,7 @@ pub(super) fn emit(
                 let TerminalMachineResult::Scalar(declaration) = &declared_result else {
                     return unsupported("scalar binding differs from the declared result");
                 };
-                Ok::<_, LoweringError>((source.id, declaration.clone()))
+                Ok::<_, LoweringError>((source.id, *declaration))
             })
             .transpose()?;
         // The declared result identity is already reserved independently of
@@ -1089,7 +1069,6 @@ pub(super) fn emit(
                 position: parameter.position,
             },
         })
-        .chain(provider_places.iter().copied())
         .chain(local_places.iter().copied())
         .chain(primitive_local_places.iter().map(|local| local.declaration))
         .chain(private_places.iter().copied())
@@ -1518,9 +1497,6 @@ impl MachineEmission<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "staged scalar argument has no source prefix",
                         ))?;
-                if self.staged_arguments[operation].len() != ordinal {
-                    return unsupported("staged scalar argument ordinals are not dense");
-                }
                 let value = {
                     let (mut environment, emission) = self.frame(source_value_count).split();
                     emission.evaluation.argument_at(
@@ -1541,7 +1517,7 @@ impl MachineEmission<'_> {
                     )
                 }?;
                 self.next_call_obligation = self.scalar_calls.next_obligation_identity;
-                self.staged_arguments[operation].push(self.scalar_result_values.len());
+                self.staged_arguments[operation].record(ordinal, self.scalar_result_values.len());
                 self.scalar_result_values.push(value);
                 return Ok(());
             }
@@ -1733,18 +1709,7 @@ impl MachineEmission<'_> {
             .retained_scalar_prefix
             .unwrap_or(self.scalar_result_values.len());
         let evaluated_scalar_arguments = if staged {
-            Some(
-                self.staged_arguments[operation_index]
-                    .iter()
-                    .map(|index| {
-                        self.scalar_result_values.get(*index).copied().ok_or(
-                            LoweringError::Unsupported(
-                                "staged scalar operand lost its retained value",
-                            ),
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-            )
+            Some(self.staged_arguments[operation_index].values(&self.scalar_result_values))
         } else {
             {
                 let (mut environment, emission) = self.frame(source_value_count).split();

@@ -114,6 +114,11 @@ pub(crate) fn commit_cleanup_action(
     >,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     live_claims: &mut BTreeMap<ClaimId, LiveClaim>,
+    retired_homes: &mut Vec<(
+        PlaceId,
+        TerminalStructuralValue,
+        Option<crate::storage::reference::ReferenceReferent>,
+    )>,
     action: &TerminalAffineCleanupAction,
 ) -> Result<Option<(NominalAffineCleanup, TerminalStructuralValue)>, TerminalInterpretError> {
     match action {
@@ -125,6 +130,7 @@ pub(crate) fn commit_cleanup_action(
                 structural_values,
                 reference_referents,
                 element_views,
+                retired_homes,
                 *place,
                 current_machine,
             )
@@ -1179,7 +1185,14 @@ fn cleanup_field_type(
         Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) | None => Ok(None),
         Some(_) => terminal_semantics::inline_carrier_declaration(structural_types.values(), field)
             .map(|declaration| Some(declaration.id))
-            .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable),
+            .ok_or_else(
+                || TerminalInterpretError::AffineProjectionNotRepresentable {
+                    context: format!(
+                        "inline view field has no descriptor declaration: {:?}",
+                        field.field_type
+                    ),
+                },
+            ),
     }
 }
 
@@ -1207,7 +1220,7 @@ pub(crate) fn split_affine_frontier_at_projection(
                 let Some(field_type) = cleanup_field_type(structural_types, field)? else {
                     continue;
                 };
-                let segment = StructuralPathSegment::Field(field.identity.clone());
+                let segment = StructuralPathSegment::Field(field.identity);
                 let mut path = current.path.clone();
                 path.push(segment.clone());
                 let child = StructuralAffineDiscard {
@@ -1268,7 +1281,7 @@ pub(crate) fn split_affine_frontier_at_projection(
                     let Some(field_type) = cleanup_field_type(structural_types, field)? else {
                         continue;
                     };
-                    let segment = StructuralPathSegment::Field(field.identity.clone());
+                    let segment = StructuralPathSegment::Field(field.identity);
                     let mut path = current.path.clone();
                     if let Some(case) = case {
                         path.push(StructuralPathSegment::Case(case));
@@ -1294,7 +1307,14 @@ pub(crate) fn split_affine_frontier_at_projection(
         | StructuralTypeShape::ElementView { .. }
         | StructuralTypeShape::FixedArray { .. } => None,
     }
-    .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)?;
+    .ok_or_else(
+        || TerminalInterpretError::AffineProjectionNotRepresentable {
+            context: format!(
+                "cannot split affine type {:?} at {:?} toward {:?}",
+                current.structural_type, current.path, projected_path
+            ),
+        },
+    )?;
     split_affine_frontier_at_projection(
         structural_types,
         frontier,
@@ -1374,7 +1394,11 @@ pub(crate) fn resolve_structural_path_shape<'types>(
     }
     terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, path)
         .map(|declaration| std::borrow::Cow::Borrowed(&declaration.shape))
-        .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)
+        .ok_or_else(
+            || TerminalInterpretError::AffineProjectionNotRepresentable {
+                context: format!("no structural shape for type {:?} at {:?}", root, path),
+            },
+        )
 }
 
 pub(crate) fn resolve_structural_path_type_with_leaf(
@@ -1404,11 +1428,25 @@ pub(crate) fn resolve_structural_path_type_with_leaf(
             expected,
             leaf_type(&field.field_type),
         )
-        .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable);
+        .ok_or_else(
+            || TerminalInterpretError::AffineProjectionNotRepresentable {
+                context: format!(
+                    "inline field {:?} has no presentation {:?}",
+                    field.field_type, expected
+                ),
+            },
+        );
     }
     terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, path)
         .map(|declaration| declaration.id)
-        .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)
+        .ok_or_else(
+            || TerminalInterpretError::AffineProjectionNotRepresentable {
+                context: format!(
+                    "no structural endpoint for type {:?} at {:?}, expected {:?}",
+                    root, path, expected
+                ),
+            },
+        )
 }
 
 /// Resolve an inline field endpoint without manufacturing a standalone type.
@@ -1598,9 +1636,7 @@ pub(crate) fn direct_scalar_field_type(
     field: StructuralFieldId,
 ) -> Option<ScalarType> {
     let declaration = structural_types.get(&structural_type)?;
-    let Some(fields) = declaration.shape.direct_fields() else {
-        return None;
-    };
+    let fields = declaration.shape.direct_fields()?;
     fields.iter().find_map(|candidate| {
         (candidate.id == field && !candidate.relevance.is_erased())
             .then_some(&candidate.field_type)

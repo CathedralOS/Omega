@@ -607,7 +607,6 @@ fn evaluate_aapcs64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnosti
 ///
 /// The first consumer is Darwin `open(path, flags, mode)`. Aggregate variadic
 /// values remain fail-closed until an actual native binding needs their Apple
-
 fn evaluate_split_bank_call(
     policy: CallingPolicy,
     signature: &CallSignature,

@@ -48,6 +48,7 @@ fn scalar_closure_does_not_admit_unchecked_entries_as_roots_or_callees() {
         .conditions
         .retain_predicate(
             ScalarConditionSubject::Application(application(6)),
+            semantic_vocabulary::ScalarConditionRole::Prerequisite,
             "unchecked entry".into(),
             nodes,
             root,
@@ -89,22 +90,29 @@ fn scalar_closure_does_not_admit_unchecked_entries_as_roots_or_callees() {
             .expect("unchecked entry must refuse before execution");
         assert!(format!("{error:?}").contains("unchecked scalar entry 6"));
     }
-    let (observations, conditions) = evaluated(&artifact, &targets, &providers, 7);
-    assert_eq!(
-        observations.value(application(6)).unwrap(),
-        Some(integer(41))
-    );
-    assert_eq!(
-        observations.value(application(7)).unwrap(),
-        Some(integer(41))
-    );
-    let mut closure = ScalarApplicationClosure::new(artifact.view(), "macos_arm64");
-    assert!(
-        closure
-            .close_scope(observations, conditions, Ok(None))
-            .unwrap_err()
-            .contains("predicate is false")
-    );
+    let mut observations = ScalarApplicationObservations::new(
+        artifact.view(),
+        &targets,
+        &providers,
+        &terminal_installation::LayoutTargetFacts {
+            profile: targets.target().to_owned(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            little_endian: true,
+        },
+    )
+    .unwrap();
+    let error = evaluate_scalar_applications(
+        &mut observations,
+        "macos_arm64",
+        &[application(7)],
+        &mut TerminalFuelMeter::unbounded(),
+    )
+    .err()
+    .expect("a helper's false prerequisite must refuse before it runs");
+    assert!(error.contains("predicate is false"), "{error}");
+    assert_eq!(observations.value(application(6)).unwrap(), None);
+    assert_eq!(observations.value(application(7)).unwrap(), None);
 }
 
 #[test]
@@ -112,25 +120,32 @@ fn scalar_closure_derives_supplemental_scope_from_shared_condition_owner() {
     let mut module = scoped_graph(41).view().module().clone();
     module.scalar_applications.conditions = Default::default();
     let scope = &mut module.scalar_applications.proof_scope;
+    let owners = scope
+        .plan
+        .symbols
+        .span(scope.plan.obligation_owners)
+        .expect("the scoped graph records its per-target owners")
+        .to_vec();
     scope.plan.has_obligations = false;
     scope.plan.obligation_owners = Default::default();
+    let helper = next_declaration(scope);
     scope
         .declarations
         .insert(ProofScopeDeclaration::Unavailable("shared helper".into()));
     scope.plan.machines.insert(ProofApplicationMachine {
-        machine: terminal_psi::ProofDeclarationId(3),
+        machine: helper,
         product_selected: true,
         ..Default::default()
     });
-    for caller in [1, 2] {
+    for caller in owners {
         let calls = scope.calls.calls.insert_many([
             semantic_vocabulary::proof_applications::ProofApplicationCall {
-                callee: terminal_psi::ProofDeclarationId(3),
+                callee: helper,
                 ..Default::default()
             },
         ]);
         scope.calls.machines.insert(ProofCallMachine {
-            machine: terminal_psi::ProofDeclarationId(caller),
+            machine: caller,
             calls,
             ..Default::default()
         });
@@ -139,7 +154,8 @@ fn scalar_closure_derives_supplemental_scope_from_shared_condition_owner() {
         .scalar_applications
         .conditions
         .retain_range(
-            ScalarConditionSubject::Declaration(terminal_psi::ProofDeclarationId(3)),
+            ScalarConditionSubject::Declaration(helper),
+            semantic_vocabulary::ScalarConditionRole::Prerequisite,
             ScalarRangeRequirement::Fixed {
                 minimum: BigInt::from_u64(41),
                 maximum: BigInt::from_u64(41),
@@ -393,30 +409,31 @@ fn scoped_graph(windows_value: u64) -> CanonicalTerminalArtifact {
     let mut module = graph(24, false, false).view().module().clone();
     let scope = &mut module.scalar_applications.proof_scope;
     scope.plan.has_obligations = true;
-    for (ordinal, target) in [(1, "macos_arm64"), (2, "windows_x86_64")] {
+    let mut owners = Vec::new();
+    for target in ["macos_arm64", "windows_x86_64"] {
+        let owner = next_declaration(scope);
         scope
             .declarations
             .insert(ProofScopeDeclaration::Unavailable(format!(
                 "{target} owner"
             )));
         scope.plan.machines.insert(ProofApplicationMachine {
-            machine: terminal_psi::ProofDeclarationId(ordinal),
+            machine: owner,
             authored_target: Some(target.into()),
             source_target: Some(target.into()),
             product_selected: true,
             ..Default::default()
         });
+        owners.push(owner);
     }
-    scope.plan.obligation_owners = scope.plan.symbols.insert_many([
-        terminal_psi::ProofDeclarationId(1),
-        terminal_psi::ProofDeclarationId(2),
-    ]);
-    for (owner, value) in [(1, 41), (2, windows_value)] {
+    scope.plan.obligation_owners = scope.plan.symbols.insert_many(owners.iter().copied());
+    for (owner, value) in owners.into_iter().zip([41, windows_value]) {
         module
             .scalar_applications
             .conditions
             .retain_range(
-                ScalarConditionSubject::Declaration(terminal_psi::ProofDeclarationId(owner)),
+                ScalarConditionSubject::Declaration(owner),
+                semantic_vocabulary::ScalarConditionRole::Prerequisite,
                 ScalarRangeRequirement::Fixed {
                     minimum: BigInt::from_u64(41),
                     maximum: BigInt::from_u64(41),
@@ -474,12 +491,35 @@ fn scalar_closure_refuses_false_debt_and_does_not_drop_evaluated_entry_condition
     let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
     let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
     for omit_entry_debt in [false, true] {
-        let (observations, conditions) = evaluated(&artifact, &targets, &providers, 5);
-        let conditions = if omit_entry_debt {
-            observations.conditions("macos_arm64", &[]).unwrap()
-        } else {
-            conditions
-        };
+        let mut observations = ScalarApplicationObservations::new(
+            artifact.view(),
+            &targets,
+            &providers,
+            &terminal_installation::LayoutTargetFacts {
+                profile: targets.target().to_owned(),
+                pointer_size: 8,
+                pointer_alignment: 8,
+                little_endian: true,
+            },
+        )
+        .unwrap();
+        let error = evaluate_scalar_applications(
+            &mut observations,
+            "macos_arm64",
+            &[application(5)],
+            &mut TerminalFuelMeter::unbounded(),
+        )
+        .err()
+        .expect("the completed entry's false result predicate must reject");
+        assert!(error.contains("predicate is false"), "{error}");
+        assert_eq!(
+            observations.value(application(5)).unwrap(),
+            Some(integer(24))
+        );
+        let entry = [application(5)];
+        let conditions = observations
+            .conditions("macos_arm64", if omit_entry_debt { &[] } else { &entry })
+            .unwrap();
         let mut closure = ScalarApplicationClosure::new(artifact.view(), "macos_arm64");
         let error = closure
             .close_scope(observations, conditions, Err("unavailable model".into()))
@@ -504,6 +544,7 @@ fn scalar_closure_requires_exact_address_model_inputs() {
         .conditions
         .retain_range(
             ScalarConditionSubject::Module,
+            semantic_vocabulary::ScalarConditionRole::Prerequisite,
             ScalarRangeRequirement::AddressModel,
             vec![IntegerBoundStep::Observation(
                 ScalarRangeObservation::Literal(BigInt::from_u64(41)),
