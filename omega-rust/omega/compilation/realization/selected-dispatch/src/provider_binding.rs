@@ -115,8 +115,12 @@ pub fn prepare_selected_execution(
         settlement
             .boundary_calling_plan_realizations
             .iter()
-            .filter(|realization| realization.boundary_arguments.is_empty())
-            .map(|realization| (realization.boundary_trait, realization.requirement_machine)),
+            .map(|realization| {
+                (
+                    realization.calling_owner_application(),
+                    realization.requirement_machine,
+                )
+            }),
     );
     let callback_roots = {
         let providers = provider_selection::CallbackProviderDeclarations::prepare(

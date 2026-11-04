@@ -8,6 +8,9 @@ machine build(builder: &mut Build) {
     configure_posix_canonical(builder);
     configure_posix_filesystem(builder);
     configure_posix_filesystem_darwin(builder);
+    configure_windows_console(builder);
+    configure_windows_gui(builder);
+    configure_macos_gui(builder);
     // Bind the complete ObjectiveC family once. String extents stay static.
     Build::bind<ObjectiveC::get_class>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
@@ -621,6 +624,124 @@ machine configure_posix_filesystem_darwin(builder: &mut Build) {
     Build::bind<PosixFilesystemDarwin::c_copy_from_address>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memcpy"
+        } });
+}
+
+// The remaining Windows and Darwin leaf bindings: console I/O and process
+// exit on msvcrt/kernel32, Win32 GUI calls on user32/gdi32, and the AppKit,
+// CoreGraphics and libSystem clock entries the macOS GUI providers call.
+machine configure_windows_console(builder: &mut Build) {
+    Build::bind<WindowsConsoleIo::write>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "msvcrt.dll", export: "_write"
+        } });
+    Build::bind<WindowsConsoleIo::read>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "msvcrt.dll", export: "_read"
+        } });
+    Build::bind<WindowsConsoleIo::set_mode>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "msvcrt.dll", export: "_setmode"
+        } });
+    Build::bind<Console::exit_process>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "ExitProcess"
+        } });
+}
+
+// Win32 GUI leaves: window and message pumps on user32, device-context and
+// client-rectangle reads on user32, and bitmap presentation on gdi32.
+machine configure_windows_gui(builder: &mut Build) {
+    Build::bind<WindowsGuiIo::create_window>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "user32.dll", export: "CreateWindowExA"
+        } });
+    Build::bind<WindowsGuiIo::foreground_window>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "user32.dll", export: "GetForegroundWindow"
+        } });
+    Build::bind<WindowsGuiIo::is_window>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "user32.dll", export: "IsWindow"
+        } });
+    Build::bind<WindowsGuiIo::destroy_window>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "user32.dll", export: "DestroyWindow"
+        } });
+    Build::bind<WindowsGuiIo::peek_message>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "user32.dll", export: "PeekMessageA"
+        } });
+    Build::bind<WindowsGuiIo::translate_message>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "user32.dll", export: "TranslateMessage"
+        } });
+    Build::bind<WindowsGuiIo::dispatch_message>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "user32.dll", export: "DispatchMessageA"
+        } });
+    Build::bind<WindowsGuiIo::key_state>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "user32.dll", export: "GetAsyncKeyState"
+        } });
+    Build::bind<WindowsGuiIo::adjust_rectangle>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "user32.dll", export: "AdjustWindowRectEx"
+        } });
+    Build::bind<WindowsGuiHost::get_dc>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "user32.dll", export: "GetDC"
+        } });
+    Build::bind<WindowsGuiHost::release_dc>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "user32.dll", export: "ReleaseDC"
+        } });
+    Build::bind<WindowsGuiHost::client_rectangle>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "user32.dll", export: "GetClientRect"
+        } });
+    Build::bind<WindowsGuiHost::stretch_dibits>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "gdi32.dll", export: "StretchDIBits"
+        } });
+}
+
+
+machine configure_macos_gui(builder: &mut Build) {
+    Build::bind<AppKit::load>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/AppKit.framework/AppKit",
+            symbol: "_NSApplicationLoad"
+        } });
+    Build::bind<CoreGraphics::color_space_rgb>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGColorSpaceCreateDeviceRGB"
+        } });
+    Build::bind<CoreGraphics::color_space_release>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGColorSpaceRelease"
+        } });
+    Build::bind<CoreGraphics::event_source_key_state>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGEventSourceKeyState"
+        } });
+    Build::bind<DarwinClock::clock_ns>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_clock_gettime_nsec_np"
+        } });
+    Build::bind<DarwinClock::mach_absolute_time>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_mach_absolute_time"
+        } });
+    Build::bind<DarwinClock::poll>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_poll"
         } });
 }
 
