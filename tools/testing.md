@@ -159,8 +159,10 @@ repeat that package check in the corpus runner. It freezes
 tracked fixture/library inputs and requires explicit native and Terminal exit
 markers. It preserves raw logs for both review phases; managed acceptance is
 ordinary pending-row decisions, not a copied lock. Plain names in `expected_terminal_inspections.txt` run through public named
-inspection and canonical artifact reload with matching program identity. Stream,
-RAM and debug/runtime/control inspection oracles remain refused before building
+inspection and canonical artifact reload with matching program identity.
+An optional `expected_interpreter_exit.txt` must name the same numeric exit as
+the native oracle; the CLI observation still requires both actual engine markers.
+Stream, RAM and debug/runtime/control inspection oracles remain refused before building
 rather than silently omitted. For example:
 
 ```sh

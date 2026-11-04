@@ -417,6 +417,22 @@ class CompilerPilotTests(unittest.TestCase):
                 with self.subTest(oracle=unsupported), self.assertRaises(ValueError):
                     pilot.ordinary_cli_fixture.inspection_machines(project)
 
+    def test_ordinary_cli_preserves_an_explicit_interpreter_exit_oracle(self):
+        fixture = "pass/numeric/normal_exit"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, fixture)
+            project = root / "tests/omega" / fixture
+            (project / "build.omg").write_text("ProgramEntry")
+            (project / "expected_native_exit.txt").write_text("0")
+            interpreted = project / "expected_interpreter_exit.txt"
+            interpreted.write_text("0")
+            self.assertEqual(pilot.ordinary_cli_fixture.expected_exit(root, fixture, "linux_x86_64"), 0)
+            for invalid in ("1", "trap", ""):
+                interpreted.write_text(invalid)
+                with self.subTest(oracle=invalid), self.assertRaisesRegex(ValueError, "exits to agree"):
+                    pilot.ordinary_cli_fixture.expected_exit(root, fixture, "linux_x86_64")
+
     def test_named_inspection_requires_machine_and_same_reloaded_identity(self):
         validate = pilot.ordinary_cli_fixture.validate_inspection
         identity = "a" * 64
