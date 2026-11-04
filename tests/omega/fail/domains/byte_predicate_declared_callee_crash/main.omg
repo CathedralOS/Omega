@@ -1,3 +1,4 @@
 // A resolved declaration retains its crash contract despite reserved spelling.
-machine valid_utf8(bytes: [u8; 4]) -> bool crashes Trap { crash Trap; }
-machine main() { let result: bool = valid_utf8([65u8, 0u8, 0u8, 0u8]); }
+// The carrier binder also lets the core slice-domain subject form this ordinary call.
+public machine valid_utf8<T>(bytes: T) -> bool crashes Trap { crash Trap; }
+machine main() { let result: bool = valid_utf8<[u8; 4]>([65u8, 0u8, 0u8, 0u8]); }
