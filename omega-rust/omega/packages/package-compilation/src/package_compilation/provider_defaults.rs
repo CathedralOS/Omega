@@ -215,15 +215,14 @@ impl CompletedProviderDefaults {
             let ProviderDefaultSupplier::CapturedToolchain { capture, .. } = &self.supplier else {
                 return Err(wrong_supplier());
             };
+            // This supplier owns the core portion only. Other independently
+            // admitted toolchain contract roots keep their own source custody.
             for file in source
                 .typed()
                 .symbols
                 .source_files()
-                .filter(|file| file.origin == SourceOrigin::Toolchain)
+                .filter(|file| file.path.starts_with(current.canonical_live_root()))
             {
-                if crate::source::source_assembly::is_build_prelude_source(file) {
-                    continue;
-                }
                 admit_toolchain_source(current, current, file)?;
             }
             if capture.tree() != current.tree() {
