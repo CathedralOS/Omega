@@ -67,15 +67,6 @@ pub enum StoredReferenceCallContext {
     },
 }
 
-/// The statement's normal continuation selects one node in its evaluated
-/// call graph. Departing transition operands keep their own nodes; their
-/// stores do not replace the guard's fallthrough descriptor inventory.
-#[derive(Clone)]
-pub struct StoredReferenceCallSchedule {
-    pub contexts: Vec<StoredReferenceCallContext>,
-    pub fallthrough: usize,
-}
-
 /// The actual descriptor home and its backing are distinct coordinates.
 /// Both are required: backing alone cannot authorize an exclusive transfer.
 #[derive(Clone)]

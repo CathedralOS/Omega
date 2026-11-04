@@ -288,7 +288,7 @@ pub(in super::super) fn call_contexts(
     context: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-) -> Option<super::StoredReferenceCallSchedule> {
+) -> Option<Vec<super::StoredReferenceCallContext>> {
     let mut capture = Capture {
         collect_calls: true,
         calls: vec![super::StoredReferenceCallContext::Entry],

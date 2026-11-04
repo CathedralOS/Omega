@@ -21,9 +21,8 @@ mod slot_relations;
 use slot_relations::{DestinationInventory, SlotInventory};
 pub(super) use slot_relations::{SlotEffect, SlotRelationTransfer, SlotSource};
 pub use slot_relations::{
-    StoredReferenceCallContext, StoredReferenceCallFailure, StoredReferenceCallSchedule,
-    StoredReferenceDestinationKind, StoredReferenceEffect, StoredReferenceRelationRefusal,
-    StoredReferenceSource,
+    StoredReferenceCallContext, StoredReferenceCallFailure, StoredReferenceDestinationKind,
+    StoredReferenceEffect, StoredReferenceRelationRefusal, StoredReferenceSource,
 };
 mod slot_inventory;
 pub(crate) use slot_inventory::provider_completion_covers_writable_slots;
