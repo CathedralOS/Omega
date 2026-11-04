@@ -63,8 +63,9 @@ pub(in crate::machine_calls::calls::write_frames) fn relative_effects(
 /// so the closed realization roster does not bound it. A selector received
 /// through the calling state's inputs may be any fitting implementation, and
 /// so may one obtained by dispatching on any received selector, whatever its
-/// interface. A boundary requirement that can return or write a selector of
-/// this interface admits outside implementations everywhere: provider
+/// interface. A boundary requirement, or a machine without a checked body,
+/// that can return or write a selector of this interface admits outside
+/// implementations everywhere: provider
 /// selection supplies no coercion evidence (dynamic_dispatch.md, source
 /// eligibility). Types the walk cannot classify count as possible carriers.
 pub(in crate::machine_calls::calls::write_frames) fn caller_may_receive_selector(
@@ -84,21 +85,17 @@ fn boundary_may_supply_selector(
     interface: typed_trees::type_identity::TypeIdentityId,
 ) -> bool {
     let mut visiting = Vec::new();
-    program
-        .traits()
+    // Every machine without a checked body here (boundary, admitted or
+    // externally realized supplies) is an outside producer, like a boundary
+    // trait requirement.
+    let opaque_machine = program
+        .machines()
         .iter()
-        .filter(|definition| definition.is_boundary)
-        .flat_map(|definition| program.trait_machine_signatures(definition))
-        .any(|signature| {
-            type_may_carry_selector(
-                program,
-                signature.return_type,
-                Some(interface),
-                &mut visiting,
-            ) || program
-                .state_signature_parameters(signature)
-                .iter()
-                .any(|parameter| {
+        .filter(|machine| !(machine.body_is_present && machine.supply_mode.is_checked_body()))
+        .flat_map(|machine| program.machine_states(machine))
+        .any(|state| {
+            type_may_carry_selector(program, state.return_type, Some(interface), &mut visiting)
+                || program.state_parameters(state).iter().any(|parameter| {
                     type_may_carry_selector(
                         program,
                         parameter.type_reference,
@@ -106,7 +103,31 @@ fn boundary_may_supply_selector(
                         &mut visiting,
                     )
                 })
-        })
+        });
+    opaque_machine
+        || program
+            .traits()
+            .iter()
+            .filter(|definition| definition.is_boundary)
+            .flat_map(|definition| program.trait_machine_signatures(definition))
+            .any(|signature| {
+                type_may_carry_selector(
+                    program,
+                    signature.return_type,
+                    Some(interface),
+                    &mut visiting,
+                ) || program
+                    .state_signature_parameters(signature)
+                    .iter()
+                    .any(|parameter| {
+                        type_may_carry_selector(
+                            program,
+                            parameter.type_reference,
+                            Some(interface),
+                            &mut visiting,
+                        )
+                    })
+            })
 }
 
 fn type_may_carry_selector(
