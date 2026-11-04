@@ -11,7 +11,7 @@ use selected_instructions::{
 fn atomic_exit_admission_binds_memory_width_operands_and_control() {
     let physical = super::aarch64_physical_register_model();
     let registers =
-        ["x2", "x0", "x1", "x3"].map(|name| physical.model().view_named(name).unwrap().id);
+        ["x2", "x0", "x1", "x3", "x4"].map(|name| physical.model().view_named(name).unwrap().id);
     for form in AtomicForm::ALL {
         let kind = SelectedInstructionKind::AtomicAccess { form };
         let alternative = MachineAlternativeKey {
