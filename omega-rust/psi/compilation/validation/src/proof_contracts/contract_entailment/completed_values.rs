@@ -286,6 +286,7 @@ pub(super) fn observed_projections(
     let mut children = Vec::new();
     let mut complete_constructor = false;
     if let StructuralTerm::Constructor {
+        declaration,
         data: name,
         case,
         fields,
@@ -298,14 +299,16 @@ pub(super) fn observed_projections(
         );
         if let Some(owner) = crate::value_custody::type_shapes::head_data_symbol(program, peeled)
             && let Some(data) = program.data_definition_by_symbol(owner)
-            && data.name.as_str() == name.as_str()
+            && let Some(selected) =
+                super::structural_terms::constructor_declaration(program, *declaration, name, case)
+            && selected.data == data.symbol
         {
             let declared = program
                 .data_members(data)
                 .iter()
                 .flat_map(|member| match member {
                     DataMember::Field(field) => std::slice::from_ref(field),
-                    DataMember::Variant(variant) if variant.name.as_str() == case.as_str() => {
+                    DataMember::Variant(variant) if selected.case == Some(variant.symbol) => {
                         program.data_payload_fields(variant)
                     }
                     _ => &[],

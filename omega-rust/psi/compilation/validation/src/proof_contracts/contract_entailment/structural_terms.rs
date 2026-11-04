@@ -41,8 +41,9 @@ pub(super) use binary::{
 };
 pub(super) use constructors::{
     admitted_const_value_term, captured_constructor_term, case_classifier, case_guard_classifier,
-    case_value_term, constructor_literal_term, is_case_observation, zero_constructor_operands,
-    zero_value_structural_term,
+    case_value_term, constructed_term, constructor_declaration, constructor_literal_term,
+    constructor_matches_case, is_case_observation, same_constructor_data,
+    zero_constructor_operands, zero_value_structural_term,
 };
 pub(super) use equality::{
     data_identity_operand_references, has_identity_equality_meaning, identity_equality_terms,
@@ -193,6 +194,7 @@ pub(super) fn builtin_anonymous_comparison_term(
         },
     )
     .map(|value| StructuralTerm::Constructor {
+        declaration: None,
         data: "bool".to_owned(),
         case: value.to_string(),
         fields: Vec::new(),
@@ -311,7 +313,9 @@ pub(super) fn term_spelling(program: &dyn crate::CheckingInput, term: &Structura
         ),
         StructuralTerm::Integer(value) => value.to_string(),
         StructuralTerm::Float(value) => value.to_string(),
-        StructuralTerm::Constructor { data, case, fields } => {
+        StructuralTerm::Constructor {
+            data, case, fields, ..
+        } => {
             let head = if case.is_empty() || data == "bool" {
                 if data == "bool" {
                     case.clone()
@@ -579,6 +583,7 @@ pub(super) fn static_type_predicate_term(
     };
     if let Some(value) = value {
         return Some(StructuralTerm::Constructor {
+            declaration: None,
             data: "bool".to_owned(),
             case: value.to_string(),
             fields: Vec::new(),
@@ -850,6 +855,7 @@ pub(super) fn structural_term(
             ))
         }
         ExpressionNode::Boolean(value) => Some(StructuralTerm::Constructor {
+            declaration: None,
             data: "bool".to_owned(),
             case: value.to_string(),
             fields: Vec::new(),

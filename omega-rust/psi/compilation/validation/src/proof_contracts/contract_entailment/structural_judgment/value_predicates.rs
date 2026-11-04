@@ -268,9 +268,9 @@ impl StructuralJudge<'_> {
         let predicate = self.declaration_term(expression)?;
         let term = self.resolve(predicate.clone());
         match term.semantic_value() {
-            StructuralTerm::Constructor { data, case, fields }
-                if data == "bool" && fields.is_empty() =>
-            {
+            StructuralTerm::Constructor {
+                data, case, fields, ..
+            } if data == "bool" && fields.is_empty() => {
                 match language_semantics::const_value::boolean_literal_spelling(case) {
                     Some(true) => Some(StructuralJudgment::Proven),
                     Some(false) => Some(StructuralJudgment::Refuted),
@@ -854,6 +854,7 @@ impl StructuralJudge<'_> {
 
 pub(super) fn boolean_term(value: bool) -> StructuralTerm {
     StructuralTerm::Constructor {
+        declaration: None,
         data: "bool".to_owned(),
         case: value.to_string(),
         fields: Vec::new(),

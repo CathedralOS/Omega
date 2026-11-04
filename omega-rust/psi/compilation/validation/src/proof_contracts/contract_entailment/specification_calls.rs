@@ -2095,8 +2095,13 @@ fn term_has_complete_substitution(
                 && term_has_complete_substitution(program, right)
         }
         StructuralTerm::Variable(_) | StructuralTerm::Integer(_) | StructuralTerm::Float(_) => true,
-        StructuralTerm::Constructor { data, case, fields } => {
-            constructor_fields_are_complete(program, data, case, fields)
+        StructuralTerm::Constructor {
+            declaration,
+            data,
+            case,
+            fields,
+        } => {
+            constructor_fields_are_complete(program, *declaration, data, case, fields)
                 && fields
                     .iter()
                     .all(|(_, value)| term_has_complete_substitution(program, value))
@@ -2106,6 +2111,7 @@ fn term_has_complete_substitution(
 
 fn constructor_fields_are_complete(
     program: &dyn crate::CheckingInput,
+    declaration: Option<super::structural_judgment::ConstructorDeclaration>,
     data: &str,
     case: &str,
     fields: &[(String, StructuralTerm)],
@@ -2115,16 +2121,14 @@ fn constructor_fields_are_complete(
         return language_semantics::const_value::boolean_literal_spelling(case).is_some()
             && fields.is_empty();
     }
-    let mut definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.name.as_str() == data);
-    let Some(definition) = definitions.next() else {
+    let Some(selected) =
+        super::structural_terms::constructor_declaration(program, declaration, data, case)
+    else {
         return false;
     };
-    if definitions.next().is_some() {
+    let Some(definition) = program.data_definition_by_symbol(selected.data) else {
         return false;
-    }
+    };
     let mut declared = program
         .data_members(definition)
         .iter()
@@ -2139,7 +2143,9 @@ fn constructor_fields_are_complete(
                 .data_members(definition)
                 .iter()
                 .find_map(|member| match member {
-                    DataMember::Variant(variant) if variant.name.as_str() == case => Some(variant),
+                    DataMember::Variant(variant) if Some(variant.symbol) == selected.case => {
+                        Some(variant)
+                    }
                     _ => None,
                 })
         else {

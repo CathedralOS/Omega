@@ -46,9 +46,8 @@ pub(super) fn project_observed_value(
         path,
         |_| None,
         |value| value,
-        |value, _, variant| {
-            matches!(value.semantic_value(), StructuralTerm::Constructor { case, .. }
-            if case.as_str() == program.symbols.name(variant))
+        |value, data, variant| {
+            super::structural_terms::constructor_matches_case(program, value, data, variant)
         },
     )
 }

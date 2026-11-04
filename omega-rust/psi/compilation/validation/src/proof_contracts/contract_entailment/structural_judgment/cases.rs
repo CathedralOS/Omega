@@ -96,11 +96,7 @@ impl StructuralJudge<'_> {
         {
             return;
         }
-        let value = StructuralTerm::Constructor {
-            data: definition.name.as_str().to_owned(),
-            case: variant.name.as_str().to_owned(),
-            fields: Vec::new(),
-        };
+        let value = structural_terms::constructed_term(definition, Some(variant), Vec::new());
         self.intake_case_equation(subject.clone(), value.clone(), 0);
         self.intake_equation(subject, value, 0);
     }
@@ -342,34 +338,35 @@ impl StructuralJudge<'_> {
         } else {
             subject
         };
-        if let StructuralTerm::Constructor { data, case, .. } = &subject {
-            // Legacy value terms retain nominal names. Rejoin only a unique
-            // declaration; same-spelled foreign data is not this classifier.
-            let Some(definition) = self.program.data_definition_by_symbol(data_symbol) else {
+        if let StructuralTerm::Constructor {
+            declaration,
+            data,
+            case,
+            ..
+        } = &subject
+        {
+            // Construction already selected this exact data and case. Legacy
+            // name-only values still require a unique owner; another checked
+            // context with the same spelling cannot choose it for them.
+            let Some(observed) =
+                structural_terms::constructor_declaration(self.program, *declaration, data, case)
+            else {
+                if super::super::struct_trace() {
+                    eprintln!(
+                        "STRUCT constructor-case-refused data={data} case={case} declaration={declaration:?} classifier_data={data_symbol:?} classifier_case={case_symbol:?}"
+                    );
+                }
                 return StructuralJudgment::Unknown;
             };
-            if definition.name.as_str() != data
-                || self
-                    .program
-                    .data_definitions()
-                    .iter()
-                    .filter(|candidate| candidate.name.as_str() == data)
-                    .count()
-                    != 1
-            {
+            if super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT constructor-case selected={observed:?} classifier_data={data_symbol:?} classifier_case={case_symbol:?}"
+                );
+            }
+            if observed.data != data_symbol {
                 return StructuralJudgment::Unknown;
             }
-            let observed = self
-                .program
-                .data_members(definition)
-                .iter()
-                .find_map(|member| match member {
-                    DataMember::Variant(variant) if variant.name.as_str() == case => {
-                        Some(variant.symbol)
-                    }
-                    _ => None,
-                });
-            return match observed {
+            return match observed.case {
                 Some(observed) if observed == case_symbol => StructuralJudgment::Proven,
                 Some(_) => StructuralJudgment::Refuted,
                 None => StructuralJudgment::Unknown,
@@ -462,16 +459,18 @@ impl StructuralJudge<'_> {
             }
             (
                 StructuralTerm::Constructor {
-                    data: left_data,
+                    data: _,
                     case: left_case,
                     fields: left_fields,
+                    ..
                 },
                 StructuralTerm::Constructor {
-                    data: right_data,
+                    data: _,
                     case: right_case,
                     fields: right_fields,
+                    ..
                 },
-            ) if left_data == right_data
+            ) if structural_terms::same_constructor_data(self.program, &left, &right)
                 && left_case == right_case
                 && left_fields.len() == right_fields.len() =>
             {
@@ -573,5 +572,138 @@ impl StructuralJudge<'_> {
             | StructuralTerm::IntegerEmbedding { .. }
             | StructuralTerm::CollectionMeasure { .. } => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod constructor_identity_tests {
+    use super::*;
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use typed_trees::{TypedTrees, name::Identifier, types::TypeReferenceNode};
+
+    #[test]
+    fn known_constructor_keeps_its_case_when_another_owner_has_the_same_name() {
+        let mut symbols = SymbolTableBuilder::default();
+        let owners = [
+            symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Choice")),
+            symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Choice")),
+        ];
+        let cases = owners.map(|owner| {
+            symbols.insert_children(
+                owner,
+                [
+                    (SymbolKind::Variant, SymbolNameRef::Static("Empty")),
+                    (SymbolKind::Variant, SymbolNameRef::Static("Full")),
+                ],
+            )
+        });
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        for (owner, cases) in owners.into_iter().zip(cases) {
+            let members =
+                program
+                    .data_members
+                    .insert_many(
+                        ["Empty", "Full"]
+                            .into_iter()
+                            .enumerate()
+                            .map(|(index, name)| {
+                                DataMember::Variant(DataVariant {
+                                    symbol: cases.handle_at(index as u32),
+                                    name: Identifier::from(name),
+                                    ..Default::default()
+                                })
+                            }),
+                    );
+            program.push_data_definition(DataDefinition {
+                symbol: owner,
+                name: Identifier::from("Choice"),
+                members,
+                ..Default::default()
+            });
+        }
+        let references = owners.map(|symbol| {
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol,
+                    name: Identifier::from("Choice"),
+                })
+        });
+        let context = crate::frozen_program::CheckingContext::new(&program);
+        let judge = StructuralJudge::from_declaration_requires(
+            &context,
+            SymbolHandle::invalid(),
+            &[],
+            &[],
+            false,
+        );
+        let value = structural_terms::zero_value_structural_term(&context, references[0])
+            .expect("the first case has an established zero representation");
+        let value = judge.resolve(value);
+        assert!(matches!(
+            judge.judge_case(value.clone(), owners[0], cases[0].handle_at(0)),
+            StructuralJudgment::Proven
+        ));
+        assert!(matches!(
+            judge.judge_case(value.clone(), owners[0], cases[0].handle_at(1)),
+            StructuralJudgment::Refuted
+        ));
+        assert!(matches!(
+            judge.judge_case(value.clone(), owners[1], cases[1].handle_at(0)),
+            StructuralJudgment::Unknown
+        ));
+        assert!(
+            super::super::super::observed_projections::project_observed_value(
+                &context,
+                references[0],
+                value.clone(),
+                &[facts::PlaceSegment::Case {
+                    variant: cases[0].handle_at(0)
+                }],
+            )
+            .is_some()
+        );
+        assert!(
+            super::super::super::observed_projections::project_observed_value(
+                &context,
+                references[1],
+                value.clone(),
+                &[facts::PlaceSegment::Case {
+                    variant: cases[1].handle_at(0)
+                }],
+            )
+            .is_none()
+        );
+        let mut invalid = value.clone();
+        if let StructuralTerm::Constructor {
+            declaration: Some(declaration),
+            ..
+        } = &mut invalid
+        {
+            declaration.case = Some(cases[1].handle_at(0));
+        }
+        assert!(matches!(
+            judge.judge_case(invalid, owners[0], cases[0].handle_at(0)),
+            StructuralJudgment::Unknown
+        ));
+        let StructuralTerm::Constructor {
+            data, case, fields, ..
+        } = value
+        else {
+            panic!("zero representation lost its constructor");
+        };
+        let legacy = StructuralTerm::Constructor {
+            declaration: None,
+            data,
+            case,
+            fields,
+        };
+        assert!(matches!(
+            judge.judge_case(legacy, owners[0], cases[0].handle_at(0)),
+            StructuralJudgment::Unknown
+        ));
     }
 }

@@ -349,16 +349,23 @@ impl PartialEq for StructuralTerm {
                 };
                 value == other_value
             }
-            Self::Constructor { data, case, fields } => {
+            Self::Constructor {
+                declaration,
+                data,
+                case,
+                fields,
+            } => {
                 let Self::Constructor {
                     data: other_data,
                     case: other_case,
                     fields: other_fields,
+                    declaration: other_declaration,
                 } = other
                 else {
                     return false;
                 };
-                (data, case, fields) == (other_data, other_case, other_fields)
+                (declaration, data, case, fields)
+                    == (other_declaration, other_data, other_case, other_fields)
             }
             Self::Application {
                 result_type,
@@ -555,8 +562,14 @@ impl std::fmt::Debug for StructuralTerm {
                 .field("right", right)
                 .finish(),
             Self::Float(value) => formatter.debug_tuple("Float").field(value).finish(),
-            Self::Constructor { data, case, fields } => formatter
+            Self::Constructor {
+                declaration,
+                data,
+                case,
+                fields,
+            } => formatter
                 .debug_struct("Constructor")
+                .field("declaration", declaration)
                 .field("data", data)
                 .field("case", case)
                 .field("fields", fields)
@@ -641,6 +654,52 @@ mod resolution_payload_tests {
     use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
     #[test]
+    fn constructor_identity_survives_substitution_without_merging_names() {
+        use super::super::ConstructorDeclaration;
+        use symbols::SymbolHandle;
+        let constructor = |data, case| StructuralTerm::Constructor {
+            declaration: Some(ConstructorDeclaration {
+                data: SymbolHandle::from_arena_index(data),
+                case: Some(SymbolHandle::from_arena_index(case)),
+            }),
+            data: "Choice".to_owned(),
+            case: "Some".to_owned(),
+            fields: vec![(
+                "value".to_owned(),
+                StructuralTerm::Variable("input".to_owned()),
+            )],
+        };
+        let original = constructor(1, 2);
+        let other = constructor(3, 4);
+        assert_ne!(original, other);
+        assert_ne!(format!("{original:?}"), format!("{other:?}"));
+        let substituted = original
+            .clone()
+            .map_children(|_| StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(7)));
+        let StructuralTerm::Constructor {
+            declaration,
+            fields,
+            ..
+        } = substituted
+        else {
+            panic!("constructor substitution changed the value shape");
+        };
+        assert_eq!(declaration.unwrap().data, SymbolHandle::from_arena_index(1));
+        assert_eq!(
+            fields[0].1,
+            StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(7))
+        );
+        let StructuralTerm::Constructor {
+            declaration: other_declaration,
+            ..
+        } = other
+        else {
+            unreachable!()
+        };
+        assert_ne!(declaration, other_declaration);
+    }
+
+    #[test]
     fn repeated_array_traversal_and_substitution_are_independent_of_extent() {
         let array = StructuralTerm::RepeatedArray {
             length: 1_000_000_000,
@@ -681,6 +740,7 @@ mod resolution_payload_tests {
             descriptor,
         };
         let nested = |value| StructuralTerm::Constructor {
+            declaration: None,
             data: "Carrier".to_owned(),
             case: "Only".to_owned(),
             fields: vec![("value".to_owned(), value)],

@@ -432,7 +432,7 @@ fn argument_term(
         })
         .collect::<Option<Vec<_>>>()?;
     let machine = structural_call_machine_name(call.target.as_str(), &call.machine_arguments, &[]);
-    let mut fields = program
+    let fields = program
         .data_members(data)
         .iter()
         .filter_map(|member| {
@@ -451,10 +451,7 @@ fn argument_term(
             ))
         })
         .collect::<Vec<_>>();
-    fields.sort_by(|left, right| left.0.cmp(&right.0));
-    Some(StructuralTerm::Constructor {
-        data: data.name.as_str().to_owned(),
-        case: String::new(),
-        fields,
-    })
+    Some(super::structural_terms::constructed_term(
+        data, None, fields,
+    ))
 }

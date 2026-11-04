@@ -641,6 +641,7 @@ impl StructuralJudge<'_> {
             }
         }
         Some(StructuralTerm::Constructor {
+            declaration: None,
             data: "bool".to_owned(),
             case: common?.to_string(),
             fields: Vec::new(),

@@ -149,6 +149,7 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
             machine: "saturating_sub".to_owned(),
             arguments: vec![
                 StructuralTerm::Constructor {
+                    declaration: None,
                     data: "Nat".to_owned(),
                     case: "Succ".to_owned(),
                     fields: vec![(
@@ -160,6 +161,7 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
             ],
         };
         let right = StructuralTerm::Constructor {
+            declaration: None,
             data: "Nat".to_owned(),
             case: "Zero".to_owned(),
             fields: Vec::new(),

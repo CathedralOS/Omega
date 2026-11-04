@@ -136,16 +136,23 @@ impl StructuralJudge<'_> {
         match (&left, &right) {
             (
                 StructuralTerm::Constructor {
-                    data: data_l,
+                    declaration: _,
+                    data: _,
                     case: case_l,
                     fields: fields_l,
                 },
                 StructuralTerm::Constructor {
-                    data: data_r,
+                    declaration: _,
+                    data: _,
                     case: case_r,
                     fields: fields_r,
                 },
-            ) if data_l == data_r => {
+            ) if super::super::structural_terms::same_constructor_data(
+                self.program,
+                &left,
+                &right,
+            ) =>
+            {
                 if case_l != case_r {
                     self.hypotheses_contradictory = true;
                     return;

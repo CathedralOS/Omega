@@ -454,12 +454,11 @@ fn local_symbol_is_never_branched_on_in_remaining_prefix(
     // do not forward mentions: a read of one is an explicit program fact,
     // not value plumbing.
     let mut forwarded = vec![local_symbol];
-    let mentions_local =
-        |root: ExpressionHandle, forwarded: &[SymbolHandle]| {
-            forwarded
-                .iter()
-                .any(|symbol| expression_mentions_symbol(program, root, *symbol))
-        };
+    let mentions_local = |root: ExpressionHandle, forwarded: &[SymbolHandle]| {
+        forwarded
+            .iter()
+            .any(|symbol| expression_mentions_symbol(program, root, *symbol))
+    };
     let mentions_local_in_match = |root: ExpressionHandle, forwarded: &[SymbolHandle]| {
         if !root.is_valid() {
             return false;
@@ -1183,6 +1182,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                         let skipped_eq = [(
                             subject.clone(),
                             StructuralTerm::Constructor {
+                                declaration: None,
                                 data: "bool".to_owned(),
                                 case: (!truth).to_string(),
                                 fields: Vec::new(),
@@ -2005,6 +2005,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             let skipped_eq = (
                                 subject.clone(),
                                 StructuralTerm::Constructor {
+                                    declaration: None,
                                     data: "bool".to_owned(),
                                     case: (!truth).to_string(),
                                     fields: Vec::new(),
@@ -2935,6 +2936,7 @@ fn guard_observation(
             return Some((
                 comparison.left,
                 StructuralTerm::Constructor {
+                    declaration: None,
                     data: "bool".to_owned(),
                     case: truth.to_string(),
                     fields: Vec::new(),
@@ -2958,6 +2960,7 @@ fn guard_observation(
     Some((
         guard,
         StructuralTerm::Constructor {
+            declaration: None,
             data: "bool".to_owned(),
             case: "true".to_owned(),
             fields: Vec::new(),
@@ -3008,8 +3011,7 @@ fn guard_case_value(
 ) -> Option<StructuralTerm> {
     let (definition, variant) =
         super::structural_terms::case_guard_classifier(program, machine, Some(state), guard)?;
-    let data = definition.name.as_str().to_owned();
-    let case = variant.name.as_str().to_owned();
+
     let variant_fields: Vec<String> = program
         .data_payload_fields(variant)
         .iter()
@@ -3026,7 +3028,7 @@ fn guard_case_value(
             typed_trees::data::DataMember::Field(field) => Some(field.name.as_str().to_owned()),
             _ => None,
         });
-    let mut fields: Vec<(String, StructuralTerm)> = variant_fields
+    let fields: Vec<(String, StructuralTerm)> = variant_fields
         .into_iter()
         .chain(common_fields)
         .map(|field| {
@@ -3037,5 +3039,9 @@ fn guard_case_value(
         })
         .collect();
     fields.sort_by(|(left, _), (right, _)| left.cmp(right));
-    Some(StructuralTerm::Constructor { data, case, fields })
+    Some(super::structural_terms::constructed_term(
+        definition,
+        Some(variant),
+        fields,
+    ))
 }
