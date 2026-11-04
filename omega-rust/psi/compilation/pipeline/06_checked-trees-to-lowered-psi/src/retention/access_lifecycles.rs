@@ -390,24 +390,21 @@ fn storage_contract(
     storage: &typed_trees::typed_trees::AccessLifecycleStorage,
 ) -> Result<terminal_psi::TerminalAccessStorage, LoweringError> {
     use typed_trees::typed_trees::AccessLifecycleOwner;
-    let carrier =
-        |reference| {
-            let identity = checked.typed.type_identity(
-                typed_trees::type_identity::TypeIdentityRequest::ordinary(reference),
-            );
-            checked
-                .typed
-                .type_identity_text(identity)
-                .and_then(|text| {
-                    module.structural_types.iter().find(|declaration| {
-                        module.identities.text(declaration.identity) == Some(text.as_str())
-                    })
-                })
-                .map(|declaration| declaration.id)
-                .ok_or(LoweringError::Unsupported(
-                    "checked storage carrier lost its emitted correspondence",
-                ))
-        };
+    let carrier = |reference| {
+        let identity = checked.typed.type_identity_request_text(
+            typed_trees::type_identity::TypeIdentityRequest::ordinary(reference),
+        );
+        module
+            .structural_types
+            .iter()
+            .find(|declaration| {
+                module.identities.text(declaration.identity) == Some(identity.as_str())
+            })
+            .map(|declaration| declaration.id)
+            .ok_or(LoweringError::Unsupported(
+                "checked storage carrier lost its emitted correspondence",
+            ))
+    };
     let field = |identities: &mut TerminalIdentityTableBuilder,
                  carrier,
                  member: &typed_trees::data::DataField| {
