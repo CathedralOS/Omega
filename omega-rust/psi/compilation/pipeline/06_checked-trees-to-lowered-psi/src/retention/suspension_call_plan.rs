@@ -9,7 +9,7 @@
 
 use super::{
     CheckedTrees, LoweredSourceCallOccurrence, LoweringError, OperationKind, TerminalModule,
-    ValueDeclaration, ValueId, terminal_scalar_type, unsupported,
+    ValueDeclaration, ValueId, invalid_suspension, terminal_scalar_type, unsupported,
 };
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::shared::direct_calls::direct_call_parts;
@@ -350,7 +350,7 @@ fn retain_loan_graph(
                 if !borrow.output_lifetime_dependencies.is_valid(resource)
                     || borrow.output_lifetime_dependencies.get(resource).loan != loan
                 {
-                    return unsupported("suspension lifetime dependency lost its checked resource");
+                    return invalid_suspension("suspension lifetime dependency lost its checked resource");
                 }
                 let mut suppliers = HandleSpan::empty();
                 for source in borrow
@@ -359,7 +359,7 @@ fn retain_loan_graph(
                 {
                     let supplier = dependency(*source);
                     if !supplier.is_valid() {
-                        return unsupported("suspension dependency supplier is absent");
+                        return invalid_suspension("suspension dependency supplier is absent");
                     }
                     suppliers.push_contiguous(graph.supplier_links.insert(supplier));
                 }
@@ -380,7 +380,7 @@ fn retain_loan_graph(
                     .operand_retained_suppliers
                     .get(input.source)
                     .contract
-                    .ok_or(LoweringError::Unsupported(
+                    .ok_or(LoweringError::InvalidSuspensionPlan(
                         "suspension output input has no original contract",
                     ))?;
                 let calls = checked.facts.flow.control.calls.iter().filter(|(_, call)| {
@@ -393,14 +393,14 @@ fn retain_loan_graph(
                             .any(|operand| operand == contract.input)
                 });
                 let mut calls = calls;
-                let (call, _) = calls.next().ok_or(LoweringError::Unsupported(
+                let (call, _) = calls.next().ok_or(LoweringError::InvalidSuspensionPlan(
                     "suspension input has no original invocation",
                 ))?;
                 if calls.next().is_some() {
-                    return unsupported("suspension input invocation is ambiguous");
+                    return invalid_suspension("suspension input invocation is ambiguous");
                 }
                 let path = borrow.call_loan_paths.span(input.capture_path).ok_or(
-                    LoweringError::Unsupported("suspension input capture path is unavailable"),
+                    LoweringError::InvalidSuspensionPlan("suspension input capture path is unavailable"),
                 )?;
                 let (operation, argument, path) = captured_call_leaf(
                     identities,
@@ -425,7 +425,7 @@ fn retain_loan_graph(
                         for parent in parents {
                             let parent = dependency(parent);
                             if !parent.is_valid() {
-                                return unsupported("suspension input ancestor is absent");
+                                return invalid_suspension("suspension input ancestor is absent");
                             }
                             suppliers.push_contiguous(graph.supplier_links.insert(parent));
                         }
@@ -469,25 +469,25 @@ fn retain_loan_graph(
                     let checked_trees::IncomingReferenceOrigin::Output { identity } =
                         incoming.origin
                     else {
-                        return unsupported("suspension output lost its exact namespace");
+                        return invalid_suspension("suspension output lost its exact namespace");
                     };
                     let call = checked.facts.flow.control.calls.get(output.call);
                     let parameters =
                         validation::call_target_parameters(checked, call.target_symbol)
-                            .ok_or(LoweringError::Unsupported(
+                            .ok_or(LoweringError::InvalidSuspensionPlan(
                                 "suspension output call has no formal telescope",
                             ))?;
                     let position = parameters
                         .iter()
                         .position(|parameter| parameter.symbol == identity.parameter_symbol)
-                        .ok_or(LoweringError::Unsupported(
+                        .ok_or(LoweringError::InvalidSuspensionPlan(
                             "suspension output has no original output argument",
                         ))?;
                     let path = validation::borrow_contracts::structural_owner_path(
                         checked,
                         borrow.owner_segments.span_or_empty(incoming.owner_path),
                     )
-                    .ok_or(LoweringError::Unsupported(
+                    .ok_or(LoweringError::InvalidSuspensionPlan(
                         "suspension output path has no declaration",
                     ))?;
                     let (operation, argument, path) = captured_call_leaf(
@@ -563,7 +563,7 @@ fn retain_loan_graph(
                     for input in inputs {
                         let supplier = loan_identities.iter().find(|(source, _, _)| matches!(carry.suspension_loans.get(*source).source,
                             SuspensionCrossingLoanSource::CapturedActual { resource } if resource == *input))
-                            .map(|(_, _, target)| *target).ok_or(LoweringError::Unsupported("saved reference's original call input is absent"))?;
+                            .map(|(_, _, target)| *target).ok_or(LoweringError::InvalidSuspensionPlan("saved reference's original call input is absent"))?;
                         suppliers.push_contiguous(graph.supplier_links.insert(supplier));
                     }
                 }
@@ -588,11 +588,11 @@ fn retain_loan_graph(
                         .argument_operands()
                         .handles()
                         .position(|operand| operand == resource.owner_operand)
-                        .ok_or(LoweringError::Unsupported(
+                        .ok_or(LoweringError::InvalidSuspensionPlan(
                             "saved input has no original call argument",
                         ))?;
                     let path = borrow.call_loan_paths.span(resource.capture_path).ok_or(
-                        LoweringError::Unsupported(
+                        LoweringError::InvalidSuspensionPlan(
                             "saved input's original capture path is unavailable",
                         ),
                     )?;
@@ -712,7 +712,7 @@ fn retain_loan_graph(
             SuspensionCrossingLoanBacking::CompletedOutput { resource } => {
                 let loan = dependency(borrow.supplied_output_resources.get(resource).loan);
                 if !loan.is_valid() {
-                    return unsupported("suspension completed output is not retained");
+                    return invalid_suspension("suspension completed output is not retained");
                 }
                 TerminalSuspensionLoanBacking::CompletedOutput { loan }
             }
@@ -1222,19 +1222,19 @@ fn captured_call_leaf(
     let mut occurrences = source_calls.iter().filter(|occurrence| {
         occurrence.matches_statement(state, call.statement_index, call.call_ordinal)
     });
-    let occurrence = occurrences.next().ok_or(LoweringError::Unsupported(
+    let occurrence = occurrences.next().ok_or(LoweringError::InvalidSuspensionPlan(
         "captured output/input call has no emitted occurrence",
     ))?;
     if occurrences.next().is_some()
         || owning_callable_symbol(checked, occurrence.source_target)
             != owning_callable_symbol(checked, call.target_symbol)
     {
-        return unsupported("captured output/input call is ambiguous or redirected");
+        return invalid_suspension("captured output/input call is ambiguous or redirected");
     }
     let operation = occurrence
         .terminal_site
         .operation()
-        .ok_or(LoweringError::Unsupported(
+        .ok_or(LoweringError::InvalidSuspensionPlan(
             "captured output/input has no normal call operation",
         ))?;
     let emitted = module
@@ -1243,7 +1243,7 @@ fn captured_call_leaf(
         .flat_map(|machine| &machine.blocks)
         .flat_map(|block| &block.operations)
         .find(|candidate| candidate.id == operation)
-        .ok_or(LoweringError::Unsupported(
+        .ok_or(LoweringError::InvalidSuspensionPlan(
             "captured output/input operation is unavailable",
         ))?;
     let (
@@ -1251,7 +1251,7 @@ fn captured_call_leaf(
         TerminalSuspensionValueType::Structural(root),
     ) = call_argument_binding(checked, call.target_symbol, &emitted.kind, module, position)?
     else {
-        return unsupported("captured output/input has no structural argument");
+        return invalid_suspension("captured output/input has no structural argument");
     };
     let path = lower_static_argument_path(identities, path, root, &module.structural_types)?;
     Ok((operation, argument, path))
