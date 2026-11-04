@@ -69,7 +69,7 @@ pub(in crate::flow) fn trace_call_storage_refusal(
     call: &BorrowCallFact,
     phase: &str,
     path: Option<&str>,
-    root: Option<PlaceRoot>,
+    root: Option<facts::PlaceRoot>,
 ) {
     if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
         let path = path.map(|path| (path.len(), path.chars().take(96).collect::<String>()));
