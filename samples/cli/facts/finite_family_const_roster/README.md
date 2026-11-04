@@ -16,10 +16,11 @@ same. The nine strict runtime-to-const twins retain their original failure.
 
 The focused [uncalled-row program](../../../../tests/omega/pass/traits/finite_family_uncalled_target/main.omg)
 requests only width 16 but retains the complete declared family. Its
-[missing-supply control](../../../../tests/omega/pass/traits/finite_family_uncalled_target_missing_supply/main.omg)
+[missing-supply control](../../../../tests/omega/fail/traits/finite_family_uncalled_target_missing_supply/main.omg)
 has identical Main source and removes only the four target-provider selections.
-That source is valid; native publication must refuse the missing requirement
-before either engine runs. The control uses an authored native-error oracle.
+Its unconfigured source is valid. Checking the selected target must refuse the
+missing requirement before either engine runs; its diagnostic oracle names that
+missing provider.
 
 These target-call additions are awaiting qualification. The earlier const-only
 bridge evidence below belongs to its recorded program revisions.
