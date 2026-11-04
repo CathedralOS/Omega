@@ -19,10 +19,19 @@ ReadRoute satisfies LocalForward {
     ensures result == value
     ;
 }
+// The member passes 7 to echo even when its public caller passes 42.
+boundary trait LiteralRead {
+    machine read(value: u8) -> u8 reaches;
+}
+machine echo(value: u8) -> u8 satisfies LiteralRead::read reaches { value }
+LiteralRoute satisfies LiteralRead {
+    machine read(value: u8) -> u8 reaches { echo(7u8) }
+}
 machine main() crashes Trap {
     let result: u8 = ExactRead::read(7u8);
     let second: u8 = SecondRead::observe(9u8);
-    transition result == 7u8 && second == 9u8 { true -> done() _ -> bad() }
+    let literal: u8 = LiteralRead::read(42u8);
+    transition result == 7u8 && second == 9u8 && literal == 7u8 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
