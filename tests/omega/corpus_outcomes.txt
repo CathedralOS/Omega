@@ -13674,6 +13674,8 @@ fail/facts/nested_machine_joint_rank_borrowed_value_target_body_rejected rejecte
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_borrowed_whole_reset_rejected rejected 3041ms expected @ccdb99ca2214
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_bounded_computed_length_local_rejected rejected 3902ms expected @83e3d72bad8b+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_bounded_computed_length_parameter_rejected rejected 5311ms expected @d6bf9b01595b
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_bounded_distance_call_result_rejected rejected 724ms expected @5c5c178f82c7
@@ -31347,6 +31349,7 @@ pass/facts/nested_machine_joint_rank_borrowed_value_other_machine_exit checked 4
 pass/facts/nested_machine_joint_rank_borrowed_value_other_state_exit checked 3771ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_borrowed_value_parameter_exit checked 978ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/nested_machine_joint_rank_borrowed_value_target_body_exit checked 3481ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_joint_rank_bounded_computed_length_local_exit checked 5239ms check-target:macos_arm64 @83e3d72bad8b+wt
 pass/facts/nested_machine_joint_rank_bounded_computed_length_parameter_exit checked 7358ms check-target:macos_arm64 @d6bf9b01595b
 pass/facts/nested_machine_joint_rank_bounded_distance_call_result_exit checked 998ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/nested_machine_joint_rank_bounded_distance_const_name_exit checked 971ms check-target:macos_arm64 @5c5c178f82c7

@@ -170,8 +170,11 @@ retired-syntax deletions to completion.
     lexicographic products, or an unranked helper whose computed rank endpoint,
     such as `items.len - 1`, reads a formal the helper supplies through a field
     projection or computed argument rather than a whole parameter; the
-    whole-parameter case [runs in the parameter place](samples/cli/facts/nested_machine_invocation/joint_rank/parameter/bounded_distance/computed_length/README.md)
-    and its other eight places are unwritten).
+    whole-parameter case runs in the
+    [parameter place](samples/cli/facts/nested_machine_invocation/joint_rank/parameter/bounded_distance/computed_length/README.md)
+    and the [local place](samples/cli/facts/nested_machine_invocation/joint_rank/local/bounded_distance/computed_length/README.md);
+    the field, call-result, match-join, const-name, nested-machine,
+    other-machine, and target-body places are unwritten).
   - Bring the composed state-graph planner
     (`omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph`)
     to parity with the ordinary call plan, starting with temporary cleanup
