@@ -40,10 +40,17 @@ impl AdmittedTerminalIntrinsics {
 pub fn admit_terminal_intrinsics<'selection>(
     artifact: terminal_codec::TerminalExecutionView<'_>,
     selected: &'selection effects::SelectedProviderPlanFacts,
+    declarations: &[backend_plan::TerminalTargetProviderPlan],
     provenance: impl ExactSizeIterator<Item = super::CompilerIntrinsicPlanProvenance<'selection>>,
     demanded: &std::collections::BTreeSet<String>,
 ) -> Result<AdmittedTerminalIntrinsics, Vec<Diagnostic>> {
     let module = artifact.module();
+    super::external_satisfaction::validate_retained_external_provider_owners(
+        module,
+        selected,
+        declarations,
+    )
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
     // Derive and admit against this one code view. A separately retained
     // proposal's slot and signature cannot authenticate another code owner.
     let proposals = super::derive_selected_intrinsic_settlement_proposals(

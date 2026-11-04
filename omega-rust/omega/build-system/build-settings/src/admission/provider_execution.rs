@@ -48,12 +48,6 @@ impl BuildProviderPlans {
     ) -> Result<BuildProviderInstallation, Vec<Diagnostic>> {
         use provider_admission::provider_admission as admission;
         let module = artifact.module();
-        admission::validate_external_provider_owners(
-            &module.external_providers,
-            &module.identities,
-            &self.declarations,
-        )
-        .map_err(failure)?;
         let adapters =
             admission::retain_selected_provider_adapters(&self.selected, &self.declarations)
                 .map_err(failure)?;
@@ -105,6 +99,7 @@ impl BuildProviderPlans {
         let intrinsics = admission::admit_terminal_intrinsics(
             artifact,
             &self.selected,
+            &self.declarations,
             self.declarations
                 .iter()
                 .zip(&unreviewed)
