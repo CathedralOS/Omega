@@ -6985,23 +6985,32 @@ fail/facts/case_const_unequal_literals_subtraction_rejected rejected 647ms unexp
 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_const_unequal_predicate_rejected rejected 75ms unexpected @ccdb99ca2214
 	data `Interval` case `Point` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/case_dependent_default_domain_through_call_result_rejected rejected 2382ms expected @8fce926f9735
+fail/facts/case_dependent_default_domain_through_call_result_rejected rejected 7450ms expected @ff6d0a18a03d
+	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_const_name_rejected rejected 2022ms expected @8fce926f9735
+fail/facts/case_dependent_default_domain_through_const_name_rejected rejected 5137ms expected @ff6d0a18a03d
+	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_field_rejected rejected 6239ms expected @8fce926f9735
+fail/facts/case_dependent_default_domain_through_field_rejected rejected 7388ms expected @ff6d0a18a03d
+	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_local_rejected rejected 5528ms expected @8fce926f9735
+fail/facts/case_dependent_default_domain_through_local_rejected rejected 9113ms expected @ff6d0a18a03d
+	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_match_join_rejected rejected 5688ms expected @8fce926f9735
+fail/facts/case_dependent_default_domain_through_match_join_rejected rejected 10511ms expected @ff6d0a18a03d
+	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_other_machine_rejected rejected 4473ms expected @8fce926f9735
+fail/facts/case_dependent_default_domain_through_other_machine_rejected rejected 8830ms expected @ff6d0a18a03d
+	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_other_state_rejected rejected 4210ms expected @8fce926f9735
+fail/facts/case_dependent_default_domain_through_other_state_rejected rejected 8692ms expected @ff6d0a18a03d
+	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_parameter_rejected rejected 4209ms expected @8fce926f9735
+fail/facts/case_dependent_default_domain_through_parameter_rejected rejected 9478ms expected @ff6d0a18a03d
+	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_target_body_rejected rejected 4426ms expected @8fce926f9735
+fail/facts/case_dependent_default_domain_through_target_body_rejected rejected 7115ms expected @ff6d0a18a03d
+	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/case_equality_through_call_result_compile rejected 831ms expected @ccdb99ca2214
 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -7152,6 +7161,8 @@ fail/facts/case_payload_transport_through_target_body_rejected rejected 3038ms u
 	cannot prove ensures contract for exit from eval at statement 3: result <= 60
 	cannot prove ensures contract for exit from eval at statement 3: result <= 60
 	cannot prove ensures contract for exit from eval at statement 3: result <= 60
+fail/facts/case_predicate_alias_sibling_restore_rejected rejected 5283ms expected @ff6d0a18a03d
+	cannot complete return from machine `restore` state `entry`: this write left the `requires` facts of `span` (data `Interval<32>`) unproved; restore them first
 fail/facts/case_predicate_const_wrong_named_type_rejected rejected 2754ms expected @a91a8de86514+wt
 	constant initializer: demanded premise closure checking failed: `as ... in Typed` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
 fail/facts/case_predicate_inactive_payload_rejected rejected 3689ms expected @a7b775a62345
@@ -7172,6 +7183,8 @@ fail/facts/case_predicate_other_default_argument_rejected rejected 1696ms expect
 fail/facts/case_predicate_other_subject_rejected rejected 1402ms expected @a7b775a62345
 	match arms produce incompatible values
 	machine `invalid` state `entry` return value expects `T`, but the value is delivered as `i32`
+fail/facts/case_predicate_recast_sibling_restore_rejected rejected 5261ms expected @ff6d0a18a03d
+	cannot complete return from machine `restore` state `entry`: this write left the `requires` facts of `span` (data `Interval<32>`) unproved; restore them first
 fail/facts/case_predicate_retired_requires_rejected rejected 1396ms expected @a91a8de86514+wt
 	tests/omega/fail/facts/case_predicate_retired_requires_rejected/main.omg:1:46: case-local predicate clauses are retired; write the predicate in the data declaration's default-domain `requires`
 fail/facts/case_predicate_reversed_bounds_rejected rejected 7072ms expected @a91a8de86514+wt
@@ -28704,15 +28717,15 @@ pass/facts/case_const_equal_literals_with_predicate checked 2486ms @ccdb99ca2214
 pass/facts/case_const_equal_literals_without_predicate checked 3045ms @ccdb99ca2214
 pass/facts/case_const_forwarded_binder_compile rejected 1075ms regressed-from:checked @ccdb99ca2214
 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-pass/facts/case_dependent_default_domain_through_call_result_exit checked 6912ms check-target:macos_arm64 @8fce926f9735
-pass/facts/case_dependent_default_domain_through_const_name_exit checked 6073ms check-target:macos_arm64 @8fce926f9735
-pass/facts/case_dependent_default_domain_through_field_exit checked 6682ms check-target:macos_arm64 @8fce926f9735
-pass/facts/case_dependent_default_domain_through_local_exit checked 5985ms check-target:macos_arm64 @8fce926f9735
-pass/facts/case_dependent_default_domain_through_match_join_exit checked 6085ms check-target:macos_arm64 @8fce926f9735
-pass/facts/case_dependent_default_domain_through_other_machine_exit checked 6163ms check-target:macos_arm64 @8fce926f9735
-pass/facts/case_dependent_default_domain_through_other_state_exit checked 5361ms check-target:macos_arm64 @8fce926f9735
-pass/facts/case_dependent_default_domain_through_parameter_exit checked 4829ms check-target:macos_arm64 @8fce926f9735
-pass/facts/case_dependent_default_domain_through_target_body_exit checked 7396ms check-target:macos_arm64 @8fce926f9735
+pass/facts/case_dependent_default_domain_through_call_result_exit checked 12845ms check-target:macos_arm64 @ff6d0a18a03d
+pass/facts/case_dependent_default_domain_through_const_name_exit checked 13525ms check-target:macos_arm64 @ff6d0a18a03d
+pass/facts/case_dependent_default_domain_through_field_exit checked 12848ms check-target:macos_arm64 @ff6d0a18a03d
+pass/facts/case_dependent_default_domain_through_local_exit checked 13494ms check-target:macos_arm64 @ff6d0a18a03d
+pass/facts/case_dependent_default_domain_through_match_join_exit checked 12853ms check-target:macos_arm64 @ff6d0a18a03d
+pass/facts/case_dependent_default_domain_through_other_machine_exit checked 15809ms check-target:macos_arm64 @ff6d0a18a03d
+pass/facts/case_dependent_default_domain_through_other_state_exit checked 15405ms check-target:macos_arm64 @ff6d0a18a03d
+pass/facts/case_dependent_default_domain_through_parameter_exit checked 15490ms check-target:macos_arm64 @ff6d0a18a03d
+pass/facts/case_dependent_default_domain_through_target_body_exit checked 14941ms check-target:macos_arm64 @ff6d0a18a03d
 pass/facts/case_equality_through_call_result_compile checked 2279ms @ccdb99ca2214
 pass/facts/case_equality_through_const_name_compile rejected 899ms regressed-from:checked @ccdb99ca2214
 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
