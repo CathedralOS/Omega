@@ -80,7 +80,7 @@ impl Captures<'_> {
                 state,
                 parameter.type_reference,
                 call.argument_operands().handles().nth(position)?,
-                operand.storage_snapshot,
+                call.invocation_storage,
                 &relative,
                 &presentation,
                 active,
