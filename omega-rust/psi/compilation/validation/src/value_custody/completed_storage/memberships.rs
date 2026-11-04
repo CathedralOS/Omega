@@ -1,4 +1,4 @@
-//! Membership supplied by a completed, jointly checked content transformation.
+//! Membership supplied by a completed content transformation or owned transfer.
 //!
 //! The transformation qualifies its result paths, never the raw operands that
 //! preceded it. Subsequent reads transport that judgment only through exact
@@ -41,6 +41,30 @@ pub fn completed_membership(
             .establishes_completed_membership(&facts.flow, value, path, domain, semantic_domain)
         {
             return true;
+        }
+        match super::owned_memberships::transferred_membership(
+            program,
+            facts,
+            value,
+            path,
+            domain,
+            semantic_domain,
+        ) {
+            Some(Ok(())) => return true,
+            Some(Err(reason)) => {
+                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    let captured = facts.flow.control.operands.get(value);
+                    eprintln!(
+                        "STRUCT owned-membership value={value:?} state={:?} statement={} lane={:?} path_len={} storage_cut={:?} domain={domain:?} reason={reason}",
+                        captured.state_symbol,
+                        captured.statement_index,
+                        captured.evaluation,
+                        path.len(),
+                        captured.storage_snapshot,
+                    );
+                }
+            }
+            None => {}
         }
         let Some(predecessors) = super::predecessors(program, facts, value, path) else {
             return false;

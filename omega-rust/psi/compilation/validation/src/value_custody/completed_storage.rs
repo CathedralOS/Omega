@@ -95,6 +95,7 @@ pub use predecessors::{
     terminal_alternatives,
 };
 mod memberships;
+mod owned_memberships;
 pub use memberships::completed_membership;
 
 mod occurrences;

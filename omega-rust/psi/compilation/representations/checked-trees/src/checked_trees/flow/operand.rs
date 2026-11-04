@@ -233,7 +233,7 @@ pub struct FlowOperandRetainedLeaf {
 /// denote storage they read at invocation, so `referents` records the exact
 /// referent custody: the clause's evidence is the facts live on that storage
 /// at invocation, including ones a later operand established.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandFact {
     /// Permission supplied by this exact completed descriptor load. Copies
     /// retain the association; a type or a descriptor home cannot supply it.
@@ -245,6 +245,9 @@ pub struct FlowOperandFact {
     /// Retained stores can outlive their statement-local write prefix.
     pub state_symbol: symbols::SymbolHandle,
     pub statement_index: usize,
+    /// Guards and the two outgoing targets can evaluate the same source node.
+    /// Its captured value must consume custody from this exact execution lane.
+    pub evaluation: super::FlowPermissionEvaluation,
     /// Bound destination carrier for this evaluation, including a first
     /// store whose local is not yet in the preceding statement's scope.
     pub type_reference: typed_trees::types::TypeReferenceHandle,
@@ -288,6 +291,37 @@ pub struct FlowOperandFact {
     /// Each declared leaf retains exact referents independently of lifetime roots;
     /// later writes to the carrier cannot retarget this completed operand.
     pub reference_leaves: HandleSpan<FlowCapturedReferenceLeaf>,
+}
+
+impl Default for FlowOperandFact {
+    fn default() -> Self {
+        Self {
+            descriptor_loan: Default::default(),
+            descriptor_read: Default::default(),
+            expression: Default::default(),
+            state_symbol: Default::default(),
+            statement_index: 0,
+            // A synthesized descriptor has not executed a statement lane.
+            evaluation: super::FlowPermissionEvaluation::Unknown,
+            type_reference: Default::default(),
+            completion: Default::default(),
+            backing: Default::default(),
+            address_projection: None,
+            evaluated_inputs: HandleSpan::empty(),
+            conditional_inputs_from: None,
+            value_source: Default::default(),
+            entry_origin_writes: HandleSpan::empty(),
+            entry_origin_unknown_write: false,
+            storage_snapshot: Default::default(),
+            entry_binding_writes: HandleSpan::empty(),
+            entry_binding_unknown_write: false,
+            case_access: Default::default(),
+            constraints: HandleSpan::empty(),
+            referents: HandleSpan::empty(),
+            retention: Default::default(),
+            reference_leaves: HandleSpan::empty(),
+        }
+    }
 }
 
 /// Retain the evaluated value graph without enumerating combinations of fields

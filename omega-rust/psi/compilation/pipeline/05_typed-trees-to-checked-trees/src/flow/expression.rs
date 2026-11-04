@@ -1246,6 +1246,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             expression,
             state_symbol: self.state.symbol,
             statement_index: self.statement_index,
+            evaluation: self.evaluation,
             type_reference: TypeReferenceHandle::invalid(),
             completion: checked_trees::FlowOperandCompletion::Observation,
             backing: Handle::invalid(),
