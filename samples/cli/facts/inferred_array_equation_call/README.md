@@ -16,7 +16,6 @@ constants and trait arguments also have focused regression programs under
 
 | Place | Positive program | Reject twin | What the program carries |
 | --- | --- | --- | --- |
-| root | [`main.omg`](main.omg) | [`invalid/main.omg`](invalid/main.omg) | canonical root witness passing `[u8; 2]` actual directly to `capacity` |
 | local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | declared `[u8; 2]` array copied to local variable before `capacity` call |
 | field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | `[u8; 2]` array stored in and projected from `Holder::items` nominal field |
 | parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | declared ordinary `[u8; 2]` parameter passed to `capacity` |
@@ -27,6 +26,7 @@ constants and trait arguments also have focused regression programs under
 | other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | forwarding machine routes `[u8; 2]` array to `capacity` |
 | target_body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Build-selected named implementations perform the same inferred call |
 
+The root [`main.omg`](main.omg) is an additional direct-call example.
 Each positive has an authored exit-zero oracle and four hosted `ProgramEntry`
 rows. Each twin supplies an explicit capacity of 3, which conflicts with the
 declared two-element array. The twin must reject for that equation; a package,
@@ -93,11 +93,33 @@ changes only the ready constant from 7 to 8, so preserving an unfinished type
 cannot suppress a condition on a completed value. These three projects use six
 new source/Build files altogether.
 
-Validation of the merged source is still pending. Earlier failed runs retain
-their actual compiler and program revisions; no old result is relabeled as a
-new-head execution. The canonical row and relevant regressions still need actual
-native and Terminal Psi agreement on all four matching hosts, with their
-intended controls enforced.
+Optimized compilers built at `35dd60f55878` pass the current selection on all
+four matching hosts: 30 Source positives, 50 intended refusals, and 30 actual
+native/Terminal exit-zero agreements per host. All 19 canonical projects pass:
+the root and nine places execute at zero, and the nine twins reject as intended.
+The match executes both branches and observes 7 or 19 after consuming capacity.
+
+- [Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41926662415)
+- [Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/41931716718)
+- [macOS ARM64](https://github.com/CathedralOS/Omega/actions/runs/41933212101)
+- [Windows x86-64](https://github.com/CathedralOS/Omega/actions/runs/41933220369)
+
+The latter three runs use program inputs `29a5c1cd3b26` with those unchanged
+compilers. That input-only revision adds a missing Linux ARM64 entry to an
+existing captured-Const preservation fixture; its Main and oracles are unchanged.
+The earlier ARM run retains its real missing-entry failure. The focused ordinary
+package checks also execute both the combined satisfaction case and captured-Const
+case at zero on every host, with the corrected ARM entry checked in its full replay.
+The source archives, original producer identities, profiles and input hashes are
+preserved in [PR #1839](https://github.com/CathedralOS/Omega/pull/1839).
+
+Records retain their measured source stamps. Linux's retired combined-results
+file stays deleted; three genuine native-only observations update the existing
+native baseline. The full combined results remain in the run evidence.
+The value-index program was already green in the frozen baseline; its old
+refusal record was stale. The named-constant program's non-integer refusal was
+an actual compiler defect. Its conflict twin now reaches the intended size
+mismatch after evaluation, rather than that earlier kind failure.
 
 The parent tasks remain open. Open generic schemas, retained extensions, late
 receivers, other binder combinations, named lifetimes and selected computed
