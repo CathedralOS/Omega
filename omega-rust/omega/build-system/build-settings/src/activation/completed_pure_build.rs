@@ -11,6 +11,19 @@ use evaluation_accounting::{BuildEvaluationSponsorLimits, EvaluationMeasurementI
 use package_compilation::SourceAssemblyInputs;
 use std::sync::{Arc, Mutex};
 
+pub(crate) fn trace_reuse(reason: &str) {
+    if std::env::var_os("OMEGA_BUILD_REUSE_TRACE").is_some() {
+        eprintln!("Build reuse: {reason}");
+    }
+}
+
+fn reuse_condition(condition: bool, failure: &str) -> bool {
+    if !condition {
+        trace_reuse(failure);
+    }
+    condition
+}
+
 /// Exact content and custody of an admitted Pure Build. Product selections
 /// remain fresh admission inputs; only their complete checked Build program
 /// can establish that two consumers observe the same computation.
@@ -67,6 +80,7 @@ impl CompletedPureBuildInputs {
                 !snapshot.inputs().is_empty() || !snapshot.required_outputs().is_empty()
             })
         {
+            trace_reuse("admitted inputs require artifact or filesystem outputs");
             return None;
         }
         let activation = scope.activation();
@@ -76,6 +90,7 @@ impl CompletedPureBuildInputs {
         // value; an uncaptured anonymous source supplies no reuse custody.
         // Fresh semantic/grant admission and completion checks remain required.
         if packages.is_none() && captured_inventory.is_none() {
+            trace_reuse("anonymous input has no authenticated capture");
             return None;
         }
         Some(Self {
@@ -106,18 +121,44 @@ impl CompletedPureBuildInputs {
     }
 
     fn matches(&self, other: &Self) -> bool {
-        self.checked == other.checked
-            && self.measurement_identity == other.measurement_identity
-            && self.sponsor_policy == other.sponsor_policy
-            && self.selected_entry == other.selected_entry
-            && same_initial_value(&self.initial_build, &other.initial_build)
-            && self.source == other.source
-            && self.dependencies == other.dependencies
-            && self.snapshot == other.snapshot
-            && self.activation == other.activation
-            && self.captured_inventory == other.captured_inventory
-            && self.artifact_only == other.artifact_only
-            && self.default_source == other.default_source
+        reuse_condition(
+            self.checked == other.checked,
+            "key differs: checked program",
+        ) && reuse_condition(
+            self.measurement_identity == other.measurement_identity,
+            "key differs: measurement",
+        ) && reuse_condition(
+            self.sponsor_policy == other.sponsor_policy,
+            "key differs: sponsor policy",
+        ) && reuse_condition(
+            self.selected_entry == other.selected_entry,
+            "key differs: selected entry",
+        ) && reuse_condition(
+            same_initial_value(&self.initial_build, &other.initial_build),
+            "key differs: initial value",
+        ) && reuse_condition(
+            self.source == other.source,
+            "key differs: source assembly inputs",
+        ) && reuse_condition(
+            self.dependencies == other.dependencies,
+            "key differs: dependencies",
+        ) && reuse_condition(self.snapshot == other.snapshot, "key differs: snapshot")
+            && reuse_condition(
+                self.activation == other.activation,
+                "key differs: activation",
+            )
+            && reuse_condition(
+                self.captured_inventory == other.captured_inventory,
+                "key differs: captured inventory",
+            )
+            && reuse_condition(
+                self.artifact_only == other.artifact_only,
+                "key differs: artifact-only role",
+            )
+            && reuse_condition(
+                self.default_source == other.default_source,
+                "key differs: default-source role",
+            )
     }
 }
 
@@ -151,6 +192,12 @@ impl PureBuildCompilation {
                 )]
             })?
             .clone();
+        if std::env::var_os("OMEGA_BUILD_REUSE_TRACE").is_some() {
+            eprintln!(
+                "Build reuse: comparing {} completed entries",
+                completed.len()
+            );
+        }
         Ok(completed
             .iter()
             .find_map(|completed| completed.matching_configuration(inputs)))
@@ -181,6 +228,7 @@ impl PureBuildCompilation {
                 // suffix outside the lock before attempting publication again.
                 if compared_count == retained.len() {
                     retained.push(completed);
+                    trace_reuse("retained completed value");
                     return Ok(());
                 }
                 retained[compared_count..].to_vec()
@@ -214,23 +262,64 @@ impl CompletedPureBuild {
         inputs: CompletedPureBuildInputs,
         configuration: Arc<ComputedBuildConfig>,
     ) -> Option<Self> {
-        let usage = configuration.evaluation_usage?;
-        let observations = configuration.observation_summary.as_ref()?;
-        if usage.measurement != inputs.measurement_identity
-            || usage.validate().is_err()
-            || usage.filesystem_operation_attempts != 0
-            || observations.filesystem_host_observed()
-            || !observations.filesystem_operation_attempts().is_empty()
-            || !observations.named_input_inventories().is_empty()
-            || !observations.required_output_settlements().is_empty()
-            || !observations.included_source_handoffs().is_empty()
-            || observations
-                .staged_output_tree()
-                .is_none_or(|tree| tree.entry_count() != 0)
-            || !configuration.generated_sources.is_empty()
-            || configuration.selected_build_machine_symbol != Some(inputs.selected_entry)
-            || observations.activation() != inputs.activation
-            || observations.captured_source_inventory() != inputs.captured_inventory
+        let Some(usage) = configuration.evaluation_usage else {
+            trace_reuse("completion has no evaluation usage");
+            return None;
+        };
+        let Some(observations) = configuration.observation_summary.as_ref() else {
+            trace_reuse("completion has no observations");
+            return None;
+        };
+        if !reuse_condition(
+            usage.measurement == inputs.measurement_identity,
+            "completion differs: measurement",
+        ) || !reuse_condition(usage.validate().is_ok(), "completion has invalid usage")
+            || !reuse_condition(
+                usage.filesystem_operation_attempts == 0,
+                "completion attempted filesystem access",
+            )
+            || !reuse_condition(
+                !observations.filesystem_host_observed(),
+                "completion observed filesystem host",
+            )
+            || !reuse_condition(
+                observations.filesystem_operation_attempts().is_empty(),
+                "completion records filesystem attempts",
+            )
+            || !reuse_condition(
+                observations.named_input_inventories().is_empty(),
+                "completion records named inputs",
+            )
+            || !reuse_condition(
+                observations.required_output_settlements().is_empty(),
+                "completion records required outputs",
+            )
+            || !reuse_condition(
+                observations.included_source_handoffs().is_empty(),
+                "completion records included sources",
+            )
+            || !reuse_condition(
+                observations
+                    .staged_output_tree()
+                    .is_some_and(|tree| tree.entry_count() == 0),
+                "completion lacks an empty staged output tree",
+            )
+            || !reuse_condition(
+                configuration.generated_sources.is_empty(),
+                "completion generated sources",
+            )
+            || !reuse_condition(
+                configuration.selected_build_machine_symbol == Some(inputs.selected_entry),
+                "completion differs: selected entry",
+            )
+            || !reuse_condition(
+                observations.activation() == inputs.activation,
+                "completion differs: activation",
+            )
+            || !reuse_condition(
+                observations.captured_source_inventory() == inputs.captured_inventory,
+                "completion differs: captured inventory",
+            )
         {
             return None;
         }

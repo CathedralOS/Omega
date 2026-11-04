@@ -55,10 +55,17 @@ impl AdmittedBuildProgram {
             || self.machine.execution_mode != build_time_evaluation::BuildMachineExecutionMode::Pure
             || !self.restricted_build_requests().is_empty()
         {
+            crate::activation::completed_pure_build::trace_reuse(
+                "entry is not output-free Pure code without restricted requests",
+            );
             return None;
         }
+        let Some(checked) = self.prepared.checked_program() else {
+            crate::activation::completed_pure_build::trace_reuse("entry has no checked program");
+            return None;
+        };
         crate::activation::completed_pure_build::CompletedPureBuildInputs::from_admitted(
-            self.prepared.checked_program()?,
+            checked,
             self.machine.symbol,
             self.machine.initial_build.clone(),
             packages,
