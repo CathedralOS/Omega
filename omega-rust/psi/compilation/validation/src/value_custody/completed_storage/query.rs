@@ -328,15 +328,50 @@ pub fn at_snapshot(
     source: &CanonicalPlace,
     observation: StoredObservation,
 ) -> Option<StoredOperand> {
-    match resolve_snapshot(
+    let resolved = resolve_snapshot(
         program,
         control,
         snapshot,
         source,
         observation,
         SourceBoundary::Stores,
-    )? {
-        Resolution::Incoming => None,
+    )?;
+    if matches!(resolved, Resolution::Incoming) {
+        None
+    } else {
+        sources_from_resolution(control, snapshot, source, resolved)
+    }
+}
+
+/// Keep a proved unchanged entry value distinct from an invalid or unavailable
+/// cut. Consumers joining conditional stores need every incoming alternative;
+/// the older `at_snapshot` query deliberately omits a wholly unchanged entry.
+pub fn sources_at_snapshot(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    snapshot: Snapshot,
+    source: &CanonicalPlace,
+    observation: StoredObservation,
+) -> Option<StoredOperand> {
+    let resolved = resolve_snapshot(
+        program,
+        control,
+        snapshot,
+        source,
+        observation,
+        SourceBoundary::Stores,
+    )?;
+    sources_from_resolution(control, snapshot, source, resolved)
+}
+
+fn sources_from_resolution(
+    control: &FlowControlFacts,
+    snapshot: Snapshot,
+    source: &CanonicalPlace,
+    resolved: Resolution,
+) -> Option<StoredOperand> {
+    match resolved {
+        Resolution::Incoming => Some(StoredOperand::Incoming(source.clone())),
         Resolution::Unavailable => Some(StoredOperand::Unavailable),
         Resolution::Sources { incoming, stores } => {
             let mut values = Vec::new();

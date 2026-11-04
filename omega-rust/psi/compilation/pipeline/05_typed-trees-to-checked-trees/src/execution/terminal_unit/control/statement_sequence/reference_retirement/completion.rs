@@ -173,7 +173,7 @@ impl Retirement<'_> {
                     return false;
                 }
                 let value = control.operands.get(row.returned_value);
-                let Some(stored) = validation::completed_storage::at_snapshot(
+                let Some(stored) = validation::completed_storage::sources_at_snapshot(
                     self.program,
                     control,
                     value.storage_snapshot,

@@ -5,7 +5,7 @@
 use arena::Handle;
 use checked_trees::FlowOperandFact;
 mod query;
-pub use query::{at_snapshot, contents_preserved_from};
+pub use query::{at_snapshot, contents_preserved_from, sources_at_snapshot};
 pub mod versions;
 
 #[derive(Clone)]

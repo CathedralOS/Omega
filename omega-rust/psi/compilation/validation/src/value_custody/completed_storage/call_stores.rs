@@ -133,7 +133,7 @@ pub fn loan_call_descriptors(
             )
             .ok_or("the installed descriptor lost its physical member correspondence")?,
         };
-        let stored = super::at_snapshot(
+        let stored = super::sources_at_snapshot(
             program,
             control,
             invocation.completed_storage,
@@ -178,7 +178,7 @@ pub fn loan_call_descriptors(
                 // that exact source at entry; it keeps its earlier identity
                 // instead of acquiring a new permission from this call.
                 if entry.is_none() {
-                    let stored = super::at_snapshot(
+                    let stored = super::sources_at_snapshot(
                         program,
                         control,
                         invocation.invocation_storage,
