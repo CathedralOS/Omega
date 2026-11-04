@@ -12876,12 +12876,12 @@ fail/facts/source_indexed_binary_tree_through_parameter_rejected rejected 964ms 
 	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_binary_tree_through_target_body_rejected rejected 975ms expected @7eee0bd20c4b
 	source constructor predicate has no checked derivation yet
-fail/facts/source_indexed_family_authored_terminating_state_cycle rejected 1263ms unexpected @7eee0bd20c4b
-	state `entry` expects 2 argument(s), got 0
+fail/facts/source_indexed_family_authored_terminating_state_cycle rejected 1021ms unexpected @ccdb99ca2214
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 fail/facts/source_indexed_family_changed_capture rejected 1004ms expected @7eee0bd20c4b
 	invalid mathematical application `retain(other)`: mathematical argument does not preserve its declared carrier and policy
-fail/facts/source_indexed_family_cited_requires_unmet rejected 1521ms unexpected @7eee0bd20c4b
-	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects
+fail/facts/source_indexed_family_cited_requires_unmet rejected 802ms unexpected @ccdb99ca2214
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 fail/facts/source_indexed_family_constructor_head_false rejected 912ms expected @7eee0bd20c4b
 	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_family_constructor_index_false rejected 1038ms expected @7eee0bd20c4b
@@ -12890,10 +12890,10 @@ fail/facts/source_indexed_family_constructor_parent_index_false rejected 942ms e
 	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_family_forwarded_parameter_rejected rejected 935ms expected @7eee0bd20c4b
 	source constructor predicate has no checked derivation yet
-fail/facts/source_indexed_family_illegal_runtime_elimination rejected 1529ms unexpected @7eee0bd20c4b
-	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects
-fail/facts/source_indexed_family_insufficient_consumer_bound rejected 1475ms unexpected @7eee0bd20c4b
-	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects
+fail/facts/source_indexed_family_illegal_runtime_elimination rejected 695ms unexpected @ccdb99ca2214
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+fail/facts/source_indexed_family_insufficient_consumer_bound rejected 710ms unexpected @ccdb99ca2214
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 fail/facts/source_indexed_family_missing_head_bound rejected 968ms expected @7eee0bd20c4b
 	source induction case has no checked derivation from its exact constraints and child hypotheses
 fail/facts/source_indexed_family_open_constructor_missing_sum_premise rejected 1224ms expected @7eee0bd20c4b
@@ -12907,8 +12907,8 @@ fail/facts/source_indexed_family_root_constructor_rejected rejected 935ms expect
 fail/facts/source_indexed_family_runtime_result_contract rejected 4184ms expected @7eee0bd20c4b
 	cannot prove ensures contract for exit from open_total at statement 2: result <= 6
 	cannot prove ensures contract for exit from open_total$specialized$126450add920ba7b$0$2715 at statement 2: result <= 6
-fail/facts/source_indexed_family_same_rank_recursion rejected 2099ms unexpected @7eee0bd20c4b
-	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects
+fail/facts/source_indexed_family_same_rank_recursion rejected 582ms unexpected @ccdb99ca2214
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 fail/facts/source_indexed_family_through_call_result_rejected rejected 902ms expected @7eee0bd20c4b
 	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_family_through_const_name_rejected rejected 993ms expected @7eee0bd20c4b
@@ -12927,14 +12927,14 @@ fail/facts/source_indexed_family_through_parameter_rejected rejected 958ms expec
 	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_family_through_target_body_rejected rejected 933ms expected @7eee0bd20c4b
 	source constructor predicate has no checked derivation yet
-fail/facts/source_indexed_family_ungranted_family_assumption rejected 1437ms unexpected @7eee0bd20c4b
-	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects
+fail/facts/source_indexed_family_ungranted_family_assumption rejected 864ms unexpected @ccdb99ca2214
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 fail/facts/source_indexed_family_wrong_invariant rejected 949ms expected @7eee0bd20c4b
 	source induction case has no checked derivation from its exact constraints and child hypotheses
 fail/facts/source_indexed_family_wrong_payload_carrier rejected 1391ms expected @7eee0bd20c4b
 	literal `7` is suffixed `i8` but lands in a `u64` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
-fail/facts/source_indexed_family_wrong_recursion_rank rejected 1422ms unexpected @7eee0bd20c4b
-	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects
+fail/facts/source_indexed_family_wrong_recursion_rank rejected 1027ms unexpected @ccdb99ca2214
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 fail/facts/source_indexed_type_parameter_head_rejected rejected 1395ms expected @7eee0bd20c4b
 	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_type_parameter_through_call_result_rejected rejected 1153ms expected @7eee0bd20c4b
@@ -14504,7 +14504,7 @@ fail/generics/const_binder_carrier_range_names_sibling_rejected rejected 2983ms 
 	cannot prove index `N` is within const extent `K` of `values` in pick::entry
 fail/generics/const_binder_used_as_field_type rejected 1508ms expected @ccdb99ca2214
 	data `Invalid` field `value` uses value parameter `Count` as a type; const and runtime value parameters supply values, not types
-fail/generics/const_container_mismatched_witness rejected 522ms unexpected @7eee0bd20c4b
+fail/generics/const_container_mismatched_witness rejected 758ms unexpected @911f6617ba9e
 	generic machine `FixedBuffer::capacity` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `mismatched` state `mismatched::entry`: Const slot `Capacity` conflicts: 2 [identity named(integer-const(2)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
 fail/generics/const_data_argument_out_of_range rejected 49ms unexpected @ccdb99ca2214
 	integer node `u8(300)` does not fit exact carrier `u8`
@@ -15547,9 +15547,8 @@ fail/layouts/placed_primitive_generic_wrapper rejected 3358ms expected @b43a5fa5
 	accessor read application: requires an exact compiler-issued field accessor; an ordinary or unconstrained generic type grants no operation
 fail/layouts/placed_primitive_lookalike rejected 2482ms expected @b43a5fa574e6
 	accessor read application: requires an exact compiler-issued field accessor; an ordinary or unconstrained generic type grants no operation
-fail/layouts/placed_primitive_private_unused rejected 689ms unexpected @7eee0bd20c4b
-	`Access<StablePlacement, Value>` names an unknown access policy `StablePlacement`
-	`Access<StablePlacement, Value>` names an unknown access policy `StablePlacement`
+fail/layouts/placed_primitive_private_unused rejected 1353ms unexpected @ccdb99ca2214
+	generic machine `ignore` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 fail/layouts/placed_primitive_reference_accessor rejected 2913ms expected @b43a5fa574e6
 	argument `field` for state `entry` expects `&Accessor<Access<StablePlacement,Value>,number>`, got `member access`
 fail/layouts/placed_primitive_shared_source rejected 2717ms expected @ccdb99ca2214
@@ -24918,91 +24917,91 @@ pass/facts/slice_view_layout_geometry_through_other_state_exit rejected 1989ms c
 	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 pass/facts/slice_view_layout_geometry_through_parameter_exit checked 3888ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/slice_view_layout_geometry_through_target_body_exit checked 4009ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/source_indexed_binary_tree_distinct_exit rejected 10126ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @7eee0bd20c4b
-	`bounded$specialized$7d4470da638c2b33$0$2718` calls `tree_bound$specialized$85645057e69f0f93$0$2712`; `tree_bound$specialized$85645057e69f0f93$0$2712` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural call binding)); in state `tree_bound$specialized$85645057e69f0f93$0$2712::entry`, statement 0
-	inspection main admission: [Diagnostic { severity: Error, message: "`bounded$specialized$7d4470da638c2b33$0$2718` calls `tree_bound$specialized$85645057e69f0f93$0$2712`; `tree_bound$specialized$85645057e69f0f93$0$2712` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural call binding)); in state `tree_bound$specialized$85645057e69f0f93$0$2712::entry`, statement 0", exceeded_provision: Some(ExceededProvision { resource: "coverage_statement_forms", limit: 0, requested: 1, coordinate: 828 }), source_span: Some(SourceSpan { source_id: SourceId(25), span: Span { start: 828, end: 836 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_binary_tree_distinct"), path: "tests/omega/pass/facts/source_indexed_binary_tree_distinct_exit/main.omg", line: 15, column: 16 }) }]
-pass/facts/source_indexed_binary_tree_empty_children_exit incomplete 4952ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`bounded$specialized$54992ecfebf5f20d$0$2714` calls `tree_bound$specialized$85645057e69f0f93$0$2708`; `tree_bound$specialized$85645057e69f0f93$0$2708` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural call binding)); in state `tree_bound$specialized$85645057e69f0f93$0$2708::entry`, statement 0
-pass/facts/source_indexed_binary_tree_irrelevant_scalar_scope_exit rejected 10526ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @7eee0bd20c4b
-	`open_total$specialized$3cb8c7f9042e71c3$0$2728` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$3cb8c7f9042e71c3$0$2728::entry`, statement 1
-	inspection main admission: [Diagnostic { severity: Error, message: "`open_total$specialized$3cb8c7f9042e71c3$0$2728` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$3cb8c7f9042e71c3$0$2728::entry`, statement 1", exceeded_provision: Some(ExceededProvision { resource: "coverage_call_forms", limit: 0, requested: 1, coordinate: 2381 }), source_span: Some(SourceSpan { source_id: SourceId(25), span: Span { start: 2381, end: 2391 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_binary_tree_match_join"), path: "tests/omega/pass/facts/source_indexed_binary_tree_irrelevant_scalar_scope_exit/main.omg", line: 47, column: 5 }) }]
-pass/facts/source_indexed_binary_tree_through_call_result_exit incomplete 5320ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`open_total$specialized$3cb8c7f9042e71c3$0$2726` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$3cb8c7f9042e71c3$0$2726::entry`, statement 1
-pass/facts/source_indexed_binary_tree_through_const_name_exit incomplete 5624ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`main` calls `open_total$specialized$3cb8c7f9042e71c3$0$2726`; `open_total$specialized$3cb8c7f9042e71c3$0$2726` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$3cb8c7f9042e71c3$0$2726::entry`, statement 1
-pass/facts/source_indexed_binary_tree_through_field_exit incomplete 5595ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`open_total$specialized$3cb8c7f9042e71c3$0$2727` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$3cb8c7f9042e71c3$0$2727::entry`, statement 1
-pass/facts/source_indexed_binary_tree_through_local_exit incomplete 5225ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`main` calls `open_total$specialized$3cb8c7f9042e71c3$0$2725`; `open_total$specialized$3cb8c7f9042e71c3$0$2725` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$3cb8c7f9042e71c3$0$2725::entry`, statement 1
-pass/facts/source_indexed_binary_tree_through_match_join_exit incomplete 5227ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`open_total$specialized$3cb8c7f9042e71c3$0$2728` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$3cb8c7f9042e71c3$0$2728::entry`, statement 1
-pass/facts/source_indexed_binary_tree_through_other_machine_exit incomplete 5222ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`open_total$specialized$3cb8c7f9042e71c3$0$2728` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$3cb8c7f9042e71c3$0$2728::entry`, statement 1
-pass/facts/source_indexed_binary_tree_through_other_state_exit incomplete 5207ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`open_total$specialized$3cb8c7f9042e71c3$0$2727` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$3cb8c7f9042e71c3$0$2727::entry`, statement 1
-pass/facts/source_indexed_binary_tree_through_parameter_exit rejected 10293ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @7eee0bd20c4b
-	`bounded$specialized$a22af55a4841a587$0$2724` calls `tree_bound$specialized$85645057e69f0f93$0$2718`; `tree_bound$specialized$85645057e69f0f93$0$2718` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural call binding)); in state `tree_bound$specialized$85645057e69f0f93$0$2718::entry`, statement 0
-	inspection main admission: [Diagnostic { severity: Error, message: "`bounded$specialized$a22af55a4841a587$0$2724` calls `tree_bound$specialized$85645057e69f0f93$0$2718`; `tree_bound$specialized$85645057e69f0f93$0$2718` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural call binding)); in state `tree_bound$specialized$85645057e69f0f93$0$2718::entry`, statement 0", exceeded_provision: Some(ExceededProvision { resource: "coverage_statement_forms", limit: 0, requested: 1, coordinate: 828 }), source_span: Some(SourceSpan { source_id: SourceId(25), span: Span { start: 828, end: 836 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_binary_tree_parameter"), path: "tests/omega/pass/facts/source_indexed_binary_tree_through_parameter_exit/main.omg", line: 15, column: 16 }) }]
-pass/facts/source_indexed_binary_tree_through_target_body_exit incomplete 5351ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`open_total$specialized$3cb8c7f9042e71c3$0$2763` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$3cb8c7f9042e71c3$0$2763::entry`, statement 1
-pass/facts/source_indexed_family rejected 3124ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @7eee0bd20c4b
-	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects
-	inspection main admission: [Diagnostic { severity: Error, message: "machine `main` state `entry` statement 2: stored call has no complete statement-successor effects", exceeded_provision: None, source_span: None, resolved_location: None }]
-pass/facts/source_indexed_family_alpha_positive rejected 1495ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects
-pass/facts/source_indexed_family_capture_roster_positive rejected 1653ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	machine `main` state `entry` statement 4: stored call has no complete statement-successor effects
-pass/facts/source_indexed_family_forwarded_parameter_exit rejected 9626ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @7eee0bd20c4b
-	`bounded$specialized$a22af55a4841a587$0$2719` calls `vector_bound$specialized$a212890a0bf267ce$0$2713`; `vector_bound$specialized$a212890a0bf267ce$0$2713` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural call binding)); in state `vector_bound$specialized$a212890a0bf267ce$0$2713::entry`, statement 0
-	inspection main admission: [Diagnostic { severity: Error, message: "`bounded$specialized$a22af55a4841a587$0$2719` calls `vector_bound$specialized$a212890a0bf267ce$0$2713`; `vector_bound$specialized$a212890a0bf267ce$0$2713` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural call binding)); in state `vector_bound$specialized$a212890a0bf267ce$0$2713::entry`, statement 0", exceeded_provision: Some(ExceededProvision { resource: "coverage_statement_forms", limit: 0, requested: 1, coordinate: 964 }), source_span: Some(SourceSpan { source_id: SourceId(25), span: Span { start: 964, end: 972 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_family_forwarded_parameter_exit/main.omg", line: 19, column: 16 }) }]
-pass/facts/source_indexed_family_open_constructor_exit incomplete 5253ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`main` calls `consume_open$specialized$acf1fac6f1a0bdf5$0$2714`; `consume_open$specialized$acf1fac6f1a0bdf5$0$2714` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `consume_open$specialized$acf1fac6f1a0bdf5$0$2714::entry`, statement 1
-pass/facts/source_indexed_family_recursive_index_positive rejected 1745ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	machine `main` state `entry` statement 4: stored call has no complete statement-successor effects
-pass/facts/source_indexed_family_through_call_result_exit incomplete 4668ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`open_total$specialized$126450add920ba7b$0$2716` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$126450add920ba7b$0$2716::entry`, statement 1
-pass/facts/source_indexed_family_through_const_name_exit incomplete 5232ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`main` calls `open_total$specialized$126450add920ba7b$0$2716`; `open_total$specialized$126450add920ba7b$0$2716` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$126450add920ba7b$0$2716::entry`, statement 1
-pass/facts/source_indexed_family_through_field_exit incomplete 4965ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`open_total$specialized$126450add920ba7b$0$2717` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$126450add920ba7b$0$2717::entry`, statement 1
-pass/facts/source_indexed_family_through_local_exit incomplete 5422ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`main` calls `open_total$specialized$126450add920ba7b$0$2715`; `open_total$specialized$126450add920ba7b$0$2715` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$126450add920ba7b$0$2715::entry`, statement 1
-pass/facts/source_indexed_family_through_match_join_exit incomplete 5349ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`open_total$specialized$126450add920ba7b$0$2718` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$126450add920ba7b$0$2718::entry`, statement 1
-pass/facts/source_indexed_family_through_other_machine_exit incomplete 4801ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`open_total$specialized$126450add920ba7b$0$2718` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$126450add920ba7b$0$2718::entry`, statement 1
-pass/facts/source_indexed_family_through_other_state_exit incomplete 4649ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`open_total$specialized$126450add920ba7b$0$2717` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$126450add920ba7b$0$2717::entry`, statement 1
-pass/facts/source_indexed_family_through_parameter_exit rejected 10124ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @7eee0bd20c4b
-	`bounded$specialized$a22af55a4841a587$0$2714` calls `vector_bound$specialized$a212890a0bf267ce$0$2708`; `vector_bound$specialized$a212890a0bf267ce$0$2708` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural call binding)); in state `vector_bound$specialized$a212890a0bf267ce$0$2708::entry`, statement 0
-	inspection main admission: [Diagnostic { severity: Error, message: "`bounded$specialized$a22af55a4841a587$0$2714` calls `vector_bound$specialized$a212890a0bf267ce$0$2708`; `vector_bound$specialized$a212890a0bf267ce$0$2708` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural call binding)); in state `vector_bound$specialized$a212890a0bf267ce$0$2708::entry`, statement 0", exceeded_provision: Some(ExceededProvision { resource: "coverage_statement_forms", limit: 0, requested: 1, coordinate: 964 }), source_span: Some(SourceSpan { source_id: SourceId(25), span: Span { start: 964, end: 972 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_family_through_parameter_exit/main.omg", line: 19, column: 16 }) }]
-pass/facts/source_indexed_family_through_target_body_exit incomplete 4597ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	`open_total$specialized$126450add920ba7b$0$2748` has no executable body: this compiler does not lower a call of it yet (call operation: erased proof arguments); in state `open_total$specialized$126450add920ba7b$0$2748::entry`, statement 1
-pass/facts/source_indexed_type_parameter_exit rejected 3414ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @7eee0bd20c4b
-	machine `vector_bound$specialized$7f89551ab0433d47$0$2705` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)
-	inspection main admission: [Diagnostic { severity: Error, message: "machine `vector_bound$specialized$7f89551ab0433d47$0$2705` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(25), span: Span { start: 814, end: 816 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_type_parameter_baseline"), path: "tests/omega/pass/facts/source_indexed_type_parameter_exit/main.omg", line: 17, column: 28 }) }]
-pass/facts/source_indexed_type_parameter_through_call_result_exit rejected 1701ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	machine `vector_bound$specialized$7f89551ab0433d47$0$2717` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)
-pass/facts/source_indexed_type_parameter_through_const_name_exit rejected 1702ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	machine `vector_bound$specialized$7f89551ab0433d47$0$2717` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)
-pass/facts/source_indexed_type_parameter_through_field_exit rejected 1713ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	machine `vector_bound$specialized$7f89551ab0433d47$0$2718` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)
-pass/facts/source_indexed_type_parameter_through_local_exit rejected 1652ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	machine `vector_bound$specialized$7f89551ab0433d47$0$2716` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)
-pass/facts/source_indexed_type_parameter_through_match_join_exit rejected 3376ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @7eee0bd20c4b
-	machine `vector_bound$specialized$7f89551ab0433d47$0$2719` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)
-	inspection main admission: [Diagnostic { severity: Error, message: "machine `vector_bound$specialized$7f89551ab0433d47$0$2719` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(25), span: Span { start: 966, end: 968 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_type_parameter_through_match_join_exit/main.omg", line: 19, column: 28 }) }]
-pass/facts/source_indexed_type_parameter_through_other_machine_exit rejected 1673ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	machine `vector_bound$specialized$7f89551ab0433d47$0$2719` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)
-pass/facts/source_indexed_type_parameter_through_other_state_exit rejected 1692ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	machine `vector_bound$specialized$7f89551ab0433d47$0$2718` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)
-pass/facts/source_indexed_type_parameter_through_parameter_exit rejected 3537ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @7eee0bd20c4b
-	machine `vector_bound$specialized$7f89551ab0433d47$0$2718` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)
-	inspection main admission: [Diagnostic { severity: Error, message: "machine `vector_bound$specialized$7f89551ab0433d47$0$2718` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(25), span: Span { start: 966, end: 968 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_type_parameter_through_parameter_exit/main.omg", line: 19, column: 28 }) }]
-pass/facts/source_indexed_type_parameter_through_target_body_exit rejected 1699ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	machine `vector_bound$specialized$7f89551ab0433d47$0$2749` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)
-pass/facts/source_indexed_type_parameter_u64_payload_exit rejected 1645ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7eee0bd20c4b
-	machine `vector_bound$specialized$8f1e221890b958c4$0$2705` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)
+pass/facts/source_indexed_binary_tree_distinct_exit rejected 1407ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `joined` state `joined::entry`
+	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `joined` state `joined::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 1944, end: 1951 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_binary_tree_distinct"), path: "tests/omega/pass/facts/source_indexed_binary_tree_distinct_exit/main.omg", line: 39, column: 5 }) }]
+pass/facts/source_indexed_binary_tree_empty_children_exit rejected 810ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `joined` state `joined::entry`
+pass/facts/source_indexed_binary_tree_irrelevant_scalar_scope_exit rejected 1594ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`
+	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2985, end: 2995 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_binary_tree_match_join"), path: "tests/omega/pass/facts/source_indexed_binary_tree_irrelevant_scalar_scope_exit/main.omg", line: 60, column: 22 }) }]
+pass/facts/source_indexed_binary_tree_through_call_result_exit rejected 679ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced` state `produced::entry`
+pass/facts/source_indexed_binary_tree_through_const_name_exit rejected 597ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_binary_tree_through_field_exit rejected 576ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_binary_tree_through_local_exit rejected 876ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_binary_tree_through_match_join_exit rejected 584ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`
+pass/facts/source_indexed_binary_tree_through_other_machine_exit rejected 692ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_binary_tree_through_other_state_exit rejected 563ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_binary_tree_through_parameter_exit rejected 1279ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
+	generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2944, end: 2961 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_binary_tree_parameter"), path: "tests/omega/pass/facts/source_indexed_binary_tree_through_parameter_exit/main.omg", line: 58, column: 26 }) }]
+pass/facts/source_indexed_binary_tree_through_target_body_exit rejected 678ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced::windows_x86_64` state `produced::windows_x86_64::entry`
+pass/facts/source_indexed_family rejected 1493ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 1765, end: 1772 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_family/main.omg", line: 40, column: 23 }) }]
+pass/facts/source_indexed_family_alpha_positive rejected 828ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `consume` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_family_capture_roster_positive rejected 611ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_family_forwarded_parameter_exit rejected 1438ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
+	generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2309, end: 2326 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_family_forwarded_parameter_exit/main.omg", line: 55, column: 26 }) }]
+pass/facts/source_indexed_family_open_constructor_exit rejected 696ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `consume_open` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_family_recursive_index_positive rejected 627ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_family_through_call_result_exit rejected 593ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced` state `produced::entry`
+pass/facts/source_indexed_family_through_const_name_exit rejected 930ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_family_through_field_exit rejected 589ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_family_through_local_exit rejected 693ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_family_through_match_join_exit rejected 770ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`
+pass/facts/source_indexed_family_through_other_machine_exit rejected 597ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_family_through_other_state_exit rejected 612ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_family_through_parameter_exit rejected 1732ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
+	generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2145, end: 2162 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_family_through_parameter_exit/main.omg", line: 50, column: 26 }) }]
+pass/facts/source_indexed_family_through_target_body_exit rejected 928ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced::windows_x86_64` state `produced::windows_x86_64::entry`
+pass/facts/source_indexed_type_parameter_exit rejected 1687ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 1719, end: 1726 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_type_parameter_baseline"), path: "tests/omega/pass/facts/source_indexed_type_parameter_exit/main.omg", line: 38, column: 23 }) }]
+pass/facts/source_indexed_type_parameter_through_call_result_exit rejected 1101ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced` state `produced::entry`
+pass/facts/source_indexed_type_parameter_through_const_name_exit rejected 774ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_type_parameter_through_field_exit rejected 675ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_type_parameter_through_local_exit rejected 740ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_type_parameter_through_match_join_exit rejected 1630ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`
+	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2244, end: 2254 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_type_parameter_through_match_join_exit/main.omg", line: 51, column: 43 }) }]
+pass/facts/source_indexed_type_parameter_through_other_machine_exit rejected 718ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_type_parameter_through_other_state_exit rejected 1202ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_type_parameter_through_parameter_exit rejected 1495ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
+	generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2183, end: 2200 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_type_parameter_through_parameter_exit/main.omg", line: 49, column: 26 }) }]
+pass/facts/source_indexed_type_parameter_through_target_body_exit rejected 735ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced::windows_x86_64` state `produced::windows_x86_64::entry`
+pass/facts/source_indexed_type_parameter_u64_payload_exit rejected 761ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 pass/facts/sret_aggregate_return_bound_through_call_result_exit checked 6236ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/sret_aggregate_return_bound_through_const_name_exit checked 6200ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/sret_aggregate_return_bound_through_field_exit checked 7333ms check-target:macos_arm64 @911f6617ba9e
