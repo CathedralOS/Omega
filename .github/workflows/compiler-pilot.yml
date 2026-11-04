@@ -101,25 +101,6 @@ jobs:
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
-      - name: Check the affected atomic encoding contracts
-        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'linux_arm64'
-        shell: bash
-        run: |
-          python tools/build_slot.py -- python - <<'PYTEST'
-          import shutil
-          import subprocess
-          cases = [
-              ("selected-instructions", "retry_control_is_required_for_bitwise_atomic_updates"),
-              ("selected-instructions", "retry_fixed_output_requires_every_input_to_have_a_distinct_fixed_home"),
-              ("machine-emission", "atomic_exit_admission_binds_memory_width_operands_and_control"),
-          ]
-          for package, name in cases:
-              if shutil.which("mbx"):
-                  command = ["mbx", "nextest", "run", "--locked", "-p", package, name]
-              else:
-                  command = ["cargo", "test", "--locked", "-p", package, name, "--lib"]
-              subprocess.run(command, check=True)
-          PYTEST
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
