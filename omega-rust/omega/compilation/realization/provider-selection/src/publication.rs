@@ -324,6 +324,23 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
         demand: ProviderApplicationDemand<'_>,
         assumed_bindings: &[effects::AssumedBindingContractSelection],
     ) -> Result<SelectedTargetProviders<Owner, Origin>, Vec<Diagnostic>> {
+        let debug = std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some();
+        if debug {
+            for (kind, choices) in [
+                ("default", &self.defaults[..]),
+                ("override", &self.overrides[..]),
+            ] {
+                for choice in choices {
+                    eprintln!(
+                        "[prov] target-choice kind={kind} target={:?} subject={:?} provider={:?} composition={:?}",
+                        choice.target,
+                        choice.subject,
+                        choice.provider_type,
+                        choice.composition_mode
+                    );
+                }
+            }
+        }
         let mut demanded = vec![false; self.candidates.len()];
         let mut previous = describe_selection::<Owner, Origin>(&[], artifact, assumed_bindings)?;
         loop {
@@ -368,7 +385,36 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                     (&invocation_defaults[..], &invocation_overrides[..])
                 }
             };
-            let selected = crate::choose(candidates, self.profile, defaults, overrides)?;
+            let selected = match crate::choose(candidates, self.profile, defaults, overrides) {
+                Ok(selected) => selected,
+                Err(diagnostics) => {
+                    if debug {
+                        eprintln!(
+                            "[prov] target-choice-refused target={} diagnostics={diagnostics:?}",
+                            self.profile.target_name()
+                        );
+                    }
+                    return Err(diagnostics);
+                }
+            };
+            if debug {
+                for choice in &selected {
+                    let selected_by = match &choice.selected_by {
+                        crate::SelectionProvenance::BuildOverride(_) => "build-override",
+                        crate::SelectionProvenance::TargetDefault(_) => "target-default",
+                        crate::SelectionProvenance::UniqueCoveringCandidate => {
+                            "unique-covering-candidate"
+                        }
+                        crate::SelectionProvenance::NativeBuild => "native-build",
+                    };
+                    eprintln!(
+                        "[prov] target-chosen target={} plan={} provider={} selected_by={selected_by}",
+                        self.profile.target_name(),
+                        choice.candidate.plan.name,
+                        choice.candidate.plan.provider_type
+                    );
+                }
+            }
             let proposed = describe_selection(&selected, artifact, assumed_bindings)?;
             if proposed == previous {
                 // Intermediate choices discover calls, not evidence. Admit the
@@ -481,6 +527,36 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                 roots.as_deref().unwrap_or_default(),
             ),
         };
+        let debug = std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some();
+        if debug {
+            eprintln!(
+                "[prov] application-demand-roots target={} roots={roots:?} reachable_machines={:?} reachable_calls={:?}",
+                self.profile.target_name(),
+                reachable.machines,
+                reachable.calls
+            );
+            for application in &module.boundary_application_demands {
+                let operation = application.terminal_operation();
+                let machine = module.machines.iter().find(|machine| {
+                    machine
+                        .operations()
+                        .any(|candidate| candidate.id == operation)
+                });
+                let declaration = machine.and_then(|machine| {
+                    scope.callable_declaration(terminal_psi::TargetMachineCallable::Machine(
+                        machine.id,
+                    ))
+                });
+                let reached = declaration.is_some_and(|owner| reachable.machines.contains(&owner));
+                let requirement = application.requirement();
+                eprintln!(
+                    "[prov] application-demand target={} operation={operation:?} owner_machine={:?} owner_declaration={declaration:?} reachable={reached} requirement_owner={:?} requirement={requirement:?}",
+                    self.profile.target_name(),
+                    machine.map(|machine| machine.id),
+                    module.identities.text(requirement.declaration().identity())
+                );
+            }
+        }
         let mut calls = reachable.calls;
         calls.sort_unstable();
         let mut invoked_owners = module
@@ -554,6 +630,27 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
             // Merely declaring an unused descendant cannot create another
             // demanded slot. Only an authored whole map may supply an invoked
             // ancestor without an invocation of its own root requirement.
+            if debug {
+                eprintln!(
+                    "[prov] candidate-demand target={} plan={} provider={} schema_owner={} root_invoked={} explicitly_selected={} authored_map_demanded={} previously_demanded={} default_matches={} override_matches={}",
+                    self.profile.target_name(),
+                    candidate.choice.plan.name,
+                    candidate.choice.plan.provider_type,
+                    candidate.schema_owner,
+                    root_invoked,
+                    candidate.explicitly_selected,
+                    authored_map_demanded,
+                    *demanded,
+                    self.defaults
+                        .iter()
+                        .filter(|choice| candidate.accepts_choice(choice))
+                        .count(),
+                    self.overrides
+                        .iter()
+                        .filter(|choice| candidate.accepts_choice(choice))
+                        .count()
+                );
+            }
             *demanded |= root_invoked || authored_map_demanded;
         }
         Ok(calls)
