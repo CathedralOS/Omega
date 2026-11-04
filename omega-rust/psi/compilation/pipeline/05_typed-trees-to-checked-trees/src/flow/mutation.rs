@@ -457,7 +457,10 @@ fn shared_call_storage_regions(
     let frame = match &site {
         CallSite::Statement(call) => resolver.may_write_frame(machine, call),
         CallSite::Expression { expression, .. } => {
-            resolver.expression_write_frame(machine, *expression)
+            // The arguments have already run. Use their captured origins;
+            // the whole-expression query also fences replacement of the old
+            // slots and includes effects of completed argument calls.
+            resolver.operation_write_frame(machine, *expression)
         }
         CallSite::TransitionNamed { .. } => return None,
     };

@@ -1482,7 +1482,7 @@ impl<'program> CallFrameResolver<'program> {
     /// The effect at operation completion. Operands have already executed in
     /// the proof observer; callers that have not walked them need the complete
     /// expression frame instead. Unknown chronological origins remain opaque.
-    pub(crate) fn operation_write_frame(
+    pub fn operation_write_frame(
         &self,
         current_machine: &'program Machine,
         expression: ExpressionHandle,
