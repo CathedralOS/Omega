@@ -501,8 +501,17 @@ impl Evaluation {
                     } => facts::PlaceRoot::Expression(expression),
                     _ => return unsupported("value storage source has no storage identity"),
                 };
-                let local = structural_local_by_root(&self.structural_locals, root).ok_or(
-                    LoweringError::Unsupported("value storage local is not established"),
+                let local = structural_local_by_root(&self.structural_locals, root).ok_or_else(
+                    || {
+                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                            eprintln!(
+                                "CHECKSITE value-storage-missing source={source:?} local_count={} local_roots={:?}",
+                                self.structural_locals.len(),
+                                self.structural_locals.iter().take(16).map(|local| local.root).collect::<Vec<_>>(),
+                            );
+                        }
+                        LoweringError::Unsupported("value storage local is not established")
+                    },
                 )?;
                 StructuralValueStorage {
                     place: local.argument.place,
@@ -987,6 +996,17 @@ impl Evaluation {
     /// Remove a retired physical occurrence from current source and transport
     /// rosters. Historical declarations and shared type geometry stay intact.
     pub(crate) fn retire_structural_home(&mut self, place: PlaceId) {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE structural-home-retired place={place:?} local_roots={:?}",
+                self.structural_locals
+                    .iter()
+                    .filter(|local| local.argument.place == place)
+                    .take(16)
+                    .map(|local| local.root)
+                    .collect::<Vec<_>>(),
+            );
+        }
         self.retire_structural_sources(place);
         for binding in self
             .retired_structural_bindings
