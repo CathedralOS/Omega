@@ -190,11 +190,12 @@ pub(super) struct FlowBuildContext<'plans> {
     /// possible incoming selectors. Only a completed value can select a row.
     pub(super) dynamic_conformances: Option<std::sync::Arc<checked_trees::DynamicConformanceFacts>>,
     pub(super) state_value_inputs: Vec<super::state_values::StateValues>,
-    /// Symbol to `state_value_inputs` position. Rows are only appended or
-    /// wholesale replaced, never removed or reordered, so the map stays exact
-    /// between sweeps and turns per-call reachability and join lookups from
-    /// roster scans into single probes.
-    reached_state_positions: HashMap<SymbolHandle, usize>,
+    /// Symbol to `state_value_inputs` position, indexed by the state symbol's
+    /// arena position. Rows are only appended or wholesale replaced, never
+    /// removed or reordered, so the table stays exact between sweeps and
+    /// turns per-call reachability and join lookups from roster scans into
+    /// single probes.
+    reached_state_positions: Vec<(SymbolHandle, usize)>,
     pub(super) dirty_state_value_inputs: Vec<SymbolHandle>,
     pub(super) new_state_field_input_height: usize,
     pub(super) state_mutation_summary_cache: &'plans StateMutationSummaryCache,
@@ -361,7 +362,7 @@ impl<'plans> FlowBuildContext<'plans> {
             shared_tables,
             dynamic_conformances,
             state_value_inputs: Vec::new(),
-            reached_state_positions: HashMap::default(),
+            reached_state_positions: Vec::new(),
             dirty_state_value_inputs: Vec::new(),
             new_state_field_input_height: 0,
             call_sites: HashMap::default(),
@@ -450,7 +451,10 @@ impl<'plans> FlowBuildContext<'plans> {
 
     /// `state_value_inputs` position of a reached state, if it has a row.
     pub(super) fn reached_state_index(&self, state: SymbolHandle) -> Option<usize> {
-        self.reached_state_positions.get(&state).copied()
+        let (stored, index) = self
+            .reached_state_positions
+            .get(state.arena_index() as usize)?;
+        (state.is_valid() && *stored == state).then_some(*index)
     }
 
     /// Append one reached-state input row and index it.
@@ -458,10 +462,15 @@ impl<'plans> FlowBuildContext<'plans> {
         &mut self,
         input: super::state_values::StateValues,
     ) -> usize {
-        self.reached_state_positions
-            .insert(input.state, self.state_value_inputs.len());
+        let slot = self.state_value_inputs.len();
+        let idx = input.state.arena_index() as usize;
+        if self.reached_state_positions.len() <= idx {
+            self.reached_state_positions
+                .resize(idx + 1, (SymbolHandle::invalid(), 0));
+        }
+        self.reached_state_positions[idx] = (input.state, slot);
         self.state_value_inputs.push(input);
-        self.state_value_inputs.len() - 1
+        slot
     }
 
     /// Wholesale replacement for the nonconvergent fallback: rebuild the
@@ -470,11 +479,15 @@ impl<'plans> FlowBuildContext<'plans> {
         &mut self,
         inputs: Vec<super::state_values::StateValues>,
     ) {
-        self.reached_state_positions = inputs
-            .iter()
-            .enumerate()
-            .map(|(index, input)| (input.state, index))
-            .collect();
+        self.reached_state_positions.clear();
+        for (index, input) in inputs.iter().enumerate() {
+            let idx = input.state.arena_index() as usize;
+            if self.reached_state_positions.len() <= idx {
+                self.reached_state_positions
+                    .resize(idx + 1, (SymbolHandle::invalid(), 0));
+            }
+            self.reached_state_positions[idx] = (input.state, index);
+        }
         self.state_value_inputs = inputs;
     }
 
