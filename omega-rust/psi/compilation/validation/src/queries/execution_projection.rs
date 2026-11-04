@@ -342,11 +342,13 @@ fn project_declarations(
             .collect::<Vec<_>>();
         program.roots.machines = program.tables.machines.insert_many(machines);
 
-        // Generated declarations may lack a location or retain their template's
-        // location. Exact inbound references carry their work ownership.
+        // Calls can retain their exact candidate set before a target is bound.
+        // Look up those candidates in the original declaration owner while only
+        // the projected roots own work. Looking in the pruned roster would lose
+        // a described declaration before an ordinary call can restore it.
         let references = collect_program_references_with_roles(
-            &program,
-            &DeclarationSelection::all(),
+            original.typed_program(),
+            &DeclarationSelection::from_program(&program),
             classify_static_arguments,
         );
         let before = synthesized.len();
