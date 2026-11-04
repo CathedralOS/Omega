@@ -113,7 +113,8 @@ def observe(root, producer, fixture, output):
         inputs[relative] = hashlib.sha256(source.read_bytes()).hexdigest()
     record = dict(fixture=fixture, target=producer.target, producer=producer.record(),
                   expected_exit=expected, passed=False, inputs=inputs, stages=[])
-    env = dict(os.environ, OMEGA_LIBRARY_ROOT=str(workspace / "source/library"))
+    env = dict(os.environ, OMEGA_LIBRARY_ROOT=str(workspace / "source/library"),
+               OMEGA_COMPILER_CHECK_SITES="1", OMEGA_CALL_WRITE_TRACE="1", OMEGA_STRUCT_TRACE="1")
     project = workspace / project_relative
 
     def verify():
