@@ -620,7 +620,10 @@ impl Evaluation {
                 .filter(|binding| binding.root == root);
             if let Some(binding) = ended.next() {
                 if ended.next().is_some() {
-                    return unsupported("cleanup source has more than one ended home");
+                    // An ambiguous receipt cannot cancel a required cleanup.
+                    // Keep the action; ordinary storage resolution must still
+                    // supply its exact home or report the missing storage.
+                    return Ok(false);
                 }
                 return Ok(binding.end == StructuralBindingEnd::RetiredHome
                     && self.retired_structural_homes.is_retired(binding.place));
