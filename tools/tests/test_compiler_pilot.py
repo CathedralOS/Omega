@@ -230,7 +230,7 @@ class CompilerPilotTests(unittest.TestCase):
         sample = "samples/cli/facts/layout/local"
         accepted = [dict(sample=sample, state="pass"),
                     dict(sample=sample + "/invalid", state="rejected", role="intended-invalid")]
-        producer = Mock(revision="a" * 40, target="linux_x86_64", cli=Path("/retained/omega"),
+        producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64", cli=Path("/retained/omega"),
                         runner=None, runner_profile=None)
         for rows, code in ((accepted, 0), ([], 0), (accepted[:1], 0),
                            ([accepted[0], accepted[0]], 0), (accepted, 1),
@@ -270,7 +270,7 @@ class CompilerPilotTests(unittest.TestCase):
         for samples, negatives in (((sample,), ()), ((sample,), (fixture,)), ((), (fixture,))):
             with self.subTest(samples=samples, negatives=negatives), tempfile.TemporaryDirectory() as temporary:
                 output = Path(temporary)
-                producer = Mock(revision="a" * 40, target="linux_x86_64", cli=output / "omega",
+                producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64", cli=output / "omega",
                                 runner=output / "runner" if negatives else None,
                                 runner_profile={"sha256": "b" * 64} if negatives else None)
                 def consume(arguments, **kwargs):
@@ -299,7 +299,7 @@ class CompilerPilotTests(unittest.TestCase):
         fixture = "pass/filesystem/write_all_full_device_exit"
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
-            producer = Mock(revision="a" * 40, target="linux_x86_64", runner=None, runner_profile=None)
+            producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64", runner=None, runner_profile=None)
             with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
                     patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
                     patch.object(pilot.corpus_gate, "host_target", return_value=producer.target), \
@@ -312,7 +312,7 @@ class CompilerPilotTests(unittest.TestCase):
             run.assert_not_called()
 
     def test_cli_only_producer_cannot_execute_corpus_fixtures(self):
-        producer = Mock(revision="a" * 40, target="linux_x86_64", runner=None, runner_profile=None)
+        producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64", runner=None, runner_profile=None)
         with tempfile.TemporaryDirectory() as temporary, \
                 patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
                 patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
@@ -448,7 +448,7 @@ class CompilerPilotTests(unittest.TestCase):
     def test_rejection_only_run_never_launches_an_empty_runtime_filter(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
-            producer = Mock(revision="a" * 40, target="linux_x86_64",
+            producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64",
                             runner_profile={"sha256": "b" * 64})
             fixture = "fail/example/intended_rejection"
             def corpus(arguments, **kwargs):
@@ -475,7 +475,7 @@ class CompilerPilotTests(unittest.TestCase):
     def test_failed_checking_still_measures_execution_and_stays_red(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
-            producer = Mock(revision="a" * 40, target="linux_x86_64",
+            producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64",
                             runner_profile={"sha256": "b" * 64})
             legs = []
             def corpus(arguments, **kwargs):
@@ -494,6 +494,41 @@ class CompilerPilotTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "oracle"):
                     pilot.execute(output, {}, producer=producer)
             self.assertEqual(legs, ["checking", "both"])
+
+    def test_failed_consumers_do_not_skip_later_ordinary_or_sample_observations(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64",
+                            runner_profile={"sha256": "b" * 64})
+            sample = "samples/cli/facts/example/local"
+            observed = []
+
+            def consume(arguments, **kwargs):
+                if "--write-results" in arguments:
+                    observed.append("sample")
+                    Path(arguments[arguments.index("--write-results") + 1]).write_text(
+                        json.dumps([dict(sample=sample, state="pass")]))
+                    return Mock(returncode=0)
+                observed.append("checking")
+                return Mock(returncode=3)
+
+            rows = [dict(fixture="pass/group/first", passed=False, error="source refusal"),
+                    dict(fixture="pass/group/second", passed=True)]
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                    patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                    patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+                    patch.object(pilot, "observation_golden", return_value=output / "golden"), \
+                    patch.object(pilot.subprocess, "run", side_effect=consume), \
+                    patch.object(pilot.ordinary_cli_fixture, "observe", side_effect=rows) as ordinary:
+                summary = {}
+                with self.assertRaisesRegex(ValueError, "source refusal"):
+                    pilot.execute(output, summary, positives=(), negatives=("fail/group/control",),
+                                  cli_fixtures=("pass/group/first", "pass/group/second"),
+                                  samples=(sample,), producer=producer)
+            self.assertEqual(ordinary.call_count, 2)
+            self.assertEqual(observed, ["checking", "sample"])
+            self.assertEqual(len(summary["consumer_errors"]), 2)
+            self.assertTrue(summary["stages"][-1]["passed"])
 
     def test_first_host_keeps_unknown_history_separate_from_other_host_results(self):
         with tempfile.TemporaryDirectory() as temporary:

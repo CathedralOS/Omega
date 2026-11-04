@@ -229,6 +229,28 @@ An unset/empty environment variable leaves the default unchanged. Pass fixtures
 run both engines with the existing numeric and stream oracles; fail fixtures
 run the existing source/rejection gate only.
 
+When only a fixture, oracle or consumer tool changes, an existing optimized
+compiler can run the new observations without another Rust build. Pass
+`fixtures=@tools/ci/qualification_plans/NAME.json` to the same workflow. The
+tracked plan owns the complete corpus, sample and ordinary CLI selection; do
+not combine it with the other selection inputs. `source_only: true` limits its
+corpus leg to checking while permitting the selected ordinary CLI and sample
+runtime consumers.
+
+The plan records the original producer commit, tree, target, toolchain,
+executable digests and optimized profiles, plus the complete compiler, SDK,
+bootstrap and build-input Git objects. These inputs must remain identical in
+the current consumer commit. The existing workflow cache supplies the bytes;
+the replay authenticates their hashes before querying their profiles, then
+keeps immutable copies. A missing or different executable refuses without a
+Cargo build fallback. Records retain the original producer revision separately
+from the current consumer revision and the originating run/cache reference.
+
+A failed fixture or oracle leaves the run red, while independent ordinary CLI
+and sample consumers still record their own outcomes. A changed source or
+executable stops the run. This preserves useful observations without treating a
+failed corpus leg as a passing qualification.
+
 ### Timing a check cold, and on a hosted runner
 
 A program that imports `omega_language_std` checks in 6.6 s on a warm
