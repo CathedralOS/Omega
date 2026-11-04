@@ -100,6 +100,12 @@ fail/build/retained_behavior_selected_trap rejected 1408ms expected @a0939f4833e
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in machine `Trapping::check` (Terminal machine 3) at crash terminator in block 3
 	the selected composition retains crash cause Trap through machine `Trapping::check` (Terminal machine 3) declared here
+fail/build/segment_selector_invalidates_descriptor rejected 33953ms expected @6270f6ed62ad
+	cannot prove requires contract for call consume_unchanged from exercise: buffers.table[3] == old_descriptor (needs fact `value == old` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/build/segment_selector_missing_machine_control rejected 29675ms expected @6270f6ed62ad
+	machine `exercise` publishes service reach `CodeSegmentControl + DataSegmentControl` but its checked body reaches undeclared service `MachineControl`
+fail/build/segment_selector_shared_gdt rejected 19614ms expected @6270f6ed62ad
+	argument `gdt` for state `reload` is declared `&mut` (`&mut [u64; 7]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/build/task_register_invalidates_descriptor rejected 51782ms expected @030ac31225e6+wt
 	cannot prove requires contract for call consume_unchanged from exercise: buffers.table[3] == old_descriptor (needs fact `value == old` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/build/task_register_missing_machine_control rejected 40841ms expected @030ac31225e6+wt
@@ -4741,6 +4747,7 @@ pass/build/same_leaf_runner_entry_left_exit rejected 973ms regressed-from:checke
 	product entry `left::Runner::run` is incompatible with slot `macos_arm64::ProgramEntry`: hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `runner`
 pass/build/same_leaf_runner_entry_right_exit rejected 771ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	product entry `right::Runner::run` is incompatible with slot `macos_arm64::ProgramEntry`: hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `runner`
+pass/build/segment_selector_reload checked 77212ms check-target:linux_x86_64 @6270f6ed62ad
 pass/build/selected_const_array_length_exit rejected 6094ms regressed-from:checked+check-target:macos_arm64 @b23365ced206+wt
 	fixed-array length `[u8; slot_count()]`: const evaluation of `slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-61` has non-hermetic source origin `User`"))
 	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-64` has non-hermetic source origin `User`"))
