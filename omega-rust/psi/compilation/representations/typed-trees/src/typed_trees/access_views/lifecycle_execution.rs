@@ -16,18 +16,36 @@ const LAYOUT_SOURCE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../../source/library/core/layout.omg"
 ));
+const RUN_SOURCE: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../source/library/core/run.omg"
+));
+
+/// The owner returned by placement. A run owns an ordered count of cells;
+/// a resident owns one value and may retain excess backing. Sharing lifecycle
+/// realization does not make their descriptor or partition rules identical.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AccessContentShape {
+    Resident,
+    Run,
+}
 
 /// Source-authenticated operation. Instantiation retains its exact template
 /// edge; no consumer infers the template by trimming a specialized name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AccessExecutionDeclaration {
     operation: AccessLifecycleOperation,
+    content: AccessContentShape,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     template: symbols::SymbolHandle,
 }
 
 impl AccessExecutionDeclaration {
+    pub const fn content(&self) -> AccessContentShape {
+        self.content
+    }
+
     pub const fn operation(&self) -> AccessLifecycleOperation {
         self.operation
     }
@@ -219,23 +237,36 @@ impl AccessExecutionDeclaration {
         else {
             return Ok(None);
         };
-        if source.origin != source::SourceOrigin::Toolchain
-            || source.package_identity.is_some()
-            || source.path.strip_prefix(&source.package_root).ok()
-                != Some(std::path::Path::new("layout.omg"))
-            || source.source.as_bytes() != LAYOUT_SOURCE
-        {
+        if source.origin != source::SourceOrigin::Toolchain || source.package_identity.is_some() {
             return Ok(None);
         }
+        let content = match source.path.strip_prefix(&source.package_root).ok() {
+            Some(path)
+                if path == std::path::Path::new("layout.omg")
+                    && source.source.as_bytes() == LAYOUT_SOURCE =>
+            {
+                AccessContentShape::Resident
+            }
+            Some(path)
+                if path == std::path::Path::new("run.omg")
+                    && source.source.as_bytes() == RUN_SOURCE =>
+            {
+                AccessContentShape::Run
+            }
+            _ => return Ok(None),
+        };
         let operation = match program
             .normalized_hermetic_symbol_identity(declaration)
             .ok()
             .as_deref()
         {
-            Some("toolchain::Access::initialize_from_profile") => {
-                AccessLifecycleOperation::Initialize
-            }
-            Some("toolchain::Access::extract_resident") => AccessLifecycleOperation::MoveOut,
+            Some(
+                "toolchain::Access::initialize_from_profile"
+                | "toolchain::Run::initialize_from_profile",
+            ) => AccessLifecycleOperation::Initialize,
+            Some(
+                "toolchain::Access::extract_resident" | "toolchain::Run::extract_from_profile",
+            ) => AccessLifecycleOperation::MoveOut,
             Some(
                 "toolchain::Access::view_from_profile" | "toolchain::Access::view_mut_from_profile",
             ) => AccessLifecycleOperation::View,
@@ -286,6 +317,7 @@ impl AccessExecutionDeclaration {
         }
         Ok(Some(Self {
             operation,
+            content,
             machine: machine.symbol,
             state: state.symbol,
             template: declaration,

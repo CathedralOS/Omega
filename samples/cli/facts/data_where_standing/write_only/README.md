@@ -1,5 +1,15 @@
 # Restore a record before returning it
 
+Each program saves `&write counter` in a local reference before passing
+it to `fill`. This exercises the same loan-location record as the mutable scalar
+reference production while retaining write-only access. These programs already
+check on optimized baseline source `2713116252386e98ce5e87961aca764f8760b217`;
+all nine now run with native and Terminal exits of zero on macOS ARM64 using
+optimized producer `cd5340c6d0348e868e34d68ee85f250c431f79ba`. Their eighteen
+controls reject for the intended reason. The
+[saved-reference report](../../../../../wiki/drafts/measurements/saved_field_reference_calls.md)
+records this execution separately from the earlier direct-call results.
+
 A helper can temporarily put a record outside its declared bounds while updating
 it. These programs set a field to 61 when the record requires at most 60, then
 restore it before returning. The compiler must accept the completed update and
@@ -77,10 +87,10 @@ Pins use `tests/omega/{pass,fail}/facts/data_where_standing_write_only_*`.
 - **Encoding and execution:** qualification observes native and Terminal exits
   on macOS ARM64. The programs declare all four hosted entry bindings.
 
-The restoration checks use the fixed baseline
+The earlier direct-call restoration checks used the fixed baseline
 `3bcdc2d9e3b81ab4af705b8c14d04a6f4021a8dd` and the verified optimized compiler
 from `c5cc3d8749224ed1a76fa7abad1707dfd9f5dd1d`; their compiler and library inputs
-are identical. All nine programs wrongly failed on return despite the restoring
+were identical. All nine earlier direct-call programs wrongly failed on return despite the restoring
 store. The flat mutable and write-only controls failed immediately on storing
 61. Frozen inputs and raw results are retained in the
 [qualification evidence](https://github.com/CathedralOS/Omega/tree/b0a0e03ebb6f31884c1527a9d5e319283646c5f2). These baseline refusals demonstrate the defects.
@@ -119,8 +129,9 @@ performs the same temporary write through an array-backed view. Its
 must reject the original owner's requirement. Nonzero neighboring elements
 check the actual write location.
 
-Fresh qualification runs all nine restored programs with native and Terminal
-exits of zero, and rejects all eighteen twins. The
+The earlier direct-call qualification ran all nine restored programs with native
+and Terminal exits of zero, and rejected all eighteen twins. Those executions
+do not establish the changed saved-local programs. The
 [record-restoration report](../../../../../wiki/drafts/measurements/record_update_restoration.md)
 records the exact producer, wider controls and evidence.
 

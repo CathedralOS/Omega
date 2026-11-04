@@ -294,6 +294,7 @@ operation_semantic_rows! {
     // function of its operands, so it states no scalar denotation.
     AtomicAccess => ("schema:operation:atomic-access", LeafDenotation, None),
     AtomicFence => ("schema:operation:atomic-fence", LeafDenotation, None),
+    GlobalDescriptorTable => ("schema:operation:global-descriptor-table", LeafDenotation, None),
 }
 
 pub fn exact_operation_semantic_row_in(

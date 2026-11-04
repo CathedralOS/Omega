@@ -72,14 +72,23 @@ impl<'program> StructuralJudge<'program> {
                 ))
             })
             .collect::<Vec<_>>();
-        crate::proof_contracts::arithmetic_domains::infer_return_interval(
+        // The recipe composes the actuals' own recipes; the interval also
+        // carries the callee's guards and requirements on every return path.
+        // Both bound the returned value.
+        let (interval, recipe) = crate::proof_contracts::arithmetic_domains::infer_return_interval(
             self.program,
             machine,
             entry,
             Some(primitive),
             &actuals,
-        )
-        .and_then(|(_, recipe)| recipe)
+        )?;
+        let bounds = interval.low.zip(interval.high).map(|(low, high)| {
+            checked_trees::IntegerRangeRecipe::bounds(BigInt::from_i64(low), BigInt::from_i64(high))
+        });
+        match (recipe, bounds) {
+            (Some(recipe), Some(bounds)) => Some(recipe.intersect(&bounds)),
+            (recipe, bounds) => recipe.or(bounds),
+        }
     }
 
     pub(super) fn capture_prepared_normal_call(
