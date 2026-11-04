@@ -20,8 +20,8 @@ machine Main::main(main: &mut Main) reaches Console {
     main.year = 2024;
 
     transition main.year % 4 == 0 && main.year % 100 != 0 || main.year % 400 == 0 {
-        true -> leap(main)
-        _ -> common(main)
+        true -> block leap(main)
+        _ -> block common(main)
     }
 
     machine leap(main: &mut Main) {

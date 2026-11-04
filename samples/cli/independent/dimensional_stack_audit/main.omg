@@ -15,13 +15,13 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("dimensional_stack_audit: profile 1..6, temperature low, temperature high (one integer per line)");
     block read_integer(&mut main.input);
     transition main.input.valid && main.input.value >= 1 && main.input.value <= 6 {
-        true -> profile(main)
+        true -> block profile(main)
         false -> invalid(main)
     }
     machine profile(main: &mut Main) {
         load(&mut main.assembly, main.input.value);
         block read_integer(&mut main.input);
-        transition main.input.valid { true -> temperature_low(main) false -> invalid(main) }
+        transition main.input.valid { true -> block temperature_low(main) false -> invalid(main) }
     }
     machine temperature_low(main: &mut Main) {
         main.assembly.temperature_low = main.input.value;
