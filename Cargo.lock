@@ -2820,6 +2820,7 @@ dependencies = [
  "checked-trees",
  "compiler-storage",
  "diagnostics",
+ "facts",
  "language-core",
  "language-semantics",
  "numerics",

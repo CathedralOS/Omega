@@ -1388,8 +1388,8 @@ defines the complete product bar.
     placement/allocator contracts with runtime observation, exact location
     validity across view replacement, offsets and moved backing, and admitted
     interpreted geometry for such locations; `ensures` clauses, trait
-    requirement contracts, and contract queries over a field path or a slice
-    (all currently rejected).
+    requirement contracts, and contract queries over a slice (all currently
+    rejected).
   - Complete remaining flag-producing instructions, remaining AArch64 register
     views, and checked hardware-effect retirement of exact linear obligations on
     every normal exit (assembly body contracts and label `ensures` are proof goals, never
