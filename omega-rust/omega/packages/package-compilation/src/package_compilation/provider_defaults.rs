@@ -130,9 +130,7 @@ impl CompletedProviderDefaults {
             }
         }
         for file in typed.symbols.source_files() {
-            if crate::source::source_assembly::is_build_prelude_source(file)
-                && file.package_root == capture.canonical_live_root()
-            {
+            if crate::source::source_assembly::is_build_prelude_source(file)? {
                 continue;
             }
             // A helper read outside core would not belong to the observation's
@@ -493,9 +491,16 @@ fn admit_toolchain_source(
         || original.resolution_stratum != SourceResolutionStratum::Base
         || original.package_root != original_capture.canonical_live_root()
     {
-        return Err(refuse(
-            "toolchain defaults require original, nongenerated core source custody",
-        ));
+        return Err(refuse(&format!(
+            "default provider source `{}` is not an original file of the captured core: origin {:?}, package {:?}, checking context {:?}, source kind {:?}, owner `{}`, expected owner `{}`",
+            original.path.display(),
+            original.origin,
+            original.package_identity,
+            original.dependency_scope,
+            original.resolution_stratum,
+            original.package_root.display(),
+            original_capture.canonical_live_root().display(),
+        )));
     }
     let relative = original
         .path
