@@ -113,6 +113,7 @@ pub(in crate::unit::attached_unit) fn emit(
             shared.prepared_scalar_qualifications.catalog(),
         )
         .with_callable_namespace(
+            shared.service_ids,
             shared.boundary_parameters,
             shared.domain_ids,
             shared.domain_declarations,

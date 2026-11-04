@@ -605,7 +605,7 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
                 ) else {
                     continue;
                 };
-                let projected = outcome.judge.completed_value_identity(projected);
+                let projected = outcome.judge.completed_call_result_projection(projected);
                 projection.sources = CompletedSources {
                     program,
                     judge: &outcome.judge,

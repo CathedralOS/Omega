@@ -12,6 +12,55 @@ use crate::proof_contracts::contract_entailment::specification_calls::{
 };
 use crate::proof_contracts::contract_entailment::structural_judgment::normal_returns::OperationOperandDemand;
 
+/// A refuted arm excludes its complete target, including nested call operands.
+/// The ordinary occurrence owner separates that target from the live guard
+/// and sibling arm; source order and spelling supply no absence evidence.
+pub(super) fn exclude_target_calls(
+    program: &dyn crate::CheckingInput,
+    invocation: &Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    target: typed_trees::statement::TransitionTargetHandle,
+    visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
+) {
+    if !target.is_valid() {
+        return;
+    }
+    for (ordinal, site) in crate::machine_calls::calls::collect_call_sites_in_statement(
+        program,
+        invocation,
+        state,
+        statement_index,
+    )
+    .into_iter()
+    .enumerate()
+    {
+        if crate::transition_call_target(program, invocation, state, statement_index, ordinal)
+            != Some(target)
+        {
+            continue;
+        }
+        let Some(SelectedCallContract::Concrete(_, entry)) =
+            selected_call_site_contract(program, invocation.symbol, site)
+        else {
+            continue;
+        };
+        let expression = match site {
+            crate::CallSite::Expression { expression, .. } => Some(expression),
+            _ => None,
+        };
+        for visitor in visitors.iter_mut() {
+            visitor.excluded_body(
+                state.symbol,
+                statement_index,
+                expression,
+                target,
+                entry.symbol,
+            );
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn observe_statement<'program>(
     program: &'program dyn crate::CheckingInput,
@@ -48,12 +97,15 @@ pub(super) fn observe_statement<'program>(
     if active.is_empty() {
         return Some(());
     }
-    for site in crate::machine_calls::calls::collect_call_sites_in_statement(
+    for (ordinal, site) in crate::machine_calls::calls::collect_call_sites_in_statement(
         program,
         invocation,
         state,
         statement_index,
-    ) {
+    )
+    .into_iter()
+    .enumerate()
+    {
         let Some(SelectedCallContract::Concrete(callee, entry)) =
             selected_call_site_contract(program, invocation.symbol, site)
         else {
@@ -126,7 +178,20 @@ pub(super) fn observe_statement<'program>(
                 (invocation, state, state.return_type),
             )?;
             for member in eligible.iter_mut() {
-                member.entered_body(state.symbol, statement_index, expression, entry.symbol);
+                member.entered_body(
+                    state.symbol,
+                    statement_index,
+                    expression,
+                    crate::transition_call_target(
+                        program,
+                        invocation,
+                        state,
+                        statement_index,
+                        ordinal,
+                    )
+                    .unwrap_or_default(),
+                    entry.symbol,
+                );
             }
             recognize_structural_state_leaves(
                 program,

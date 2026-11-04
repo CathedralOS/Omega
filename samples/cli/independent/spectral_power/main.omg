@@ -22,13 +22,13 @@ machine Application::main(application: &mut Application) reaches Console crashes
     let window: Number = block number(&mut application.reader);
     let length: Number = block number(&mut application.reader);
     transition sampling.valid && gain.valid && offset.valid && size.valid && overlap.valid && window.valid && length.valid {
-        true -> options(application, sampling.value, gain.value, offset.value, size.value, overlap.value, window.value, length.value)
+        true -> block options(application, sampling.value, gain.value, offset.value, size.value, overlap.value, window.value, length.value)
         _ -> invalid(application)
     }
     machine invalid(application: &mut Application) { Console::write_line("ERROR input or options"); Console::exit_process(10); }
     machine options(application: &mut Application, sampling: f64, gain: f64, offset: f64, size: f64, overlap: f64, window: f64, length: f64) {
         transition sampling > 0.0 && gain > 0.0 && gain <= 10000.0 && (size == 8.0 || size == 16.0 || size == 32.0 || size == 64.0) && overlap >= 0.0 && overlap < size && (window == 0.0 || window == 1.0) && length >= size && length <= 64.0 {
-            true -> configure(application, sampling, gain, offset, size, overlap, window, length)
+            true -> block configure(application, sampling, gain, offset, size, overlap, window, length)
             _ -> invalid(application)
         }
     }
@@ -45,19 +45,19 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.window = converted_window as i32;
         application.length = converted_length as i32 in Wrapping;
         application.index = 0;
-        transition { _ -> read(application) }
+        transition { _ -> block read(application) }
     }
     machine read(application: &mut Application) {
-        transition application.index < application.length && application.index >= 0 && application.index < 64 { true -> sample(application) _ -> finish(application) }
+        transition application.index < application.length && application.index >= 0 && application.index < 64 { true -> block sample(application) _ -> block finish(application) }
     }
     machine sample(application: &mut Application) {
         let value: Number = block number(&mut application.reader);
-        transition value.valid { true -> store(application, value.value) _ -> invalid(application) }
+        transition value.valid { true -> block store(application, value.value) _ -> invalid(application) }
     }
     machine store(application: &mut Application, value: f64) {
         application.samples[application.index] = value * 0.001 * application.gain + application.offset;
         application.index = application.index + 1;
-        transition { _ -> read(application) }
+        transition { _ -> block read(application) }
     }
     machine finish(application: &mut Application) {
         let complete: bool = block ended(&mut application.reader);

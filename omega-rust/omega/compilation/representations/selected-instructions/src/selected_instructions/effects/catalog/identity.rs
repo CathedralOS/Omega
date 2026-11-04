@@ -45,7 +45,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v38\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v40\0");
     bytes.extend_from_slice(&catalog.target.identity_bytes());
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -117,6 +117,8 @@ pub fn machine_effect_catalog_identity(
             crate::MachineMemoryEffect::PrivateCallbackMaterializationV1 => 17,
             crate::MachineMemoryEffect::AtomicPointerV1 => 8,
             crate::MachineMemoryEffect::TemporaryStackStorageV1 => 9,
+            crate::MachineMemoryEffect::TaskRegisterActivationV1 => 18,
+            crate::MachineMemoryEffect::SegmentDescriptorReloadV1 => 19,
             crate::MachineMemoryEffect::NoneV1 => 0,
             crate::MachineMemoryEffect::ReadPointerV1 => 1,
             crate::MachineMemoryEffect::HostedReadByteV1 => 5,
@@ -371,6 +373,44 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
             bytes.identity_bytes(&count_operand.to_le_bytes());
         }
         MachineEncodedMemoryEffect::NoneV1 => bytes.identity_bytes(&[0]),
+        MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
+            table_pointer_operand,
+            table_byte_count_operand,
+            task_pointer_operand,
+            selector_operand,
+            scratch_pointer_operand,
+            stack_pointer,
+        } => {
+            bytes.identity_bytes(&[22]);
+            for operand in [
+                table_pointer_operand,
+                table_byte_count_operand,
+                task_pointer_operand,
+                selector_operand,
+                scratch_pointer_operand,
+            ] {
+                bytes.identity_bytes(&operand.to_le_bytes());
+            }
+            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::SegmentDescriptorReloadV1 {
+            table_pointer_operand,
+            table_byte_count_operand,
+            selector_operand,
+            scratch_pointer_operand,
+            stack_pointer,
+        } => {
+            bytes.identity_bytes(&[23]);
+            for operand in [
+                table_pointer_operand,
+                table_byte_count_operand,
+                selector_operand,
+                scratch_pointer_operand,
+            ] {
+                bytes.identity_bytes(&operand.to_le_bytes());
+            }
+            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::WriteFixedPointerV1 {
             pointer_operand,
             byte_count,
@@ -629,6 +669,11 @@ macro_rules! effect_tag_arms {
             $enum::ProcessorHalt => 253,
             $enum::GlobalDescriptorTableLoad => 259,
             $enum::GlobalDescriptorTableStore => 260,
+            $enum::TaskRegisterActivate => 261,
+            $enum::TaskRegisterRead => 262,
+            $enum::CodeSegmentReload => 263,
+            $enum::DataSegmentReload => 264,
+            $enum::SegmentSelectorRead => 265,
             $enum::ControlRegisterRead => 254,
             $enum::ControlRegisterWrite => 255,
             $enum::InterruptControl => 256,

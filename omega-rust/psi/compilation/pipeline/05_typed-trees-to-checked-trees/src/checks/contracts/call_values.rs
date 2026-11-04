@@ -482,21 +482,40 @@ pub(super) fn membership_evidence(
     // `x`'s facts. The lent value itself lost any meaning `T` omits, and a
     // requirement on that meaning has no evidence at all: not even the
     // call's entry contexts, which would answer with `x`'s own facts.
-    if actual.path.is_empty()
-        && let Some(argument) = actual.argument
-        && let Some((_, _, domain_symbol, semantic_domain)) =
-            requirement.payload.domain_membership()
-        && validation::field_domains::expression_erases_membership(
-            program,
-            argument,
-            domain_symbol,
-            semantic_domain,
-        )
+    // A stored reference initialized from an erasing cast (`v.t`) carries
+    // that erasure to projections through the stored value.
+    if let Some((_, _, domain_symbol, semantic_domain)) =
+        requirement.payload.domain_membership()
     {
-        return Some(MembershipEvidence {
-            cases: Vec::new(),
-            whole_argument: None,
-        });
+        let erased = (actual.path.is_empty()
+            && actual.argument.is_some_and(|argument| {
+                validation::field_domains::expression_erases_membership(
+                    program,
+                    argument,
+                    domain_symbol,
+                    semantic_domain,
+                )
+            }))
+            || u32::try_from(actual.operand_position)
+                .ok()
+                .map(|pos| call.operands.handle_at(pos))
+                .is_some_and(|operand_handle| {
+                    operand_erases_membership(
+                        program,
+                        &facts.flow.control,
+                        operand_handle,
+                        &actual.path,
+                        domain_symbol,
+                        semantic_domain,
+                        &mut Vec::new(),
+                    )
+                });
+        if erased {
+            return Some(MembershipEvidence {
+                cases: Vec::new(),
+                whole_argument: None,
+            });
+        }
     }
     let Some(required) = crate::flow::canonical_place_from_semantic_place(
         program,
@@ -1250,4 +1269,229 @@ pub(crate) fn entry_predicate(
         Some(())
     })?;
     Some(expression)
+}
+
+pub(crate) fn operand_erases_membership(
+    program: &dyn ::validation::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    operand_handle: arena::Handle<checked_trees::FlowOperandFact>,
+    path: &[facts::PlaceSegment],
+    domain_symbol: symbols::SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+    active: &mut Vec<arena::Handle<checked_trees::FlowOperandFact>>,
+) -> bool {
+    if !control.operands.is_valid(operand_handle) || active.contains(&operand_handle) {
+        return false;
+    }
+    active.push(operand_handle);
+    let operand = control.operands.get(operand_handle);
+
+    if path.is_empty()
+        && validation::field_domains::expression_erases_membership(
+            program,
+            operand.expression,
+            domain_symbol,
+            semantic_domain,
+        )
+    {
+        active.pop();
+        return true;
+    }
+
+    if let checked_trees::FlowOperandCompletion::Constructed(children) = operand.completion {
+        if let Some(children) = control.operand_children.span(children) {
+            for child in children {
+                let child_path = control.operand_child_paths.span_or_empty(child.path);
+                if path.starts_with(child_path) {
+                    if operand_erases_membership(
+                        program,
+                        control,
+                        child.value,
+                        &path[child_path.len()..],
+                        domain_symbol,
+                        semantic_domain,
+                        active,
+                    ) {
+                        active.pop();
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    if let checked_trees::FlowOperandCompletion::Selected(alternatives) = operand.completion {
+        if let Some(rows) = control.operand_alternatives.span(alternatives) {
+            let any_erased = rows.iter().any(|row| {
+                operand_erases_membership(
+                    program,
+                    control,
+                    row.value,
+                    path,
+                    domain_symbol,
+                    semantic_domain,
+                    active,
+                )
+            });
+            if any_erased {
+                active.pop();
+                return true;
+            }
+        }
+    }
+
+    if let checked_trees::FlowOperandCompletion::Copied { copy, path: prefix } = operand.completion {
+        if control.copied_values.is_valid(copy) {
+            let copied = control.copied_values.get(copy);
+            let mut combined = control.operand_child_paths.span_or_empty(prefix).to_vec();
+            combined.extend_from_slice(path);
+            if operand_erases_membership(
+                program,
+                control,
+                copied.source,
+                &combined,
+                domain_symbol,
+                semantic_domain,
+                active,
+            ) {
+                active.pop();
+                return true;
+            }
+        }
+    }
+
+    if operand.backing.is_valid() {
+        let mut combined = control
+            .operand_child_paths
+            .span_or_empty(operand.address_projection.unwrap_or_default())
+            .to_vec();
+        combined.extend_from_slice(path);
+        if operand_erases_membership(
+            program,
+            control,
+            operand.backing,
+            &combined,
+            domain_symbol,
+            semantic_domain,
+            active,
+        ) {
+            active.pop();
+            return true;
+        }
+        let stored = validation::completed_storage::reference_sources_at_path(
+            program,
+            control,
+            operand.backing,
+            &combined,
+            operand.storage_snapshot,
+        );
+        if stored_operand_erases_membership(
+            program,
+            control,
+            &stored,
+            domain_symbol,
+            semantic_domain,
+            active,
+        ) {
+            active.pop();
+            return true;
+        }
+    } else if !path.is_empty() {
+        let stored = validation::completed_storage::reference_sources_at_path(
+            program,
+            control,
+            operand_handle,
+            path,
+            operand.storage_snapshot,
+        );
+        if stored_operand_erases_membership(
+            program,
+            control,
+            &stored,
+            domain_symbol,
+            semantic_domain,
+            active,
+        ) {
+            active.pop();
+            return true;
+        }
+    }
+
+    if path.is_empty() && control.operand_retentions.is_valid(operand.retention) {
+        let profile = control.operand_retentions.get(operand.retention);
+        if let Some(suppliers) = control.operand_retained_suppliers.span(profile.suppliers) {
+            for supplier in suppliers {
+                let supp_path = control.operand_retained_paths.span_or_empty(supplier.projection);
+                if operand_erases_membership(
+                    program,
+                    control,
+                    supplier.operand,
+                    supp_path,
+                    domain_symbol,
+                    semantic_domain,
+                    active,
+                ) {
+                    active.pop();
+                    return true;
+                }
+            }
+        }
+    }
+
+    if operand.value_source.is_valid()
+        && operand_erases_membership(
+            program,
+            control,
+            operand.value_source,
+            path,
+            domain_symbol,
+            semantic_domain,
+            active,
+        )
+    {
+        active.pop();
+        return true;
+    }
+
+    active.pop();
+    false
+}
+
+fn stored_operand_erases_membership(
+    program: &dyn ::validation::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    stored: &validation::completed_storage::StoredOperand,
+    domain_symbol: symbols::SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+    active: &mut Vec<arena::Handle<checked_trees::FlowOperandFact>>,
+) -> bool {
+    match stored {
+        validation::completed_storage::StoredOperand::Alternatives(alts) => {
+            alts.iter().any(|alt| {
+                stored_operand_erases_membership(
+                    program,
+                    control,
+                    alt,
+                    domain_symbol,
+                    semantic_domain,
+                    active,
+                )
+            })
+        }
+        validation::completed_storage::StoredOperand::Value {
+            capture,
+            projection,
+            ..
+        } => operand_erases_membership(
+            program,
+            control,
+            *capture,
+            projection,
+            domain_symbol,
+            semantic_domain,
+            active,
+        ),
+        validation::completed_storage::StoredOperand::Incoming(_)
+        | validation::completed_storage::StoredOperand::Unavailable => false,
+    }
 }

@@ -1,6 +1,6 @@
-//! Storage keys order by opaque carrier identity, then path and field. A
-//! subtree operation visits that identity's cells, never historical unrelated
-//! carriers. Semantic path selection and stage-before-prune ordering are unchanged.
+//! Find only the stored cells below the requested place. Keys put carrier
+//! identity and parent path first, so every descendant is one contiguous range.
+//! Stores keep their existing staging and row-retirement order.
 use crate::boundary::values::{
     StructuralByteSequenceRuntimeField, StructuralRuntimePlace, StructuralScalarRuntimeField,
 };
@@ -15,6 +15,9 @@ mod original_allocation;
 
 pub(crate) trait StorageKey: Ord + Clone {
     fn identity_start(identity: u64) -> Self;
+    /// The least valid key at this parent path, before all its descendants.
+    /// Implementations order by identity, then parent path, then field namespace.
+    fn subtree_start(root: &StructuralRuntimePlace) -> Self;
     fn parent(&self) -> &StructuralRuntimePlace;
 }
 impl StorageKey for StructuralRuntimePlace {
@@ -24,16 +27,19 @@ impl StorageKey for StructuralRuntimePlace {
             path: Vec::new(),
         }
     }
+    fn subtree_start(root: &StructuralRuntimePlace) -> Self {
+        root.clone()
+    }
     fn parent(&self) -> &StructuralRuntimePlace {
         self
     }
 }
 impl StorageKey for StructuralScalarRuntimeField {
     fn identity_start(identity: u64) -> Self {
-        Self::member(
-            StructuralRuntimePlace::identity_start(identity),
-            StructuralFieldId::new(1).unwrap(),
-        )
+        Self::subtree_start(&StructuralRuntimePlace::identity_start(identity))
+    }
+    fn subtree_start(root: &StructuralRuntimePlace) -> Self {
+        Self::member(root.clone(), StructuralFieldId::new(1).unwrap())
     }
     fn parent(&self) -> &StructuralRuntimePlace {
         &self.parent
@@ -41,8 +47,11 @@ impl StorageKey for StructuralScalarRuntimeField {
 }
 impl StorageKey for StructuralByteSequenceRuntimeField {
     fn identity_start(identity: u64) -> Self {
+        Self::subtree_start(&StructuralRuntimePlace::identity_start(identity))
+    }
+    fn subtree_start(root: &StructuralRuntimePlace) -> Self {
         Self {
-            parent: StructuralRuntimePlace::identity_start(identity),
+            parent: root.clone(),
             namespace: crate::boundary::values::StructuralFieldNamespace::Member,
             field: StructuralFieldId::new(1).unwrap(),
         }
@@ -55,14 +64,14 @@ pub(crate) fn cells<'a, K: StorageKey + 'a, V: 'a>(
     map: &'a impl std::borrow::Borrow<BTreeMap<K, V>>,
     root: &StructuralRuntimePlace,
 ) -> impl Iterator<Item = (&'a K, &'a V)> {
-    let lower = Included(K::identity_start(root.opaque_identity));
+    let lower = Included(K::subtree_start(root));
     let upper = root
         .opaque_identity
         .checked_add(1)
         .map_or(Unbounded, |identity| Excluded(K::identity_start(identity)));
     map.borrow()
         .range((lower, upper))
-        .filter(move |(key, _)| key.parent().path.starts_with(&root.path))
+        .take_while(move |(key, _)| key.parent().path.starts_with(&root.path))
 }
 #[cfg(test)]
 fn prune<K: StorageKey, V>(map: &mut BTreeMap<K, V>, root: &StructuralRuntimePlace) {
@@ -72,8 +81,8 @@ fn prune<K: StorageKey, V>(map: &mut BTreeMap<K, V>, root: &StructuralRuntimePla
     }
 }
 
-/// Retire selected cells through their reservation owner, retaining the same
-/// identity-range traversal as the remaining unaccounted storage tables.
+/// Retire selected cells through their reservation owner. A disjoint field
+/// store never walks the rest of a large record just to discover no old rows.
 pub(crate) fn prune_rows<K: StorageKey, V>(
     map: &mut crate::storage::runtime_rows::RuntimeRows<K, V>,
     root: &StructuralRuntimePlace,

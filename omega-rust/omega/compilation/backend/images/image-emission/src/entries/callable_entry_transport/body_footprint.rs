@@ -151,6 +151,11 @@ pub(super) fn collect(
                 MachineAlternativeFamily::ControlRegisterRead
                 | MachineAlternativeFamily::GlobalDescriptorTableLoad
                 | MachineAlternativeFamily::GlobalDescriptorTableStore
+                | MachineAlternativeFamily::TaskRegisterActivate
+                | MachineAlternativeFamily::TaskRegisterRead
+                | MachineAlternativeFamily::CodeSegmentReload
+                | MachineAlternativeFamily::DataSegmentReload
+                | MachineAlternativeFamily::SegmentSelectorRead
                 | MachineAlternativeFamily::ControlRegisterWrite => {
                     footprint.state(MachineState::ControlState)
                 }

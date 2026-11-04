@@ -12,7 +12,7 @@ machine Application::main(application: &mut Application) reaches Console {
     let risk_limit: Parsed = block read_number();
     transition count.valid && budget.valid && deadline.valid && risk_limit.valid
         && count.value <= 12 && budget.value > 0 && deadline.value > 0 && risk_limit.value <= 100 {
-        true -> configure(application, count.value, budget.value, deadline.value, risk_limit.value)
+        true -> block configure(application, count.value, budget.value, deadline.value, risk_limit.value)
         false -> invalid(application)
     }
     machine configure(application: &mut Application, count: u64, budget: u64, deadline: u64, risk_limit: u64) {
@@ -20,12 +20,12 @@ machine Application::main(application: &mut Application) reaches Console {
         application.budget = budget;
         application.deadline = deadline;
         application.risk_limit = risk_limit;
-        transition { _ -> load(application, 0) }
+        transition { _ -> block load(application, 0) }
     }
     machine load(application: &mut Application, index: u64) {
         transition index < application.count && index < 12 {
-            true -> read_row(application, index)
-            false -> trailing(application)
+            true -> block read_row(application, index)
+            false -> block trailing(application)
         }
     }
     machine read_row(application: &mut Application, index: u64)
@@ -39,7 +39,7 @@ machine Application::main(application: &mut Application) reaches Console {
         let repeated: bool = duplicate(application, identifier.value, index);
         transition identifier.valid && provenance.valid && cost.valid && days.valid && gain.valid && risk.valid
             && identifier.value > 0 && provenance.value > 0 && days.value > 0 && risk.value <= 100 && !repeated {
-            true -> store(application, index, identifier.value, provenance.value, cost.value, days.value, gain.value, risk.value)
+            true -> block store(application, index, identifier.value, provenance.value, cost.value, days.value, gain.value, risk.value)
             false -> invalid(application)
         }
     }
@@ -47,7 +47,7 @@ machine Application::main(application: &mut Application) reaches Console {
     requires index < 12 {
         application.rows[index] = Experiment { identifier: identifier, provenance: provenance, position: index + 1,
             cost: cost, days: days, gain: gain, risk: risk };
-        transition { _ -> load(application, index + 1) }
+        transition { _ -> block load(application, index + 1) }
     }
     machine trailing(application: &mut Application) {
         let clean: bool = block only_whitespace();

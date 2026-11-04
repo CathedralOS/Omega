@@ -32,6 +32,12 @@ impl SelectedConstraintKeys {
             self.system_register_write,
             self.control_register_read,
             self.control_register_write,
+            self.global_descriptor_table,
+            self.task_register_activate,
+            self.task_register_read,
+            self.code_segment_reload,
+            self.data_segment_reload,
+            self.segment_selector_read,
             self.port_register_read,
             self.port_register_write,
             self.model_specific_read,
@@ -164,6 +170,11 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::PortWrite => return self.rows.port_write,
             MachineSemanticKind::SystemRegisterRead => return self.rows.system_register_read,
             MachineSemanticKind::SystemRegisterWrite => return self.rows.system_register_write,
+            MachineSemanticKind::TaskRegisterActivate => return self.rows.task_register_activate,
+            MachineSemanticKind::TaskRegisterRead => return self.rows.task_register_read,
+            MachineSemanticKind::CodeSegmentReload => return self.rows.code_segment_reload,
+            MachineSemanticKind::DataSegmentReload => return self.rows.data_segment_reload,
+            MachineSemanticKind::SegmentSelectorRead => return self.rows.segment_selector_read,
             MachineSemanticKind::GlobalDescriptorTableLoad
             | MachineSemanticKind::GlobalDescriptorTableStore => {
                 return self.rows.global_descriptor_table;

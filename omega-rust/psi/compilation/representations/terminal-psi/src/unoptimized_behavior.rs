@@ -67,7 +67,11 @@ impl UnoptimizedMachineBehavior {
                             boundary: *boundary,
                         })
                     }
-                    OperationKind::GlobalDescriptorTable { service, .. }
+                    OperationKind::ActivateTaskRegister { service, .. }
+                    | OperationKind::ReadTaskRegister { service, .. }
+                    | OperationKind::ReloadSegmentDescriptors { service, .. }
+                    | OperationKind::ReadSegmentSelector { service, .. }
+                    | OperationKind::GlobalDescriptorTable { service, .. }
                     | OperationKind::PortWrite { service, .. }
                     | OperationKind::RegisterAccess {
                         service: Some(service),

@@ -216,6 +216,64 @@ impl StructuralJudge<'_> {
         denotation
     }
 
+    /// A projection of a completed call's description, such as
+    /// `identity(arg).remaining`, names nothing until it reaches the call's
+    /// captured result. The completed-call identity links that description to
+    /// exactly one captured occurrence; the callee's public result equations
+    /// about that capture (`result.remaining == value.remaining`) then supply
+    /// the field. A field the contract does not mention, or a description
+    /// shared by distinct captures, keeps the unresolved projection. Private
+    /// bodies are never read here.
+    pub(in crate::proof_contracts::contract_entailment) fn completed_call_result_projection(
+        &self,
+        value: StructuralTerm,
+    ) -> StructuralTerm {
+        let resolved = self.completed_value_identity(value);
+        let StructuralTerm::Projection { subject, path } = resolved.semantic_value() else {
+            return resolved;
+        };
+        let mut captures = self
+            .captured_result_equations
+            .iter()
+            .filter(|equation| {
+                equation.is_completed_call_identity()
+                    && self.same_completed_denotation(&equation.right, subject)
+            })
+            .map(|equation| &equation.left);
+        let Some(captured) = captures.next() else {
+            return resolved;
+        };
+        if captures.any(|other| !other.same_resolution_payload(captured)) {
+            return resolved;
+        }
+        let field = StructuralTerm::Projection {
+            subject: Box::new(captured.clone()),
+            path: path.clone(),
+        };
+        let described = self.completed_integer_call_description(&field);
+        if described.same_resolution_payload(&field) {
+            return resolved;
+        }
+        // The equation names the callee's actual, itself a completed value of
+        // this occurrence: an owned construction keeps its receipt, so the
+        // field reads the operand that construction evaluated.
+        let StructuralTerm::Projection { subject, path } = described.semantic_value() else {
+            return described;
+        };
+        let observed = path.split('.').try_fold(
+            self.completed_nominal_observation_tree(subject),
+            |value, field| {
+                super::super::super::observed_projections::project_declared_field(
+                    self.program,
+                    self,
+                    value,
+                    field,
+                )
+            },
+        );
+        observed.map_or(described, |value| self.completed_value_identity(value))
+    }
+
     /// Keep a public computed-result equation ahead of the synthetic call
     /// identity. Return its raw tree, so arithmetic projection still visits
     /// every child instead of normalizing away a partial operation.

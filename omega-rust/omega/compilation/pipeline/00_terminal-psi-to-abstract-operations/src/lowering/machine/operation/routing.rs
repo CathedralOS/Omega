@@ -570,6 +570,10 @@ pub(super) fn lower(
         | OperationKind::Call { .. } => calls::lower(operation, machine),
         OperationKind::PortWrite { .. }
         | OperationKind::RegisterAccess { .. }
+        | OperationKind::ActivateTaskRegister { .. }
+        | OperationKind::ReadTaskRegister { .. }
+        | OperationKind::ReloadSegmentDescriptors { .. }
+        | OperationKind::ReadSegmentSelector { .. }
         | OperationKind::GlobalDescriptorTable { .. }
         | OperationKind::WriteOnlyPrimitiveStore { .. } => {
             effects::lower(operation, machine, structural_types, value_types)

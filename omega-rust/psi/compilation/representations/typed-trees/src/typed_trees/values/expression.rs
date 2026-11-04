@@ -1198,6 +1198,31 @@ impl ExpressionTable {
         self.name_path_members.span_or_empty(span)
     }
 
+    /// Respell every one-member name resolved to `symbol` as `member`. A
+    /// binding that moved to a generated symbol keeps its authored uses; their
+    /// spelling must name the new binding, since paths are compared by text.
+    pub fn respell_single_member_names(&mut self, symbol: SymbolHandle, member: &Identifier) {
+        let spans: Vec<HandleSpan<Identifier>> = self
+            .expressions
+            .iter()
+            .filter_map(|(_, node)| match node {
+                ExpressionNode::Name(path)
+                    if path.symbol == symbol
+                        && path.head_symbol == symbol
+                        && self.name_path_members(path.members).len() == 1 =>
+                {
+                    Some(path.members)
+                }
+                _ => None,
+            })
+            .collect();
+        for span in spans {
+            for existing in self.name_path_members.span_mut_or_empty(span) {
+                *existing = member.clone();
+            }
+        }
+    }
+
     #[inline]
     pub fn name_path_member_symbols(&self, span: HandleSpan<SymbolHandle>) -> &[SymbolHandle] {
         self.name_path_member_symbols.span_or_empty(span)

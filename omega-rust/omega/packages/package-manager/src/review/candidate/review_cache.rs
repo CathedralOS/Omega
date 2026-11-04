@@ -1,11 +1,8 @@
 //! Persistent, content-verified cache of compiled package reviews.
 //!
-//! A review pass retains each dependency occurrence's compile
-//! for the passes of one `update` invocation, but nothing survives the
-//! process: the next `update` recompiles the whole dependency closure even
-//! when resolution, sources, targets, bindings and build snapshots are all
-//! identical. This module retains one review record per dependency
-//! occurrence — keyed by SHA-256 over package identity, purpose, the checked
+//! An unchanged application or dependency can reuse its completed review
+//! without compiling it again. This module retains one review record per
+//! package occurrence — keyed by SHA-256 over package identity, purpose, the checked
 //! context (target plus admitted build profile), the compiler input identity
 //! the lock records, the live-inputs digest and the build-snapshot digest —
 //! beneath the same resolver lane that already carries the checked-source
@@ -30,8 +27,9 @@
 //! Terminal Psi, so a record does not publish one speculatively: a consumer
 //! that later demands a description a record lacks recompiles that
 //! dependency, whose replacement record then carries it.
-//! Entry candidates remain proposals, not admission authority. The graph root
-//! is never cached: its checked compilation is the update's real product.
+//! Entry candidates remain proposals, not admission authority. Application
+//! reviews carry the same checked facts; executable production still uses its
+//! own compilation route and never treats a review record as native code.
 //!
 //! The key binds the build-produced compiler identity and the exact injected
 //! toolchain library content, including developer builds. If either identity
@@ -71,7 +69,7 @@ const DEFAULT_MAX_RECORDS: usize = 256;
 const DEFAULT_MAX_RECORD_BYTES: u64 = 512 * 1024 * 1024;
 
 /// The substitution payload replacing a persisted occurrence's
-/// live compiler source: the facts needed by carried dependency occurrences.
+/// live compiler source: the facts needed by carried review occurrences.
 #[derive(Debug, Clone)]
 pub(crate) struct CachedOccurrenceFacts {
     pub consumed_units: Vec<ConsumedSourceUnit>,
@@ -210,7 +208,17 @@ impl CompiledReviewCache {
         let path = self.record_path(key);
         let bytes = std::fs::read(&path).ok()?;
         match decode_record(&bytes) {
-            Some(review) => Some(review),
+            Some(review) => {
+                crate::review::timings::note(|| {
+                    format!(
+                        "compiled_review_decoded package={} key={} record_bytes={}",
+                        review.name,
+                        crate::digest_encoder::hex(key),
+                        bytes.len(),
+                    )
+                });
+                Some(review)
+            }
             None => {
                 let _ = std::fs::remove_file(&path);
                 None
@@ -229,6 +237,15 @@ impl CompiledReviewCache {
             // Cache storage is best-effort; malformed evidence is never saved.
             return;
         }
+        crate::review::timings::note(|| {
+            format!(
+                "compiled_review_encoded package={} key={} payload_bytes={} maximum_bytes={}",
+                review.name,
+                crate::digest_encoder::hex(key),
+                payload.len(),
+                self.limits.max_record_bytes,
+            )
+        });
         if payload.len() as u64 > self.limits.max_record_bytes {
             return;
         }

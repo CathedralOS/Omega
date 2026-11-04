@@ -216,6 +216,68 @@ pub fn x86_64_register_constraint_catalog(
         vec![allocatable(0, Access::Use, GPR64)],
     );
     global_descriptor_table.clobbers = sorted_units(view("r10").units.iter().copied());
+    let mut task_register_activate = instruction_row(
+        RegisterConstraintId(0),
+        crate::X86_64_TASK_REGISTER_ACTIVATE,
+        vec![
+            fixed(0, Access::Use, "rdi"),
+            fixed(1, Access::Use, "rsi"),
+            fixed(2, Access::Use, "rdx"),
+            fixed(3, Access::Use, "rcx"),
+            fixed(4, Access::Use, "r8"),
+            fixed(5, Access::Def, "rax"),
+        ],
+    );
+    task_register_activate.implicit_uses = sorted_units(
+        ["rsp", "rflags"]
+            .into_iter()
+            .flat_map(|name| view(name).units.iter().copied()),
+    );
+    task_register_activate.clobbers = sorted_units(
+        ["r9", "r10", "r11", "rflags"]
+            .into_iter()
+            .flat_map(|name| view(name).units.iter().copied()),
+    );
+    let task_register_read = instruction_row(
+        RegisterConstraintId(0),
+        crate::X86_64_TASK_REGISTER_READ,
+        vec![allocatable(0, Access::Def, GPR64)],
+    );
+    let segment_reload = |key, scratch: &[&str]| {
+        let mut row = instruction_row(
+            RegisterConstraintId(0),
+            key,
+            vec![
+                fixed(0, Access::Use, "rdi"),
+                fixed(1, Access::Use, "rdx"),
+                fixed(2, Access::Use, "rcx"),
+                fixed(3, Access::Use, "r8"),
+                fixed(4, Access::Def, "rax"),
+            ],
+        );
+        row.implicit_uses = sorted_units(
+            ["rsp", "rflags"]
+                .into_iter()
+                .flat_map(|name| view(name).units.iter().copied()),
+        );
+        row.clobbers = sorted_units(
+            scratch
+                .iter()
+                .flat_map(|name| view(name).units.iter().copied()),
+        );
+        row
+    };
+    let code_segment_reload =
+        segment_reload(crate::X86_64_CODE_SEGMENT_RELOAD, &["r9", "r10", "rflags"]);
+    let data_segment_reload = segment_reload(
+        crate::X86_64_DATA_SEGMENT_RELOAD,
+        &["rcx", "rdx", "r8", "r9", "r10", "r11", "rflags"],
+    );
+    let segment_selector_read = instruction_row(
+        RegisterConstraintId(0),
+        crate::X86_64_SEGMENT_SELECTOR_READ,
+        vec![allocatable(0, Access::Def, GPR64)],
+    );
     let control_rows = [
         (crate::X86_64_CONTROL_REGISTER_READ, true),
         (crate::X86_64_CONTROL_REGISTER_WRITE, false),
@@ -261,6 +323,11 @@ pub fn x86_64_register_constraint_catalog(
         flags_snapshot,
         flags_restore,
         global_descriptor_table,
+        task_register_activate,
+        task_register_read,
+        code_segment_reload,
+        data_segment_reload,
+        segment_selector_read,
         control_rows[0].clone(),
         control_rows[1].clone(),
         port_write,

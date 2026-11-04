@@ -4,8 +4,9 @@ Depend-free compile-scope probe: boundary machines and conditional crash
 routes — the first sample declaring a `boundary machine` and satisfying
 it.
 
-- `boundary machine == Comparison::equal` overloads `==` for i32 through
-  the Comparison carrier and declares a conditional crash route:
+- `boundary machine == Comparison::equal` overloads `==` for
+  `i32 in Compared`, the probe's own domain home (bare i32 operands would
+  join the core's primitive family), through the Comparison carrier and declares a conditional crash route:
   `crashes Trap !(right >= 0)` — any `==` whose right operand can't be
   proven non-negative propagates the Trap route.
 - `ComparisonProvider::equal` satisfies the boundary machine — the

@@ -97,6 +97,7 @@ mod dynamic_calls;
 mod structural_results;
 mod suspension_frontier;
 pub(super) use structural_results::{StructuralResults, dense_result_homes};
+mod descriptor_tables;
 mod loan_completions;
 mod locals;
 mod register_access;

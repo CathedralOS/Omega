@@ -61,6 +61,11 @@ pub(crate) fn bind_scalar_call_result(
     }
     match &mut parts.route {
         CheckedUnitCallRoute::ActivationStorage { .. } => return None,
+        CheckedUnitCallRoute::DescriptorTable { result_type, .. } => {
+            if result.primitive_type != *result_type {
+                return None;
+            }
+        }
         CheckedUnitCallRoute::Boundary if !allow_boundary => return None,
         // A selector call's result is the slot's instantiated result; no
         // single implementation's commitment describes it.

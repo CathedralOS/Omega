@@ -1077,13 +1077,17 @@ impl StructuralJudge<'_> {
             }) else {
                 continue;
             };
-            let current = if let Some((subject, state)) = view {
+            // Passing a checked view to a helper keeps the fields already read
+            // through that same view. Its scalar may span several backing bytes,
+            // so physical leaf translation is not required for that observation.
+            // Both the logical read and a translated read must still be current
+            // at this exact call-entry version; neither revives a retired value.
+            let current = self.current_storage_value_at(&child, version);
+            let translated = view.and_then(|(subject, state)| {
                 self.current_view_field(subject, state, suffix, version)
-            } else {
-                self.current_storage_value_at(&child, version)
-            };
+            });
             if !suffix.is_empty()
-                && let Some(current) = current
+                && (current.is_some() || translated.is_some())
                 && let Some((_, projection)) = project_captured_value_by(
                     self.program,
                     reference,
@@ -1100,7 +1104,9 @@ impl StructuralJudge<'_> {
                     },
                 )
             {
-                equations.push((projected_type, projection, current));
+                for observation in [current, translated].into_iter().flatten() {
+                    equations.push((projected_type, projection.clone(), observation));
+                }
                 continue;
             }
             if !suffix.is_empty() && crate::reference_shell(self.program, projected_type).is_some()

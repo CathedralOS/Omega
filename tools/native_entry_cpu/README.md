@@ -69,3 +69,40 @@ This closed CPU test injects no asynchronous interrupts, single stepping or
 hardware breakpoints during the temporary load. It does not reload segment
 registers or activate a TSS/IDT/timer. The interrupt oracle above retains its
 separate complete interrupted-state checks.
+
+## Activate a retained task-state segment
+
+The [task-register witness](../../tests/omega/pass/build/task_register_activation/README.md)
+uses the same ordinary-call export path. Extract its `CallReturn` entry and run
+`--oracle task-register-call`. The harness owns the GDT and task-state bytes
+until shutdown. The Omega body performs the activation and all selector reads;
+the harness independently checks the resulting TR and complete descriptor.
+
+An alternate table contains an otherwise valid descriptor, so the wrong-table
+control specifically tests the association with the CPU's current GDTR. A
+mismatched task-state buffer, code slot, outside selector and already-busy
+repetition must also refuse. Eight ordinary calls produce `B........P` and
+exit33. The first activates and the other seven verify refusal of the busy
+entry. `--corrupt-neighbor` must report failure using the same compiled payload.
+No timer interrupt or acknowledgement is created by this test.
+
+
+## Select retained code and data descriptors
+
+The [selector witness](../../tests/omega/pass/build/segment_selector_reload/README.md)
+uses the ordinary-call export path with `--oracle segment-selector-call`.
+The compiled body selects new CS and DS/ES/SS entries, clears FS/GS selectors,
+and preserves their active 64-bit bases. It checks refused operations before
+performing the valid reloads. The harness independently checks all selectors,
+full base values (including KernelGSBase), descriptor accessed bits and neighboring
+storage after each of eight calls. Nonzero upper base halves detect truncation.
+The bases are canonical but never dereferenced. The required output is
+`B........P`, exit33; the same payload with `--corrupt-neighbor` must fail.
+
+The table remains live until shutdown. The code transfer uses the compiler's
+local continuation, with no source-supplied return address. These calls run in
+a closed CPL0/IF0 environment without asynchronous or debug delivery; the code
+operation refuses CET-enabled environments. They do not install interrupt
+roots or demonstrate timer delivery.
+
+QEMU 11.0.2 does not write the code descriptor’s accessed bit on its same-privilege far-return path. The first strict run observed CS=24 with the original code word unchanged and failed the mandatory accessed-bit check. The harness therefore checks CS independently and allows only that one bit to differ in the selected code descriptor; all other descriptor bits, the data accessed-bit update and neighbors remain exact. This is an emulator limitation, not permission from the ISA or proof that real hardware’s CS accessed-bit write occurred. The compiler still requires a mutable table and invalidates its prior contents. See [QEMU’s pinned return helper](https://github.com/qemu/qemu/blob/v11.0.2/target/i386/tcg/seg_helper.c) and [Intel’s descriptor contract](https://cdrdv2-public.intel.com/671190/253668-sdm-vol-3a.pdf).

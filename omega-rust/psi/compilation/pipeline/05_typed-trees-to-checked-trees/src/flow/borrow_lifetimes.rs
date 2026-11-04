@@ -115,9 +115,11 @@ pub(crate) fn filter_reassigned_borrow_loans(
     {
         return source;
     }
-    let source = if let Some(effects) = call_frames
-        .and_then(|frames| frames.stored_reference_fallthrough_effects(machine, statement))
-    {
+    let source = if let Some(effects) = call_frames.and_then(|frames| {
+        frames
+            .stored_reference_fallthrough_effects(machine, statement)
+            .ok()
+    }) {
         reference_spans::filter_constraint_refs(constraint_refs, source, |constraint| {
             if let FlowConstraintKind::BorrowIncomingReference { identity } = constraint.kind {
                 let incoming = borrow.incoming_references.get(identity);

@@ -26,7 +26,10 @@ use crate::machine_calls::calls::write_frames::demand::{
     syntactic_call_written_paths,
 };
 use crate::machine_calls::calls::write_frames::inference::FrameInference;
-use crate::machine_calls::calls::write_frames::isolation::type_is_caller_isolated_local;
+use crate::machine_calls::calls::write_frames::isolation::{
+    local_storage_is_caller_isolated, type_is_caller_isolated_local,
+    type_is_caller_isolated_proof_value,
+};
 use crate::machine_calls::calls::write_frames::known_call_written_paths_for_parts;
 use crate::machine_calls::calls::write_frames::local_aliases::expression_reborrows_unresolved_reference_binding;
 use crate::machine_calls::calls::write_frames::place_paths::{
@@ -553,8 +556,7 @@ fn walk_state_write_prefix_body(
             StatementNode::LocalData(local)
                 if (type_may_carry_write(program, local.type_reference)
                     && !type_is_caller_isolated_local(program, local.type_reference))
-                    || (include_shared
-                        && type_reference_is_reference(program, local.type_reference)) =>
+                    || type_reference_is_reference(program, local.type_reference) =>
             {
                 stable_local_reference_alias_origin(
                     program,
@@ -1084,13 +1086,19 @@ fn walk_state_write_prefix_body(
             }
             StatementNode::Expression(_) => {}
             StatementNode::LocalData(local) => {
-                if (type_may_carry_write(program, local.type_reference)
+                // A logical value can contain no references even when its
+                // recursive type has no runtime field layout. Keep case facts
+                // on the ordinary declaration path rather than inventing slots.
+                let reference_free =
+                    type_is_caller_isolated_proof_value(program, local.type_reference);
+                if let Some(origin) = declared_local_alias_origin {
+                    local_alias_origins.push((local.name.as_str().to_owned(), origin));
+                } else if ((type_may_carry_write(program, local.type_reference)
                     && !type_is_caller_isolated_local(program, local.type_reference))
-                    || include_shared
+                    || include_shared)
+                    && !reference_free
                 {
-                    if let Some(origin) = declared_local_alias_origin {
-                        local_alias_origins.push((local.name.as_str().to_owned(), origin));
-                    } else if let Some(origins) = declared_stored_origins {
+                    if let Some(origins) = declared_stored_origins {
                         // A reference has one leaf but may retain several
                         // captured referents. Preserve those established rows
                         // before considering an unknown read-only binding.
@@ -1155,7 +1163,7 @@ fn walk_state_write_prefix_body(
                         inference,
                     );
                 }
-                if type_is_caller_isolated_local(program, local.type_reference)
+                if local_storage_is_caller_isolated(program, local.type_reference)
                     && !local_alias_origins
                         .iter()
                         .any(|(name, _)| name == local.name.as_str())

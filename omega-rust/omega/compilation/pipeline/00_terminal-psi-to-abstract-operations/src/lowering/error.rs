@@ -2,6 +2,7 @@ use semantic_vocabulary::{BlockId, MachineId};
 use terminal_codec::CodecError;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    InvalidDescriptorTableOperation(semantic_vocabulary::OperationId),
     UnclosedScalarConditions,
     UnclosedScalarApplication(semantic_vocabulary::ScalarApplicationId),
     ScalarApplicationCarrierMismatch(semantic_vocabulary::OperationId),

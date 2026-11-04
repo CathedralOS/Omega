@@ -194,6 +194,7 @@ pass/borrow/explicit_aggregate_lifetime_selects_source checked 1703ms @a92f16431
 pass/borrow/mutable_selector_literal_replacement_exit built 2013ms exit:0 @a92f16431042
 pass/borrow/mutable_selector_rhs_snapshot_exit built 2849ms exit:0 @a92f16431042
 pass/borrow/mutable_selector_unchanged_exit built 2254ms exit:0 @a92f16431042
+pass/borrow/named_operator_disjoint_argument_preserves_bound checked 5672ms @12385533695f
 pass/borrow/nested_reference_parameter_referent_assignment checked 1981ms @a92f16431042
 pass/borrow/projected_record_state_loan_split_exit built 2895ms exit:0 @a92f16431042
 pass/borrow/reference_parameter_referent_copy_exit built 4180ms exit:0 @a92f16431042
@@ -1249,7 +1250,7 @@ pass/contracts/call_write_keeps_disjoint_guard_exit built 6554ms exit:24 @a92f16
 pass/contracts/carry_contract_decl checked 2905ms @a92f16431042
 pass/contracts/case_requires_payload_field_read_exit built 2476ms exit:0 @a92f16431042
 pass/contracts/consistent_branches_quiet_exit built 9361ms exit:0 @6be568cdb4e5
-pass/contracts/contract_declaration_boundary checked 2477ms @a92f16431042
+pass/contracts/contract_declaration_boundary checked 6774ms @12385533695f
 pass/contracts/contradictory_boolean_match_arm_exit built 9476ms exit:0 @6be568cdb4e5
 pass/contracts/contradictory_branch_call_admission_exit built 8309ms exit:0 @6be568cdb4e5
 pass/contracts/contradictory_branch_closes_obligation_exit built 8225ms exit:0 @6be568cdb4e5
@@ -1264,7 +1265,7 @@ pass/contracts/ensures_borrowed_parameter_field_exit built 12903ms exit:70 @a92f
 pass/contracts/ensures_fact_list checked 4811ms @a92f16431042
 pass/contracts/ensures_fact_list_exit built 12867ms exit:70 @a92f16431042
 pass/contracts/ensures_named_parameter_arithmetic_exit built 4829ms exit:0 @a92f16431042
-pass/contracts/ensures_operand_discharge checked 5039ms @a92f16431042
+pass/contracts/ensures_operand_discharge checked 6091ms @12385533695f
 pass/contracts/ensures_saturating_field_arithmetic_exit built 14204ms exit:70 @a92f16431042
 pass/contracts/ensures_tail_forward checked 3681ms @a92f16431042
 pass/contracts/ensures_wrapping_field_arithmetic_exit built 13074ms exit:70 @a92f16431042
@@ -1391,6 +1392,7 @@ pass/control_flow/ordered_terminal_call_exit built 5554ms exit:0 @a92f16431042
 pass/control_flow/ordered_unconditional_arm_exit built 16041ms exit:70 @a92f16431042
 pass/control_flow/owned_array_local_state_transfer_exit built 16005ms exit:70 @a92f16431042
 pass/control_flow/owned_array_state_transfer_exit built 16017ms exit:70 @a92f16431042
+pass/control_flow/pattern_arm_guarded_index_argument_exit built 10359ms exit:0 @189b8cf70738+wt
 pass/control_flow/projected_case_subject_root_forwarding_exit built 16118ms exit:70 @a92f16431042
 pass/control_flow/projected_field_exhaustive_case_dispatch_exit built 12207ms exit:70 @a92f16431042
 pass/control_flow/projected_loan_state_argument_exit built 11902ms exit:11 @a92f16431042
@@ -1981,7 +1983,7 @@ pass/effects/windows_filesystem_capability_rows checked 32664ms @a92f16431042
 pass/effects/windows_owned_anonymous_opens checked 31673ms @a92f16431042
 pass/entry/nested_where_record_binding_field_exit built 6089ms exit:70 @a92f16431042
 pass/entry/service_borrowed_slice_call built 2294ms @a92f16431042
-pass/errors/crash_route_boundary checked 2710ms @a92f16431042
+pass/errors/crash_route_boundary checked 6950ms @12385533695f
 pass/errors/crash_unrecoverable_stmt checked 3124ms @a92f16431042
 pass/errors/member_crash_route checked 5262ms @a92f16431042
 pass/errors/reconstructed_case_payload_exit built 17885ms exit:70 @a92f16431042
@@ -5740,16 +5742,17 @@ pass/objc/native_gui_loop checked 7734ms @a92f16431042
 pass/objc/objc_get_class checked 3894ms @a92f16431042
 pass/objc/objc_msgsend_scalar checked 3918ms @a92f16431042
 pass/operators/compound_assignment_exit built 19278ms exit:70 @a92f16431042
-pass/operators/core_operator_spelling_surface built 4841ms @a92f16431042
-pass/operators/crash_routes built 5454ms exit:0 @a92f16431042
+pass/operators/core_operator_spelling_surface built 6491ms @12385533695f
+pass/operators/core_owned_primitive_operator_meaning built 9649ms exit:0 @12385533695f
+pass/operators/crash_routes built 5855ms exit:0 @12385533695f
 pass/operators/division_value_entry_selection built 19089ms exit:70 @a92f16431042
 pass/operators/domain_operator_overload_signature_compile checked 2846ms @a92f16431042
 pass/operators/domain_qualified_boundary_operator_exit built 6368ms exit:0 @18fc751d0060+wt
-pass/operators/fixed_token_operators checked 4578ms @a92f16431042
+pass/operators/fixed_token_operators checked 5828ms @12385533695f
 pass/operators/fixed_use_survives_division_and_call_exit built 19325ms exit:0 stdout:match stderr:match @a92f16431042
 pass/operators/float_operator_identities built 23758ms exit:70 @a92f16431042
 pass/operators/integer_literal_suffix_exit built 18686ms exit:70 @a92f16431042
-pass/operators/operand_requires_after_effects checked 3693ms @a92f16431042
+pass/operators/operand_requires_after_effects checked 5278ms @12385533695f
 pass/operators/parenthesized_precedence_value checked 3414ms @a92f16431042
 pass/operators/range_extent_preserves_numeric_contract_exit built 3141ms exit:0 @a92f16431042
 pass/operators/result_domain_operator_family_conversion_exit built 10965ms exit:0 @a92f16431042
@@ -5762,7 +5765,7 @@ pass/operators/runtime_declared_range_guarded_collection_exit built 3415ms exit:
 pass/operators/runtime_declared_reference_index_capture_exit built 2490ms exit:0 @a92f16431042
 pass/operators/runtime_generic_reference_selector_snapshot_exit built 2427ms exit:0 @a92f16431042
 pass/operators/runtime_named_unit_statement_effects_exit built 2795ms exit:0 @a92f16431042
-pass/operators/runtime_selected_operator_requires_after_effects_exit built 2574ms exit:0 @a92f16431042
+pass/operators/runtime_selected_operator_requires_after_effects_exit built 6403ms exit:0 @12385533695f
 pass/operators/runtime_xorshift_prng_exit built 7542ms exit:70 @a92f16431042
 pass/operators/slice_index_bounds_from_operator_contract checked 1714ms @a92f16431042
 pass/operators/slice_range_bounds_from_operator_contract rejected 714ms regressed-from:checked @a92f16431042
@@ -6173,11 +6176,12 @@ pass/providers/boundary_req_inherit checked 1891ms @a92f16431042
 pass/providers/boundary_scalar_field_store built 5879ms exit:70 @a92f16431042
 pass/providers/build_product_adapter_frontiers_exit built 2509ms exit:0 @a92f16431042
 pass/providers/calling_application_region_scopes_exit built 1880ms exit:0 @a92f16431042
-pass/providers/checked_boundary_operator_const_application_alternate_exit built 6483ms exit:70 @a92f16431042
+pass/providers/checked_boundary_operator_const_application_alternate_exit built 159938ms exit:70 @12385533695f
 pass/providers/checked_boundary_operator_physical_custody built 5731ms exit:70 @a92f16431042
 pass/providers/checked_boundary_requirement_dispatch_exit built 7002ms exit:70 @a92f16431042
-pass/providers/checked_fixed_operator_dispatch_exit built 6713ms exit:70 @a92f16431042
-pass/providers/checked_fixed_operator_physical_custody built 5692ms exit:70 @a92f16431042
+pass/providers/checked_const_application_copied_scope built 168394ms exit:70 @12385533695f
+pass/providers/checked_fixed_operator_dispatch_exit built 108592ms exit:70 @12385533695f
+pass/providers/checked_fixed_operator_physical_custody built 119503ms exit:70 @12385533695f
 pass/providers/closed_boundary_callback_contract built 10809ms @a92f16431042
 pass/providers/closed_callback_repeated_application built 12023ms @a92f16431042
 pass/providers/component_owner_provider_override_compile built 2524ms @a92f16431042
@@ -6277,7 +6281,7 @@ pass/providers/same_name_requirement_right_dispatch_exit built 8332ms exit:70 @a
 pass/providers/same_target_internal checked 3006ms @a92f16431042
 pass/providers/scalar_membership_boundary_exit built 2720ms exit:0 @a92f16431042
 pass/providers/scalar_membership_foreign built 2568ms @a92f16431042
-pass/providers/selected_const_provider_call_identity_exit built 8039ms exit:70 @a92f16431042
+pass/providers/selected_const_provider_call_identity_exit built 152791ms exit:70 @12385533695f
 pass/providers/service_borrowed_parameter checked 2817ms @a92f16431042
 pass/providers/service_fused_root checked 3079ms @a92f16431042
 pass/providers/service_fused_root_establishment built 4270ms @a92f16431042
@@ -6292,7 +6296,8 @@ pass/providers/structural_result_field_guarantee_exit built 2169ms exit:0 @a92f1
 pass/providers/table_leaf_dispatch_parameter_exit built 13766ms exit:0 @e83763954a2a+wt
 pass/providers/target_contract_adjacency_exit built 1862ms exit:0 @a92f16431042
 pass/providers/target_family_entry checked 2957ms @a92f16431042
-pass/providers/token_machine_family_override_exit built 11139ms exit:70 @a92f16431042
+pass/providers/token_machine_family_override_exit rejected 332623ms exit:70 terminal-inspections:failed regressed-from:built+exit:70 @12385533695f
+	provider choice transport: Semantic(MalformedStructuralOperation { machine: "named-callable(path(nominal\\\\(package-owner\\\\(32:a82aa27cdf8ceaf98375d6bbcb031185b76243c232aba825c6562b8b1b4ce5fa\\\\)\\\\,path\\\\(WindowsFilesystemNativeProvider::directory_nth\\\\)\\\\)),parameters(parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,ref\\\\(constrained\\\\(slice\\\\(named\\\\(name\\\\(u8\\\\)\\\\)\\\\)\\\\,declared-domain\\\\(name\\\\(package:a82aa27cdf8ceaf98375d6bbcb031185b76243c232aba825c6562b8b1b4ce5fa:product::[u8]::Path\\\\)\\\\)\\\\)\\\\)\\\\)\\\\,parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)),result-dispatch())", operation: OperationId(134), reason: "leaf copy memberships do not follow from every current payload source: source=PlaceId(414), path=[], requested=StructuralTypeId(238)/[StructuralDomainId(2)]/[], current=None, history=[], phase=targets, machine_present=false" })
 pass/providers/unreached_console_provider_rows built 13161ms @a92f16431042
 pass/range/data_parameter_counter_non_negative_exit built 11850ms exit:11 @a92f16431042
 pass/range/runtime_funnel_guard_agreement_exit built 7231ms exit:7 @a92f16431042
@@ -6951,7 +6956,7 @@ pass/termination/runtime_stored_exclusive_endpoint_exit built 6643ms exit:0 @a92
 pass/termination/runtime_zero_local_rank_prefix_exit built 2710ms exit:0 @a92f16431042
 pass/termination/satisfies_terminates checked 2335ms @a92f16431042
 pass/termination/scratch_input_rank checked 2294ms @a92f16431042
-pass/termination/slice_rank_unrelated_float_operator checked 4209ms @a92f16431042
+pass/termination/slice_rank_unrelated_float_operator checked 8371ms @12385533695f
 pass/termination/slice_tail_rank checked 1966ms @a92f16431042
 pass/termination/state_cycle_record checked 2209ms @a92f16431042
 pass/termination/stored_reference_endpoint_arrivals checked 1463ms @a92f16431042

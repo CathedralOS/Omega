@@ -26,6 +26,7 @@
 //! agreement with an earlier captured selection.
 
 use super::calls::projected_evaluated_path;
+use super::cleanup;
 use super::calls::value_index_segment;
 use super::control::LocalConstructionTrace;
 use super::control::statement_sequence::consume_result;
@@ -1020,7 +1021,7 @@ impl OpenWindows {
                     .flatten();
                 let retirement_path = captured_path.as_deref().unwrap_or(&path);
                 let transferred = facts.contextual_cleanup.replaces_transferred_storage(
-                    machine.symbol,
+                    cleanup::owning_cleanup_machine(program, state.symbol),
                     state.symbol,
                     PermissionEventSource::Statement {
                         statement_index: index,

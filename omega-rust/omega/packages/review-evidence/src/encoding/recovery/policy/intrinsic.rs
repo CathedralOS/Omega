@@ -32,6 +32,10 @@ pub(in crate::encoding::recovery) fn execution(
         6 => Execution::HostedReadByte,
         9 => Execution::ProgramImageRetainedSuffixStart,
         10 => Execution::ProgramStorageEntry,
+        12 => Execution::TaskRegisterActivate,
+        13 => Execution::TaskRegisterRead,
+        14 => Execution::SegmentReload(terminal_psi::SegmentReload::from_code(reader.byte()?).ok_or(Error::InvalidTag)?),
+        15 => Execution::SegmentRead(terminal_psi::SegmentRegister::from_code(reader.byte()?).ok_or(Error::InvalidTag)?),
         7 => {
             let operation = integer_comparison(reader)?;
             let integer_type = numeric_type(reader)?;

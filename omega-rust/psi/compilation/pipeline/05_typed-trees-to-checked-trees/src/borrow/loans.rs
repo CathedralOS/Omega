@@ -170,7 +170,7 @@ impl BorrowFormationSources<'_, '_> {
             validation::StoredReferenceRelationRefusal::TemplateDependent => {
                 "call input reference slots depend on an unresolved template at this evaluation"
             }
-            validation::StoredReferenceRelationRefusal::Unavailable => {
+            validation::StoredReferenceRelationRefusal::Unavailable(_) => {
                 "call input has no complete reference-slot relation at its own evaluation"
             }
         })
@@ -389,6 +389,7 @@ pub(super) fn returned_value_loans(
                             owner_path: Vec::new(),
                             source_path: Vec::new(),
                             source_type: parameter.type_reference,
+                            source_reference_hops: 0,
                             parameter_index,
                             kind,
                         }]
@@ -427,15 +428,16 @@ pub(super) fn statement_borrow_loans(
     loan_trackers: &[StateLoanTracker],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     replacement: Option<&CarrierReplacement>,
+    completed_references: Option<&[StateLoanTracker]>,
 ) -> Result<Vec<StatementBorrowLoan>, &'static str> {
     let mut loans = stored_calls::loans(
         program,
-        state,
         machine_symbol,
         statement,
         call_frames,
         loan_trackers,
-    );
+        completed_references,
+    )?;
     // These rows describe the statement's final receiving slots, not every
     // intermediate descriptor generation. The enclosing store overwrites RHS
     // slot effects only within its captured subtree. Independently captured
@@ -529,7 +531,7 @@ fn binding_borrow_loans(
                 // A template body defers unknown type-parameter structure to
                 // its selected closed instances, which re-check this binding.
                 Err(validation::StoredReferenceRelationRefusal::TemplateDependent) => continue,
-                Err(validation::StoredReferenceRelationRefusal::Unavailable) => {
+                Err(validation::StoredReferenceRelationRefusal::Unavailable(_)) => {
                     return Err("operand has no complete completed call-slot relation");
                 }
             };
@@ -568,7 +570,7 @@ fn binding_borrow_loans(
         Err(validation::StoredReferenceRelationRefusal::TemplateDependent) => {
             return Ok(Vec::new());
         }
-        Err(validation::StoredReferenceRelationRefusal::Unavailable) => {
+        Err(validation::StoredReferenceRelationRefusal::Unavailable(_)) => {
             return Err("operand has no complete completed call-slot relation");
         }
     };

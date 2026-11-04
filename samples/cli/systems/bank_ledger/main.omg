@@ -54,14 +54,14 @@ machine Main::main(main: &mut Main) reaches Console {
     main.ledger.balance = sum;
 
     transition main.ledger.balance == 70 {
-        true -> check_count(main)
-        _ -> bad_balance(main)
+        true -> block check_count(main)
+        _ -> block bad_balance(main)
     }
 
     machine check_count(main: &mut Main) {
         transition main.ledger.count == 6 {
-            true -> good(main)
-            _ -> bad_count(main)
+            true -> block good(main)
+            _ -> block bad_count(main)
         }
     }
 

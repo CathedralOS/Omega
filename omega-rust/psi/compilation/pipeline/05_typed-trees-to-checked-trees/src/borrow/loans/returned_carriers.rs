@@ -257,6 +257,7 @@ pub(crate) fn returned_body_source_mismatch(
                 .state_parameters(state)
                 .get(parameter_index)?
                 .type_reference,
+            source_reference_hops: 0,
             parameter_index,
             kind: reference_borrow_access_kind(program, state.return_type)?,
         }],

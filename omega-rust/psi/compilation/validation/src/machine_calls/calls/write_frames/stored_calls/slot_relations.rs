@@ -50,6 +50,11 @@ impl StoredReferenceEffect {
 #[derive(Clone)]
 pub enum StoredReferenceCallContext {
     Entry,
+    /// Final lexical contents, after the statement's guard but before any
+    /// departing transition arm. The last schedule row names this predecessor.
+    StatementCompletion {
+        entry: usize,
+    },
     Invocation {
         entry: usize,
         /// Zero is an ordinary statement call, never a transition target.
@@ -130,13 +135,13 @@ pub(in crate::machine_calls::calls::write_frames) struct SlotInventory {
     pub(in crate::machine_calls::calls::write_frames) ancestors: Vec<Vec<PlaceSegment>>,
 }
 
-/// Why one operand's completed slot relation cannot be published. Unknown
+/// Why a completed slot relation cannot be published at this evaluation. Unknown
 /// template structure is not a proved failure: a template body defers it and
 /// every selected closed instance re-checks the same operand with concrete
 /// types, while an unavailable relation stays an obligation of this body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StoredReferenceRelationRefusal {
-    Unavailable,
+    Unavailable(&'static str),
     TemplateDependent,
 }
 

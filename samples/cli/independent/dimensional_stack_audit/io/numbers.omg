@@ -9,36 +9,36 @@ crashes Trap
 {
     input.value = 0;
     input.valid = false;
-    transition { _ -> scan(input, 0, false, false) }
+    transition { _ -> block scan(input, 0, false, false) }
     machine scan(input: &mut Input, digits: u32, negative: bool, started: bool) {
         let byte: ByteRead = block Console::read_byte();
         transition byte {
             ByteRead::Eof -> finish(input, digits, negative)
-            ByteRead::Byte { value } -> classify(input, digits, negative, started, value)
+            ByteRead::Byte { value } -> block classify(input, digits, negative, started, value)
         }
     }
     machine classify(input: &mut Input, digits: u32, negative: bool, started: bool, byte: i32) {
         transition byte == 10 {
             true -> finish(input, digits, negative)
-            false -> sign(input, digits, negative, started, byte)
+            false -> block sign(input, digits, negative, started, byte)
         }
     }
     machine sign(input: &mut Input, digits: u32, negative: bool, started: bool, byte: i32) {
         transition byte == 45 && started == false {
-            true -> scan(input, digits, true, true)
-            false -> digit(input, digits, negative, byte)
+            true -> block scan(input, digits, true, true)
+            false -> block digit(input, digits, negative, byte)
         }
     }
     machine digit(input: &mut Input, digits: u32, negative: bool, byte: i32) {
         transition byte >= 48 && byte <= 57 && digits < 5 {
-            true -> append(input, digits, negative, byte)
+            true -> block append(input, digits, negative, byte)
             false -> done()
         }
     }
     machine append(input: &mut Input, digits: u32, negative: bool, byte: i32)
     requires digits < 5 {
         input.value = input.value * 10 + (byte as i32 in Saturating) - 48;
-        transition { _ -> scan(input, digits + 1, negative, true) }
+        transition { _ -> block scan(input, digits + 1, negative, true) }
     }
     machine finish(input: &mut Input, digits: u32, negative: bool) {
         transition digits > 0 { true -> signed(input, negative) false -> done() }

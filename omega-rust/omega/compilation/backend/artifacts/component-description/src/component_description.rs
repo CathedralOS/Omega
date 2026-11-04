@@ -666,6 +666,10 @@ pub(crate) fn derive_component_inventory(
                     } => {
                         port_writes.insert((*service, *port, *value));
                     }
+                    OperationKind::ActivateTaskRegister { service, .. } => { register_accesses.insert((*service, terminal_psi::RegisterOperation::TaskRegisterActivate)); }
+                    OperationKind::ReloadSegmentDescriptors { service, kind, .. } => { register_accesses.insert((*service, terminal_psi::RegisterOperation::SegmentReload(*kind))); }
+                    OperationKind::ReadSegmentSelector { service, register } => { register_accesses.insert((*service, terminal_psi::RegisterOperation::SegmentRead(*register))); }
+                    OperationKind::ReadTaskRegister { service } => { register_accesses.insert((*service, terminal_psi::RegisterOperation::TaskRegisterRead)); }
                     OperationKind::GlobalDescriptorTable { service, operation, .. } => {
                         register_accesses.insert((*service, terminal_psi::RegisterOperation::GlobalDescriptorTable(*operation)));
                     }

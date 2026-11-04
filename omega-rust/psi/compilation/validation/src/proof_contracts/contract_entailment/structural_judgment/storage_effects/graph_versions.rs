@@ -463,7 +463,29 @@ impl<'program> StructuralJudge<'program> {
                     })
             })
             .is_some_and(|reference| crate::reference_shell(self.program, reference).is_none());
-        let observation = if inline {
+        // A saved shared scalar keeps its contents while that same pointer
+        // binding survives: its live loan forbids changing the scalar. This
+        // applies only at the saved copy's own home, never at its former source
+        // path, which may now lead through a replacement pointer.
+        let shared_scalar = stored.coordinate == *coordinate
+            && stored
+                .current
+                .as_ref()
+                .and_then(|value| {
+                    super::super::super::structural_terms::shared_inline_observation_type(
+                        self.program,
+                        value,
+                    )
+                })
+                .and_then(|reference| crate::reference_shell(self.program, reference))
+                .is_some_and(|shell| {
+                    self.program
+                        .primitive_type_reference(shell.referee)
+                        .is_some()
+                });
+        let observation = if shared_scalar {
+            crate::completed_storage::StoredObservation::Binding
+        } else if inline {
             crate::completed_storage::StoredObservation::InlineContents
         } else {
             crate::completed_storage::StoredObservation::Contents

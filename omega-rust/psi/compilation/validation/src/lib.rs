@@ -231,7 +231,7 @@ pub use value_custody::atomic_operations::{
     is_atomic_type, place_is_atomic_storage,
 };
 pub use value_custody::places::{
-    AttachedStorageRoot, ScalarCoordinateProjection, StructuralCoordinate,
+    AttachedStorageRoot, ResolvedArrayExtent, ScalarCoordinateProjection, StructuralCoordinate,
     StructuralScalarCoordinate, StructuralScalarField, StructuralSource, assignment_target_indexes,
     assignment_target_selectors, attached_storage_root, canonical_storage_label,
     collection_length_receiver, declaration_storage_label, declared_collection_extent,
@@ -239,8 +239,9 @@ pub use value_custody::places::{
     exact_data_member_field, exact_self_field, expression_names_attached_storage,
     fixed_array_type_extent, fixed_array_type_length, has_builtin_subslice_meaning,
     indexed_operation_has_builtin_meaning, mutable_byte_slice_parameter_element,
-    place_has_builtin_coordinates, range_operator_establishes_endpoint_extent, saved_dispatch_call,
-    saved_dispatch_subject, structural_atomic_field, structural_coordinate,
+    place_has_builtin_coordinates, range_operator_establishes_endpoint_extent,
+    resolved_array_extent, resolved_array_extent_at, resolved_projected_array_extent,
+    saved_dispatch_call, saved_dispatch_subject, structural_atomic_field, structural_coordinate,
     structural_coordinate_in_type, structural_scalar_coordinate,
     structural_scalar_coordinate_in_type, structural_scalar_field,
     structural_scalar_field_at_coordinate, structural_scalar_field_at_element_coordinate,
@@ -295,8 +296,8 @@ pub use crate::machine_calls::calls::{
     ReferenceResultLeafOrigin, ReferenceResultTransport, ReferenceSlotContract,
     ReferenceViewFormation, ScalarStorageCoordinate, StoredReferenceCallContext,
     StoredReferenceDestinationKind, StoredReferenceEffect, StoredReferenceRelationRefusal,
-    ValidatedSelfCallDescent, assignment_stored_value_type, frame_coordinate_path,
-    frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
+    ValidatedSelfCallDescent, assignment_rebinds_parameter, assignment_stored_value_type,
+    frame_coordinate_path, frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
     state_reference_parameter_binding_is_stable, storage_origin_types_match,
 };
 pub use crate::machine_calls::denotational_calls::{

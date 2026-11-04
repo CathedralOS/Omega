@@ -54,28 +54,28 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // total==70, split==40, lap==30, elapsed==40.
     transition main.watch.total == 70 {
-        true -> check_split(main)
-        _ -> bad_total(main)
+        true -> block check_split(main)
+        _ -> block bad_total(main)
     }
 
     machine check_split(main: &mut Main) {
         transition main.watch.last_split == 40 {
-            true -> check_lap(main)
-            _ -> bad_split(main)
+            true -> block check_lap(main)
+            _ -> block bad_split(main)
         }
     }
 
     machine check_lap(main: &mut Main) {
         transition main.watch.last_lap == 30 {
-            true -> check_elapsed(main)
-            _ -> bad_lap(main)
+            true -> block check_elapsed(main)
+            _ -> block bad_lap(main)
         }
     }
 
     machine check_elapsed(main: &mut Main) {
         transition main.watch.elapsed == 40 {
-            true -> good(main)
-            _ -> bad_elapsed(main)
+            true -> block good(main)
+            _ -> block bad_elapsed(main)
         }
     }
 

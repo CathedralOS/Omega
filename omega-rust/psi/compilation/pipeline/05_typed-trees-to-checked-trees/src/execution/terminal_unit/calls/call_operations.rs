@@ -609,6 +609,57 @@ pub(in crate::execution) fn build_call_operation(
         .ok()?
     };
 
+    if let Some((operation, expected_service)) =
+        validation::compiler_operations::descriptor_table_operation(program, target_machine)
+            .inspect_err(|reason| phase(reason))
+            .ok()?
+    {
+        let expected = match operation {
+            language_core::descriptor_tables::DescriptorTableOperation::ActivateTask { .. }
+            | language_core::descriptor_tables::DescriptorTableOperation::ReloadSegments {
+                ..
+            } => PrimitiveType::U8,
+            language_core::descriptor_tables::DescriptorTableOperation::ReadTask
+            | language_core::descriptor_tables::DescriptorTableOperation::ReadSegment { .. } => {
+                PrimitiveType::U16
+            }
+        };
+        if !matches!(expected_call_result, Some(ExpectedCallValueResult::Scalar(actual)) if actual == expected)
+        {
+            phase("descriptor operation lost its scalar result");
+            return None;
+        }
+        let rows = &facts.service_reaches.rows;
+        let [service] = rows.services(call_target.service_reach.direct) else {
+            phase("descriptor operation requires exactly its MachineControl service");
+            return None;
+        };
+        if *service != expected_service
+            || !rows
+                .services(call_target.service_reach.transitive)
+                .contains(service)
+        {
+            phase("descriptor call changed its checked MachineControl authority");
+            return None;
+        }
+        return CheckedUnitCallPlan::new(CheckedUnitCallParts {
+            coordinate,
+            source_site,
+            target: call_target,
+            route: CheckedUnitCallRoute::DescriptorTable {
+                operation,
+                service: *service,
+                result_type: expected,
+            },
+            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+            scalar_arguments,
+            structural_arguments,
+            result: CheckedUnitCallResult::Unit,
+            transfers: CallTransfers::Claims(transfers),
+        })
+        .map(OperationPlan::Call);
+    }
+
     if no_normal {
         CheckedUnitCallPlan::new(CheckedUnitCallParts {
             coordinate,
