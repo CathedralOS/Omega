@@ -229,6 +229,15 @@ An unset/empty environment variable leaves the default unchanged. Pass fixtures
 run both engines with the existing numeric and stream oracles; fail fixtures
 run the existing source/rejection gate only.
 
+The pilot exports its measured source into the existing artifact upload. It
+completes a shallow checkout above a known published prerequisite, asks the
+existing corpus owner to retain the source bundle, then restores that bundle
+in a separate repository containing only its authenticated published
+prerequisites. A missing feature parent or object refuses, including in a
+previously retained bundle. The copied bytes and their source, prerequisite
+and digest appear under `source/manifest.json`. An unauthenticated export
+stops before fixture observations; raw bundles stay out of Git.
+
 ### Timing a check cold, and on a hosted runner
 
 A program that imports `omega_language_std` checks in 6.6 s on a warm
