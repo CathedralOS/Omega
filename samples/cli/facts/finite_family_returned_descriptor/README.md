@@ -136,7 +136,8 @@ at compiler `059fb0b41d8`. Each checks all 14 local-storage twins and executes
 all 15 positive examples at 0/0 through corpus and ordinary commands. The
 missing-provider control also executes at 0/0 on its supplied Linux ARM64
 target; macOS and Windows refuse publication as authored. Independent review
-accepts those results for this merge: the repair and programs are unchanged,
+accepts those results for the `9ad31e5e871` integration: the repair and programs
+are unchanged between the two measured sources,
 Linux freshly checks the changed shared consumers, and the target changes
 concern atomic and segment operations absent from these programs. These remain
 actual `059fb0b41d8` observations, not execution of `9ad31e5e871` on those hosts.
