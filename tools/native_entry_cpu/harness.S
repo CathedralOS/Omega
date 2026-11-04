@@ -79,8 +79,11 @@ long_mode:
  movq %rax, irq_guard_high(%rip)
  movq %rax, boot_guard_low(%rip)
  movq %rax, boot_guard_high(%rip)
+ /* The memory oracle owns this counter; marker payloads may occupy it. */
+#ifndef ORACLE_DEBUG_MARKER
  movq $0x300000, %rax
  movq $0, (%rax)
+#endif
  movq $0, round(%rip)
  /* Keep hardware IRQs masked while testing restoration of an enabled IF. */
  movb $0xff, %al
