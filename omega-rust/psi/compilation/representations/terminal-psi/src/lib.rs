@@ -79,3 +79,5 @@ mod direct_calls;
 pub use direct_calls::{
     DirectCallParts, DirectCallRole, call_structural_arguments, direct_call_parts,
 };
+
+pub use language_core::descriptor_tables::{SegmentRegister, SegmentReload};

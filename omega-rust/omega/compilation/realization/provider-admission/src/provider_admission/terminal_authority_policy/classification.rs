@@ -46,7 +46,9 @@ pub(super) fn classify_compiler_intrinsic(
             empty_disposition()
         }
         CompilerIntrinsicExecutionIdentity::TaskRegisterActivate
-        | CompilerIntrinsicExecutionIdentity::TaskRegisterRead => {
+        | CompilerIntrinsicExecutionIdentity::TaskRegisterRead
+        | CompilerIntrinsicExecutionIdentity::SegmentReload(_)
+        | CompilerIntrinsicExecutionIdentity::SegmentRead(_) => {
             disposition([TerminalAuthorityClass::MachineControl])
         }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {

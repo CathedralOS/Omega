@@ -295,6 +295,8 @@ operation_semantic_rows! {
     AtomicAccess => ("schema:operation:atomic-access", LeafDenotation, None),
     AtomicFence => ("schema:operation:atomic-fence", LeafDenotation, None),
     ActivateTaskRegister => ("schema:operation:activate-task-register", LeafDenotation, None),
+    ReloadSegmentDescriptors => ("schema:operation:reload-segment-descriptors", LeafDenotation, None),
+    ReadSegmentSelector => ("schema:operation:read-segment-selector", LeafDenotation, None),
     ReadTaskRegister => ("schema:operation:read-task-register", LeafDenotation, None),
     GlobalDescriptorTable => ("schema:operation:global-descriptor-table", LeafDenotation, None),
 }

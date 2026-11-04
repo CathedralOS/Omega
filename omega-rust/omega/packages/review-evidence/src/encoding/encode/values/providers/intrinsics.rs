@@ -8,6 +8,36 @@ pub(crate) fn encode_compiler_intrinsic_execution(
     execution: &PackageReviewCompilerIntrinsicExecution,
 ) -> Result<(), PackageReviewEncodingError> {
     match execution {
+        PackageReviewCompilerIntrinsicExecution::SegmentReload(kind) => {
+            encoder.tag("segment_reload", 14);
+            encoder.field("kind", |encoder| {
+                encoder.tag(
+                    match kind {
+                        terminal_psi::SegmentReload::Code => "code",
+                        terminal_psi::SegmentReload::Data => "data",
+                    },
+                    kind.code(),
+                );
+                Ok(())
+            })?;
+        }
+        PackageReviewCompilerIntrinsicExecution::SegmentRead(register) => {
+            encoder.tag("segment_read", 15);
+            encoder.field("register", |encoder| {
+                encoder.tag(
+                    match register {
+                        terminal_psi::SegmentRegister::Code => "cs",
+                        terminal_psi::SegmentRegister::Data => "ds",
+                        terminal_psi::SegmentRegister::Extra => "es",
+                        terminal_psi::SegmentRegister::Stack => "ss",
+                        terminal_psi::SegmentRegister::Fs => "fs",
+                        terminal_psi::SegmentRegister::Gs => "gs",
+                    },
+                    register.code(),
+                );
+                Ok(())
+            })?;
+        }
         PackageReviewCompilerIntrinsicExecution::TaskRegisterActivate => {
             encoder.tag("task_register_activate", 12)
         }
