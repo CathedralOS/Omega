@@ -304,6 +304,24 @@ impl Retirement<'_> {
             })
             .peekable();
         let control = &self.facts.flow.control;
+        let call_descriptors = if loan.formation_owner_path.is_none() {
+            match validation::completed_storage::loan_call_descriptors(
+                self.program,
+                self.facts,
+                self.machine,
+                self.state.symbol,
+                handle,
+            ) {
+                Ok(Some(descriptors)) => Some(descriptors),
+                Ok(None) => return false,
+                Err(reason) => {
+                    self.trace.phase(reason);
+                    return false;
+                }
+            }
+        } else {
+            None
+        };
         let storage = validation::CanonicalPlace {
             root: loan.storage_owner,
             segments: path.clone(),
@@ -314,14 +332,23 @@ impl Retirement<'_> {
                     return false;
                 }
                 let value = control.operands.get(row.returned_value);
-                let Some(stored) = validation::completed_storage::at_snapshot(
+                let Some(stored) = validation::completed_storage::sources_at_snapshot(
                     self.program,
                     control,
                     value.storage_snapshot,
                     &storage,
                     validation::completed_storage::StoredObservation::Binding,
-                )
-                .and_then(|stored| stored.captures()) else {
+                ) else {
+                    return false;
+                };
+                if let Some(descriptors) = &call_descriptors {
+                    return validation::completed_storage::matches_call_descriptor_frontier(
+                        self.program,
+                        stored,
+                        descriptors,
+                    ) == Ok(true);
+                }
+                let Some(stored) = stored.captures() else {
                     return false;
                 };
                 !stored.is_empty()
@@ -383,6 +410,25 @@ impl Retirement<'_> {
             },
         );
         if !covered {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE saved-exit-cleanup-uncovered machine={:?} state={:?} loan={handle:?} row={loan:?} path={path:?} exit={exit:?}",
+                    self.machine, self.state.symbol
+                );
+                let mut count = 0;
+                let mut printed = 0;
+                self.facts.contextual_cleanup.any_state_disposition(self.machine, self.state.symbol, |disposition_handle, disposition| {
+                    if count < 12 || disposition.root == loan.storage_owner {
+                        eprintln!("CHECKSITE saved-exit-cleanup-candidate loan={handle:?} disposition={disposition_handle:?} row={disposition:?} path={:?} exclusions={:?}", self.facts.flow.ownership.segments.span(disposition.path), self.facts.contextual_cleanup.exclusions.span(disposition.exclusions));
+                        printed += 1;
+                    }
+                    count += 1;
+                    false
+                });
+                eprintln!(
+                    "CHECKSITE saved-exit-cleanup-candidate-count loan={handle:?} total={count} printed={printed} all_matching_owners=true"
+                );
+            }
             self.trace
                 .phase("completion cleanup: no checked cleanup covers this saved access");
             self.trace

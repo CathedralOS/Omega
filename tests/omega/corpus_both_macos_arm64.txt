@@ -139,6 +139,7 @@ pass/data/prefix_case_pure_sum_retirement built 1017ms exit:0 interpreter-exit:0
 pass/dependent/data_requires_clauses_exit built 1163ms exit:0 interpreter-exit:0 interpreter:agrees @276a24ccda04
 pass/dependent/runtime_symbolic_slice_cell_theorem_exit built 1279ms exit:0 interpreter-exit:0 interpreter:agrees @5c5c178f82c7
 pass/dependent/runtime_symbolic_slice_predicate_store_exit built 1328ms exit:0 interpreter-exit:0 interpreter:agrees @5c5c178f82c7
+pass/domains/borrow_of_cast_exit built 11137ms exit:0 interpreter-exit:0 interpreter:agrees @c15929193d39+wt
 pass/domains/case_payload_widened_call_result_exit built 9164ms exit:0 interpreter-exit:0 interpreter:agrees @95750e8d2f8d
 pass/domains/semicolon_predicate_presence_exit built 1150ms exit:0 interpreter-exit:0 interpreter:agrees @4599cdf306fb
 pass/effects/static_boundary_callback_reach built 4676ms exit:0 interpreter-exit:0 interpreter:agrees callback-body-controls:match terminal-inspections:match @65b0b3576d3c

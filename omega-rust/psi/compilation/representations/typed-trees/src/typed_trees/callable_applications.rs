@@ -85,7 +85,7 @@ impl TypedTrees {
                         required,
                         source_required,
                         ..
-                    } => [Some(required), Some(source_required)],
+                    } => [required.as_ref(), Some(source_required)],
                     _ => [None, None],
                 };
                 [Some(&prepared.signature), counterparts[0], counterparts[1]]
@@ -224,9 +224,10 @@ enum AppliedCallableOwner {
         demand: SymbolHandle,
         selected: SymbolHandle,
         provider: crate::static_applications::StaticMachineApplicationHandle,
-        required: signature::StateSignature,
+        required: Option<signature::StateSignature>,
         source_required: signature::StateSignature,
         caller_operands: arena::HandleSpan<CallableSubstitution>,
+        caller_bindings: arena::HandleSpan<crate::static_applications::StaticMachineBinding>,
         caller_lifetimes: arena::HandleSpan<StaticMachineLifetimeBinding>,
         caller_lifetime_declaration: SymbolHandle,
         caller_lifetime_owner: SymbolHandle,
@@ -275,6 +276,13 @@ struct CallableApplication {
     elided_lifetimes: Vec<crate::name::Identifier>,
     types: Vec<(SymbolHandle, types::TypeReferenceHandle)>,
     static_arguments: Vec<(SymbolHandle, crate::expression::StaticMachineArgument)>,
+    /// Scope that supplied the selected functions, independent of the copied signature.
+    static_argument_owner: SymbolHandle,
+    /// Complete provider records for the current invocation, prepared before its guarantees.
+    selected_providers: Vec<(
+        SymbolHandle,
+        crate::static_applications::StaticMachineApplicationHandle,
+    )>,
     symbols: Vec<(SymbolHandle, SymbolHandle)>,
     active_requirements: Vec<(SymbolHandle, SymbolHandle)>,
     source_binders: Vec<(crate::name::Identifier, SymbolHandle)>,

@@ -5,7 +5,7 @@
 use arena::Handle;
 use checked_trees::FlowOperandFact;
 mod query;
-pub use query::{at_snapshot, contents_preserved_from};
+pub use query::{at_snapshot, contents_preserved_from, sources_at_snapshot};
 pub mod versions;
 
 #[derive(Clone)]
@@ -77,11 +77,12 @@ mod reference_captures;
 pub use captures::{
     captured_operand_child_at_path, captured_operand_children_at_path,
     captured_retention_profiles_at_path, finite_projection_paths, operand_child_type,
-    project_captured_view_place,
+    project_captured_storage_place, project_captured_view_place,
 };
 pub use descriptor_suppliers::descriptor_suppliers;
 pub use reference_captures::{
     owned_profile_reference_sources, reference_captures_at_path, reference_sources_at_path,
+    stored_reference_sources_at_path,
 };
 
 mod frozen_references;
@@ -107,4 +108,9 @@ pub use occurrences::consumer_captures;
 mod loan_homes;
 pub use loan_homes::{
     InstalledLoanHomes, descriptor_formation_matches_loan, descriptor_formation_sources,
+};
+mod call_stores;
+pub use call_stores::{
+    CompletedCallDescriptor, CompletedCallDescriptorOrigin, CompletedCallDescriptorSource,
+    loan_call_descriptors, matches_call_descriptor_frontier,
 };

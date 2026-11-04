@@ -151,6 +151,11 @@ pub fn atomic_once_operands(
     {
         return None;
     }
+    let language_core::atomic::AtomicExpressionResultCustody::CompareExchangeOnce(custody) =
+        atomic.result_custody
+    else {
+        return None;
+    };
     let ExpressionNode::Call(call) = program.expression_table.expression(atomic.value) else {
         return None;
     };
@@ -159,14 +164,14 @@ pub fn atomic_once_operands(
         return None;
     };
     if !call.receiver.is_valid()
-        || call.target.as_str() != "compare_exchange_once"
+        || call.target.as_str() != custody.observation.single_attempt_member_name()
         || !call.machine_arguments.is_empty()
         || !call.evidence_arguments.is_empty()
     {
         return None;
     }
     Some(AtomicCarrierAccess {
-        operation: AtomicAccessOperation::CompareExchangeOnce { success, failure },
+        operation: AtomicAccessOperation::single_attempt(custody.observation, success, failure),
         place: call.receiver,
         operands: vec![*expected, *replacement],
         result: ExpressionHandle::invalid(),
@@ -210,12 +215,17 @@ pub fn atomic_once_result_type(
     program: &dyn crate::CheckingInput,
     reference: typed_trees::types::TypeReferenceHandle,
     primitive: typed_trees::types::PrimitiveType,
+    custody: language_core::atomic::AtomicCompareExchangeOnceResultCustody,
 ) -> bool {
     fn check(
         program: &dyn crate::CheckingInput,
         reference: typed_trees::types::TypeReferenceHandle,
         primitive: typed_trees::types::PrimitiveType,
+        custody: language_core::atomic::AtomicCompareExchangeOnceResultCustody,
     ) -> Option<()> {
+        if !custody.is_canonical() {
+            return None;
+        }
         let data = program.closed_data_definition(reference)?;
         let origin = data.generic_instance.unwrap_or(reference);
         let TypeReferenceNode::Generic {
@@ -232,10 +242,19 @@ pub fn atomic_once_result_type(
                 .normalized_hermetic_symbol_identity(*base_symbol)
                 .ok()
                 .as_deref()
-                != Some("toolchain::AtomicCompareExchangeOnceOutcome")
+                .and_then(|name| name.strip_prefix("toolchain::"))
+                != Some(custody.outcome_identity.name())
             || program.symbol_toolchain_relative_path(*base_symbol)
                 != Some(std::path::Path::new("layout.omg"))
-            || data.properties.multiplicity != language_semantics::Multiplicity::Unrestricted
+            || data.properties.multiplicity
+                != match custody.observation {
+                    language_core::atomic::AtomicCompareExchangeObservationAxis::Observing => {
+                        language_semantics::Multiplicity::Unrestricted
+                    }
+                    language_core::atomic::AtomicCompareExchangeObservationAxis::NonObserving => {
+                        language_semantics::Multiplicity::Affine
+                    }
+                }
             || !data.where_facts.is_empty()
             || data.zero_gated
             || data.quotient.is_some()
@@ -266,16 +285,14 @@ pub fn atomic_once_result_type(
             let typed_trees::data::DataMember::Variant(case) = member else {
                 return None;
             };
-            let (name, payload) = [
-                ("Mismatched", true),
-                ("Exchanged", false),
-                ("Uncommitted", true),
-            ][index];
+            let schema = custody.outcome_identity.cases().get(index)?;
+            let name = schema.case.name();
+            let payload = schema.payload;
             if case.name.as_str() != name || !case.where_facts.is_empty() {
                 return None;
             }
             let fields = program.data_payload_fields(case);
-            if !payload {
+            if payload.is_none() {
                 if !fields.is_empty() {
                     return None;
                 }
@@ -283,7 +300,7 @@ pub fn atomic_once_result_type(
                 let [field] = fields else {
                     return None;
                 };
-                if field.name.as_str() != "observed"
+                if field.name.as_str() != payload?.field_name()
                     || field.relevance.is_erased()
                     || program.normalized_type_identity(field.type_reference)
                         != program.normalized_type_identity(*resident)
@@ -294,7 +311,7 @@ pub fn atomic_once_result_type(
         }
         Some(())
     }
-    check(program, reference, primitive).is_some()
+    check(program, reference, primitive, custody).is_some()
 }
 
 /// Decode a load carrier: `place.load(ordering)` in value position.

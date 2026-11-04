@@ -19,7 +19,9 @@ terminates by values -> Slice::Length
         }
     }
 
-    machine emit(element: i32 in Wrapping, values: &[i32 in Wrapping]) -> i32 {
+    machine emit(element: i32 in Wrapping, values: &[i32 in Wrapping]) -> i32
+    terminates by values -> Slice::Length
+    {
         transition values.len > 0 {
             true -> emit(values[0], values[1..])
             false -> (element as i32)

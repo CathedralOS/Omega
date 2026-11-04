@@ -39,6 +39,7 @@ requires remaining <= 5
     transition { _ -> cycle(first, second, remaining) }
     machine cycle(current: Job, waiting: Job, left: u32) -> u32
     requires left <= 5
+    terminates by left
     {
         let returned: Job = hand_over(current);
         transition left > 0 {
@@ -55,6 +56,7 @@ requires remaining > 0 && remaining <= 5
     transition { _ -> cycle(first, second, remaining) }
     machine cycle(current: &mut Worker, waiting: &mut Worker, left: u32)
     requires left > 0 && left <= 5
+    terminates by left
     {
         current.last_round = left;
         transition left > 1 {

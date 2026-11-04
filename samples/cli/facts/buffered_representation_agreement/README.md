@@ -4,8 +4,8 @@ A caller encodes a pair into its buffer, then decodes it once. The returned pair
 must equal the original for every admitted pair, and the caller must keep the
 same writable storage. All nine places now return zero in native and Terminal
 execution on Linux x86-64. Each corrupt-decoder twin rejects its intended field
-promise. The broader affected checks, regression records, review and main
-publication remain unfinished.
+promise. The full Representation interface and
+other-host observations remain parent work.
 
 **A completed buffered round trip preserves every semantic field and returns the caller's output storage.**
 
@@ -24,6 +24,15 @@ Terminal Psi. References retain their descriptor and access meaning: identity
 of the containing value grants no fact about later buffer contents. Byte facts
 still require the correct storage version and are invalidated by overlapping
 writes.
+
+A generic conversion call may need concrete type arguments before its reference
+transfers are known. The compiler keeps that unresolved obligation while checking
+later calls. Fresh borrows of owned local storage still receive ordinary lifetime
+and conflict checks; loaded references still need complete source information.
+The [live-borrow control](../../../../tests/omega/fail/borrows/template_prefix_keeps_owned_borrow_live/main.omg)
+rejects a write before the borrowed pointer's last use. The
+[later-call control](../../../../tests/omega/fail/borrows/template_prefix_keeps_concrete_output_obligation/main.omg)
+rejects a missing concrete call relation even after an unresolved generic call.
 
 The [local witness](local/main.omg) encodes a tag followed by the arbitrary Pair's
 two bytes. The writer promises which bytes it stores; the reader promises which
@@ -54,39 +63,40 @@ byte snapshots, extent checks and write markers leave that evaluation. The live
 mutable reference stays inside it. Main checks those observations and runs the
 same observer at runtime.
 
-[Run 41779178635](https://github.com/CathedralOS/Omega/actions/runs/41779178635),
-at exact producer source `bb8bcac3d4dd40c6f13d47518d27ee52b07126dd`,
+[Run 41876775834](https://github.com/CathedralOS/Omega/actions/runs/41876775834),
+at exact producer source `fedba668faa985235b7b4db1a46c04397219fdbd`,
 executes all nine positives with native 0, Terminal 0 and engine agreement.
-All nine twins reject only the Reader's field guarantees. These observations
-belong to that producer; later source or documentation changes are not new
-executions. The optimized producer, original reports, source bundle and complete
-raw log are retained with the PR's evidence.
+All nine twins reject only the Reader's field guarantees. The complete request
+has 31 source observations, 13 native/Terminal agreements, all nine ordinary CLI
+projects and eighteen sample results. Every CLI project completes update and
+both-engine execution; all nine sample positives return zero and their nine
+twins reject as intended. The compiler binaries match the earlier focused run;
+optimized preparation takes 84 seconds on the warm cache. Original reports,
+optimized profile metadata, the source bundle and complete raw log are retained
+with [PR 1819](https://github.com/CathedralOS/Omega/pull/1819). These observations
+keep their original producer identity when regression records or prose change.
 
-Additional valid constant-call controls still stop before execution. Their
-repair must preserve the exact arguments, public precondition and which
-services the call may use. Those controls remain unaccepted. The final
-affected checks also need all nine ordinary CLI projects, eighteen positive and
-invalid sample requests, four explicit exit-zero postchecks, and recorded
-regression outcomes. Earlier eight-project results use a different producer
-and do not establish that final acceptance. Four hosted Build entries are
-authored; this run supplies Linux x86-64 execution only. Other-host execution
-remains parent work.
+The direct named constant call and positional implementation through a constant
+also execute at native 0 and Terminal 0 in this run. Their precondition and
+runtime-service refusal controls reject. Four hosted Build entries are authored;
+these runtime observations are Linux x86-64 only.
 
 The [original valid-source baseline](https://github.com/CathedralOS/Omega/actions/runs/41546898552)
 and [compiler changes](https://github.com/CathedralOS/Omega/pull/1562) retain the
 earlier diagnostics and repairs. [Comparison 41772865951](https://github.com/CathedralOS/Omega/actions/runs/41772865951)
 and [comparison 41774777402](https://github.com/CathedralOS/Omega/actions/runs/41774777402)
 attribute six earlier failures to fixed main `db92349b9c2ef6e6e3705372ba6754b3e70e4874`.
-Four controls stop at earlier formation or borrowing-source refusals; two
-default-body positives cannot lower their returned expression. The current
-producer reproduces those failures. They remain separately unaccepted, and
-wrong-reason rejections do not prove their intended obligations. The
+Those historical records include four earlier formation or borrowing-source
+failures and two default-body positives that could not lower their returned
+expression. They remain separately unaccepted; they are not current execution
+evidence. Four explicit header-zero checks, the default-body positives and the
 [nested-machine sibling-write control](../../../../tests/omega/fail/borrows/nested_machine_carried_field_sibling_rejected/main.omg)
-rejects its intended live-borrow write and remains a required control.
-These comparisons supply source attribution, not runtime or performance evidence.
+are selected in [follow-up 41878304380](https://github.com/CathedralOS/Omega/actions/runs/41878304380)
+on the same producer. Their results remain pending. Wrong-reason refusals and
+timeouts do not satisfy those obligations.
 
-The programs establish the following obligations; integration and the remaining
-affected checks still need to finish:
+The programs exercise the following obligations. The parent task retains the
+separate controls above, broader library support and other-host execution:
 
 | Requirement | How the programs exercise it |
 | --- | --- |

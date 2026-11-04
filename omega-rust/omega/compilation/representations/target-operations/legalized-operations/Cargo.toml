@@ -9,6 +9,7 @@ name = "legalized_operations"
 path = "src/lib.rs"
 
 [dependencies]
+language-core = { path = "../../../../../psi/foundation/language-core" }
 calling-conventions = { path = "../../../backend/calling-conventions" }
 function-identity = { path = "../../../../foundation/function-identity" }
 optimization-core = { path = "../../../../foundation/optimization-core" }

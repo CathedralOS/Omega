@@ -367,10 +367,46 @@ pub(in super::super) fn stage(
             .ok_or_else(|| invalid("destination has no structural carrier type"))?;
         let referent = referent(types, carrier_type)
             .ok_or_else(|| invalid("destination carrier is not a reference"))?;
+        let StructuralTypeShape::Reference {
+            access: requested, ..
+        } = types
+            .get(carrier_type)
+            .ok_or_else(|| invalid("destination reference type is unavailable"))?
+            .shape
+        else {
+            return Err(invalid("destination carrier is not a reference"));
+        };
         let mut candidates = Vec::new();
         for source in &effect.sources {
-            let leaf = match source {
+            let mut leaf = match source {
                 Source::Incoming(formal) => {
+                    // A shared containing reference can lend only a shared
+                    // view, even when its stored pointer is mutable. Check
+                    // every original crossing before resolving physical storage.
+                    let position = terminal_psi::structural_parameter_position(
+                        &callee.structural_parameters,
+                        formal.place,
+                    )
+                    .ok_or_else(|| invalid("incoming source has no declared parameter"))?;
+                    let parameter = &callee.structural_parameters[position];
+                    let supplied = arguments
+                        .get(position)
+                        .ok_or_else(|| invalid("incoming source has no actual argument"))?;
+                    let mut path = formal.path.clone();
+                    path.push(StructuralPathSegment::Referent);
+                    if !access_covers(supplied.access, formal.access)
+                        || !abstract_operations::control_flow::address_joins::loan_access_permitted(
+                            types.values().copied(),
+                            parameter.structural_type,
+                            &path,
+                            formal.access,
+                            requested,
+                        )
+                    {
+                        return Err(invalid(
+                            "incoming reference exceeds its original access ceiling",
+                        ));
+                    }
                     let source = actual(formal)?;
                     let Some(leaf) = live.references.get(&source) else {
                         if source
@@ -450,9 +486,25 @@ pub(in super::super) fn stage(
                     }
                 }
             };
-            if leaf.carrier_type != carrier_type || leaf.referent != referent {
+            let StructuralTypeShape::Reference {
+                referent: source_referent,
+                access: source_access,
+            } = types
+                .get(leaf.carrier_type)
+                .ok_or_else(|| invalid("source reference type is unavailable"))?
+                .shape
+            else {
+                return Err(invalid("source carrier is not a reference"));
+            };
+            if leaf.referent != referent
+                || source_referent != referent
+                || !access_covers(source_access, requested)
+            {
                 return Err(invalid("source and destination reference types disagree"));
             }
+            // Access can weaken while the pointer keeps its exact referent,
+            // backing origins and placement. Only its stored presentation changes.
+            leaf.carrier_type = carrier_type;
             candidates.push(leaf);
         }
         let replacement = if candidates.is_empty() {

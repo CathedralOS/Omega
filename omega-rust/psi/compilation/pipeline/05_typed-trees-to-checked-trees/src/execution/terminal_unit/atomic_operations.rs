@@ -135,7 +135,9 @@ pub(super) fn writing_event(
                 replacement,
             }
         }
-        AtomicAccessOperation::Load(_) | AtomicAccessOperation::CompareExchangeOnce { .. } => {
+        AtomicAccessOperation::Load(_)
+        | AtomicAccessOperation::CompareExchangeOnce { .. }
+        | AtomicAccessOperation::TryExchangeOnce { .. } => {
             return None;
         }
     };
@@ -167,6 +169,7 @@ pub(super) fn writing_event(
         event,
         result,
         structural_result: None,
+        discard_result_on_return: false,
     })
 }
 
@@ -186,7 +189,10 @@ pub(super) fn once_event(
     shapes: &mut ShapeCollector<'_>,
 ) -> Option<AccessPlan> {
     let carrier = validation::atomic_once_carrier(program, local.initial_value)?;
-    let AtomicAccessOperation::CompareExchangeOnce { success, failure } = carrier.operation else {
+    let custody = carrier.operation.single_attempt_custody()?;
+    let language_core::atomic::AtomicOrderingPlan::CompareExchangeOnce { success, failure } =
+        carrier.operation.ordering_plan()
+    else {
         return None;
     };
     let place = place(
@@ -199,7 +205,12 @@ pub(super) fn once_event(
         trace,
         shapes,
     )?;
-    if !validation::atomic_once_result_type(program, local.type_reference, place.primitive_type) {
+    if !validation::atomic_once_result_type(
+        program,
+        local.type_reference,
+        place.primitive_type,
+        custody,
+    ) {
         return None;
     }
     let [expected, replacement] =
@@ -239,12 +250,14 @@ pub(super) fn once_event(
         field_identity: place.field_identity,
         primitive_type: place.primitive_type,
         event: CheckedAtomicEvent::CompareExchangeOnce {
+            custody,
             success,
             failure,
             expected,
             replacement,
         },
         result: None,
+        discard_result_on_return: result.multiplicity == language_semantics::Multiplicity::Affine,
         structural_result: Some(result),
     })
 }

@@ -2947,6 +2947,15 @@ pass/facts/finite_family_exclusive_result/other_machine built 2504ms exit:0 inte
 pass/facts/finite_family_exclusive_result/other_state built 2386ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
 pass/facts/finite_family_exclusive_result/parameter built 3060ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
 pass/facts/finite_family_exclusive_result/target_body built 2899ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
+pass/facts/finite_family_input_index/call_result built 7058ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/const_name built 7011ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/field built 7044ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/local built 7066ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/match_join built 7098ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/other_machine built 7113ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/other_state built 7107ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/parameter built 7173ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_input_index/target_body built 7224ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_returned_descriptor/call_result built 3730ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_returned_descriptor/caller_view built 3715ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_returned_descriptor/const_name built 3698ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
@@ -2964,6 +2973,7 @@ pass/facts/finite_family_returned_descriptor/target_body built 3885ms exit:0 int
 pass/facts/finite_family_returned_descriptor/target_qualification built 3696ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply rejected 3838ms expected native-rejection:match @059fb0b41d83
 	no provider is selected for boundary requirement `SelectedTarget::target_only`, which the program entry reaches on target `windows_x86_64`
+pass/facts/finite_family_static_inline_result/target_body built 7363ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/five_variant_enum_payload_bound_through_call_result_exit built 4474ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/five_variant_enum_payload_bound_through_const_name_exit built 7117ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/five_variant_enum_payload_bound_through_field_exit built 5470ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -7216,7 +7226,10 @@ pass/traits/runtime_dyn_byte_record_result rejected 4533ms interpreter:unchecked
 pass/traits/runtime_dyn_byte_result_candidates built 4211ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_dyn_byte_subview_join built 5228ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_dyn_data_argument_counts_exit built 12250ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/traits/runtime_dyn_family_local_width_exit built 7517ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/traits/runtime_dyn_family_nested_result built 13022ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/traits/runtime_dyn_family_reordered_roster_exit built 7542ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/traits/runtime_dyn_family_replaced_width_exit built 7127ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/traits/runtime_dyn_family_scalar_continuation built 2448ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_dyn_field_assignment_establishment_exit built 7139ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
 pass/traits/runtime_dyn_guarded_result_exit built 3024ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

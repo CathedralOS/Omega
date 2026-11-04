@@ -10,7 +10,9 @@ machine walk(bag: Bag, capacity: u64) -> u64
 requires bag.items.len <= capacity
 terminates by bag.items -> Slice::Length in 0..=capacity {
     transition { _ -> step(bag, capacity) }
-    machine step(current: Bag, bound: u64) -> u64 {
+    machine step(current: Bag, bound: u64) -> u64
+    terminates by current.items -> Slice::Length
+    {
         transition current.items.len > 0 {
             true -> step(Bag { items: current.items[1..] }, bound)
             false -> 0

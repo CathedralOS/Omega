@@ -1,0 +1,1 @@
+requires the sealed AtomicTryExchangeOnceOutcome with the exact resident type

@@ -12,6 +12,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
 mod calls;
+pub(super) use calls::prepare_invocation_bindings;
 mod demands;
 mod inference;
 mod runtime_operands;

@@ -1,1 +1,1 @@
-cannot prove rank range `0..=limit`
+cannot prove rank range `0..=bound`
