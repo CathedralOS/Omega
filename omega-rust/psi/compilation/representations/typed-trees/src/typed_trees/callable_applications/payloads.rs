@@ -540,8 +540,21 @@ impl CallableApplication {
                 }
             }
         }
+        // Select through the source binder before alpha remapping changes its
+        // symbol. Keep each selection beside the copied row it belongs to.
+        let call_targets = rows
+            .iter()
+            .map(
+                |handle| match program.expression_table.expression(*handle) {
+                    expression::ExpressionNode::Call(call) => {
+                        self.selected_call_target(program, call.target_symbol)
+                    }
+                    _ => Ok(None),
+                },
+            )
+            .collect::<Result<Vec<_>, _>>()?;
         program.expression_table.remap_symbols_in(copied, &symbols);
-        for handle in rows {
+        for (handle, call_target) in rows.into_iter().zip(call_targets) {
             let node = program.expression_table.expression(handle).clone();
             let applied = match node {
                 expression::ExpressionNode::Name(path) => {
@@ -636,6 +649,9 @@ impl CallableApplication {
                     expression::ExpressionNode::ZeroValue(self.type_reference(program, reference)?),
                 ),
                 expression::ExpressionNode::Call(mut call) => {
+                    if let Some(target) = call_target {
+                        self.apply_call_target(program, &mut call, target);
+                    }
                     self.static_arguments(program, &mut call.machine_arguments)?;
                     let application = call.authored_machine_application;
                     if application.is_valid() {

@@ -4142,30 +4142,22 @@ pass/facts/finite_family_input_index/other_machine built 5921ms exit:0 interpret
 pass/facts/finite_family_input_index/other_state built 5873ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/parameter built 5921ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/target_body built 6005ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
-pass/facts/finite_family_returned_descriptor/call_result rejected 827ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/const_name rejected 825ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/field rejected 836ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/local rejected 836ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/match_join rejected 835ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/other_machine rejected 834ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/other_state rejected 827ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/parameter rejected 827ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/pointer_field rejected 830ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/replaced_source rejected 830ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/target_body rejected 781ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/target_qualification rejected 782ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
+pass/facts/finite_family_returned_descriptor/call_result built 5827ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/caller_view built 5940ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/const_name built 5947ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/field built 6054ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/incoming_join built 6033ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/local built 5995ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/match_join built 5987ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/other_machine built 5954ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/other_state built 5936ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/parameter built 5924ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/pointer_field built 5902ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/replaced_source built 5957ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/saved_source built 5918ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/target_body built 5983ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/target_qualification built 5972ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply built 5930ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_static_inline_result/argument_effect rejected 820ms interpreter:unchecked @6e42425cd720
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_static_inline_result/authored_sum rejected 818ms interpreter:unchecked @6e42425cd720

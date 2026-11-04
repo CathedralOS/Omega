@@ -9055,34 +9055,43 @@ fail/facts/data_where_standing_mutable_recast_through_target_body_rejected rejec
 	argument `counter` for state `inspect`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
 fail/facts/data_where_standing_mutable_snapshot_bound rejected 2832ms expected @f78c2623a68c
 	cannot prove requires contract for call require_bound from fill: saved <= 60 (needs fact `value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/data_where_standing_nested_borrowed_field_call_result rejected 2100ms expected @d3679195288a
-	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_const_name rejected 1975ms expected @d3679195288a
-	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_nested_borrowed_field_call_result rejected 10634ms expected @4606e707a322+wt
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/data_where_standing_nested_borrowed_field_const_name rejected 7387ms expected @4606e707a322+wt
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/data_where_standing_nested_borrowed_field_descriptor_identity rejected 5990ms expected @d3679195288a
 	cannot prove requires contract for call require_same from compute: value == read(selected.value) (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/data_where_standing_nested_borrowed_field_field rejected 1772ms expected @d3679195288a
-	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_nested_borrowed_field_field rejected 7604ms expected @4606e707a322+wt
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/data_where_standing_nested_borrowed_field_incoming_compatibility rejected 7944ms expected @4606e707a322+wt
+	state `compute` receives `left.value` while local borrow `counter` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 1 mutates `destination` while local borrow `entry` is still active (borrowed at statement 0; its last use is at statement 2; an invocation's captured backing conflicts with its exclusive storage)
+	statement 1 mutates `destination` while local borrow `old` is still active (borrowed at statement 0; its last use is at statement 2; an invocation's captured backing conflicts with its exclusive storage)
+	statement 4 borrows `left.value` while local borrow `counter` is still active (borrowed at statement 2; its last use is at statement 4) in machine `main`, state `entry`, statement 4
+	statement 4 mutates `left.value` while local borrow `counter` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/data_where_standing_nested_borrowed_field_incoming_snapshot_missing_bound rejected 7255ms expected @4606e707a322+wt
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_nested_borrowed_field_incoming_snapshot_wrong_identity rejected 7870ms expected @4606e707a322+wt
+	cannot prove requires contract for call require_same from compute: observed == read(holder.counter.value) (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/data_where_standing_nested_borrowed_field_intermediate_write_only rejected 1930ms expected @d3679195288a
 	machine `compute` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_local rejected 1911ms expected @d3679195288a
-	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_match_join rejected 2625ms expected @d3679195288a
-	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_other_machine rejected 1903ms expected @d3679195288a
-	exact arithmetic in machine `add` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_other_state rejected 2279ms expected @d3679195288a
-	exact arithmetic in machine `next` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_parameter rejected 2246ms expected @d3679195288a
-	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_nested_borrowed_field_local rejected 8361ms expected @4606e707a322+wt
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/data_where_standing_nested_borrowed_field_match_join rejected 7714ms expected @4606e707a322+wt
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/data_where_standing_nested_borrowed_field_other_machine rejected 7028ms expected @4606e707a322+wt
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/data_where_standing_nested_borrowed_field_other_state rejected 7041ms expected @4606e707a322+wt
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/data_where_standing_nested_borrowed_field_parameter rejected 6028ms expected @4606e707a322+wt
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/data_where_standing_nested_borrowed_field_suspended_descriptor_slot rejected 5637ms expected @d3679195288a
 	state `read` receives `holder.counter.value` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 creates local borrow `entry` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 reads `holder.counter.value` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
-fail/facts/data_where_standing_nested_borrowed_field_target_body rejected 2143ms expected @d3679195288a
-	exact arithmetic in machine `X86Compute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `ArmCompute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_nested_borrowed_field_target_body rejected 5480ms expected @4606e707a322+wt
+	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/data_where_standing_predicate_helper_alias_invalid_rejected rejected 2147ms expected @ccdb99ca2214
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_predicate_helper_call_result_unrestored rejected 4822ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
@@ -10204,52 +10213,62 @@ fail/facts/finite_family_input_index/wrong_provider rejected 11117ms expected @4
 	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
 	machine `produce$specialized$bf862e295a8967d7$0$2751` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
 	machine `produce$specialized$d1322acad3338bfd$1$2756` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
-fail/facts/finite_family_returned_descriptor/call_result rejected 4026ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/call_result rejected 5568ms expected @9ad31e5e8715
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/const_name rejected 4405ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/caller_view rejected 5349ms expected @9ad31e5e8715
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/field rejected 8720ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/const_name rejected 5429ms expected @9ad31e5e8715
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/local rejected 7057ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/field rejected 5354ms expected @9ad31e5e8715
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/match_join rejected 6881ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/incoming_join rejected 5384ms expected @9ad31e5e8715
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/other_machine rejected 6909ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/local rejected 5302ms expected @9ad31e5e8715
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/other_state rejected 5692ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/match_join rejected 5323ms expected @9ad31e5e8715
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/parameter rejected 3974ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/other_machine rejected 5305ms expected @9ad31e5e8715
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/pointer_field rejected 3923ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/other_state rejected 5320ms expected @9ad31e5e8715
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/replaced_source rejected 6032ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_returned_descriptor/parameter rejected 5323ms expected @9ad31e5e8715
+	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_returned_descriptor/pointer_field rejected 5338ms expected @9ad31e5e8715
+	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_returned_descriptor/replaced_source rejected 5442ms expected @9ad31e5e8715
 	machine `replace_and_dispatch` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `replace_and_dispatch` stores a borrowed value without a complete normal-exit backing relation
 	machine `main` state `entry` statement 3: call stores a borrowed value without a complete destination/backing relation
-fail/facts/finite_family_returned_descriptor/target_body rejected 15798ms expected @25f8bb78090b
+fail/facts/finite_family_returned_descriptor/saved_source rejected 5360ms expected @9ad31e5e8715
+	machine `replace_and_dispatch` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `replace_and_dispatch` stores a borrowed value without a complete normal-exit backing relation
+	machine `main` state `entry` statement 3: call stores a borrowed value without a complete destination/backing relation
+fail/facts/finite_family_returned_descriptor/target_body rejected 5335ms expected @9ad31e5e8715
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/target_qualification rejected 8460ms expected @05a6f6af37ec+wt
-	native execution input: TargetFamily("target family Boundary(BoundaryMachineId(3)) has no member for deployment tag `linux_x86_64`")
 fail/facts/finite_family_static_inline_result/argument_effect rejected 3457ms expected @ddc17fff6a3c
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 fail/facts/finite_family_static_inline_result/call_result rejected 981ms expected @ddc17fff6a3c
@@ -21401,6 +21420,8 @@ fail/generics/runtime_value_recipe_wrong_carrier rejected 1051ms expected @ccdb9
 	value parameter `Count` of `Index` requires `u64`, but runtime subject `flag` has a different carrier
 fail/generics/runtime_value_recipe_wrong_evidence_namespace rejected 741ms expected @ccdb99ca2214
 	machine `probe` conformance-evidence call has no unique exact requirement: its selected target is not a requirement state
+fail/generics/selected_boolean_policy_applied_contract_wrong_argument rejected 607ms @e7ad8aab1953+wt
+	machine `main` state `entry` value call to `apply` violates required fact `Callback(value) == value`: the instantiated fact is structurally false (`37 == 38`)
 fail/generics/selected_map_capture_wrong_result_region rejected 2001ms unexpected @ccdb99ca2214
 	cleanup effect preparation for `invoke$specialized$d4f0094e26d9f87c$0` requires a complete specialization of `Selected::borrow`
 fail/generics/selected_member_value_bound rejected 2059ms expected @ccdb99ca2214
@@ -23186,6 +23207,8 @@ fail/proofs/scalar_field_snapshot_selector_replaces_collection rejected 1917ms e
 fail/proofs/scalar_state_return_outside_byte_class rejected 1935ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from Main::write_byte: main.bytes in [u8]::Utf8 (invalidated by prior mutation of main.bytes[0]; main.bytes is part of [u8]::Utf8) in state `write_byte`
 	cannot prove default-domain field requirement for return from Main::write_byte at statement 3: main.bytes requires [u8; N]::Utf8
+fail/proofs/selected_boolean_policy_wrong_validator rejected 2357ms @e7ad8aab1953+wt
+	cannot prove ensures contract for exit from Selected::check at statement 0: accepts(result, value)
 fail/proofs/selected_law_citation_linear_resource_reuse rejected 7184ms expected @ee4dbb4b2d56
 	cannot use `token` in machine `main` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/proofs/selected_specification_requires_false_result rejected 791ms expected @ccdb99ca2214
@@ -29218,17 +29241,29 @@ pass/facts/data_where_standing_mutable_recast_through_parameter_exit checked 384
 pass/facts/data_where_standing_mutable_recast_through_target_body_exit checked 3271ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_restoration checked 3284ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_restoration_snapshot checked 3689ms check-target:macos_arm64 @f78c2623a68c
-pass/facts/data_where_standing_nested_borrowed_field_call_result checked 10646ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_const_name checked 10606ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_call_result incomplete 10408ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_const_name incomplete 10294ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
 pass/facts/data_where_standing_nested_borrowed_field_descriptor_snapshot checked 8757ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_field checked 10168ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_field incomplete 10589ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_incoming_compatibility checked 15956ms check-target:macos_arm64 @4606e707a322+wt
+pass/facts/data_where_standing_nested_borrowed_field_incoming_snapshot incomplete 10246ms check-target:macos_arm64 @4606e707a322+wt
+	`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion carrier retirement order); in state `main::entry`
 pass/facts/data_where_standing_nested_borrowed_field_known_saved_descriptor checked 9338ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_local checked 9219ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_match_join checked 8711ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_other_machine checked 8692ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_other_state checked 8758ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_parameter checked 8852ms check-target:macos_arm64 @d3679195288a
-pass/facts/data_where_standing_nested_borrowed_field_target_body checked 8922ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_local incomplete 11365ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_match_join incomplete 11640ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_other_machine incomplete 11214ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_other_state incomplete 11220ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_parameter incomplete 9049ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
+pass/facts/data_where_standing_nested_borrowed_field_target_body incomplete 10007ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4606e707a322+wt
+	`x86_entry` calls `main`; `main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 6
 pass/facts/data_where_standing_owned_whole_replacement_child_restoration checked 3306ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_predicate_helper_alias_exit checked 5396ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_predicate_helper_literal_exit checked 5347ms check-target:macos_arm64 @911f6617ba9e
@@ -29652,19 +29687,23 @@ pass/facts/finite_family_input_index/other_machine checked 18357ms check-target:
 pass/facts/finite_family_input_index/other_state checked 14815ms check-target:macos_arm64 @4148c7ab0c1e
 pass/facts/finite_family_input_index/parameter checked 13018ms check-target:macos_arm64 @4148c7ab0c1e
 pass/facts/finite_family_input_index/target_body checked 18230ms check-target:macos_arm64 @4148c7ab0c1e
-pass/facts/finite_family_returned_descriptor/call_result checked 8090ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/const_name checked 8868ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/field checked 6737ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/local checked 6994ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/match_join checked 7838ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/other_machine checked 6631ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/other_state checked 6447ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/parameter checked 6438ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/pointer_field checked 8881ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_returned_descriptor/replaced_source incomplete 4159ms check-target:macos_arm64 @05a6f6af37ec+wt
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 3
-pass/facts/finite_family_returned_descriptor/target_body checked 19043ms check-target:macos_arm64 @25f8bb78090b
-pass/facts/finite_family_returned_descriptor/target_qualification checked 8807ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_returned_descriptor/call_result checked 6985ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/caller_view checked 6931ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/const_name checked 7112ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/field checked 7042ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/incoming_join checked 7033ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/local checked 7024ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/match_join checked 6992ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/other_machine checked 6964ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/other_state checked 6979ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/parameter checked 6993ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/pointer_field checked 6927ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/replaced_source checked 6971ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/saved_source checked 6947ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/target_body checked 7080ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/target_qualification checked 6972ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply rejected 6920ms expected check-target:macos_arm64 native-rejection:match @9ad31e5e8715
+	no provider is selected for boundary requirement `SelectedTarget::target_only`, which the program entry reaches on target `macos_arm64`
 pass/facts/finite_family_static_inline_result/argument_effect checked 4871ms check-target:macos_arm64 @ddc17fff6a3c
 pass/facts/finite_family_static_inline_result/authored_sum checked 4839ms check-target:macos_arm64 @ddc17fff6a3c
 pass/facts/finite_family_static_inline_result/call_result checked 5117ms check-target:macos_arm64 @ddc17fff6a3c
@@ -34466,6 +34505,7 @@ pass/generics/runtime_transition_result_inference_exit checked 3433ms check-targ
 pass/generics/runtime_value_generic_subject_exit checked 13860ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_value_member_argument_exit checked 3845ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_value_recipe_bounded_declaration checked 3636ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/selected_boolean_policy_applied_contract_exit checked 3476ms check-target:macos_arm64 @e7ad8aab1953+wt
 pass/generics/selected_member_distinct_binder_names_exit checked 3956ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/selected_member_shared_runtime_subject_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/selected_open_capture_carriers_exit checked 3833ms check-target:macos_arm64 @ccdb99ca2214
@@ -35406,6 +35446,8 @@ pass/proofs/scalar_field_snapshot_selector_writes_payload rejected 2369ms check-
 pass/proofs/scalar_state_return_keeps_byte_class rejected 2042ms regressed-from:checked @ccdb99ca2214
 	cannot prove requires contract for call consume from Main::main: main.bytes in [u8]::Utf8 (invalidated by prior mutation of main.bytes[0]; main.bytes is part of [u8]::Utf8) in state `main`
 	cannot prove default-domain field requirement for return from Main::main at statement 4: main.bytes requires [u8; N]::Utf8
+pass/proofs/selected_boolean_policy_attached_exit checked 3562ms check-target:macos_arm64 @e7ad8aab1953+wt
+pass/proofs/selected_boolean_policy_exit checked 3545ms check-target:macos_arm64 @e7ad8aab1953+wt
 pass/proofs/selected_map_law_application_exit checked 10385ms check-target:macos_arm64 @d38849d4cb02
 pass/proofs/selected_specification_requires_composition rejected 1567ms regressed-from:checked @ccdb99ca2214
 	specification call `Right` is not denotational: the selected machine is not unconditionally terminating
@@ -35953,7 +35995,7 @@ pass/slices/runtime_same_carrier_inline_cast_index_exit checked 3642ms check-tar
 pass/slices/runtime_saturating_array_element_guard_exit checked 13137ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_saved_collection_length_arrival_exit checked 3450ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_sequential_same_backing_views_exit checked 3604ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_shared_subslice_return_exit checked 17261ms check-target:macos_arm64 @ccdb99ca2214
+pass/slices/runtime_shared_subslice_return_exit checked 118654ms check-target:macos_arm64 @9ad31e5e8715
 pass/slices/runtime_shared_whole_view_return_exit checked 15583ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_slice_element_runtime_index_read_exit checked 12841ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_slice_fixed_index_guard_exit checked 15222ms check-target:macos_arm64 @ccdb99ca2214
