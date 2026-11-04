@@ -3101,7 +3101,28 @@ fn transfer_return_custody(
         }
     }));
     terminal_semantics::validate_reference_result_completion(&occurrences)
-        .map_err(|reason| LegalizationError::ReferenceCompletion { reason })?;
+        .map_err(|reason| {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE returned-reference-completion machine={:?} source={:?} reason={:?} occurrences={:?} external={:?} cleanup={:?}",
+                    function.machine,
+                    source,
+                    reason,
+                    occurrences
+                        .iter()
+                        .map(|occurrence| (
+                            occurrence.identity,
+                            &occurrence.parents,
+                            occurrence.returned,
+                            occurrence.disposed,
+                        ))
+                        .collect::<Vec<_>>(),
+                    external,
+                    cleanup_actions,
+                );
+            }
+            LegalizationError::ReferenceCompletion { reason }
+        })?;
     custody.leaves.retain(|(carrier, path), _| {
         *carrier != source || owned_relative_path(path, &[]).is_none()
     });
