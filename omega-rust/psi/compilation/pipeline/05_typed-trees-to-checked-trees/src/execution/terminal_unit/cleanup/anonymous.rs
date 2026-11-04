@@ -191,7 +191,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     let values = &facts.values.structural_values;
     let mut dying = Vec::new();
     facts.contextual_cleanup.for_each_state_disposition(
-        machine.symbol,
+        super::owning_cleanup_machine(program, state.symbol),
         state.symbol,
         |_, disposition| {
             if !matches!(
