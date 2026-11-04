@@ -5731,6 +5731,7 @@ pass/operators/core_operator_spelling_surface built 4841ms @a92f16431042
 pass/operators/crash_routes built 5454ms exit:0 @a92f16431042
 pass/operators/division_value_entry_selection built 19089ms exit:70 @a92f16431042
 pass/operators/domain_operator_overload_signature_compile checked 2846ms @a92f16431042
+pass/operators/domain_qualified_boundary_operator_exit built 6368ms exit:0 @18fc751d0060+wt
 pass/operators/fixed_token_operators checked 4578ms @a92f16431042
 pass/operators/fixed_use_survives_division_and_call_exit built 19325ms exit:0 stdout:match stderr:match @a92f16431042
 pass/operators/float_operator_identities built 23758ms exit:70 @a92f16431042

@@ -365,6 +365,26 @@ impl PreparedScalarQualifications {
             .collect()
     }
 
+    /// The scalar formals a call to the bodyless boundary `machine` delivers
+    /// its actuals to, in the declaration's scalar lane. A boundary call
+    /// receives each actual by `received_scalar_type` exactly as a module
+    /// callee does, so its declared memberships decide the arrival type.
+    /// Closure admission already holds the plan unique; a signature this
+    /// namespace cannot name leaves every actual unchanged, and the call
+    /// binding still refuses any disagreement.
+    pub(crate) fn boundary_scalar_formals(
+        &self,
+        checked: &CheckedTrees,
+        machine: SymbolHandle,
+    ) -> Option<Vec<QualifiedScalarType>> {
+        let plan = flow_facts(checked)
+            .terminal_unit_effects
+            .boundary_machines
+            .iter()
+            .find(|plan| plan.machine == machine)?;
+        self.boundary_signature_types(plan).ok()
+    }
+
     pub(crate) fn scalar_state_types(
         &self,
         checked: &CheckedTrees,
@@ -403,13 +423,14 @@ impl PreparedScalarQualifications {
     }
 }
 
-/// The type a direct module callee's scalar formal receives an actual as. A
-/// formal may carry a predicate-free, route-free tag the actual lacks: such a
-/// tag "adds no membership obligation" (domains.md, declaration and
-/// membership), so checking admitted the call, and the actual arrives through a
-/// qualification edge exactly as an explicit `as` would. Only membership may
-/// change on arrival; a carrier disagreement stays for the call binding to
-/// refuse. Scalar-computation calls and Unit-body calls share this rule.
+/// The type a direct module or boundary callee's scalar formal receives an
+/// actual as. A formal may carry a predicate-free, route-free tag the actual
+/// lacks: such a tag "adds no membership obligation" (domains.md, declaration
+/// and membership), so checking admitted the call, and the actual arrives
+/// through a qualification edge exactly as an explicit `as` would. Only
+/// membership may change on arrival; a carrier disagreement stays for the call
+/// binding to refuse. Scalar-computation calls and Unit-body calls share this
+/// rule.
 pub(crate) fn received_scalar_type(
     formal: Option<QualifiedScalarType>,
     actual: QualifiedScalarType,

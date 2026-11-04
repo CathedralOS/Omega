@@ -3487,6 +3487,9 @@ fail/memory/bump_allocator_reset_with_live_resident rejected 5195ms expected @2c
 	implicit domain weakening in argument `retired` for state `reset::entry` drops `Resident<Policy, Word>`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/modules/package_qualified_scalar_access_denied rejected 5391ms expected @97115d9cab54
 	accessor write application: the access plan does not permit this operation
+fail/operators/domain_qualified_boundary_operator_unestablished_literal rejected 4073ms expected @18fc751d0060+wt
+	cannot prove requires contract for call equal from nested: 7 in i32::Counted in state `entry`
+	cannot prove requires contract for call equal from statement: 7 in i32::Counted in state `entry`
 fail/ownership/completed_case_claim_return_double_consume rejected 9313ms expected @ee4dbb4b2d56
 	cannot use `pair.first` in machine `retire_pair` state `entry` (statement 1) after `pair.first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `pair.first` first
 fail/ownership/nonreturning_claim_alternative_double_consume rejected 6667ms expected @ee4dbb4b2d56
@@ -13286,6 +13289,7 @@ pass/operators/core_operator_spelling_surface checked 4264ms check-target:macos_
 pass/operators/crash_routes checked 3630ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/division_value_entry_selection checked 12016ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/domain_operator_overload_signature_compile checked 2641ms @ccdb99ca2214
+pass/operators/domain_qualified_boundary_operator_exit checked 6439ms check-target:macos_arm64 @18fc751d0060+wt
 pass/operators/fixed_token_operators checked 2848ms @ccdb99ca2214
 pass/operators/fixed_use_survives_division_and_call_exit checked 12082ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/float_operator_identities checked 16714ms check-target:macos_arm64 @ccdb99ca2214
