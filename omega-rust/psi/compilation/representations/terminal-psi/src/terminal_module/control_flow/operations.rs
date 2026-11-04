@@ -306,6 +306,20 @@ pub enum OperationKind {
     ReadTaskRegister {
         service: ServiceId,
     },
+    /// Reload code or data selectors only after checking the current borrowed GDT.
+    ReloadSegmentDescriptors {
+        service: ServiceId,
+        entries: u16,
+        kind: language_core::descriptor_tables::SegmentReload,
+        gdt: StructuralArgument,
+        selector: ValueId,
+        scratch: StructuralArgument,
+    },
+    /// Observe one exact segment selector without granting access to its target.
+    ReadSegmentSelector {
+        service: ServiceId,
+        register: language_core::descriptor_tables::SegmentRegister,
+    },
     /// Read an exact application result from this artifact's admitted target
     /// closure. This is neither a runtime call nor permission to evaluate an
     /// unavailable application. The result carrier must match its catalog row.
@@ -1420,8 +1434,9 @@ impl OperationKind {
             Self::TrappingInteger { operation } => operation.map_operands(map),
             Self::FloatResultPolicy { policy } => policy.map_operands(map),
             Self::AtomicAccess { event, .. } => event.map_operands(map),
-            Self::ActivateTaskRegister { selector, .. } => *selector = map(*selector),
-            Self::ReadTaskRegister { .. } => {}
+            Self::ActivateTaskRegister { selector, .. }
+            | Self::ReloadSegmentDescriptors { selector, .. } => *selector = map(*selector),
+            Self::ReadTaskRegister { .. } | Self::ReadSegmentSelector { .. } => {}
             Self::RegisterAccess { event, .. } => event.map_operands(map),
             Self::NearestIeeeFloatFusedMultiplyAdd {
                 left,

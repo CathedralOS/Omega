@@ -205,6 +205,51 @@ pub(super) fn lower_operation(
             site.provenance.operations.push(*psi_operation);
             Ok(())
         }
+        AbstractOperation::ReloadSegmentDescriptors {
+            psi_operation,
+            service,
+            result,
+            entries,
+            gdt,
+            kind,
+            selector,
+            scratch,
+        } => {
+            let selector = super::scalar_sources::source(*selector, function, site.live)?;
+            let result_home =
+                super::primitive_storage::retain_result(*psi_operation, *result, site.live)?;
+            site.operations
+                .push(TargetUnitOperation::ReloadSegmentDescriptors {
+                    psi_operation: *psi_operation,
+                    service: *service,
+                    entries: *entries,
+                    gdt: gdt.clone(),
+                    kind: *kind,
+                    selector,
+                    scratch: scratch.clone(),
+                    result_home,
+                });
+            site.provenance.operations.push(*psi_operation);
+            Ok(())
+        }
+        AbstractOperation::ReadSegmentSelector {
+            register,
+            psi_operation,
+            service,
+            result,
+        } => {
+            let result_home =
+                super::primitive_storage::retain_result(*psi_operation, *result, site.live)?;
+            site.operations
+                .push(TargetUnitOperation::ReadSegmentSelector {
+                    register: *register,
+                    psi_operation: *psi_operation,
+                    service: *service,
+                    result_home,
+                });
+            site.provenance.operations.push(*psi_operation);
+            Ok(())
+        }
         AbstractOperation::GlobalDescriptorTable {
             psi_operation,
             service,

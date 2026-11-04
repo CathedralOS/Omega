@@ -322,6 +322,35 @@ fn balanced_temporary_stack(
     if architecture != Architecture::X86_64 {
         return false;
     }
+    if let SelectedInstructionKind::RegisterAccess {
+        operation: selected_instructions::RegisterOperation::SegmentReload(reload),
+    } = kind
+    {
+        let stack_pointer = isa_x86_64::validated_x86_64_physical_register_model()
+            .model()
+            .view_named("rsp")
+            .expect("canonical x86 stack pointer")
+            .id;
+        return effects.memory
+            == MachineEncodedMemoryEffect::SegmentDescriptorReloadV1 {
+                table_pointer_operand: 0,
+                selector_operand: 1,
+                scratch_pointer_operand: 2,
+                table_byte_count_operand: 3,
+                stack_pointer,
+            }
+            && effects.stack
+                == MachineEncodedStackEffect::TemporaryBytesV1 {
+                    stack_pointer,
+                    byte_count: match reload {
+                        selected_instructions::SegmentReload::Code => 16,
+                        selected_instructions::SegmentReload::Data => 8,
+                    },
+                }
+            && effects.external_operand_reads == [0, 1, 2, 3]
+            && effects.external_operand_writes == [4]
+            && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+    }
     if matches!(
         kind,
         SelectedInstructionKind::RegisterAccess {
@@ -405,18 +434,9 @@ pub(in crate::exit_contract) fn validate_non_return(
     encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), WholeFunctionExitContractError> {
     let expected_control = match kind {
-        // LSE has one fall-through atomic instruction; x86 bitwise fetch
-        // owns a target-local retry until its compare-exchange commits.
-        // Producer and replay both pass the actual admitted architecture.
-        SelectedInstructionKind::AtomicAccess { form }
-            if architecture == target::Architecture::X86_64
-                && matches!(
-                    form.operation,
-                    selected_instructions::AtomicOperation::FetchAnd
-                        | selected_instructions::AtomicOperation::FetchOr
-                        | selected_instructions::AtomicOperation::FetchXor
-                ) =>
-        {
+        // Bitwise fetch retries until its indivisible update commits. Keep
+        // that target-relative work on both current instruction sets.
+        SelectedInstructionKind::AtomicAccess { form } if form.operation.is_bitwise_fetch() => {
             MachineEncodedControlEffect::AtomicRetryUntilCommitV1
         }
         SelectedInstructionKind::FloatResultPolicy { form } if form.can_trap() => {
@@ -491,6 +511,14 @@ pub(in crate::exit_contract) fn validate_non_return(
         return Err(NonReturnStackEffect(instruction));
     }
     let memory_matches = match (kind, effects.memory, encoding.address()) {
+        (
+            SelectedInstructionKind::RegisterAccess {
+                operation: selected_instructions::RegisterOperation::SegmentReload(_),
+            },
+            MachineEncodedMemoryEffect::SegmentDescriptorReloadV1 { .. },
+            None,
+        ) => temporary_stack,
+
         (
             SelectedInstructionKind::RegisterAccess {
                 operation: selected_instructions::RegisterOperation::TaskRegisterActivate,

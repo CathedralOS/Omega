@@ -730,10 +730,10 @@ pub enum CheckedScalarCallee {
         authority_value: super::structural_values::CheckedStructuralValueHandle,
     },
     /// A checked CPU operation whose arguments use the ordinary call schedule.
-    TaskRegister {
+    DescriptorTable {
         machine: SymbolHandle,
         state: SymbolHandle,
-        operation: language_core::task_register::TaskRegisterOperation,
+        operation: language_core::descriptor_tables::DescriptorTableOperation,
         service: language_semantics::ServiceReachId,
     },
     /// A requirement invoked through a runtime implementation selector
@@ -758,7 +758,7 @@ impl CheckedScalarCallee {
             Self::Boundary {
                 authority_value, ..
             } => *authority_value,
-            Self::Body { .. } | Self::TaskRegister { .. } | Self::Dynamic { .. } => {
+            Self::Body { .. } | Self::DescriptorTable { .. } | Self::Dynamic { .. } => {
                 Default::default()
             }
         }
@@ -770,7 +770,7 @@ impl CheckedScalarCallee {
         match self {
             Self::Body { machine, state }
             | Self::Boundary { machine, state, .. }
-            | Self::TaskRegister { machine, state, .. } => Some((*machine, *state)),
+            | Self::DescriptorTable { machine, state, .. } => Some((*machine, *state)),
             Self::Dynamic { .. } => None,
         }
     }
@@ -782,7 +782,7 @@ impl CheckedScalarCallee {
         match self {
             Self::Body { state, .. }
             | Self::Boundary { state, .. }
-            | Self::TaskRegister { state, .. } => *state,
+            | Self::DescriptorTable { state, .. } => *state,
             Self::Dynamic { slot, .. } => *slot,
         }
     }
@@ -791,7 +791,7 @@ impl CheckedScalarCallee {
     pub fn selector(&self) -> Option<CheckedScalarComputationHandle> {
         match self {
             Self::Dynamic { selector, .. } => Some(*selector),
-            Self::Body { .. } | Self::Boundary { .. } | Self::TaskRegister { .. } => None,
+            Self::Body { .. } | Self::Boundary { .. } | Self::DescriptorTable { .. } => None,
         }
     }
 }

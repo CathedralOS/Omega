@@ -311,7 +311,12 @@ impl OperationKind {
                     source.place = map(source.place, source.access);
                 }
             }
-            Self::ReadTaskRegister { .. } => {}
+            Self::ReloadSegmentDescriptors { gdt, scratch, .. } => {
+                for source in [gdt, scratch] {
+                    source.place = map(source.place, source.access);
+                }
+            }
+            Self::ReadTaskRegister { .. } | Self::ReadSegmentSelector { .. } => {}
             Self::EstablishNativeCodeLayout { .. } | Self::EstablishActivationClaim { .. } => {}
             Self::TransformContent {
                 source,
@@ -508,7 +513,12 @@ impl OperationKind {
                     projections.push(argument_projection(source).into());
                 }
             }
-            Self::ReadTaskRegister { .. } => {}
+            Self::ReloadSegmentDescriptors { gdt, scratch, .. } => {
+                for source in [gdt, scratch] {
+                    projections.push(argument_projection(source).into());
+                }
+            }
+            Self::ReadTaskRegister { .. } | Self::ReadSegmentSelector { .. } => {}
             Self::EstablishNativeCodeLayout { .. } => {}
             Self::EstablishActivationClaim { backing_type, .. } => {
                 projections.push(StructuralStorageUse::Type(*backing_type));
@@ -729,7 +739,12 @@ impl OperationKind {
                     paths.push(&mut source.path);
                 }
             }
-            Self::ReadTaskRegister { .. } => {}
+            Self::ReloadSegmentDescriptors { gdt, scratch, .. } => {
+                for source in [gdt, scratch] {
+                    paths.push(&mut source.path);
+                }
+            }
+            Self::ReadTaskRegister { .. } | Self::ReadSegmentSelector { .. } => {}
             Self::EstablishByteSequenceConcatenation { left, right, .. }
             | Self::ByteSequenceEqual { left, right } => {
                 for operand in [left, right] {

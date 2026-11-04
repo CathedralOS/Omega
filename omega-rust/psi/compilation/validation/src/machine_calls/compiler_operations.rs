@@ -5,13 +5,41 @@
 //! authority by spelling; Build execution still checks the original activation cell.
 
 mod build_declarations;
+mod descriptor_declarations;
+mod segment_registers;
 mod task_register;
 pub use build_declarations::{
     build_operation, build_product_request_intrinsic, is_build_declaration_selection,
     resolve_build_static_operand,
 };
 use language_semantics::byte_predicates::ByteSequencePredicate;
-pub use task_register::{task_register_declaration, task_register_operation};
+/// Admit only the exact private core declaration before its extent is closed.
+pub fn descriptor_table_declaration(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> Result<Option<language_semantics::ServiceReachId>, &'static str> {
+    if let Some(declaration) = task_register::task_register_declaration(program, machine)? {
+        return Ok(Some(declaration.service()));
+    }
+    Ok(segment_registers::declaration(program, machine)?.map(|declaration| declaration.service()))
+}
+
+/// Retain a closed operation so later lowering does not reopen its declaration.
+pub fn descriptor_table_operation(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> Result<
+    Option<(
+        language_core::descriptor_tables::DescriptorTableOperation,
+        language_semantics::ServiceReachId,
+    )>,
+    &'static str,
+> {
+    if let Some(operation) = task_register::task_register_operation(program, machine)? {
+        return Ok(Some(operation));
+    }
+    segment_registers::operation(program, machine)
+}
 use typed_trees::types::TypeReferenceNode;
 
 use crate::frozen_program::expression_table;

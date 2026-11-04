@@ -61,7 +61,7 @@ pub(crate) fn bind_scalar_call_result(
     }
     match &mut parts.route {
         CheckedUnitCallRoute::ActivationStorage { .. } => return None,
-        CheckedUnitCallRoute::TaskRegister { result_type, .. } => {
+        CheckedUnitCallRoute::DescriptorTable { result_type, .. } => {
             if result.primitive_type != *result_type {
                 return None;
             }

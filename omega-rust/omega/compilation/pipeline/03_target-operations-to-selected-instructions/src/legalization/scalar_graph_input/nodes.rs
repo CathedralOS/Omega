@@ -51,6 +51,16 @@ pub(in crate::legalization) fn admit(
         psi_operation,
         result,
         ..
+    }
+    | AbstractOperation::ReloadSegmentDescriptors {
+        psi_operation,
+        result,
+        ..
+    }
+    | AbstractOperation::ReadSegmentSelector {
+        psi_operation,
+        result,
+        ..
     } = &node.operation
     {
         return Ok((*psi_operation, Some(result.value)));

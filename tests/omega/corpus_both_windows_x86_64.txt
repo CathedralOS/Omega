@@ -151,7 +151,8 @@ pass/asm/state_fact_transfers_exit built 2660ms exit:0 interpreter-exit:0 interp
 pass/atomics/atomic_global_order_operations checked 1660ms @5f668826adf3+wt
 pass/atomics/atomic_order_surface checked 2297ms @5f668826adf3+wt
 pass/atomics/runtime_atomic_after_quoted_write_exit built 7521ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
-pass/atomics/runtime_atomic_bitwise_widths_exit built 7459ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/atomics/runtime_atomic_bitwise_widths_exit built 101279ms exit:70 interpreter-exit:70 interpreter:agrees @417a79072379
+pass/atomics/runtime_atomic_boolean_orderings_exit built 8007ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
 pass/atomics/runtime_atomic_case_field_state_exit built 2042ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/atomics/runtime_atomic_compare_exchange_exit built 6996ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/atomics/runtime_atomic_computed_operands_exit built 2071ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -2145,6 +2146,24 @@ pass/facts/atomic_boolean_store/other_machine built 7171ms exit:0 interpreter-ex
 pass/facts/atomic_boolean_store/other_state built 6804ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
 pass/facts/atomic_boolean_store/parameter built 6766ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
 pass/facts/atomic_boolean_store/target_body built 6907ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_bounded_fetch/call_result built 8957ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/const_name built 7603ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/field built 7637ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/local built 7563ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/match_join built 10191ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/other_machine built 9150ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/other_state built 7660ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/parameter built 15146ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/call_result built 16340ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/const_name built 7795ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/field built 7535ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/local built 11726ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/match_join built 8301ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/other_machine built 8112ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/other_state built 7642ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/parameter built 7463ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/target_body built 9337ms exit:0 interpreter-exit:0 interpreter:agrees @86799c125677
+pass/facts/atomic_bounded_fetch/target_body built 9332ms exit:0 interpreter-exit:0 interpreter:agrees @86799c125677
 pass/facts/atomic_compare_exchange_once_bounded/call_result built 6869ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
 pass/facts/atomic_compare_exchange_once_bounded/const_name built 6694ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
 pass/facts/atomic_compare_exchange_once_bounded/dynamic_replacement built 6714ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
@@ -2167,7 +2186,7 @@ pass/facts/atomic_compare_exchange_once_target_body_exit built 7106ms exit:0 int
 pass/facts/atomic_compare_exchange_once_through_call_result_exit built 7205ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
 pass/facts/atomic_compare_exchange_once_through_const_name_exit built 7152ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
 pass/facts/atomic_compare_exchange_once_through_field_exit built 6719ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
-pass/facts/atomic_compare_exchange_once_through_local_exit built 6710ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_through_local_exit built 6925ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
 pass/facts/atomic_compare_exchange_once_through_match_join_exit built 7045ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
 pass/facts/atomic_compare_exchange_once_through_other_machine_exit built 7036ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
 pass/facts/atomic_compare_exchange_once_through_other_state_exit built 6933ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
