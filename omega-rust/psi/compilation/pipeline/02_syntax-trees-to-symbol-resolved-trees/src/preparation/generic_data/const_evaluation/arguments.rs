@@ -239,12 +239,13 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                 // continuation: the probe already declined it because its
                 // closure needs Omega's provider plan. Keep the authored
                 // application for the semantic evaluation owner's deferred
-                // fold rather than reporting it as a malformed argument.
+                // fold. Its equations cannot classify this unfinished call
+                // as a completed non-integer argument.
                 if matches!(
                     syntax.expressions.expression(expression),
                     syntax_trees::expression::ExpressionNode::Call(_)
                 ) {
-                    continue;
+                    return Ok(None);
                 }
                 let destination =
                     syntax_type_identity(syntax, parameter_type).map_err(Diagnostic::error)?;

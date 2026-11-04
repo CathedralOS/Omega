@@ -59,3 +59,9 @@ Build rows. Their fact, consuming call and reject obligation are unchanged.
 Current migration checks are pending; historical observations above keep their
 original source and host identities. The [parent qualification notes](../README.md#current-migration-qualification)
 retain the complete four-production scope and remaining acceptance.
+
+
+The [non-integer call control](controls/non_integer_call/main.omg) changes only
+`extent` to return a Boolean. A pending call must still reach ordinary type and
+index checks; postponing it cannot make a Boolean a valid integer capacity.
+Its exact current diagnostic and qualification remain pending.
