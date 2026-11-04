@@ -84,6 +84,7 @@ impl ReturnedBuild {
 /// Host custody is retained by the interpreter's owned adapters. One host starts
 /// one activation; dropping a paused activation cannot start its effects again.
 pub struct TerminalBuildHost {
+    execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<ProducedTerminalProgram>,
     account: EvaluationInvocationAccount,
     original: TerminalStructuralValue,
@@ -100,6 +101,7 @@ pub struct TerminalBuildHost {
 
 impl TerminalBuildHost {
     pub(crate) fn new(
+        execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
         produced: Arc<ProducedTerminalProgram>,
         account: &EvaluationInvocationAccount,
         machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
@@ -140,6 +142,7 @@ impl TerminalBuildHost {
             &machine.name,
         )?;
         Ok(Arc::new(Self {
+            execution_purpose,
             produced,
             account: account.clone(),
             original,
@@ -159,7 +162,7 @@ impl TerminalBuildHost {
         if self.started.swap(true, std::sync::atomic::Ordering::AcqRel) {
             return Err("Build host has already started its activation".into());
         }
-        artifacts::compile_timings::counters::record_build_execution();
+        artifacts::compile_timings::counters::record_build_execution(self.execution_purpose);
         let artifact = self.produced.view();
         let program = TerminalProgram::retain(self.produced.retain_code());
         let request_calls = self

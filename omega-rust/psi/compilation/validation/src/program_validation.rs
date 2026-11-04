@@ -315,6 +315,19 @@ fn validate<'program>(
         program,
         &mut diagnostics,
     );
+    for machine in program.machines() {
+        if typed_trees::float_providers::is_catalog_declaration(program.typed_program(), machine)
+            && let Err(reason) = typed_trees::float_providers::authenticate_intrinsic_member(
+                program.typed_program(),
+                machine,
+            )
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "float provider member `{}` is not authenticated: {reason}",
+                machine.name,
+            )));
+        }
+    }
     crate::value_custody::atomic_fences::validate_atomic_fence_declarations(
         program,
         &mut diagnostics,

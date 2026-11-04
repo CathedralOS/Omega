@@ -101,6 +101,52 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
     else {
         return false;
     };
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        let returned = super::return_values::exit_return_expression(program, exit_flow);
+        eprintln!(
+            "EXITBIND machine={:?} state={:?} statement={} contract={contract:?} expression={expression:?} node={:?} returned={returned:?} return_node={:?} origins={:?}",
+            exit_flow.machine_symbol,
+            exit_flow.state_symbol,
+            exit_flow.statement_index,
+            program.expression_table.expression(expression),
+            program
+                .expression_table
+                .expression_is_valid(returned)
+                .then(|| program.expression_table.expression(returned)),
+            crate::flow::exit_parameter_origins(facts, exit_flow),
+        );
+        if let Some(binary) = program.expression_table.binary_node(expression) {
+            eprintln!(
+                "EXITBIND operands left={:?} right={:?} result_owners={:?}/{:?}",
+                program.expression_table.expression(binary.left),
+                program.expression_table.expression(binary.right),
+                validation::reserved_result_owner(program, binary.left),
+                validation::reserved_result_owner(program, binary.right),
+            );
+        }
+        if let Some(machine) = program.machine(exit_flow.machine_symbol)
+            && let Some(entry) = program.machine_states(machine).first()
+        {
+            eprintln!(
+                "EXITBIND entry_parameters={:?}",
+                program.state_parameters(entry)
+            );
+        }
+        for (_, source) in facts.proof.contract_facts.iter().filter(|(_, source)| {
+            source.fact == contract
+                && matches!(source.owner,
+                    checked_trees::ContractProofFactOwner::Machine { machine_symbol }
+                    | checked_trees::ContractProofFactOwner::MachineState { machine_symbol, .. }
+                    if machine_symbol == exit_flow.machine_symbol)
+        }) {
+            eprintln!(
+                "EXITBIND source={source:?} inherited_scope={:?}",
+                source
+                    .inherited_scope
+                    .map(|scope| facts.proof.inherited_contract_scopes.get(scope)),
+            );
+        }
+    }
     if semantic_contexts_prove_contract_fact(
         program,
         facts,

@@ -1,4 +1,6 @@
 //! A pure Build cache hit owes the current occurrence its recorded logical charge.
+#[path = "../tests/support/build_sequence.rs"]
+mod build_sequence;
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 #[path = "../tests/support/joined_product_native.rs"]
@@ -181,6 +183,7 @@ fn pure_build_accounting() {
     let mut session = CompilationSession::default();
     let shared_sponsor = sponsor(limits(2 * fuel));
     let before = counters::build_execution_count();
+    build_sequence::print_execution_counts("before repeated Pure source requests");
     check(&mut session, &shared_sponsor, "windows_x86_64")
         .result
         .expect("first row");
@@ -193,6 +196,7 @@ fn pure_build_accounting() {
         shared_sponsor.consumed_fuel_units(),
         shared_sponsor.consumed_result_storage_cells()
     );
+    build_sequence::print_execution_counts("two Pure source requests completed");
     assert_eq!(executions, 1);
     assert_eq!(
         shared_sponsor.consumed_fuel_units(),
@@ -937,6 +941,7 @@ fn terminal_build_filesystem() {
         .begin_package_build(first_request)
         .expect("generator admission");
     assert!(!guard_dropped.load(std::sync::atomic::Ordering::Acquire));
+    build_sequence::prepare_package_root(&mut invocation);
     let returned = {
         let execution = invocation.execution().expect("authored Build");
         let host = execution.host().expect("generator host");
@@ -2319,7 +2324,7 @@ fn package_invocation_requests(fixture: &str) -> impl Fn() -> CheckedCompileRequ
 fn return_build(
     invocation: &mut compiler::PackageBuildInvocation,
 ) -> Option<build_settings::ReturnedBuild> {
-    return_execution(invocation.execution())
+    build_sequence::return_package(invocation)
 }
 
 fn return_execution(
@@ -2344,7 +2349,9 @@ fn foreign_source_return_refuses() {
         .begin_source_compilation(request())
         .expect("second source admission");
     assert_eq!(counters::build_execution_count(), before);
+    build_sequence::prepare_source_root(&mut first);
     let first_returned = return_execution(first.execution());
+    build_sequence::prepare_source_root(&mut second);
     let second_returned = return_execution(second.execution());
     for (source, returned) in [(first, second_returned), (second, first_returned)] {
         let failure = session
@@ -2382,6 +2389,7 @@ fn source_native_roundtrip() {
 }
 
 fn interleaved_build_invocations() {
+    build_sequence::print_execution_counts("before interleaved builds");
     let request = package_invocation_requests("pass/build/activation_yields_without_replay");
     let mut session = CompilationSession::default();
     let before = counters::build_execution_count();
@@ -2403,6 +2411,7 @@ fn interleaved_build_invocations() {
             .contains("cannot replace its admitted Product target")
     }));
     assert_eq!(counters::build_execution_count(), before);
+    build_sequence::prepare_package_root(&mut first);
     let first_returned = {
         let host = first
             .execution()
@@ -2422,6 +2431,7 @@ fn interleaved_build_invocations() {
             1,
             "early role is observable before return"
         );
+        build_sequence::print_execution_counts("one source Build is paused");
         // Move the invocation while its activation is paused and the host's
         // caller handle is gone. Neither job borrows a coordinator stack frame.
         let mut pending = vec![(first, activation)];
@@ -2533,6 +2543,7 @@ fn sliced_build_retains_effects() {
     orchestration::check_source(&mut CompilationSession::default(), request)
         .result
         .expect("sliced Build completes");
+    build_sequence::print_execution_counts("sliced source Build completed");
     assert_eq!(counters::build_execution_count() - before, 1);
     let fuel = account.consumed_fuel_units();
     assert!(
@@ -2556,6 +2567,7 @@ fn sliced_build_retains_effects() {
             .contains("evaluation Fuel allowance exhausted")),
         "{diagnostics:?}"
     );
+    build_sequence::print_execution_counts("sliced source Build refused for fuel");
     assert_eq!(counters::build_execution_count() - before, 1);
     assert_eq!(limited.live_storage_cells(), 0);
     assert_eq!(limited.live_payload_bytes(), 0);

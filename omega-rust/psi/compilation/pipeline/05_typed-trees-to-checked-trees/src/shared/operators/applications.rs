@@ -118,9 +118,26 @@ pub(crate) fn bind_boundary_operator_application_demands(
                     })
                     .collect::<Vec<_>>();
                 if matching_uses.is_empty() {
-                    diagnostics.push(diagnostics::Diagnostic::error(
-                        "validated named operator application has no checked selected use",
-                    ));
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!(
+                            "NAMEDUSE missing expression={expression:?} requirement={:?} total_checked_named_uses={}",
+                            application.requirement,
+                            operators.named_uses.len(),
+                        );
+                        for (_, selected) in operators.named_uses.iter().filter(|(_, selected)| {
+                            selected.expression == expression
+                                || selected.selected_operator_symbol == application.requirement
+                        }) {
+                            eprintln!("NAMEDUSE related {selected:?}");
+                        }
+                    }
+                    diagnostics.push(
+                        diagnostics::Diagnostic::error(format!(
+                            "the compiler lost the checked use of named operator `{}`",
+                            program.operator_path_string(operator.name),
+                        ))
+                        .with_source_span(program.expression_table.source_span(expression)),
+                    );
                     continue;
                 }
                 for operator_use in matching_uses {

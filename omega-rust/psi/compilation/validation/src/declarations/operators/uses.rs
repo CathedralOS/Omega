@@ -321,10 +321,22 @@ fn named_operator_use_fact(
             matching.next().is_none().then_some(selected)
         })
         .filter(|operator| {
-            program.symbols.source_reference_may_select_symbol(
-                expression_table(program).source_span(expression),
-                operator.symbol,
-            )
+            let reference = expression_table(program).source_span(expression);
+            let eligible = program
+                .symbols
+                .source_reference_may_select_symbol(reference, operator.symbol);
+            if !eligible && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                let declaration = program.symbols.symbol_provenance_source_span(operator.symbol);
+                eprintln!(
+                    "NAMEDUSE dropped expression={expression:?} origin={origin:?} operator={} selected={:?} authored_target={:?} reference={reference:?} reference_file={:?} declaration={declaration:?} declaration_file={:?}",
+                    program.operator_path_string(operator.name),
+                    operator.symbol,
+                    call.target_symbol,
+                    program.symbols.source_file(reference).map(|file| (&file.path, file.dependency_scope, file.origin)),
+                    declaration.and_then(|span| program.symbols.source_file(span)).map(|file| (&file.path, file.dependency_scope, file.origin)),
+                );
+            }
+            eligible
         })?;
     let path = program.operator_path_members(operator.name);
     // Namespace shape classifies a numeric policy adapter; it does not

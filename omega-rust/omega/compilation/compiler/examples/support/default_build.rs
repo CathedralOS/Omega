@@ -1,5 +1,8 @@
 //! A default has no authored named declaration. Its role and owner come only
 //! from the admitted context; Product code and its same-spelled names stay inert.
+#[path = "../../tests/support/build_sequence.rs"]
+mod build_sequence;
+
 use artifacts::compile_timings::counters;
 use build_declarations::{BuildDeclarationKind, DependencyPurpose};
 use compiler::{CheckedCompileRequest, CompilationSession};
@@ -74,6 +77,7 @@ fn inherited(role: BuildDeclarationKind, marker: u8) {
             ..CheckedCompileRequest::new(&root, Some(host.target_name()))
         })
         .unwrap();
+    build_sequence::prepare_package_root(&mut invocation);
     let mut returned = execute(invocation.execution());
     assert!(
         returned
@@ -97,6 +101,7 @@ fn inherited(role: BuildDeclarationKind, marker: u8) {
             .unwrap();
         session.check_package_build(product).unwrap();
     }
+    build_sequence::print_execution_counts("default Build after both Product contexts");
     assert_eq!(
         counters::build_execution_count() - before,
         1,
@@ -135,6 +140,7 @@ fn anonymous() {
     let mut invocation = session
         .begin_source_compilation(CheckedCompileRequest::new(&root, Some(host.target_name())))
         .unwrap();
+    build_sequence::prepare_source_root(&mut invocation);
     let mut returned = execute(invocation.execution());
     assert!(
         returned
@@ -146,6 +152,7 @@ fn anonymous() {
         .complete_source_check(invocation, Ok(Some(returned)))
         .result
         .unwrap();
+    build_sequence::print_execution_counts("anonymous default Build completed");
     assert_eq!(counters::build_execution_count() - before, 1);
     assert!(!temporary.path().join("build.omg").exists());
     println!(

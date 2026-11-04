@@ -10,6 +10,7 @@ use std::sync::Arc;
 /// An independently owned invocation. Preparing dependencies may use the compiler
 /// again while this code, sponsor account and admitted host scope remain alive.
 pub struct PreparedBuildExecution {
+    execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<psi_compiler::ProducedTerminalProgram>,
     account: evaluation_accounting::EvaluationInvocationAccount,
     machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
@@ -21,7 +22,10 @@ pub struct PreparedBuildExecution {
 }
 
 impl PreparedBuildExecution {
-    pub(crate) fn prepare(admitted: AdmittedBuildProgram) -> Result<Self, Vec<Diagnostic>> {
+    pub(crate) fn prepare(
+        admitted: AdmittedBuildProgram,
+        execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
+    ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
             prepared,
             machine,
@@ -77,6 +81,7 @@ impl PreparedBuildExecution {
             .begin_invocation(measurement, INVOCATION_FUEL)
             .map_err(|error| refuse(error.to_string()))?;
         Ok(Self {
+            execution_purpose,
             produced: Arc::new(produced),
             account,
             machine: Arc::new(machine),
@@ -96,6 +101,7 @@ impl PreparedBuildExecution {
         }
         self.host_issued = true;
         crate::TerminalBuildHost::new(
+            self.execution_purpose,
             Arc::clone(&self.produced),
             &self.account,
             Arc::clone(&self.machine),
@@ -189,6 +195,7 @@ impl PreparedBuildExecution {
             optimization_report_request: completed.optimization_report,
             evaluation_usage: Some(usage),
             observation_summary: Some(observation_summary),
+            toolchain_provider_defaults: None,
             selected_build_machine_symbol: Some(self.machine.symbol),
             generated_sources,
         })

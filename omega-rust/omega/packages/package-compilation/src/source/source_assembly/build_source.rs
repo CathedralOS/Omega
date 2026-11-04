@@ -37,3 +37,27 @@ impl BuildSourceSelection {
         Self { source_id, ..self }
     }
 }
+
+/// This role is issued by source assembly, never by an authored path. The
+/// origin, scope and visibility checks distinguish the compiler's protocol
+/// unit from a user file with the same diagnostic spelling.
+pub(crate) fn is_build_prelude_source(
+    source: &source::SourceFile,
+) -> Result<bool, Vec<diagnostics::Diagnostic>> {
+    if source.origin != source::SourceOrigin::Toolchain
+        || source.package_identity.is_some()
+        || source.dependency_scope != source::DependencyScope::Build
+        || source.resolution_stratum != source::SourceResolutionStratum::Base
+        || source.path != std::path::Path::new(BUILD_PRELUDE_PATH)
+    {
+        return Ok(false);
+    }
+    // Standalone storage owns the complete library; package storage owns its
+    // core dependency. Both issue this same virtual protocol unit. Neither
+    // owner makes the unit a physical file in the captured core inventory.
+    let library_root = crate::source::source_imports::bundled_omega_root()?;
+    let core_root = crate::source::source_imports::bundled_core_root()?;
+    Ok(source.package_root == library_root || source.package_root == core_root)
+}
+
+pub(super) const BUILD_PRELUDE_PATH: &str = "<build-prelude>";

@@ -14,7 +14,9 @@
 //! a declaration's visibility never substitutes for its contract proof.
 
 use artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES;
-use build_time_evaluation::PreparedBuildMachineProgram;
+use build_time_evaluation::{
+    PreparedBuildMachineProgram, provider_declarations::ProviderSelectionSubject,
+};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use provider_planning::{ProviderPlanDerivation, ProviderPlanningContext};
@@ -27,11 +29,35 @@ pub(crate) fn prepare_checked_build(
     pre_checks: &mut Vec<build_time_evaluation::PreCheckEvaluation>,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
+    toolchain_defaults: Option<&package_compilation::CompletedProviderDefaults>,
     execution_profile: Option<target::TargetProfile>,
     timings: &mut artifacts::compile_timings::CompileTimings,
     priors: &[&RetainedCheck],
     retain: bool,
 ) -> Result<(PreparedBuildMachineProgram, Option<RetainedCheck>), Vec<Diagnostic>> {
+    // Retained applications belong to the canonical typed owner. Rejoin before
+    // projecting so pending evaluation and every later projection retain the
+    // same exact closed declarations and type arguments.
+    let completed_defaults = toolchain_defaults
+        .map(|defaults| defaults.rejoin_build(typed))
+        .transpose()?
+        .unwrap_or_default();
+    // A completed choice names real Build work. Retain its exact requirements
+    // and provider; ordinary row references include the map's complete members.
+    // Describing an unselected implementation still imports no body.
+    let mut selected_declarations = Vec::new();
+    for selection in &completed_defaults {
+        selected_declarations.push(selection.provider_type.symbol);
+        match &selection.subject {
+            ProviderSelectionSubject::BoundaryTrait(identity)
+            | ProviderSelectionSubject::BoundaryRequirement(identity) => {
+                selected_declarations.push(identity.symbol);
+            }
+            ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
+                selected_declarations.extend(family.coordinates().iter().map(|row| row.symbol));
+            }
+        }
+    }
     // Pure compiler evaluation settles type-dependent storage before ordinary
     // ownership and contract checking. Its existing admission floor forbids
     // service effects and retains exact declaration-selection authority; it
@@ -42,7 +68,11 @@ pub(crate) fn prepare_checked_build(
     // would leave the continuation's Build types unresolved and make Product
     // repeat their evaluation under unrelated provider selections. Projection
     // selects work and later the executable judgment; it is not a copyback API.
-    let projection = validation::execution_projection::project_build_program(typed, entry)?;
+    let projection = validation::execution_projection::project_build_program(
+        typed,
+        entry,
+        &selected_declarations,
+    )?;
     // Source cannot manufacture the activation. Check that formation duty
     // before ordinary access checking can report only the counterfeit place's
     // incidental borrow error; runtime admission still rechecks the prepared
@@ -58,10 +88,24 @@ pub(crate) fn prepare_checked_build(
     let provisional = if pre_checks.is_empty() {
         projection
     } else {
-        validation::execution_projection::project_build_program(typed, entry)?
+        validation::execution_projection::project_build_program(
+            typed,
+            entry,
+            &selected_declarations,
+        )?
     };
     let context = ProviderPlanningContext::new(&provisional, DependencyScope::Build);
-    let defaults = build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
+    let mut defaults =
+        build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
+    defaults.extend(completed_defaults.into_iter().map(|selection| {
+        build_time_evaluation::provider_declarations::TargetProviderDefaults {
+            target: selection
+                .target
+                .map(|target| target.canonical_name().to_owned()),
+            machines: Vec::new(),
+            selections: vec![selection],
+        }
+    }));
     let declarations = provider_planning::target_machines::settle_provider_defaults(
         &typed_trees::provider_declarations::provider_target_declarations(
             context.typed,
@@ -128,7 +172,11 @@ pub(crate) fn prepare_checked_build(
     let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
         let started = std::time::Instant::now();
         let program = if had_pending {
-            validation::execution_projection::project_build_program(typed, entry)?
+            validation::execution_projection::project_build_program(
+                typed,
+                entry,
+                &selected_declarations,
+            )?
         } else {
             provisional
         };
