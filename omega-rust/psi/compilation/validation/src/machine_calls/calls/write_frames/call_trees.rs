@@ -366,6 +366,7 @@ fn complete_expression_tree(
                 super::caller_aliases::CallerWriteSite::Expression(expression),
                 arguments,
                 inference,
+                None,
             )
         })
         .or_else(|| {
@@ -391,6 +392,7 @@ fn complete_expression_tree(
                 super::caller_aliases::CallerWriteSite::Expression(expression),
                 arguments,
                 inference,
+                None,
             )
         })
         .is_none()

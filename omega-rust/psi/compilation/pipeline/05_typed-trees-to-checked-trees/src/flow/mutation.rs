@@ -457,6 +457,12 @@ fn shared_call_storage_regions(
     let frame = match &site {
         CallSite::Statement(call) => resolver.may_write_frame(machine, call),
         CallSite::Expression { expression, .. } => {
+            // A mutable record can also lend pointers stored inside it. The
+            // adapter below follows those leaves through the statement's
+            // inventory, which operands must have kept valid for this call.
+            resolver
+                .expression_call_write_origins(machine, *expression)?
+                .references?;
             // The arguments have already run. Use their captured origins;
             // the whole-expression query also fences replacement of the old
             // slots and includes effects of completed argument calls.

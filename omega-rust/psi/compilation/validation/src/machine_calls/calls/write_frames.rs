@@ -207,6 +207,7 @@ fn known_call_written_paths_for_parts(
             program.state_signature_parameters(signature),
             arguments,
             inference,
+            argument_origins,
         );
     }
     if let Some(operator) = program.operator_definition_by_symbol(target_symbol) {
@@ -226,6 +227,7 @@ fn known_call_written_paths_for_parts(
             program.operator_parameters(operator),
             arguments,
             inference,
+            argument_origins,
         );
     }
     let exact_callee = machine_state_by_symbol(program, target_symbol);

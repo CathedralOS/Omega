@@ -193,6 +193,7 @@ type KnownWrittenPathsForParts = for<'site> fn(
     CallerWriteSite<'site>,
     &[ExpressionHandle],
     &mut FrameInference,
+    Option<&[Option<Vec<super::FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>>;
 
 fn compute_call_plans(
@@ -1368,6 +1369,7 @@ impl<'program> CallFrameResolver<'program> {
                                 CallerWriteSite::Call(call),
                                 arguments,
                                 inference,
+                                Some(&argument_origins),
                             )
                         };
                         known
@@ -2052,6 +2054,7 @@ fn collect_operation_written_paths(
                     CallerWriteSite::Expression(expression),
                     arguments,
                     inference,
+                    Some(&argument_origins),
                 )
             };
             let paths = known_call_written_paths_for_parts(
