@@ -20206,8 +20206,8 @@ pass/build/uefi_os_handoff_invocation rejected 23582ms check-target:uefi_x86_64 
 pass/build/uefi_private_entry_stack checked 18488ms check-target:uefi_x86_64 @ccdb99ca2214
 pass/build/uefi_provisioned_context_roots rejected 16704ms check-target:uefi_x86_64 @ccdb99ca2214
 	native artifact physical program entry failed: semantic entry requires an explicitly selected checked physical adapter
-pass/build/uefi_selected_context_entry checked 182606ms check-target:uefi_x86_64 @bcfb0351ebd9
-pass/build/uefi_selected_context_target_entry checked 203233ms check-target:uefi_x86_64 @bcfb0351ebd9
+pass/build/uefi_selected_context_entry checked 251914ms check-target:uefi_x86_64 @deb5c8faf81d
+pass/build/uefi_selected_context_target_entry checked 252043ms check-target:uefi_x86_64 @deb5c8faf81d
 pass/build/uefi_selected_physical_entry checked 16382ms check-target:uefi_x86_64 @ccdb99ca2214
 pass/build/uefi_selected_storage_entry checked 43993ms check-target:uefi_x86_64 @c3d1e3a3094d
 pass/build/uefi_selected_storage_target_entry checked 221744ms check-target:uefi_x86_64 @bcfb0351ebd9
