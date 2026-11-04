@@ -82,6 +82,12 @@ enum OperandSource {
     /// An Exact float-to-integer cast keeps its denotation only for an
     /// integral value the target can represent.
     ExactFloat(TypeReferenceHandle),
+    /// An Exact integer-to-float cast keeps its denotation only for an integer
+    /// the format represents exactly: `m * 2^e` with `|m| <= 2^precision`.
+    ExactIntegerFloat {
+        reference: TypeReferenceHandle,
+        precision: u32,
+    },
     /// A qualification cast owes every predicate of an unindexed domain over
     /// the completed operand, with the domain subject bound to that value.
     DomainPredicates {
@@ -194,6 +200,110 @@ pub(crate) fn exact_float_integer_cast_fits_at_occurrence(
             ),
             CarrierFit::Proven
         )
+}
+
+/// An Exact integer-to-float coercion at `occurrence`, proved from the
+/// operand's observed integer value on the machine's prefix and then on every
+/// closed private arrival, like the float-to-integer direction above.
+pub(crate) fn exact_integer_float_cast_fits_at_occurrence(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    occurrence: ExpressionHandle,
+    source_reference: TypeReferenceHandle,
+    target: PrimitiveType,
+) -> bool {
+    let precision = match target {
+        PrimitiveType::F32 => numerics::float_semantics::FloatFormat::BINARY32.precision,
+        PrimitiveType::F64 => numerics::float_semantics::FloatFormat::BINARY64.precision,
+        _ => return false,
+    };
+    matches!(
+        operand_fits_at_occurrence(
+            program,
+            machine,
+            state,
+            OperandFitRequest {
+                expression: occurrence,
+                position: 0,
+                source: OperandSource::ExactIntegerFloat {
+                    reference: source_reference,
+                    precision: u32::from(precision),
+                },
+                target,
+                context_reference: source_reference,
+            },
+        ),
+        CarrierFit::Proven
+    )
+}
+
+/// The ways an integer of carrier `source` can be exactly representable with
+/// `precision` significand bits, as predicates over `value`: for each scale
+/// `e`, `-2^(precision+e) <= value <= 2^(precision+e)` and `value % 2^e == 0`.
+/// Conjuncts the carrier already guarantees are left out; the last scale's
+/// bounds cover the whole carrier, because a larger scale only adds
+/// divisibility that a smaller scale's alternative already accepts.
+fn exact_integer_float_alternatives(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    precision: u32,
+    value: &StructuralTerm,
+) -> Option<Vec<Option<StructuralTerm>>> {
+    let source = program.primitive_type_reference(reference)?;
+    let (minimum, maximum) = source.integer_bounds()?;
+    let boolean = crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+        program,
+        symbols::BuiltinTypeAtom::Bool,
+    )?;
+    let meaning = [(source, ArithmeticDomain::Exact); 2];
+    let compare = |operator, left: StructuralTerm, bound: i128| StructuralTerm::ScalarBinary {
+        references: [reference; 2],
+        operator,
+        meaning,
+        left: Box::new(left),
+        right: Box::new(StructuralTerm::Integer(BigInt::from_i128(bound))),
+    };
+    let both = |left: StructuralTerm, right: StructuralTerm| StructuralTerm::ScalarBinary {
+        references: [boolean; 2],
+        operator: BinaryOperator::And,
+        meaning: [(PrimitiveType::Bool, ArithmeticDomain::Exact); 2],
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let mut alternatives = Vec::new();
+    for scale in 0..128u32 {
+        let limit = 1i128
+            .checked_shl(precision.checked_add(scale)?)
+            .filter(|limit| *limit > 0);
+        let mut conjuncts = Vec::new();
+        if let Some(limit) = limit {
+            if -limit > minimum {
+                conjuncts.push(compare(
+                    BinaryOperator::GreaterOrEqual,
+                    value.clone(),
+                    -limit,
+                ));
+            }
+            if limit < maximum {
+                conjuncts.push(compare(BinaryOperator::LessOrEqual, value.clone(), limit));
+            }
+        }
+        let covers_carrier = conjuncts.is_empty();
+        if scale > 0 {
+            let divisor = 1i128
+                .checked_shl(scale)
+                .filter(|divisor| *divisor <= maximum)?;
+            let remainder = compare(BinaryOperator::Modulo, value.clone(), divisor);
+            conjuncts.push(compare(BinaryOperator::Equal, remainder, 0));
+        }
+        let predicate = conjuncts.into_iter().reduce(both);
+        alternatives.push(predicate);
+        if covers_carrier {
+            break;
+        }
+    }
+    Some(alternatives)
 }
 
 /// Every predicate of `domain` holds for the operand of the qualification
@@ -999,6 +1109,27 @@ impl StructuralPrefixVisitor for OperandFit {
                         .observed_float_bounds(value, reference)
                         .is_some_and(|bounds| bounds.is_exact_integer(self.request.target))
                     {
+                        CarrierFit::Proven
+                    } else {
+                        CarrierFit::Unknown
+                    }
+                }
+                OperandSource::ExactIntegerFloat {
+                    reference,
+                    precision,
+                } => {
+                    let proven =
+                        exact_integer_float_alternatives(program, reference, precision, value)
+                            .is_some_and(|alternatives| {
+                                alternatives.into_iter().any(|predicate| match predicate {
+                                    None => true,
+                                    Some(predicate) => matches!(
+                                        entry.judge.judge_observed_predicate(predicate, 0),
+                                        super::structural_judgment::StructuralJudgment::Proven
+                                    ),
+                                })
+                            });
+                    if proven {
                         CarrierFit::Proven
                     } else {
                         CarrierFit::Unknown

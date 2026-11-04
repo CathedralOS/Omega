@@ -271,6 +271,7 @@ fn synchronous_host_computation_retains_the_invocation_without_guest_suspension(
         host_imports.extend(requirements.missing_providers);
         let supplies = program
             .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+                native_code_layouts: None,
                 host_imports: &host_imports,
                 installation: None,
                 entry: None,
@@ -450,6 +451,7 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
                 .collect::<Vec<_>>();
             let supplies = program
                 .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+                    native_code_layouts: None,
                     host_imports: &host_imports,
                     installation: None,
                     entry: None,
@@ -473,6 +475,7 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
                 );
                 let other_supplies = other
                     .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+                        native_code_layouts: None,
                         host_imports: &host_imports,
                         installation: None,
                         entry: None,
@@ -551,6 +554,7 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
                 };
                 let supplies = provider
                     .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+                        native_code_layouts: None,
                         host_imports: &[],
                         installation: Some(admitted.selection()),
                         entry: Some(terminal_psi::TargetMachineCallable::Machine(
@@ -762,6 +766,7 @@ fn readiness_preserves_nested_continuation_and_rejects_unchecked_suspension() {
             host_imports.extend(requirements.missing_providers);
             let supplies = program
                 .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+                    native_code_layouts: None,
                     host_imports: &host_imports,
                     installation: None,
                     entry: None,
@@ -973,6 +978,7 @@ fn readiness_parks_every_step_of_a_fused_suspending_cycle() {
     host_imports.extend(requirements.missing_providers);
     let supplies = program
         .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+            native_code_layouts: None,
             host_imports: &host_imports,
             installation: None,
             entry: None,

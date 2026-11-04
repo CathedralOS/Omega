@@ -191,27 +191,17 @@ pub(in crate::flow) fn append_owned_qualification_transfer(
 }
 
 /// Whether an erasing cast in the source's cast chain drops this membership
-/// before the value reaches its new place. Validation owns the rule for one
-/// cast; this walks the chain the copied value passed through.
+/// before the value reaches its new place.
 pub(super) fn explicitly_erased(
     program: &dyn ::validation::CheckingInput,
-    mut source_expression: typed_trees::expression::ExpressionHandle,
+    source_expression: typed_trees::expression::ExpressionHandle,
     domain_symbol: symbols::SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
 ) -> bool {
-    while let Some(cast) = program.expression_table.cast_node(source_expression) {
-        if cast.form.is_recast() || !cast.result_type.is_valid() {
-            return false;
-        }
-        if validation::field_domains::cast_erases_membership(
-            program,
-            cast,
-            domain_symbol,
-            semantic_domain,
-        ) {
-            return true;
-        }
-        source_expression = cast.value;
-    }
-    false
+    validation::field_domains::expression_erases_membership(
+        program,
+        source_expression,
+        domain_symbol,
+        semantic_domain,
+    )
 }

@@ -29,6 +29,7 @@ including pause/resume, effect and rejection controls for the claimed profile.
 | x86 `cli` / `sti` | MachineOwner requirement; immediate IF clear versus interrupt recognition after STI's following instruction. |
 | x86 structured `pushfq` / `popfq` | Exact `u64` writable/saved place; snapshot or restore with balanced RSP. Restore requires MachineOwner; a literal is not a saved-flags place. |
 | x86 `rdmsr` / `wrmsr` | Exact `u32` ECX selector and `u64` EDX:EAX value; explicit read destination; MachineOwner. |
+| x86 `sgdt` / `lgdt` | Store/read exactly ten plain bytes through `&write [u8; 10]` (or `&mut`) / `&[u8; 10]` (or `&mut`). Both require MachineOwner and the catalog's R10 scratch clobber. Numeric addresses and arbitrary equal-sized records supply no operand authority. |
 | x86 control-register access | Exact `u64` places/values; CR0/2/3/4 reads, CR0/3/4 writes; MachineOwner. |
 | AArch64 system-register access | Exact `u64` places/values via `read_<sysreg>`/`write_<sysreg>` (architecturally `mrs`/`msr`); EL1 control, translation and thread registers (SCTLR/TCR/TTBR0/TTBR1/MAIR/VBAR/TPIDR) plus read-only ESR_EL1/FAR_EL1; MachineOwner. Deferred-effect writes synchronize through a caller-sequenced `isb`. |
 | x86 `serialize` / AArch64 `isb` | Zero operands; instruction-stream serialization — every prior instruction completes and instruction fetch re-synchronizes — not memory ordering; UserChecked, no authority, no clobbers. |
@@ -50,7 +51,7 @@ exception above, and the refused coverage spans the width/signed/unscaled/unpriv
 non-temporal and signed pair forms, RCpc/limited-ordering acquire-release forms, the complete
 exclusive/LSE ordering grid including the store-only (`st*`) aliases, the 64-byte block forms, NEON structure loads and
 stores, x86 string/port-string bare and dword forms, stack and flag-store forms,
-far-pointer loads, `xsave`/`fxsave` state families, descriptor-table memory
+far-pointer loads, `xsave`/`fxsave` state families, other descriptor-table memory
 operands, memory-destination non-temporal stores, and `bound`. Spellings with a
 register-only form (`movzx`, `cmpxchg`-free `bt*`, `smsw`, SSE's `movsd`/`cmpsd`
 shadows) are deliberately absent — mnemonics are classified whole, so a partly
@@ -107,3 +108,18 @@ catalog fence. The `checked_asm_fence_contracts` fact row and its
 `expected_terminal_fences.txt` corpus oracles exercise source transport, target
 selection, missing supply, event traces and pause progress. This profile makes no hardware
 timing or multi-core/device correctness claim.
+
+`sgdt` replaces ten existing bytes with unknown valid `u8` values; it does not
+create uninitialized-storage permission or preserve previous byte facts. `lgdt`
+reads the same exact extent without modifying caller storage. Their ordinary
+borrow operands retain projection evaluation, temporary references and cleanup.
+Receiving Terminal validation repeats the size, access and protected-content
+checks independently of source checking.
+
+Loading GDTR does not reload segment registers, load a TSS, install interrupt
+roots or grant pointer authority from the stored address. The MachineOwner
+caller owns the processor-state contract and backing lifetime. The
+[scoped CPU witness](../../../../tests/omega/pass/build/descriptor_table_round_trip/README.md)
+saves, loads, observes and restores GDTR before its borrowed backing is released.
+The current Terminal interpreter has no GDTR environment model and explicitly
+refuses these operations. Provider-only `lidt` remains unchanged.

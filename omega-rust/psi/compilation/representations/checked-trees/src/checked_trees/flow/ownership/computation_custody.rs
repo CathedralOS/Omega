@@ -878,6 +878,9 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
             CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
                 destination, ..
             } => self.argument_evaluation(destination),
+            CheckedUnitEffectOperationPlan::GlobalDescriptorTable { storage, .. } => {
+                self.argument_evaluation(storage)
+            }
             CheckedUnitEffectOperationPlan::RegisterAccess { arguments, .. } => {
                 arguments.iter().map(|argument| self.scalar(argument)).sum()
             }

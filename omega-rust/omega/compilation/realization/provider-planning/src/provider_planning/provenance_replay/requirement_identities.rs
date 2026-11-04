@@ -1,6 +1,7 @@
 //! Identities of satisfied requirements, external bindings, hosted catalog
 //! leaves and provider boundary arguments.
 
+use crate::intrinsic_declarations::{BoundaryIntrinsicShape, exact_byte_read_type};
 use crate::provider_planning::provenance_replay::SelectedTargetMachineOrigin;
 use crate::provider_planning::{ProviderBinding, TypedTrees, is_unit_type};
 use checked_trees::typed_trees::{signature::StateSignature, trait_definition::TraitDefinition};
@@ -74,23 +75,39 @@ pub(crate) fn exact_installed_external_binding_identity<'typed>(
 }
 
 /// Exact hosted catalog leaf identity: (provider nominal, boundary trait,
-/// requirement) for one source-inferred compiler intrinsic. Every listed
-/// leaf is realized on each hosted target (`linux_x86_64`, `linux_arm64`,
-/// `macos_arm64`); a leaf that cannot be realized on one of those targets
-/// needs its own target gate here rather than a widened catalog row.
+/// requirement, signature shape) for one source-inferred compiler intrinsic.
+/// Every listed leaf is realized on each hosted target (`linux_x86_64`,
+/// `linux_arm64`, `macos_arm64`, `macos_x86_64`); a leaf that cannot be
+/// realized on one of those targets needs its own target gate here rather
+/// than a widened catalog row.
 fn inferred_hosted_catalog_leaf(
     machine_name: &str,
-) -> Option<(&'static str, &'static str, &'static str)> {
+) -> Option<(&'static str, &'static str, &'static str, BoundaryIntrinsicShape)> {
     match machine_name {
-        "ConsoleNativeProvider::exit_process" => {
-            Some(("ConsoleNativeProvider", "Console", "exit_process"))
-        }
-        "ConsoleNativeProvider::write_byte" => {
-            Some(("ConsoleNativeProvider", "Console", "write_byte"))
-        }
-        "ProcessExitNativeProvider::exit_process" => {
-            Some(("ProcessExitNativeProvider", "ProcessExit", "exit_process"))
-        }
+        "ConsoleNativeProvider::exit_process" => Some((
+            "ConsoleNativeProvider",
+            "Console",
+            "exit_process",
+            BoundaryIntrinsicShape::I32ToUnit,
+        )),
+        "ConsoleNativeProvider::write_byte" => Some((
+            "ConsoleNativeProvider",
+            "Console",
+            "write_byte",
+            BoundaryIntrinsicShape::I32ToUnit,
+        )),
+        "ConsoleNativeProvider::read_byte" => Some((
+            "ConsoleNativeProvider",
+            "Console",
+            "read_byte",
+            BoundaryIntrinsicShape::UnitToByteRead,
+        )),
+        "ProcessExitNativeProvider::exit_process" => Some((
+            "ProcessExitNativeProvider",
+            "ProcessExit",
+            "exit_process",
+            BoundaryIntrinsicShape::I32ToUnit,
+        )),
         _ => None,
     }
 }
@@ -129,7 +146,7 @@ pub(crate) fn inferred_hosted_console_compiler_intrinsic(
     selected_target: Option<&str>,
     target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
-    let (provider_name, trait_name, requirement_name) =
+    let (provider_name, trait_name, requirement_name, shape) =
         inferred_hosted_catalog_leaf(machine.name.as_str())?;
     let supports_target = |target: &str| HostedIntrinsicBundle::from_target_name(target).is_some();
     if selected_target.is_some_and(|target| !supports_target(target))
@@ -166,10 +183,12 @@ pub(crate) fn inferred_hosted_console_compiler_intrinsic(
             .strip_prefix(provider_name)
             .and_then(|suffix| suffix.strip_prefix("::"))
             != Some(requirement.name.as_str())
-        || !exact_catalog_i32_to_unit_signature(
+        || !exact_catalog_signature(
             typed,
             typed.state_signature_parameters(requirement),
             requirement.return_type,
+            definition.symbol,
+            shape,
         )
     {
         return None;
@@ -177,8 +196,13 @@ pub(crate) fn inferred_hosted_console_compiler_intrinsic(
     let [entry] = typed.machine_states(machine) else {
         return None;
     };
-    if !exact_catalog_i32_to_unit_signature(typed, typed.state_parameters(entry), entry.return_type)
-    {
+    if !exact_catalog_signature(
+        typed,
+        typed.state_parameters(entry),
+        entry.return_type,
+        definition.symbol,
+        shape,
+    ) {
         return None;
     }
     let machine = typed.machine_callable_identity_text(machine)?;
@@ -259,6 +283,29 @@ pub(crate) fn inferred_compiler_leaf_binding(
             target_machine_origins,
         )
     })
+}
+
+/// The parameter and return-type contract one hosted catalog leaf publishes.
+/// The blocking/trap envelope is deliberately not re-asserted here: intrinsic
+/// admission re-derives it from the admitted row's own published clauses.
+fn exact_catalog_signature(
+    typed: &TypedTrees,
+    parameters: &[checked_trees::typed_trees::signature::StateParameter],
+    return_type: checked_trees::typed_trees::types::TypeReferenceHandle,
+    trait_symbol: symbols::SymbolHandle,
+    shape: BoundaryIntrinsicShape,
+) -> bool {
+    match shape {
+        BoundaryIntrinsicShape::I32ToUnit => {
+            exact_catalog_i32_to_unit_signature(typed, parameters, return_type)
+        }
+        BoundaryIntrinsicShape::UnitToByteRead => {
+            parameters.is_empty() && exact_byte_read_type(typed, return_type, trait_symbol)
+        }
+        BoundaryIntrinsicShape::UnitToAddress | BoundaryIntrinsicShape::ProgramStorageToUnit => {
+            false
+        }
+    }
 }
 
 fn exact_catalog_i32_to_unit_signature(

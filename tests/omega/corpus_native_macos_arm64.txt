@@ -4035,6 +4035,7 @@ pass/layouts/byte_view_borrow_with_encoded_sibling checked 702ms @693920652f41
 pass/layouts/integer_at_owned_local_borrow_call_exit built 1459ms exit:0 @313322813ba5+wt
 pass/layouts/layout_queries checked 9935ms @5041ef1af684+wt
 pass/layouts/private_callback_descriptor_fragments_exit built 49157ms exit:0 @72079e22578e+wt
+pass/layouts/private_callback_inherited_policy_exit built 52786ms exit:0 @26231d1dbd74+wt
 pass/layouts/private_callback_slot_demand_compile checked 2650ms @693920652f41+wt
 pass/layouts/private_callback_slot_untaken_compile checked 214ms
 pass/layouts/runtime_callee_integer_at_fitting_write_exit built 1689ms exit:0 @acdf102c21ea+wt
@@ -4966,6 +4967,7 @@ pass/traits/equatable_synthesis checked 9423ms @5041ef1af684+wt
 pass/traits/exact_edge_application_and_invocation_parameters built 1585ms exit:70 @774eaac263cb+wt
 pass/traits/generic_reference_forwarding_exit built 2288ms exit:1 @9beb2be72f2d+wt
 pass/traits/generic_trait_parent_binds_requirement checked 173ms
+pass/traits/inherited_nominal_requirement_application_exit built 2859ms exit:0 @26231d1dbd74+wt
 pass/traits/nominal_generic_reference_forwarding_exit built 2081ms exit:1 @9beb2be72f2d+wt
 pass/traits/nominal_machine_binder_static_dispatch built 829ms exit:1 @a719149128ff+wt
 pass/traits/operator_machine_add checked 9070ms @5041ef1af684+wt

@@ -1,1 +1,3 @@
-data `Main`'s default domain is still FALSE at state exit
+cannot complete return from machine `Main::ambiguous` state `ambiguous`
+the `requires` facts of `first` (data `Main`)
+unproved; restore them first

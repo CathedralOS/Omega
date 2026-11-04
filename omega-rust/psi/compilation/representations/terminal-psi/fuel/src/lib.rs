@@ -121,7 +121,8 @@ impl TerminalFuelSchedule {
             // whether it traps; the trap outcome takes no edge.
             | OperationKind::TrappingInteger { .. }
             | OperationKind::FloatResultPolicy { .. }
-            | OperationKind::StorageAddress { .. } => 1,
+            | OperationKind::StorageAddress { .. }
+            | OperationKind::GlobalDescriptorTable { .. } => 1,
         }
     }
 
