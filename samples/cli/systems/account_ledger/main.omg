@@ -27,7 +27,7 @@
 //   }
 //   machine M::apply(main: &mut M, idx: i32, tx: Transaction) {
 //     transition tx {
-//       Transaction::Transfer { to, amount } -> check_xfer(main, idx, to, amount)
+//       Transaction::Transfer { to, amount } -> block check_xfer(main, idx, to, amount)
 //       ...
 //     }
 //     state check_xfer(main: &mut M, idx: i32, to: i32, amount: i32) {
@@ -283,7 +283,7 @@ machine Main::apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reac
     transition tx {
         Transaction::Deposit { amount } -> check_frozen_dep(main, idx, amount)
         Transaction::Withdraw { amount } -> check_frozen_wd(main, idx, amount)
-        Transaction::Transfer { to, amount } -> check_xfer(main, idx, to, amount)
+        Transaction::Transfer { to, amount } -> block check_xfer(main, idx, to, amount)
         Transaction::Freeze -> do_freeze_now(main, idx)
         Transaction::Unfreeze -> do_unfreeze_now(main, idx)
         Transaction::Query -> do_query(main)
@@ -320,8 +320,8 @@ machine Main::apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reac
         // Guard chain that exposed the (now-fixed) miscompile:
         // src (=idx) should be 0 for our apply(0, Transfer{...}) call.
         transition idx == 0 {
-            true -> xfer_check_to(main, to, amount)
-            _ -> xfer_bad_idx(main)
+            true -> block xfer_check_to(main, to, amount)
+            _ -> block xfer_bad_idx(main)
         }
     }
 
@@ -335,8 +335,8 @@ machine Main::apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reac
     machine xfer_check_to(main: &mut Main, to: i32 in Wrapping, amount: i32 in Wrapping) {
         // to should be 3.
         transition to == 3 {
-            true -> xfer_check_amount(main, to, amount)
-            _ -> xfer_bad_to(main)
+            true -> block xfer_check_amount(main, to, amount)
+            _ -> block xfer_bad_to(main)
         }
     }
 
@@ -352,7 +352,7 @@ machine Main::apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reac
         // Historical MISCOMPILE arm: fired in native (exit 93) while the payload-extraction bug was live; now a regression tripwire.
         transition amount == 40 {
             true -> xfer_do(main, to, amount)
-            _ -> xfer_bad_amount(main)
+            _ -> block xfer_bad_amount(main)
         }
     }
 
@@ -401,8 +401,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Layer 1: raw field guards (bypass value-call entirely).
     transition main.accounts[0].balance == 40 {
-        true -> raw_check_acc2(main)
-        _ -> bad_raw0(main)
+        true -> block raw_check_acc2(main)
+        _ -> block bad_raw0(main)
     }
 
     machine bad_raw0(main: &mut Main) {
@@ -414,8 +414,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine raw_check_acc2(main: &mut Main) {
         transition main.accounts[2].balance == 30 {
-            true -> raw_check_acc1(main)
-            _ -> bad_raw2(main)
+            true -> block raw_check_acc1(main)
+            _ -> block bad_raw2(main)
         }
     }
 
@@ -428,8 +428,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine raw_check_acc1(main: &mut Main) {
         transition main.accounts[1].balance == 120 {
-            true -> raw_check_acc3(main)
-            _ -> bad_raw1(main)
+            true -> block raw_check_acc3(main)
+            _ -> block bad_raw1(main)
         }
     }
 
@@ -442,8 +442,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine raw_check_acc3(main: &mut Main) {
         transition main.accounts[3].balance == 40 {
-            true -> vcall_check_b0(main)
-            _ -> bad_raw3(main)
+            true -> block vcall_check_b0(main)
+            _ -> block bad_raw3(main)
         }
     }
 
@@ -458,8 +458,8 @@ machine Main::main(main: &mut Main) reaches Console {
     machine vcall_check_b0(main: &mut Main) {
         let b0: i32 in Wrapping = Main::balance_of(main, 0);
         transition b0 == 40 {
-            true -> vcall_check_b2(main, b0)
-            _ -> bad_vcall0(main)
+            true -> block vcall_check_b2(main, b0)
+            _ -> block bad_vcall0(main)
         }
     }
 

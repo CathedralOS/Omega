@@ -64,6 +64,7 @@ pub use declaration_inputs::{
     DeclaredInputRead, DeclaredInputShape, declared_input_shape, declared_input_type_matches,
 };
 mod rank_value;
+mod record_ranks;
 pub use captured_entry::{
     CapturedRankApplicationInput, CapturedRankEntry, prove_captured_ranking_range_entry,
     prove_captured_ranking_range_entry_with_formation,
@@ -1079,6 +1080,31 @@ fn prove_edge(
             &[subject],
         )?),
     };
+    // A declared measure over a record applies to the subject's whole value.
+    // Its declared reads name exact field coordinates of the subject; they
+    // join the field set so guards, premises and arrival substitution read
+    // the same atoms the application consumes.
+    let record_rank = match (measure, field_rank.as_mut()) {
+        (
+            RankingRangeMeasure::Computed {
+                subject,
+                parameter,
+                body,
+                ..
+            },
+            Some(coordinates),
+        ) => record_ranks::RecordRank::resolve(
+            program,
+            root,
+            state,
+            entry_parameters,
+            subject,
+            parameter,
+            body,
+            coordinates,
+        )?,
+        _ => None,
+    };
     // A slice over projected storage produces its length from the member
     // chain's exact leaf: `record.field` names one slice coordinate whose
     // produced length the range reads. Bare slice formals keep the
@@ -1318,7 +1344,12 @@ fn prove_edge(
             parameter,
             body,
             ..
-        } => RankValue::computed(program, &mut engine, subject, parameter, body)?,
+        } => match &record_rank {
+            Some(record) => {
+                record.source(program, machine, state, entry_parameters, &mut engine)?
+            }
+            None => RankValue::computed(program, &mut engine, subject, parameter, body)?,
+        },
         RankingRangeMeasure::Field { .. } => RankValue::scalar(field_rank.as_ref()?.value()?),
         RankingRangeMeasure::SliceLength(subject) => RankValue::scalar(match &slice_rank {
             // A slice reached through a member chain reads its projected
@@ -1562,7 +1593,18 @@ fn prove_edge(
     // completely re-mints under both transported operands. An operand leaf the
     // loop above did not cover keeps its atom unmapped and fails closed here.
     engine.extend_argument_map_over_opaque_terms(&mut substitutions);
-    let next_rank_value = rank_value.after_arrival(&substitutions)?;
+    let next_rank_value = match &record_rank {
+        Some(record) => record.arrival(
+            program,
+            machine,
+            state,
+            destination,
+            &mut engine,
+            arguments,
+            &substitutions,
+        )?,
+        None => rank_value.after_arrival(&substitutions)?,
+    };
     let next_rank = next_rank_value.value.clone();
     let next_floor = inductive_judgment::apply_argument_map(&floor, &substitutions)?;
     let next_ceiling = inductive_judgment::apply_argument_map(&ceiling, &substitutions)?;

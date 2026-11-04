@@ -21,7 +21,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let bytes: i32 in Wrapping = kibibytes << 10;
     let recovered: i32 in Wrapping = bytes >> 10;
 
-    transition { _ -> done(main, recovered) }
+    transition { _ -> block done(main, recovered) }
 
     machine done(main: &mut Main, recovered: i32 in Wrapping) {
         Console::write_line("result: the recovered KiB count, 64 for this round trip (the exit code)");

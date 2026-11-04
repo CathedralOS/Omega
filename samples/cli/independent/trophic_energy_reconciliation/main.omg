@@ -6,12 +6,12 @@ use domain::reconcile;
 data Main { web: Web; }
 machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("trophic reconciliation v1; hundredths");
-    transition { _ -> node_input(main, 0) }
+    transition { _ -> block node_input(main, 0) }
     machine node_input(main: &mut Main, node: u64) requires node < 3 {
         let external: i32 in Saturating = block read_number();
         let maintenance: i32 in Saturating = block read_number();
         transition external >= 0 && maintenance >= 0 {
-            true -> store_node(main, node, external, maintenance)
+            true -> block store_node(main, node, external, maintenance)
             false -> invalid(main)
         }
     }
@@ -19,19 +19,19 @@ machine Main::main(main: &mut Main) reaches Console {
         main.web.external[node] = external;
         main.web.maintenance[node] = maintenance;
         let next: u64 = node + 1;
-        transition next < 3 { true -> node_input(main, next) false -> edge_count(main) }
+        transition next < 3 { true -> block node_input(main, next) false -> block edge_count(main) }
     }
     machine edge_count(main: &mut Main) {
         let count: i32 in Saturating = block read_number();
         transition count >= 0 && count <= 6 {
-            true -> edges(main, count, 0)
+            true -> block edges(main, count, 0)
             false -> invalid(main)
         }
     }
     machine edges(main: &mut Main, count: i32 in Saturating, index: u64) requires index <= 6 {
         transition (index as i32 in Saturating) < count {
-            true -> edge_input(main, count, index)
-            false -> end_input(main)
+            true -> block edge_input(main, count, index)
+            false -> block end_input(main)
         }
     }
     machine edge_input(main: &mut Main, count: i32 in Saturating, index: u64) requires index <= 6 {
@@ -40,7 +40,7 @@ machine Main::main(main: &mut Main) reaches Console {
         let intake: i32 in Saturating = block read_number();
         let efficiency: i32 in Saturating = block read_number();
         transition source >= 0 && source < 3 && destination >= 0 && destination < 3 && source != destination && intake >= 0 && efficiency >= 0 && efficiency <= 100 {
-            true -> apply(main, count, index, source as u64, destination as u64, intake, efficiency)
+            true -> block apply(main, count, index, source as u64, destination as u64, intake, efficiency)
             false -> invalid(main)
         }
     }
@@ -53,10 +53,10 @@ machine Main::main(main: &mut Main) reaches Console {
         number(intake * 100);
         number(intake * efficiency);
         number(intake * (100 - efficiency));
-        transition index < 6 { true -> advance(main, count, index) false -> invalid(main) }
+        transition index < 6 { true -> block advance(main, count, index) false -> invalid(main) }
     }
     machine advance(main: &mut Main, count: i32 in Saturating, index: u64) requires index < 6 {
-        transition { _ -> edges(main, count, index + 1) }
+        transition { _ -> block edges(main, count, index + 1) }
     }
     machine end_input(main: &mut Main) {
         let ended: bool = block require_end();

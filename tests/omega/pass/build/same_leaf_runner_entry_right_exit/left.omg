@@ -7,7 +7,15 @@ public data Provider {}
 machine Provider::read() -> i32 satisfies Reader::read { 11 }
 
 public data Runner { }
-public machine Runner::run(runner: &mut Runner) reaches Reader, Console
+public machine Runner::run() reaches Reader, Console
+invokes Reader
+invokes Console
+{
+    let mut runner: Runner = Runner {};
+    Runner::execute(&mut runner);
+}
+
+machine Runner::execute(runner: &mut Runner) reaches Reader, Console
 invokes Reader
 invokes Console
 {

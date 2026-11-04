@@ -469,15 +469,61 @@ What the kernel does *not* discharge: faithfulness of the encoding to a
 are elaboration-side obligations owned by `PROOF-CONTRACT-MIGRATION`. The
 kernel's guarantee ends at the checked declaration graph.
 
+## Reference rule correspondence
+
+Each row compares one rule of the reference selection, Gilbert et al.,
+POPL 2019, with the kernel rule that implements it. Rules come from Fig. 1,
+p. 1:9 (MLTT) and sections 3.2–3.6, pp. 1:9–1:12 (the sMLTT additions).
+*Matches* means every reference derivation of that rule is a kernel
+derivation and conversely. *Restriction* means every kernel derivation is a
+reference derivation, but not every reference derivation is available.
+*Extension* means the kernel accepts derivations the printed rules do not;
+an extension needs its own justification and is not part of the selection
+merely because the kernel implements it. Kernel anchors are `typing.rs`,
+`typing/judgments.rs` and `conversion.rs`.
+
+| Reference rule | Kernel rule | Correspondence |
+| --- | --- | --- |
+| Empty context; context extension by a type; variable; weakening (Fig. 1) | de Bruijn `Context::extend` with a sort-checked binding; `Variable(i)` looks up and shifts its binding | Matches. Weakening is admissible through shifting rather than a primitive rule. |
+| `Type_i : Type_{i+1}` (Fig. 1); `sProp_i : Type_{i+1}` (§3.2) | `Sort::Type(u)` and `Sort::Strict(u)` both infer `Type (u+1)` | Matches, with universe-polymorphic levels and no `imax`. |
+| Π formation `Type_max(i,j)` with relevant codomain (Fig. 1, §3.2) | `Formation::Pi` with a `Type` codomain sort forms `Type (max)` for either domain sort | Matches. |
+| Π formation into `sProp_max(i,j)` when the codomain is strict (§3.2) | `Formation::Pi` with a `Strict` codomain sort forms `Strict (max)` | Matches the predicative variant; the impredicative variant is not selected. |
+| Abstraction and application (Fig. 1) | `Lambda` checks its body against the codomain; `Apply` substitutes the argument | Matches. |
+| Relevant Σ formation over two relevant components (Fig. 1) | `Formation::Sigma` forms `Type (max)` | Matches. |
+| Strict `Σs` over two strict components (§3.6) | `Formation::Sigma` with both component sorts `Strict` forms `Strict (max)` | Matches. The paper's note that projections and surjective pairing need no added rules holds here: `Fst`/`Snd` and pair eta are the relevant ones. |
+| Σ with one strict and one relevant component | `Formation::Sigma` forms `Type (max)` (`dependent_pair_type_tracks_component_sorts`, `a_sigma_is_strict_only_when_both_components_are_strict`) | Extension: neither Fig. 1 (both `Type`) nor §3.6 (both `sProp`) prints this rule. |
+| Pair introduction (Fig. 1) | `Pair` against `Sigma` checks the second component at the codomain instantiated by the first | Matches the intended rule. The printed premise `Γ, x:A ⊢ M : B` is a typo for `Γ ⊢ N : B{x := M}`. |
+| First and second projection (Fig. 1) | `Fst`, `Snd` | Matches. |
+| Conversion rule (Fig. 1) | `check_type` compares inferred and expected types with `convertible` | Matches. |
+| β, projection computation, surjective pairing (Fig. 1) | β and π reductions; pair eta in both directions at a `Sigma` shared type | Matches. |
+| Congruence for every constructor (§3.1 text: "congruence rules for every constructor"; Fig. 1 prints "(congruence rules omitted)") | Head-matched typed recursion for every former, introduction and stuck eliminator | Matches. |
+| Definitional proof irrelevance at a strict type (§3.2) | `convertible` accepts any two terms whose shared type has a `Strict` sort | Matches; the shared type decides, never the terms' shapes. |
+| `sEmpty : sProp_i` at every level, no premise (§3.3) | `Empty` infers `Strict 0` only (`empty_proposition_is_typed_only_at_strict_level_zero`) | Restriction: only the `i = 0` instance. Without cumulativity, `sEmpty` is not a `Strict 1` proposition. |
+| `sEmpty_rect A e : A` into any `Univ_i` (§3.3) | `EmptyElim` forms a target of either sort and checks the scrutinee against `Empty` | Matches. |
+| Derived `sUnit := sEmpty → sEmpty` (§3.3) | Derived, with no former | Matches. |
+| Squash formation from `Type_i` into `sProp_i`; `sq` (§3.4) | `Squash` requires a `Type` domain and forms `Strict` at its level; `SquashIntro` | Matches the primitive rule. The predicative encoding's `j < i` side condition belongs to the encoding, not to this primitive. |
+| `unsq P f x : P` with `P : sProp_j` (§3.4) | `SquashElim` requires a strict target and `f : A → P` | Matches; ι-unsq is the computation the irrelevance makes harmless. |
+| Box formation from `sProp_i` into `Type_i`; `box` (§3.5; printed `Prop_i`, `sProp_i` meant) | `Box` requires a `Strict` domain and forms `Type` at its level; `BoxIntro` | Matches. |
+| `unbox` with a motive into `Type_j` or `sProp_j`; `unbox P f (box a) ≡ f a` (§3.5) | `BoxElim` accepts a motive into either sort; ι-unbox | Matches. |
+
+Beyond this selection the kernel adds the
+[inductive profile](inductive_profile.md)'s typed function eta, relevant
+identity, `Two` and `W` rules. Those are separately selected extensions with
+their own arguments above, not rows of the reference figure. Section 4's
+consistency argument translates sMLTT into extensional type theory (Fig. 3,
+Lemma 4.1, Theorem 4.2). It covers the matching and restricted rows. It does
+not cover the mixed-sort Σ extension until that rule is selected and given its
+own argument. Section 4.4's UIP extension remains excluded.
+
 ## Evidence ledger
 
 | Obligation | Evidence |
 | --- | --- |
 | Closed primitive integer orders | `closed_primitive_order_does_not_assume_its_conclusion` and `a_closed_order_uses_only_the_fixed_numeral_law_closure` replace conclusion-specific decision assumptions with the existing checked numeral derivations. Missing numeral equations, changed operands and false comparisons reject. `samples/cli/facts/closed_integer_bound` carries the source assignment bound into exact subtraction through nine places with assignment-of-6 twins. Each source positive produces one three-node bounded certificate: 19 declarations, exact closure size 12 and 1,617 post-check arena slots, versus baseline 11/7/182. The larger closure contains reusable fixed arithmetic laws instead of assuming the requested orders; this is not an assumption-free arithmetic model or a performance improvement claim. |
-| Formation/typing rules, sorts, pairs, eta, ceiling, storage receipt | `type_checking.rs` (24 tests) — including the 51-slot polymorphic-identity receipt and `checking_the_polymorphic_identity_retains_bounded_storage` |
-| `Id`/`Two`/`W` formation, dependent elimination, computation, neutral controls | `identity_and_w_types.rs` (15 tests) — including `identity_proofs_stay_relevant_without_uip` and `pointwise_two_agreement_grants_no_function_equality` |
-| Strict layer: `sEmpty` ex falso, squash formation/introduction/elimination/computation, box formation/introduction/elimination/computation, irrelevance boundaries, derived `sUnit`, declaration checking | `strict_layer.rs` (14 tests) |
-| Level scope, parametric checking, declaration discipline, closure | `levels_and_declarations.rs` (17 tests) |
+| Formation/typing rules, sorts, pairs, eta, ceiling | `type_checking.rs` (9 tests) — including `dependent_pair_type_tracks_component_sorts` and `conversion_refuses_at_the_step_ceiling`. No current test retains a storage receipt for the polymorphic identity. |
+| `Id`/`Two`/`W` formation, dependent elimination, computation, neutral controls | `identity_and_w_types.rs` (11 tests) — including `stuck_identity_eliminations_compare_componentwise` and `w_types_convert_componentwise_and_sup_has_no_eta`. No current test pins the absence of UIP or of function extensionality; those remain non-claims below, not witnessed rejections. |
+| Strict layer: `sEmpty` ex falso, squash formation/introduction/elimination/computation, box formation/introduction/elimination/computation, irrelevance boundaries, derived `sUnit`, declaration checking, `sEmpty` level and Σ sort classification | `strict_layer.rs` (10 tests) |
+| Level scope, parametric checking, declaration discipline, closure | `levels_and_declarations.rs` (6 tests) |
 | Indexed + quotient schemes checked as signatures, applications, boundaries | `schemes_and_quotients/` |
 | Acceptance families: vector length, mutual, nested, derivation context/conclusion, level polymorphism | `tests/indexed_{vector,mutual,nested,derivation,levels}.rs` — each pins constructor computation on neutral children, rejection controls, exact closures and measured receipts |
 | Source-produced scalar-indexed vector fragment | `samples/cli/facts/source_indexed_family` and `tests/omega/{pass,fail}/facts/source_indexed_family*`: exact closed constructor fibers and payloads, generic erased call/result transport, source W induction and a bounded executing consumer. With integrated producer 11 and receiver runner 14 (format 174, vocabulary 130) on Linux x86_64, the focused production/receiver-control run completed in 47.237s with native/Terminal exit 0; exact source-signature matching, all eight actual-argument/root/missing-law controls passed their assertions. Four Vector positives ran native/interpreter exit 0, and the affected runtime Value fixture agreed at exit 17. |
