@@ -192,6 +192,15 @@ pub(crate) fn instantiate_call_contract_expression_label(
                     || path.symbol == parameter.symbol
                     || first_member == Some(parameter.name.as_str()));
                 if binder_matches && let Some(argument) = machine_arguments.get(position) {
+                    if argument.type_reference.is_valid()
+                        && let typed_trees::types::TypeReferenceNode::ConstExpression(expression) =
+                            program
+                                .type_reference_table
+                                .type_reference(argument.type_reference)
+                    {
+                        return program
+                            .render_proof_expression(*expression, ProofSubstitutions::None);
+                    }
                     return argument.display_name();
                 }
             }
