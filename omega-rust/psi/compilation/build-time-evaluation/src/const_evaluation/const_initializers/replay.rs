@@ -143,9 +143,9 @@ pub(crate) fn validate(
                     "floating constant result encoding lost its exact declared format",
                 )
             })?;
+            validate_replay_roots(typed, declaration, retained_call || authored_call)
+                .map_err(|reason| super::failure(reference, reason))?;
             if retained_call || authored_call {
-                validate_replay_roots(typed, declaration, true)
-                    .map_err(|reason| super::failure(reference, reason))?;
                 replay_declarations.push(declaration);
                 floating_declarations.push((declaration, destination));
             } else {
@@ -271,6 +271,20 @@ pub(crate) fn validate(
     while !validation::resolve_named_result_overloads(&mut probe)?.is_empty() {}
     typed_trees_to_typed_trees::bind_pre_specialization_authored_selections(&mut probe)
         .map_err(|diagnostic| vec![diagnostic])?;
+    // Binding can introduce a new selected map occurrence. Prepare its public
+    // contract in the source declaration's scope before auditing that recipe;
+    // executable specialization still waits for the source audit below.
+    let source_roots = replay_declarations
+        .iter()
+        .flat_map(|declaration| {
+            [
+                declaration.authored_initializer,
+                declaration.materialized_initializer,
+            ]
+            .map(|root| (declaration.symbol, root))
+        })
+        .collect::<Vec<_>>();
+    typed_trees_to_typed_trees::prepare_requirement_expression_views(&mut probe, &source_roots)?;
     // The actual source recipe must precede specialization. Prepared target
     // custody alone cannot distinguish another valid instance of one template.
     for declaration in &replay_declarations {
@@ -285,7 +299,17 @@ pub(crate) fn validate(
             })?
             .1;
         validate_authored_custody(&probe, owner, declaration)
-            .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
+            .map_err(|reason| {
+                super::failure(
+                    declaration.initializer_source_span,
+                    format!(
+                        "authored call custody for declaration {:?}, roots {:?}/{:?}, probe {owner:?}: {reason}",
+                        declaration.symbol,
+                        declaration.authored_initializer,
+                        declaration.materialized_initializer,
+                    ),
+                )
+            })?;
     }
     // Rejoin supplied execution only after authenticating authored custody.
     // Selected providers then enter the same actual call closure as settlement.
@@ -320,14 +344,19 @@ pub(crate) fn validate(
             })?
             .1;
         let dependencies = checked
-            .calls_for_symbol(owner)
-            .and_then(|calls| {
-                calls.validate_custody(
-                    declaration.authored_initializer,
-                    declaration.materialized_initializer,
+            .calls_for_retained_initializer(owner, declaration.symbol)
+            .and_then(|calls| calls.validate_custody(declaration))
+            .map_err(|reason| {
+                super::failure(
+                    declaration.initializer_source_span,
+                    format!(
+                        "realized call custody for declaration {:?}, roots {:?}/{:?}, probe {owner:?}: {reason}",
+                        declaration.symbol,
+                        declaration.authored_initializer,
+                        declaration.materialized_initializer,
+                    ),
                 )
-            })
-            .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
+            })?;
         for dependency in &dependencies {
             let owner = program
                 .const_declarations()
@@ -359,7 +388,7 @@ pub(crate) fn validate(
     }
     for (declaration, owner, dependencies) in dependency_jobs {
         let calls = checked
-            .calls_for_symbol(owner)
+            .calls_for_retained_initializer(owner, declaration.symbol)
             .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
         if let Some((_, destination)) = floating_declarations
             .iter()
@@ -386,8 +415,9 @@ pub(crate) fn validate(
     }
     for (leaf, (original_owner, materialized_owner)) in leaves.iter().zip(owners) {
         let result = (|| {
-            let calls = checked.calls_for_symbol(original_owner)?;
-            let materialized_calls = checked.calls_for_symbol(materialized_owner)?;
+            let calls = checked.calls_for_retained_initializer(original_owner, leaf.owner)?;
+            let materialized_calls =
+                checked.calls_for_retained_initializer(materialized_owner, leaf.owner)?;
             if let Some(destination) = scalar_probe_destination(program, leaf.destination) {
                 let original = decode_scalar(calls.evaluate_probe_scalar(destination)?.0)?;
                 let materialized =
@@ -463,6 +493,18 @@ fn validate_replay_roots(
     declaration: &typed_trees::constant::ConstDeclaration,
     has_calls: bool,
 ) -> Result<(), String> {
+    // Check ownership while the complete source roster is still available.
+    // Private execution projections may later omit this declaration, so carry
+    // the same validated declaration through both receiving custody checks.
+    let retained = program
+        .const_declaration_by_symbol(declaration.symbol)
+        .ok_or("constant call receipt has no exact source declaration")?;
+    if retained.authored_initializer != declaration.authored_initializer
+        || retained.materialized_initializer != declaration.materialized_initializer
+        || retained.declared_type != declaration.declared_type
+    {
+        return Err("constant call receipt names another declaration's initializer roots".into());
+    }
     let table = &program.expression_table;
     if !table.expression_is_valid(declaration.authored_initializer)
         || !table.expression_is_valid(declaration.materialized_initializer)
@@ -492,8 +534,7 @@ fn validate_authored_custody(
         program,
         machine,
         state,
-        declaration.authored_initializer,
-        declaration.materialized_initializer,
+        declaration,
     )
     .map(|_| ())
 }
@@ -581,7 +622,14 @@ fn validate_anonymous_float(
         return Err("floating constant lost its receiving expression state".into());
     };
     let dependencies =
-        validate_retained_initializer_call_custody(&probe, machine, state, original, materialized)?;
+        validate_retained_initializer_call_custody(&probe, machine, state, declaration).map_err(
+            |reason| {
+                format!(
+                    "floating call custody for declaration {:?}, roots {original:?}/{materialized:?}, probe {owner:?}: {reason}",
+                    declaration.symbol,
+                )
+            },
+        )?;
     validate_float_value(
         &probe,
         declaration,

@@ -7,15 +7,15 @@
 
 pub(in crate::checks::borrows) mod call_operands;
 mod disposition_events;
-mod formation_captures;
 mod formation_sources;
 mod forwarded_lifetimes;
 mod lifecycle;
 mod loan_resources;
 mod permission_sources;
 mod reborrow_drafts;
+mod stored_call_inputs;
 pub(in crate::checks::borrows) mod retained_backing;
-mod supplied_permissions;
+pub(in crate::checks::borrows) mod supplied_permissions;
 
 use crate::checks::borrows::resources::disposition_events::{
     bind_restored_call_uses, plan_reborrow_disposition_events,
@@ -33,11 +33,14 @@ pub(super) fn initialize_checked_direct_borrow_resources(
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
     supplied_permissions::validate_normal_output_completions(&facts.borrow, &facts.flow)?;
+    call_operands::install(program, facts);
+    supplied_permissions::install(program, facts)?;
+    stored_call_inputs::install(program, facts);
     formation_sources::validate(program, facts)?;
     let retentions = forwarded_lifetimes::plan(facts)?;
     let (direct, reborrows) =
         reconstruct_borrow_resource_rosters(program, &facts.borrow, &facts.flow, &retentions)?;
-    let installation = plan_resource_installation(&direct, &reborrows)?;
+    let installation = plan_resource_installation(&facts.borrow, &direct, &reborrows)?;
     let mut dispositions = plan_reborrow_disposition_events(
         &facts.borrow,
         &facts.flow,
@@ -61,7 +64,6 @@ pub(super) fn initialize_checked_direct_borrow_resources(
         &installation,
         &dispositions,
     );
-    call_operands::install(program, facts);
     Ok(())
 }
 

@@ -61,6 +61,63 @@ pub fn reference_sources_at_path(
     stored_selection(resolver.select(value, path))
 }
 
+/// Save the descriptor inside an input, rather than the pointer used to reach
+/// it. An empty path still crosses a reference input once: `&mut &Cell` lends
+/// the stored `&Cell`, while a Referent edge keeps the outer pointer itself.
+/// The pointer was captured earlier; its contents are observed at this cut.
+pub fn stored_reference_sources_at_path(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    value: Handle<FlowOperandFact>,
+    path: &[PlaceSegment],
+    current: Handle<FlowStorageSnapshot>,
+) -> StoredOperand {
+    if !control.operands.is_valid(value) {
+        return StoredOperand::Unavailable;
+    }
+    let operand = control.operands.get(value);
+    let Some(shell) = crate::reference_shell(program, operand.type_reference) else {
+        return reference_sources_at_path(program, control, value, path, current);
+    };
+    if !path.is_empty() {
+        return reference_sources_at_path(program, control, value, path, current);
+    }
+    if crate::reference_shell(program, shell.referee).is_none() {
+        return StoredOperand::Unavailable;
+    }
+    let Some(places) = super::projectable_reference_places(program, control, value, &[]) else {
+        return StoredOperand::Unavailable;
+    };
+    if places.is_empty() {
+        return StoredOperand::Unavailable;
+    }
+    let mut resolver = Resolver::new(program, control, current);
+    stored_selection(join(
+        places
+            .into_iter()
+            .map(|place| {
+                let place = crate::CanonicalPlace {
+                    root: place.root,
+                    segments: place.segments,
+                };
+                match super::at_snapshot(
+                    program,
+                    control,
+                    current,
+                    &place,
+                    StoredObservation::Binding,
+                ) {
+                    Some(stored) => resolver.stored(stored, &[]),
+                    None => Selection::Sources {
+                        incoming: vec![place],
+                        values: Vec::new(),
+                    },
+                }
+            })
+            .collect(),
+    ))
+}
+
 /// Follow the saved completed-value association of an owned observation.
 /// A reference's stored_value describes its pointee and must never substitute
 /// for its descriptor. None means no owned association; an explicitly unknown
@@ -144,6 +201,11 @@ impl Resolver<'_> {
             self.control.operands.get(value).type_reference,
             path,
         ) else {
+            self.trace_selection(
+                value,
+                path,
+                "projection has no applied member correspondence",
+            );
             return Selection::Unavailable;
         };
         let path = path.as_slice();
@@ -159,9 +221,35 @@ impl Resolver<'_> {
         }
         self.active.push(query.clone());
         let result = self.resolve(value, path);
+        if matches!(result, Selection::Unavailable) {
+            self.trace_selection(value, path, "captured descriptor selection unavailable");
+        }
         self.active.pop();
         self.memo.push((query, result.clone()));
         result
+    }
+    fn trace_selection(&self, value: Handle<FlowOperandFact>, path: &[PlaceSegment], reason: &str) {
+        if std::env::var_os("OMEGA_STORAGE_QUERY_TRACE").is_none()
+            || !self.control.operands.is_valid(value)
+        {
+            return;
+        }
+        let capture = self.control.operands.get(value);
+        if std::env::var("OMEGA_STORAGE_QUERY_TRACE_STATE")
+            .ok()
+            .and_then(|value| value.parse::<u32>().ok())
+            .is_some_and(|state| capture.state_symbol.arena_index() != state)
+        {
+            return;
+        }
+        eprintln!(
+            "STORAGE_QUERY capture-refused value={value:?} state={:?} statement={} current={:?} type={:?} expression={:?} path={path:?} reason={reason} capture={capture:?}",
+            capture.state_symbol,
+            capture.statement_index,
+            self.current,
+            capture.type_reference,
+            capture.expression
+        );
     }
     fn resolve(&mut self, value: Handle<FlowOperandFact>, path: &[PlaceSegment]) -> Selection {
         let capture = self.control.operands.get(value);
@@ -181,7 +269,10 @@ impl Resolver<'_> {
             {
                 return Selection::Unavailable;
             }
-            let Some(place) = super::project_captured_view_place(
+            let Some(place) = super::project_captured_storage_place(
+                self.program,
+                capture.state_symbol,
+                capture.statement_index,
                 crate::CanonicalPlace {
                     root,
                     segments: prefix.to_vec(),
@@ -392,7 +483,14 @@ impl Resolver<'_> {
         }
         let mut selected = Vec::new();
         for place in places {
-            let Some(place) = super::project_captured_view_place(place, path) else {
+            let Some(place) = super::project_captured_storage_place(
+                self.program,
+                capture.state_symbol,
+                capture.statement_index,
+                place,
+                path,
+            ) else {
+                self.trace_selection(value, path, "physical receiver projection unavailable");
                 return Selection::Unavailable;
             };
             let snapshot = if view {
@@ -656,7 +754,10 @@ impl Resolver<'_> {
             else {
                 return Some(Selection::Unavailable);
             };
-            let Some(place) = super::project_captured_view_place(
+            let Some(place) = super::project_captured_storage_place(
+                self.program,
+                capture.state_symbol,
+                capture.statement_index,
                 crate::CanonicalPlace {
                     root: referent.root,
                     segments: segments.to_vec(),

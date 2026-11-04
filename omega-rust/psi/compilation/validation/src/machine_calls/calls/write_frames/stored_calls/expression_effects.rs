@@ -843,7 +843,13 @@ fn install(
     next: SlotRelationTransfer,
     inference: &mut FrameInference,
 ) {
-    super::apply_transfer(program, &mut context.stored, &next);
+    super::apply_transfer(
+        program,
+        &mut context.stored,
+        &mut context.aliases,
+        &mut context.divergent,
+        &next,
+    );
     for record in &context.stored {
         inference.record_local(record);
     }

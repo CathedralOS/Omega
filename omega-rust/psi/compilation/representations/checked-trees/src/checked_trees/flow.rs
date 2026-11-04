@@ -115,10 +115,11 @@ pub use descriptor_observations::FlowDescriptorObservationTable;
 pub use invalidations::{FlowInvalidationFact, FlowInvalidationSource};
 pub use operand::{
     FlowAtomicExecutionFact, FlowCapturedReferenceLeaf, FlowCaseAccessFact, FlowCopiedValue,
-    FlowCopiedValueUse, FlowDescriptorContextObservation, FlowOperandAlternative, FlowOperandChild,
-    FlowOperandCompletion, FlowOperandFact, FlowOperandLifetimeContract, FlowOperandReborrowSource,
-    FlowOperandReferent, FlowOperandRetainedLeaf, FlowOperandRetainedRegion,
-    FlowOperandRetainedSupplier, FlowOperandRetention, FlowOutputLifetimeSources,
+    FlowCopiedValueUse, FlowDescriptorContextObservation, FlowDescriptorPermission,
+    FlowOperandAlternative, FlowOperandChild, FlowOperandCompletion, FlowOperandFact,
+    FlowOperandLifetimeContract, FlowOperandReborrowSource, FlowOperandReferent,
+    FlowOperandRetainedLeaf, FlowOperandRetainedRegion, FlowOperandRetainedSupplier,
+    FlowOperandRetention, FlowOperandStoredSource, FlowOutputLifetimeSources,
     FlowReferentFormation, FlowReferentFormationEvidence, FlowValueObservationFact,
     ViewReturnInputSource,
 };

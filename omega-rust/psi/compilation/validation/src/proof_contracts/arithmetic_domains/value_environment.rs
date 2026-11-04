@@ -604,9 +604,25 @@ impl ValueEnvironment {
         state: Option<&State>,
         written: &[String],
     ) {
+        if std::env::var_os("OMEGA_REFERENCE_SLOT_TRACE").is_some() && !written.is_empty() {
+            eprintln!(
+                "SLOT invalidation-before state={:?} written={written:?} intervals={:?} relations={:?}",
+                state.map(|state| state.symbol),
+                self.intervals,
+                self.ordered_values
+            );
+        }
         self.invalidate_storage(written, |operand| {
             operand.survives_storage_writes(program, state, written)
         });
+        if std::env::var_os("OMEGA_REFERENCE_SLOT_TRACE").is_some() && !written.is_empty() {
+            eprintln!(
+                "SLOT invalidation-after state={:?} intervals={:?} relations={:?}",
+                state.map(|state| state.symbol),
+                self.intervals,
+                self.ordered_values
+            );
+        }
     }
 
     fn invalidate_storage(&mut self, written: &[String], survives: impl Fn(&Operand) -> bool) {
@@ -661,6 +677,11 @@ impl ValueEnvironment {
         frames: Option<&crate::CallFrameResolver<'_>>,
         written: &[String],
     ) {
+        let prepared_frames = (frames.is_none()
+            && (!self.ordered_values.is_empty() || !self.boolean_values.is_empty()))
+        .then(|| crate::CallFrameResolver::new(program))
+        .flatten();
+        let frames = frames.or(prepared_frames.as_ref());
         let storage = (!self.ordered_values.is_empty() || !self.boolean_values.is_empty())
             .then(|| {
                 let target = statement.as_assignment()?.target;
@@ -669,8 +690,18 @@ impl ValueEnvironment {
                 frames?.assignment_storage_origins(machine, statement).ok()
             })
             .flatten();
+        let reference_read = |operand: &Operand| {
+            operand.assignment_reference_read_preserved(
+                program,
+                machine,
+                state,
+                statement,
+                frames,
+                storage.as_ref(),
+            )
+        };
         self.invalidate_storage(written, |operand| {
-            operand.survives_assignment(written, storage.as_ref())
+            operand.survives_assignment(written, storage.as_ref(), &reference_read)
         });
     }
 

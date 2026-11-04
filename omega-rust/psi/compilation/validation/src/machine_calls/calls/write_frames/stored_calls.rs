@@ -33,7 +33,7 @@ pub(super) use normal_exits::state_effects;
 mod instantiation;
 use instantiation::{aggregate_argument_sources, destination_source, instantiate};
 mod transfers;
-pub(super) use transfers::{apply, apply_transfer, public_effects};
+pub(super) use transfers::{apply_transfer, binding_preserved_after_transfer, public_effects};
 mod captured_inputs;
 pub(super) mod value_reads;
 pub(super) use value_reads::completed_value_reads;

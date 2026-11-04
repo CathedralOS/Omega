@@ -42,6 +42,7 @@ use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
 use validation::CallFrameResolver;
 use validation::ReferenceResultLeafOrigin;
+use validation::ReferenceResultTransport;
 use validation::borrow_contracts::ViewReturnInputSource;
 use validation::call_target_entry_symbol;
 use validation::effective_member_symbol;
@@ -416,8 +417,35 @@ fn completed_field_sources(
             &prepared_frames
         }
     };
-    let sources =
-        call_frames.reference_result_leaf_origins_for_arguments(state.symbol, arguments)?;
+    let transports =
+        call_frames.reference_result_transports_for_arguments(state.symbol, arguments)?;
+    let mut sources = Vec::new();
+    for transport in transports {
+        match transport {
+            ReferenceResultTransport::Reference(leaf) => sources.push(leaf),
+            ReferenceResultTransport::Value {
+                result_path,
+                source,
+                type_reference,
+            } => {
+                // These are possible descriptor slots in the moved value,
+                // not established pointees. The declaration check below and
+                // argument_loans still require the actual input's captured
+                // descriptor at this exact source path.
+                for leaf in declared_carrier_references(program, type_reference)? {
+                    let suffix = origin_place_segments(program, type_reference, leaf.path)?;
+                    let mut destination = result_path.clone();
+                    destination.extend_from_slice(&suffix);
+                    let mut source = source.clone();
+                    source.segments.extend(suffix);
+                    sources.push(ReferenceResultLeafOrigin {
+                        result_path: destination,
+                        source,
+                    });
+                }
+            }
+        }
+    }
     judge_completed_field_sources(program, state, fields, sources)
 }
 
@@ -837,7 +865,9 @@ fn limit_access(
 
 pub(super) fn attenuate(loans: &mut [StatementBorrowLoan], access: &BorrowAccessKind) {
     for loan in loans {
-        if loan.kind == BorrowAccessKind::Mutable {
+        if loan.kind == BorrowAccessKind::Mutable
+            && loan.lineage != BorrowLoanLineage::LifetimeDependency
+        {
             loan.kind = access.clone();
         }
     }
@@ -939,6 +969,7 @@ pub(super) fn argument_loans(
             loan.owner_path = result_owner_path.to_vec();
             // A result's declared exclusivity cannot promote a captured shared loan.
             if !field.lifetime_only
+                && loan.lineage != BorrowLoanLineage::LifetimeDependency
                 && matches!(
                     field.kind,
                     BorrowAccessKind::Read | BorrowAccessKind::WriteOnly

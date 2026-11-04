@@ -18,7 +18,7 @@ use crate::published::labels::symbol_name;
 
 use super::details::active_loan_detail;
 use super::overlap::{
-    StatedOrderingPremise, borrow_loan_compatibility, canonical_place_loan_compatibility,
+    StatedOrderingPremise, borrow_loan_compatibility, canonical_place_non_interfering,
 };
 
 pub(super) fn check_statement_borrows<'p>(
@@ -81,6 +81,13 @@ pub(super) fn check_statement_borrows<'p>(
             .state_loans(borrow_state)
             .filter(|(_, loan)| loan.statement_index == statement.statement_index)
         {
+            if super::resources::supplied_permissions::has_debt_resource(&facts.borrow, loan_handle)
+            {
+                // This completed/captured obligation holds an existing input;
+                // it does not form another spatial borrow. Actual accesses
+                // still face every retained input window independently.
+                continue;
+            }
             if facts
                 .borrow
                 .incoming_references
@@ -204,7 +211,7 @@ pub(super) fn check_statement_borrows<'p>(
                     .flow
                     .control
                     .value_observations
-                    .is_valid(value.descriptor_read)
+                    .is_valid(value.descriptor_permission.loaded_read())
                 {
                     continue;
                 }
@@ -212,7 +219,7 @@ pub(super) fn check_statement_borrows<'p>(
                     .flow
                     .control
                     .value_observations
-                    .get(value.descriptor_read)
+                    .get(value.descriptor_permission.loaded_read())
                     .constraints
             } else {
                 statement.entry_constraints
@@ -222,6 +229,24 @@ pub(super) fn check_statement_borrows<'p>(
                     continue;
                 }
                 let active_loan = facts.borrow.loans.get(active_loan_handle);
+                let retained_debt = super::overlap::retained_debt_non_interfering(
+                    program,
+                    &facts.borrow,
+                    active_loan_handle,
+                    &checked_trees::CapturedPlace {
+                        incoming_reference: loan.incoming_reference,
+                        incoming_owner_path: facts
+                            .borrow
+                            .access_segments
+                            .span_or_empty(loan.incoming_owner_path)
+                            .to_vec(),
+                        root: loan.root,
+                        segments: facts.borrow.loan_segments(loan).to_vec(),
+                    },
+                    &loan.kind,
+                    stated_premises,
+                    bound_lookup,
+                );
                 let compatibility = borrow_loan_compatibility(
                     program,
                     facts,
@@ -230,7 +255,9 @@ pub(super) fn check_statement_borrows<'p>(
                     stated_premises,
                     bound_lookup,
                 );
-                if compatibility.non_interfering
+                if retained_debt == Some(true)
+                    || (retained_debt.is_none()
+                        && (compatibility.non_interfering
                     || supplier_preserves_loan(
                         &facts.borrow, loan, active_loan_handle, active_loan, &compatibility,
                     )
@@ -240,9 +267,9 @@ pub(super) fn check_statement_borrows<'p>(
                     || (active_loan.kind.is_exclusive()
                         && active_loan.kind.direct_reborrow_effect(&loan.kind).is_some()
                         && retained_lineage.as_ref().is_some_and(|lineage| {
-                            lineage.iter().any(|ancestor| super::aliases::same_descriptor(
-                                &facts.borrow, *ancestor, active_loan_handle,
-                            ))
+                            super::aliases::formation_preserves_loan(
+                                program, &facts.borrow, borrow_state, lineage, active_loan_handle,
+                            )
                         }))
                     || supplying_accesses.as_ref().is_some_and(|sources| {
                         // A source-derived selected result retains each exact
@@ -257,21 +284,30 @@ pub(super) fn check_statement_borrows<'p>(
                                 source.place == compatibility.left
                                     && source.lineage.contains(&active_loan_handle)
                             })
-                    })
+                    })))
                 {
                     continue;
                 }
 
-                if completion_roster_supplies_operand_loan(
-                    program,
-                    facts,
-                    loan_handle,
-                    loan,
-                    active_loan,
-                    stated_premises,
-                    bound_lookup,
-                ) {
+                if retained_debt.is_none()
+                    && completion_roster_supplies_operand_loan(
+                        program,
+                        facts,
+                        loan_handle,
+                        loan,
+                        active_loan,
+                        stated_premises,
+                        bound_lookup,
+                    )
+                {
                     continue;
+                }
+                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    eprintln!(
+                        "STRUCT local-loan-conflict new={loan_handle:?} row={loan:?} active={active_loan_handle:?} row={active_loan:?} new_path={:?} active_path={:?} lineage={retained_lineage:?}",
+                        facts.borrow.loan_segments(loan),
+                        facts.borrow.loan_segments(active_loan)
+                    );
                 }
                 diagnostics.push(Diagnostic::error(format!(
                     "statement {} creates local borrow `{}` while local borrow `{}` is still active ({})",
@@ -435,18 +471,19 @@ pub(super) fn check_statement_borrows<'p>(
                                                         .control
                                                         .operands
                                                         .get(activation.formation_value);
-                                                    facts
+                                                    facts.flow.control.value_observations.is_valid(
+                                                        capture.descriptor_permission.loaded_read(),
+                                                    ) && facts
                                                         .flow
                                                         .control
                                                         .value_observations
-                                                        .is_valid(capture.descriptor_read)
-                                                        && facts
-                                                            .flow
-                                                            .control
-                                                            .value_observations
-                                                            .get(capture.descriptor_read)
-                                                            .evaluation
-                                                            == occurrence.evaluation
+                                                        .get(
+                                                            capture
+                                                                .descriptor_permission
+                                                                .loaded_read(),
+                                                        )
+                                                        .evaluation
+                                                        == occurrence.evaluation
                                                 }
                                         }))
                         },
@@ -630,6 +667,25 @@ pub(super) fn check_statement_borrows<'p>(
                 .map(|reason| format!("; {reason}"))
                 .unwrap_or_default();
             let loan = facts.borrow.loans.get(loan_handle);
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT mutation-loan-conflict statement={} loan={loan_handle:?} row={loan:?} path={:?} suppliers={:?} incoming={:?}",
+                    statement.statement_index,
+                    facts.borrow.loan_segments(loan),
+                    facts
+                        .borrow
+                        .loan_suppliers
+                        .span_or_empty(loan.supplying_loans),
+                    facts
+                        .borrow
+                        .incoming_references
+                        .is_valid(loan.incoming_reference)
+                        .then(|| facts
+                            .borrow
+                            .incoming_references
+                            .get(loan.incoming_reference))
+                );
+            }
             diagnostics.push(Diagnostic::error(format!(
                 "statement {} mutates `{}` while local borrow `{}` is still active ({}{reason})",
                 statement.statement_index,
@@ -783,16 +839,14 @@ fn check_call_mutation_borrows<'p>(
                     )
                 });
             for mutated_place in held_writes.as_ref().unwrap_or(&mutated_places) {
-                if canonical_place_loan_compatibility(
+                if canonical_place_non_interfering(
                     program,
                     mutated_place,
-                    loan,
+                    loan_handle,
                     &facts.borrow,
                     stated_premises,
                     bound_lookup,
-                )
-                .non_interfering
-                {
+                ) {
                     continue;
                 }
                 diagnostics.push(Diagnostic::error(format!(

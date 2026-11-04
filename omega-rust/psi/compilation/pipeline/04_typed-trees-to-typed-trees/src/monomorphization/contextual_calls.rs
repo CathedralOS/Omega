@@ -12,12 +12,13 @@ mod closed_requirements;
 pub(super) use closed_requirements::retain as retain_closed_requirement_demands;
 mod conformance_demands;
 pub(super) use conformance_demands::prepare as prepare_conformance_machine_demands;
+pub(crate) use conformance_demands::prepare_occurrence as prepare_conformance_occurrence;
 mod demands;
 mod invocations;
 mod providers;
 mod static_operands;
 
-pub(super) use static_operands::{is_open as operand_is_open, names_any};
+pub(super) use static_operands::{argument_is_open, is_open as operand_is_open, names_any};
 
 use super::{CallSite, Diagnostic, ExpressionNode, StatementNode, SymbolHandle, TypedTrees};
 use crate::tables::{expressions_of, expressions_of_mut};

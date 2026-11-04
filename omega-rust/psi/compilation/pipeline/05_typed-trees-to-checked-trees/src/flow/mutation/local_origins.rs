@@ -16,8 +16,7 @@ use facts::PlaceRoot;
 use facts::PlaceSegment;
 use typed_trees::state::State;
 use validation::push_field_place_segments;
-use validation::resolve_member_symbol_from_type_symbol;
-use validation::symbol_type_symbol;
+use validation::resolve_member_symbol_from_place;
 use validation::{
     AssignmentWriteTarget, CallFrameResolver, CanonicalPlace, LocalWriteOrigin,
     assignment_stored_value_type, canonical_place_type_reference, declared_reference_access,
@@ -764,10 +763,20 @@ pub(crate) fn place_from_origin_path(
                 })
         })?;
     let mut place = canonical_place_from_symbol(root)?;
-    let mut symbol = root;
     for member in members {
-        let type_symbol = symbol_type_symbol(program, symbol)?;
-        symbol = resolve_member_symbol_from_type_symbol(program, type_symbol, member)?;
+        // Each hop belongs to the original binding's applied type. A field's
+        // declaration alone can still name a generic parameter instead of the
+        // concrete carrier whose next member this frame path selects.
+        let symbol = resolve_member_symbol_from_place(
+            program,
+            &place,
+            member,
+            None,
+            SymbolHandle::invalid(),
+        )?;
+        if !symbol.is_valid() {
+            return None;
+        }
         push_field_place_segments(program, &mut place.segments, symbol);
     }
     if collection_contents {

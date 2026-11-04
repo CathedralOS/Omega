@@ -173,6 +173,37 @@ pub struct FlowOperandLifetimeContract {
     pub source_type: typed_trees::types::TypeReferenceHandle,
     pub source_path: HandleSpan<facts::PlaceSegment>,
     pub owner_path: HandleSpan<facts::PlaceSegment>,
+    /// The complete contents selected before this invocation writes. Stored
+    /// edges keep produced descriptors and unchanged incoming slots together;
+    /// a later read of the output variable cannot reconstruct this list.
+    pub stored_sources: HandleSpan<FlowOperandStoredSource>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum FlowOperandStoredSource {
+    Value {
+        path: HandleSpan<facts::PlaceSegment>,
+        operand: Handle<FlowOperandFact>,
+        reference: typed_trees::types::TypeReferenceHandle,
+        projection: HandleSpan<facts::PlaceSegment>,
+        slot: Option<FlowOperandReferent>,
+    },
+    Incoming {
+        path: HandleSpan<facts::PlaceSegment>,
+        slot: FlowOperandReferent,
+    },
+}
+
+impl Default for FlowOperandStoredSource {
+    fn default() -> Self {
+        Self::Value {
+            path: HandleSpan::empty(),
+            operand: Handle::invalid(),
+            reference: Handle::invalid(),
+            projection: HandleSpan::empty(),
+            slot: None,
+        }
+    }
 }
 
 /// Nonspatial input obligations of one admitted parameter-output generation.
@@ -226,6 +257,38 @@ pub struct FlowOperandRetainedLeaf {
     pub retention: Handle<FlowOperandRetention>,
 }
 
+/// A saved pointer keeps the event that permits its use. Loading an incoming
+/// descriptor needs its completed read; a helper's output needs its normal
+/// completion. Neither event can stand in for the other.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum FlowDescriptorPermission {
+    #[default]
+    Unavailable,
+    Loaded {
+        loan: Handle<super::super::BorrowLoanFact>,
+        read: Handle<FlowValueObservationFact>,
+    },
+    SuppliedOutput {
+        loan: Handle<super::super::BorrowLoanFact>,
+    },
+}
+
+impl FlowDescriptorPermission {
+    pub fn loaded_loan(self) -> Handle<super::super::BorrowLoanFact> {
+        match self {
+            Self::Loaded { loan, .. } => loan,
+            Self::Unavailable | Self::SuppliedOutput { .. } => Handle::invalid(),
+        }
+    }
+
+    pub fn loaded_read(self) -> Handle<FlowValueObservationFact> {
+        match self {
+            Self::Loaded { read, .. } => read,
+            Self::Unavailable | Self::SuppliedOutput { .. } => Handle::invalid(),
+        }
+    }
+}
+
 /// Facts at completion of one evaluated operand or stored value. Scalar copies and
 /// by-value carriers with stable observable contents keep this value's facts
 /// even if a later operand changes its former source storage — the bound
@@ -235,11 +298,7 @@ pub struct FlowOperandRetainedLeaf {
 /// at invocation, including ones a later operand established.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandFact {
-    /// Permission supplied by this exact completed descriptor load. Copies
-    /// retain the association; a type or a descriptor home cannot supply it.
-    pub descriptor_loan: Handle<super::super::BorrowLoanFact>,
-    /// The ordinary evaluated slot read that supplied this pointer.
-    pub descriptor_read: Handle<FlowValueObservationFact>,
+    pub descriptor_permission: FlowDescriptorPermission,
     pub expression: ExpressionHandle,
     /// The state and statement whose evaluation produced this observation.
     /// Retained stores can outlive their statement-local write prefix.

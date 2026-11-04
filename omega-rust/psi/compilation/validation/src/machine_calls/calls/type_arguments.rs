@@ -349,6 +349,7 @@ pub(super) fn validate_resolved_call_arguments(
         writable_roots.statements,
         selected_float_operation_retains_argument_policy(program, callee.symbol),
         &[],
+        &bindings,
         call_carrier_matcher(program, caller.symbol, &bindings),
         diagnostics,
         formation_obligations,
