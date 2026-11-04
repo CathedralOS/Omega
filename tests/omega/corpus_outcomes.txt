@@ -20728,8 +20728,10 @@ pass/collections/integer_index_every_width checked 1969ms @ccdb99ca2214
 pass/collections/local_byte_array_input_state_loan_exit checked 17121ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/mutable_slice_view_edge_release checked 17361ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/mutable_slice_view_establishment checked 11878ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/named_transition_completion rejected 45800ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @779f5c77adcc
-	terminal call `walk` does not select a declared machine entry or callable requirement
+pass/collections/named_transition_completion rejected 45275ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @118d54dc5f50
+	machine `result_place` state `entry` statement 5: reading `plan` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut BoundaryEntryPlan`
+	machine `result_place` state `entry` statement 5: the next whole-value read of `plan` occurs inside an OPEN invariant window: a prior write left data `CallPlan`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 6 in machine `result_place` state `entry`: this write left the `requires` facts of `plan.call` (data `CallPlan`) unproved; restore them first
 pass/collections/nested_empty_record_array_borrow_exit checked 3226ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/nested_runtime_indexed_successor_argument_exit checked 16621ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/owned_array_scalar_comparisons checked 2641ms @ccdb99ca2214
