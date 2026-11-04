@@ -141,9 +141,10 @@ It uses the verified optimization-level-1 CLI and corpus runner from
 [the focused producer run](https://github.com/CathedralOS/Omega/actions/runs/41860200412),
 without another compiler build or changed limits. The
 [source archive](https://github.com/CathedralOS/Omega/pull/1826)
-retains that actual compiler. The follow-up's compiler inputs and all 182
-program and oracle files match this measured source; documentation changes
-do not constitute a new-source execution.
+retains that actual compiler. All 182 program and oracle files remain fixed.
+The later published callback and checker changes have a separate applicability
+review for these value-only family parameters. These results remain executions
+at `972297978286`; this documentation update is not a new-source execution.
 
 The changed-limit twins still refuse the index mismatch, and the replaced-width
 case still observes row 32 after the earlier write. Proving that a call cannot
