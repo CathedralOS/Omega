@@ -71,6 +71,16 @@ is empty; older markers reject rather than selecting an optional dialect:
 | float entry ranges | machine id + parameter value id + minimum IEEE float value + maximum IEEE float value + `bool` maximum-inclusive flag |
 | integer entry ranges | machine id + parameter value id + integer type + minimum integer value + maximum integer value |
 
+Canonical identity-table references retain the semantic identity governed by
+[bounded index normalization](../proofs/contracts.md#bounded-canonical-index-normalization).
+Producers must agree on the canonical typed structure, selected operation and
+law authority, ordering, and encoding, including the fixed cutoff policy for
+open indices. Compiler-local handles and storage compression cannot change the
+published identity. Transported generic compatibility evidence and separately
+evaluated closed values keep their distinct obligations. This does not require
+runtime expressions to use a polynomial representation or add a new wire
+operation for distributivity.
+
 An optional predicate is a presence Boolean, followed when present by its
 subject value id and one canonical proposition. Its domain-local subject is
 value id 1 of the declared scalar carrier; every value reference in the

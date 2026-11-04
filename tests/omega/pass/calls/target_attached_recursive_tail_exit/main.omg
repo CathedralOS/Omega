@@ -9,7 +9,7 @@ requires remaining <= 4
 ensures result == 0
 terminates by remaining
 {
-    transition remaining > 0 { true -> step(remaining) false -> 0 }
+    transition remaining > 0 { true -> block step(remaining) false -> 0 }
     machine step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
         let ready: bool = block tick();
         transition ready { true -> block Walker::walk(remaining - 1) false -> 0 }
@@ -21,7 +21,7 @@ requires remaining <= 4
 ensures result == 0
 terminates by remaining
 {
-    transition remaining > 0 { true -> step(remaining) false -> 0 }
+    transition remaining > 0 { true -> block step(remaining) false -> 0 }
     machine step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
         let ready: bool = block tick();
         transition ready { true -> block Walker::walk(remaining - 1) false -> 0 }
@@ -33,7 +33,7 @@ requires remaining <= 4
 ensures result == 0
 terminates by remaining
 {
-    transition remaining > 0 { true -> step(remaining) false -> 0 }
+    transition remaining > 0 { true -> block step(remaining) false -> 0 }
     machine step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
         let ready: bool = block tick();
         transition ready { true -> block Walker::walk(remaining - 1) false -> 0 }
@@ -45,7 +45,7 @@ requires remaining <= 4
 ensures result == 0
 terminates by remaining
 {
-    transition remaining > 0 { true -> step(remaining) false -> 0 }
+    transition remaining > 0 { true -> block step(remaining) false -> 0 }
     machine step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
         let ready: bool = block tick();
         transition ready { true -> block Walker::walk(remaining - 1) false -> 0 }

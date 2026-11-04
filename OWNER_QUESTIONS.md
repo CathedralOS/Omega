@@ -67,188 +67,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### 1. What evidence lets open index normalization drop an identity element (`N + 0`, `N * 1`)?
-
-[Licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-lists zero/one identities among the normalizations a selected conformance
-licenses, each by its own law, and says connecting nullary algebra operations to
-constructor constants requires ordinary unfolding or citation. An open index
-spells an identity element as an integer leaf, `N + 0` or `N * 1`, and its
-expression fragment has no call, so no index can apply `zero()` or `one()`.
-`source/library/core/algebra.omg` states the identities over those nullary slot
-applications (`add(a, zero()) == a`) and says the checker has no compiler-known
-zero/one form. On base `05a6f6af37e` both spellings of an identity law leave
-`Indexed<N + 0>` and `Indexed<N>` distinct (`index compatibility condition ...
-is not established`): a trait whose laws name the literals (`add(a, 0) == a`,
-`multiply(a, 1) == a`) and a trait whose laws name the slot applications
-(`add(a, zero()) == a`). What evidence lets the normalizer drop a `0` or `1`
-leaf?
-
-Option A, the law names the literal: an identity law slot over the integer
-literal itself, detected by shape like commutativity and recorded on the
-selection beside the other laws. No connection between a nullary slot and a
-constant is needed because the law is stated about the leaf. The trait then
-fixes its operand to a numeric type, and left and right identity are separate
-laws.
-
-Option B, the library form plus a connection law: `CommutativeSemiring`'s
-identity laws over `zero()` and `one()`, plus a law slot `zero() == 0` (and
-`one() == 1`) that connects each nullary application to its constant. The
-normalizer drops a leaf only when the selected conformance declares both slots.
-
-Option C, no normalizer rule: identity elimination stays an ordinary
-established equality (a cited identity law and a local fact `N + 0 == N`), and
-open index normalization never removes a leaf. `N + 0` and `N` remain distinct
-instances whose compatibility needs that fact.
-
-The answer also fixes whether identities compose with distributivity
-(`A * (B + 1)` against `A * B + A`).
-
-Contracts checked: [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-names the identities and says nothing of their shape or of how an integer leaf
-meets a nullary slot. [Domains](wiki/spec/language/domains.md) says computed open
-indices retain their selected operation and normalized expression and that
-compatibility is a verification condition, not evaluation in type equality.
-[Canonical static identities](wiki/spec/language/evaluation.md#canonical-static-identities)
-keeps open symbolic indices as normalized artifact data and keeps machine
-evaluation out of type equality, which rules out evaluating `zero()` to `0`
-inside an identity. [Conformances](wiki/spec/language/conformances.md) says the
-index checker consumes selected evidence and does not infer an algebra from
-operator punctuation. None says how a literal leaf acquires an identity law.
-`samples/cli/facts/open_index_distributivity` records the distributivity
-evidence this question leaves out.
-
-### 2. Is the expanded sum of products the canonical form of an open index under a declared distributivity law?
-
-[Licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-says distributivity requires its law, that changing the canonical form is an
-explicit language compatibility event, and that index normalizer version 3
-retains the exact selected provider. Version 3 sorted operands under
-commutativity and flattened under associativity, and ignored a declared
-distributivity law. The compiler now applies a declared left-distributivity law
-by expanding `x * (y + z)` to `x * y + x * z` once per summand, flattening and
-sorting the result under the addition's own laws, and expanding a nested sum in
-the same way. It keeps `normalizer_version: 3` and caps an expansion at 64
-summands, keeping the unexpanded form beyond. A trait that declares
-distributivity in both directions (a distributive lattice) expands in neither.
-Which expressions are identified depends only on the laws a conformance
-licenses; this question settles the representative text, the version label and
-the cap.
-
-Option A, expansion is canonical and the version advances to 4: amend the
-sentence naming version 3 and record the compatibility event.
-
-Option B, expansion is canonical and the version stays 3: no recorded form
-changes, because an expression's form moves only when its trait declares a
-distributivity law, which no normalizer consulted until now, and the library's
-only such trait (`CommutativeSemiring`) has no index customer.
-
-Option C, another representative (factoring, or a polynomial with explicit
-coefficients): every form the implementation produces under the law changes.
-
-Contracts checked: [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-fixes the licensing and the version provenance but names no representative.
-`source/library/core/algebra.omg` describes the proof engine's tier-2
-normalizer as expanding a capped natural-coefficient polynomial form; that is
-commentary on the proof side, not a rule for index identity. [Domains](wiki/spec/language/domains.md)
-says computed open indices retain a normalized expression and that exact
-operation and law identities survive generic substitution and interface
-publication, without defining the expression's form.
-`samples/cli/facts/open_index_distributivity` pins the expansion with its reject
-twins.
-
-### 3. May a boundary requirement's own signature bind a generic evidence parameter?
-
-A target-prefixed family member may be generic over an implementation map, for
-example `forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32` in
-`samples/cli/facts/selected_crash_formal/target_body` and
-`selected<Index: u32, Implementation satisfies Choose<Cell>>(...)` in
-`samples/cli/facts/selected_value_application/target_body`. Moving such a
-family to ordinary named implementations selected by target-keyed Build rows
-needs a requirement with the same telescope:
-`boundary trait SelectedForward { machine forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32 ...; }`.
-The parser refuses it ("an evidence binder `Implementation satisfies
-Trait<...>` is not admitted in this parameter list"): requirement signatures
-admit type, const, value and machine parameters but no conformance binder,
-while machine, trait and data declarations admit one. The other places of
-these two folders are unaffected; only their target_body places keep the
-retired prefix.
-
-The product requirement is the one the migration serves: one portable call to a
-generic algorithm whose per-target bodies differ, such as a per-ISA kernel that
-is generic over the arithmetic or ordering map it is applied to.
-
-Option A, admit the binder: a requirement may declare `<I satisfies T<...>>`.
-The caller names the implementation at each call, exactly as for a generic
-machine; every implementation declares the same binder telescope and refines
-the requirement's contract for every admitted `I`; a Build row selects the
-requirement's implementation per target and never fills `I`. Specialization
-then closes each selected implementation at the caller's map.
-
-Option B, keep the exclusion: the evidence binder stays on an ordinary generic
-machine, and only non-generic leaves are selected per target. A fact whose
-selected body is itself generic over the map (these two) is then restated with
-the generic part outside the selected requirement, or moved to a trait-level
-binder (`boundary trait SelectedForward<I satisfies Reader<Zero>>`) if that form
-is intended.
-
-Contracts checked: [named conformances](wiki/spec/language/conformances.md#declaration-and-selection)
-define generic evidence binders and say a Build provider row cannot fill one,
-without saying where a binder may be declared.
-[Build-owned target selection](wiki/spec/build/provider_selection.md#build-owned-target-selection)
-and [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
-require ordinary named implementations of an exact requirement and are silent
-on generic requirement telescopes. [Lifetimes](wiki/spec/language/lifetimes.md#binders-and-source-applications)
-lets static callable requirements bind fresh per-invocation lifetimes, and the
-[static machine binder categories](wiki/spec/language/generics.md#static-machine-binder-categories)
-cover machine binders; neither covers evidence binders on a requirement.
-
-### 4. How is a bare `return` in a transition arm delimited from the next arm's pattern in Epsilon?
-
-[Epsilon's grammar](bootstrap/4_epsilon/LANGUAGE.md) (lines 128-139) lets an
-arm's continuation be `"return" expression?`, and lets the next arm's pattern
-start with an integer literal, `true`, `false`, or `IDENT "::" IDENT`
-(lines 131-134), which are also valid expression starts (lines 163-164).
-Nothing in the grammar or in section 8 (machines, states, and transitions)
-says whether `-> return` followed by `3 -> ...` returns `3` or returns nothing
-and begins a new arm. The evaluator resolves it with a lookahead probe
-(`bootstrap/4_epsilon/implementation_notes.md`, lines 30-31): a `return` is
-bare when the next token is `}` or end of source, or when the tokens ahead
-form a `pattern ->` prefix. The independent refinement model reproduces that
-probe instead of deriving the read from the contract
-(`tests/epsilon/refinement/README.md`, lines 24-27; `model.py`,
-`return_is_bare`).
-
-The customer is the conformance obligation in LANGUAGE.md (lines 818-826,
-item 5): direct checked evaluator refinement with mutations needs a model
-derived from the written language. While the disambiguation is unwritten the
-model and the evaluator share one unverified decision, and a parse that depends
-on the following arm cannot be checked against the contract. The admitted
-Epsilon sources, including D under `bootstrap/5_omega/`, are parsed under the
-current probe; a rule that changes how any admitted source parses changes that
-identity chain.
-
-Option A, write the probe as the rule: a `return` continuation carries an
-expression unless the following tokens form a complete `pattern ->` prefix or
-the arm list ends. This ratifies the current evaluator, keeps every admitted
-source unchanged, and makes the model's probe contract-derived. The probe then
-has to be specified exactly: which token sequences count as `pattern ->`, and
-what happens when an expression itself could start with such a sequence.
-
-Option B, an explicit delimiter: terminate a `return` continuation (for
-example `return expression ;` and `return ;`) or forbid an expression after
-`return` in a non-final arm, so no lookahead past the arm is needed. This is a
-grammar change that migrates every Epsilon source including D and re-admits
-their identities; the former translator-era corpus is not authoritative.
-
-Contracts checked: the grammar (lines 119-139, 160-166) and section 8 of
-LANGUAGE.md state no rule; `EVALUATOR_ENTRY.md` and `EVALUATOR_PROFILE.md`
-define observations and resources, not parsing;
-[edge contracts](bootstrap/CONTRACT.md) require refinement independence but do
-not fix Epsilon's grammar; `implementation_notes.md` describes the probe as
-implementation, not as a language rule.
-
-### 5. Is a layout used only inside unselected library code a Psi obligation under every target?
+### 1. Is a layout used only inside unselected library code a Psi obligation under every target?
 
 A fixed-representation use (`LayoutStorage`, `CLayout`) inside a body that no
 Build row selects and no entry reaches is laid out today by Psi's build-time
@@ -333,70 +152,57 @@ Contracts checked, and why they do not decide it:
   110-113 follow provider bodies "under each applicable target" and reject a bad
   target-family member "even when deployment requests another target".
 
-### 7. Must a domain membership's candidate have the domain's carrier?
+### 2. Must a lent local's domain qualification hold again when the borrow returns?
 
-A `u8` value is accepted as a member of a `u16`-carrier domain in every form
-tried. With `domain u16::Small requires self <= 10;`, each of these checks:
+A local binding can carry a domain qualification, for example
+`let mut bytes: [u8; 2] in Ascii = "ab";`. When it is lent through
+`&mut` to a callee whose formal carries the same qualification, the contracts
+do not say whether the local's qualification is a stored invariant, which the
+callee must restore before returning, or an input qualification, which may
+expire.
 
-- `machine guarded() -> u16 requires 7u8 in Small { 3 }`, where `u8` appears
-  nowhere else in the program;
-- the same program with an unrelated `machine unrelated(value: u8) -> u8`, so
-  the `u8` carrier is otherwise present;
-- `machine guarded(value: u8) -> u16 requires value in Small { 3 }`, with no
-  literal at all.
+`tests/omega/fail/collections/fixed_array_write_rejects_element_domain` assumes
+it is a stored invariant. Its `corrupt(bytes: &mut [u8; 2] in Ascii, index: u64)`
+stores 255 into the lent array and is expected to reject with
+`cannot prove default-domain field requirement`. It compiles today. That fixture
+is left unchanged pending this decision.
 
-Observed on hosted compiler-pilot runs 41656219861 and 41657251758 (checking
-only, branch `work/wave3-membership-probe` over main `f2c75870eb`). The probes
-were written to test a compiler degrade path (a suffixed literal whose width
-row is missing); the outcome is the same with and without that row, so the
-acceptance comes from the membership rule itself.
+The product requirement is soundness of encoding domains on byte storage. If
+the local's qualification may expire, the caller's binding still has type
+`[u8; 2] in Ascii`, yet it may hold a non-ASCII byte after the call. Callers
+that later rely on the declared type would then rely on a fact that no longer
+holds, unless the qualification expires at the lend as well.
 
-Option A, carrier-exact membership: `candidate in D` requires the candidate's
-carrier to equal the carrier named by `D`'s `Carrier::` prefix, and a
-cross-carrier `in` rejects; an explicit exact conversion is needed first. A
-heuristic scan of the 68,463 `.omg` files found no `requires` membership whose
-parameter's declared integer type differs from its domain's carrier (91
-integer-carrier domains), and none among qualified parameters (`x: uN in D`)
-whose type differs from the domain's carrier, so the known migration cost is
-small; the scan did not cover memberships on locals, fields or literal
-candidates.
+Option A, stored invariant: a local's own domain qualification is owed at every
+consumption point, like a declared field domain. A callee that receives it
+through `&mut` must re-establish it before returning. A formal's additional
+input qualification still expires as it does today. Only the lent storage's own
+declaration is owed at return.
 
-Option B, membership by exact value: `candidate in D` substitutes the
-candidate's exact mathematical value for `self`, across widths, as fixed-integer
-comparison already does. This is today's behavior.
+Option B, input qualification: lending a qualified local makes its
+qualification an input to the callee, which may retire it as it may retire any
+additional input domain. The caller's fact about the local ends at the lend and
+must be re-established before the next use that requires it. The fixture
+migrates: it should expect acceptance, or move the rejection to a later use of
+`bytes` that needs `Ascii`.
 
 Contracts checked, and why they do not decide it:
-- [Domains, declaration and membership](wiki/spec/language/domains.md#declaration-and-membership):
-  "`Player::` determines the domain's carrier", and membership "substitutes that
-  exact candidate for `self`". It does not say whether the candidate must have
-  that carrier.
-- [Domains, refinement and executable membership](wiki/spec/language/domains.md#refinement-and-executable-membership):
-  "Domains classify values within the carrier's ordinary validity", and
-  "Establishing membership requires all carrier, predicate, and provenance
-  obligations". Whether a "carrier obligation" means the candidate has the
-  carrier's type, or only that its value is valid in that carrier, is the open
-  point.
-- [Domains, exact coercion and erasure](wiki/spec/language/domains.md#exact-coercion-and-erasure):
-  "Exact widening and proved representable narrowing are carrier coercions",
-  and a predicate-free qualification needs "carrier compatibility". This is the
-  explicit conversion Option A would require before a cross-carrier `in`; it
-  does not say a bare `in` needs one.
-- [Terminal Psi calls and outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md):
-  a qualification change "strictly adds same-carrier membership". This governs
-  qualification-change edges, not a bare `in` proposition, though it leans
-  toward Option A.
-- [Numeric values, literal landing](wiki/spec/language/numeric_values.md#literal-landing-and-destinations):
-  "A suffixed integer or float literal retains its chosen carrier ... An
-  incompatible destination rejects". It does not say whether a membership
-  candidate is a destination.
-- [Numeric values, integer equality and order](wiki/spec/language/numeric_values.md#integer-equality-and-order):
-  "Builtin fixed-integer comparisons use exact mathematical integer values"
-  across width and signedness (`mixed-integer-comparison`), which supports
-  reading `self <= 10` across carriers. The same section says this "adds
-  neither implicit arithmetic widening nor conversion at assignments,
-  arguments, or returns"; a membership candidate is none of those positions.
-- Qualification `value: T in D` "requires the exact named domain `D`"
-  (domains.md, declaration and membership), which constrains the qualified
-  type, not a bare `in` proposition.
-- No clause in `state_contracts.md`, `generics.md` or elsewhere in
-  `wiki/spec` states a carrier rule for `in` propositions.
+- [Mutable arguments and declared field domains](wiki/spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains)
+  (lines 143-146) say an ordinary `&mut T` argument carries "the declared
+  field/default-domain obligations of `T`", which the callee restores at return.
+  Lines 149-151 say "An additional input domain need not survive a call unless
+  the ordinary contract guarantees it." Neither says which of the two a local's
+  own qualification is.
+- [Byte containers and encoding domains](wiki/spec/language/domains.md#byte-containers-and-encoding-domains)
+  (line 684) says "Mutation must preserve or re-establish the facts on affected
+  places." Read alone, this favors Option A. Read together with the lines above,
+  it can mean only the facts a place still owes, which favors Option B.
+- The ratified witnesses cover the two neighbors but not this case:
+  - `tests/omega/pass/domains/qualified_mutable_scalar_input_domain_expires`
+    ("An additional input qualification is not an implicit postcondition")
+    breaks a formal's `&mut [u16; 4] in Terminated` and is accepted.
+  - The fact row `samples/cli/facts/additional_input_domain_mutation` writes 73
+    through `&write Cell in Before` into an unqualified local and is accepted.
+  - `tests/omega/fail/domains/write_only_declared_field_domain_requires_restoration`
+    protects a stored field `Holder.cell: Cell in Before`, which must be
+    restored at return.

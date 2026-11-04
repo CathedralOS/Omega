@@ -122,7 +122,7 @@ impl Emission<'_, '_, '_> {
                 "membership source lacks its completed physical/source correspondence",
             ));
         }
-        let subject = validation::canonical_place_from_expression_in_state(
+        let subject = validation::storage_place_from_expression_in_state(
             &self.checked.typed,
             self.state,
             self.statement as usize,
@@ -332,7 +332,7 @@ impl Emission<'_, '_, '_> {
         if local.is_mutable || !local.initial_value.is_valid() {
             return None;
         }
-        let bound = validation::canonical_place_from_expression_in_state(
+        let bound = validation::storage_place_from_expression_in_state(
             &self.checked.typed,
             self.state,
             self.statement as usize,
