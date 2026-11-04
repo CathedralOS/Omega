@@ -98,6 +98,10 @@ impl AtomicOperation {
     pub const fn observes_resident(self) -> bool {
         !matches!(self, Self::Store)
     }
+    pub const fn is_bitwise_fetch(self) -> bool {
+        matches!(self, Self::FetchAnd | Self::FetchOr | Self::FetchXor)
+    }
+
     pub const fn modifies_resident(self) -> bool {
         !matches!(self, Self::Load)
     }

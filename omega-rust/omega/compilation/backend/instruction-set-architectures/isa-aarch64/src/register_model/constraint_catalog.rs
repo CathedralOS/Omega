@@ -825,6 +825,25 @@ pub fn aarch64_register_constraint_catalog(
             },
         });
     }
+    // The exclusive loop must preserve address and mask across every failed
+    // store. Fixed caller-volatile homes keep both inputs and the observed
+    // result separate from the declared replacement/status scratch registers.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: crate::AARCH64_ATOMIC_BITWISE_UPDATE,
+        operands: vec![
+            fixed(0, RegisterOperandAccess::Use, "x9"),
+            fixed(1, RegisterOperandAccess::Use, "x10"),
+            fixed(2, RegisterOperandAccess::Def, "x11"),
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: sorted_units(
+            ["x16", "x17"]
+                .into_iter()
+                .flat_map(|name| view(name).units.iter().copied()),
+        ),
+    });
     mixed_calls::append_normalized_foreign_constraints(&mut constraints, model);
     super::system_calls::append_constraints(&mut constraints, model);
     float_scalar_calls::append_constraints(&mut constraints, model);

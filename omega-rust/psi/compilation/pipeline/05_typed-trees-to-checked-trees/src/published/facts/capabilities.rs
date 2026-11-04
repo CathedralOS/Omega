@@ -19,7 +19,7 @@
 //!   passed into the boundary call.
 
 use crate::flow::expressions;
-use arena::Arena;
+use arena::{Arena, Handle};
 use checked_trees::FlowFacts;
 use flow_effects::{
     CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan, ServiceReachInferencePlan,
@@ -48,7 +48,7 @@ pub(crate) fn build_capability_facts(
     service_reaches: &ServiceReachInferencePlan,
     flow: &FlowFacts,
 ) -> CapabilityFlowPlan {
-    let mut flows = Arena::with_capacity(flow.boundaries.edges.len());
+    let mut flows = CapabilityFlowBuilder::new(flow.boundaries.edges.len());
 
     // `uses`: every boundary-trait edge recorded by the flow analysis for calls
     // that resolve to an in-package boundary implementation.
@@ -188,7 +188,49 @@ pub(crate) fn build_capability_facts(
     // the call graph one or more levels.
     propagate_nested_capability_flows(program, service_reaches, &mut flows);
 
-    CapabilityFlowPlan::with_roots(flows)
+    CapabilityFlowPlan::with_roots(flows.rows)
+}
+
+// Keep each state's facts in append order while constructing the published
+// arena. Nested calls need only their callee's facts; unrelated states cannot
+// contribute a matching fact or a duplicate. A dense slot bucket can contain
+// several generations; reads still compare the complete state handle.
+struct CapabilityFlowBuilder {
+    rows: Arena<CapabilityFlowFact>,
+    states: Vec<Vec<Handle<CapabilityFlowFact>>>,
+}
+
+impl CapabilityFlowBuilder {
+    fn new(capacity: usize) -> Self {
+        Self {
+            rows: Arena::with_capacity(capacity),
+            states: Vec::new(),
+        }
+    }
+
+    fn state_facts(&self, state: SymbolHandle) -> impl Iterator<Item = &CapabilityFlowFact> {
+        self.states
+            .get(state.arena_index() as usize)
+            .into_iter()
+            .flatten()
+            .map(|handle| self.rows.get(*handle))
+            .filter(move |fact| fact.state_symbol == state)
+    }
+
+    fn push_unique(&mut self, fact: CapabilityFlowFact) -> bool {
+        if self
+            .state_facts(fact.state_symbol)
+            .any(|existing| *existing == fact)
+        {
+            return false;
+        }
+        let position = fact.state_symbol.arena_index() as usize;
+        if self.states.len() <= position {
+            self.states.resize_with(position + 1, Vec::new);
+        }
+        self.states[position].push(self.rows.append(fact));
+        true
+    }
 }
 
 /// A nested-call edge in the service-reach plan's call graph: a caller state
@@ -210,7 +252,7 @@ struct CallEdge {
 fn propagate_nested_capability_flows(
     program: &dyn ::validation::CheckingInput,
     service_reaches: &ServiceReachInferencePlan,
-    flows: &mut Arena<CapabilityFlowFact>,
+    flows: &mut CapabilityFlowBuilder,
 ) {
     let edges = collect_call_edges(service_reaches);
 
@@ -225,11 +267,9 @@ fn propagate_nested_capability_flows(
             ] {
                 // Capabilities the callee state already carries with this verb.
                 let propagated: Vec<SymbolHandle> = flows
-                    .iter()
-                    .filter(|(_, fact)| {
-                        fact.kind == kind && fact.state_symbol == edge.target_state_symbol
-                    })
-                    .map(|(_, fact)| fact.capability_symbol)
+                    .state_facts(edge.target_state_symbol)
+                    .filter(|fact| fact.kind == kind)
+                    .map(|fact| fact.capability_symbol)
                     .collect();
 
                 if propagated.is_empty() {
@@ -332,7 +372,7 @@ fn state_has_capability_parameter(
 
 #[allow(clippy::too_many_arguments)]
 fn push_unique(
-    flows: &mut Arena<CapabilityFlowFact>,
+    flows: &mut CapabilityFlowBuilder,
     kind: CapabilityFlowKind,
     capability_symbol: SymbolHandle,
     machine_symbol: SymbolHandle,
@@ -351,11 +391,7 @@ fn push_unique(
         via_state_symbol,
     };
 
-    let exists = flows.iter().any(|(_, existing)| *existing == fact);
-    if !exists {
-        flows.append(fact);
-    }
-    !exists
+    flows.push_unique(fact)
 }
 
 /// Classifies the receiver of the boundary call at `statement_index` as

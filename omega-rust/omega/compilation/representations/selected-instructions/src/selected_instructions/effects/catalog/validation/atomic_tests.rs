@@ -25,7 +25,7 @@ fn declaration(form: AtomicForm) -> (RegisterInstructionConstraint, MachineEffec
         key,
         operands: (0..form.operand_count())
             .map(|operand| {
-                let output = Some(operand) == form.observed_operand();
+                let output = form.output_operands().contains(&operand);
                 RegisterOperandConstraint {
                     operand,
                     access: if output {
@@ -46,7 +46,7 @@ fn declaration(form: AtomicForm) -> (RegisterInstructionConstraint, MachineEffec
     };
     let mut encoded = MachineEncodedEffects::fallthrough_v1(
         (0..form.operation.input_count()).collect(),
-        form.observed_operand().into_iter().collect(),
+        form.output_operands().collect(),
     );
     encoded.memory = MachineEncodedMemoryEffect::AtomicPointerV1 {
         pointer_operand: 0,
@@ -158,7 +158,7 @@ fn atomic_forms_require_indivisible_memory_and_exact_operand_custody() {
 }
 
 #[test]
-fn retry_control_is_required_only_for_x86_bitwise_atomic_updates() {
+fn retry_control_is_required_for_bitwise_atomic_updates() {
     for form in AtomicForm::ALL {
         let (constraint, mut declared) = declaration(form);
         let bitwise = matches!(
@@ -170,15 +170,20 @@ fn retry_control_is_required_only_for_x86_bitwise_atomic_updates() {
             validate_declaration(target::Architecture::X86_64, &constraint, &declared).is_ok(),
             !bitwise
         );
-        validate_declaration(Aarch64, &constraint, &declared)
-            .expect("single LSE instruction falls through");
+        assert_eq!(
+            validate_declaration(Aarch64, &constraint, &declared).is_ok(),
+            !bitwise
+        );
         declared.alternatives[0].encoded.control =
             MachineEncodedControlEffect::AtomicRetryUntilCommitV1;
         assert_eq!(
             validate_declaration(target::Architecture::X86_64, &constraint, &declared).is_ok(),
             bitwise
         );
-        assert!(validate_declaration(Aarch64, &constraint, &declared).is_err());
+        assert_eq!(
+            validate_declaration(Aarch64, &constraint, &declared).is_ok(),
+            bitwise
+        );
     }
 }
 
