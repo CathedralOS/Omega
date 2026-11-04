@@ -271,6 +271,20 @@ pub(crate) fn validate(
     while !validation::resolve_named_result_overloads(&mut probe)?.is_empty() {}
     typed_trees_to_typed_trees::bind_pre_specialization_authored_selections(&mut probe)
         .map_err(|diagnostic| vec![diagnostic])?;
+    // Binding can introduce a new selected map occurrence. Prepare its public
+    // contract in the source declaration's scope before auditing that recipe;
+    // executable specialization still waits for the source audit below.
+    let source_roots = replay_declarations
+        .iter()
+        .flat_map(|declaration| {
+            [
+                declaration.authored_initializer,
+                declaration.materialized_initializer,
+            ]
+            .map(|root| (declaration.symbol, root))
+        })
+        .collect::<Vec<_>>();
+    typed_trees_to_typed_trees::prepare_requirement_expression_views(&mut probe, &source_roots)?;
     // The actual source recipe must precede specialization. Prepared target
     // custody alone cannot distinguish another valid instance of one template.
     for declaration in &replay_declarations {

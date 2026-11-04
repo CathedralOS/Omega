@@ -75,6 +75,7 @@ mod dynamic_slots;
 pub(crate) use dynamic_slots::instantiate_dynamic_slots;
 pub(crate) mod requirement_applications;
 pub(crate) use requirement_applications::instantiate_requirement_applications;
+pub use requirement_applications::prepare_requirement_expression_views;
 pub(crate) use requirement_providers::generate_requirement_provider_specializations;
 pub(crate) use type_reference_walk::for_each_type_reference;
 mod const_values;

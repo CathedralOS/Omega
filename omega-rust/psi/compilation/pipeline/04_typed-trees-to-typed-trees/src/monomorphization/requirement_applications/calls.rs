@@ -840,11 +840,26 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
     for invocation in &invocations {
         super::runtime_operands::realize(program, invocation)?;
     }
-    for invocation in invocations {
-        let (site, owner) = (invocation.site, invocation.owner);
-        let super::super::CallSite::Expression(expression) = site else {
-            continue;
-        };
+    publish_expression_call_views(
+        program,
+        invocations.into_iter().filter_map(|invocation| {
+            let super::super::CallSite::Expression(expression) = invocation.site else {
+                return None;
+            };
+            Some((invocation.owner, expression))
+        }),
+    )?;
+    Ok(())
+}
+
+/// Publish the complete public method view for exact source occurrences.
+/// Body calls and detached declaration roots retain the same independent map
+/// and member applications; this operation does not select executable code.
+pub(super) fn publish_expression_call_views(
+    program: &mut TypedTrees,
+    calls: impl IntoIterator<Item = (SymbolHandle, typed_trees::expression::ExpressionHandle)>,
+) -> Result<(), Vec<Diagnostic>> {
+    for (owner, expression) in calls {
         let Some(call) = expressions_of(program).call_node(expression).cloned() else {
             continue;
         };

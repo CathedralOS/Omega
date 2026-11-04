@@ -10,6 +10,7 @@ mod conformance;
 mod constructed_results;
 mod expression_roots;
 mod monomorphization;
+pub use monomorphization::prepare_requirement_expression_views;
 pub use monomorphization::restore_copied_call_sources;
 mod operators;
 mod preparation;
