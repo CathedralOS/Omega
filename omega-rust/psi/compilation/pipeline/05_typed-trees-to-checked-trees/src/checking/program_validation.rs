@@ -83,9 +83,9 @@ pub(crate) fn prepare_typed_program<'program>(
     })
 }
 
-/// A program that fails after validation never reaches flow construction, so
-/// contract entailment judges it here. Its diagnostics come first, as they did
-/// when entailment ran inside validation; otherwise `errors` stand.
+/// Show contract errors first, while retaining the failure that stopped checking.
+/// An earlier failure may leave storage history unavailable, so another contract
+/// error cannot replace the original diagnostic that explains why checking stopped.
 pub(crate) fn entailment_errors_first(
     program: &dyn ::validation::CheckingInput,
     deferred: validation::DeferredEntailment,
@@ -93,7 +93,10 @@ pub(crate) fn entailment_errors_first(
 ) -> Vec<Diagnostic> {
     match validation::judge_contract_entailment(program, deferred) {
         Ok(_) => errors,
-        Err(entailment) => entailment,
+        Err(mut entailment) => {
+            entailment.extend(errors);
+            entailment
+        }
     }
 }
 
