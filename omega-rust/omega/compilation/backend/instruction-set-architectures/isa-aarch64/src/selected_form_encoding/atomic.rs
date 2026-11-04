@@ -1,17 +1,12 @@
-//! Atomic accesses return the value observed by their own native event.
-//!
-//! Baseline AArch64 supplies LDAR/STLR and one bounded exclusive-load/store
-//! attempt. Bitwise fetch uses a checked exclusive retry loop on every target;
-//! the other LSE updates remain admitted only where the target promises LSE.
-//! Every source ordering is checked upstream; conservative native barriers
-//! cannot repair an illegal source ordering. Bitwise retry work is explicit
-//! in its effect record. Single-attempt exchange never enters that loop.
-//!
-//! LSE encodings follow Arm's A64 definitions and LLVM's
-//! `llvm/test/MC/AArch64/armv8.1a-atomic.s` assembler vectors.
+//! Baseline AArch64 atomic events. Loads/stores use LDAR/STLR; decisive
+//! updates retry an exclusive store and return that successful attempt's
+//! observation. CAS exits without a store on mismatch. Once remains exactly
+//! one attempt. Full barriers preserve every admitted source ordering, while
+//! encoded effects expose the retry work rather than promising fixed work.
 
-mod bitwise_update;
+mod compare_exchange;
 mod compare_exchange_once;
+mod retry_update;
 
 use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterViewId};
@@ -23,6 +18,9 @@ use selected_instructions::{
 };
 
 pub(crate) fn effects(form: AtomicForm) -> MachineEncodedEffects {
+    let retry = form
+        .operation
+        .retries_until_commit(target::Architecture::Aarch64);
     let mut effects = MachineEncodedEffects {
         memory: MachineEncodedMemoryEffect::AtomicPointerV1 {
             pointer_operand: 0,
@@ -34,31 +32,25 @@ pub(crate) fn effects(form: AtomicForm) -> MachineEncodedEffects {
             form.output_operands().collect(),
         )
     };
-    if form.operation.is_bitwise_fetch() {
+    if retry {
         effects.control = MachineEncodedControlEffect::AtomicRetryUntilCommitV1;
-        effects.implicit_unit_clobbers = ["x16", "x17"]
-            .into_iter()
-            .flat_map(|name| {
-                crate::register_model::aarch64_physical_register_model_ref()
-                    .view_named(name)
-                    .expect("canonical AArch64 scratch register")
-                    .units
-                    .iter()
-                    .copied()
-            })
-            .collect();
-        effects.implicit_unit_clobbers.sort_unstable();
     }
-    if form.outcome_operand().is_some() {
-        // Catalog replay checks this canonical NZCV roster against the
-        // instruction's required clobber; a missing roster cannot admit it.
-        effects.implicit_unit_clobbers =
+    let compares = matches!(
+        form.operation,
+        AtomicOperation::CompareExchange | AtomicOperation::CompareExchangeOnce
+    );
+    effects.implicit_unit_clobbers = ["x16", "x17"]
+        .into_iter()
+        .filter(|_| retry)
+        .chain(compares.then_some("nzcv"))
+        .flat_map(|name| {
             crate::register_model::aarch64_physical_register_model_ref()
-                .view_named("nzcv")
+                .view_named(name)
                 .into_iter()
                 .flat_map(|view| view.units.iter().copied())
-                .collect();
-    }
+        })
+        .collect();
+    effects.implicit_unit_clobbers.sort_unstable();
     effects
 }
 
@@ -66,6 +58,12 @@ pub(crate) fn declaration(
     form: AtomicForm,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
+    let byte_count = match form.operation {
+        AtomicOperation::Load | AtomicOperation::Store => 4,
+        AtomicOperation::CompareExchangeOnce => compare_exchange_once::byte_count(form.width),
+        AtomicOperation::CompareExchange => compare_exchange::byte_count(form.width),
+        _ => retry_update::BYTE_COUNT,
+    };
     MachineEffectDeclaration::single(
         MachineSemanticKind::AtomicAccess(form),
         constraint,
@@ -73,15 +71,7 @@ pub(crate) fn declaration(
         MachineTrapBehavior::MayArchitecturalFaultV1,
         MachineBarrier::ExternalEffect,
         MachineAlternativeFamily::AtomicAccess(form),
-        MachineSizeKnowledge::ExactBytes(if form.operation.is_bitwise_fetch() {
-            bitwise_update::BYTE_COUNT
-        } else if form.outcome_operand().is_some() {
-            compare_exchange_once::byte_count(form.width)
-        } else if has_prefix(form.operation) {
-            8
-        } else {
-            4
-        }),
+        MachineSizeKnowledge::ExactBytes(byte_count),
         effects(form),
     )
 }
@@ -96,16 +86,12 @@ pub(crate) fn footprint(
             .output_operands()
             .map(|output| operands[usize::from(output)])
             .collect(),
-        writes_nzcv: form.outcome_operand().is_some(),
+        writes_nzcv: matches!(
+            form.operation,
+            AtomicOperation::CompareExchange | AtomicOperation::CompareExchangeOnce
+        ),
         encoded: effects(form),
     }
-}
-
-const fn has_prefix(operation: AtomicOperation) -> bool {
-    matches!(
-        operation,
-        AtomicOperation::FetchSub | AtomicOperation::CompareExchange
-    )
 }
 
 fn validate_registers(
@@ -115,7 +101,16 @@ fn validate_registers(
     if registers.len() != usize::from(form.operand_count()) {
         return Err(Aarch64SelectedFormEncodingError::OperandCountMismatch);
     }
-    if form.operation.is_bitwise_fetch() && registers != bitwise_update::REGISTERS {
+    let retry_registers: &[u8] = if form.operation == AtomicOperation::CompareExchange {
+        &compare_exchange::REGISTERS
+    } else {
+        &retry_update::REGISTERS
+    };
+    if form
+        .operation
+        .retries_until_commit(target::Architecture::Aarch64)
+        && registers != retry_registers
+    {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
     if registers.iter().any(|register| *register > 30)
@@ -133,115 +128,60 @@ pub(crate) fn encode(
     registers: &[u8],
 ) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
     validate_registers(form, registers)?;
-    if form.operation.is_bitwise_fetch() {
-        return bitwise_update::encode(form);
-    }
-    if form.outcome_operand().is_some() {
-        return compare_exchange_once::encode(form.width, registers);
-    }
-    let address = u32::from(registers[0]);
-    let size = u32::from(form.width.ordinal()) << 30;
-    let mut words = Vec::new();
     match form.operation {
-        AtomicOperation::Load => {
-            words.push(size | 0x08df_fc00 | address << 5 | u32::from(registers[1]))
+        AtomicOperation::CompareExchangeOnce => {
+            compare_exchange_once::encode(form.width, registers)
         }
-        AtomicOperation::Store => {
-            words.push(size | 0x089f_fc00 | address << 5 | u32::from(registers[1]))
-        }
-        AtomicOperation::CompareExchange => {
-            let expected = u32::from(registers[1]);
-            let replacement = u32::from(registers[2]);
-            let observed = u32::from(registers[3]);
-            words.push(0xaa00_03e0 | expected << 16 | observed);
-            words.push(size | 0x08e0_fc00 | observed << 16 | address << 5 | replacement);
-        }
-        operation => {
-            let mut source = u32::from(registers[1]);
-            let observed = u32::from(registers[2]);
-            let opcode = match operation {
-                AtomicOperation::FetchSub => {
-                    words.push(0xcb00_03e0 | source << 16 | observed);
-                    source = observed;
-                    0
-                }
-                AtomicOperation::Swap => 8,
-                AtomicOperation::FetchAdd => 0,
-                _ => return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
+        AtomicOperation::CompareExchange => Ok(compare_exchange::encode(form.width)),
+        AtomicOperation::Load | AtomicOperation::Store => {
+            let opcode = if form.operation == AtomicOperation::Load {
+                0x08df_fc00
+            } else {
+                0x089f_fc00
             };
-            words.push(size | 0x38e0_0000 | source << 16 | opcode << 12 | address << 5 | observed);
+            let word = u32::from(form.width.ordinal()) << 30
+                | opcode
+                | u32::from(registers[0]) << 5
+                | u32::from(registers[1]);
+            Ok(word.to_le_bytes().to_vec())
         }
+        _ => retry_update::encode(form),
     }
-    Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
 }
 
-/// Decode the actual opcode, width and register fields. Do not accept a
-/// producer-supplied effects record as evidence of the emitted operation.
+/// Validate actual opcodes and operands independently of producer effects.
 pub(crate) fn validate(
     form: AtomicForm,
     registers: &[u8],
     bytes: &[u8],
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
     validate_registers(form, registers)?;
-    if form.operation.is_bitwise_fetch() {
-        return bitwise_update::validate(form, bytes);
-    }
-    if form.outcome_operand().is_some() {
-        return compare_exchange_once::validate(form.width, registers, bytes);
-    }
-    let expected_count = if has_prefix(form.operation) { 2 } else { 1 };
-    if bytes.len() != expected_count * 4 {
-        return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-    }
-    let (words, _) = bytes.as_chunks::<4>();
-    let register = |word: u32, shift: u32| ((word >> shift) & 31) as u8;
-    if has_prefix(form.operation) {
-        let prefix = u32::from_le_bytes(words[0]);
-        let opcode = match form.operation {
-            AtomicOperation::FetchSub => 0xcb00_03e0,
-            AtomicOperation::CompareExchange => 0xaa00_03e0,
-            _ => return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
-        };
-        if prefix & !0x001f_001f != opcode
-            || register(prefix, 16) != registers[1]
-            || Some(register(prefix, 0))
-                != form
-                    .observed_operand()
-                    .map(|output| registers[usize::from(output)])
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    match form.operation {
+        AtomicOperation::CompareExchangeOnce => {
+            compare_exchange_once::validate(form.width, registers, bytes)
         }
-    }
-    let word = u32::from_le_bytes(words[expected_count - 1]);
-    let same_width = (word >> 30) as u8 == form.width.ordinal();
-    let same_address = register(word, 5) == registers[0];
-    let matched = match form.operation {
-        AtomicOperation::Load => {
-            word & 0x3fff_fc00 == 0x08df_fc00 && register(word, 0) == registers[1]
-        }
-        AtomicOperation::Store => {
-            word & 0x3fff_fc00 == 0x089f_fc00 && register(word, 0) == registers[1]
-        }
-        AtomicOperation::CompareExchange => {
-            word & 0x3fe0_fc00 == 0x08e0_fc00
-                && register(word, 16) == registers[3]
-                && register(word, 0) == registers[2]
-        }
-        operation => {
-            let opcode = match operation {
-                AtomicOperation::FetchAdd | AtomicOperation::FetchSub => 0,
-                AtomicOperation::Swap => 8,
-                _ => return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
+        AtomicOperation::CompareExchange => compare_exchange::validate(form.width, bytes),
+        AtomicOperation::Load | AtomicOperation::Store => {
+            let encoded: [u8; 4] = bytes
+                .try_into()
+                .map_err(|_| Aarch64SelectedFormEncodingError::MalformedEncoding)?;
+            let word = u32::from_le_bytes(encoded);
+            let opcode = if form.operation == AtomicOperation::Load {
+                0x08df_fc00
+            } else {
+                0x089f_fc00
             };
-            word & 0x3fe0_fc00 == 0x38e0_0000 | opcode << 12
-                && register(word, 16) == registers[if has_prefix(operation) { 2 } else { 1 }]
-                && register(word, 0) == registers[2]
+            if word & !0xc000_03ff == opcode
+                && (word >> 30) as u8 == form.width.ordinal()
+                && (word >> 5) & 31 == u32::from(registers[0])
+                && word & 31 == u32::from(registers[1])
+            {
+                Ok(())
+            } else {
+                Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
+            }
         }
-    };
-    if same_width && same_address && matched {
-        Ok(())
-    } else {
-        Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
+        _ => retry_update::validate(form, bytes),
     }
 }
 
@@ -252,7 +192,7 @@ mod tests {
     use selected_instructions::{AtomicWidth, MachineAlternativeKey, SelectedInstructionKind};
 
     #[test]
-    fn atomic_catalog_keeps_lse_only_updates_separate_from_baseline_forms() {
+    fn atomic_catalog_admits_baseline_exclusive_updates_on_both_hosts() {
         let physical = register_model::validate_physical_register_model(
             crate::aarch64_physical_register_model(),
         )
@@ -268,14 +208,7 @@ mod tests {
         ] {
             let catalog = crate::aarch64_machine_effect_catalog(target, &constraints).unwrap();
             for form in AtomicForm::ALL {
-                let available = target == target::NativeTarget::macos_arm64()
-                    || form.operation.is_bitwise_fetch()
-                    || matches!(
-                        form.operation,
-                        AtomicOperation::Load
-                            | AtomicOperation::Store
-                            | AtomicOperation::CompareExchangeOnce
-                    );
+                let available = true;
                 let semantic = MachineSemanticKind::AtomicAccess(form);
                 assert_eq!(
                     catalog.selected_keys.for_semantic(semantic).is_some(),
@@ -297,8 +230,13 @@ mod tests {
     fn atomic_words_pin_encoding_and_reject_every_changed_bit() {
         for form in AtomicForm::ALL {
             let ordinary = [2, 0, 1, 3, 4];
-            let registers = if form.operation.is_bitwise_fetch() {
-                &bitwise_update::REGISTERS[..]
+            let registers = if form.operation == AtomicOperation::CompareExchange {
+                &compare_exchange::REGISTERS[..]
+            } else if form
+                .operation
+                .retries_until_commit(target::Architecture::Aarch64)
+            {
+                &retry_update::REGISTERS[..]
             } else {
                 &ordinary[..usize::from(form.operand_count())]
             };
@@ -309,20 +247,17 @@ mod tests {
             });
             assert!(validate(form, registers, &bytes[..bytes.len() - 1]).is_err());
         }
-        // Retain the independent LSE swap assembler vector.
-        for (operation, expected) in [(AtomicOperation::Swap, [0x41, 0x80, 0xe0, 0xf8])] {
-            assert_eq!(
-                encode(
-                    AtomicForm {
-                        operation,
-                        width: AtomicWidth::Bits64
-                    },
-                    &[2, 0, 1]
-                )
-                .unwrap(),
-                expected
-            );
-        }
+        // Baseline SWP replacement is an ordinary register move inside the
+        // exclusive loop, never an LSE instruction or a second memory event.
+        let swapped = encode(
+            AtomicForm {
+                operation: AtomicOperation::Swap,
+                width: AtomicWidth::Bits64,
+            },
+            &retry_update::REGISTERS,
+        )
+        .unwrap();
+        assert_eq!(&swapped[8..12], &0xaa0a_03f0_u32.to_le_bytes());
     }
 
     #[test]
@@ -390,7 +325,12 @@ mod tests {
         )
         .unwrap();
         for form in AtomicForm::ALL {
-            let views = if form.operation.is_bitwise_fetch() {
+            let views = if form.operation == AtomicOperation::CompareExchange {
+                ["x9", "x10", "x11", "x12", "x4"]
+            } else if form
+                .operation
+                .retries_until_commit(target::Architecture::Aarch64)
+            {
                 ["x9", "x10", "x11", "x3", "x4"]
             } else {
                 ["x2", "x0", "x1", "x3", "x4"]
