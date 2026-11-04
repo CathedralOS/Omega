@@ -5,3 +5,4 @@ requires contract for call bounded_wide
 requires contract for call exclusive_upper_bound
 256 < 256
 requires contract for call match_wrapping_policy_bound
+2 <=
