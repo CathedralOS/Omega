@@ -11,7 +11,6 @@ use checked_trees::{
     FlowStateFact, IncomingReferenceOrigin,
 };
 use facts::PlaceSegment;
-use std::collections::HashSet;
 use symbols::SymbolHandle;
 use validation::CanonicalPlace;
 
@@ -46,8 +45,13 @@ struct Invocation<'facts> {
 /// One check invocation owns this index. It borrows the already completed call
 /// roster; proving a relation never rebuilds calls or re-evaluates actuals.
 pub(super) struct IncomingBackingCalls<'facts> {
-    callers: symbols::SymbolKeyMap<SymbolHandle, Vec<Invocation<'facts>>>,
-    external_machines: HashSet<SymbolHandle>,
+    callers: Vec<Vec<IncomingCallerRoster<'facts>>>,
+    external_machines: Vec<Vec<SymbolHandle>>,
+}
+
+struct IncomingCallerRoster<'facts> {
+    target: SymbolHandle,
+    invocations: Vec<Invocation<'facts>>,
 }
 
 #[derive(Clone, PartialEq, Eq)]

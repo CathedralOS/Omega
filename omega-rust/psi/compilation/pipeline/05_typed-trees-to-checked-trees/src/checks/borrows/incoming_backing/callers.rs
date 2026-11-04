@@ -1,13 +1,14 @@
 //! Discharge each retained input relation at every ordinary caller. Exact
 //! unresolved relations propagate outward; cycles need an established boundary.
 use checked_trees::{BorrowAccessKind, CheckFacts};
-use std::collections::HashSet;
 use symbols::SymbolHandle;
 
 use super::sources::{
     actual_for, actual_storage, collect_backings, input_backing, input_storage, state_flow,
 };
-use super::{Backing, IncomingBackingCalls, Invocation, Requirement, Storage};
+use super::{
+    Backing, IncomingBackingCalls, IncomingCallerRoster, Invocation, Requirement, Storage,
+};
 
 impl<'facts> IncomingBackingCalls<'facts> {
     pub(in crate::checks::borrows) fn new(
@@ -15,19 +16,31 @@ impl<'facts> IncomingBackingCalls<'facts> {
         facts: &'facts CheckFacts,
         external_entries: &[SymbolHandle],
     ) -> Self {
-        let mut callers = symbols::SymbolKeyMap::default();
+        let mut callers: Vec<Vec<IncomingCallerRoster<'facts>>> = Vec::new();
         for (_, state) in facts.flow.control.states.iter() {
             for call in facts.flow.control.calls.span_or_empty(state.calls) {
-                callers
-                    .entry(validation::call_target_entry_symbol(
-                        program,
-                        call.target_symbol,
-                    ))
-                    .or_insert_with(Vec::new)
-                    .push(Invocation {
-                        caller: state,
-                        call,
-                    });
+                let target = validation::call_target_entry_symbol(program, call.target_symbol);
+                let position = target.arena_index() as usize;
+                if callers.len() <= position {
+                    callers.resize_with(position + 1, Vec::new);
+                }
+                // The dense index selects a bucket; the complete handle
+                // selects its roster, preserving every generation and edge.
+                let bucket = &mut callers[position];
+                let roster = match bucket.iter().position(|roster| roster.target == target) {
+                    Some(position) => position,
+                    None => {
+                        bucket.push(IncomingCallerRoster {
+                            target,
+                            invocations: Vec::new(),
+                        });
+                        bucket.len() - 1
+                    }
+                };
+                bucket[roster].invocations.push(Invocation {
+                    caller: state,
+                    call,
+                });
             }
         }
         let mut external_symbols = external_entries.to_vec();
@@ -46,17 +59,24 @@ impl<'facts> IncomingBackingCalls<'facts> {
                 external_symbols.push(usage.selected_entry);
             }
         }
-        let external_machines = external_symbols
-            .into_iter()
-            .filter_map(|symbol| {
-                program
-                    .machine_by_symbol(symbol)
-                    .map(|machine| machine.symbol)
-                    .or_else(|| {
-                        validation::find_state(program, symbol).map(|(machine, _)| machine.symbol)
-                    })
-            })
-            .collect::<HashSet<_>>();
+        let mut external_machines: Vec<Vec<SymbolHandle>> = Vec::new();
+        for machine in external_symbols.into_iter().filter_map(|symbol| {
+            program
+                .machine_by_symbol(symbol)
+                .map(|machine| machine.symbol)
+                .or_else(|| {
+                    validation::find_state(program, symbol).map(|(machine, _)| machine.symbol)
+                })
+        }) {
+            let position = machine.arena_index() as usize;
+            if external_machines.len() <= position {
+                external_machines.resize_with(position + 1, Vec::new);
+            }
+            let bucket = &mut external_machines[position];
+            if !bucket.contains(&machine) {
+                bucket.push(machine);
+            }
+        }
         Self {
             callers,
             external_machines,
@@ -92,19 +112,28 @@ impl<'facts> IncomingBackingCalls<'facts> {
             let mut ancestry = ancestry;
             ancestry.push(requirement.clone());
             let state = state_flow(facts, requirement.state)?;
-            if self.external_machines.contains(&state.machine_symbol) {
+            if self
+                .external_machines
+                .get(state.machine_symbol.arena_index() as usize)
+                .is_some_and(|bucket| bucket.contains(&state.machine_symbol))
+            {
                 return Err(
                     "external entry has no established incoming backing/storage compatibility",
                 );
             }
-            let callers = self
+            let roster = self
                 .callers
-                .get(&requirement.state)
-                .filter(|callers| !callers.is_empty())
+                .get(requirement.state.arena_index() as usize)
+                .and_then(|bucket| {
+                    bucket
+                        .iter()
+                        .find(|roster| roster.target == requirement.state)
+                })
+                .filter(|roster| !roster.invocations.is_empty())
                 .ok_or(
                     "incoming backing/storage compatibility reaches an entry without actual inputs",
                 )?;
-            for invocation in callers {
+            for invocation in &roster.invocations {
                 let backing_actual =
                     actual_for(program, facts, invocation, requirement.backing.slot.root)?;
                 let source = validation::completed_storage::reference_sources_at_path(
