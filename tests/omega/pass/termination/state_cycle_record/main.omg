@@ -14,6 +14,7 @@ requires remaining <= 5
     }
     machine first(carried: Payload, pending: u32, first_spare: u32, second_spare: u32) -> u32
     requires pending <= 5
+    terminates by pending in 0..=5
     {
         transition pending > 0 {
             true -> second(pending - 1, carried)
@@ -22,6 +23,7 @@ requires remaining <= 5
     }
     machine second(left: u32, saved: Payload) -> u32
     requires left <= 5
+    terminates by left in 0..=5
     {
         transition left > 0 {
             true -> first(saved, left - 1, 0, 1)

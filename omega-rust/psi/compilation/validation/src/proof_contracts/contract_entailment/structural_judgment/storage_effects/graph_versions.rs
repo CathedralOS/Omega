@@ -319,7 +319,7 @@ impl<'program> StructuralJudge<'program> {
 
     /// Whether incoming storage of `place`'s root no longer reaches `place`
     /// at this judge's version. Immutable scalar bindings have no writer.
-    fn graph_place_invalidated(&self, place: &CanonicalPlace) -> bool {
+    pub(super) fn graph_place_invalidated(&self, place: &CanonicalPlace) -> bool {
         let (Some(graph), Some(at)) = (self.storage_graph(), self.storage_version) else {
             return false;
         };

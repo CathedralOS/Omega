@@ -95,6 +95,25 @@ New dangerous authority, critical service reach under the
 [core-plus-root audit policy](review.md#critical-service-audit-policy), or
 explicit trust-bearing assumptions require acceptance.
 Fully checked candidates without blocking findings need no approval ceremony.
+This includes the canonical assumptions attached to independently verified
+components, under
+[consumer acceptance and Build attenuation](../build/component_publication.md#consumer-acceptance-and-build-attenuation).
+Review their readable meaning and exact component/subject, profile, occurrence,
+and target scope, retain the accepted rows in the consuming project's lock, and
+supply those accepted inputs to verification. A dependency's Build declaration,
+copied digest, or own lock cannot approve its assumptions for the consumer.
+Existing root grants continue to accept the root's own claims.
+
+Optional Build attenuation narrows the accepted ceiling for the selected
+product; it is not another approval channel. Omission retains that ceiling,
+explicit empty permits none in the restricted category, and widening rejects.
+Actual selected demands must fit the effective ceiling. This adds no approval
+ceremony for ordinary noncritical reach or fully checked APIs; source effect
+contracts and enforceable authority still apply independently. Assumption
+acceptance proves no environmental premise and grants no host or installation
+authority. The retired `Build::accept_component_assumption` call is not a
+substitute for this workflow.
+
 Capability/assumption changes, including removals, use the comparison policy;
 source replacements and root-role changes also require decisions. Rebuildable
 public API, ordinary checked-callable, provider-selection, representation, and

@@ -6,7 +6,7 @@
 
 use super::isolation::{
     definitions_for_name, definitions_for_symbol, type_is_caller_isolated_local_in,
-    with_isolation_cache,
+    type_is_caller_isolated_proof_value, with_isolation_cache,
 };
 use super::type_instantiation::{
     TypeBindings, push_generic_application_bindings, substituted_head,
@@ -56,7 +56,8 @@ pub(super) fn type_is_reference_free_value(
     {
         return verdict;
     }
-    let verdict = type_is_caller_isolated_local_in(program, handle, bindings)
+    let verdict = (type_is_caller_isolated_local_in(program, handle, bindings)
+        || (bindings.is_empty() && type_is_caller_isolated_proof_value(program, handle)))
         && !type_reaches_opaque_data(program, handle, &mut Vec::new(), &mut bindings.to_vec());
     with_isolation_cache(program, |cache| {
         cache.reference_free.insert(key, verdict);

@@ -721,6 +721,18 @@ and exact semantic identity as owned descriptions. Reading raw artifact metadata
 does not make it verified. Missing completeness or unaccepted assumptions remain
 failure to establish the required claim, not an empty interface.
 
+The accepted assumption inputs come from the consuming side's existing
+acceptance policy, not from the component or dependency Build that published
+the description. Ordinary checked Build policy may optionally narrow the
+consumer-approved ceiling for the selected product; omission inherits it,
+explicit empty permits none in the restricted category, and widening rejects.
+Check the full per-target selected closure, including initialization, callbacks,
+cleanup, helpers, and retained providers. A restriction cannot erase a possible
+runtime path or rewrite the verified description's inventory. The same rules
+govern assumptions separately from checked reach and actual authority, under
+[component acceptance](component_publication.md#consumer-acceptance-and-build-attenuation).
+The retired `Build::accept_component_assumption` call grants no consumer approval.
+
 Type reflection may help construct schemas for explicitly authorized types, but
 does not reveal arbitrary binaries, private code, installed endpoint identities,
 or complete executable authority. A build-only alias does not authorize reflection

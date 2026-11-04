@@ -64,9 +64,10 @@ endpoint forms and the program is correctly accepted (native and Terminal exit 0
 
 ## What remains
 
-- The other eight places of this computed-endpoint witness are unwritten.
-- A helper that supplies an endpoint formal through a field projection or a
-  computed argument has no transported bound yet.
+A helper that supplies an endpoint formal through a field projection or a
+computed argument has no transported bound yet. The nine places that carry
+this whole-parameter endpoint are parameter, local, field, call result,
+match join, const name, nested machine, other machine, and target body.
 
 ## Pinned fixtures
 

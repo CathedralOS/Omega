@@ -18,6 +18,18 @@ supplied terminal permissions, and accepted restricted build requests, scoped
 to their reviewed purpose, execution profile, and product target where applicable.
 Every retained row preserves its complete readable meaning, not only a digest.
 
+Component assumptions use this same acceptance record. Retain the exact
+canonical assumption meaning, component/subject and verifier profile, and
+accepted package occurrence and product target scope where applicable. A digest
+is a commitment to that record, not an independently authored approval language.
+Changed or wrong-scope rows cannot satisfy verification by preserving a friendly
+name or the spelling of a diagnostic hash.
+[Build attenuation](../build/component_publication.md#consumer-acceptance-and-build-attenuation)
+may narrow the ceiling consumed by one selected product, but cannot add a lock
+grant or require a second mandatory copy of every approval. Existing root-grant
+rules remain distinct from dependency acceptance; a dependency's own lock is
+not authority for its consuming root.
+
 The critical service projection includes the exact core catalog identity and
 root-selected custom service identities under
 [audit policy](review.md#critical-service-audit-policy), plus accepted findings
