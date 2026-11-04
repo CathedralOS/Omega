@@ -1,1 +1,3 @@
-default domain is still FALSE
+cannot complete return from machine `interpose` state `entry`
+the `requires` facts of `main` (data `Main`)
+unproved; restore them first

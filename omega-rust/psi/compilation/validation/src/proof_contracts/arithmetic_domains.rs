@@ -121,6 +121,7 @@ pub(crate) use guard_narrowing::{
     OccurrenceValueEnvironments, occurrence_integer_child_values, occurrence_value_environment,
     occurrence_value_environments,
 };
+pub(crate) mod storage_formations;
 mod total_specification;
 mod unsigned_representability;
 mod value_environment;

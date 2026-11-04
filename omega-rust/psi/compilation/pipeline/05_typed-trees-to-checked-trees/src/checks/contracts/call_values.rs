@@ -480,7 +480,8 @@ pub(super) fn membership_evidence(
     };
     // The bytes of `&(x as T)` stay in `x`, so the place below still finds
     // `x`'s facts. The lent value itself lost any meaning `T` omits, and a
-    // requirement on that meaning has no evidence.
+    // requirement on that meaning has no evidence at all: not even the
+    // call's entry contexts, which would answer with `x`'s own facts.
     if actual.path.is_empty()
         && let Some(argument) = actual.argument
         && let Some((_, _, domain_symbol, semantic_domain)) =
@@ -492,7 +493,10 @@ pub(super) fn membership_evidence(
             semantic_domain,
         )
     {
-        return Some(MembershipEvidence::default());
+        return Some(MembershipEvidence {
+            cases: Vec::new(),
+            whole_argument: None,
+        });
     }
     let Some(required) = crate::flow::canonical_place_from_semantic_place(
         program,

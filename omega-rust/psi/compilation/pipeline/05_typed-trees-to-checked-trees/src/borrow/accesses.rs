@@ -159,15 +159,35 @@ fn collect_target_argument_accesses(
     statement_index: usize,
     target_symbol: SymbolHandle,
 ) {
-    let mut parameters = validation::call_target_parameters(collection.program, target_symbol)
-        .unwrap_or_default()
-        .iter();
-    for argument in arguments {
-        let parameter = parameters.next();
+    let program = collection.program;
+    let parameters = validation::call_target_parameters(program, target_symbol);
+    let instruction_parameters = parameters
+        .is_none()
+        .then(|| {
+            validation::compiler_operations::global_descriptor_table_operand_types(
+                program,
+                program.machine_by_symbol(collection.machine_symbol)?,
+                program.state_by_symbol(state_symbol)?,
+                target_symbol,
+                arguments,
+            )
+        })
+        .flatten();
+    for (position, argument) in arguments.iter().enumerate() {
+        let receiving_type = parameters
+            .and_then(|rows| rows.get(position))
+            .map(|parameter| parameter.type_reference)
+            .or_else(|| {
+                instruction_parameters
+                    .as_ref()
+                    .and_then(|rows| rows.get(position))
+                    .copied()
+            })
+            .unwrap_or_default();
         collect_formal_argument_accesses(
             collection,
             *argument,
-            parameter.map_or(Default::default(), |parameter| parameter.type_reference),
+            receiving_type,
             state_symbol,
             statement_index,
         );

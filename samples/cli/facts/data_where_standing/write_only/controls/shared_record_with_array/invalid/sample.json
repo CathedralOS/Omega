@@ -1,0 +1,9 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "cannot complete return from machine `fill`",
+    "the `requires` facts of `counter` (data `Counter`)",
+    "unproved; restore them first"
+  ]
+}
