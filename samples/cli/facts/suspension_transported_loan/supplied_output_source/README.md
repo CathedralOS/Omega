@@ -76,25 +76,31 @@ its own corrected baseline. Reference-slot controls refuse earlier at
 mutable-source admission; those refusals are not arithmetic or final carry-policy
 evidence.
 
-Eight places now run with native and Terminal exits 0 at the tested
-5f6b07fb3a63d3c8f24ccc71805be64d92d1003b checkpoint. Their policy twins name
-both forbidden backing values. The match join still refuses while capturing the
-second installation's input references; its twin has not reached the intended
-policy check. The frozen witnesses and their 73/11 outcomes are unchanged.
+All nine places now check and run with native and Terminal exits 0 at
+6efc9c8b3f960523922f88c26c385c7778b5ee83. All nine policy twins reach their
+intended refusal for forbidden backing. The caller can fill two output records
+and then choose between their distinct installed references; both choices execute.
+The original 54 frozen files and their 73/11 outcomes are unchanged. Byte-identical
+inputs are pinned as `supplied_output_loan_through_<place>` under
+[pass facts](../../../../../tests/omega/pass/facts/) and
+[fail facts](../../../../../tests/omega/fail/facts/). Corpus registration and
+final integrated validation remain pending.
 
-The later tested repair at 89edff58b9cf0426947eeff5ccebedd46fc71112 runs
-18 focused programs in both engines. A saved view survives replacing its output
-variable, a compatible view survives the possible pause, and an original mutable
-input becomes writable after every saved copy ends. The early-write control
-still rejects access before that closure. Numbers read before pointer replacement
-keep their old values; arithmetic on the replacement cannot use the old bound.
+The same producer completes 27 programs in both engines across 78 recorded
+commands (51 source checks plus those 27 runs). A saved view survives replacing
+its output variable, a compatible view survives the possible pause, and an
+original mutable input becomes writable after every saved copy ends. The
+early-read and early-write controls still reject access before that closure.
+Numbers read before pointer replacement keep their old values; arithmetic on
+the replacement cannot use the old bound. A focused Rust regression also proves
+that a call uses its captured write origin and keeps an unknown capture unknown.
 
-This remains unfinished. Ordinary helper-installed generations still lack an
-input-permission association in two controls; a shared containing record reaches
-a cleanup correspondence refusal. The incoming descriptor relay and qualified
-alternative-handback controls also remain red. Those failures do not qualify
-their intended negative controls. Full nine-place acceptance and final pins
-remain required.
+The full repair remains unfinished. Ordinary helper-installed generations still
+lack an input-permission association in two controls. A shared containing record
+reaches a cleanup correspondence refusal; the incoming descriptor relay and
+qualified alternative-handback controls also remain red. Those failures do not
+qualify their intended negative controls. These compositions, scoped fixture
+checks, exact final review and main publication remain required.
 
 Sources, hashes and raw observations are retained in build/supplied-output-loan/.
 The 54-file row was frozen before compiler edits. The two match-join mains were
@@ -102,8 +108,9 @@ strengthened before implementation; their initial bytes and baseline are retaine
 separately. Earlier bare lifetime-parameterized Output annotations and an untyped
 local attempt are authoring history, not accepted compiler-defect evidence.
 
-This checkpoint is unfinished. Native/Terminal acceptance, final diagnostic pins,
-scoped tests, exact review and normal main publication remain required. The
+This checkpoint is unfinished. The nine-place row has native/Terminal evidence
+and diagnostic pins; the remaining compositions, scoped tests, exact review and
+normal main publication remain required. The
 scheduler returns inline, so actual parking, resumption and cancellation are not
 claimed. Parent work outside this production, including ownerless backing and
 Terminal Unresolved labels, remains open.
