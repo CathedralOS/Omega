@@ -105,7 +105,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'linux_arm64'
         shell: bash
         run: |
-          python tools/build_slot.py --lane atomic-fetch-encodings -- python - <<'PYTEST'
+          python tools/build_slot.py -- python - <<'PYTEST'
           import shutil
           import subprocess
           cases = [
