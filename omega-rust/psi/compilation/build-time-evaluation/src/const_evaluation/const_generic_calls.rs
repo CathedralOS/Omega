@@ -164,37 +164,6 @@ fn evaluate_application_group(
         return Ok((syntax, false));
     }
 
-    // A standalone probe cannot supply the caller's lexical bindings. Resolve
-    // those in their authored lexical owner, then rejoin exact
-    // constant and call declarations after typed invocation preparation.
-    let mut lexical_selections = Vec::new();
-    if !applications.is_empty() {
-        let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
-            context.resolution_request(syntax.clone()),
-        )?;
-        for (argument, expression) in &applications {
-            let failure = |reason| {
-                vec![
-                    Diagnostic::error(reason)
-                        .with_source_span(syntax.expressions.source_span(*expression)),
-                ]
-            };
-            let origins = super::const_generic_expressions::lexical_selection::retain(
-                &syntax,
-                &resolved,
-                *expression,
-            )
-            .map_err(&failure)?;
-            let calls = super::const_generic_expressions::lexical_selection::retain_calls(
-                &syntax,
-                &resolved,
-                *expression,
-            )
-            .map_err(failure)?;
-            lexical_selections.push((*argument, origins, calls));
-        }
-    }
-
     // Whole-expression application probes need the declared const-argument
     // destination: the const parameter's own type reference supplies the
     // landing carrier. An application outside a declared const position has
@@ -226,6 +195,37 @@ fn evaluate_application_group(
             .map(|(argument, ..)| *argument)
             .collect::<Vec<_>>(),
     );
+    // A standalone probe cannot supply the caller's lexical bindings. Resolve
+    // those in their authored lexical owner, then rejoin exact
+    // constant and call declarations after typed invocation preparation.
+    let mut lexical_selections = Vec::new();
+    if !applications.is_empty() {
+        let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
+            context.resolution_request(probe.clone()),
+        )?;
+        for (argument, expression) in &applications {
+            let failure = |reason| {
+                vec![
+                    Diagnostic::error(reason)
+                        .with_source_span(syntax.expressions.source_span(*expression)),
+                ]
+            };
+            let origins = super::const_generic_expressions::lexical_selection::retain(
+                &syntax,
+                &resolved,
+                *expression,
+            )
+            .map_err(&failure)?;
+            let calls = super::const_generic_expressions::lexical_selection::retain_calls(
+                &syntax,
+                &resolved,
+                *expression,
+            )
+            .map_err(failure)?;
+            lexical_selections.push((*argument, origins, calls));
+        }
+    }
+
     let declaration_frontier = probe.root_item_handles().len();
     let owners = application_destinations
         .iter()
