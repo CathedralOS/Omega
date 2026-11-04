@@ -14,7 +14,8 @@ from check_rules import (
     SOURCE_READS, STAGE06_ROOT, STATUS_PHRASES,
     board_task_ids, changed_golden_rows, citing_documents, count_source_reads,
     count_status_phrases, dangling_task_ids, dangling_task_violations, fact_row_violations,
-    golden_rows, golden_violations, lanes, measurement_violations, nearest_rows,
+    golden_row_quality_violations, golden_rows, golden_violations, lanes,
+    measurement_violations, nearest_rows,
     program_shingles, ratchet_counts, ratchet_violations, read_baseline,
     read_dangling_baseline, subject_violations, write_dangling_baseline, write_ratchet,
 )
@@ -303,6 +304,24 @@ class GoldenTests(unittest.TestCase):
         changes = [("M", "tests/omega/pass/facts/row_through_local_exit/README.md"),
                    ("M", "omega-rust/psi/src/lib.rs")]
         self.assertEqual(golden_violations(changes, self.rows, self.rows, set(), self.dirs), [])
+
+    def test_dirty_wt_rejected_pass_and_unexpected_fail_rows_are_rejected(self):
+        diff = (
+            "--- a/tests/omega/corpus_outcomes.txt\n"
+            "+++ b/tests/omega/corpus_outcomes.txt\n"
+            "+pass/facts/good_row checked 10ms @abc123456789\n"
+            "+fail/facts/good_fail rejected 10ms expected @abc123456789\n"
+            "+pass/facts/dirty_row checked 10ms @abc123456789+wt\n"
+            "+pass/facts/broken_pass rejected 10ms @abc123456789\n"
+            "+fail/facts/wrong_fail rejected 10ms unexpected @abc123456789\n"
+            "+fail/facts/lost_fail checked 10ms @abc123456789\n"
+        )
+        violations = golden_row_quality_violations(diff)
+        self.assertEqual(len(violations), 4, violations)
+        self.assertIn("dirty_row carries a dirty worktree stamp", violations[0])
+        self.assertIn("broken_pass is a pass/run fixture recorded as rejected", violations[1])
+        self.assertIn("wrong_fail is a fail fixture recorded as unexpected", violations[2])
+        self.assertIn("lost_fail is a fail fixture recorded as checked", violations[3])
 
 
 class MeasurementTests(unittest.TestCase):

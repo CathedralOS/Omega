@@ -10,10 +10,10 @@ description: >-
 # Advance Workflow
 
 This skill contains **only** the step-by-step execution workflow for advancing a
-compiler capability. Common repository knowledge, the nine-place sample loop,
-requirements and evidence, and decision-making framing for compiler completion
-live in [AGENTS.md](../../../AGENTS.md) (`#law-of-completion`,
-`#decision-making-framing-for-compiler-completion`, `#the-sample-loop`,
+compiler capability. Common repository knowledge, the [law of completion](../../../AGENTS.md#law-of-completion),
+the nine-place sample loop, requirements and evidence, and decision-making
+framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
+(`#decision-making-framing-for-compiler-completion`, `#the-sample-loop`,
 `#requirements-and-evidence`).
 
 ## Step 1: Preflight, Worktree & Claim
@@ -27,13 +27,14 @@ live in [AGENTS.md](../../../AGENTS.md) (`#law-of-completion`,
    Local named branches are banned. Record the fixed base SHA (`git rev-parse HEAD`).
 2. **Check live work before selecting or coding:**
    - Run `python3 tools/claims.py status` and `gh pr list --state open`.
-   - Select the capability and next witness using the priority order and
-     nine-place rules in [AGENTS.md](../../../AGENTS.md#the-sample-loop).
-   - Before creating a new `samples/cli/facts/<fact>/` folder, find the nearest
-     existing row and document in the README either the distinct
-     requirement/layer or the physical ABI/encoding boundary it crosses
-     (`tools/check_rules.py` rejects >= 0.80 similarity without a documented
-     distinction).
+   - Select the capability and root-cause family using the priority order in
+     [AGENTS.md](../../../AGENTS.md#the-sample-loop) (`TASKS.md` capability and
+     migration items, pinned regression clusters in
+     `tests/omega/corpus_outcomes.txt` via `--list-pinned-regressions`, and
+     failing representative programs in `samples/` via `sample_native_gate.py`).
+   - Do **not** create new `samples/cli/facts/<fact>/` folders or 18-fixture
+     `tests/omega/{pass,fail}/facts/` matrices (they are frozen by
+     `tools/check_rules.py` to prevent corpus bloat).
 3. **Register or update the claim:**
    ```bash
    python3 tools/claims.py claim --board TASKS.md --item <ID> --owner "<label>" --path <paths>
@@ -68,10 +69,12 @@ live in [AGENTS.md](../../../AGENTS.md) (`#law-of-completion`,
    does not have to reconstruct it.
 3. **Challenge assumptions:** Construct a realistic falsifier (e.g., sibling
    fields where one is valid and one is invalid, or matching vs. fallback
-   runtime paths) and verify all nine positive places (`local`, `field`,
-   `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
-   `other_machine`, `target_body`) pass `omega run --both` (exit 0) and all nine
-   `<place>/invalid/` reject twins fail for the intended obligation.
+   runtime paths), verify the mechanism works across value placements (`local`,
+   `field`, `parameter`, `call_result`, `match_join`, `const_name`, nested
+   `machine`, other `machine`, and `Build`-selected target implementation) and
+   `omega run --both` (exit 0), and pin any newly uncovered behavior with a
+   focused positive/negative fixture pair under
+   `tests/omega/{pass,fail,run}/<behavior>/` (never a new 36-file fact folder).
 
 ## Step 4: Validate, Sweep the Root-Cause Family & Reconcile `TASKS.md`
 

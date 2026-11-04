@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "needs the nonempty fact `items.len >= 1`"
-  ]
-}

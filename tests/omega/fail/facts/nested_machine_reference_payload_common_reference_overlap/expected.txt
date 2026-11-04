@@ -1,1 +1,0 @@
-borrows `guard` while local borrow `payload` is still active

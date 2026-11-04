@@ -6,7 +6,7 @@ description: Coordinate a requested Devin cloud swarm with persistent outcome ow
 # Devin Swarm (Platform Adapter)
 
 This skill defines **only** the Devin cloud-session transport for coordinating a wave of Devin sessions.
-- **Worker workflow:** Every session follows [advance](../advance/SKILL.md) (`/advance`) for capability selection, the 9-place sample loop, validation, and board updates. Point sessions to `.agents/skills/advance/SKILL.md` rather than duplicating `/advance` instructions.
+- **Worker workflow:** Every session follows [advance](../advance/SKILL.md) (`/advance`) and [AGENTS.md](../../../AGENTS.md#law-of-completion) for capability selection, validation, and board updates. Point sessions to `.agents/skills/advance/SKILL.md` rather than duplicating `/advance` instructions.
 - **Coordinator review & landing:** Sessions push a **draft** PR (`gh pr create --draft`) and stop (`candidate_ready`). The coordinator audits every diff using [coordinator-review](../coordinator-review/SKILL.md) before running `python3 tools/landing.py land <pr> --expected-head <sha>`.
 
 ## 1. Devin Session Dispatch & Notifications

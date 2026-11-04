@@ -428,6 +428,42 @@ def changed_golden_rows(diff: str) -> set:
     return names
 
 
+def golden_row_quality_violations(diff: str) -> list:
+    """Reject newly recorded rows in corpus_outcomes.txt that carry a dirty
+    worktree stamp (+wt), record a pass/run fixture as rejected or regressed-from,
+    or record a fail fixture as unexpected or passing."""
+    removed = {line[1:] for line in diff.splitlines()
+               if line.startswith("-") and not line.startswith("---")}
+    violations = []
+    for line in diff.splitlines():
+        if not line.startswith("+") or line.startswith("+++"):
+            continue
+        body = line[1:]
+        if body in removed or not body.strip() or body[0] in "#\t ":
+            continue
+        tokens = body.split()
+        if len(tokens) < 2:
+            continue
+        name, outcome = tokens[0], tokens[1]
+        for token in tokens[2:]:
+            if token.startswith("@") and token.endswith("+wt"):
+                violations.append(
+                    f"{GOLDEN}: {name} carries a dirty worktree stamp ({token}); "
+                    "commit all changes before running corpus_gate.py --record")
+        if name.startswith(("pass/", "run/")):
+            if outcome == "rejected" or any(t.startswith("regressed-from:") for t in tokens[2:]):
+                violations.append(
+                    f"{GOLDEN}: {name} is a pass/run fixture recorded as {outcome}; "
+                    "fix the fixture or compiler before recording")
+        elif name.startswith("fail/"):
+            if outcome != "rejected" or "unexpected" in tokens[2:]:
+                violations.append(
+                    f"{GOLDEN}: {name} is a fail fixture recorded as "
+                    f"{'unexpected' if 'unexpected' in tokens[2:] else outcome}; "
+                    "ensure it rejects with its expected obligation before recording")
+    return violations
+
+
 def fixture_of(path: str, rows: set, fixture_dirs: set) -> str:
     """The fixture that owns `path`: the deepest recorded row whose directory
     holds it, else the shallowest directory that holds a main.omg."""
@@ -450,9 +486,10 @@ def golden_violations(changes: list, base_rows: set, head_rows: set,
     (tier/group/.../name) that hold a main.omg at HEAD; `rewritten` names the
     rows the change added, removed or rewrote."""
     touched = set()
+    all_rows = base_rows | head_rows
     for _, path in changes:
         if not path.endswith("README.md"):
-            touched.add(fixture_of(path, base_rows | head_rows, fixture_dirs))
+            touched.add(fixture_of(path, all_rows, fixture_dirs))
     touched.discard("")
     stale = sorted(f for f in touched if f in fixture_dirs and f not in rewritten)
     orphaned = sorted(f for f in touched if f not in fixture_dirs and f in head_rows)
@@ -603,13 +640,15 @@ def diff_checks(base: str, root: Path = ROOT) -> list:
     for line in git("diff", "--name-status", "--no-renames", base, "HEAD", root=root).splitlines():
         status, path = line.split("\t", 1)
         changes.append((status[0], path))
+    golden_diff = git("diff", "-U0", base, "HEAD", "--", GOLDEN, root=root)
     violations = golden_violations(
         changes,
         golden_rows(show(base, GOLDEN, root)),
         golden_rows(show("HEAD", GOLDEN, root)),
-        changed_golden_rows(git("diff", "-U0", base, "HEAD", "--", GOLDEN, root=root)),
+        changed_golden_rows(golden_diff),
         fixture_directories(root),
     )
+    violations += golden_row_quality_violations(golden_diff)
     violations += measurement_violations(
         changes, lambda path: len(show("HEAD", path, root).splitlines()))
     base_folders = {path.split("/")[3] for path in
@@ -618,14 +657,20 @@ def diff_checks(base: str, root: Path = ROOT) -> list:
     facts = root / FACTS_ROOT
     head_folders = {entry.name for entry in facts.iterdir() if entry.is_dir()} if facts.is_dir() else set()
     new_folders = sorted(head_folders - base_folders)
-    if new_folders:
-        readmes = {name: (facts / name / "README.md").read_text(encoding="utf-8")
-                   if (facts / name / "README.md").is_file() else ""
-                   for name in new_folders}
-        nearest = nearest_rows({name: folder_shingles(facts / name) for name in new_folders},
-                               {name: folder_shingles(facts / name)
-                                for name in sorted(head_folders & base_folders)})
-        violations += fact_row_violations(nearest, readmes)
+    for name in new_folders:
+        violations.append(
+            f"{FACTS_ROOT}{name}: new fact folders are frozen to prevent corpus bloat; "
+            f"pin the repair by flipping existing regressions in {GOLDEN} or adding a "
+            "focused fixture pair under tests/omega/{pass,fail,run}/<behavior>/")
+    for status, path in changes:
+        if status == "A" and path.endswith(".omg") and (
+            path.startswith(FACTS_ROOT)
+            or path.startswith(("tests/omega/pass/facts/", "tests/omega/fail/facts/", "tests/omega/run/facts/"))
+        ):
+            violations.append(
+                f"{path}: adding new .omg files under facts/ is frozen to prevent corpus bloat; "
+                f"pin the repair by flipping existing regressions in {GOLDEN} or adding a "
+                "focused fixture pair under tests/omega/{pass,fail,run}/<behavior>/")
     return violations
 
 

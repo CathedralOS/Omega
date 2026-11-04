@@ -1,1 +1,0 @@
-generic data `Box` expected 1 arguments but got 2
