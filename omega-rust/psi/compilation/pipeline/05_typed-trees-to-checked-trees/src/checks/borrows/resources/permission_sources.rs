@@ -16,6 +16,8 @@ use validation::completed_storage::{FrozenReferenceSelection, frozen_reference_l
 /// destination paths and invocation coordinates separately.
 pub(super) struct PermissionSupplier {
     pub(super) source: CheckedCallBorrowLoanSource,
+    /// Original evaluated reference when this is an invocation access.
+    pub(super) actual: Handle<FlowOperandFact>,
     pub(super) backing: checked_trees::CapturedPlace,
 }
 
@@ -193,6 +195,7 @@ pub(super) fn collect(
         ($loan:expr, $row:expr) => {
             output.push(PermissionSupplier {
                 source: CheckedCallBorrowLoanSource::StoredLoan { loan: $loan },
+                actual: Handle::invalid(),
                 backing: checked_trees::CapturedPlace {
                     incoming_reference: $row.incoming_reference,
                     incoming_owner_path: facts
@@ -416,6 +419,19 @@ pub(super) fn collect(
                 }
             }
         }
+    } else if let Some(complete) = collect_reborrow_sources(
+        program,
+        facts,
+        state,
+        call,
+        source,
+        projection,
+        output_access,
+        active,
+        output,
+        parents,
+    ) {
+        complete
     } else if let Some(suppliers) = retained_suppliers {
         !suppliers.is_empty()
             && suppliers.iter().all(|supplier| {
@@ -464,6 +480,89 @@ pub(super) fn collect(
     resolved
 }
 
+/// A helper may save a narrower view of an evaluated argument. Its source
+/// path selects the original descriptor; only the separate suffix projects
+/// into that descriptor's data. Authenticate the original permission before
+/// composing this checked projection, and preserve every source alternative.
+#[allow(clippy::too_many_arguments)]
+fn collect_reborrow_sources(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: Handle<FlowCallFact>,
+    source: Handle<FlowOperandFact>,
+    projection: &[facts::PlaceSegment],
+    access: &checked_trees::BorrowAccessKind,
+    active: &mut Vec<(Handle<FlowOperandFact>, Vec<facts::PlaceSegment>)>,
+    output: &mut Vec<PermissionSupplier>,
+    parents: &mut Arena<Handle<BorrowLoanFact>>,
+) -> Option<bool> {
+    let control = &facts.flow.control;
+    let capture = control.operands.get(source);
+    if !control.operand_retentions.is_valid(capture.retention) {
+        return None;
+    }
+    let profile = control.operand_retentions.get(capture.retention);
+    if profile.reborrow_sources.is_empty() {
+        return None;
+    }
+    let resolve = || -> Option<Vec<(Handle<FlowOperandFact>, Vec<facts::PlaceSegment>, Vec<facts::PlaceSegment>)>> {
+        if !projection.is_empty() {
+            return None;
+        }
+        let result = validation::reference_shell(program, capture.type_reference)?;
+        if checked_trees::BorrowAccessKind::from(result.access).direct_reborrow_effect(access).is_none() {
+            return None;
+        }
+        let sources = control.operand_reborrow_sources.span(profile.reborrow_sources)?;
+        let mut selected = Vec::new();
+        for source in sources {
+            if !control.operands.is_valid(source.operand) { return None; }
+            let value = control.operands.get(source.operand);
+            let path = control.operand_retained_paths.span(source.source_path)?;
+            let reference = validation::owned_projection_type_reference(program, value.type_reference, path)?;
+            let reference = validation::reference_shell(program, reference)?;
+            if checked_trees::BorrowAccessKind::from(reference.access).direct_reborrow_effect(access).is_none() {
+                return None;
+            }
+            let suffix = validation::corresponding_place_projection(
+                program, reference.referee, control.operand_retained_paths.span(source.projection)?,
+            )?;
+            // The producer records the last crossed descriptor, so this suffix
+            // contains only owned projections. A further descriptor crossing
+            // must supply its own captured source and permission instead.
+            let referee = validation::owned_projection_type_reference(program, reference.referee, &suffix)?;
+            if !validation::storage_origin_types_match(program, referee, result.referee) {
+                return None;
+            }
+            selected.push((source.operand, path.to_vec(), suffix));
+        }
+        (!selected.is_empty()).then_some(selected)
+    };
+    let Some(selected) = resolve() else {
+        return Some(false);
+    };
+    let before = output.len();
+    for (source, path, suffix) in selected {
+        let start = output.len();
+        if !collect(
+            program, facts, state, call, source, &path, access, true, active, output, parents,
+        ) {
+            output.truncate(before);
+            return Some(false);
+        }
+        for supplier in &mut output[start..] {
+            supplier.backing.segments.extend_from_slice(&suffix);
+            if crate::flow::compose_captured_view_segments(&mut supplier.backing.segments).is_none()
+            {
+                output.truncate(before);
+                return Some(false);
+            }
+        }
+    }
+    Some(output.len() > before)
+}
+
 /// A pointer installed by a helper carries its completed output permission.
 /// This link belongs to the produced value, so replacing its former variable
 /// cannot retarget it. Input lifetime debts never enter this permission route.
@@ -501,6 +600,7 @@ fn collect_completed_output(
         }
         Ok(PermissionSupplier {
             source: CheckedCallBorrowLoanSource::StoredLoan { loan },
+            actual: Handle::invalid(),
             backing: checked_trees::CapturedPlace {
                 incoming_reference: row.incoming_reference,
                 incoming_owner_path: facts
@@ -926,6 +1026,7 @@ fn collect_invocation_accesses(
                     access,
                     parents: parents.insert_many(backing.lineage),
                 },
+                actual: source,
                 backing: backing.place,
             });
         }
@@ -1009,6 +1110,7 @@ fn collect_formed_projection(
         }
         output.push(PermissionSupplier {
             source: CheckedCallBorrowLoanSource::StoredLoan { loan },
+            actual: Handle::invalid(),
             backing: checked_trees::CapturedPlace {
                 incoming_reference: row.incoming_reference,
                 incoming_owner_path: facts

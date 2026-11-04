@@ -67,7 +67,36 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
             }
         }
     }
-    close_output_descendants(facts, &transfers)?;
+    // A normal helper's saved descriptor holds the original evaluated input,
+    // including its complete parent restriction. These are lifetime edges;
+    // they do not make an input or a debt the descriptor's spatial parent.
+    for (_, held) in facts.borrow.stored_call_inputs.iter() {
+        for input in facts
+            .borrow
+            .stored_call_input_resources
+            .span_or_empty(held.resources)
+        {
+            let resource = facts.borrow.call_loan_resources.get(*input);
+            let parents = match resource.source {
+                checked_trees::CheckedCallBorrowLoanSource::StoredLoan { loan } => vec![loan],
+                checked_trees::CheckedCallBorrowLoanSource::CallAccess { parents, .. } => facts
+                    .borrow
+                    .call_loan_parents
+                    .span_or_empty(parents)
+                    .to_vec(),
+            };
+            for source in parents {
+                let position = source.arena_index() as usize;
+                if transfers.len() <= position {
+                    transfers.resize_with(position + 1, TransferHolders::default);
+                }
+                let entry = &mut transfers[position];
+                entry.loan = source;
+                crate::shared::collections::push_unique(&mut entry.holders, held.loan);
+            }
+        }
+    }
+    let descendants = close_output_descendants(facts, &transfers)?;
     // A completed output keeps each captured input held for its complete debt
     // cohort. These edges extend lifetimes only, never spatial parentage.
     for (_, output) in facts.borrow.supplied_output_resources.iter() {
@@ -156,7 +185,8 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                         continue;
                     }
                     let start = holder_start(facts, flow_state, candidate)?;
-                    let weakening = holding_end(facts, flow_state, candidate)?;
+                    let weakening =
+                        holding_end(facts, flow_state, candidate, &transfers, &descendants)?;
                     if supplier_end.is_some_and(|end| {
                         weakening_event_boundary(end.source, end.reason)
                             .is_ok_and(|boundary| start >= boundary)
@@ -205,7 +235,7 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
 fn close_output_descendants(
     facts: &mut CheckFacts,
     transfers: &[TransferHolders],
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<TransferHolders>, Vec<Diagnostic>> {
     let mut children: Vec<TransferHolders> = Vec::new();
     for (child, row) in facts.borrow.loans.iter() {
         let checked_trees::BorrowLoanLineage::Reborrow { parent_loan } = row.lineage else {
@@ -280,7 +310,7 @@ fn close_output_descendants(
         output.holder_weakening = holder_end;
         output.final_weakening = end;
     }
-    Ok(())
+    Ok(children)
 }
 
 fn closure_end(
@@ -346,8 +376,16 @@ fn holding_end(
     facts: &CheckFacts,
     state: &checked_trees::FlowStateFact,
     loan: Handle<BorrowLoanFact>,
+    transfers: &[TransferHolders],
+    descendants: &[TransferHolders],
 ) -> Result<Option<Handle<FlowBorrowWeakeningFact>>, Vec<Diagnostic>> {
     let mut end = lexical_end(facts, state, loan)?;
+    if facts.borrow.retained_call_inputs(loan).is_some() {
+        let (_, complete_end) = closure_end(facts, state, loan, &[transfers, descendants])?;
+        if let Some(candidate) = complete_end {
+            end = later_end(facts, end, candidate)?;
+        }
+    }
     for (_, dependency) in facts
         .borrow
         .output_lifetime_dependencies

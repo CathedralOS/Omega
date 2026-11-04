@@ -346,6 +346,7 @@ fn validate_loan_coordinates(
                     loan.capture,
                     TerminalSuspensionLoanCapture::DescriptorTransfer
                         | TerminalSuspensionLoanCapture::RetainedValue { .. }
+                        | TerminalSuspensionLoanCapture::CallInput { .. }
                 ) && !loan.parent.is_valid()
                     && !loan.suppliers.is_empty()
                     && loan.inputs.is_empty()
@@ -695,6 +696,26 @@ mod tests {
                 .expect("decode completed output graph"),
             output_plan
         );
+        // An ordinary helper can retain an earlier argument's saved
+        // descriptor. Its capture remains at that call and its existing
+        // supplier is still mandatory; no new output permission is created.
+        let mut ordinary_plan = output_plan.clone();
+        let suppliers = ordinary_plan.loans.supplier_links.insert_many([parent]);
+        let mut ordinary_input = ordinary_plan.loans.occurrences.get(input).clone();
+        ordinary_input.resource = TerminalSuspensionLoanResource::DescriptorTransfer;
+        ordinary_input.suppliers = suppliers;
+        let ordinary_input = ordinary_plan.loans.occurrences.insert(ordinary_input);
+        assert_eq!(
+            decode_suspension_call_plan(&mut Reader::new(&encode(&ordinary_plan)))
+                .expect("decode retained ordinary call input"),
+            ordinary_plan
+        );
+        ordinary_plan
+            .loans
+            .occurrences
+            .get_mut(ordinary_input)
+            .suppliers = HandleSpan::empty();
+        assert!(decode_suspension_call_plan(&mut Reader::new(&encode(&ordinary_plan))).is_err());
         let output_commitment = suspension_frontier_commitment(&table, &output_plan);
         for nonphysical in [input, debt] {
             let mut invalid = output_plan.clone();

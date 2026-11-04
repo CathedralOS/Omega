@@ -45,9 +45,9 @@ pub use borrow::{
     CheckedReborrowAccessEffect, CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
     CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
     CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
-    CheckedRetiredParentResourceDispositionStep, CheckedSuppliedOutputBorrowResource,
-    IncomingReferenceIdentity, IncomingReferenceOrigin, ParentLexicalStatusAtChildEnd,
-    StateBorrowFact,
+    CheckedRetiredParentResourceDispositionStep, CheckedStoredCallBorrowInputs,
+    CheckedSuppliedOutputBorrowResource, IncomingReferenceIdentity, IncomingReferenceOrigin,
+    ParentLexicalStatusAtChildEnd, StateBorrowFact,
 };
 pub use facts::CheckedValueQualification;
 pub use facts::{

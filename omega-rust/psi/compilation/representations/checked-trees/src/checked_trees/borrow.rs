@@ -455,6 +455,15 @@ pub struct CheckedCallBorrowLoanResource {
     pub backing_path: HandleSpan<facts::PlaceSegment>,
 }
 
+/// A normally completed stored generation keeps these original evaluated
+/// inputs borrowed. The input resources retain their own call, capture, full
+/// access and parent lifetime; this association creates no new permission.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedStoredCallBorrowInputs {
+    pub loan: Handle<BorrowLoanFact>,
+    pub resources: HandleSpan<Handle<CheckedCallBorrowLoanResource>>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedCallBorrowLoanSource {
     /// Transport preserves the exact stored occurrence observed at completion.
@@ -904,6 +913,8 @@ pub struct BorrowFacts {
     pub output_lifetime_dependencies: Arena<CheckedOutputLifetimeDependencyResource>,
     pub output_dependency_suppliers: Arena<Handle<CheckedOutputLifetimeDependencyResource>>,
     pub call_loan_resources: Arena<CheckedCallBorrowLoanResource>,
+    pub stored_call_inputs: Arena<CheckedStoredCallBorrowInputs>,
+    pub stored_call_input_resources: Arena<Handle<CheckedCallBorrowLoanResource>>,
     pub call_loan_parents: Arena<Handle<BorrowLoanFact>>,
     pub call_loan_paths: Arena<crate::CheckedUnitStructuralPathSegment>,
     pub call_loan_backing_paths: Arena<facts::PlaceSegment>,
@@ -916,6 +927,24 @@ pub struct BorrowFacts {
 }
 
 impl BorrowFacts {
+    /// Only a complete, unique normal-call association supplies retained input
+    /// coverage. Missing and duplicate associations remain unavailable.
+    pub fn retained_call_inputs(
+        &self,
+        loan: Handle<BorrowLoanFact>,
+    ) -> Option<&[Handle<CheckedCallBorrowLoanResource>]> {
+        let mut rows = self
+            .stored_call_inputs
+            .iter()
+            .filter(|(_, row)| row.loan == loan);
+        let (_, row) = rows.next()?;
+        if rows.next().is_some() {
+            return None;
+        }
+        self.stored_call_input_resources
+            .span(row.resources)
+            .filter(|rows| !rows.is_empty())
+    }
     /// Exact checked invocation within one owning state. Coordinates repeat
     /// across states; duplicate rows are unavailable rather than first-match.
     pub fn call_at(
@@ -972,6 +1001,8 @@ impl BorrowFacts {
             output_lifetime_dependencies: Arena::new(),
             output_dependency_suppliers: Arena::new(),
             call_loan_resources: Arena::new(),
+            stored_call_inputs: Arena::new(),
+            stored_call_input_resources: Arena::new(),
             call_loan_parents: Arena::new(),
             call_loan_paths: Arena::new(),
             call_loan_backing_paths: Arena::new(),

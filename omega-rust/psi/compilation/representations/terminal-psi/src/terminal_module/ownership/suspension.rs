@@ -1,8 +1,8 @@
-//! Provider-neutral storage retained at checked suspending calls.
+//! Record the values and borrowed data that a call must keep available if it pauses.
 //!
-//! Structural frontiers keep the ordinary operand's location and access
-//! together. Pointer-equivalent owned and borrowed operands must not share a
-//! frontier commitment. This records existing authority; loan ancestry,
+//! Keep each operand's location and read/write access together. Owned and
+//! borrowed storage have different frontier commitments even when their pointer
+//! representations agree. These demands record existing authority; loan ancestry,
 //! backing lifetime and runtime preservation still require their own joins.
 
 use crate::{

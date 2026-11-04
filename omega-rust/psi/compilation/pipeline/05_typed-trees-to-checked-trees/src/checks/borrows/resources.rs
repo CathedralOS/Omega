@@ -13,6 +13,7 @@ mod lifecycle;
 mod loan_resources;
 mod permission_sources;
 mod reborrow_drafts;
+mod stored_call_inputs;
 pub(in crate::checks::borrows) mod retained_backing;
 pub(in crate::checks::borrows) mod supplied_permissions;
 
@@ -34,6 +35,7 @@ pub(super) fn initialize_checked_direct_borrow_resources(
     supplied_permissions::validate_normal_output_completions(&facts.borrow, &facts.flow)?;
     call_operands::install(program, facts);
     supplied_permissions::install(program, facts)?;
+    stored_call_inputs::install(program, facts);
     formation_sources::validate(program, facts)?;
     let retentions = forwarded_lifetimes::plan(facts)?;
     let (direct, reborrows) =

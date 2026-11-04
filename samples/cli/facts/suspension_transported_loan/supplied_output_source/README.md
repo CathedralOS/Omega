@@ -121,3 +121,10 @@ normal main publication remain required. The
 scheduler returns inline, so actual parking, resumption and cancellation are not
 claimed. Parent work outside this production, including ownerless backing and
 Terminal Unresolved labels, remains open.
+
+The [read-only containing-record control](controls/shared_stored_input_ceiling/main.omg)
+and its [mutable-upgrade reject](controls/shared_stored_input_no_mutable_upgrade/main.omg)
+retain the separate native mutable-to-shared reference transport case. Their
+source and Build files are byte-exact copies of the frozen candidate39 controls;
+the positive ran natively and in Terminal Psi, and the twin rejected the access
+upgrade. Focused fixture registration is recorded separately from that execution.

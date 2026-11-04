@@ -227,7 +227,7 @@ pub(super) fn retain_call_frontier(
         append_dependency(borrow, state, loan, &mut current)?;
     }
     let mut closure = current.clone();
-    let captured = borrow
+    let mut captured = borrow
         .call_loan_resources
         .iter()
         .filter(|(_, resource)| {
@@ -267,6 +267,17 @@ pub(super) fn retain_call_frontier(
                 borrow.supplied_output_resources.get(output).loan,
                 &mut closure,
             )?;
+        }
+        if let Some(inputs) = borrow.retained_call_inputs(handle) {
+            for resource in inputs {
+                let row = borrow.call_loan_resources.get(*resource);
+                if !captured.iter().any(|(candidate, _)| candidate == resource) {
+                    captured.push((*resource, row));
+                }
+                for parent in outputs::parents(borrow, *resource).map_err(Diagnostic::error)? {
+                    append_dependency(borrow, state, parent, &mut closure)?;
+                }
+            }
         }
         if let Some(input_span) = outputs::inputs(borrow, handle) {
             let inputs = borrow
@@ -375,8 +386,8 @@ pub(super) fn retain_call_frontier(
     });
     let actuals = captured.into_iter().map(|(resource, row)| LoanFact {
         source: checked_trees::SuspensionCrossingLoanSource::CapturedActual { resource },
-        active_at_call: true,
-        retained_for_crossing: true,
+        active_at_call: flow.control.calls.get(row.call) == call,
+        retained_for_crossing: flow.control.calls.get(row.call) == call,
         backing: backing(row.parent_lifetime.root, row.backing_incoming_reference),
     });
     let inputs = held_inputs.into_iter().map(|(owner, input)| {
@@ -405,6 +416,23 @@ pub(super) fn retain_call_frontier(
         loans,
         operands: call.argument_operands(),
     })
+}
+
+fn retained_input_owner(
+    borrow: &BorrowFacts,
+    rows: &[LoanFact],
+    resource: Handle<checked_trees::CheckedCallBorrowLoanResource>,
+) -> Option<Handle<BorrowLoanFact>> {
+    rows.iter()
+        .filter(|row| row.retained_for_crossing)
+        .find_map(|row| {
+            let loan = row.stored_loan();
+            (loan.is_valid()
+                && borrow
+                    .retained_call_inputs(loan)
+                    .is_some_and(|inputs| inputs.contains(&resource)))
+            .then_some(loan)
+        })
 }
 
 /// A root view denotes caller-supplied storage, never its descriptor slot.
@@ -527,13 +555,17 @@ pub(super) fn retained_lifetime_demand(
                 if !matches!(
                     row.source,
                     checked_trees::SuspensionCrossingLoanSource::OutputInput { .. }
-                ) && !rows.iter().any(|entry| {
-                    entry.active_at_call
-                        && matches!(entry.source,
+                ) && !matches!(row.source,
+                    checked_trees::SuspensionCrossingLoanSource::CapturedActual { resource }
+                        if retained_input_owner(borrow, rows, resource).is_some())
+                    && !rows.iter().any(|entry| {
+                        entry.active_at_call
+                            && matches!(entry.source,
                             checked_trees::SuspensionCrossingLoanSource::Incoming {
                                 identity: current, ..
                             } if current == identity)
-                }) {
+                    })
+                {
                     return Err("the incoming descriptor has no current retained capture");
                 }
                 if incoming.machine_symbol != state.machine_symbol
@@ -612,16 +644,26 @@ pub(super) fn retained_lifetime_demand(
                 if !borrow.call_loan_resources.is_valid(resource) {
                     return Err("the captured operand has no checked loan resource");
                 }
+                let resource_handle = resource;
                 let resource = borrow.call_loan_resources.get(resource);
-                if resource.machine_symbol != state.machine_symbol
+                if !flow.control.calls.is_valid(resource.call)
+                    || !flow
+                        .control
+                        .calls
+                        .get(resource.call)
+                        .argument_operands()
+                        .handles()
+                        .any(|operand| operand == resource.owner_operand)
+                    || resource.machine_symbol != state.machine_symbol
                     || resource.state_symbol != state.state_symbol
                     || resource.parent_lifetime.machine_symbol != state.machine_symbol
                     || resource.parent_lifetime.state_symbol != state.state_symbol
                     || resource.parent_lifetime.root != root
-                    || !frontier
+                    || (!frontier
                         .operands
                         .handles()
                         .any(|operand| operand == resource.owner_operand)
+                        && retained_input_owner(borrow, rows, resource_handle).is_none())
                 {
                     return Err("the captured loan has no exact enclosing-invocation lifetime");
                 }
@@ -691,6 +733,17 @@ pub(super) fn retained_lifetime_demand(
             // A descriptor transfer is in neither resource roster. Its own
             // backing was joined above; its lifetime and access come from
             // exact suppliers, which the walk below retains and checks.
+            _ if borrow.retained_call_inputs(loan_handle).is_some() => {
+                for resource in borrow
+                    .retained_call_inputs(loan_handle)
+                    .ok_or("the saved reference lost its retained inputs")?
+                {
+                    let (input, _) = frontier.loans.handles().zip(rows).find(|(_, row)| matches!(row.source,
+                        checked_trees::SuspensionCrossingLoanSource::CapturedActual { resource: candidate } if candidate == *resource))
+                        .ok_or("the saved reference's original call input is not retained")?;
+                    pending.push(input);
+                }
+            }
             _ if crate::checks::borrows::transport_suppliers(borrow, state, loan_handle)
                 .is_some() => {}
             _ => {
@@ -780,6 +833,20 @@ pub(super) fn retain_backing_values(
             }
             for supplier in borrow.loan_suppliers.span_or_empty(row.supplying_loans) {
                 crate::shared::collections::push_unique(&mut loans, *supplier);
+            }
+            if let Some(resources) = borrow.retained_call_inputs(loan) {
+                for resource in resources {
+                    if let Some(entry) = frontier.iter_mut().find(|entry| matches!(entry.source,
+                        checked_trees::SuspensionCrossingLoanSource::CapturedActual { resource: candidate } if candidate == *resource)) {
+                        entry.retained_for_crossing = true;
+                        retain_backing(borrow, entry.backing, live_symbols, &mut loans);
+                    }
+                    if let Ok(parents) = outputs::parents(borrow, *resource) {
+                        for parent in parents {
+                            crate::shared::collections::push_unique(&mut loans, parent);
+                        }
+                    }
+                }
             }
             if let Some(span) = outputs::inputs(borrow, loan) {
                 for input in span.handles() {
