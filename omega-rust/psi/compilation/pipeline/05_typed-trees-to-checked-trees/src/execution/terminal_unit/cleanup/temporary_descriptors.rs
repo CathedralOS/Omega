@@ -7,7 +7,7 @@
 //! type capability authorizes descriptor-only retirement, including containing
 //! aggregates, never disposal of borrowed contents or a nominal cleanup.
 use super::super::types::ShapeCollector;
-use checked_trees::{CheckedUnitCallPlan, CheckedUnitEffectOperationPlan};
+use checked_trees::CheckedUnitEffectOperationPlan;
 use language_semantics::Multiplicity;
 
 #[allow(clippy::too_many_arguments)]
@@ -20,15 +20,17 @@ pub(super) fn completions(
         checked_trees::CheckedUnitStructuralResultBindingPlan,
         facts::PlaceRoot,
     )],
-    invocation: &CheckedUnitCallPlan,
+    invocation: &CheckedUnitEffectOperationPlan,
     preparation: &[CheckedUnitEffectOperationPlan],
     shapes: &ShapeCollector<'_>,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
     let mut completions = Vec::new();
-    for (index, argument) in invocation.structural_arguments.iter().enumerate() {
+    let arguments = invocation.structural_operands();
+    let custody = invocation.call().and_then(|call| call.structural_custody());
+    for (index, argument) in arguments.iter().enumerate() {
         let index = u32::try_from(index).ok()?;
         if argument.access == checked_trees::CheckedStructuralAccess::Owned
-            || invocation.structural_custody().is_some_and(|custody| {
+            || custody.is_some_and(|custody| {
                 custody.retained_reference_inputs.contains(&index)
                     && !argument
                         .call_projection()
@@ -48,18 +50,15 @@ pub(super) fn completions(
         if binding.local.symbol.is_valid() || binding.multiplicity != Multiplicity::Affine {
             continue;
         }
-        if invocation.structural_custody().is_some_and(|custody| {
+        if custody.is_some_and(|custody| {
             custody.retained_reference_inputs.iter().any(|index| {
-                invocation
-                    .structural_arguments
-                    .get(*index as usize)
-                    .is_some_and(|source| {
-                        source.source_structural_result_binding_ordinal()
-                            == Some(binding.binding_ordinal)
-                            && !source.call_projection().contains(
-                                &checked_trees::CheckedUnitStructuralPathSegment::Referent,
-                            )
-                    })
+                arguments.get(*index as usize).is_some_and(|source| {
+                    source.source_structural_result_binding_ordinal()
+                        == Some(binding.binding_ordinal)
+                        && !source
+                            .call_projection()
+                            .contains(&checked_trees::CheckedUnitStructuralPathSegment::Referent)
+                })
             })
         }) {
             continue;

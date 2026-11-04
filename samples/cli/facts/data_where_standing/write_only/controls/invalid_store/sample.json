@@ -2,6 +2,8 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "stores a value not provably within its data's `where` facts"
+    "cannot complete return from machine `fill`",
+    "`requires` facts of `counter`",
+    "unproved; restore them first"
   ]
 }

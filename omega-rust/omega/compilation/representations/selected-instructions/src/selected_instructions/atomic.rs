@@ -54,10 +54,11 @@ pub enum AtomicOperation {
     FetchXor,
     Swap,
     CompareExchange,
+    CompareExchangeOnce,
 }
 
 impl AtomicOperation {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::Load,
         Self::Store,
         Self::FetchAdd,
@@ -67,6 +68,7 @@ impl AtomicOperation {
         Self::FetchXor,
         Self::Swap,
         Self::CompareExchange,
+        Self::CompareExchangeOnce,
     ];
 
     pub const fn ordinal(self) -> u8 {
@@ -80,6 +82,7 @@ impl AtomicOperation {
             Self::FetchXor => 6,
             Self::Swap => 7,
             Self::CompareExchange => 8,
+            Self::CompareExchangeOnce => 9,
         }
     }
 
@@ -87,7 +90,7 @@ impl AtomicOperation {
     pub const fn input_count(self) -> u16 {
         match self {
             Self::Load => 1,
-            Self::CompareExchange => 3,
+            Self::CompareExchange | Self::CompareExchangeOnce => 3,
             _ => 2,
         }
     }
@@ -95,6 +98,10 @@ impl AtomicOperation {
     pub const fn observes_resident(self) -> bool {
         !matches!(self, Self::Store)
     }
+    pub const fn is_bitwise_fetch(self) -> bool {
+        matches!(self, Self::FetchAnd | Self::FetchOr | Self::FetchXor)
+    }
+
     pub const fn modifies_resident(self) -> bool {
         !matches!(self, Self::Load)
     }
@@ -109,6 +116,11 @@ pub struct AtomicForm {
 }
 
 impl AtomicForm {
+    /// Single-attempt forms carry their width after this append-only family
+    /// tag. Their second output records failed commitment independently of
+    /// the resident comparison; a matching observation does not prove a store.
+    pub const ONCE_FAMILY_TAG: u8 = 240;
+
     pub const COUNT: usize = AtomicOperation::ALL.len() * AtomicWidth::ALL.len();
     pub const ALL: [Self; Self::COUNT] = {
         let mut forms = [Self {
@@ -144,12 +156,35 @@ impl AtomicForm {
 
     /// Append-only machine identity tag, following Trapping's 122..193.
     pub const fn machine_tag(self) -> u8 {
-        194 + self.ordinal()
+        if matches!(self.operation, AtomicOperation::CompareExchangeOnce) {
+            Self::ONCE_FAMILY_TAG
+        } else {
+            194 + self.ordinal()
+        }
     }
 
     pub const fn from_machine_tag(tag: u8) -> Option<Self> {
-        if tag >= 194 {
+        if tag >= 194 && tag < 230 {
             Self::from_ordinal(tag - 194)
+        } else {
+            None
+        }
+    }
+
+    pub const fn machine_payload(self) -> Option<u8> {
+        if matches!(self.operation, AtomicOperation::CompareExchangeOnce) {
+            Some(self.width.ordinal())
+        } else {
+            None
+        }
+    }
+
+    pub const fn from_once_payload(payload: u8) -> Option<Self> {
+        if (payload as usize) < AtomicWidth::ALL.len() {
+            Some(Self {
+                operation: AtomicOperation::CompareExchangeOnce,
+                width: AtomicWidth::ALL[payload as usize],
+            })
         } else {
             None
         }
@@ -174,7 +209,7 @@ impl AtomicForm {
             AtomicAccessEvent::Store { .. } => AtomicOperation::Store,
             AtomicAccessEvent::Swap { .. } => AtomicOperation::Swap,
             AtomicAccessEvent::CompareExchange { .. } => AtomicOperation::CompareExchange,
-            AtomicAccessEvent::CompareExchangeOnce { .. } => AtomicOperation::CompareExchange,
+            AtomicAccessEvent::CompareExchangeOnce { .. } => AtomicOperation::CompareExchangeOnce,
             AtomicAccessEvent::ReadModifyWrite { operation, .. } => match operation {
                 AtomicReadModifyWrite::FetchAdd => AtomicOperation::FetchAdd,
                 AtomicReadModifyWrite::FetchSub => AtomicOperation::FetchSub,
@@ -196,7 +231,22 @@ impl AtomicForm {
     }
 
     pub const fn operand_count(self) -> u16 {
-        self.operation.input_count() + self.operation.observes_resident() as u16
+        self.operation.input_count()
+            + self.operation.observes_resident() as u16
+            + matches!(self.operation, AtomicOperation::CompareExchangeOnce) as u16
+    }
+
+    /// Canonical outcome tag: mismatch 0, exchange 1, uncommitted 2.
+    pub const fn outcome_operand(self) -> Option<u16> {
+        if matches!(self.operation, AtomicOperation::CompareExchangeOnce) {
+            Some(self.operation.input_count() + 1)
+        } else {
+            None
+        }
+    }
+
+    pub const fn output_operands(self) -> core::ops::Range<u16> {
+        self.operation.input_count()..self.operand_count()
     }
 }
 
@@ -211,11 +261,17 @@ mod tests {
         for (ordinal, form) in AtomicForm::ALL.into_iter().enumerate() {
             assert_eq!(usize::from(form.ordinal()), ordinal);
             assert_eq!(AtomicForm::from_ordinal(form.ordinal()), Some(form));
+            if let Some(payload) = form.machine_payload() {
+                assert_eq!(AtomicForm::from_once_payload(payload), Some(form));
+            } else {
+                assert_eq!(AtomicForm::from_machine_tag(form.machine_tag()), Some(form));
+            }
             assert_eq!(
                 form.operand_count(),
                 match form.operation {
                     AtomicOperation::Load | AtomicOperation::Store => 2,
                     AtomicOperation::CompareExchange => 4,
+                    AtomicOperation::CompareExchangeOnce => 5,
                     _ => 3,
                 }
             );

@@ -1,1 +1,1 @@
-cannot prove index `-1` is non-negative
+anonymous integer value `-1` does not fit destination `u64`

@@ -37,6 +37,7 @@ pub(super) fn observe(
     let execute = |allowance, quantum| {
         terminal_runtime::execute_sliced(
             TerminalRuntimeRequest {
+                native_image: None,
                 entry: None,
                 filesystem: Default::default(),
                 native_services: Default::default(),

@@ -681,6 +681,15 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
             error => error,
         })?;
         active.push(identity);
+        if plan.descriptor_presentation.is_valid() {
+            collect(
+                checked,
+                plans,
+                plan.descriptor_presentation,
+                active,
+                selected,
+            )?;
+        }
         if let Some(representation) = plans
             .opaque_representations()
             .iter()
@@ -1726,7 +1735,8 @@ pub(super) fn lower_unit_services_including(
                 CheckedUnitEffectOperationPlan::Call(call) => {
                     collect_service_summary(&facts.rows, call.target.service_reach, &mut selected)?;
                 }
-                CheckedUnitEffectOperationPlan::RegisterAccess { service_reach, .. } => {
+                CheckedUnitEffectOperationPlan::RegisterAccess { service_reach, .. }
+                | CheckedUnitEffectOperationPlan::GlobalDescriptorTable { service_reach, .. } => {
                     collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
                 }
                 CheckedUnitEffectOperationPlan::EstablishLocal(

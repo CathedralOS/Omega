@@ -715,3 +715,5 @@ pub fn resolve_call_result_selection(
 
 #[cfg(test)]
 mod call_result_selection_tests;
+#[cfg(test)]
+mod primitive_family_binding_tests;

@@ -105,6 +105,7 @@ fn supplies(
 ) -> Result<TerminalRuntimeSupplies, String> {
     program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            native_code_layouts: None,
             host_imports: imports,
             installation: selected.map(|selected| selected.selection()),
             entry,

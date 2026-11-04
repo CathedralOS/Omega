@@ -150,6 +150,32 @@ pub(super) fn emit(
         ..result_home
     };
     stage_image(types, builder, row, plan, value_home, staged)?;
+    let compatible = if matches!(
+        plan.storage.owner,
+        terminal_psi::TerminalAccessOwner::Run { .. }
+    ) {
+        // A run owns exactly count * footprint bytes; Resident may retain an
+        // unused tail. Refuse an oversized singleton before writing any bytes.
+        let required = fragmented_scalar::constant(builder, row, result.place, image_length)?;
+        let exact = super::outcome::compare(
+            builder,
+            row,
+            result.place,
+            available,
+            required,
+            SelectedInstructionKind::MaterializeBooleanEqual,
+        )?;
+        fragmented_scalar::binary(
+            builder,
+            row,
+            result.place,
+            SelectedInstructionKind::BitwiseAndI64,
+            assessment.compatible,
+            exact,
+        )?
+    } else {
+        assessment.compatible
+    };
     let decision = decide(
         builder,
         row,
@@ -159,7 +185,7 @@ pub(super) fn emit(
         image_length,
         assessment.modulus,
         assessment.residue,
-        assessment.compatible,
+        compatible,
     )?;
 
     let required = fragmented_scalar::constant(builder, row, result.place, image_length)?;
@@ -207,11 +233,16 @@ pub(super) fn emit(
             leaf_copy::CopyEnd {
                 place: result.place,
                 pointer: result_pointer,
-                byte_offset: layout.ready_owner.byte_offset,
+                byte_offset: layout.ready_backing.byte_offset,
                 elements: &[],
             },
-            layout.ready_owner.shape,
-        )
+            layout.ready_backing.shape,
+        )?;
+        if let Some(count_offset) = layout.ready_count {
+            let one = fragmented_scalar::constant(builder, row, result.place, 1)?;
+            write_word(builder, row, result_home, count_offset, 8, one)?;
+        }
+        Ok(())
     })?;
     write_word(
         builder,

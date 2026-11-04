@@ -16,10 +16,10 @@ requires replacement <= 60
     replace(&mut storage.value, replacement);
     storage
 }
-machine forward<'storage>(view: &'storage mut Counter) -> &'storage mut Counter { view }
-machine compute(storage: &mut Storage, choice: bool) -> i32 {
+machine forward<'storage>(view: &'storage mut Counter, marker: &mut i32) -> &'storage mut Counter { marker = 29; view }
+machine compute(storage: &mut Storage, choice: bool, marker: &mut i32) -> i32 {
     let formed: &mut Counter = storage as &mut Counter;
-    let counter: &mut Counter = match choice { true -> formed false -> forward(formed) };
+    let counter: &mut Counter = match choice { true -> formed false -> forward(formed, marker) };
     let total: i32 = 70 + counter.value;
     let neighbors: bool = counter.before == 17 && counter.after == 53;
     counter.before = 23;
@@ -28,9 +28,11 @@ machine compute(storage: &mut Storage, choice: bool) -> i32 {
 machine main() crashes Trap {
     let mut high: Storage = produce(60);
     let mut low: Storage = produce(-2147483648);
-    let upper: i32 = compute(&mut high, true);
-    let lower: i32 = compute(&mut low, false);
-    transition upper == 130 && lower == -2147483578 && high.before == 23 && low.before == 23 && high.after == 53 && low.after == 53 { true -> done() _ -> bad() }
+    let mut upper_marker: i32 = 17;
+    let mut lower_marker: i32 = 17;
+    let upper: i32 = compute(&mut high, true, &mut upper_marker);
+    let lower: i32 = compute(&mut low, false, &mut lower_marker);
+    transition upper == 130 && lower == -2147483578 && upper_marker == 17 && lower_marker == 29 && high.before == 23 && low.before == 23 && high.after == 53 && low.after == 53 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

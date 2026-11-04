@@ -17,8 +17,8 @@
 //! A disjunction contributes only when every alternative bounds that parameter;
 //! the bound is their convex hull, so `side == 0 || side == 1` is `[0, 1]`
 //! while `side == 0 || flag == 1` does not bound `side`.
-//! Field reads retain only refinements enforced by every store; mixed default
-//! predicates need independently established facts for the exact storage version.
+//! Field reads retain only their own type's storage restrictions. Enclosing
+//! default predicates need proof about the value at the actual read.
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
     PrimitiveType, SignatureContractKind, State, TableCallExpression, TypeReferenceHandle,
@@ -89,8 +89,7 @@ pub fn immutable_integer_expression_bounds(
 }
 
 /// A place's standing bounds at any read: the immutable bounds above, or for
-/// a mutable place what every store enforces -- its declared range and its
-/// store-enforced field predicates.
+/// a mutable place only the restrictions declared on its own storage type.
 pub(crate) fn standing_integer_interval(
     program: &dyn CheckingInput,
     machine: &Machine,
@@ -157,29 +156,16 @@ pub(crate) fn upper_bound_beyond_place_carrier(
         .then_some(high)
 }
 
-/// What every store to a place enforces: its declared range and interval-only
-/// field predicates. Mixed declaration predicates may have open restoration
-/// debt, so they supply no occurrence-independent read bound.
+/// The place's own type restricts each store. An enclosing record predicate
+/// can be temporarily unproved and supplies no unconditional read bound.
 fn stored_place_interval(
     program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<Interval> {
-    let declared = crate::value_custody::places::declared_place_type_raw(
-        program,
-        machine,
-        Some(state),
-        expression,
-    )
-    .and_then(|handle| super::range_constraint_interval(program, handle));
-    let facts = crate::proof_contracts::default_domains::stored_field_where_interval(
-        program, machine, state, expression,
-    );
-    match (declared, facts) {
-        (Some(declared), Some(facts)) => Some(declared.intersect(facts)),
-        (declared, facts) => declared.or(facts),
-    }
+    crate::value_custody::places::declared_place_type_raw(program, machine, Some(state), expression)
+        .and_then(|handle| super::range_constraint_interval(program, handle))
 }
 
 /// [`standing_integer_interval`] as open-ended endpoints, for checkers
@@ -194,11 +180,9 @@ pub fn standing_integer_bounds(
         .map(|interval| (interval.low, interval.high))
 }
 
-/// What every store to a place enforces -- its declared range and its data's
-/// `where` facts -- completed by its integer carrier. Every read of the place
-/// lies within them, and no arrival fact is read, so a caller may use them to
-/// decide its callee's requirement. For checkers outside validation. `None`
-/// for a non-integer place.
+/// The integer carrier and restrictions declared on the place's own type.
+/// This reads no arrival fact or enclosing record predicate. Such predicates
+/// need separate proof at the actual observation. `None` for a non-integer.
 pub fn stored_integer_bounds(
     program: &dyn CheckingInput,
     machine: &Machine,
@@ -445,17 +429,7 @@ fn bounds(
                     declared_mutable_leaves,
                 )?,
             )?;
-            // Static expression bounds cannot assume that a mixed parent
-            // predicate is established at this read.
-            let standing = crate::proof_contracts::default_domains::stored_field_where_interval(
-                program, machine, state?, expression,
-            );
-            Some(Bounds {
-                interval: standing.map_or(declared.interval, |facts| {
-                    declared.interval.intersect(facts)
-                }),
-                ..declared
-            })
+            Some(declared)
         }
         ExpressionNode::Cast(cast) => {
             // A total exact widening changes the carrier, not the value or

@@ -1,0 +1,15 @@
+// Both branches can run under `count >= 10`, so neither is reported and each
+// subtraction is proved from its own branch's facts.
+machine pick(count: u64) -> u64
+requires count >= 10
+{
+    transition count < 50 {
+        true -> (count - 10u64)
+        false -> (count - 50u64)
+    }
+}
+machine main() crashes Trap {
+    transition pick(12) == 2 && pick(80) == 30 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

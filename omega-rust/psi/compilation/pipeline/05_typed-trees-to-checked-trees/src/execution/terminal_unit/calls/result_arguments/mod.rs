@@ -49,7 +49,6 @@ use validation::structural_result_contract;
 use validation::structural_result_qualifications;
 use validation::structural_type_identity;
 
-use crate::execution::terminal_unit::StateParameter;
 use crate::execution::terminal_unit::StatementNode;
 use crate::execution::terminal_unit::SymbolHandle;
 
@@ -77,7 +76,7 @@ pub(super) fn argument(
     expression: ExpressionHandle,
     place: &CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,
-    parameter: &StateParameter,
+    parameter: TypeReferenceHandle,
     target_identity: TypeIdentityId,
     operations: &[CheckedUnitEffectOperationPlan],
     trace: &LocalConstructionTrace,
@@ -128,7 +127,7 @@ fn argument_contract(
     expression: ExpressionHandle,
     place: &CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,
-    parameter: &StateParameter,
+    parameter: TypeReferenceHandle,
     target_identity: TypeIdentityId,
     operations: &[CheckedUnitEffectOperationPlan],
     trace: &LocalConstructionTrace,
@@ -175,7 +174,7 @@ fn argument_contract(
         u32::try_from(call.statement_index).ok()?,
         expression,
         result,
-        parameter.type_reference,
+        parameter,
     ) {
         return Some(argument);
     }
@@ -273,8 +272,8 @@ fn argument_contract(
         return Some(argument);
     }
     phase("call result argument: storage presentation");
-    let access = structural_access_for_type_reference(program, parameter.type_reference)?;
-    let formal_type = parameter.type_reference;
+    let access = structural_access_for_type_reference(program, parameter)?;
+    let formal_type = parameter;
     let projected = !place.segments.is_empty();
     let unrestricted = result.multiplicity == Multiplicity::Unrestricted;
     let linear = result.multiplicity == Multiplicity::Linear;
@@ -321,7 +320,7 @@ fn argument_contract(
                     state,
                     call.statement_index,
                     place,
-                    parameter.type_reference,
+                    parameter,
                 )
                 .or_else(|| {
                     super::argument_paths::open_byte_range_path(
@@ -329,7 +328,7 @@ fn argument_contract(
                         state,
                         call.statement_index,
                         place,
-                        parameter.type_reference,
+                        parameter,
                     )
                 })
             })
@@ -357,10 +356,7 @@ fn argument_contract(
             })
             .and_then(|(selected, path)| {
                 super::argument_paths::borrowed_argument_endpoint(
-                    program,
-                    selected,
-                    path,
-                    parameter.type_reference,
+                    program, selected, path, parameter,
                 )
             })
     } else {
@@ -389,13 +385,7 @@ fn argument_contract(
     // field. The local keeps its backing identity; the call presents only
     // the checked view, with its exact loan replayed below.
     let presentation = storage_type.and_then(|storage| {
-        super::argument_presentation::classify(
-            program,
-            storage,
-            parameter.type_reference,
-            target_identity,
-            &[],
-        )
+        super::argument_presentation::classify(program, storage, parameter, target_identity, &[])
     });
     let array_view = access != CheckedStructuralAccess::Owned
         && presentation == Some(ArgumentPresentation::FixedArraySlice);
@@ -463,17 +453,12 @@ fn argument_contract(
     // access replay below requires the call to hold that exclusive loan.
     if !projected
         && ((matches!(access, checked_borrowed_access_pair_pattern!())
-            && slice_view_carrier(program, parameter.type_reference)
+            && slice_view_carrier(program, parameter)
             && result_presents_formal)
             || (access == CheckedStructuralAccess::SharedBorrow
-                && borrowed_named_view(program, parameter.type_reference)
+                && borrowed_named_view(program, parameter)
                 && result.type_identity
-                    == stored_structural_type_identity(
-                        program,
-                        parameter.type_reference,
-                        &[],
-                        &[],
-                    )))
+                    == stored_structural_type_identity(program, parameter, &[], &[])))
         && let Some(view_symbol) = place.root.as_symbol()
     {
         let Some(StatementNode::LocalData(local)) =
@@ -492,7 +477,7 @@ fn argument_contract(
         // differ from an element-only local annotation; result admission and
         // receiving view replay authenticate that descriptor and its backing.
         // Lending it does not cross a stored Reference shell.
-        if slice_view_carrier(program, parameter.type_reference) {
+        if slice_view_carrier(program, parameter) {
             if exact_structural_argument_access(
                 program, facts, machine, state, call, place, access,
             )? != access
@@ -537,9 +522,9 @@ fn argument_contract(
     // home or recover authority from the consumer's requested referent type.
     if !projected
         && ((matches!(access, checked_borrowed_access_pair_pattern!())
-            && slice_view_carrier(program, parameter.type_reference))
+            && slice_view_carrier(program, parameter))
             || (access == CheckedStructuralAccess::SharedBorrow
-                && borrowed_named_view(program, parameter.type_reference)))
+                && borrowed_named_view(program, parameter)))
         && result_presents_formal
         && let Some(source) = place.root.as_expression()
         && source == expression
@@ -574,7 +559,7 @@ fn argument_contract(
         CheckedStructuralAccess::SharedBorrow => {
             trace.phase("call operation: result argument: shared referent");
             let (referent_expression, referee) =
-                shared_argument_referent(program, expression, parameter.type_reference)?;
+                shared_argument_referent(program, expression, parameter)?;
             let referee = if array_view { storage_type? } else { referee };
             match place.root {
                 PlaceRoot::Symbol(_) => {
@@ -665,9 +650,7 @@ fn argument_contract(
                 access: reference_access,
                 referee,
                 ..
-            } = program
-                .type_reference_table
-                .type_reference(parameter.type_reference)
+            } = program.type_reference_table.type_reference(parameter)
             else {
                 return None;
             };

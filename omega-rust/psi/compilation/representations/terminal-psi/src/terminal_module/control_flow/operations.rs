@@ -291,6 +291,35 @@ pub struct ReferenceStorageView {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
+    /// Check actual GDTR and the selected TSS descriptor against these loans.
+    /// Returns one after LTR, or zero without LTR on a failed check. Scratch
+    /// receives the CPU observation; source bytes cannot substitute for it.
+    ActivateTaskRegister {
+        service: ServiceId,
+        entries: u16,
+        gdt: StructuralArgument,
+        task_state: StructuralArgument,
+        selector: ValueId,
+        scratch: StructuralArgument,
+    },
+    /// Observe TR without granting access to the task-state bytes it names.
+    ReadTaskRegister {
+        service: ServiceId,
+    },
+    /// Reload code or data selectors only after checking the current borrowed GDT.
+    ReloadSegmentDescriptors {
+        service: ServiceId,
+        entries: u16,
+        kind: language_core::descriptor_tables::SegmentReload,
+        gdt: StructuralArgument,
+        selector: ValueId,
+        scratch: StructuralArgument,
+    },
+    /// Observe one exact segment selector without granting access to its target.
+    ReadSegmentSelector {
+        service: ServiceId,
+        register: language_core::descriptor_tables::SegmentRegister,
+    },
     /// Read an exact application result from this artifact's admitted target
     /// closure. This is neither a runtime call nor permission to evaluate an
     /// unavailable application. The result carrier must match its catalog row.
@@ -306,6 +335,13 @@ pub enum OperationKind {
     /// Numeric exposure of an addressable referent under ordinary borrowed
     /// access. The result grants no loan, ownership, or memory access.
     StorageAddress {
+        source: StructuralArgument,
+    },
+    /// Read or write exactly ten descriptor bytes through an existing loan.
+    /// The numeric base within those bytes grants no storage authority.
+    GlobalDescriptorTable {
+        service: ServiceId,
+        operation: language_core::inline_assembly::AsmGlobalDescriptorTableOperation,
         source: StructuralArgument,
     },
     /// Interpret initialized storage through one exact retained placement.
@@ -1256,7 +1292,9 @@ impl OperationKind {
             }
             // Runtime selectors were mapped through the shared source path
             // inventory above; placement contributes no scalar operands.
-            Self::EstablishAccessReference { .. } | Self::StorageAddress { .. } => {}
+            Self::EstablishAccessReference { .. }
+            | Self::StorageAddress { .. }
+            | Self::GlobalDescriptorTable { .. } => {}
             Self::EstablishByteSequenceConcatenation { left, right, .. } => {
                 left.remap_length(map);
                 right.remap_length(map);
@@ -1396,6 +1434,9 @@ impl OperationKind {
             Self::TrappingInteger { operation } => operation.map_operands(map),
             Self::FloatResultPolicy { policy } => policy.map_operands(map),
             Self::AtomicAccess { event, .. } => event.map_operands(map),
+            Self::ActivateTaskRegister { selector, .. }
+            | Self::ReloadSegmentDescriptors { selector, .. } => *selector = map(*selector),
+            Self::ReadTaskRegister { .. } | Self::ReadSegmentSelector { .. } => {}
             Self::RegisterAccess { event, .. } => event.map_operands(map),
             Self::NearestIeeeFloatFusedMultiplyAdd {
                 left,

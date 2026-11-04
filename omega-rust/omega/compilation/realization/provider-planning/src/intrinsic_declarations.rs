@@ -396,7 +396,7 @@ impl HostedService {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum BoundaryIntrinsicShape {
+pub(crate) enum BoundaryIntrinsicShape {
     I32ToUnit,
     UnitToByteRead,
     UnitToAddress,
@@ -976,7 +976,7 @@ fn exact_address_type(
         if typed.symbols.builtin_type_atom(*symbol) == Some(BuiltinTypeAtom::Address))
 }
 
-fn exact_byte_read_type(
+pub(crate) fn exact_byte_read_type(
     typed: &checked_trees::typed_trees::TypedTrees,
     type_reference: checked_trees::typed_trees::types::TypeReferenceHandle,
     trait_symbol: SymbolHandle,

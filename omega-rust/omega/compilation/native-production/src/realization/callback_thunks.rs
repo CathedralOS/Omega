@@ -162,7 +162,7 @@ fn lower_callback_thunk(
     image_emission::create_private_function_object(
         settlement.callback_function,
         std::sync::Arc::new(projection.into_object()),
-        declared,
+        settlement.boundary_entry_plan,
         &inbound_ordinals,
     )
     .map_err(|error| realization_error("callback entry ABI", error))

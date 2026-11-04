@@ -15,6 +15,8 @@ pub(super) struct ResultLayout {
     pub shape: ValueShape,
     pub tag: u32,
     pub ready_owner: PackedFieldLayout,
+    pub ready_backing: PackedFieldLayout,
+    pub ready_count: Option<u32>,
     pub returned: ReturnedLayout,
     pub failure_tag: u32,
     pub range: [u32; 2],
@@ -76,7 +78,7 @@ impl ResultLayout {
         };
         match plan.operation {
             terminal_psi::TerminalAccessLifecycleOperation::Initialize => {
-                if structural(ready_owner)? != plan.storage.carrier {
+                if structural(ready_owner)? != plan.storage.owner_carrier() {
                     return Err(failure(
                         "initialization Ready no longer retains the original owner",
                     ));
@@ -168,10 +170,52 @@ impl ResultLayout {
                 offset(reason_layout.byte_offset, u64::from(right.byte_offset))?,
             ])
         };
+        let (ready_backing, ready_count) = match plan.storage.owner {
+            terminal_psi::TerminalAccessOwner::Extent => (*ready_owner, None),
+            terminal_psi::TerminalAccessOwner::Run {
+                carrier,
+                storage,
+                count,
+                ..
+            } => {
+                let StructuralTypeShape::Record { fields, .. } =
+                    &declaration(types, carrier)?.shape
+                else {
+                    return Err(failure("run owner lost its record layout"));
+                };
+                let backing = fields
+                    .iter()
+                    .find(|field| field.id == storage)
+                    .ok_or_else(|| failure("run backing field is absent"))?;
+                let count = fields
+                    .iter()
+                    .find(|field| field.id == count)
+                    .ok_or_else(|| failure("run count field is absent"))?;
+                let backing_region = super::field_region(types, carrier, backing)?;
+                let count_region = super::field_region(types, carrier, count)?;
+                let shape = structural_reference_input::field_storage_shape(backing, types)
+                    .ok_or_else(|| failure("run backing field has no physical shape"))?;
+                (
+                    PackedFieldLayout {
+                        shape,
+                        byte_offset: offset(
+                            ready_owner.byte_offset,
+                            u64::from(backing_region.byte_offset),
+                        )?,
+                    },
+                    Some(offset(
+                        ready_owner.byte_offset,
+                        u64::from(count_region.byte_offset),
+                    )?),
+                )
+            }
+        };
         Ok(Self {
             shape: result_layout.shape,
             tag: result_layout.tag_byte_offset,
             ready_owner: *ready_owner,
+            ready_backing,
+            ready_count,
             returned,
             failure_tag: offset(
                 reason_layout.byte_offset,

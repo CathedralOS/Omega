@@ -1,0 +1,60 @@
+// Dense ownership over caller-supplied backing. The descriptor is constant-size;
+// Live retains established cell custody, never a per-element occupancy tag.
+// Neither constructing this record nor changing count establishes Live.
+use omega::language::core::extent;
+use omega::language::core::layout;
+
+public data Run<P, T> [linear] {
+    storage: Extent in Granted;
+    count: u64;
+}
+
+public domain<P, T> Run<P, T>::Live<P, T>
+established by Run::initialize_from_profile;
+
+// This ordinary predicate publishes the count promised by cell initialization.
+// It grants no storage or custody and is not an alternative to Live.
+public domain<P, T> Run<P, T>::Singleton<P, T>
+requires self.count == 1;
+
+public machine Run::initialize_cell<P, T, Role>(
+    storage: Extent in Granted & Vacant, value: T
+) -> AccessOutcome<
+    Run<P, T> in Live<P, T> & Singleton<P, T>,
+    AccessReturn<Extent in Granted & Vacant, T>,
+    AccessInitializationFailure
+>
+reaches ResourceProfileSupply
+invokes ResourceProfileSupply
+{
+    let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
+        &storage as &Extent in Granted
+    );
+    Run::initialize_from_profile<P, T, Role>(storage, value, &profile)
+}
+
+public machine Run::extract_cell<P, T, Role>(run: Run<P, T> in Live<P, T>)
+    -> AccessExtraction<Extent in Granted & Vacant, T>
+requires run.count == 1
+reaches ResourceProfileSupply
+invokes ResourceProfileSupply
+{
+    let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(&run.storage);
+    Run::extract_from_profile<P, T, Role>(run, &profile)
+}
+
+// The compiler realizes these exact declarations. The ordinary wrappers select
+// supply; the primitive must bind that completed call, actual backing, typed
+// cell geometry and transferred custody before publishing a successful result.
+boundary machine Run::initialize_from_profile<P, T, Role>(
+    storage: Extent in Granted & Vacant, value: T, profile: &ResourceProfile
+) -> AccessOutcome<
+    Run<P, T> in Live<P, T> & Singleton<P, T>,
+    AccessReturn<Extent in Granted & Vacant, T>,
+    AccessInitializationFailure
+>;
+
+boundary machine Run::extract_from_profile<P, T, Role>(
+    run: Run<P, T> in Live<P, T>, profile: &ResourceProfile
+) -> AccessExtraction<Extent in Granted & Vacant, T>
+requires run.count == 1;

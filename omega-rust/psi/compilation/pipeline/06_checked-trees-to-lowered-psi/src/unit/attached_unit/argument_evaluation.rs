@@ -1250,11 +1250,12 @@ impl Evaluation {
         calls: &mut CallEmissionContext<'_>,
         environment: &mut OperationEnvironment<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
-        let call = operation
-            .call()
-            .ok_or(LoweringError::Unsupported("selector has no call"))?;
+        let coordinate = operation
+            .invocation_coordinate()
+            .ok_or(LoweringError::Unsupported("selector has no invocation"))?;
         let argument =
-            call.structural_arguments
+            operation
+                .structural_operands()
                 .get(argument)
                 .ok_or(LoweringError::Unsupported(
                     "selector has no structural actual",
@@ -1281,7 +1282,7 @@ impl Evaluation {
                     .find(|source| {
                         source.root == *root
                             && source.state == state
-                            && source.statement_ordinal == call.coordinate.statement_index
+                            && source.statement_ordinal == coordinate.statement_index
                     })
                     .ok_or(LoweringError::Unsupported(
                         "call selector lost its source computation",

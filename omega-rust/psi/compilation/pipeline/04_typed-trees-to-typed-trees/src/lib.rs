@@ -12,6 +12,7 @@ mod expression_roots;
 mod monomorphization;
 mod operators;
 mod preparation;
+mod rebound_parameter_homes;
 mod tables;
 
 pub use preparation::{

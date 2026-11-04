@@ -38,6 +38,7 @@ pub(super) struct Completion<'a, 'program, 'shapes> {
     pub(super) prepared_calls:
         &'a mut crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     pub(super) calls: &'a [&'a checked_trees::FlowCallFact],
+    pub(super) statement_end: std::ops::Bound<usize>,
     pub(super) binders: &'a [(SymbolHandle, String)],
     pub(super) scalar_control: Option<checked_trees::CheckedUnitScalarControlPlan>,
     pub(super) operations: Vec<OperationPlan>,
@@ -70,6 +71,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         owner_candidates,
         prepared_calls,
         calls,
+        statement_end,
         binders,
         scalar_control,
         mut operations,
@@ -236,10 +238,14 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             // returning call, including reference shells and views. Argument
             // presentation (`add_type`) may name its referent and cannot
             // classify this value.
+            trace.phase("statement sequence: returned value type");
+            trace.statement(Some(root.statement_ordinal));
             let mut result =
                 checked_structural_result_type(program, shapes, state.return_type, binders)?;
             result.statement_index = root.statement_ordinal;
             result.binding_ordinal = u32::try_from(structural_count).ok()?;
+            trace.phase("statement sequence: returned value producer");
+            trace.statement(Some(root.statement_ordinal));
             let establishment = structural_operands::establish_value(
                 facts,
                 result.clone(),
@@ -250,6 +256,8 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 &mut operations,
             )?;
             operations.push(establishment);
+            trace.phase("statement sequence: returned value exit");
+            trace.statement(Some(root.statement_ordinal));
             return_binding(result)
         }
     } else if let Some((ordinal, expression)) = tail
@@ -417,11 +425,24 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         let statements = typed_trees::statement::reachable_state_statements(
             program.statement_table.statements(state.statement_nodes),
         );
-        // A tail that transfers control to a named state produces no scalar
-        // completion; the state terminator owns those exits.
-        if !matches!(statements.last(), Some(StatementNode::Transition(_))) {
-            let expression = statements.last()?.as_expression()?;
-            let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
+        let completion_index = statements.len().checked_sub(1)?;
+        // A call excluded from this sequence belongs to a graph edge. Its
+        // retained root must not execute here before that edge transfers.
+        // Pure final values retain their separate completion after the prefix.
+        let order = program
+            .statement_table
+            .admitted_execution_order(state.statement_nodes);
+        let end_position = order.prefix_end(statement_end)?;
+        let owns_completion =
+            super::super::terminal_invocation(program, machine, state, completion_index).is_none()
+                || order
+                    .position(completion_index)
+                    .is_some_and(|position| position < end_position);
+        if owns_completion
+            && let Some(expression) =
+                super::super::completion_expression(program, machine, state, completion_index)
+        {
+            let statement_index = u32::try_from(completion_index).ok()?;
             let role = CheckedScalarExpressionRole::Return;
             let computations = &facts.values.scalar_computations;
             let mut roots =
@@ -431,7 +452,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                     || !computations.is_authored_root(
                         root,
                         machine.symbol,
-                        *expression,
+                        expression,
                         primitive_type,
                     )
                     || facts
@@ -449,7 +470,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                     statement_index,
                     role,
                 )?;
-                if binding.expression != *expression
+                if binding.expression != expression
                     || crate::values::scalar_expression_type(value) != Some(primitive_type)
                 {
                     return None;

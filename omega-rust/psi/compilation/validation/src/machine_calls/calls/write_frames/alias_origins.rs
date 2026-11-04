@@ -55,7 +55,25 @@ pub(crate) fn stable_local_reference_alias_origin(
     // backing-origin lane instead of its initializer.
     let access = local_declared_reference_access(program, local)?;
     if !access.is_exclusive() && !include_shared {
-        return None;
+        let origin = stable_alias_initializer_origin(
+            program,
+            current_machine,
+            machine_symbols,
+            inference,
+            local.initial_value,
+            parameters,
+            isolated_local_roots,
+            aliases,
+            divergent_aliases,
+            symbols,
+            true,
+            stored,
+        )?;
+        return (origin.source.root.is_valid()
+            && parameters
+                .iter()
+                .any(|parameter| parameter.symbol == origin.source.root))
+        .then_some(origin);
     }
     if include_shared {
         return reference_subjects::backing_origin(

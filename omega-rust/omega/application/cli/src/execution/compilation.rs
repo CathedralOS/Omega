@@ -100,6 +100,7 @@ pub(super) fn interpret_product(
             "report lost its produced Terminal artifact before execution",
         ))?;
     terminal_runtime::execute(TerminalRuntimeRequest {
+        native_image: report.retained_native_artifact(),
         entry: None,
         filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,
         // `run` executes this product on the same host, natively or through

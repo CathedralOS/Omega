@@ -24,6 +24,18 @@ pub(crate) fn field_requires_place_observation(
     let Some(primitive) = program.primitive_type_reference(leaf_type) else {
         return false;
     };
+    // If the record's predicate depends on this field, keep its owning record
+    // with the exclusive loan. Handback must restore that predicate,
+    // independently of the scalar's own storage restrictions.
+    if access != checked_trees::CheckedStructuralAccess::SharedBorrow
+        && program
+            .any_field_owner(field)
+            .is_some_and(|(definition, field)| {
+                !validation::data_field_is_where_independent(program, definition, field)
+            })
+    {
+        return true;
+    }
     match retain_scalar_field(
         program,
         leaf_type,
@@ -99,15 +111,10 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
     primitive: PrimitiveType,
     stated: Option<(Option<i64>, Option<i64>)>,
 ) -> Option<FieldType> {
-    // The owning data's interval-only `where` facts restrict the field as a
-    // bracketed range did: every write establishes them and every read may
-    // assume them. An unstated side is the carrier's own extreme.
-    let mut declared_bounds: Option<(BigInt, BigInt)> = stated.map(|(lower, upper)| {
-        (
-            lower.map_or_else(|| BigInt::from_i128(i128::MIN), BigInt::from_i64),
-            upper.map_or_else(|| BigInt::from_u128(u128::MAX), BigInt::from_i64),
-        )
-    });
+    // Plain scalar slots keep their own type restrictions. An enclosing data
+    // predicate can be temporarily unproved and is restored as a whole-record
+    // obligation, rather than imposed on every store to this slot.
+    let mut declared_bounds: Option<(BigInt, BigInt)> = None;
     let mut has_non_exact_domain = false;
     let mut predicate = None;
     loop {
@@ -242,10 +249,22 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
             _ => return None,
         }
     }
-    let atomic = matches!(program.type_reference_table.type_reference(type_reference),
-        TypeReferenceNode::Named { symbol, .. }
-            if program.symbols.builtin_type_atom(*symbol).is_some_and(|atom| atom.is_atomic()));
+    let atomic = validation::is_atomic_type(program, type_reference);
     if atomic {
+        // Each atomic observation must see a valid resident. Unlike an
+        // exclusively borrowed plain record, it cannot expose a temporary
+        // invalid value between stores. Preserve its declared resident bounds.
+        if let Some((lower, upper)) = stated {
+            let lower = lower.map_or_else(|| BigInt::from_i128(i128::MIN), BigInt::from_i64);
+            let upper = upper.map_or_else(|| BigInt::from_u128(u128::MAX), BigInt::from_i64);
+            declared_bounds = Some(match declared_bounds {
+                Some((previous_lower, previous_upper)) => {
+                    (previous_lower.max(lower), previous_upper.min(upper))
+                }
+                None => (lower, upper),
+            });
+        }
+
         if predicate.is_some() || has_non_exact_domain {
             return None;
         }

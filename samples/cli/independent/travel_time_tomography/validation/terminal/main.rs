@@ -88,6 +88,7 @@ fn validate(sample: &Path, output: &Path) -> Result<(), String> {
             .ok_or("non-UTF8 fixture name")?;
         let input = std::fs::read(&fixture).map_err(|error| error.to_string())?;
         let observation = terminal_runtime::execute(TerminalRuntimeRequest {
+            native_image: None,
             entry: None,
             native_provider: None,
             native_services: Default::default(),

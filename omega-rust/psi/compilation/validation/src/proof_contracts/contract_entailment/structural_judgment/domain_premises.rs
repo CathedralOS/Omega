@@ -1082,19 +1082,13 @@ impl StructuralJudge<'_> {
         else {
             return;
         };
-        // General default domains may have an open restoration window. Only
-        // the interval-only store rule guarantees these facts at every scalar
-        // read; a necessary consequence of a mixed predicate is insufficient.
+        // An enclosing record's default predicate may be temporarily unproved.
+        // Only the scalar's own declared storage restriction applies without a
+        // separate current-value proof; later restoration cannot refine this copy.
         let declared = crate::proof_contracts::arithmetic_domains::enforced_declared_range_interval(
             program, reference,
         );
-        let standing = crate::proof_contracts::default_domains::stored_field_where_interval(
-            program, machine, state, expression,
-        );
-        let bounds = declared
-            .into_iter()
-            .chain(standing)
-            .fold(carrier, |bounds, restriction| bounds.intersect(restriction));
+        let bounds = declared.map_or(carrier, |restriction| carrier.intersect(restriction));
         // The captured value already retains its physical carrier. Only a
         // declaration refinement supplies additional observation premises.
         if bounds == carrier {

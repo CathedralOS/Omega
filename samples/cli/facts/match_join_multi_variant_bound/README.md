@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | match join result returned directly from helper machine call |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | match join result converged across secondary match arms |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | match join bounds and mode instance declared in named constants |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | match join result passed across state transition boundary |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | match join result of a `Mode` parameter (known only through its requirement) passed through the one private arrival of a nested machine |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | match join result evaluated and consumed inside intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | match join result evaluated across target-scoped machine bodies |
 
@@ -53,16 +53,11 @@ with the exact-arithmetic obligation
 (``exact arithmetic in machine `run` state `entry` local `diff1` may overflow
 `u64`: the operands are not provably in range (decision 17 -- exact arithmetic
 is a proof obligation)``, pinned as ``may overflow `u64` `` in each twin's
-`expected.txt`). The local, field, parameter, call-result and const-name
-places receive the mode as a formal parameter, as `other_machine` always did:
-if `main` passed its constant `Mode::Mid { val: 40 }` straight into the helper,
-the checker would substitute that exact actual and read the result 40, so the
-twin's widened `High` gate would never be consulted. The match-join and
-nested-machine places still pass the constant, so their twins still compile:
-with a formal input the match-join positive does not lower ("does not lower a
-statement of it yet (outer calls: ordered statement call)") and the nested
-machine `step` does not receive the joined bound (`60u64 - val` may overflow).
-Those are open compiler gaps, not fixture choices.
+`expected.txt`). Every place except the root receives the mode as a formal
+parameter, as `other_machine` always did: if `main` passed its constant
+`Mode::Mid { val: 40 }` straight into the helper, the checker would substitute
+that exact actual and read the result 40, so the twin's widened `High` gate
+would never be consulted.
 Corrupting the observed
 transition instead of the bound (`diff1 == 20 && diff2 == 20` to
 `diff1 == 21 && diff2 == 20`) routes to `bad()`, which executes `crash Trap;`;
@@ -74,9 +69,7 @@ both engines abort non-zero (`native signal 5` with
 Each place has an `invalid/` reject twin that widens only the `High` variant's
 payload gate (`val <= 60` to `val <= 61`); everything else is identical to its
 positive (verified with `git diff`). Proof checking fails closed during
-compile-time verification with the fragment named in the twin's `expected.txt`,
-except for the match-join and nested-machine twins, which still compile
-because their places pass a constant (see above):
+compile-time verification with the fragment named in the twin's `expected.txt`:
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
@@ -84,9 +77,9 @@ because their places pass a constant (see above):
 | field | [`field/invalid/main.omg`](field/invalid/main.omg) | ``may overflow `u64` `` |
 | parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | ``may overflow `u64` `` |
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | ``may overflow `u64` `` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | ``may overflow `u64` `` (still compiles: open gap) |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | ``may overflow `u64` `` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | ``may overflow `u64` `` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | ``may overflow `u64` `` (still compiles: open gap) |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | ``may overflow `u64` `` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | ``may overflow `u64` `` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | ``may overflow `u64` `` |
 
@@ -95,8 +88,7 @@ because their places pass a constant (see above):
 The row is pinned by
 `tests/omega/{pass,fail}/facts/match_join_multi_variant_bound_through_*`
 fixtures; every positive records native exit 0 and Terminal agreement, and
-every twin except match join and the nested machine records its rejection
-with the expected fragment. The nine pass
+every twin records its rejection with the expected fragment. The nine pass
 fixtures are byte-identical copies of their place programs, and the nine fail
 fixtures are byte-identical copies of their twins, so sample and fixture cannot
 drift apart.
@@ -107,7 +99,12 @@ Every positive and reject row above is recorded on all three corpus legs,
 measured with the generation pair built in this worktree at `93038434623`
 (`corpus_runner`, opt_level 1, sha256 `24ef21394030`; sibling `omega` sha256
 `bc33b4787586`) and anchored with the tree at the published base
-`4fba1ca3cd5a`, so each row stamps `@4fba1ca3cd5a+wt`
+`4fba1ca3cd5a`, so each row stamps `@4fba1ca3cd5a+wt`. The other_state,
+local, field, parameter, call_result, match_join and const_name rows were
+re-recorded on Linux after those places moved into a `run` machine taking `Mode`
+as a parameter; their macOS and
+Windows rows still describe the earlier literal-value source and are
+unverified
 (`python3 tools/corpus_gate.py --record --runner <pair>/corpus_runner`, then
 `--native --record`, then `--both --record`, filtered to
 `facts/match_join_multi_variant_bound,facts/match_join_place_read`):
@@ -115,7 +112,7 @@ measured with the generation pair built in this worktree at `93038434623`
 | Leg | Rows | Result |
 | --- | --- | --- |
 | check | `pass/facts/match_join_multi_variant_bound_through_<place>_exit` | `checked`, `check-target:macos_arm64` |
-| check twins | `fail/facts/match_join_multi_variant_bound_through_<place>_rejected` | `rejected`, `expected`; 0 rejected without the expected fragment |
+| check twins | `fail/facts/match_join_multi_variant_bound_through_<place>_rejected` | `rejected`, `expected` |
 | native | the same nine in `corpus_native_macos_arm64.txt` | `built`, `exit:0` |
 | both | the same nine in `corpus_both_macos_arm64.txt` | `built`, `exit:0`, `interpreter-exit:0`, `interpreter:agrees` |
 
@@ -157,13 +154,13 @@ Full 8-layer specification and lowering evidence:
   - `other_machine`: match join result is forwarded through intermediate machine `runner()`.
   - `target_body`: match join dispatch is executed across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in weakening the `High` variant payload gate to `val <= 61` (widening the joined interval to `[20, 61]`), proving that `60u64 - joined` strictly fails closed at compile time when any arm allows underflow.
-- **Soundness boundaries:** Seven of the nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`) with `error: exact arithmetic in machine <machine> state <state> local \`diff1\` may overflow \`u64\`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation)` (the pinned ``may overflow `u64` `` fragment; the owner names move with the place — `run`/`entry` for local, field, parameter, call result and const name, `runner` for another machine, `exercise` for another target body), confirming that the arithmetic proof engine soundly detects that when `joined` can be 61, `60u64 - joined` may underflow `u64`.
+- **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`) with `error: exact arithmetic in machine <machine> state <state> local \`diff1\` may overflow \`u64\`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation)` (the pinned ``may overflow `u64` `` fragment; the owner names move with the place — `run`/`entry` for local, field, parameter, call result, match join and const name, `step` for a nested machine, `runner` for another machine, `exercise` for another target body), confirming that the arithmetic proof engine soundly detects that when `joined` can be 61, `60u64 - joined` may underflow `u64`.
 - **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Multi-variant sum types and exhaustive match joins lower into canonical target-neutral `PSITERM\0` representation, preserving interval arithmetic certificates and control-flow join structures. Both Terminal Psi interpretation and native execution agree (`omega run --both` reports exit 0).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Target realization joins Build companion rows (`ProgramEntry`) across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Layout geometry for `Mode` allocates an 8-byte discriminant tag plus 8-byte payload slot (16 bytes total, 8-byte alignment), and calling plans assign register homes for scalar values across calling conventions.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for discriminant comparison, branch jumps, and 64-bit subtractions (`sub`). Disjoint activation stack frames and register homes are allocated with entry prologues and restoration epilogues honoring the `StatePlan` frame ceiling.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (`omega run --both` reports `native exit 0` and `interp exit: 0`) across all hosted targets.
 
-Remaining open: the match-join and nested-machine places do not yet carry the bound with a formal input. The match-join positive does not lower ("does not lower a statement of it yet (outer calls: ordered statement call)" in `run::entry`, statement 0), and the nested machine `step` loses the joined bound (`60u64 - val` may overflow), so those two twins still compile. Also open under `CANONICALIZE-SCALAR-RANGE-CONTRACTS` / `MATCH-SELECTIVE-LOWERING`: non-exhaustive pattern coverage inference with unreachable default traps, multi-payload tuple-variant destructuring joins, and arbitrary disjoint interval-set unions. This row closes only the exhaustive three-variant case join whose arms share one interval gate.
+Remaining open under `CANONICALIZE-SCALAR-RANGE-CONTRACTS` / `MATCH-SELECTIVE-LOWERING`: non-exhaustive pattern coverage inference with unreachable default traps, multi-payload tuple-variant destructuring joins, and arbitrary disjoint interval-set unions. This row closes only the exhaustive three-variant case join whose arms share one interval gate.
 
 ## Build-owned target-body migration
 

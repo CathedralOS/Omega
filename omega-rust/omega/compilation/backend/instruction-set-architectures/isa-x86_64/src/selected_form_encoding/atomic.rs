@@ -23,7 +23,7 @@
 
 use super::{X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint};
 use crate::register_model::units;
-use crate::selected_form_encoding::instruction_bytes::{modrm, rex};
+use crate::selected_form_encoding::instruction_bytes::{append_boolean, modrm, rex};
 use register_model::RegisterViewId;
 use selected_instructions::{
     AtomicForm, AtomicOperation, AtomicWidth, MachineEncodedControlEffect, MachineEncodedEffects,
@@ -40,13 +40,6 @@ pub(crate) const fn writes_rflags(operation: AtomicOperation) -> bool {
     !matches!(operation, AtomicOperation::Load | AtomicOperation::Store)
 }
 
-const fn retries_bitwise_update(operation: AtomicOperation) -> bool {
-    matches!(
-        operation,
-        AtomicOperation::FetchAnd | AtomicOperation::FetchOr | AtomicOperation::FetchXor
-    )
-}
-
 pub(crate) fn effects(form: AtomicForm) -> MachineEncodedEffects {
     let mut effects = MachineEncodedEffects {
         memory: MachineEncodedMemoryEffect::AtomicPointerV1 {
@@ -56,17 +49,20 @@ pub(crate) fn effects(form: AtomicForm) -> MachineEncodedEffects {
         trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ..MachineEncodedEffects::fallthrough_v1(
             (0..form.operation.input_count()).collect(),
-            form.observed_operand().into_iter().collect(),
+            form.output_operands().collect(),
         )
     };
     if writes_rflags(form.operation) {
         effects.implicit_unit_clobbers.extend(units("rflags"));
     }
-    if form.operation == AtomicOperation::CompareExchange || retries_bitwise_update(form.operation)
+    if matches!(
+        form.operation,
+        AtomicOperation::CompareExchange | AtomicOperation::CompareExchangeOnce
+    ) || form.operation.is_bitwise_fetch()
     {
         effects.implicit_unit_clobbers.extend(units("rax"));
     }
-    if retries_bitwise_update(form.operation) {
+    if form.operation.is_bitwise_fetch() {
         effects.control = MachineEncodedControlEffect::AtomicRetryUntilCommitV1;
     }
     effects.implicit_unit_clobbers.sort_unstable();
@@ -80,9 +76,8 @@ pub(crate) fn footprint(
     X86_64SelectedFormFootprint {
         register_reads: operands[..usize::from(form.operation.input_count())].to_vec(),
         register_writes: form
-            .observed_operand()
+            .output_operands()
             .map(|output| operands[usize::from(output)])
-            .into_iter()
             .collect(),
         writes_rflags: writes_rflags(form.operation),
         encoded: effects(form),
@@ -168,20 +163,24 @@ fn validate_registers(
     // The observed output is an early-clobber definition: it may not share
     // a register with any input the form reads, because the realization
     // writes into it before the LOCK form runs.
-    if let Some(observed) = form.observed_operand() {
-        let output = registers[usize::from(observed)];
-        if registers[..usize::from(form.operation.input_count())].contains(&output) {
+    for output_operand in form.output_operands() {
+        let output = registers[usize::from(output_operand)];
+        if registers[..usize::from(output_operand)].contains(&output) {
             return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
         }
     }
     // CMPXCHG reads the expected input from RAX: only that operand is
     // pinned; the observed output is copied out of RAX after the LOCK form.
-    if form.operation == AtomicOperation::CompareExchange && registers[1] != 0 {
+    if matches!(
+        form.operation,
+        AtomicOperation::CompareExchange | AtomicOperation::CompareExchangeOnce
+    ) && registers[1] != 0
+    {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
     // RAX is the loop's private comparison, written before either input is
     // consumed by all attempts. None of the external homes may alias it.
-    if retries_bitwise_update(form.operation) && registers.contains(&0) {
+    if form.operation.is_bitwise_fetch() && registers.contains(&0) {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok(())
@@ -230,7 +229,7 @@ pub(crate) fn encode(
             append_memory_modrm(&mut bytes, source, base);
             bytes.extend([0x0f, 0xae, 0xf0]);
         }
-        AtomicOperation::CompareExchange => {
+        AtomicOperation::CompareExchange | AtomicOperation::CompareExchangeOnce => {
             let replacement = registers[2];
             append_width_prefixes(&mut bytes, width, true, true, bits == 64, replacement, base);
             bytes.extend([0x0f, if bits == 8 { 0xb0 } else { 0xb1 }]);
@@ -238,6 +237,10 @@ pub(crate) fn encode(
             // CMPXCHG leaves the observed prior cell in RAX; the observed
             // output register receives it from there.
             copy_into_observed(&mut bytes, registers[3], 0);
+            if let Some(outcome) = form.outcome_operand() {
+                // CMPXCHG's flags report whether that same instruction committed.
+                append_boolean(&mut bytes, registers[usize::from(outcome)], 4);
+            }
         }
         AtomicOperation::Swap => {
             let register = registers[2];
@@ -312,12 +315,14 @@ mod tests {
     };
     use target::NativeTarget;
 
-    const fn form_registers(form: AtomicForm) -> [u8; 4] {
+    const fn form_registers(form: AtomicForm) -> [u8; 5] {
         match form.operation {
-            AtomicOperation::Load => [2, 3, 0, 0],
-            AtomicOperation::Store => [2, 5, 0, 0],
-            AtomicOperation::CompareExchange => [2, 0, 6, 7],
-            _ => [2, 5, 6, 0],
+            AtomicOperation::Load => [2, 3, 0, 0, 0],
+            AtomicOperation::Store => [2, 5, 0, 0, 0],
+            AtomicOperation::CompareExchange | AtomicOperation::CompareExchangeOnce => {
+                [2, 0, 6, 7, 8]
+            }
+            _ => [2, 5, 6, 0, 0],
         }
     }
 
@@ -420,6 +425,9 @@ mod tests {
                 AtomicOperation::CompareExchange => {
                     vec![views[0], views[1], views[3], views[4]]
                 }
+                AtomicOperation::CompareExchangeOnce => {
+                    vec![views[0], views[1], views[2], views[3], views[4]]
+                }
                 _ => vec![views[0], views[2], views[3]],
             };
             let kind = SelectedInstructionKind::AtomicAccess { form };
@@ -443,7 +451,7 @@ mod tests {
                 )
                 .is_err()
             );
-            if let Some(output) = form.observed_operand() {
+            for output in form.output_operands() {
                 let mut aliased = operand_views.clone();
                 aliased[usize::from(output)] = operand_views[0];
                 assert!(
@@ -469,7 +477,7 @@ mod tests {
         );
         for form in AtomicForm::ALL
             .into_iter()
-            .filter(|form| retries_bitwise_update(form.operation))
+            .filter(|form| form.operation.is_bitwise_fetch())
         {
             for operand in 0..3 {
                 let mut homes = [2, 1, 8];

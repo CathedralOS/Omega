@@ -183,6 +183,19 @@ Unknown-field handling and historical migration are explicit codec contracts,
 not an automatic consequence of sharing T. Geometry-only and one-way views do
 not falsely promise complete conversion. See [representation conversions](../spec/layouts/codecs.md#representation-conversions).
 
+## When Layout Is Needed
+
+Importing a library does not calculate every layout used by its unused code.
+A console-only program need not lay out unused filesystem records merely
+because they live in the same library. Source checks still apply to that code.
+
+An actual storage, layout query, entry or selected Build-row closure demands
+the corresponding concrete layout, which must validate before use. Rows for
+other declared targets count even when only one target is emitted. A later
+consumer can therefore reveal an incompatibility in a previously unused layout;
+deferral does not make that layout valid or weaken memory-access requirements.
+See [layout demand and validation](../spec/layouts/plans.md#layout-demand-and-validation).
+
 ## Alignment And Padding
 
 Review field offsets and sizes, alignment, padding, total extent and target

@@ -58,6 +58,7 @@ fn catalog() -> StructuralTypeCatalog {
         schema,
         image_fields: vec![StructuralFieldId::new(12).unwrap()],
         storage: TerminalAccessStorage {
+            owner: terminal_psi::TerminalAccessOwner::Extent,
             carrier: StructuralTypeId::new(13).unwrap(),
             base: StructuralFieldId::new(14).unwrap(),
             length: StructuralFieldId::new(15).unwrap(),
@@ -115,6 +116,16 @@ fn recovery_preserves_complete_placement_catalog_and_its_identity() {
         {
             let mut lifecycle = catalog.access_lifecycles().to_vec();
             lifecycle[0].image_fields.clear();
+            catalog.clone().with_access_lifecycles(lifecycle).unwrap()
+        },
+        {
+            let mut lifecycle = catalog.access_lifecycles().to_vec();
+            lifecycle[0].storage.owner = terminal_psi::TerminalAccessOwner::Run {
+                carrier: StructuralTypeId::new(23).unwrap(),
+                storage: StructuralFieldId::new(24).unwrap(),
+                count: StructuralFieldId::new(25).unwrap(),
+                singleton: Some(StructuralDomainId::new(26).unwrap()),
+            };
             catalog.clone().with_access_lifecycles(lifecycle).unwrap()
         },
     ] {

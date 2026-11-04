@@ -168,6 +168,31 @@ pub(super) fn append_state_borrow_facts(
             call_frames,
             &current_loans,
         );
+        let mut call_ordinal = 0usize;
+        collect_statement_borrow_calls(
+            program,
+            machine,
+            state,
+            statement_index,
+            statement,
+            &mut call_ordinal,
+            arenas.access_segments,
+            arenas.argument_accesses,
+            arenas.calls,
+            &mut calls_span,
+        );
+        let completed_references = super::calls::append_reference_custody(
+            program,
+            machine,
+            state,
+            statement_index,
+            call_frames,
+            arenas,
+            calls_span,
+            &mut loans_span,
+            state_loan_trackers,
+            &statement_entry_loans,
+        )?;
         let pending_loans = statement_borrow_loans(
             program,
             state,
@@ -177,6 +202,7 @@ pub(super) fn append_state_borrow_facts(
             &current_loans,
             call_frames,
             replacement.as_ref(),
+            completed_references.as_deref(),
         )
         .map_err(|reason| {
             Diagnostic::error(format!(
@@ -201,31 +227,6 @@ pub(super) fn append_state_borrow_facts(
             statement_index,
             Default::default(),
         );
-        let mut call_ordinal = 0usize;
-        collect_statement_borrow_calls(
-            program,
-            machine,
-            state,
-            statement_index,
-            statement,
-            &mut call_ordinal,
-            arenas.access_segments,
-            arenas.argument_accesses,
-            arenas.calls,
-            &mut calls_span,
-        );
-        super::calls::append_reference_custody(
-            program,
-            machine,
-            state,
-            statement_index,
-            call_frames,
-            arenas,
-            calls_span,
-            &mut loans_span,
-            state_loan_trackers,
-            &statement_entry_loans,
-        )?;
     }
 
     update_state_loan_last_uses(

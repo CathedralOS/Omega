@@ -18,11 +18,11 @@ data Instrument {
 machine Instrument::run(instrument: &mut Instrument) reaches Console {
     Calibration::initialize(&mut instrument.calibration);
     Console::write_line("row stimulus branch prediction observed residual width (response milliunits)");
-    transition { _ -> read(instrument) }
+    transition { _ -> block read(instrument) }
     machine read(instrument: &mut Instrument) {
         let input: LineReadResult = block Console::read_line(&mut instrument.buffer);
         transition input {
-            LineReadResult::LineComplete { count } -> bounded(instrument, count)
+            LineReadResult::LineComplete { count } -> block bounded(instrument, count)
             LineReadResult::EndOfInput { count } -> end_of_input(instrument, count)
             _ -> invalid(instrument)
         }
@@ -35,20 +35,20 @@ machine Instrument::run(instrument: &mut Instrument) reaches Console {
     }
     machine bounded(instrument: &mut Instrument, count: u64) {
         transition count <= 64 {
-            true -> parse(instrument, count)
+            true -> block parse(instrument, count)
             false -> invalid(instrument)
         }
     }
     machine parse(instrument: &mut Instrument, count: u64) requires count <= 64 {
         let parsed: Input = parse_line(&instrument.buffer[0..count]);
         transition parsed {
-            Input::Sample { stimulus, observed } -> validate(instrument, stimulus, observed)
+            Input::Sample { stimulus, observed } -> block validate(instrument, stimulus, observed)
             Input::Invalid -> invalid(instrument)
         }
     }
     machine validate(instrument: &mut Instrument, stimulus: i32 in Wrapping, observed: i32 in Wrapping) {
         transition stimulus <= 100 && observed <= 200000 && instrument.trace.rows < 256 {
-            true -> analyze(instrument, stimulus, observed)
+            true -> block analyze(instrument, stimulus, observed)
             false -> range_error(instrument)
         }
     }
@@ -61,9 +61,9 @@ machine Instrument::run(instrument: &mut Instrument) reaches Console {
         number(instrument.trace.rows);
         field(stimulus);
         transition instrument.trace.branch {
-            1 -> calibrated(instrument, forward, observed, width, "forward")
-            2 -> calibrated(instrument, reverse, observed, width, "reverse")
-            _ -> ambiguous(instrument, observed, width)
+            1 -> block calibrated(instrument, forward, observed, width, "forward")
+            2 -> block calibrated(instrument, reverse, observed, width, "reverse")
+            _ -> block ambiguous(instrument, observed, width)
         }
     }
     machine calibrated(instrument: &mut Instrument, prediction: i32 in Wrapping, observed: i32 in Wrapping, width: i32 in Wrapping, branch: &[u8]) {
@@ -76,7 +76,7 @@ machine Instrument::run(instrument: &mut Instrument) reaches Console {
         field(residual);
         field(width);
         Console::write_line("");
-        transition { _ -> read(instrument) }
+        transition { _ -> block read(instrument) }
     }
     machine ambiguous(instrument: &mut Instrument, observed: i32 in Wrapping, width: i32 in Wrapping) {
         Console::write(" ambiguous NA");
@@ -84,7 +84,7 @@ machine Instrument::run(instrument: &mut Instrument) reaches Console {
         Console::write(" NA");
         field(width);
         Console::write_line("");
-        transition { _ -> read(instrument) }
+        transition { _ -> block read(instrument) }
     }
     machine summary(instrument: &mut Instrument) {
         Console::write("forward count sum_abs max_abs");

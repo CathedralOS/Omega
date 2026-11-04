@@ -3,7 +3,6 @@ use crate::unit_validation::structural_catalog::{
     resolve_runtime_projection, resolve_structural_path,
 };
 use abstract_operations::AbstractOperation as O;
-use abstract_operations::AbstractStructuralCallResult;
 use abstract_operations::StructuralCallFormal;
 use abstract_operations::element_view_or_byte_subslice_pattern;
 use optimization_unit::PsiOptimizationFunction;
@@ -1191,44 +1190,15 @@ pub(crate) fn structural_operation_result_contract<'a>(
     caller: &'a PsiOptimizationFunction,
     operation: &'a O,
 ) -> Option<StructuralSourceContract<'a>> {
-    let (result, access) = match operation {
-                // Activation-local storage supplies loans, never owned escape.
-                O::EstablishPrimitiveLocal { result, .. } => {
-                    (result, StructuralAccess::MutableBorrow)
-                }
-                element_view_or_byte_subslice_pattern!(result, ..) => {
-                    (result, view_access(caller, operation)?)
-                }
-                // The view's source access IS the loan's access: a mutable
-                // establishment lends mutable, a shared one lends shared.
-                O::EstablishElementView { result, .. } => (result, view_access(caller, operation)?),
-                O::EstablishScalarArray { result, .. } | O::EstablishStructuralArray { result, .. }
-                | abstract_operations::establish_case_or_record_result_pattern!(result)
-                | O::EstablishActivationClaim { result, .. }
-            | O::EstablishZeroedStructural { result, .. }
-                | O::EstablishStructuralLocal { result, .. }
-                | O::EstablishReference { result, .. }
-                | O::EstablishAccessReference { result, .. }
-                // The moved subtree leaves the window as an owned whole value;
-                // the repair store consumes it with exactly that custody.
-                | O::MoveStructuralField { result, .. }
-                // A leaf copy establishes fresh owned storage the way an
-                // establishment does: consumers must not alias it back into
-                // the readable root's custody.
-                | O::EstablishByteSequenceConcatenation { result, .. }
-                | O::StructuralLeafCopy { result, .. }
-                | O::MoveStructuralValue { result, .. }
-                | O::TransformContent { result, .. }
-                | O::CallStructural {
-                    result: AbstractStructuralCallResult::Structural { result, .. },
-                    ..
-                }
-                | O::BoundaryCall {
-                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
-                    ..
-                } => (result, StructuralAccess::Owned),
-                _ => return None,
-            };
+    let metadata = operation.structural_result_metadata()?;
+    let access = match metadata.role {
+        abstract_operations::StructuralResultRole::OwnedValue => StructuralAccess::Owned,
+        abstract_operations::StructuralResultRole::PrimitiveLocalStorage => {
+            StructuralAccess::MutableBorrow
+        }
+        abstract_operations::StructuralResultRole::ViewRecipe => view_access(caller, operation)?,
+    };
+    let result = metadata.result;
     Some(StructuralSourceContract {
         caller,
         place: result.place,

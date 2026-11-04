@@ -734,6 +734,10 @@ establishes the exact predicate once; subsequent operations preserve it through
 their contracts instead of implicitly rescanning. Reading a byte does not break
 the encoding, while a slice preserving UTF-8 must prove codepoint-boundary
 endpoints. Mutation must preserve or re-establish the facts on affected places.
+For [declared local and field qualifications](dependent_values.md#lent-storage-retains-its-declared-domains),
+this includes loan handback after a call, even when the callee receives a view
+with the encoding qualification erased. An additional entry-only fact over
+otherwise unqualified storage remains distinct from a declared storage obligation.
 An abstract codepoint-text quotient is distinct from any chosen byte encoding;
 its observers obey [quotient contracts](../proofs/quotients.md).
 

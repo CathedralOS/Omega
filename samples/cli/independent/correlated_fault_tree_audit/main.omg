@@ -21,10 +21,10 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    transition { _ -> read(main) }
+    transition { _ -> block read(main) }
     machine read(main: &mut Main) {
         transition main.bytes >= 0 && main.bytes < 256 {
-            true -> byte(main)
+            true -> block byte(main)
             _ -> invalid(main)
         }
     }
@@ -34,18 +34,18 @@ machine Main::main(main: &mut Main) reaches Console {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> end(main)
-            ByteRead::Byte { value } -> classify(main, value)
+            ByteRead::Byte { value } -> block classify(main, value)
         }
     }
     machine classify(main: &mut Main, value: i32) {
         transition value >= 48 && value <= 57 {
-            true -> digit(main, value)
-            _ -> separator(main, value)
+            true -> block digit(main, value)
+            _ -> block separator(main, value)
         }
     }
     machine digit(main: &mut Main, value: i32) {
         transition main.digits >= 0 && main.digits < 7 {
-            true -> accumulate(main, value)
+            true -> block accumulate(main, value)
             _ -> invalid(main)
         }
     }
@@ -54,25 +54,25 @@ machine Main::main(main: &mut Main) reaches Console {
         main.token = main.token * 10 + (value as i32 in Wrapping) - 48;
         main.digits = main.digits + 1;
         transition main.token <= 1000000 {
-            true -> read(main)
+            true -> block read(main)
             _ -> invalid(main)
         }
     }
     machine separator(main: &mut Main, value: i32) {
         transition value == 32 || value == 9 || value == 10 || value == 13 {
-            true -> flush(main)
+            true -> block flush(main)
             _ -> invalid(main)
         }
     }
     machine flush(main: &mut Main) {
         transition main.digits > 0 {
-            true -> store(main)
-            _ -> read(main)
+            true -> block store(main)
+            _ -> block read(main)
         }
     }
     machine store(main: &mut Main) {
         transition main.position >= 0 && main.position < 13 {
-            true -> save(main)
+            true -> block save(main)
             _ -> invalid(main)
         }
     }
@@ -82,7 +82,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.position = main.position + 1;
         main.token = 0;
         main.digits = 0;
-        transition { _ -> read(main) }
+        transition { _ -> block read(main) }
     }
     machine end(main: &mut Main) {
         transition main.digits > 0 {

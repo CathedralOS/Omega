@@ -40,7 +40,7 @@ The applicable requirements are:
   target-scoped bodies select the same operation with explicit arguments.
 - Soundness: a shared receiver authorizes the dedicated event without granting
   ordinary writes. Illegal orderings and Boolean arithmetic remain rejected.
-- Psi 06–08: one normalized access event retains ordering and operand identity;
+- Psi 05–07: one normalized access event retains ordering and operand identity;
   the fence remains a separate location-free event. No load/store split occurs.
 - Omega 00–02: exact declared atomic-cell identity supplies the logical type;
   the physical byte mapping supplies width/alignment and ordinary calling homes.
@@ -48,6 +48,9 @@ The applicable requirements are:
   resolves Boolean operands/results and retains their proper register type.
 - Omega 07–09: the existing byte-width instruction encoding and Boolean result
   normalization emit the native product. Execution must agree with Terminal Psi.
+
+<details>
+<summary>Earlier Linux qualification</summary>
 
 On Linux x86-64, the optimized producer at
 `666e562d988fc2e8f0f32620192e7f56ec469e42` passes all nine places,
@@ -57,11 +60,19 @@ Every executable observation reports native exit 0 and Terminal exit 0.
 The pinned placed-accessor controls independently admit permitted load/store and
 reject the same operation with its exact placement permission removed.
 See [validation](validation.json) for producer identity and observation commands.
-Linux x86-64 is the available execution host. Other hosted targets need matching
-host observations. Serial agreement proves no publication/fence synchronization,
-contention behavior, memory-model axioms or target-refinement theorem.
-**TR3-TR8** still gates the concurrent witnesses. Bounded atomic resident
-predicates and non-observing exchanges remain separate open acceptance.
+</details>
+
+The current qualification at source `1ee74504bebfd3a945fc250a58abdfeb474f4a5a` executes all
+nine pinned positives, the root and composition on all four hosted targets,
+with native exit 0 and Terminal exit 0. All nine ordering twins and four
+ordinary-access controls reject as authored. See the
+[single-attempt parent qualification](../atomic_compare_exchange_once/README.md#validation-and-remaining-scope)
+for exact run identities and the shared focused scope.
+
+Serial agreement proves no publication/fence synchronization, contention
+behavior, memory-model axiom or target-refinement theorem. **TR3-TR8** still
+gates concurrent witnesses. The other atomic operations and non-observing
+exchanges retain their separate open acceptance.
 
 ## Build-owned target-body migration
 
@@ -70,7 +81,4 @@ The `target_body` place and its twin carry no source target prefix.
 implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
 by explicit target-keyed Build rows. The operation, inputs, contracts and exit
 oracle are unchanged. The entry wrapper and each implementation check a tag
-(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
-Linux x86-64 native and Terminal Psi agreement for the positive and source
-rejection for the twin; the other hosted targets keep their authored rows,
-unexecuted here.
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. The selected target place is included in the current matching-host scope above.

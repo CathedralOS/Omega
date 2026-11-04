@@ -134,21 +134,24 @@ impl Execution<'_, '_, '_> {
             });
     }
 
+    /// A joined view is projectable only if every retained alternative is.
+    /// Missing reference metadata or an enclosure supplies no typed field path.
+    pub(super) fn backing_allows_projection(&self, value: &FlowOperandFact) -> bool {
+        if !value.retention.is_valid() {
+            // Owned storage can have independently captured coordinates without
+            // carrying any borrowed lifetime. A reference needs its profile.
+            return !self.is_view_type(value.type_reference);
+        }
+        retained_backing_allows_projection(&self.context.control, value.retention)
+    }
+
     pub(super) fn completed_backing_places(
         &mut self,
         value: &FlowOperandFact,
     ) -> Option<Vec<CanonicalPlace>> {
-        let profile = self
-            .context
-            .control
-            .operand_retentions
-            .is_valid(value.retention)
-            .then(|| self.context.control.operand_retentions.get(value.retention));
         // An enclosure names the source interpretation, not typed coordinates
         // of this descriptor. Even a same-shaped type cannot project it.
-        if profile.is_some_and(|profile| {
-            profile.enclosing_storage.is_valid() || !profile.enclosing_regions.is_empty()
-        }) {
+        if !self.backing_allows_projection(value) {
             return None;
         }
         let places = if !value.referents.is_empty() {
@@ -252,5 +255,107 @@ impl Execution<'_, '_, '_> {
             }
         }
         (!backing.is_empty()).then_some(backing)
+    }
+}
+
+fn retained_backing_allows_projection(
+    control: &checked_trees::FlowControlFacts,
+    retention: Handle<FlowOperandRetention>,
+) -> bool {
+    let profiles = &control.operand_retentions;
+    if !profiles.is_valid(retention) {
+        return false;
+    }
+    let root = profiles.get(retention);
+    if root.enclosing_storage.is_valid() || !root.enclosing_regions.is_empty() {
+        return false;
+    }
+    if root.alternatives.is_empty() {
+        return true;
+    }
+    let mut remaining = profiles.len();
+    let mut pending = vec![(retention, false)];
+    let mut active = std::collections::HashSet::new();
+    let mut completed = std::collections::HashSet::new();
+    while let Some((handle, leaving)) = pending.pop() {
+        if leaving {
+            active.remove(&handle);
+            completed.insert(handle);
+            continue;
+        }
+        if completed.contains(&handle) {
+            continue;
+        }
+        if !profiles.is_valid(handle) || !active.insert(handle) {
+            return false;
+        }
+        let Some(next) = remaining.checked_sub(1) else {
+            return false;
+        };
+        remaining = next;
+        let profile = profiles.get(handle);
+        if profile.enclosing_storage.is_valid() || !profile.enclosing_regions.is_empty() {
+            return false;
+        }
+        pending.push((handle, true));
+        if !profile.alternatives.is_empty() {
+            if profiles.span(profile.alternatives).is_none() {
+                return false;
+            }
+            pending.extend(profile.alternatives.handles().map(|handle| (handle, false)));
+        }
+    }
+    true
+}
+
+#[cfg(test)]
+mod backing_profiles_tests {
+    use super::retained_backing_allows_projection;
+    use arena::Handle;
+    use checked_trees::{FlowControlFacts, FlowOperandRetention};
+
+    #[test]
+    fn backing_profiles_keep_enclosures_after_joins() {
+        let mut control = FlowControlFacts::default();
+        let leaf = control
+            .operand_retentions
+            .insert_many([FlowOperandRetention::default()]);
+        let shared = control.operand_retentions.insert_many([
+            FlowOperandRetention {
+                alternatives: leaf,
+                ..Default::default()
+            },
+            FlowOperandRetention {
+                alternatives: leaf,
+                ..Default::default()
+            },
+        ]);
+        let joined = control.operand_retentions.insert(FlowOperandRetention {
+            alternatives: shared,
+            ..Default::default()
+        });
+        // Both alternatives share a tail; sharing alone is not a cycle.
+        assert!(retained_backing_allows_projection(&control, joined));
+        control
+            .operand_retentions
+            .get_mut(leaf.handles().next().unwrap())
+            .enclosing_storage = Handle::from_arena_index(1);
+        // The wrapper must not turn one alternative's enclosure into an address.
+        assert!(!retained_backing_allows_projection(&control, joined));
+    }
+
+    #[test]
+    fn backing_profiles_reject_cycles_and_missing_rows() {
+        let mut control = FlowControlFacts::default();
+        let cycle = control
+            .operand_retentions
+            .insert_many([FlowOperandRetention::default()]);
+        let root = cycle.handles().next().unwrap();
+        control.operand_retentions.get_mut(root).alternatives = cycle;
+        assert!(!retained_backing_allows_projection(&control, root));
+        assert!(!retained_backing_allows_projection(
+            &control,
+            Handle::from_arena_index(999)
+        ));
     }
 }

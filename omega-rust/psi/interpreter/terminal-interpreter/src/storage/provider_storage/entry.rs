@@ -189,7 +189,38 @@ impl TerminalExecution<'_> {
                     )
                     .is_ok_and(|active| active)
                         && project_structural_value(&self.structural_types(), value, &claim.path)
-                            .is_ok_and(|selected| StructuralRuntimePlace::from(&selected) == *home)
+                            .is_ok_and(|selected| {
+                                if selected.opaque_identity != home.opaque_identity {
+                                    return false;
+                                }
+                                let Some(relative) =
+                                    home.path.strip_prefix(selected.path.as_slice())
+                                else {
+                                    return false;
+                                };
+                                // A whole linear owner owns inline backing fields,
+                                // but not the storage reached through a borrow or
+                                // slice descriptor it happens to contain.
+                                terminal_semantics::projection_stays_in_inline_storage(
+                                    self.structural_types().values(),
+                                    selected.structural_type,
+                                    relative,
+                                ) && case_projection_in_value_is_active(
+                                    &self.structural_types(),
+                                    &selected,
+                                    self.structural_cases.as_map(),
+                                    relative,
+                                )
+                                .is_ok_and(|active| active)
+                                    && project_structural_value(
+                                        &self.structural_types(),
+                                        &selected,
+                                        relative,
+                                    )
+                                    .is_ok_and(|backing| {
+                                        StructuralRuntimePlace::from(&backing) == *home
+                                    })
+                            })
                 })
             })
     }

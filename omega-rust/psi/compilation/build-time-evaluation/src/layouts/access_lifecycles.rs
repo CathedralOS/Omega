@@ -12,6 +12,7 @@ use crate::machine_execution::admission::{BuildTimeAdmissionPlan, BuildTimeInvoc
 use language_semantics::Multiplicity;
 
 mod demands;
+mod storage_contract;
 
 pub fn retain_access_lifecycle_plans(
     program: FrozenTypedTrees,
@@ -95,6 +96,8 @@ pub fn retain_access_lifecycle_plans(
             )
             .map_err(diagnostic)?,
         };
+        let storage = storage_contract::check(&program, demand.callable, demand.operation)
+            .map_err(|error| vec![error.with_source_span(source)])?;
         let invocations = program
             .access_policy_invocations
             .insert_many(demand.sources);
@@ -108,6 +111,7 @@ pub fn retain_access_lifecycle_plans(
                 policy_machine: policy_machine_symbol,
                 invocations,
                 placement,
+                storage,
             });
     }
     Ok(program.into())

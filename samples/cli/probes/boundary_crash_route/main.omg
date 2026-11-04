@@ -1,8 +1,9 @@
 // boundary_crash_route: boundary machines and conditional crash routes —
 // the first sample declaring a `boundary machine` and satisfying it.
 //
-//   * `boundary machine == Comparison::equal` overloads `==` for i32
-//     through the Comparison carrier and declares a conditional crash
+//   * `boundary machine == Comparison::equal` overloads `==` for
+//     `i32 in Compared`, the probe's own domain home (bare i32 operands
+//     would join the core's primitive family), through the Comparison carrier and declares a conditional crash
 //     route: `crashes Trap !(right >= 0)` — any `==` whose right operand
 //     can't be proven non-negative propagates the Trap route.
 //   * `ComparisonProvider::equal` satisfies the boundary machine — the
@@ -14,13 +15,15 @@
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
-boundary machine == Comparison::equal(left: i32, right: i32) -> bool
+public domain i32::Compared;
+
+boundary machine == Comparison::equal(left: i32 in Compared, right: i32 in Compared) -> bool
 crashes Trap !(right >= 0);
 
 data Comparison { }
 data ComparisonProvider { }
 
-machine ComparisonProvider::equal(left: i32, right: i32) -> bool
+machine ComparisonProvider::equal(left: i32 in Compared, right: i32 in Compared) -> bool
     satisfies Comparison::equal
 {
     transition left < right {
@@ -29,16 +32,16 @@ machine ComparisonProvider::equal(left: i32, right: i32) -> bool
     }
 }
 
-public machine safe(value: i32) -> bool
+public machine safe(value: i32 in Compared) -> bool
 requires value >= 0 {
     1 == value
 }
 
-machine may_crash(left: i32, right: i32) -> bool {
+machine may_crash(left: i32 in Compared, right: i32 in Compared) -> bool {
     left == right
 }
 
-public machine wrapper(left: i32, right: i32) -> bool
+public machine wrapper(left: i32 in Compared, right: i32 in Compared) -> bool
 crashes Trap {
     may_crash(left, right)
 }

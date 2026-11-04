@@ -1,31 +1,29 @@
-//! Fixed-work atomic forms for targets admitting FEAT_LSE.
+//! Atomic accesses return the value observed by their own native event.
 //!
-//! LDAR/STLR and acquire-release LSE updates provide the sequentially
-//! consistent baseline mapping. The source's requested order is checked
-//! upstream; stronger native ordering never repairs an illegal source order.
-//! Every update returns the value observed by that same indivisible event.
-//! Subtraction negates its input before LDADD; AND complements before LDCLR;
-//! CAS copies its expected input into the observed output before CASAL.
-//! These prefixes preserve incoming registers and do not touch memory or NZCV.
-//! There are no hidden software retries or helper calls.
+//! Baseline AArch64 supplies LDAR/STLR and one bounded exclusive-load/store
+//! attempt. Bitwise fetch uses a checked exclusive retry loop on every target;
+//! the other LSE updates remain admitted only where the target promises LSE.
+//! Every source ordering is checked upstream; conservative native barriers
+//! cannot repair an illegal source ordering. Bitwise retry work is explicit
+//! in its effect record. Single-attempt exchange never enters that loop.
 //!
-//! This encoding module describes LSE, not generic AArch64 availability.
-//! The target's machine catalog admits it only for the Apple Silicon macOS
-//! baseline; ELF remains unadmitted until it has explicit feature custody.
-//! Encodings follow Arm's A64 instruction definitions, independently pinned
-//! by LLVM's `llvm/test/MC/AArch64/armv8.1a-atomic.s` assembler vectors.
+//! LSE encodings follow Arm's A64 definitions and LLVM's
+//! `llvm/test/MC/AArch64/armv8.1a-atomic.s` assembler vectors.
+
+mod bitwise_update;
+mod compare_exchange_once;
 
 use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterViewId};
 use selected_instructions::{
     AtomicForm, AtomicOperation, MachineAlternativeFamily, MachineBarrier,
-    MachineEffectDeclaration, MachineEncodedEffects, MachineEncodedMemoryEffect,
-    MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
 pub(crate) fn effects(form: AtomicForm) -> MachineEncodedEffects {
-    MachineEncodedEffects {
+    let mut effects = MachineEncodedEffects {
         memory: MachineEncodedMemoryEffect::AtomicPointerV1 {
             pointer_operand: 0,
             form,
@@ -33,9 +31,35 @@ pub(crate) fn effects(form: AtomicForm) -> MachineEncodedEffects {
         trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ..MachineEncodedEffects::fallthrough_v1(
             (0..form.operation.input_count()).collect(),
-            form.observed_operand().into_iter().collect(),
+            form.output_operands().collect(),
         )
+    };
+    if form.operation.is_bitwise_fetch() {
+        effects.control = MachineEncodedControlEffect::AtomicRetryUntilCommitV1;
+        effects.implicit_unit_clobbers = ["x16", "x17"]
+            .into_iter()
+            .flat_map(|name| {
+                crate::register_model::aarch64_physical_register_model_ref()
+                    .view_named(name)
+                    .expect("canonical AArch64 scratch register")
+                    .units
+                    .iter()
+                    .copied()
+            })
+            .collect();
+        effects.implicit_unit_clobbers.sort_unstable();
     }
+    if form.outcome_operand().is_some() {
+        // Catalog replay checks this canonical NZCV roster against the
+        // instruction's required clobber; a missing roster cannot admit it.
+        effects.implicit_unit_clobbers =
+            crate::register_model::aarch64_physical_register_model_ref()
+                .view_named("nzcv")
+                .into_iter()
+                .flat_map(|view| view.units.iter().copied())
+                .collect();
+    }
+    effects
 }
 
 pub(crate) fn declaration(
@@ -49,7 +73,15 @@ pub(crate) fn declaration(
         MachineTrapBehavior::MayArchitecturalFaultV1,
         MachineBarrier::ExternalEffect,
         MachineAlternativeFamily::AtomicAccess(form),
-        MachineSizeKnowledge::ExactBytes(if has_prefix(form.operation) { 8 } else { 4 }),
+        MachineSizeKnowledge::ExactBytes(if form.operation.is_bitwise_fetch() {
+            bitwise_update::BYTE_COUNT
+        } else if form.outcome_operand().is_some() {
+            compare_exchange_once::byte_count(form.width)
+        } else if has_prefix(form.operation) {
+            8
+        } else {
+            4
+        }),
         effects(form),
     )
 }
@@ -61,11 +93,10 @@ pub(crate) fn footprint(
     Aarch64SelectedFormFootprint {
         register_reads: operands[..usize::from(form.operation.input_count())].to_vec(),
         register_writes: form
-            .observed_operand()
+            .output_operands()
             .map(|output| operands[usize::from(output)])
-            .into_iter()
             .collect(),
-        writes_nzcv: false,
+        writes_nzcv: form.outcome_operand().is_some(),
         encoded: effects(form),
     }
 }
@@ -73,7 +104,7 @@ pub(crate) fn footprint(
 const fn has_prefix(operation: AtomicOperation) -> bool {
     matches!(
         operation,
-        AtomicOperation::FetchSub | AtomicOperation::FetchAnd | AtomicOperation::CompareExchange
+        AtomicOperation::FetchSub | AtomicOperation::CompareExchange
     )
 }
 
@@ -84,8 +115,11 @@ fn validate_registers(
     if registers.len() != usize::from(form.operand_count()) {
         return Err(Aarch64SelectedFormEncodingError::OperandCountMismatch);
     }
+    if form.operation.is_bitwise_fetch() && registers != bitwise_update::REGISTERS {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
     if registers.iter().any(|register| *register > 30)
-        || form.observed_operand().is_some_and(|output| {
+        || form.output_operands().any(|output| {
             registers[..usize::from(output)].contains(&registers[usize::from(output)])
         })
     {
@@ -99,6 +133,12 @@ pub(crate) fn encode(
     registers: &[u8],
 ) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
     validate_registers(form, registers)?;
+    if form.operation.is_bitwise_fetch() {
+        return bitwise_update::encode(form);
+    }
+    if form.outcome_operand().is_some() {
+        return compare_exchange_once::encode(form.width, registers);
+    }
     let address = u32::from(registers[0]);
     let size = u32::from(form.width.ordinal()) << 30;
     let mut words = Vec::new();
@@ -125,13 +165,6 @@ pub(crate) fn encode(
                     source = observed;
                     0
                 }
-                AtomicOperation::FetchAnd => {
-                    words.push(0xaa20_03e0 | source << 16 | observed);
-                    source = observed;
-                    1
-                }
-                AtomicOperation::FetchOr => 3,
-                AtomicOperation::FetchXor => 2,
                 AtomicOperation::Swap => 8,
                 AtomicOperation::FetchAdd => 0,
                 _ => return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
@@ -150,6 +183,12 @@ pub(crate) fn validate(
     bytes: &[u8],
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
     validate_registers(form, registers)?;
+    if form.operation.is_bitwise_fetch() {
+        return bitwise_update::validate(form, bytes);
+    }
+    if form.outcome_operand().is_some() {
+        return compare_exchange_once::validate(form.width, registers, bytes);
+    }
     let expected_count = if has_prefix(form.operation) { 2 } else { 1 };
     if bytes.len() != expected_count * 4 {
         return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
@@ -160,7 +199,6 @@ pub(crate) fn validate(
         let prefix = u32::from_le_bytes(words[0]);
         let opcode = match form.operation {
             AtomicOperation::FetchSub => 0xcb00_03e0,
-            AtomicOperation::FetchAnd => 0xaa20_03e0,
             AtomicOperation::CompareExchange => 0xaa00_03e0,
             _ => return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
         };
@@ -192,9 +230,6 @@ pub(crate) fn validate(
         operation => {
             let opcode = match operation {
                 AtomicOperation::FetchAdd | AtomicOperation::FetchSub => 0,
-                AtomicOperation::FetchAnd => 1,
-                AtomicOperation::FetchXor => 2,
-                AtomicOperation::FetchOr => 3,
                 AtomicOperation::Swap => 8,
                 _ => return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
             };
@@ -217,7 +252,7 @@ mod tests {
     use selected_instructions::{AtomicWidth, MachineAlternativeKey, SelectedInstructionKind};
 
     #[test]
-    fn atomic_catalog_requires_an_lse_target_and_binds_exact_effects() {
+    fn atomic_catalog_keeps_lse_only_updates_separate_from_baseline_forms() {
         let physical = register_model::validate_physical_register_model(
             crate::aarch64_physical_register_model(),
         )
@@ -232,8 +267,15 @@ mod tests {
             target::NativeTarget::linux_arm64(),
         ] {
             let catalog = crate::aarch64_machine_effect_catalog(target, &constraints).unwrap();
-            let available = target == target::NativeTarget::macos_arm64();
             for form in AtomicForm::ALL {
+                let available = target == target::NativeTarget::macos_arm64()
+                    || form.operation.is_bitwise_fetch()
+                    || matches!(
+                        form.operation,
+                        AtomicOperation::Load
+                            | AtomicOperation::Store
+                            | AtomicOperation::CompareExchangeOnce
+                    );
                 let semantic = MachineSemanticKind::AtomicAccess(form);
                 assert_eq!(
                     catalog.selected_keys.for_semantic(semantic).is_some(),
@@ -252,10 +294,14 @@ mod tests {
     }
 
     #[test]
-    fn atomic_words_pin_lse_encoding_and_reject_every_changed_bit() {
+    fn atomic_words_pin_encoding_and_reject_every_changed_bit() {
         for form in AtomicForm::ALL {
-            let registers = [2, 0, 1, 3];
-            let registers = &registers[..usize::from(form.operand_count())];
+            let ordinary = [2, 0, 1, 3, 4];
+            let registers = if form.operation.is_bitwise_fetch() {
+                &bitwise_update::REGISTERS[..]
+            } else {
+                &ordinary[..usize::from(form.operand_count())]
+            };
             let bytes = encode(form, registers).unwrap();
             validate(form, registers, &bytes).unwrap();
             reject_every_bit_flip(&bytes, &format!("{form:?}"), |changed| {
@@ -263,11 +309,8 @@ mod tests {
             });
             assert!(validate(form, registers, &bytes[..bytes.len() - 1]).is_err());
         }
-        // LLVM assembler vectors: ldeoral x0,x1,[x2]; swpal x0,x1,[x2].
-        for (operation, expected) in [
-            (AtomicOperation::FetchXor, [0x41, 0x20, 0xe0, 0xf8]),
-            (AtomicOperation::Swap, [0x41, 0x80, 0xe0, 0xf8]),
-        ] {
+        // Retain the independent LSE swap assembler vector.
+        for (operation, expected) in [(AtomicOperation::Swap, [0x41, 0x80, 0xe0, 0xf8])] {
             assert_eq!(
                 encode(
                     AtomicForm {
@@ -283,14 +326,76 @@ mod tests {
     }
 
     #[test]
+    fn single_attempt_words_match_baseline_armv8_assembler_vectors() {
+        // clang -target aarch64-linux-gnu -march=armv8-a. Narrow cases must
+        // truncate a sign-extended expected carrier before raw comparison.
+        for (width, load, normalization, comparison, store) in [
+            (
+                AtomicWidth::Bits8,
+                0x085f_fc03,
+                Some(0x5300_1c24),
+                0x6b04_007f,
+                0x0804_fc02,
+            ),
+            (
+                AtomicWidth::Bits16,
+                0x485f_fc03,
+                Some(0x5300_3c24),
+                0x6b04_007f,
+                0x4804_fc02,
+            ),
+            (
+                AtomicWidth::Bits32,
+                0x885f_fc03,
+                None,
+                0x6b01_007f,
+                0x8804_fc02,
+            ),
+            (
+                AtomicWidth::Bits64,
+                0xc85f_fc03,
+                None,
+                0xeb01_007f,
+                0xc804_fc02,
+            ),
+        ] {
+            let mut words: Vec<u32> = vec![0xd503_3fbf, load];
+            words.extend(normalization);
+            words.extend([
+                comparison,
+                0x5400_0081,
+                store,
+                0x1100_0484,
+                0x1400_0003,
+                0xd503_3f5f,
+                0x5280_0004,
+                0xd503_3fbf,
+            ]);
+            let expected = words
+                .into_iter()
+                .flat_map(u32::to_le_bytes)
+                .collect::<Vec<_>>();
+            let form = AtomicForm {
+                operation: AtomicOperation::CompareExchangeOnce,
+                width,
+            };
+            assert_eq!(encode(form, &[0, 1, 2, 3, 4]).unwrap(), expected);
+        }
+    }
+
+    #[test]
     fn atomic_public_encoder_binds_registers_effects_and_output_interference() {
         let physical = register_model::validate_physical_register_model(
             crate::aarch64_physical_register_model(),
         )
         .unwrap();
-        let views =
-            ["x2", "x0", "x1", "x3"].map(|name| physical.model().view_named(name).unwrap().id);
         for form in AtomicForm::ALL {
+            let views = if form.operation.is_bitwise_fetch() {
+                ["x9", "x10", "x11", "x3", "x4"]
+            } else {
+                ["x2", "x0", "x1", "x3", "x4"]
+            }
+            .map(|name| physical.model().view_named(name).unwrap().id);
             let operands = &views[..usize::from(form.operand_count())];
             let kind = SelectedInstructionKind::AtomicAccess { form };
             let alternative = MachineAlternativeKey {
@@ -313,7 +418,7 @@ mod tests {
                 )
                 .is_err()
             );
-            if let Some(output) = form.observed_operand() {
+            for output in form.output_operands() {
                 let mut aliased = operands.to_vec();
                 aliased[usize::from(output)] = operands[0];
                 assert!(

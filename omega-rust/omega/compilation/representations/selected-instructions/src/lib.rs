@@ -73,3 +73,5 @@ pub use selected_instructions::{
 pub use selected_instructions::{BlockSlotEvent, BlockSlotSummary, SelectedBlocks};
 pub use staged_custody::StagedOptimizedCustodyCore;
 pub use terminal_psi::ByteSequencePredicate;
+
+pub use terminal_psi::{GlobalDescriptorTableOperation, SegmentRegister, SegmentReload};

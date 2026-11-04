@@ -9,6 +9,7 @@ pub fn execute_report(report: compiler::CompileReport, output: &std::path::Path)
     let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
         .expect("named Product publishes portable Terminal");
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+        native_image: report.retained_native_artifact(),
         entry: None,
         filesystem: Default::default(),
         native_services: Default::default(),

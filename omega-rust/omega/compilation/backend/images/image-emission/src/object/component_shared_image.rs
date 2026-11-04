@@ -64,7 +64,7 @@ impl ComponentSharedImage {
         if let Some(bridge) = &self.entry_bridge {
             demand.stack_alignment = demand
                 .stack_alignment
-                .max(u32::from(bridge.request().inbound.stack_alignment))
+                .max(u32::from(bridge.request().inbound.call.stack_alignment))
                 .max(u32::from(bridge.request().internal.stack_alignment));
             demand.ceiling_bytes = demand
                 .ceiling_bytes

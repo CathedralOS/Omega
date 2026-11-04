@@ -13,14 +13,15 @@
 //! and presentation independently; lending never changes the owner's invariants.
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, StateParameter,
-    SymbolHandle, exact_structural_argument_access, names_whole_local,
+    CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, SymbolHandle,
+    exact_structural_argument_access, names_whole_local,
 };
 use crate::execution::terminal_unit::types::{
     byte_sequence_carrier, byte_sequence_type_identity, structural_access_for_type_reference,
 };
 use crate::flow::expressions;
 use checked_trees::CheckedByteSequenceCarrier;
+use typed_trees::types::TypeReferenceHandle;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn loan(
@@ -32,7 +33,7 @@ pub(super) fn loan(
     expression: typed_trees::expression::ExpressionHandle,
     place: &validation::CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,
-    parameter: &StateParameter,
+    parameter: TypeReferenceHandle,
     target_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let symbol = place.root.as_symbol()?;
@@ -47,8 +48,8 @@ pub(super) fn loan(
     else {
         return None;
     };
-    let access = structural_access_for_type_reference(program, parameter.type_reference)?;
-    let formal_carrier = byte_sequence_carrier(program, parameter.type_reference, &[])?;
+    let access = structural_access_for_type_reference(program, parameter)?;
+    let formal_carrier = byte_sequence_carrier(program, parameter, &[])?;
     let shared_view = access == CheckedStructuralAccess::SharedBorrow
         && matches!(
             formal_carrier,
@@ -59,7 +60,7 @@ pub(super) fn loan(
         && super::super::argument_presentation::classify(
             program,
             local.type_reference,
-            parameter.type_reference,
+            parameter,
             target_identity,
             &[],
         )
@@ -90,8 +91,7 @@ pub(super) fn loan(
         )
         || usize::try_from(result.statement_index).ok()? >= call.statement_index
         || (!shared_view && result.type_identity != target_identity)
-        || byte_sequence_type_identity(program, parameter.type_reference, &[], &[])?
-            != target_identity
+        || byte_sequence_type_identity(program, parameter, &[], &[])? != target_identity
         || byte_sequence_type_identity(program, local.type_reference, &[], &[])?
             != result.type_identity
     {
@@ -99,7 +99,7 @@ pub(super) fn loan(
     }
     let declared =
         validation::field_domains::domain_constraint_symbols(program, local.type_reference);
-    if !validation::field_domains::domain_constraint_symbols(program, parameter.type_reference)
+    if !validation::field_domains::domain_constraint_symbols(program, parameter)
         .iter()
         .all(|domain| declared.contains(domain))
     {

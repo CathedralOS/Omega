@@ -589,6 +589,73 @@ pub(super) fn encode(
                     super::structural_types::encode_structural_place(bytes, *place);
                     super::structural_types::encode_structural_type(bytes, structural_type);
                 }
+                LegalizedScalarInstructionKind::ActivateTaskRegister {
+                    service,
+                    entries,
+                    gdt,
+                    task_state,
+                    selector,
+                    scratch,
+                    indices,
+                } => {
+                    bytes.push(131);
+                    bytes.extend_from_slice(&service.get().to_le_bytes());
+                    bytes.extend_from_slice(&entries.to_le_bytes());
+                    for argument in [gdt, task_state, scratch] {
+                        super::structural_types::encode_structural_argument(bytes, argument);
+                    }
+                    bytes.extend_from_slice(&selector.get().to_le_bytes());
+                    for collection in indices {
+                        encode_runtime_indices(bytes, collection);
+                    }
+                }
+                LegalizedScalarInstructionKind::ReadTaskRegister { service } => {
+                    bytes.push(132);
+                    bytes.extend_from_slice(&service.get().to_le_bytes());
+                }
+                LegalizedScalarInstructionKind::ReloadSegmentDescriptors {
+                    service,
+                    entries,
+                    gdt,
+                    kind,
+                    selector,
+                    scratch,
+                    indices,
+                } => {
+                    bytes.push(133);
+                    bytes.push(kind.code());
+                    bytes.extend_from_slice(&service.get().to_le_bytes());
+                    bytes.extend_from_slice(&entries.to_le_bytes());
+                    for argument in [gdt, scratch] {
+                        super::structural_types::encode_structural_argument(bytes, argument);
+                    }
+                    bytes.extend_from_slice(&selector.get().to_le_bytes());
+                    for collection in indices {
+                        encode_runtime_indices(bytes, collection);
+                    }
+                }
+                LegalizedScalarInstructionKind::ReadSegmentSelector { service, register } => {
+                    bytes.push(134);
+                    bytes.push(register.code());
+                    bytes.extend_from_slice(&service.get().to_le_bytes());
+                }
+                LegalizedScalarInstructionKind::GlobalDescriptorTable {
+                    service,
+                    operation,
+                    source,
+                    path,
+                    indices,
+                } => {
+                    bytes.push(130);
+                    bytes.extend_from_slice(&service.get().to_le_bytes());
+                    bytes.push(match operation {
+                        terminal_psi::GlobalDescriptorTableOperation::Store => 0,
+                        terminal_psi::GlobalDescriptorTableOperation::Load => 1,
+                    });
+                    bytes.extend_from_slice(&source.get().to_le_bytes());
+                    super::structural_types::encode_structural_path(bytes, path);
+                    encode_runtime_indices(bytes, indices);
+                }
                 LegalizedScalarInstructionKind::StorageAddress {
                     source,
                     path,

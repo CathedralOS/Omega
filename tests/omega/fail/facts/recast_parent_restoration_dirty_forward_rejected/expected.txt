@@ -1,2 +1,2 @@
-cannot lend restricted field `start`
-default domain is still FALSE
+cannot complete a call at statement 5 in machine `inspect` state `entry`
+`requires` facts of `pair` (data `Pair`) unproved; restore them first

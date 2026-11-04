@@ -1994,6 +1994,14 @@ fn recognize_structural_state_leaves_from<'a>(
                         next_remaining.push((next_judge, skipped_equations));
                     }
                     if matches!(subject_judgment, Some(StructuralJudgment::Refuted)) {
+                        call_entries::exclude_target_calls(
+                            program,
+                            invocation,
+                            state,
+                            statement_index,
+                            transition.source_target.unwrap_or_default(),
+                            visitors,
+                        );
                         continue;
                     }
                     if let Some((definition, variant)) =
@@ -2225,6 +2233,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                 state.symbol,
                                 statement_index,
                                 call_expression,
+                                transition.source_target.unwrap_or_default(),
                                 target_state.symbol,
                             );
                         }

@@ -2,12 +2,10 @@ use console;
 
 // Exact macos_arm64 Console byte/runtime leaves. The named NativeConsole
 // implementation in std/console.omg forwards to these target declarations.
-// Unmigrated sibling leaves retain transitional payload-free `via` syntax.
-// Byte output and process exit are inferred from their exact realization
-// symbols, normalized signatures, package custody, and selected target.
-macos_arm64 machine ConsoleNativeProvider::read_byte() -> ByteRead
+// Each leaf's compiler supply is inferred from its exact realization symbol,
+// normalized signature, package custody, and selected target.
+macos_arm64 boundary machine ConsoleNativeProvider::read_byte() -> ByteRead
     satisfies Console::read_byte
-    via ForeignBinding::CompilerIntrinsic
     crashes Trap
     blocks;
 macos_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)

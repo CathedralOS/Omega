@@ -519,7 +519,10 @@ fn visit_region(
                 }
                 traversal.conditions.truncate(condition_depth);
             }
-            if reachable_cases == 0 || (established_cases > 0 && reachable_cases != 1) {
+            // When checked evidence rules out every case, no payload exists to
+            // dispose; the occurrence's own hook and common fields still run.
+            // A selected case beside any other reachable one is contradictory.
+            if established_cases > 0 && reachable_cases != 1 {
                 return None;
             }
             // Common storage is independent of the active payload. Schedule it

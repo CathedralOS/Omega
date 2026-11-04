@@ -5,17 +5,20 @@ use omega::language::core::process_exit;
 use omega_language_std::process_exit;
 
 data Math {}
-boundary machine % Math::remainder(left: u64, right: u64) -> u64;
+// The operator's declared home: bare primitive operands would join the
+// core's primitive operator family, which only the core may publish.
+domain u64::Operand;
+boundary machine % Math::remainder(left: u64 in Operand, right: u64 in Operand) -> u64;
 
 data DefaultProvider {}
-machine DefaultProvider::remainder(left: u64, right: u64) -> u64
+machine DefaultProvider::remainder(left: u64 in Operand, right: u64 in Operand) -> u64
 satisfies Math::remainder
 {
     transition { _ -> (left | right) }
 }
 
 data SelectedProvider {}
-machine SelectedProvider::remainder(left: u64, right: u64) -> u64
+machine SelectedProvider::remainder(left: u64 in Operand, right: u64 in Operand) -> u64
 satisfies Math::remainder
 {
     transition { _ -> (9) }
@@ -26,8 +29,8 @@ machine named_limit() -> u64 {
 }
 
 machine token_limit() -> u64 {
-    let left: u64 = 7;
-    let right: u64 = 2;
+    let left: u64 in Operand = 7;
+    let right: u64 in Operand = 2;
     transition { _ -> (left % right) }
 }
 

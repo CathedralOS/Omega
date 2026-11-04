@@ -166,6 +166,12 @@ cannot be silently treated as valid or optimized away. Once a dependency is
 admitted, its supplied ordinary declarations retain their normal source checking
 requirements, including unselected target implementations.
 
+Those ordinary source checks do not force concrete layouts for unused bodies.
+[Layout demand](../layouts/plans.md#layout-demand-and-validation) arises from
+actual consumers and selected row/entry closures. Deferring a layout does not
+authorize any operation that needs it: evaluation or execution consuming its
+geometry must first validate the exact application and target facts.
+
 At a join, dependency availability must hold on every incoming path where it is
 used; otherwise an explicit checked preparation is required before that use.
 Branch decisions, staged source and context identities remain part of replay

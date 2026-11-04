@@ -2,6 +2,8 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "data `Counter`'s default domain is still FALSE at state exit"
+    "cannot complete return from machine `fill`",
+    "`requires` facts of `counter`",
+    "unproved; restore them first"
   ]
 }

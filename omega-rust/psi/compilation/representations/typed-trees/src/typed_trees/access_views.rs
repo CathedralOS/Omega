@@ -3,7 +3,7 @@
 mod lifecycle_execution;
 mod primitive_selection;
 mod sealed_accessors;
-pub use lifecycle_execution::AccessExecutionDeclaration;
+pub use lifecycle_execution::{AccessContentShape, AccessExecutionDeclaration};
 pub use primitive_selection::AccessorPrimitive;
 pub use sealed_accessors::{ScalarAccessorDeclaration, ScalarAccessorOperation};
 
@@ -28,6 +28,32 @@ pub enum AccessLifecyclePlan {
         policy_machine: symbols::SymbolHandle,
         invocations: arena::HandleSpan<source::SourceSpan>,
         placement: access_plans::ValidatedAccessPlan,
+        storage: AccessLifecycleStorage,
+    },
+}
+
+/// Checked descriptor and qualification roles for the lifecycle's exact callable.
+/// Lowering maps these identities; it does not rediscover fields or domain names.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct AccessLifecycleStorage {
+    pub carrier: TypeReferenceHandle,
+    pub base: crate::data::DataField,
+    pub length: crate::data::DataField,
+    pub granted: language_semantics::SemanticDomainId,
+    pub vacant: Option<language_semantics::SemanticDomainId>,
+    pub occupied: Option<language_semantics::SemanticDomainId>,
+    pub owner: AccessLifecycleOwner,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum AccessLifecycleOwner {
+    #[default]
+    Extent,
+    Run {
+        carrier: TypeReferenceHandle,
+        storage: crate::data::DataField,
+        count: crate::data::DataField,
+        singleton: Option<language_semantics::SemanticDomainId>,
     },
 }
 

@@ -161,6 +161,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     ));
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            native_code_layouts: None,
             x86_flags: None,
             memory_ordering: None,
             entry: None,

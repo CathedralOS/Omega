@@ -258,7 +258,18 @@ fn bind_profile(
         original.producer,
         borrowed_storage,
     )?;
-    let consumed = argument_storage(module, graph, &mut analysis, caller, position, storage)?;
+    // A run consumes its complete linear owner, while its profile was obtained
+    // for the backing field. Compare that exact projection, not the descriptor
+    // root; matching a parent by address would forget the selected occurrence.
+    let mut backing = storage.clone();
+    if plan.operation == TerminalAccessLifecycleOperation::MoveOut {
+        backing.path.extend(
+            plan.storage
+                .owner_storage_path(&module.structural_types)
+                .ok_or("lifecycle owner lost its exact backing projection")?,
+        );
+    }
+    let consumed = argument_storage(module, graph, &mut analysis, caller, position, &backing)?;
     if supplied != consumed {
         return Err("profile call and lifecycle refer to different extent occurrences");
     }

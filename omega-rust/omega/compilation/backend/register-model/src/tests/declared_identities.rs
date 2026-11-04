@@ -134,6 +134,12 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         port_write: None,
         system_register_read: None,
         system_register_write: None,
+        global_descriptor_table: None,
+        task_register_activate: None,
+        task_register_read: None,
+        code_segment_reload: None,
+        data_segment_reload: None,
+        segment_selector_read: None,
         control_register_read: None,
         control_register_write: None,
         port_register_read: None,
@@ -150,6 +156,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         atomic_store: None,
         atomic_update: None,
         atomic_compare_exchange: None,
+        atomic_compare_exchange_once: None,
         atomic_bitwise_update: None,
         crash: instruction_key(780),
         call_aggregate: Vec::new(),
@@ -274,6 +281,23 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
             !directed_identities[..position].contains(identity),
             "missing, nearest and directed custody must remain distinct"
         );
+    }
+
+    // Choosing a different descriptor or atomic instruction must change the environment.
+    for descriptor in [false, true] {
+        let identities =
+            [None, Some(instruction_key(810)), Some(instruction_key(906))].map(|key| {
+                identity_with(&|row| {
+                    if descriptor {
+                        row.global_descriptor_table = key;
+                    } else {
+                        row.atomic_compare_exchange_once = key;
+                    }
+                })
+            });
+        for (position, identity) in identities.iter().enumerate() {
+            assert!(!identities[..position].contains(identity));
+        }
     }
 
     for changed_target in [

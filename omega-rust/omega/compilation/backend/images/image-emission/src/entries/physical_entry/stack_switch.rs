@@ -64,7 +64,7 @@ fn incoming_stack_piece(location: &ValueLocation) -> Option<(u32, u32)> {
 }
 
 pub(super) fn emit(bridge: &NativeEntryBridge) -> Result<StackSwitch, Diagnostic> {
-    let inbound: &CallPlan = &bridge.request().inbound;
+    let inbound: &CallPlan = &bridge.request().inbound.call;
     let alignment = u32::from(inbound.stack_alignment);
     if inbound.policy.architecture() != target::Architecture::X86_64
         || inbound.entry_control != EntryControl::CallReturn

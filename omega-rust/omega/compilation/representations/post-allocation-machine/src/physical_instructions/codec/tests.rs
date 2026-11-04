@@ -41,39 +41,42 @@ const WRITE_SEMANTICS_OFFSET: usize = 573;
 #[test]
 fn post_allocation_codec_pins_current_schema_at_empty_boundaries() {
     use sha2::Digest;
-    // Version-22 pins were measured after the explicit protocol-domain change.
-    // Historical v21 pins are retained in the merge evidence. Round trips
-    // alone could let the codec and identity drift together.
+    // Pin both encodings so a coordinated codec/identity change remains visible.
+    // The segment-selector vocabulary advances identity v24 and wire version 25.
     let identities = [
-        "18a91a223c167662dc022bd28563fb63715aa1bfa39240bbb5ec84036e871de9",
-        "016b184915ec6e273f581a57a44f3bcca6c92dd8a6c0bfc4911a90a01eaf9072",
-        "6c29af6164b824be348bf17d30ec10f4cc1075a05164c8945fda1984ce6c17dc",
-        "06ed789fb9dbe980427c8f1de269508f765436289a569cffe8c8725a81c8d280",
+        "cd6c834757e1c9473067d94d58fe530377219da6827eda97657ef658adcf0f2b",
+        "2b3f6cd8c1efd65df566ff9a69519b142f17d85f0a0dabc9db6d14f47804f8c1",
+        "40350e523c6f8891f4a0c418f00df83dbdc28247fdb7437ec86f226209604210",
+        "ec8b2b79ab348a2c9658c4b449b48324277aafbff38894f9ff6406e85c28bbfe",
     ];
     let wire_digests = [
-        "0332ff359e3baf8a4174d9c8c616a8b51d43359d8021eb2069b958b197c0cb83",
-        "6bb7ab5439211ea03b1699ab3c379d9276212cb3d86e46a52f4a15a2a7dc9251",
-        "918dc65f3589f99482633ca53f4a544bb801c8a93a389a1fee107262156ff0a1",
-        "5787c93c59b129f9946d2d8b90a91bad1a92db8209d5d877cb054989406a6a74",
+        "29903ae691de4f328bf02554a50deeab50674055af8d99dd27515879df92231d",
+        "d24fc1bc79ca352a613b06ed21caeeb99a5c1b7cc8dd2fc4b36abd528dd0b600",
+        "dd79e06e1d7404825c8f1db3fd3909590f449df7fe3421c4de0e0bbeec0ddf7c",
+        "a1aa3c69f28fda2d0ed0f980cc7d04db9bd1cd97b9768f4a9f8a020fd46d4947",
     ];
-    for variant in 0..4 {
-        let mut source = plan();
-        match variant {
-            1 => source.functions.clear(),
-            2 => source.functions[0].blocks.clear(),
-            3 => source.functions[0].blocks[0].instructions.clear(),
-            _ => {}
-        }
-        source.identity = post_allocation_machine_identity(&source);
-        assert_eq!(
-            crate::digest_encoder::hex(&source.identity.bytes()),
-            identities[variant]
-        );
-        assert_eq!(
-            crate::digest_encoder::hex(&sha2::Sha256::digest(source.encode())),
-            wire_digests[variant]
-        );
-    }
+    let measured = (0..4)
+        .map(|variant| {
+            let mut source = plan();
+            match variant {
+                1 => source.functions.clear(),
+                2 => source.functions[0].blocks.clear(),
+                3 => source.functions[0].blocks[0].instructions.clear(),
+                _ => {}
+            }
+            source.identity = post_allocation_machine_identity(&source);
+            (
+                crate::digest_encoder::hex(&source.identity.bytes()),
+                crate::digest_encoder::hex(&sha2::Sha256::digest(source.encode())),
+            )
+        })
+        .collect::<Vec<_>>();
+    let expected = identities
+        .into_iter()
+        .zip(wire_digests)
+        .map(|(identity, wire)| (identity.to_owned(), wire.to_owned()))
+        .collect::<Vec<_>>();
+    assert_eq!(measured, expected);
 }
 
 #[test]
@@ -341,7 +344,7 @@ fn physical_codec_retains_byte_view_address_family_not_exact_add() {
 #[test]
 fn physical_current_format_rejects_all_retired_versions() {
     let encoded = plan().encode();
-    for version in 0..18_u32 {
+    for version in 0..super::VERSION {
         assert_version_rejected(&encoded, version);
     }
 }

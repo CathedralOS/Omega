@@ -215,7 +215,10 @@ fn cleanup_rows(
     let mut establishment_ordered = Vec::new();
     for disposition_handle in facts
         .contextual_cleanup
-        .state_disposition_handles(machine, state.symbol)
+        .state_disposition_handles(
+            super::owning_cleanup_machine(program, state.symbol),
+            state.symbol,
+        )
     {
         let disposition = facts
             .contextual_cleanup

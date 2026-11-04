@@ -54,6 +54,27 @@ use crate::execution::terminal_unit::types::{
 };
 use checked_trees::CheckedUnitCallableEntry;
 
+/// A composed graph's entry machine is not the owner of every state it
+/// contains: nested-machine bodies are keyed to the machine that declares
+/// their state. Contextual dispositions and storage establishments are
+/// recorded under that owning machine, never under the graph's entry machine.
+pub(in crate::execution::terminal_unit) fn owning_cleanup_machine(
+    program: &dyn ::validation::CheckingInput,
+    state: symbols::SymbolHandle,
+) -> symbols::SymbolHandle {
+    let mut scope = state;
+    while scope.is_valid() {
+        let parent = program.symbols.get(scope).parent;
+        if parent.is_valid()
+            && program.symbols.get(parent).kind == symbols::SymbolKind::Machine
+        {
+            return parent;
+        }
+        scope = parent;
+    }
+    state
+}
+
 /// Construction may temporarily retain both body descriptions of one entry.
 /// They must agree on the signature; ordinary overlap resolution and closure
 /// pruning still choose exactly one complete body before publication.

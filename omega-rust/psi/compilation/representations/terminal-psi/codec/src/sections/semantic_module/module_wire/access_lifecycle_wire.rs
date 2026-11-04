@@ -5,8 +5,8 @@ use super::super::CodecError;
 use super::super::wire::{Reader, Writer, decode_canonical, decode_counted};
 use terminal_psi::{
     NominalDeclarationIdentity, TerminalAccessLifecycleExecution, TerminalAccessLifecycleOperation,
-    TerminalAccessLifecyclePlan, TerminalAccessProfileRequirement, TerminalAccessStorage,
-    TerminalIdentityIndex,
+    TerminalAccessLifecyclePlan, TerminalAccessOwner, TerminalAccessProfileRequirement,
+    TerminalAccessStorage, TerminalIdentityIndex,
 };
 
 /// Retain the exact whole-value operation contracts in native program identity.
@@ -62,6 +62,24 @@ pub(super) fn encode(
     writer.id(plan.schema);
     writer.ids("placement image fields", &plan.image_fields)?;
     writer.id(plan.storage.carrier);
+    match plan.storage.owner {
+        TerminalAccessOwner::Extent => writer.u8(0),
+        TerminalAccessOwner::Run {
+            carrier,
+            storage,
+            count,
+            singleton,
+        } => {
+            writer.u8(1);
+            writer.id(carrier);
+            writer.id(storage);
+            writer.id(count);
+            writer.u8(u8::from(singleton.is_some()));
+            if let Some(singleton) = singleton {
+                writer.id(singleton);
+            }
+        }
+    }
     writer.id(plan.storage.base);
     writer.id(plan.storage.length);
     writer.id(plan.storage.granted);
@@ -128,6 +146,20 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TerminalAccessLifecycleP
     let image_fields = super::super::wire::decode_ids(reader, "placement image field")?;
     let storage = TerminalAccessStorage {
         carrier: reader.id("placement extent carrier")?,
+        owner: match reader.u8()? {
+            0 => TerminalAccessOwner::Extent,
+            1 => TerminalAccessOwner::Run {
+                carrier: reader.id("run owner carrier")?,
+                storage: reader.id("run storage field")?,
+                count: reader.id("run count field")?,
+                singleton: match reader.u8()? {
+                    0 => None,
+                    1 => Some(reader.id("run singleton domain")?),
+                    tag => return Err(CodecError::InvalidTag("run singleton presence", tag)),
+                },
+            },
+            tag => return Err(CodecError::InvalidTag("placement content owner", tag)),
+        },
         base: reader.id("placement extent base field")?,
         length: reader.id("placement extent length field")?,
         granted: reader.id("placement extent grant domain")?,

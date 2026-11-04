@@ -415,10 +415,28 @@ fn field_literal_bounds(
     Some(bounds)
 }
 
-/// The interval a store to `target` must land in when the target is a field
-/// (or an immutable local exclusive loan of a field) of data whose facts are
-/// all interval-only: every store re-proves its own field's interval, which is
-/// then the whole default domain for that field.
+/// Another observer can read an atomic cell between updates, so every atomic
+/// update must preserve its resident bound. Ordinary scalar fields retain their
+/// own type restrictions; enclosing record predicates are checked separately.
+pub(crate) fn atomic_field_interval(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    field: &DataField,
+) -> Option<Interval> {
+    if crate::reference_shell(program, field.type_reference).is_some()
+        || !crate::is_atomic_type(program, field.type_reference)
+    {
+        return None;
+    }
+    data_where_field_intervals(program, definition)?
+        .into_iter()
+        .find(|(symbol, _, _)| *symbol == field.symbol)
+        .map(|(_, low, high)| Interval { low, high })
+}
+
+/// Read the declaration's interval for atomic or policy-governed write checks.
+/// Ordinary stores may leave requirements unproved until restoration, so this
+/// query supplies no proof about current contents.
 pub(crate) fn stored_field_where_interval(
     program: &dyn crate::CheckingInput,
     machine: &Machine,

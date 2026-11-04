@@ -28,6 +28,8 @@ pub(super) fn decode_instruction(
     let unit_clobbers = decode_units(cursor)?;
     let memory = match cursor.byte()? {
         9 => MachineMemoryEffect::TemporaryStackStorageV1,
+        18 => MachineMemoryEffect::TaskRegisterActivationV1,
+        19 => MachineMemoryEffect::SegmentDescriptorReloadV1,
         0 => MachineMemoryEffect::NoneV1,
         1 => MachineMemoryEffect::ReadPointerV1,
         5 => MachineMemoryEffect::HostedReadByteV1,
@@ -141,6 +143,10 @@ fn decode_kind(
                     .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
             }
         }
+        crate::AtomicForm::ONCE_FAMILY_TAG => SelectedInstructionKind::AtomicAccess {
+            form: crate::AtomicForm::from_once_payload(cursor.byte()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+        },
         tag if crate::AtomicForm::from_machine_tag(tag).is_some() => {
             SelectedInstructionKind::AtomicAccess {
                 form: crate::AtomicForm::from_machine_tag(tag)
@@ -541,6 +547,12 @@ fn decode_alternative_for_version(
                     .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
             )
         }
+        tag if tag == u16::from(crate::AtomicForm::ONCE_FAMILY_TAG) => {
+            MachineAlternativeFamily::AtomicAccess(
+                crate::AtomicForm::from_once_payload(cursor.byte()?)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            )
+        }
         _ if atomic.is_some() => MachineAlternativeFamily::AtomicAccess(atomic.unwrap()),
         0 => MachineAlternativeFamily::CompareI64Zero,
         1 => MachineAlternativeFamily::MaterializeI64,
@@ -557,6 +569,13 @@ fn decode_alternative_for_version(
         251 => MachineAlternativeFamily::ModelSpecificRead,
         252 => MachineAlternativeFamily::ModelSpecificWrite,
         253 => MachineAlternativeFamily::ProcessorHalt,
+        259 => MachineAlternativeFamily::GlobalDescriptorTableLoad,
+        260 => MachineAlternativeFamily::GlobalDescriptorTableStore,
+        261 => MachineAlternativeFamily::TaskRegisterActivate,
+        262 => MachineAlternativeFamily::TaskRegisterRead,
+        263 => MachineAlternativeFamily::CodeSegmentReload,
+        264 => MachineAlternativeFamily::DataSegmentReload,
+        265 => MachineAlternativeFamily::SegmentSelectorRead,
         254 => MachineAlternativeFamily::ControlRegisterRead,
         255 => MachineAlternativeFamily::ControlRegisterWrite,
         256 => MachineAlternativeFamily::InterruptControl,
@@ -790,6 +809,25 @@ fn decode_encoded_effects(
             count_operand: cursor.u16()?,
         },
         0 => MachineEncodedMemoryEffect::NoneV1,
+        22 => MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
+            table_pointer_operand: cursor.u16()?,
+            table_byte_count_operand: cursor.u16()?,
+            task_pointer_operand: cursor.u16()?,
+            selector_operand: cursor.u16()?,
+            scratch_pointer_operand: cursor.u16()?,
+            stack_pointer: register_model::RegisterViewId(cursor.u16()?),
+        },
+        23 => MachineEncodedMemoryEffect::SegmentDescriptorReloadV1 {
+            table_pointer_operand: cursor.u16()?,
+            table_byte_count_operand: cursor.u16()?,
+            selector_operand: cursor.u16()?,
+            scratch_pointer_operand: cursor.u16()?,
+            stack_pointer: register_model::RegisterViewId(cursor.u16()?),
+        },
+        21 => MachineEncodedMemoryEffect::WriteFixedPointerV1 {
+            pointer_operand: cursor.u16()?,
+            byte_count: cursor.u16()?,
+        },
         7 => MachineEncodedMemoryEffect::WritePointerV1 {
             pointer_operand: cursor.u16()?,
         },
@@ -1118,7 +1156,7 @@ mod float_result_policy_tests {
         assert_eq!(cursor.remaining(), 0);
         // Neither truncating to the low byte nor accepting an unknown high
         // family may reinterpret the event as a legacy arithmetic alternative.
-        for tag in [259_u16, u16::MAX] {
+        for tag in [266_u16, u16::MAX] {
             encoded[..2].copy_from_slice(&tag.to_le_bytes());
             assert!(decode_alternative(&mut Cursor::new(&encoded)).is_err());
         }

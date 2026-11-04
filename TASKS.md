@@ -180,11 +180,6 @@ retired-syntax deletions to completion.
     calls that move activation claims. Witness: fusing all terminal targets
     refuses `LinuxArm64::plan` with "has no executable body: this compiler does
     not lower a state of it yet (temporary cleanup actions)".
-  - Lower completion-carrier retirement order for nested machines that join
-    activation-claim attempts (`bounded_activation` `through_match_join`,
-    `claim_split_through_match_join`, `named_attempt`: "`main` has no
-    executable body ... (statement sequence: completion carrier retirement
-    order)").
   - Complete the corresponding declaration-model migration in linked
     application repositories.
   Acceptance: source-to-Terminal/native execution agreement (`omega run --both`)
@@ -203,15 +198,16 @@ retired-syntax deletions to completion.
   and [generic inference rule](wiki/spec/language/generics.md) end to end and
   remove integer and float `T [lo..hi]` / `T [lo..=hi]` suffixes after their
   customers migrate.
-  - Carry field/case propositions through construction
-    (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
-    remaining case/aggregate writes, record-field and owned-array
-    predicate handback with current storage versions.
-  - Complete changed-source scalar-loan representation guarantees, common-field
-    case-predicate rosters, and recursive/reference predicate read inventories.
-    Carry the remaining propositions through reads, calls, state joins,
+  - Finish proving field and case requirements when constructing records
+    ([construction checks](omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/construction_predicates.rs)),
+    after the remaining case and aggregate writes, and when returning loans of
+    record fields or updating owned arrays. Use the contents after the write.
+  - Finish checking and lowering loans of scalar fields so their storage
+    restrictions remain enforced. Cover requirements on fields shared by all
+    cases, and track reads through recursive records and references.
+    Preserve the remaining requirements through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/validation/recasts.md), and
-    returns, preserving the audited inventories in
+    returns. Keep the audited coverage in
     [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md).
   - Qualify the applicable migrated filesystem customers' native/Terminal
     oracles with **FILESYSTEM-PLATFORM-SERVICES**.
@@ -456,6 +452,27 @@ retired-syntax deletions to completion.
     introducer ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
     and remove legacy parser/IR consumers and undifferentiated
     `MachineSupplyMode::Boundary`.
+  - Restore the coverage `fail/float/guarded_range_requires_ieee_comparison`
+    lost when authored operators over bare primitive carriers became
+    declaration errors: a guard through a domain-homed `<` over
+    `f64 in <Domain>` must not supply the IEEE range fact, and a domain-homed
+    `+` in an index must not fold to element zero. Blocked because core's
+    bare-`f64` `Float::less` also matches domain-qualified operands
+    (`ambiguous operator spelling '<' has 2 viable candidates`), and a direct
+    guard over such a call fails Psi 04 with `cannot determine the dispatch
+    subject storage type`.
+  - Lower and prove the domain-qualified shapes that fixtures moved off bare
+    primitive operators had to avoid: `&mut` of a `mut` parameter whose type
+    is domain-qualified fails native selection (`SourceCustodyMismatch …
+    borrowed call argument does not match its retained source geometry and
+    ABI`); returning an `i32 in D` parameter as a bare `i32` result fails Psi 06
+    (`checked scalar return completion cannot erase unrelated membership`)
+    without an explicit `as`; `let mut value: i32 in D = start;` with a
+    predicate-free `D` fails with `primitive initializer lost its exact scalar
+    membership correspondence`; and builtin subtraction on a domain-qualified
+    saved local does not establish strict descent, so
+    `fail/termination/saved_rank_authored_operator_rejected` no longer has a
+    passing contrast without its authored `-`.
   Acceptance: `tests/omega/pass/expressions/declared_operator_match_result/`
   (exit 70), `samples/cli/facts/{body_bearing_comparison,generic_comparison_body,projection_call_premise,abstract_signature_call,static_evidence_premise}`,
   `samples/cli/facts/open_index_distributivity` and its necessary additional
@@ -861,6 +878,16 @@ helper that passes does not close an item.
   as one reusable library-authoring path, not recognition of format names or
   attached data machines. Data remains layout-neutral; core/std and community
   policies use the same checked machinery.
+  - Implement [demand-driven layout formation](wiki/spec/layouts/plans.md#layout-demand-and-validation)
+    without an all-target pre-pass for unused bodies. Retain exact application
+    and target demand from entries, selected Build-row closures, transitive
+    helpers/callbacks and compile-time geometry consumers; validate a newly
+    demanded application before use while keeping all ordinary source checks.
+    Pin unused-layout non-evaluation and rejection when that same layout is
+    consumed, including newly selected closures and invalid source in unused
+    bodies. Keep `unselected_target_{helper,callback}_layout_underflow` and
+    `unselected_target_layout_contract` rejecting when another declared target
+    row demands the bad plan, regardless of `--target` output narrowing.
   - Implement transparent `data Alias<...> = TypeExpression;` with all existing
     binder kinds, partial application, computed const arguments, exact machine
     and conformance selection, lifetime/value-subject preservation, public
@@ -1216,17 +1243,18 @@ defines the complete product bar.
     [temporary qualified-view retirement](wiki/spec/language/domains.md#temporary-qualified-views)
     across loan cohorts, and scalar reads/results under
     [copy and publication rules](wiki/spec/language/domains.md#establishment-transport-and-helper-calls).
+    Enforce [lender-domain restoration](wiki/spec/language/dependent_values.md#lent-storage-retains-its-declared-domains)
+    for declared locals through mutable calls and qualification-erased views:
+    `fail/collections/fixed_array_write_rejects_element_domain` must reject,
+    while `pass/domains/qualified_mutable_scalar_input_domain_expires` and
+    `samples/cli/facts/additional_input_domain_mutation` retain entry-only fact
+    expiration over storage that owes no such domain. Preserve restored-call
+    positives and declared-field rejection controls; no encoding-specific check.
   - Lower a borrow of a same-carrier cast: `observe(&(issued as Ticket in
     Ticket::Held))` checks but has no executable body ("earlier whole local
     correspondence"), and `look(&(issued as Ticket))` fails with "completed
     projection has no exact consumer capture", so no erasure positive can
     lend a cast at run time.
-  - Stop a borrowed erasing cast from supplying its erased domain through the
-    remaining routes: a parameter source (`outer(t: Ticket in Ticket::Held)`
-    calling `observe(&(t as Ticket))`), an annotated reference local
-    (`let r: &Ticket in Ticket::Held = &(issued as Ticket)`), and a record
-    holding the reference (`View { t: &(issued as Ticket) }`, then
-    `observe(v.t)`).
   - **DOMAIN-ISSUER-ROUTES:** extend same-project checked ordinary
     issuance/forwarding to cross-package private routes and selected structural
     payloads in
@@ -1391,8 +1419,9 @@ defines the complete product bar.
     placement/allocator contracts with runtime observation, exact location
     validity across view replacement, offsets and moved backing, and admitted
     interpreted geometry for such locations; `ensures` clauses, trait
-    requirement contracts, and contract queries over a field path or a slice
-    (all currently rejected).
+    requirement contracts, contract queries over a slice, an element or a case
+    payload field, and body queries on a case payload field, which need the
+    active-case proof an ordinary read owes (all currently rejected).
   - Complete remaining flag-producing instructions, remaining AArch64 register
     views, and checked hardware-effect retirement of exact linear obligations on
     every normal exit (assembly body contracts and label `ensures` are proof goals, never
@@ -1825,11 +1854,12 @@ defines the complete product bar.
 - **UNREACHABLE-BRANCH-DIAGNOSTICS.** Report source branches that contradict
   their machine's entry contract or established facts, under
   [unreachable branches](wiki/spec/language/state_contracts.md#unreachable-branches).
-  - Emit an advisory warning identifying the branch and conflicting premises,
-    retaining available source locations and exact subjects/storage versions.
-  - Keep routine generic-specialization and compile-time selection quiet without
-    suppressing contradictions already present in the generic's own contract.
-    Proof-internal impossible cases do not each produce a source warning.
+  - Report branches beyond transition arms and statement-level match arms:
+    matches nested inside other expressions, and the statements after an
+    exit-if transition whose guard always holds.
+  - Name each conflicting premise's source location and exact storage version,
+    and show the warning's location on a successful check (stderr currently
+    prints the message alone).
   Acceptance: focused examples pin warnings for source contradictions and no
   warning for ordinary specialization; warning emission and code pruning do not
   change proof acceptance. Missing, stale or out-of-scope contradiction evidence
@@ -2148,7 +2178,7 @@ defines the complete product bar.
   - Pin dense qualified-float slice reads and domain-preserving mutable writes;
     non-copy relocation with exactly-once observable cleanup and none during move;
     distinct same-typed resource claims, zero-sized obligations, contained borrows,
-    split/rejoin, failed initialization and restored indexed removal. Reject twins
+    split/rejoin and restored indexed removal. Reject twins
     cover forged count/custody, swapped child geometry, non-adjacent merge, duplicate
     extraction, conflicting carry anchors, relocation while borrowed, predicate
     violation and backing return with live cells. Inspect emitted/interpreted run

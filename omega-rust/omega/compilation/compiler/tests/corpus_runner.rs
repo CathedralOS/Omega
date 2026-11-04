@@ -755,6 +755,7 @@ fn interpret_fixture(
     terminal_execution::interpret(
         leg.artifact.artifact(),
         None,
+        None,
         Some(&target),
         fixture_dir,
         fuel_allowance,
@@ -928,6 +929,7 @@ fn interpret_native_report(
     };
     observe_retained_terminal(
         artifact,
+        report.retained_native_artifact(),
         report.runtime_provisions(),
         report
             .runtime_provisions()
@@ -942,6 +944,7 @@ fn interpret_native_report(
 /// observations remain selected by their existing leg, never by a refusal.
 fn observe_retained_terminal(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
+    native_image: Option<&compilation_products::RetainedNativeArtifact>,
     provisions: Option<&compilation_products::TerminalRuntimeProvisions>,
     proposals: &[backend_plan::TerminalTargetProviderProposal],
     target: Option<&str>,
@@ -956,6 +959,7 @@ fn observe_retained_terminal(
         match fixture_input(fixture_dir) {
             Ok(input) => terminal_execution::interpret(
                 artifact,
+                native_image,
                 provisions,
                 target,
                 fixture_dir,
@@ -1032,6 +1036,9 @@ fn build_native_fixture(
     )?;
     let report = &cohort.primary;
     if let Some(capture) = capture {
+        capture
+            .observe_native_entries(report)
+            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
         capture
             .observe_components(report)
             .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
@@ -1480,6 +1487,9 @@ fn realize_fixture(
     )?;
     if let Some(capture) = capture {
         capture
+            .observe_native_entries(&cohort.primary)
+            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+        capture
             .observe_components(&cohort.primary)
             .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
         let artifact = retained_native_terminal(&cohort.primary).ok_or_else(|| {
@@ -1821,6 +1831,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                         }
                         interpreter_observation = Some(observe_retained_terminal(
                             leg.artifact.artifact(),
+                            None,
                             None,
                             leg.artifact
                                 .native_realization_proposal()

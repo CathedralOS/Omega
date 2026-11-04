@@ -8,17 +8,17 @@ data Main { }
 machine Main::main(main: &mut Main) reaches Console crashes Trap {
     let mut configuration: Settings;
     let accepted: bool = block settings(&mut configuration);
-    transition accepted { true -> header(&configuration) _ -> invalid() }
+    transition accepted { true -> block header(&configuration) _ -> invalid() }
     machine header(configuration: &Settings) {
         Console::write_line("raw,code,reconstructed_num,reconstructed_den,clip,error_num,error_den,bound_num,bound_den");
-        transition { _ -> sample(configuration, 0) }
+        transition { _ -> block sample(configuration, 0) }
     }
     machine sample(configuration: &Settings, index: i64 in Wrapping) {
-        transition index < configuration.count { true -> read(configuration, index) _ -> trailing() }
+        transition index < configuration.count { true -> block read(configuration, index) _ -> block trailing() }
     }
     machine read(configuration: &Settings, index: i64 in Wrapping) {
         let raw: i64 in Wrapping = block number();
-        transition raw >= -1000 && raw <= 1000 { true -> convert(configuration, index, raw) _ -> invalid() }
+        transition raw >= -1000 && raw <= 1000 { true -> block convert(configuration, index, raw) _ -> invalid() }
     }
     machine convert(configuration: &Settings, index: i64 in Wrapping, raw: i64 in Wrapping) {
         let mut result: Conversion;
@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         integer(result.error_denominator); Console::write(",");
         integer(result.bound_numerator); Console::write(",");
         integer(result.bound_denominator); Console::write_line("");
-        transition { _ -> sample(configuration, index + 1) }
+        transition { _ -> block sample(configuration, index + 1) }
     }
     machine trailing() {
         let extra: i64 in Wrapping = block number();

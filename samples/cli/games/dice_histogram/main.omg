@@ -39,11 +39,11 @@ machine Main::main(main: &mut Main) reaches Console {
     main.line = "                        ";
     main.st = 1;
     main.n = 0;
-    transition { _ -> roll_loop(main) }
+    transition { _ -> block roll_loop(main) }
 
     // --- roll 60 dice, tally each face ---
     machine roll_loop(main: &mut Main) {
-        transition main.n >= 0 && main.n < 60 { true -> roll(main) _ -> draw_init(main) }
+        transition main.n >= 0 && main.n < 60 { true -> block roll(main) _ -> block draw_init(main) }
     }
     machine roll(main: &mut Main) {
         main.sc = main.st << 13;
@@ -53,23 +53,23 @@ machine Main::main(main: &mut Main) reaches Console {
         main.sc = main.st << 5;
         main.st = main.st ^ main.sc;
         main.v = (main.st % 6) as i32 in Wrapping;
-        transition main.v >= 0 && main.v < 6 { true -> tally(main) _ -> bad(main) }
+        transition main.v >= 0 && main.v < 6 { true -> block tally(main) _ -> block bad(main) }
     }
     machine tally(main: &mut Main) {
         // Read-modify-write straight into the runtime-indexed element (`counts[v] += 1`).
         // The face `v` is proven `>= 0 && < 6` by the guard that reaches this state.
         main.counts[main.v] = main.counts[main.v] + 1;
         main.n = main.n + 1;
-        transition { _ -> roll_loop(main) }
+        transition { _ -> block roll_loop(main) }
     }
 
     // --- render the bar chart, one row per face ---
     machine draw_init(main: &mut Main) {
         main.val = 0;
-        transition { _ -> draw_loop(main) }
+        transition { _ -> block draw_loop(main) }
     }
     machine draw_loop(main: &mut Main) {
-        transition main.val >= 0 && main.val < 6 { true -> draw_row(main) _ -> finish(main) }
+        transition main.val >= 0 && main.val < 6 { true -> block draw_row(main) _ -> block finish(main) }
     }
     machine draw_row(main: &mut Main) {
         // clear, then label "v: " at the start
@@ -79,24 +79,24 @@ machine Main::main(main: &mut Main) reaches Console {
         main.line[1] = 58; // ':'
         main.cnt = main.counts[main.val];
         main.k = 0;
-        transition { _ -> bar_loop(main) }
+        transition { _ -> block bar_loop(main) }
     }
     machine bar_loop(main: &mut Main) {
-        transition main.k >= 0 && main.k < main.cnt { true -> bar_cell(main) _ -> emit_row(main) }
+        transition main.k >= 0 && main.k < main.cnt { true -> block bar_cell(main) _ -> block emit_row(main) }
     }
     machine bar_cell(main: &mut Main) {
         main.bo = main.k + 3;
-        transition main.bo >= 0 && main.bo < 24 { true -> bar_write(main) _ -> emit_row(main) }
+        transition main.bo >= 0 && main.bo < 24 { true -> block bar_write(main) _ -> block emit_row(main) }
     }
     machine bar_write(main: &mut Main) {
         main.line[main.bo] = 35; // '#'
         main.k = main.k + 1;
-        transition { _ -> bar_loop(main) }
+        transition { _ -> block bar_loop(main) }
     }
     machine emit_row(main: &mut Main) {
         Console::write_line(main.line);
         main.val = main.val + 1;
-        transition { _ -> draw_loop(main) }
+        transition { _ -> block draw_loop(main) }
     }
 
     machine finish(main: &mut Main) {

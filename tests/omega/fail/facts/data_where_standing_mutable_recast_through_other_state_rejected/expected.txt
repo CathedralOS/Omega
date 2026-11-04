@@ -1,1 +1,2 @@
-leaf fact implication in BOTH directions
+unestablished recast target `Counter`
+prove its predicate over current storage

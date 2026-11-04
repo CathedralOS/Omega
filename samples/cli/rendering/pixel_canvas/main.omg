@@ -121,8 +121,8 @@ machine Main::main(main: &mut Main) reaches Console {
     let total: i32 in Saturating = p0 + p1 + p2 + p3;
 
     transition total == 70 {
-        true -> good(main)
-        _ -> bad(main, total)
+        true -> block good(main)
+        _ -> block bad(main, total)
     }
 
     machine good(main: &mut Main) {

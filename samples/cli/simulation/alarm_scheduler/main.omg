@@ -103,28 +103,28 @@ machine Main::main(main: &mut Main) reaches Console {
     let score: i32 in Saturating = alarm.fire_count * 35;
 
     transition score == 70 {
-        true -> check_active(main, &alarm)
-        _ -> bad_score(main)
+        true -> block check_active(main, &alarm)
+        _ -> block bad_score(main)
     }
 
     machine check_active(main: &mut Main, alarm: &Alarm) {
         transition alarm.active == 0 {
-            true -> check_hour(main, alarm)
-            _ -> bad_active(main)
+            true -> block check_hour(main, alarm)
+            _ -> block bad_active(main)
         }
     }
 
     machine check_hour(main: &mut Main, alarm: &Alarm) {
         transition alarm.hour == 7 {
-            true -> check_minute(main, alarm)
-            _ -> bad_hour(main)
+            true -> block check_minute(main, alarm)
+            _ -> block bad_hour(main)
         }
     }
 
     machine check_minute(main: &mut Main, alarm: &Alarm) {
         transition alarm.minute == 0 {
-            true -> good(main)
-            _ -> bad_minute(main)
+            true -> block good(main)
+            _ -> block bad_minute(main)
         }
     }
 

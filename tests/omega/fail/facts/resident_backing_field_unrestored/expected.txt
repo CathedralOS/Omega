@@ -1,1 +1,3 @@
-data `Held`'s default domain is still FALSE at state exit
+cannot complete return from machine `restore_record` state `entry`
+the `requires` facts of `held` (data `Held`)
+unproved; restore them first

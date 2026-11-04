@@ -13,15 +13,20 @@
 use super::initialization::{InitializationRejection, PreparedProviderImage};
 use super::{ProviderStorageSlot, ResidentStorageSlot};
 use crate::boundary::errors::{TerminalInterpretError, malformed};
-use crate::boundary::values::StructuralRuntimePlace;
+use crate::boundary::values::{
+    StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue,
+};
 use crate::engine::custody::{bind_result_claim, projected_ownership_claims};
 use crate::engine::execution::{TerminalExecution, operation_kind};
+use crate::storage::primitive_storage::PrimitiveStorageEndpoint;
 use crate::storage::record::storage::{ConstructorStorage, ConstructorValue};
+use semantic_vocabulary::IntegerValue;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     BoundaryMachineDeclaration, Operation, OperationKind, StructuralAccess,
     StructuralAffineDiscard, StructuralMultiplicity, StructuralOperationResult,
-    StructuralPathSegment, StructuralResultClaimBinding, TerminalAccessLifecyclePlan,
+    StructuralPathSegment, StructuralResultClaimBinding, StructuralTypeShape,
+    TerminalAccessLifecyclePlan, TerminalAccessOwner,
 };
 use terminal_semantics::{AccessResultContract, access_result_contract};
 
@@ -146,6 +151,12 @@ impl TerminalExecution<'_> {
             opaque_identity: value.opaque_identity,
             path: destination_path.clone(),
         };
+        let mut backing_destination = destination.clone();
+        backing_destination.path.extend(
+            plan.storage
+                .owner_storage_path(&program.catalogs.structural_types)
+                .ok_or_else(malformed)?,
+        );
         let mut storage = ConstructorStorage::new(self.account.as_ref());
         storage.stage_case(
             StructuralRuntimePlace::from(&value),
@@ -153,20 +164,65 @@ impl TerminalExecution<'_> {
             ready.id,
         )?;
         let child = ConstructorValue::resolve(self, extent)?;
-        storage.stage(self, extent, &child, &destination, true)?;
+        storage.stage(self, extent, &child, &backing_destination, true)?;
         // Remove the old descriptor from the staged constructor. Its replacement
         // is installed only with the newly committed resident handle below.
-        storage.take_provider_descriptor(&destination, prepared.binding)?;
+        storage.take_provider_descriptor(&backing_destination, prepared.binding)?;
         retained_extent
             .value
             .qualifications
             .retain(|domain| *domain != vacant);
-        retained_extent.value.qualifications.push(resident_domain);
+        match plan.storage.owner {
+            TerminalAccessOwner::Extent => {
+                retained_extent.value.qualifications.push(resident_domain)
+            }
+            TerminalAccessOwner::Run {
+                carrier,
+                count,
+                singleton,
+                ..
+            } => {
+                let StructuralTypeShape::Record { fields, .. } =
+                    &terminal_psi::find_structural_type(
+                        &program.catalogs.structural_types,
+                        carrier,
+                    )
+                    .ok_or_else(malformed)?
+                    .shape
+                else {
+                    return Err(malformed());
+                };
+                let count = fields
+                    .iter()
+                    .find(|field| field.id == count)
+                    .ok_or_else(malformed)?;
+                storage.stage_scalar_endpoint(
+                    &PrimitiveStorageEndpoint::ScalarField(StructuralScalarRuntimeField::member(
+                        destination.clone(),
+                        count.id,
+                    )),
+                    TerminalScalarValue::Integer {
+                        scalar_type: count
+                            .field_type
+                            .scalar_type()
+                            .and_then(|scalar| scalar.as_integer())
+                            .ok_or_else(malformed)?,
+                        value: IntegerValue::Unsigned(1),
+                    },
+                )?;
+                terminal_psi::StructuralPathQualification::append_under(
+                    &[resident_domain, singleton.ok_or_else(malformed)?],
+                    &[],
+                    &destination_path,
+                    &mut value.projected_qualifications,
+                );
+            }
+        }
         retained_extent.value.qualifications.sort();
         terminal_psi::StructuralPathQualification::append_under(
             &retained_extent.value.qualifications,
             &retained_extent.value.projected_qualifications,
-            &destination_path,
+            &backing_destination.path,
             &mut value.projected_qualifications,
         );
         storage.validate_projected_memberships(self, &value, &result.projected_qualifications)?;
@@ -203,7 +259,7 @@ impl TerminalExecution<'_> {
         let descriptor = self
             .provider_storage
             .descriptors
-            .insert_vacant(destination, prepared.binding)?;
+            .insert_vacant(backing_destination, prepared.binding)?;
         let start = usize::try_from(prepared.binding.offset).map_err(|_| malformed())?;
         let end = start
             .checked_add(prepared.image.bytes().len())

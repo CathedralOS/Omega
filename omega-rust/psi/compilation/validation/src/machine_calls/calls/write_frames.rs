@@ -78,7 +78,7 @@ pub use demand::{CallFrameResolver, frame_paths_overlap, operand_call_plans};
 pub use isolation::aggregate_storage_types_match as storage_origin_types_match;
 pub use place_paths::ScalarStorageCoordinate;
 pub use place_paths::{frame_coordinate_path, frame_length_coordinate_path};
-pub use reference_subjects::assignment_stored_value_type;
+pub use reference_subjects::{assignment_rebinds_parameter, assignment_stored_value_type};
 pub(crate) use stored_calls::provider_completion_covers_writable_slots;
 pub use stored_calls::{
     ReferenceSlotContract, StoredReferenceCallContext, StoredReferenceDestinationKind,
@@ -170,6 +170,26 @@ fn known_call_written_paths_for_parts(
     inference: &mut FrameInference,
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
+    if let Some(operation) =
+        crate::machine_calls::compiler_operations::global_descriptor_table_operation(
+            program,
+            target_symbol,
+        )
+    {
+        if arguments.len() != 1 {
+            return None;
+        }
+        return match operation {
+            language_core::inline_assembly::AsmGlobalDescriptorTableOperation::Load => {
+                Some(Vec::new())
+            }
+            language_core::inline_assembly::AsmGlobalDescriptorTableOperation::Store => {
+                let origins = argument_origins?.first()?.as_ref()?;
+                (!origins.is_empty())
+                    .then(|| origins.iter().map(|origin| origin.path.clone()).collect())
+            }
+        };
+    }
     if crate::activation_accessor_has_empty_write_frame(program, target_symbol)
         || crate::access_borrow_has_empty_write_frame(program, target_symbol)
     {

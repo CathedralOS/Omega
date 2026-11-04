@@ -198,6 +198,20 @@ pub(super) fn build_call_flow_fact<'plans>(
     // Publish the same complete-or-unknown footprint used to retire facts.
     // Contract consumers must distinguish normal-return storage from copied
     // invocation inputs without rebuilding a wider signature-only write set.
+    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        eprintln!(
+            "FLOW call-storage-writes caller={} state={} target={:?} statement={} ordinal={} complete={} summary={storage_writes:?} observed={:?}",
+            machine.name,
+            state.name,
+            borrow_call.target_symbol,
+            borrow_call.statement_index,
+            borrow_call.call_ordinal,
+            storage_writes.is_some(),
+            observed_writes
+                .as_ref()
+                .map(|writes| &writes.observation_places),
+        );
+    }
     let mut normal_return_writes = HandleSpan::empty();
     for place in observed_writes
         .as_ref()

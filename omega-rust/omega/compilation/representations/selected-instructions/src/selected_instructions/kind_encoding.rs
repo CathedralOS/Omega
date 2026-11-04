@@ -153,12 +153,16 @@ pub fn encode_kind(bytes: &mut Vec<u8>, tag: u8, kind: SelectedInstructionKind) 
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
         SelectedInstructionKind::FloatResultPolicy { form } => bytes.push(form.machine_payload()),
+        SelectedInstructionKind::AtomicAccess { form } => {
+            if let Some(payload) = form.machine_payload() {
+                bytes.push(payload);
+            }
+        }
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::ZeroBytes
         | SelectedInstructionKind::TrappingInteger { .. }
         | SelectedInstructionKind::AtomicFence
-        | SelectedInstructionKind::AtomicAccess { .. }
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::BitwiseAndI64

@@ -216,10 +216,8 @@ pass/atomics/placed_atomic_load checked 1761ms @6e42425cd720
 pass/atomics/placed_atomic_shared_store checked 1651ms @6e42425cd720
 pass/atomics/runtime_atomic_after_quoted_write_exit rejected 8065ms interpreter:unchecked @6e42425cd720
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 3, machine: Some(MachineId(21)), operation: Some(OperationId(173)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/atomics/runtime_atomic_bitwise_widths_exit rejected 7976ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 2, machine: Some(MachineId(21)), operation: Some(OperationId(170)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/atomics/runtime_atomic_boolean_orderings_exit rejected 1921ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(6)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
+pass/atomics/runtime_atomic_bitwise_widths_exit built 110759ms exit:70 interpreter-exit:70 interpreter:agrees @491bd96c236f
+pass/atomics/runtime_atomic_boolean_orderings_exit built 5946ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
 pass/atomics/runtime_atomic_case_field_state_exit rejected 1905ms interpreter:unchecked @6e42425cd720
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 2, machine: Some(MachineId(3)), operation: Some(OperationId(11)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
 pass/atomics/runtime_atomic_compare_exchange_exit rejected 7839ms interpreter:unchecked @6e42425cd720
@@ -1025,9 +1023,11 @@ pass/calls/native_code_layout_lifetime_exit rejected 1901ms interpreter:unchecke
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "describe", reason: "return materialized custody has another carrier", gap: None })
 pass/calls/native_code_layout_nested_type_const_exit rejected 2067ms interpreter:unchecked @6e42425cd720
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "describe$specialized$f4dc146df69dbae0$0", reason: "return materialized custody has another carrier", gap: None })
+pass/calls/native_code_layout_region_snapshot_exit built 6688ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
 pass/calls/native_code_layout_shadowing_exit built 2141ms interpreter-exit:0 @6e42425cd720
 pass/calls/native_code_layout_uncalled_boundary_exit built 1942ms interpreter:declined @6e42425cd720
 	Terminal interpreter: UnsupportedCapability(NativeCodeLayout { machine: MachineId(3) })
+pass/calls/native_code_layout_uncalled_cycle_exit built 6689ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
 pass/calls/negated_edge_guard_requires_exit built 7878ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
 pass/calls/nested_binding_call checked 1840ms @6e42425cd720
 pass/calls/nested_call_footprints_follow_occurrences built 1961ms interpreter-exit:0 @6e42425cd720
@@ -2735,42 +2735,33 @@ pass/facts/assumed_binding_result_bound_through_other_machine_exit built 2112ms 
 pass/facts/assumed_binding_result_bound_through_other_state_exit built 2156ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/assumed_binding_result_bound_through_parameter_exit built 2236ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/assumed_binding_result_bound_through_target_body_exit built 2583ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/atomic_boolean_store/call_result rejected 1946ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(10)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_boolean_store/const_name rejected 1909ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(7)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_boolean_store/field rejected 2006ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(7)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_boolean_store/local rejected 1875ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(7)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_boolean_store/match_join rejected 1960ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(7)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_boolean_store/other_machine rejected 1958ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(10)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_boolean_store/other_state rejected 1970ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 2, machine: Some(MachineId(3)), operation: Some(OperationId(11)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_boolean_store/parameter rejected 2073ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(7)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_boolean_store/target_body rejected 2145ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(10)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_bounded_fetch/call_result rejected 1929ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(3)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_bounded_fetch/const_name rejected 2000ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(3)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_bounded_fetch/field rejected 2103ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(3)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_bounded_fetch/local rejected 2094ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(3)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_bounded_fetch/match_join rejected 2092ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(3)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_bounded_fetch/other_machine rejected 2043ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(3)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_bounded_fetch/other_state rejected 1930ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(3)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_bounded_fetch/parameter rejected 1948ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(3)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_bounded_fetch/target_body rejected 2091ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(3)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
+pass/facts/atomic_boolean_store/call_result built 6103ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_boolean_store/const_name built 6103ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_boolean_store/field built 6137ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_boolean_store/local built 6127ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_boolean_store/match_join built 6332ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_boolean_store/other_machine built 6306ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_boolean_store/other_state built 6269ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_boolean_store/parameter built 6253ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_boolean_store/target_body built 6329ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_bounded_fetch/call_result built 6245ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/const_name built 6249ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/field built 6408ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/local built 11267ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/match_join built 10987ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/other_machine built 26295ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/other_state built 6165ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/parameter built 6967ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/call_result built 7245ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/const_name built 6045ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/field built 6188ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/local built 6149ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/match_join built 6475ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/other_machine built 6422ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/other_state built 6278ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/parameter built 6429ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_bounded_fetch/resident_bound/target_body built 6807ms exit:0 interpreter-exit:0 interpreter:agrees @86799c125677
+pass/facts/atomic_bounded_fetch/target_body built 6808ms exit:0 interpreter-exit:0 interpreter:agrees @86799c125677
 pass/facts/atomic_bounded_resident/call_result rejected 1957ms interpreter:unchecked @6e42425cd720
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(14)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
 pass/facts/atomic_bounded_resident/composition rejected 1961ms interpreter:unchecked @6e42425cd720
@@ -2791,64 +2782,35 @@ pass/facts/atomic_bounded_resident/parameter rejected 2066ms interpreter:uncheck
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(7)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
 pass/facts/atomic_bounded_resident/target_body rejected 1890ms interpreter:unchecked @6e42425cd720
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(14)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_bounded/call_result rejected 2014ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_bounded/const_name rejected 1984ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_bounded/dynamic_replacement rejected 1910ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(8)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_bounded/field rejected 2080ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_bounded/local rejected 1955ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_bounded/match_join rejected 1966ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(11)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_bounded/operand_effect rejected 1975ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(7)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_bounded/ordered_replacement rejected 2030ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(6)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_bounded/other_machine rejected 2043ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(13)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_bounded/other_state rejected 2078ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(13)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_bounded/parameter rejected 2174ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_bounded/replacement_left_snapshot rejected 2036ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(12)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_bounded/replacement_right_snapshot rejected 2045ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(12)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_bounded/target_body rejected 2183ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(15)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_composition_exit rejected 2273ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(15)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_high_bit_exit rejected 2229ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_local_exit rejected 2165ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_operand_effect_exit rejected 2158ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(7)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_target_body_exit rejected 2111ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(15)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_through_call_result_exit rejected 2077ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_through_const_name_exit rejected 2057ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_through_field_exit rejected 2088ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_through_local_exit rejected 2084ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_through_match_join_exit rejected 2085ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(11)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_through_other_machine_exit rejected 2051ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(13)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_through_other_state_exit rejected 2023ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(13)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_through_parameter_exit rejected 2113ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_through_target_body_exit rejected 2025ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(15)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
-pass/facts/atomic_compare_exchange_once_wide_exit rejected 1956ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 1, machine: Some(MachineId(2)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
+pass/facts/atomic_compare_exchange_once_bounded/call_result built 6388ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_bounded/const_name built 6246ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_bounded/dynamic_replacement built 6189ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_bounded/field built 6304ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_bounded/local built 6301ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_bounded/match_join built 6266ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_bounded/operand_effect built 6251ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_bounded/ordered_replacement built 6270ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_bounded/other_machine built 6259ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_bounded/other_state built 6262ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_bounded/parameter built 6268ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_bounded/replacement_left_snapshot built 6378ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_bounded/replacement_right_snapshot built 6359ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_bounded/target_body built 6278ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_composition_exit built 6295ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_high_bit_exit built 6317ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_local_exit built 6297ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_operand_effect_exit built 6252ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_target_body_exit built 6294ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_through_call_result_exit built 6311ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_through_const_name_exit built 6279ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_through_field_exit built 6296ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_through_local_exit built 6112ms exit:0 interpreter-exit:0 interpreter:agrees @491bd96c236f
+pass/facts/atomic_compare_exchange_once_through_match_join_exit built 6316ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_through_other_machine_exit built 6292ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_through_other_state_exit built 6303ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_through_parameter_exit built 6295ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_through_target_body_exit built 6383ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/atomic_compare_exchange_once_wide_exit built 6332ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
 pass/facts/body_bearing_comparison_case_fields_exit built 8545ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @6e42425cd720
 pass/facts/body_bearing_comparison_default_fields_exit built 9001ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @6e42425cd720
 pass/facts/body_bearing_comparison_ordered_field_calls_exit built 8448ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @6e42425cd720
@@ -4008,24 +3970,24 @@ pass/facts/dyn_dispatch_selector_payload_bound_through_other_machine_exit built 
 pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit built 2156ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/dyn_dispatch_selector_payload_bound_through_parameter_exit built 2153ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/dyn_dispatch_selector_payload_bound_through_target_body_exit built 2153ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_alias_through_call_result_exit built 4605ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_alias_through_const_name_exit built 4305ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_alias_through_field_exit built 4542ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_alias_through_local_exit built 4538ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_alias_through_match_join_exit built 4540ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_alias_through_other_machine_exit built 4550ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_alias_through_other_state_exit built 4726ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_alias_through_parameter_exit built 4716ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_alias_through_target_body_exit built 4721ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_refinement_through_call_result_exit built 4720ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_refinement_through_const_name_exit built 4677ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_refinement_through_field_exit built 4749ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_refinement_through_local_exit built 4490ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_refinement_through_match_join_exit built 4424ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_refinement_through_other_machine_exit built 4510ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_refinement_through_other_state_exit built 4501ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_refinement_through_parameter_exit built 4676ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/dynamic_float_refinement_through_target_body_exit built 4676ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/facts/dynamic_float_alias_through_call_result_exit built 10122ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_alias_through_const_name_exit built 10119ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_alias_through_field_exit built 10231ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_alias_through_local_exit built 10253ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_alias_through_match_join_exit built 10317ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_alias_through_other_machine_exit built 10254ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_alias_through_other_state_exit built 10349ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_alias_through_parameter_exit built 10278ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_alias_through_target_body_exit built 17897ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_refinement_through_call_result_exit built 9765ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_refinement_through_const_name_exit built 10470ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_refinement_through_field_exit built 9455ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_refinement_through_local_exit built 10627ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_refinement_through_match_join_exit built 10781ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_refinement_through_other_machine_exit built 9439ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_refinement_through_other_state_exit built 9395ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_refinement_through_parameter_exit built 9798ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
+pass/facts/dynamic_float_refinement_through_target_body_exit built 15943ms exit:0 interpreter-exit:0 interpreter:agrees @9566f10e0d29
 pass/facts/dynamic_suspension_through_call_result_exit rejected 16ms interpreter:unchecked @6e42425cd720
 	select_provider requires two bare declaration operands and its explicit mutable Build and catalog target arguments (plus an optional composition mode)
 pass/facts/dynamic_suspension_through_const_name_exit rejected 13ms interpreter:unchecked @6e42425cd720
@@ -4110,15 +4072,16 @@ pass/facts/exclusive_match_arm_through_target_body_exit rejected 1489ms interpre
 pass/facts/exclusive_observation_exposure_through_call_result_exit built 2006ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/exclusive_observation_exposure_through_const_name_exit built 1995ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/exclusive_observation_exposure_through_field_exit built 1936ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/exclusive_observation_exposure_through_float_call_result_exit built 4080ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/exclusive_observation_exposure_through_float_const_name_exit built 4149ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/exclusive_observation_exposure_through_float_exit built 4125ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/exclusive_observation_exposure_through_float_field_exit built 4089ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/exclusive_observation_exposure_through_float_match_join_exit built 4137ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/exclusive_observation_exposure_through_float_other_machine_exit built 4245ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/exclusive_observation_exposure_through_float_other_state_exit built 4215ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/exclusive_observation_exposure_through_float_parameter_exit built 4147ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/exclusive_observation_exposure_through_float_target_body_exit built 4193ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/facts/exclusive_observation_exposure_through_float_call_result_exit built 10013ms exit:0 interpreter-exit:0 interpreter:agrees @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_const_name_exit built 10012ms exit:0 interpreter-exit:0 interpreter:agrees @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_exit built 10331ms exit:0 interpreter-exit:0 interpreter:agrees @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_field_exit built 10354ms exit:0 interpreter-exit:0 interpreter:agrees @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_local_exit built 10381ms exit:0 interpreter-exit:0 interpreter:agrees @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_match_join_exit built 10409ms exit:0 interpreter-exit:0 interpreter:agrees @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_other_machine_exit built 10576ms exit:0 interpreter-exit:0 interpreter:agrees @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_other_state_exit built 10519ms exit:0 interpreter-exit:0 interpreter:agrees @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_parameter_exit built 10081ms exit:0 interpreter-exit:0 interpreter:agrees @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_target_body_exit built 17876ms exit:0 interpreter-exit:0 interpreter:agrees @967c651da77a
 pass/facts/exclusive_observation_exposure_through_local_exit built 2456ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/exclusive_observation_exposure_through_match_join_exit built 2172ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/exclusive_observation_exposure_through_other_machine_exit built 2159ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -4188,30 +4151,22 @@ pass/facts/finite_family_input_index/parameter rejected 846ms interpreter:unchec
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_input_index/target_body rejected 847ms interpreter:unchecked @6e42425cd720
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/call_result rejected 827ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/const_name rejected 825ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/field rejected 836ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/local rejected 836ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/match_join rejected 835ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/other_machine rejected 834ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/other_state rejected 827ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/parameter rejected 827ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/pointer_field rejected 830ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/replaced_source rejected 830ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/target_body rejected 781ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/target_qualification rejected 782ms interpreter:unchecked @6e42425cd720
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
+pass/facts/finite_family_returned_descriptor/call_result built 5827ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/caller_view built 5940ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/const_name built 5947ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/field built 6054ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/incoming_join built 6033ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/local built 5995ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/match_join built 5987ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/other_machine built 5954ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/other_state built 5936ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/parameter built 5924ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/pointer_field built 5902ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/replaced_source built 5957ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/saved_source built 5918ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/target_body built 5983ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/target_qualification built 5972ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply built 5930ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_static_inline_result/argument_effect rejected 820ms interpreter:unchecked @6e42425cd720
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_static_inline_result/authored_sum rejected 818ms interpreter:unchecked @6e42425cd720
@@ -4265,8 +4220,8 @@ pass/facts/finite_family_static_inline_result/target_body rejected 887ms interpr
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/uncalled_target rejected 782ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+pass/facts/finite_family_static_inline_result/uncalled_target built 5925ms exit:0 interpreter-exit:0 interpreter:agrees @b31668d9a31f
+pass/facts/finite_family_static_inline_result/uncalled_target_missing_supply built 5998ms exit:0 interpreter-exit:0 interpreter:agrees @b31668d9a31f
 pass/facts/five_variant_enum_payload_bound_through_call_result_exit built 2213ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/five_variant_enum_payload_bound_through_const_name_exit built 2198ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/five_variant_enum_payload_bound_through_field_exit built 2181ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -4358,15 +4313,15 @@ pass/facts/float_range_delivery_through_other_machine_exit built 4365ms exit:0 i
 pass/facts/float_range_delivery_through_other_state_exit built 4359ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/float_range_delivery_through_parameter_exit built 4503ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/float_range_delivery_through_target_body_exit built 4514ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_call_result_exit built 4300ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_const_name_exit built 4945ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_field_exit built 4869ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_local_exit built 4157ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_match_join_exit built 4595ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_other_machine_exit built 4601ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_other_state_exit built 4450ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_parameter_exit built 4393ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/float_result_equality_through_target_body_exit built 4289ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/facts/float_result_equality_through_call_result_exit built 9796ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_const_name_exit built 9795ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_field_exit built 10081ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_local_exit built 10084ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_match_join_exit built 10221ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_other_machine_exit built 10177ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_other_state_exit built 10229ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_parameter_exit built 10189ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
+pass/facts/float_result_equality_through_target_body_exit built 15792ms exit:0 interpreter-exit:0 interpreter:agrees @37bbc58593ae
 pass/facts/foreign_borrowed_array_view_call_result built 3086ms exit:127 @6e42425cd720
 	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
 pass/facts/foreign_borrowed_array_view_const_name built 2530ms exit:127 @6e42425cd720
@@ -6805,24 +6760,15 @@ pass/facts/selected_crash_formal_through_other_machine_exit built 2132ms exit:0 
 pass/facts/selected_crash_formal_through_other_state_exit built 2079ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/selected_crash_formal_through_parameter_exit built 2087ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/selected_crash_formal_through_target_body_exit built 2230ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/selected_native_code_layout_through_call_result_exit rejected 2206ms interpreter:unchecked @6e42425cd720
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "fetch", reason: "return materialized custody has another carrier", gap: None })
-pass/facts/selected_native_code_layout_through_const_name_exit built 2198ms exit:0 interpreter:declined @6e42425cd720
-	Terminal interpreter: UnsupportedCapability(NativeCodeLayout { machine: MachineId(2) })
-pass/facts/selected_native_code_layout_through_field_exit built 2063ms exit:0 interpreter:declined @6e42425cd720
-	Terminal interpreter: UnsupportedCapability(NativeCodeLayout { machine: MachineId(2) })
-pass/facts/selected_native_code_layout_through_local_exit built 2046ms exit:0 interpreter:declined @6e42425cd720
-	Terminal interpreter: UnsupportedCapability(NativeCodeLayout { machine: MachineId(2) })
-pass/facts/selected_native_code_layout_through_match_join_exit rejected 2100ms interpreter:unchecked @6e42425cd720
-	native artifact target lowering failed: StructuralStateBindingMismatch { machine: MachineId(2), reason: "binding=AbstractStructuralBinding { parameter: PlaceId(10), argument: StructuralArgument { place: PlaceId(11), path: [], access: Owned } }; parameter=StructuralParameterDeclaration { place: PlaceId(10), position: 0, structural_type: StructuralTypeId(1), multiplicity: Affine, access: Owned, qualifications: [], projected_qualifications: [] }; source_type=Some(StructuralTypeId(1)); argument_type=Some(StructuralTypeId(1)); source_storage_contract=Some(false); leaf_copy_owned_contract=None; crosses_loan_leaf=false" }
-pass/facts/selected_native_code_layout_through_other_machine_exit rejected 2107ms interpreter:unchecked @6e42425cd720
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "query_in_caller", reason: "return materialized custody has another carrier", gap: None })
-pass/facts/selected_native_code_layout_through_other_state_exit built 2150ms exit:0 interpreter:declined @6e42425cd720
-	Terminal interpreter: UnsupportedCapability(NativeCodeLayout { machine: MachineId(2) })
-pass/facts/selected_native_code_layout_through_parameter_exit rejected 2035ms interpreter:unchecked @6e42425cd720
-	native artifact target lowering failed: InvalidOwnedStructuralArgument { source: PlaceId(10), parameter: PlaceId(10), structural_type: StructuralTypeId(1), reason: "source home multiplicity differs from its formal" }
-pass/facts/selected_native_code_layout_through_target_body_exit built 2114ms exit:0 interpreter:declined @6e42425cd720
-	Terminal interpreter: UnsupportedCapability(NativeCodeLayout { machine: MachineId(2) })
+pass/facts/selected_native_code_layout_through_call_result_exit built 6449ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_const_name_exit built 6492ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_field_exit built 6539ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_local_exit built 5904ms exit:0 interpreter-exit:0 interpreter:agrees @1ee74504bebf
+pass/facts/selected_native_code_layout_through_match_join_exit built 6441ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_other_machine_exit built 6313ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_other_state_exit built 6352ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_parameter_exit built 6478ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_target_body_exit built 6501ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
 pass/facts/selected_provider_issuance_through_call_result_exit built 2830ms exit:0 @6e42425cd720
 	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
 pass/facts/selected_provider_issuance_through_const_name_exit built 2817ms exit:0 @6e42425cd720

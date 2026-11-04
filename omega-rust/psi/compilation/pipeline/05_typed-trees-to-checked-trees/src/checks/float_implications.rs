@@ -459,39 +459,47 @@ fn required_comparison(
         (binary.left, binary.right, binary.operator),
         (binary.right, binary.left, reverse(binary.operator)),
     ] {
-        let Some(path) = program.expression_table.name_path_node(subject) else {
+        let Some(declared_place) = canonical_place_from_expression(program, subject) else {
             continue;
         };
-        let Some(parameter) = parameters.iter().find(|parameter| {
-            parameter.symbol == path.symbol || parameter.symbol == path.head_symbol
-        }) else {
+        let Some(parameter_symbol) = declared_place.root.as_symbol() else {
             continue;
         };
-        let format = match program
-            .type_reference_table
-            .primitive_type(parameter.type_reference)
+        let Some(parameter) = parameters
+            .iter()
+            .find(|parameter| parameter.symbol == parameter_symbol)
+        else {
+            continue;
+        };
+        // An index in the contract must use its own captured argument.
+        // Fields and constant indices need no extra read. Unknown indices
+        // cannot use a caller value just because it has the same name.
+        if !declared_place
+            .segments
+            .iter()
+            .all(crate::flow::place_segment_has_static_identity)
         {
+            continue;
+        }
+        let owner = program.symbols.get(parameter.symbol).parent;
+        let Some(reference) = validation::parameter_expression_result_type_reference(
+            program, owner, parameters, subject,
+        ) else {
+            continue;
+        };
+        let format = match program.primitive_type_reference(reference) {
             Some(PrimitiveType::F32) => FloatFormat::F32,
             Some(PrimitiveType::F64) => FloatFormat::F64,
             _ => continue,
         };
-        let owner = program.symbols.get(parameter.symbol).parent;
-        if !has_ieee_meaning(
-            program,
-            owner,
-            expression,
-            binary.operator,
-            parameter.type_reference,
-        ) {
-            continue;
-        }
-        if expressions(program).name_path_members(path.members).len() != 1 {
+        if !has_ieee_meaning(program, owner, expression, binary.operator, reference) {
             continue;
         }
         let position =
             typed_trees::signature::state_parameter_position(parameters, parameter.symbol)?;
         let operand = *operands.get(position)?;
-        let place = canonical_place_from_expression(program, operand)?;
+        let mut place = canonical_place_from_expression(program, operand)?;
+        place.extend_segments(&declared_place.segments);
         let predicate = if operator == BinaryOperator::Equal
             && canonical_place_from_expression(program, subject)
                 == canonical_place_from_expression(program, other)
@@ -503,7 +511,7 @@ fn required_comparison(
         return Some(RequiredComparison {
             position,
             place,
-            reference: parameter.type_reference,
+            reference,
             predicate,
         });
     }

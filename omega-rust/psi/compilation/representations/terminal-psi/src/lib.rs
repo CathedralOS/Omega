@@ -19,6 +19,7 @@ pub use artifacts::{
 };
 pub use language_core::inline_assembly::{
     AsmControlRegister as ControlRegister, AsmFenceKind as MemoryFenceKind,
+    AsmGlobalDescriptorTableOperation as GlobalDescriptorTableOperation,
     AsmInterruptControlKind as InterruptControlKind, AsmRegisterCarrier as RegisterCarrier,
     AsmRegisterOperation as RegisterOperation, AsmSystemRegister as SystemRegister,
     AsmTargetApplicability as RegisterTargetApplicability,
@@ -78,3 +79,5 @@ mod direct_calls;
 pub use direct_calls::{
     DirectCallParts, DirectCallRole, call_structural_arguments, direct_call_parts,
 };
+
+pub use language_core::descriptor_tables::{SegmentRegister, SegmentReload};

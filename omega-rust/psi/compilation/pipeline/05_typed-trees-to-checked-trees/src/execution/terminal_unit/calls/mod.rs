@@ -27,7 +27,7 @@ mod result_arguments;
 mod result_owners;
 pub(super) use result_owners::structural_result_owner;
 mod signatures;
-mod structural_arguments;
+pub(crate) mod structural_arguments;
 pub(crate) use structural_arguments::structural_call_arguments;
 mod structural_result_call;
 mod trait_boundary_call;

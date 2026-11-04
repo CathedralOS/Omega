@@ -8,4 +8,8 @@ machine build(builder: &mut Build) {
     Build::select_provider<SelectedTransport, ArmTransport>(builder, linux_arm64);
     Build::select_provider<SelectedTransport, ArmTransport>(builder, macos_arm64);
     Build::select_provider<SelectedTransport, X86Transport>(builder, windows_x86_64);
+    Build::select_provider<Scheduler, Immediate>(builder, linux_x86_64);
+    Build::select_provider<Scheduler, Immediate>(builder, linux_arm64);
+    Build::select_provider<Scheduler, Immediate>(builder, macos_arm64);
+    Build::select_provider<Scheduler, Immediate>(builder, windows_x86_64);
 }

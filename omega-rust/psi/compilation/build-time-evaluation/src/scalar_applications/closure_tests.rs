@@ -68,6 +68,7 @@ fn scalar_closure_does_not_admit_unchecked_entries_as_roots_or_callees() {
     for entry in [3, 4] {
         let installation = program
             .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+                native_code_layouts: None,
                 entry: Some(TargetMachineCallable::Machine(machine_id(entry))),
                 installation: Some(&providers),
                 target_machines: Some(&targets),
@@ -263,6 +264,7 @@ fn scalar_closure_supplies_resolved_extent_to_ordinary_entry_storage() {
     let program = TerminalProgram::borrow(artifact.view());
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            native_code_layouts: None,
             entry: Some(TargetMachineCallable::Machine(machine_id(3))),
             installation: Some(&providers),
             target_machines: Some(&targets),
@@ -354,6 +356,7 @@ fn scalar_closure_admits_ordinary_execution_after_complete_checking() {
         let program = TerminalProgram::borrow(artifact.view());
         let other_installation = program
             .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+                native_code_layouts: None,
                 entry: Some(TargetMachineCallable::Machine(machine_id(2))),
                 installation: Some(&providers),
                 target_machines: Some(&other_selections),
@@ -378,6 +381,7 @@ fn scalar_closure_admits_ordinary_execution_after_complete_checking() {
             let program = TerminalProgram::borrow(code);
             let installation = program
                 .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+                    native_code_layouts: None,
                     entry: Some(TargetMachineCallable::Machine(machine_id(2))),
                     installation: Some(&providers),
                     target_machines: Some(&targets),

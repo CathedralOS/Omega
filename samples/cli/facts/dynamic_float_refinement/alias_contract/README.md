@@ -1,44 +1,43 @@
-# Named public IEEE interval
+# A named public floating-point interval
 
-This is a second production of the [dynamic IEEE guarantee fact](../README.md),
-under `RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY`.
+This is another production of the [dynamic return guarantee](../README.md),
+under `BUILD-OWNED-TARGET-SELECTION` in [TASKS.md](../../../../../TASKS.md).
 
-Inline exact IEEE value `0.25` guarantee refines public inclusive f64 interval
-`[0, 0.5]`; the dynamic call preserves the public interval for a precondition and observes `0.25`.
+The public requirement spells its inclusive interval as
+`public_interval(result, 0.0, 0.5)`. Quarter proves the exact result `0.25`.
+Every place calls through an actual `dyn Fraction`, forwards the `f64` result
+to a consumer that requires the public interval, and traps unless it observes
+`0.25`. Forwarding helpers declare that same public result guarantee.
 
-The public requirement spells its interval as the checked transparent definition
-`public_interval(result, 0.0, 0.5)`. Every transport place retains the parent
-shape, exact implementation guarantee, runtime value and four hosted target
-bindings. A consumer requires the same interval; forwarding helpers declare it
-on their own results. The parent inline production remains unchanged.
+The nine folders match the parent row. Each `invalid/main.omg` changes only
+Quarter's own guarantee and return to `0.75`; it must reject for failing the
+unchanged named public interval. The match place runs both choices and checks
+their distinct route markers. The target place calls an ordinary
+`FloatInvocation` requirement, with `SelectedFloatInvocation` selected by four
+explicit Build rows. The public interval remains on both declarations.
 
-At baseline `e06334c63dc4a811b0bcf9f530cbc91b14b23eac`, optimized producer
-`b3a895c26149208c72bfa1f186e0c26bee9486ca59746de925d0f7fb5f8f5520` rejects
-the named public guarantee during conformance. Reduced mathematical predicates
-lost authenticated IEEE relations/literals and their format. Later consumers
-also lacked alias projection and the all-target public interval union.
-
-The repair retains authenticated relations and exact format-landed literals,
-projects checked positive conjunctions, and reuses the existing IEEE implication
-and observation machinery. It preserves subject/formal identity and qualification
-formation. Target-family results union every member's public contract, including
-nonhost members; no private implementation body supplies a caller's guarantee.
-IEEE comparisons never become reflexive kernel identity or integer complement.
-
-The root and all nine places execute with native exit 0 and Terminal exit 0 on
-`linux_x86_64`. Each place's invalid twin changes the implementation to `0.75`
-and rejects its public guarantee. Pins are
+The pins are
 `tests/omega/pass/facts/dynamic_float_alias_through_<place>_exit` and
 `tests/omega/fail/facts/dynamic_float_alias_through_<place>_outside_interval`.
-Focused `dyn_requirement_*` fixtures additionally cover alias provider/caller
-composition, f32 rounding, NaN-sensitive self equality, strict/negated/inequality
-controls, weaker public contracts, carrier qualifications, wrong formats,
-nonhost wider contracts and distinct effectful call observations.
+Sample and pin Main/Build files are identical. Each positive and [the root](main.omg)
+binds all four hosted targets and declares exit zero.
 
-Run `omega update --project <place> --target linux_x86_64`, then
-`omega run --both <place>/main.omg`. Raw command, source and producer hashes,
-engine outcomes and reject diagnostics are retained in the task evidence archive.
-No foreign native execution is claimed by the four target bindings.
-Suspending requirements, crash/ranking, returned-borrow/qualification slot
-metadata, package review, product parity and foreign-host execution remain in
-the parent outcome's remaining acceptance.
+Construction must prove the implementation's exact guarantee, refinement must
+prove the named public interval, and the completed call must retain that interval
+for its caller. The runtime comparison cannot establish the precondition after
+the fact. Selector identity, checking of unselected implementations, portable
+Terminal Psi, provider selection, calling plans and actual native/Terminal
+agreement follow the [parent requirements](../README.md).
+
+All nine positives have observed native/Terminal exit-zero agreement on all
+four hosted targets, and their nine twins reach the intended refusal. Linux
+x86-64 and macOS ARM64 keep their qualification at `51ca56236d0f`; Windows
+x86-64 and Linux ARM64 use published source `9566f10e0d29`. Each positive's
+constrained consumer accepts the public named interval. The
+[parent evidence](../README.md) identifies those runs and the separately
+observed root programs, with their actual source revisions.
+
+The retained macOS pilot reports contain the completed outcomes even though
+the outer workflow reached its one-hour limit and was canceled. The
+[parent evidence](../README.md) keeps those two facts distinct. Broader dynamic
+dispatch and target-selection acceptance remain open.

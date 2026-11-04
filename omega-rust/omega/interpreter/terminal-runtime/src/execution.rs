@@ -31,6 +31,7 @@
 mod components;
 mod entry;
 mod host_imports;
+mod native_code_layouts;
 
 pub use host_imports::clock::{TerminalClockEnvironment, TerminalClockSnapshot};
 
@@ -76,6 +77,9 @@ use terminal_interpreter::{
 };
 
 pub struct TerminalRuntimeRequest<'program> {
+    /// An explicit completed image to inspect; no image means no native geometry.
+    /// This supplies metadata only, never code installation or access authority.
+    pub native_image: Option<&'program native_artifact::NativeArtifact>,
     /// An explicit retained entry from this artifact's Build companion. This
     /// selects code only; entry storage and host authority remain independent.
     /// Without it, native provisions select their entry or the artifact default
@@ -337,8 +341,11 @@ pub fn execute_sliced(
             }
         }
     }
+    let native_code_layouts =
+        native_code_layouts::inspect(&request, program.terminal_psi(), execution_target)?;
     let mut installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            native_code_layouts: native_code_layouts.as_ref(),
             x86_flags: request.x86_flags,
             memory_ordering: request.memory_ordering,
             entry: request

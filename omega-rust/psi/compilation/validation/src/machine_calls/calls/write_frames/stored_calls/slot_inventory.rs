@@ -138,12 +138,31 @@ pub(super) fn parameter_destination_inventory(
         while let Some((reference, prefix, borrowed, readable, mut visited, ancestors)) =
             pending.pop()
         {
+            // A reference-free value has no pointer slots to replace, even
+            // when recursive proof data has no finite runtime field layout.
+            // Establish that property before requesting physical slot paths.
+            if frames::isolation::type_is_caller_isolated_proof_value(program, reference) {
+                continue;
+            }
             // A recursive pointee needs demand-bounded captured destinations;
             // do not turn an incomplete reachable inventory into an empty one.
             if visited.contains(&reference) {
                 return None;
             }
             visited.push(reference);
+            // Scalar elements cannot contain reference destinations, even
+            // before their fixed-array count is closed. Nonspatial lifetime
+            // obligations remain separate and must also be completely absent.
+            if crate::has_contents(
+                program,
+                reference,
+                &[],
+                crate::ContentsRequirement::BorrowFree,
+            ) && crate::borrow_contracts::retained_lifetime_owner_paths(program, reference)
+                .is_some_and(|paths| paths.is_empty())
+            {
+                continue;
+            }
             let Some(inventory) = stored_origins::declared_origins_for_query(
                 program,
                 parameter.symbol,

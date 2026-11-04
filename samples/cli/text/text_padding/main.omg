@@ -39,7 +39,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.padding = 16 - (narrow_u64_to_i32_saturating(main.message.len) as i32 in Saturating);
     Console::write_line(main.message);
 
-    transition { _ -> done(main) }
+    transition { _ -> block done(main) }
 
     machine done(main: &mut Main) {
         Console::write_line("result: the padding count, 6 for this 10-char message (the exit code)");

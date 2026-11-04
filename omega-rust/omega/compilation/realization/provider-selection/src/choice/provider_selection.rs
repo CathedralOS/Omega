@@ -89,7 +89,14 @@ pub fn admit<'a, Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
         let declarations = match &selected.selected_by {
             SelectionProvenance::BuildOverride(declarations)
             | SelectionProvenance::TargetDefault(declarations) => declarations,
-            SelectionProvenance::UniqueCoveringCandidate | SelectionProvenance::NativeBuild => {
+            SelectionProvenance::UniqueCoveringCandidate => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "provider plan `{}` has no authored target selection or declared default",
+                    plan.name,
+                )));
+                continue;
+            }
+            SelectionProvenance::NativeBuild => {
                 continue;
             }
         };

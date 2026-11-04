@@ -685,6 +685,32 @@ impl Expansion<'_> {
                     self.structural_types,
                 )?,
             })
+        } else if let checked_trees::CheckedScalarCallee::DescriptorTable {
+            operation,
+            service,
+            ..
+        } = callee
+        {
+            LoweredScalarBinding::DescriptorTable(
+                crate::emission::operation_emission::descriptor_tables::LoweredDescriptorTableBinding {
+                    source_coordinate: coordinate.statement().ok_or_else(|| {
+                        LoweringError::InvalidDeclarationIdentity(
+                            "checked task-register instruction lost its statement coordinate"
+                                .to_owned(),
+                        )
+                    })?,
+                    loan_completions,
+                    source_site: checked_trees::NominalMachineUseSite::Expression(
+                        source.expression,
+                    ),
+                    target_machine,
+                    result_type,
+                    operation: *operation,
+                    service: *service,
+                    arguments: scalar_actuals,
+                    structural_arguments,
+                },
+            )
         } else if signature.boundary {
             let coordinate = coordinate.statement().ok_or(LoweringError::Unsupported(
                 "boundary invocation lacks statement custody",

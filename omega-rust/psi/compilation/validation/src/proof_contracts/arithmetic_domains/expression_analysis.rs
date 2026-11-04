@@ -83,6 +83,8 @@ pub(super) struct CheckedAnalysis {
 /// an arm's cast or a guarded divisor.
 #[derive(Debug, Default)]
 pub(crate) struct ArithmeticDecisions {
+    pub(crate) allows_pending_formations: bool,
+    pub(crate) pending_formations: Vec<super::storage_formations::PendingIntegerFormation>,
     pub(crate) integer_range_obligations: Vec<checked_trees::IntegerRangeObligation>,
     pub(crate) exact_integer_casts: Vec<crate::ExactIntegerCastFact>,
     /// Immediate receiving ranges proved for exact assignment occurrences.
@@ -111,6 +113,7 @@ pub(crate) struct ArithmeticDecisions {
 impl ArithmeticDecisions {
     /// Append another walk's decisions after these, preserving both orders.
     pub(crate) fn extend(&mut self, other: Self) {
+        self.pending_formations.extend(other.pending_formations);
         self.integer_range_obligations
             .extend(other.integer_range_obligations);
         self.exact_integer_casts.extend(other.exact_integer_casts);
@@ -168,7 +171,10 @@ pub(super) fn analyze(
     retain_trap_receipts: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CheckedAnalysis {
-    let mut decisions = ArithmeticDecisions::default();
+    let mut decisions = ArithmeticDecisions {
+        allows_pending_formations: retain_trap_receipts,
+        ..ArithmeticDecisions::default()
+    };
     let return_ranges = super::ReturnInference::default();
     let value = ExpressionWalk {
         program,

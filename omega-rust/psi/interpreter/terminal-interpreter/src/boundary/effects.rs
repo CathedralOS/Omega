@@ -226,6 +226,8 @@ pub use terminal_installation::{
 /// adapters or external-completion authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalRuntimeSupplies {
+    pub(crate) native_code_layouts:
+        Option<std::sync::Arc<crate::TerminalNativeCodeLayoutEnvironment>>,
     pub(crate) provider_selections: Option<terminal_installation::AdmittedProviderSelections>,
     pub(crate) x86_flags: Option<TerminalX86FlagsEnvironment>,
     pub(crate) memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
@@ -259,6 +261,8 @@ pub(crate) enum AdmittedBoundarySupply {
 /// choose imports on its behalf. Actual adapters remain instance-bound.
 #[derive(Debug, Clone, Copy)]
 pub struct TerminalRuntimeSupplyRequest<'installation> {
+    /// Explicit observations of an independently completed native image.
+    pub native_code_layouts: Option<&'installation crate::TerminalNativeCodeLayoutEnvironment>,
     /// Explicit modeled processor state. Absence supplies no PUSHFQ capability.
     pub x86_flags: Option<TerminalX86FlagsEnvironment>,
     /// Explicit scoped memory model; absence supplies no catalog fence semantics.
@@ -303,6 +307,7 @@ impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntim
             folded_constant_target: selected.folded_constant_target().map(str::to_owned),
             target_machines: None,
             target_layouts: None,
+            native_code_layouts: None,
         }
     }
 }

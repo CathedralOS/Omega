@@ -118,6 +118,8 @@ record_variants!(symbols::BuiltinFunction {
     100 => FloatFusedMultiplyAddTowardNegativeF32,
     101 => FloatFusedMultiplyAddTowardNegativeF64,
     102 => IntegerEmbed,
+    103 => AsmStoreGdtr,
+    104 => AsmLoadGdtr,
 });
 
 record_variants!(language_semantics::CarryAddress {

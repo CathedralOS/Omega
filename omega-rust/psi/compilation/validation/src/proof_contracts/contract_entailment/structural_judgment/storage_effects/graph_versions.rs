@@ -430,7 +430,29 @@ impl<'program> StructuralJudge<'program> {
                     })
             })
             .is_some_and(|reference| crate::reference_shell(self.program, reference).is_none());
-        let observation = if inline {
+        // A saved shared scalar keeps its contents while that same pointer
+        // binding survives: its live loan forbids changing the scalar. This
+        // applies only at the saved copy's own home, never at its former source
+        // path, which may now lead through a replacement pointer.
+        let shared_scalar = stored.coordinate == *coordinate
+            && stored
+                .current
+                .as_ref()
+                .and_then(|value| {
+                    super::super::super::structural_terms::shared_inline_observation_type(
+                        self.program,
+                        value,
+                    )
+                })
+                .and_then(|reference| crate::reference_shell(self.program, reference))
+                .is_some_and(|shell| {
+                    self.program
+                        .primitive_type_reference(shell.referee)
+                        .is_some()
+                });
+        let observation = if shared_scalar {
+            crate::completed_storage::StoredObservation::Binding
+        } else if inline {
             crate::completed_storage::StoredObservation::InlineContents
         } else {
             crate::completed_storage::StoredObservation::Contents
@@ -496,10 +518,16 @@ impl<'program> StructuralJudge<'program> {
                     ))
         };
         let reached = |reaching: &crate::completed_storage::StoredOperand| match reaching {
-            crate::completed_storage::StoredOperand::Incoming(_) => stored
-                .current_anchors
-                .iter()
-                .any(|anchor| matches!(anchor, StorageAnchor::Incoming)),
+            crate::completed_storage::StoredOperand::Incoming(_) => {
+                stored.current_anchors.iter().any(|anchor| match anchor {
+                    StorageAnchor::Incoming => true,
+                    // A followed branch can carry unchanged entry contents
+                    // across a join under a newer anchor. They still describe
+                    // this place when no later write has changed it.
+                    StorageAnchor::After(cut) => preserved(*cut),
+                    StorageAnchor::Store(_) | StorageAnchor::CallReturn => false,
+                })
+            }
             crate::completed_storage::StoredOperand::Value { capture, .. } => {
                 let expression = graph.operands.get(*capture).expression;
                 stored.current_anchors.iter().any(|anchor| match anchor {
@@ -523,6 +551,25 @@ impl<'program> StructuralJudge<'program> {
             &place,
             observation,
         );
+        if super::super::super::struct_trace()
+            && stored
+                .current_anchors
+                .iter()
+                .any(|anchor| matches!(anchor, StorageAnchor::After(_)))
+        {
+            let reaching_kind = match &reaching {
+                None | Some(crate::completed_storage::StoredOperand::Incoming(_)) => "incoming",
+                Some(crate::completed_storage::StoredOperand::Value { .. }) => "stored value",
+                Some(crate::completed_storage::StoredOperand::Alternatives(_)) => "alternatives",
+                Some(crate::completed_storage::StoredOperand::Unavailable) => "unavailable",
+            };
+            eprintln!(
+                "STRUCT anchored-storage-value owner={} stored={:?} requested={coordinate:?} anchors={:?} at={at:?} reaching={reaching_kind}",
+                self.program.symbols.display_path(self.machine_symbol, "::"),
+                stored.coordinate,
+                stored.current_anchors,
+            );
+        }
         match reaching {
             None => reached(&crate::completed_storage::StoredOperand::Incoming(
                 place.clone(),

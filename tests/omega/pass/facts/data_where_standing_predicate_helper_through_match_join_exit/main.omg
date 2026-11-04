@@ -6,12 +6,13 @@ data Counter [copy] requires bounded(self.value) == true { before: i32; value: i
 machine replace(slot: &mut i32, replacement: i32)
 requires replacement <= 60
 ensures slot <= 60
-{ slot = replacement; }
+{ slot = 61; slot = replacement; }
 machine produce(replacement: i32) -> Counter
 requires replacement <= 60
 {
     let mut counter: Counter = Counter { before: 17, value: 0, after: 53 };
-    replace(&mut counter.value, replacement);
+    let selected: &mut i32 = &mut counter.value;
+    replace(&mut selected, replacement);
     counter
 }
 

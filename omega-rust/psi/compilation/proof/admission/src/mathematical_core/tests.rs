@@ -42,7 +42,7 @@ fn apply(arena: &mut TermArena, function: TermHandle, argument: TermHandle) -> T
     arena.insert(Term::Apply { function, argument })
 }
 
-fn sigma(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
+pub(super) fn sigma(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
     arena.insert(Term::Sigma { domain, codomain })
 }
 

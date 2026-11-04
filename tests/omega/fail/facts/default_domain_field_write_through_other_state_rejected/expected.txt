@@ -1,1 +1,3 @@
-default domain is still FALSE
+cannot complete a call at statement 4 in machine `revise` state `entry`
+the `requires` facts of `span` (data `Interval`)
+unproved; restore them first

@@ -175,8 +175,8 @@ machine Main::main(context: &mut Main) reaches Console {
     let price: i32 in Saturating = Inventory::find_price(&inventory, 5);
 
     transition price == 70 {
-        true -> check_total(context, total)
-        _ -> bad_price(context)
+        true -> block check_total(context, total)
+        _ -> block bad_price(context)
     }
 
     machine bad_price(context: &mut Main) {
@@ -190,8 +190,8 @@ machine Main::main(context: &mut Main) reaches Console {
     machine check_total(context: &mut Main, total: i32 in Saturating) {
         let adjusted: i32 in Saturating = total - 77;
         transition adjusted == 70 {
-            true -> good(context)
-            _ -> bad_total(context)
+            true -> block good(context)
+            _ -> block bad_total(context)
         }
     }
 

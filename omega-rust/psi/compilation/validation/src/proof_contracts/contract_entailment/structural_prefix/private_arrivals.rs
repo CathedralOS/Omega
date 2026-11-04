@@ -8,12 +8,14 @@
 //! the consumer owns its predicate, all-path judgment, and theorem eligibility.
 
 use super::super::structural_judgment::StructuralJudge;
-use super::{PrefixObservation, StructuralPrefixVisitor};
+use super::StructuralPrefixVisitor;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 
 mod cycles;
+mod observations;
+use observations::PrivateArrivalObserver;
 mod scope;
 pub use scope::private_invocation_entry_is_closed;
 pub(crate) use scope::{ClosedArrivals, ProgramPrivateArrivalIndex, private_invocation_index};
@@ -23,6 +25,7 @@ pub(crate) struct Arrival {
     pub(crate) caller: SymbolHandle,
     pub(crate) statement: usize,
     pub(crate) expression: Option<ExpressionHandle>,
+    pub(crate) transition_target: typed_trees::statement::TransitionTargetHandle,
 }
 
 pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals<Request>(
@@ -162,11 +165,12 @@ where
     let boundaries = roots.iter().map(|root| root.symbol).collect::<Vec<_>>();
     let mut members = requirements
         .iter_mut()
-        .map(|requirement| ArrivalRequirement {
+        .map(|requirement| PrivateArrivalObserver {
             requirement: &mut **requirement,
             entry: entry.symbol,
             root: SymbolHandle::invalid(),
             observed: Vec::new(),
+            excluded: Vec::new(),
             boundaries: boundaries.clone(),
             closed: std::sync::Arc::clone(&arrivals),
         })
@@ -222,17 +226,7 @@ where
     }
     members
         .into_iter()
-        .map(|member| {
-            Some(
-                recognized
-                    && diagnostics.is_empty()
-                    && !arrivals.expected.is_empty()
-                    && arrivals
-                        .expected
-                        .iter()
-                        .all(|arrival| member.observed.contains(arrival)),
-            )
-        })
+        .map(|mut member| Some(recognized && diagnostics.is_empty() && member.finish_coverage()))
         .collect()
 }
 
@@ -247,11 +241,12 @@ fn observe_frontier(
 ) -> bool {
     let classification = crate::proof_only_classification(program);
     let boundaries = roots.iter().map(|root| root.symbol).collect::<Vec<_>>();
-    let mut observer = ArrivalRequirement {
+    let mut observer = PrivateArrivalObserver {
         requirement,
         entry,
         root: SymbolHandle::invalid(),
         observed: Vec::new(),
+        excluded: Vec::new(),
         boundaries,
         closed: std::sync::Arc::clone(arrivals),
     };
@@ -299,81 +294,15 @@ fn observe_frontier(
     }
     if super::super::struct_trace() {
         eprintln!(
-            "PRIVATE arrivals machine={} roots={} recognized={} observed={} expected={} diagnostics={}",
+            "PRIVATE arrivals machine={} roots={} recognized={} observed={} excluded={} expected={} diagnostics={}",
             machine.name,
             roots.len(),
             recognized,
             observer.observed.len(),
+            observer.excluded.len(),
             arrivals.expected.len(),
             diagnostics.len()
         );
     }
-    recognized
-        && diagnostics.is_empty()
-        && !arrivals.expected.is_empty()
-        && arrivals
-            .expected
-            .iter()
-            .all(|arrival| observer.observed.contains(arrival))
-}
-
-struct ArrivalRequirement<'query> {
-    requirement: &'query mut dyn StructuralPrefixVisitor,
-    entry: SymbolHandle,
-    root: SymbolHandle,
-    observed: Vec<Arrival>,
-    boundaries: Vec<SymbolHandle>,
-    closed: std::sync::Arc<ClosedArrivals>,
-}
-
-impl StructuralPrefixVisitor for ArrivalRequirement<'_> {
-    fn site(&self) -> super::super::structural_prefix::StructuralPrefixSite {
-        self.requirement.site()
-    }
-    fn is_complete(&self) -> bool {
-        self.requirement.is_complete()
-    }
-    fn entered(&mut self) {
-        self.requirement.entered();
-    }
-    fn unresolved(&mut self, machine: &Machine) {
-        self.requirement.unresolved(machine);
-    }
-    fn stops_at_machine(&self, machine: SymbolHandle) -> bool {
-        // Each independent entry is checked from arbitrary inputs under its
-        // own requirements. A call back to it starts another invocation; do
-        // not unfold it with values from the invocation currently being checked.
-        // Calls outside this helper's closed callers cannot add an arrival.
-        self.boundaries.contains(&machine)
-            || !self.closed.bodies.contains(&machine)
-            || self.requirement.stops_at_machine(machine)
-    }
-    fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
-        let program = observation.0;
-        if let Some(root) = program.machine_by_symbol(self.root) {
-            self.requirement.observe_private_arrival(root, observation);
-        } else {
-            self.requirement.unresolved(observation.1);
-        }
-    }
-    fn entered_body(
-        &mut self,
-        caller: SymbolHandle,
-        statement: usize,
-        expression: Option<ExpressionHandle>,
-        entry: SymbolHandle,
-    ) {
-        self.requirement
-            .entered_body(caller, statement, expression, entry);
-        if entry == self.entry {
-            let arrival = Arrival {
-                caller,
-                statement,
-                expression,
-            };
-            if !self.observed.contains(&arrival) {
-                self.observed.push(arrival);
-            }
-        }
-    }
+    recognized && diagnostics.is_empty() && observer.finish_coverage()
 }

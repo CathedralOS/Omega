@@ -431,6 +431,7 @@ pub(super) fn emit(
         retained_scalar_prefix,
         scalar_calls: CallEmissionContext {
             terminal_machine,
+            service_ids,
             domain_ids,
             domain_declarations,
             scalar_qualifications: prepared_scalar_qualifications.catalog(),
@@ -1566,19 +1567,14 @@ impl MachineEmission<'_> {
                     .ok_or(LoweringError::Unsupported(
                         "structural operand staging has no source prefix",
                     ))?;
-                let call = plan.operations[operation]
-                    .call()
-                    .ok_or(LoweringError::Unsupported(
-                        "structural operand staging has no call",
-                    ))?;
-                let offset = call.structural_arguments[..argument]
+                let arguments = plan.operations[operation].structural_operands();
+                let offset = arguments[..argument]
                     .iter()
                     .map(|source| source.call_selector_positions().count())
                     .sum::<usize>();
                 let selectors = self.staged_selectors[operation][offset..].to_vec();
                 if self.staged_structural_arguments[operation].is_empty() {
-                    self.staged_structural_arguments[operation] =
-                        vec![None; call.structural_arguments.len()];
+                    self.staged_structural_arguments[operation] = vec![None; arguments.len()];
                 }
                 let previous = self.staged_structural_arguments[operation][argument].take();
                 let captured = self.frame(count).capture_argument(
@@ -1777,7 +1773,8 @@ impl MachineEmission<'_> {
             | checked_trees::reference_hold_pattern!() => {
                 return self.emit_through_frame(identities, operation, step.source_value_count);
             }
-            CheckedUnitEffectOperationPlan::Call(_) => {
+            CheckedUnitEffectOperationPlan::Call(_)
+            | CheckedUnitEffectOperationPlan::GlobalDescriptorTable { .. } => {
                 return self.emit_call_through_frame(identities, operation, step);
             }
             CheckedUnitEffectOperationPlan::EstablishLocal(binding) => match binding {

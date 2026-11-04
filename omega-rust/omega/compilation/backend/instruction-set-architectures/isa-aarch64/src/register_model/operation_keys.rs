@@ -15,8 +15,16 @@ pub const AARCH64_ATOMIC_FENCE: RegisterConstraintKey = RegisterConstraintKey::i
 pub const AARCH64_ATOMIC_LOAD: RegisterConstraintKey = RegisterConstraintKey::instruction(781);
 pub const AARCH64_ATOMIC_STORE: RegisterConstraintKey = RegisterConstraintKey::instruction(782);
 pub const AARCH64_ATOMIC_UPDATE: RegisterConstraintKey = RegisterConstraintKey::instruction(783);
+/// Baseline exclusive bitwise update: preserved address/mask, observed prior,
+/// and declared replacement/status scratch registers.
+pub const AARCH64_ATOMIC_BITWISE_UPDATE: RegisterConstraintKey =
+    RegisterConstraintKey::instruction(811);
 pub const AARCH64_ATOMIC_COMPARE_EXCHANGE: RegisterConstraintKey =
     RegisterConstraintKey::instruction(784);
+
+/// One compare/exchange attempt with separate observed-value and outcome outputs.
+pub const AARCH64_ATOMIC_COMPARE_EXCHANGE_ONCE: RegisterConstraintKey =
+    RegisterConstraintKey::instruction(810);
 
 pub const AARCH64_CRASH: RegisterConstraintKey = RegisterConstraintKey::instruction(780);
 
@@ -250,7 +258,7 @@ pub const AARCH64_BYTE_LITERAL_IMAGE_ADDRESS: RegisterConstraintKey =
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub(crate) const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 119] = [
+pub(crate) const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 121] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -352,7 +360,9 @@ pub(crate) const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 
     AARCH64_ATOMIC_LOAD,
     AARCH64_ATOMIC_STORE,
     AARCH64_ATOMIC_UPDATE,
+    AARCH64_ATOMIC_BITWISE_UPDATE,
     AARCH64_ATOMIC_COMPARE_EXCHANGE,
+    AARCH64_ATOMIC_COMPARE_EXCHANGE_ONCE,
     AARCH64_IEEE_FLOAT_ARITHMETIC,
     AARCH64_IEEE_FLOAT_UNARY,
     AARCH64_IEEE_FLOAT_TERNARY,

@@ -210,6 +210,74 @@ pub fn x86_64_register_constraint_catalog(
     flags_restore.implicit_uses = sorted_units(view("rsp").units.iter().copied());
     flags_restore.implicit_defs = sorted_units(view("rflags").units.iter().copied());
     flags_restore.clobbers = flags_snapshot.clobbers.clone();
+    let mut global_descriptor_table = instruction_row(
+        RegisterConstraintId(0),
+        crate::X86_64_GLOBAL_DESCRIPTOR_TABLE,
+        vec![allocatable(0, Access::Use, GPR64)],
+    );
+    global_descriptor_table.clobbers = sorted_units(view("r10").units.iter().copied());
+    let mut task_register_activate = instruction_row(
+        RegisterConstraintId(0),
+        crate::X86_64_TASK_REGISTER_ACTIVATE,
+        vec![
+            fixed(0, Access::Use, "rdi"),
+            fixed(1, Access::Use, "rsi"),
+            fixed(2, Access::Use, "rdx"),
+            fixed(3, Access::Use, "rcx"),
+            fixed(4, Access::Use, "r8"),
+            fixed(5, Access::Def, "rax"),
+        ],
+    );
+    task_register_activate.implicit_uses = sorted_units(
+        ["rsp", "rflags"]
+            .into_iter()
+            .flat_map(|name| view(name).units.iter().copied()),
+    );
+    task_register_activate.clobbers = sorted_units(
+        ["r9", "r10", "r11", "rflags"]
+            .into_iter()
+            .flat_map(|name| view(name).units.iter().copied()),
+    );
+    let task_register_read = instruction_row(
+        RegisterConstraintId(0),
+        crate::X86_64_TASK_REGISTER_READ,
+        vec![allocatable(0, Access::Def, GPR64)],
+    );
+    let segment_reload = |key, scratch: &[&str]| {
+        let mut row = instruction_row(
+            RegisterConstraintId(0),
+            key,
+            vec![
+                fixed(0, Access::Use, "rdi"),
+                fixed(1, Access::Use, "rdx"),
+                fixed(2, Access::Use, "rcx"),
+                fixed(3, Access::Use, "r8"),
+                fixed(4, Access::Def, "rax"),
+            ],
+        );
+        row.implicit_uses = sorted_units(
+            ["rsp", "rflags"]
+                .into_iter()
+                .flat_map(|name| view(name).units.iter().copied()),
+        );
+        row.clobbers = sorted_units(
+            scratch
+                .iter()
+                .flat_map(|name| view(name).units.iter().copied()),
+        );
+        row
+    };
+    let code_segment_reload =
+        segment_reload(crate::X86_64_CODE_SEGMENT_RELOAD, &["r9", "r10", "rflags"]);
+    let data_segment_reload = segment_reload(
+        crate::X86_64_DATA_SEGMENT_RELOAD,
+        &["rcx", "rdx", "r8", "r9", "r10", "r11", "rflags"],
+    );
+    let segment_selector_read = instruction_row(
+        RegisterConstraintId(0),
+        crate::X86_64_SEGMENT_SELECTOR_READ,
+        vec![allocatable(0, Access::Def, GPR64)],
+    );
     let control_rows = [
         (crate::X86_64_CONTROL_REGISTER_READ, true),
         (crate::X86_64_CONTROL_REGISTER_WRITE, false),
@@ -254,6 +322,12 @@ pub fn x86_64_register_constraint_catalog(
         ),
         flags_snapshot,
         flags_restore,
+        global_descriptor_table,
+        task_register_activate,
+        task_register_read,
+        code_segment_reload,
+        data_segment_reload,
+        segment_selector_read,
         control_rows[0].clone(),
         control_rows[1].clone(),
         port_write,
@@ -1066,24 +1140,33 @@ pub fn x86_64_register_constraint_catalog(
     // prior cell in it: the expected operand pins RAX, the observed output
     // is an ordinary early-clobber register the encoding fills from RAX
     // after the LOCK form, and RAX itself is a declared family clobber.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_ATOMIC_COMPARE_EXCHANGE,
-        operands: vec![
+    for (key, outputs) in [
+        (X86_64_ATOMIC_COMPARE_EXCHANGE, 1),
+        (crate::X86_64_ATOMIC_COMPARE_EXCHANGE_ONCE, 2),
+    ] {
+        let mut operands = vec![
             allocatable(0, Access::Use, GPR64),
             fixed(1, Access::Use, "rax"),
             allocatable(2, Access::Use, GPR64),
-            super::early_clobber(allocatable(3, Access::Def, GPR64)),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: {
-            let mut clobbers = view("rax").units.clone();
-            clobbers.extend(view("rflags").units.iter().copied());
-            clobbers.sort_unstable();
-            clobbers
-        },
-    });
+        ];
+        operands.extend(
+            (3..3 + outputs)
+                .map(|operand| super::early_clobber(allocatable(operand, Access::Def, GPR64))),
+        );
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands,
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: {
+                let mut clobbers = view("rax").units.clone();
+                clobbers.extend(view("rflags").units.iter().copied());
+                clobbers.sort_unstable();
+                clobbers
+            },
+        });
+    }
     for (key, restore) in [
         (crate::X86_64_SAVE_FLOATING_CONTROL, false),
         (crate::X86_64_RESTORE_FLOATING_CONTROL, true),

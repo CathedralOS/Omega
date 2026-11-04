@@ -28,28 +28,28 @@ machine Main::main(main: &mut Main) reaches Console {
     let mut search: MazeSearch;
     let distance: i32 = MazeSearch::distance(&mut search);
     transition distance == 16 {
-        true -> render(main, &search, 0)
-        _ -> bad(main)
+        true -> block render(main, &search, 0)
+        _ -> block bad(main)
     }
 
     machine render(main: &mut Main, search: &MazeSearch, row: i32 in Wrapping) {
         transition row >= 0 && row < 5 {
-            true -> prepare_line(main, search, row)
-            _ -> finish(main)
+            true -> block prepare_line(main, search, row)
+            _ -> block finish(main)
         }
     }
     machine prepare_line(main: &mut Main, search: &MazeSearch, row: i32 in Wrapping) {
         let mut line: [u8; 16] in Ascii = "                ";
         let valid: bool = render_row(search, &mut line, row);
         transition valid {
-            true -> emit_line(main, search, row, &line)
-            _ -> bad(main)
+            true -> block emit_line(main, search, row, &line)
+            _ -> block bad(main)
         }
     }
     machine emit_line(main: &mut Main, search: &MazeSearch, row: i32 in Wrapping,
                     line: &[u8; 16] in Ascii) {
         Console::write_line(line);
-        transition { _ -> render(main, search, row + 1) }
+        transition { _ -> block render(main, search, row + 1) }
     }
     machine finish(main: &mut Main) {
         Console::write_line("PASS: distance map rendered, far corner is 16 away (exit 0)");

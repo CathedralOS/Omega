@@ -76,15 +76,21 @@ impl<'a> ProductCodeSource<'a> {
                 Some(machine) => TerminalMachineSelection::Symbol(machine),
                 None => TerminalMachineSelection::Declarations,
             };
-            self.produce(
+            let roots = TerminalProgramRoots {
+                machines: &machines,
+                boundaries: &boundaries,
+            };
+            let psi_optimizations = selections.project_psi();
+            let inputs = psi_compiler::PortableProductionInputs {
+                program: self.program,
                 machine,
-                TerminalProgramRoots {
-                    machines: &machines,
-                    boundaries: &boundaries,
-                },
-                selections,
-                observer,
-            )
+                roots,
+                exact_toolchain_sources: self.sources.exact_toolchain_sources(),
+                optimizations: psi_optimizations.selections(),
+            };
+            self.publication.productions().produce(inputs, || {
+                self.produce(machine, roots, selections, observer)
+            })
         })
     }
 

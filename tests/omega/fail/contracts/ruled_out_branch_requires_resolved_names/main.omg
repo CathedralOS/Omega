@@ -1,0 +1,11 @@
+// A branch the requirement rules out is still source: it must name declared
+// values, so the undeclared `missing_name` rejects.
+machine pick(count: u64) -> u64
+requires count >= 10
+{
+    transition count < 5 {
+        true -> (missing_name - 1u64)
+        false -> (count - 10u64)
+    }
+}
+machine main() {}

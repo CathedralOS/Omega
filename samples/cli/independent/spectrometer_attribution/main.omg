@@ -18,23 +18,23 @@ invokes Console
 blocks
 crashes Trap
 {
-    transition { _ -> input(application, 0) }
+    transition { _ -> block input(application, 0) }
     machine input(application: &mut Spectrometer, index: i32 in Wrapping) {
         transition index >= 0 && index < 27 {
-            true -> token(application, index)
-            false -> trailing(application)
+            true -> block token(application, index)
+            false -> block trailing(application)
         }
     }
     machine token(application: &mut Spectrometer, index: i32 in Wrapping) {
         transition block read_integer(application) {
-            IntegerRead::Value { value } -> store(application, index, value)
+            IntegerRead::Value { value } -> block store(application, index, value)
             _ -> invalid(application)
         }
     }
     machine store(application: &mut Spectrometer, index: i32 in Wrapping,
                 value: i32 in Wrapping) {
         application.raw[index] = value;
-        transition { _ -> input(application, index + 1) }
+        transition { _ -> block input(application, index + 1) }
     }
     machine trailing(application: &mut Spectrometer) {
         transition block read_integer(application) {

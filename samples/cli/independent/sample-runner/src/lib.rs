@@ -328,6 +328,7 @@ fn run(sample: Sample) {
     let mut records = sample.evidence.header().to_owned();
     for case in &cases {
         let observation = terminal_runtime::execute(TerminalRuntimeRequest {
+            native_image: report.retained_native_artifact(),
             entry: None,
             native_provider: None,
             native_services: Default::default(),

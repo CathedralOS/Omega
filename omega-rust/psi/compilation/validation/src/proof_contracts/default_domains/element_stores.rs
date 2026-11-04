@@ -97,6 +97,7 @@ pub(super) fn handle_element_store<'program>(
         receiver_spelling,
         definition,
         entry_valuations,
+        inherited_windows,
         poisoned_all,
         poisoned_paths,
         born_zero,
@@ -171,6 +172,11 @@ pub(super) fn handle_element_store<'program>(
         .retain(|symbol| *symbol != field.symbol);
     if !all_hold {
         place.element_windows.push(field.symbol);
+        place
+            .opening_write
+            .get_or_insert(program.expression_table.source_span(target));
+    } else if !place.any_window_open() {
+        place.opening_write = None;
     }
     handled
 }

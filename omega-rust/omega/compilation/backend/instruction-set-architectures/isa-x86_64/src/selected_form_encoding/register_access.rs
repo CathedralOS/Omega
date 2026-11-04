@@ -10,14 +10,17 @@
 //! They have no temporary stack footprint, unlike the flags snapshot, and
 //! MachineControl admission never grants custody of translated storage.
 
+mod descriptor_registers;
+
 use super::{
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError as Error,
     X86_64SelectedFormFootprint,
 };
 use crate::register_model::units_of;
 use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
-use selected_instructions::ControlRegister;
+use selected_instructions::GlobalDescriptorTableOperation as DescriptorOperation;
 use selected_instructions::SystemRegister;
+use selected_instructions::{ControlRegister, SegmentRegister, SegmentReload};
 use selected_instructions::{
     InterruptControlKind, MachineAlternativeFamily as Family, MachineAlternativeKey,
     MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects, MachineEncodedMemoryEffect,
@@ -30,6 +33,17 @@ pub(crate) fn semantic(operation: Operation) -> Option<Semantic> {
     Some(match operation {
         Operation::SystemRead(SystemRegister::Control(_)) => Semantic::ControlRegisterRead,
         Operation::SystemWrite(SystemRegister::Control(_)) => Semantic::ControlRegisterWrite,
+        Operation::GlobalDescriptorTable(DescriptorOperation::Load) => {
+            Semantic::GlobalDescriptorTableLoad
+        }
+        Operation::GlobalDescriptorTable(DescriptorOperation::Store) => {
+            Semantic::GlobalDescriptorTableStore
+        }
+        Operation::TaskRegisterActivate => Semantic::TaskRegisterActivate,
+        Operation::TaskRegisterRead => Semantic::TaskRegisterRead,
+        Operation::SegmentReload(SegmentReload::Code) => Semantic::CodeSegmentReload,
+        Operation::SegmentReload(SegmentReload::Data) => Semantic::DataSegmentReload,
+        Operation::SegmentRead(_) => Semantic::SegmentSelectorRead,
         Operation::PortRead => Semantic::PortRegisterRead,
         Operation::PortWrite => Semantic::PortRegisterWrite,
         Operation::ModelSpecificRead => Semantic::ModelSpecificRead,
@@ -57,6 +71,17 @@ pub(crate) fn operation(semantic: Semantic) -> Option<Operation> {
         Semantic::ControlRegisterWrite => {
             Operation::SystemWrite(SystemRegister::Control(ControlRegister::Cr0))
         }
+        Semantic::GlobalDescriptorTableLoad => {
+            Operation::GlobalDescriptorTable(DescriptorOperation::Load)
+        }
+        Semantic::GlobalDescriptorTableStore => {
+            Operation::GlobalDescriptorTable(DescriptorOperation::Store)
+        }
+        Semantic::TaskRegisterActivate => Operation::TaskRegisterActivate,
+        Semantic::TaskRegisterRead => Operation::TaskRegisterRead,
+        Semantic::CodeSegmentReload => Operation::SegmentReload(SegmentReload::Code),
+        Semantic::DataSegmentReload => Operation::SegmentReload(SegmentReload::Data),
+        Semantic::SegmentSelectorRead => Operation::SegmentRead(SegmentRegister::Code),
         Semantic::PortRegisterRead => Operation::PortRead,
         Semantic::PortRegisterWrite => Operation::PortWrite,
         Semantic::ModelSpecificRead => Operation::ModelSpecificRead,
@@ -80,6 +105,12 @@ fn scratch(operation: Operation) -> &'static [&'static str] {
     match operation {
         Operation::SystemRead(SystemRegister::Control(_)) => &["r10", "r15"],
         Operation::SystemWrite(SystemRegister::Control(_)) => &["rax", "r10", "r11", "r15"],
+        Operation::GlobalDescriptorTable(_) => &["r10"],
+        Operation::TaskRegisterActivate => &["r9", "r10", "r11", "rflags"],
+        Operation::SegmentReload(SegmentReload::Code) => &["r9", "r10", "rflags"],
+        Operation::SegmentReload(SegmentReload::Data) => {
+            &["rcx", "rdx", "r8", "r9", "r10", "r11", "rflags"]
+        }
         Operation::PortRead => &["rax", "rdx", "r10"],
         Operation::SystemRead(SystemRegister::Rflags)
         | Operation::SystemWrite(SystemRegister::Rflags) => &["r10", "r15"],
@@ -140,6 +171,61 @@ pub(crate) fn effects(operation: Operation) -> MachineEncodedEffects {
             byte_count: 8,
         };
     }
+    if operation == Operation::TaskRegisterActivate {
+        let stack_pointer = physical
+            .view_named("rsp")
+            .expect("canonical stack pointer")
+            .id;
+        encoded.implicit_unit_uses = units_of(&["rsp", "rflags"]);
+        encoded.memory = MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
+            table_pointer_operand: 0,
+            task_pointer_operand: 1,
+            selector_operand: 2,
+            scratch_pointer_operand: 3,
+            table_byte_count_operand: 4,
+            stack_pointer,
+        };
+        encoded.stack = MachineEncodedStackEffect::TemporaryBytesV1 {
+            stack_pointer,
+            byte_count: 8,
+        };
+    }
+    if let Operation::SegmentReload(kind) = operation {
+        let stack_pointer = physical
+            .view_named("rsp")
+            .expect("canonical stack pointer")
+            .id;
+        encoded.implicit_unit_uses = units_of(&["rsp", "rflags"]);
+        encoded.memory = MachineEncodedMemoryEffect::SegmentDescriptorReloadV1 {
+            table_pointer_operand: 0,
+            selector_operand: 1,
+            scratch_pointer_operand: 2,
+            table_byte_count_operand: 3,
+            stack_pointer,
+        };
+        encoded.stack = MachineEncodedStackEffect::TemporaryBytesV1 {
+            stack_pointer,
+            byte_count: match kind {
+                SegmentReload::Code => 16,
+                SegmentReload::Data => 8,
+            },
+        };
+    }
+    match operation {
+        Operation::GlobalDescriptorTable(DescriptorOperation::Load) => {
+            encoded.memory = MachineEncodedMemoryEffect::ReadPointerV1 {
+                pointer_operand: 0,
+                byte_count: 10,
+            };
+        }
+        Operation::GlobalDescriptorTable(DescriptorOperation::Store) => {
+            encoded.memory = MachineEncodedMemoryEffect::WriteFixedPointerV1 {
+                pointer_operand: 0,
+                byte_count: 10,
+            };
+        }
+        _ => {}
+    }
     if matches!(operation, Operation::InterruptControl(_)) {
         let flags = physical
             .view_named("rflags")
@@ -166,6 +252,14 @@ pub(crate) fn declaration(
                 | Operation::SystemWrite(SystemRegister::Rflags)
         ) {
             MachineMemoryEffect::TemporaryStackStorageV1
+        } else if matches!(operation, Operation::SegmentReload(_)) {
+            MachineMemoryEffect::SegmentDescriptorReloadV1
+        } else if operation == Operation::TaskRegisterActivate {
+            MachineMemoryEffect::TaskRegisterActivationV1
+        } else if operation == Operation::GlobalDescriptorTable(DescriptorOperation::Load) {
+            MachineMemoryEffect::ReadPointerV1
+        } else if operation == Operation::GlobalDescriptorTable(DescriptorOperation::Store) {
+            MachineMemoryEffect::WritePointerV1
         } else {
             MachineMemoryEffect::NoneV1
         },
@@ -178,7 +272,19 @@ pub(crate) fn declaration(
         ) {
             MachineSizeKnowledge::ExactBytes(1)
         } else {
-            crate::encoder_resolved(1, Some(40))
+            crate::encoder_resolved(
+                1,
+                Some(
+                    if matches!(
+                        operation,
+                        Operation::TaskRegisterActivate | Operation::SegmentReload(_)
+                    ) {
+                        512
+                    } else {
+                        40
+                    },
+                ),
+            )
         },
         effects(operation),
     )
@@ -200,6 +306,15 @@ fn swap_bytes(bytes: &mut Vec<u8>, register: u8, wide: bool) {
 }
 
 pub(crate) fn encode(operation: Operation, registers: &[u8]) -> Result<Vec<u8>, Error> {
+    if matches!(
+        operation,
+        Operation::TaskRegisterActivate
+            | Operation::TaskRegisterRead
+            | Operation::SegmentReload(_)
+            | Operation::SegmentRead(_)
+    ) {
+        return descriptor_registers::encode(operation, registers);
+    }
     if let Operation::MemoryFence(kind) = operation {
         if !registers.is_empty() {
             return Err(Error::OperandCountMismatch);
@@ -207,6 +322,26 @@ pub(crate) fn encode(operation: Operation, registers: &[u8]) -> Result<Vec<u8>, 
         return super::memory_fence::encode(kind).ok_or(Error::AlternativeMismatch);
     }
     family(operation)?;
+    if let Operation::GlobalDescriptorTable(direction) = operation {
+        let [pointer] = registers else {
+            return Err(Error::OperandCountMismatch);
+        };
+        if *pointer > 15 {
+            return Err(Error::EncodedFormMismatch);
+        }
+        let mut bytes = Vec::new();
+        move_register(&mut bytes, *pointer, 10, true);
+        bytes.extend([
+            0x41,
+            0x0f,
+            0x01,
+            match direction {
+                DescriptorOperation::Store => 0x02,
+                DescriptorOperation::Load => 0x12,
+            },
+        ]);
+        return Ok(bytes);
+    }
     if let Operation::SystemRead(SystemRegister::Control(control))
     | Operation::SystemWrite(SystemRegister::Control(control)) = operation
     {
@@ -526,6 +661,39 @@ fn decode(bytes: &[u8]) -> Option<Vec<Decoded>> {
 // hardware result have separate identities. Aliased input operands therefore
 // retain the exact same value instead of inventing independent source words.
 fn validate_bits(operation: Operation, registers: &[u8], bytes: &[u8]) -> Option<()> {
+    if matches!(
+        operation,
+        Operation::TaskRegisterActivate
+            | Operation::TaskRegisterRead
+            | Operation::SegmentReload(_)
+            | Operation::SegmentRead(_)
+    ) {
+        return descriptor_registers::validate(operation, registers, bytes);
+    }
+
+    if let Operation::GlobalDescriptorTable(direction) = operation {
+        let [pointer] = registers else {
+            return None;
+        };
+        let [rex, 0x89, register_move, 0x41, 0x0f, 0x01, descriptor] = bytes else {
+            return None;
+        };
+        // Decode MOV's source and destination independently of construction.
+        // The second instruction must use [R10] with the exact descriptor selector.
+        let source = ((register_move >> 3) & 7) | ((rex & 4) << 1);
+        let destination = (register_move & 7) | ((rex & 1) << 3);
+        let selector = match direction {
+            DescriptorOperation::Store => 0x02,
+            DescriptorOperation::Load => 0x12,
+        };
+        return (*rex & 0xfa == 0x48
+            && register_move & 0xc0 == 0xc0
+            && source == *pointer
+            && destination == 10
+            && *descriptor == selector)
+            .then_some(());
+    }
+
     if let Operation::MemoryFence(kind) = operation {
         return (registers.is_empty() && super::memory_fence::decode(bytes) == Some(kind))
             .then_some(());
@@ -733,13 +901,7 @@ pub(crate) fn footprint(
     operands: &[RegisterViewId],
 ) -> X86_64SelectedFormFootprint {
     X86_64SelectedFormFootprint {
-        register_reads: if operation.input_carriers().is_empty() {
-            vec![]
-        } else if operation.produces_value() {
-            vec![operands[0]]
-        } else {
-            operands.to_vec()
-        },
+        register_reads: operands[..operation.input_carriers().len()].to_vec(),
         register_writes: if operation.produces_value() {
             vec![operands[operation.input_carriers().len()]]
         } else {
@@ -747,7 +909,10 @@ pub(crate) fn footprint(
         },
         writes_rflags: matches!(
             operation,
-            Operation::SystemWrite(SystemRegister::Rflags) | Operation::InterruptControl(_)
+            Operation::SystemWrite(SystemRegister::Rflags)
+                | Operation::InterruptControl(_)
+                | Operation::TaskRegisterActivate
+                | Operation::SegmentReload(_)
         ),
         encoded: effects(operation),
     }

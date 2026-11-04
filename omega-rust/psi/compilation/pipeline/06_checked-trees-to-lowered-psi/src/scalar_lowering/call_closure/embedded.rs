@@ -9,6 +9,10 @@ pub(crate) use discovery::checked_scalar_call_closure_with_structural_roots;
 
 pub(crate) struct EmbeddedScalarCalls<'catalogs> {
     terminal_machine: MachineId,
+    service_ids: &'catalogs [(
+        language_semantics::ServiceReachId,
+        semantic_vocabulary::ServiceId,
+    )],
     signatures: &'catalogs [crate::unit::attached_unit::signatures::MachineSignature],
     structural_types: &'catalogs [terminal_psi::StructuralTypeDeclaration],
     domain_ids: &'catalogs [crate::shared::terminal_identities::StructuralDomainBinding],
@@ -40,6 +44,7 @@ impl<'catalogs> EmbeddedScalarCalls<'catalogs> {
     ) -> Self {
         Self {
             terminal_machine,
+            service_ids: &[],
             signatures: &[],
             structural_types: &[],
             domain_ids: &[],
@@ -59,6 +64,10 @@ impl<'catalogs> EmbeddedScalarCalls<'catalogs> {
     /// Attach the enclosing closure's lowered boundary roster.
     pub(crate) fn with_callable_namespace(
         mut self,
+        service_ids: &'catalogs [(
+            language_semantics::ServiceReachId,
+            semantic_vocabulary::ServiceId,
+        )],
         boundaries: &'catalogs [crate::unit::attached_unit::BoundaryParameters],
         domain_ids: &'catalogs [crate::shared::terminal_identities::StructuralDomainBinding],
         domain_declarations: &'catalogs [terminal_psi::StructuralDomainDeclaration],
@@ -66,6 +75,7 @@ impl<'catalogs> EmbeddedScalarCalls<'catalogs> {
         signatures: &'catalogs [crate::unit::attached_unit::signatures::MachineSignature],
         structural_types: &'catalogs [terminal_psi::StructuralTypeDeclaration],
     ) -> Self {
+        self.service_ids = service_ids;
         self.signatures = signatures;
         self.structural_types = structural_types;
         self.boundaries = boundaries;
@@ -84,6 +94,7 @@ impl<'catalogs> EmbeddedScalarCalls<'catalogs> {
     pub(crate) fn emission_context(&self) -> CallEmissionContext<'_> {
         CallEmissionContext {
             terminal_machine: self.terminal_machine,
+            service_ids: self.service_ids,
             domain_ids: self.domain_ids,
             domain_declarations: self.domain_declarations,
             scalar_qualifications: self.scalar_qualifications,

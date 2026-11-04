@@ -271,43 +271,73 @@ pub(super) fn check_domain_field_writes(
                     );
                     continue;
                 }
-                if !value_proves_qualification(
+                // `&(x as T)` keeps `x`'s storage, whose facts still carry the
+                // meaning `T` erased; the erased initializer cannot supply it.
+                // A stored reference initialized from an erasing cast (`v.t`) carries
+                // that erasure when initializing another reference.
+                let erased = ::validation::field_domains::expression_erases_membership(
                     program,
-                    facts,
-                    state_flow,
-                    statement_index,
                     local.initial_value,
                     domain_symbol,
                     semantic_domain,
-                    decisions,
-                    frames,
-                ) && !(!requires_provenance
-                    && (initializer_satisfies_predicate_domain(
+                ) || facts
+                    .flow
+                    .state_statement(state_flow, statement_index)
+                    .filter(|statement| {
+                        facts.flow.control.operands.is_valid(statement.stored_value)
+                    })
+                    .map(|statement| statement.stored_value)
+                    .is_some_and(|stored_value| {
+                        super::call_values::operand_erases_membership(
+                            program,
+                            &facts.flow.control,
+                            stored_value,
+                            &[],
+                            domain_symbol,
+                            semantic_domain,
+                            &mut Vec::new(),
+                        )
+                    });
+                if erased
+                    || !value_proves_qualification(
                         program,
                         facts,
                         state_flow,
                         statement_index,
                         local.initial_value,
                         domain_symbol,
-                        &mut Vec::new(),
+                        semantic_domain,
+                        decisions,
                         frames,
-                    ) || facts
-                        .flow
-                        .state_statement(state_flow, statement_index)
-                        .filter(|statement| {
-                            facts.flow.control.operands.is_valid(statement.stored_value)
-                        })
-                        .map(|statement| facts.flow.control.operands.get(statement.stored_value))
-                        .filter(|capture| {
-                            capture.expression == local.initial_value
-                                && capture.statement_index == statement_index
-                                && capture.state_symbol == state_flow.state_symbol
-                        })
-                        .is_some_and(|capture| {
-                            member_domains::captured_value_satisfies_indexed_domain(
-                                program, facts, state_flow, capture, constraint, frames,
-                            )
-                        })))
+                    ) && !(!requires_provenance
+                        && (initializer_satisfies_predicate_domain(
+                            program,
+                            facts,
+                            state_flow,
+                            statement_index,
+                            local.initial_value,
+                            domain_symbol,
+                            &mut Vec::new(),
+                            frames,
+                        ) || facts
+                            .flow
+                            .state_statement(state_flow, statement_index)
+                            .filter(|statement| {
+                                facts.flow.control.operands.is_valid(statement.stored_value)
+                            })
+                            .map(|statement| {
+                                facts.flow.control.operands.get(statement.stored_value)
+                            })
+                            .filter(|capture| {
+                                capture.expression == local.initial_value
+                                    && capture.statement_index == statement_index
+                                    && capture.state_symbol == state_flow.state_symbol
+                            })
+                            .is_some_and(|capture| {
+                                member_domains::captured_value_satisfies_indexed_domain(
+                                    program, facts, state_flow, capture, constraint, frames,
+                                )
+                            })))
                 {
                     diagnostics.push(Diagnostic::error(format!(
                         "cannot prove initializer of `{}` in {} is in domain `{}`; an annotation cannot establish routed qualification",

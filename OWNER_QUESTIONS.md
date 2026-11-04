@@ -67,142 +67,102 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### 1. Is a layout used only inside unselected library code a Psi obligation under every target?
+### 1. Which input accepts an independent component's assumptions, and how is an accepted assumption spelled?
 
-A fixed-representation use (`LayoutStorage`, `CLayout`) inside a body that no
-Build row selects and no entry reaches is laid out today by Psi's build-time
-admission under every selected target that carries representation facts. Since
-std moved its POSIX native bindings to Build rows (#1617, #1622, #1625), portable
-std code such as `posix_canonicalize` and `FilesystemPosixProvider`, and the
-Darwin C-layout stat and timespec records their closures use, is no longer
-reached through any target's provider defaults. It is therefore unscoped, and it
-is laid out under every target with facts (#1653 stopped also demanding it from
-targets without facts). A console-only program pays for laying out filesystem
-code it never calls, once per target.
+A verified component description can bind assumptions about its environment,
+such as an immediate port-space write, by digest. The specification requires
+the consuming side to tell verification which of those assumptions it accepts
+(cited below), so that a component is not admitted on its producer's word. That
+requirement, not the fixtures, motivates this question. No customer outside
+fixtures and samples uses the current surface, but retiring it under the
+surface-retirement rule would leave the requirement with no input at all, which
+is why the question is not settled as Option B by default.
 
-The product requirement is compile latency of ordinary std-dependent programs.
-`tests/omega/pass/host/console_exit_process_exit` is recorded as
-`checked 11753ms` in `tests/omega/corpus_outcomes.txt` (`@ccdb99ca2214`, check
-target macos_arm64, host unrecorded). On main `de9648a198` plus #1653
-(`a151ce613a`), one `omega --check` of it took 148.5 s on a linux_x86_64 cloud
-container (the author's measurement), and 95.6 s on main `91b6625545` after
-#1656. Three smoke fixtures
-(`control_flow/borrowed_state_argument`,
-`control_flow/runtime_owned_state_parallel_swap_exit`,
-`write_only/state_forwarded_scalar_store_exit`) exceed the 120 s corpus cap. For
-the first of them, PR #1656 reports 33.9 s per check in fixed-layout evaluation
-across 85 layout applications in 6 target scopes at `5209eac451`. After its
-repair of the proof judge's quadratic scans, about 79 s of extra checking
-remains with no single hot frame. On `91b6625545` the console check spends 52 s
-in stage-05 checking of the newly demanded std code and only a few seconds in
-layout formation. Option A below would remove the layout share only; both
-options still resolve, type and check that code, so neither recovers the rest.
+The repository has a Build call for this, `Build::accept_component_assumption(builder, digest)`.
+Its prelude comment (`omega-rust/omega/packages/build-declarations/src/prelude.rs:306-315`)
+says the build "accepts one exact digest per call, authored as the same
+lowercase hex spelling verification diagnostics report" and that the
+declaration "is harvested statically". The last sentence is stale. Today the
+call does nothing:
+- the checked Build evaluator evaluates the digest and discards it;
+- `EvaluatedBuild.accepted_component_assumptions` has no producer;
+- provider settlement still passes that always-empty set to component
+  verification, so any description that binds an assumption is refused as
+  unaccepted whatever the build declares;
+- any spelling, including a malformed or short one, is accepted silently.
 
-A Build row's target cannot scope the code: a source declaration acquires no
-target tag, and the row demands only a body-less boundary requirement, not its
-portable callers.
+#1156 removed the static harvester and its digest decoder as unused. That decoder
+required 64 hex characters and accepted either case.
 
-Option A, demand-limited layout: Psi lays out a fixed-representation
-application only under each target whose Build rows select, or whose entry
-reaches, a closure containing it. That includes rows for targets outside the
-requested output, so
-`tests/omega/fail/layouts/unselected_target_{helper,callback}_layout_underflow`
-and `unselected_target_layout_contract` keep rejecting. A use reached by no row
-and no entry is resolved, typed and checked, but not laid out under target facts.
-Its layout applicability is left to Omega's validation of whichever closure a
-later row selects. "Every supplied implementation is checked" then excludes
-target-fact layout formation for code no row or entry reaches.
+The programs that depend on the answer:
+- `tests/omega/fail/build/component_assumption_{malformed,short}` expect a
+  spelling refusal ("64 hexadecimal characters") but compile.
+- `tests/omega/pass/build/component_assumption_{acceptance,policy_accepted,policy_changed,reborrow}`
+  make the Build call. `component_assumption_reborrow` spells its digest in
+  uppercase. `component_assumption_policy_missing` omits the call;
+  `component_assumption_mechanism` is the dependency that publishes the port
+  assumption. Together the three `policy_*` fixtures are meant to distinguish a
+  missing, a changed and a correct acceptance, which nothing distinguishes today.
+  `component_assumption_user_declaration` calls an unrelated
+  `Policy::accept_component_assumption`.
+- `samples/cli/independent/component_assumption_recording` and
+  `samples/cli/probes/build_component_assumptions` (with its
+  `controls/invalid_assumption_one_arg`) make the call. The probe's README says
+  the call "records the exact assumption in the selected build", which is
+  currently false.
+- `tests/omega/fail/build/component_assumption_{other_builder,swapped,wrong_arity}`
+  pin the call's shape (Build activation, argument types, arity). They reject
+  the same way under Options A and C.
 
-Option B, mandatory layout of all supplied code: every supplied
-fixed-representation application is laid out under every target with facts,
-whether or not anything reaches it. Layout formation is part of the ordinary
-source check of every supplied implementation, and the cost scales with a
-library's target-specific code times the number of targets, for every program
-that depends on it.
+Option A, the Build call is the acceptance input: Build evaluation records each
+digest, with its machine and span, into the evaluated Build result, and the
+verifier receives exactly that set. It refuses a spelling that is not 64 hex
+characters. The owner also fixes whether case is significant: with
+case-insensitive digests `component_assumption_reborrow` keeps its spelling;
+with lowercase only, it migrates. The two fail fixtures become real reject
+twins, and the `policy_*` fixtures regain their distinction. No source
+re-reading is reintroduced.
 
-Contracts checked, and why they do not decide it:
-- [Layout plans](wiki/spec/layouts/plans.md#compile-time-journey-and-build)
-  (lines 301-305) say "the using representation application selects the exact
-  implementation" and the compiler "supplies its authorized schema and target
-  facts"; lines 313-314 say "merely importing a package does not instantiate its
-  layouts". Neither says whether a use inside a checked but unselected body is a
-  using application or a mere import.
-- [Terminal Psi product](wiki/spec/terminal-psi/product.md) (lines 28-30) calls
-  "target-selected layout" a later realization fact; lines 216-219 say "selected
-  ... layout ... applicability is a realization obligation". These place
-  *selected* layout in Omega but say nothing of unselected uses.
-- [Multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
-  (lines 166-173), [scoped execution](wiki/spec/build/scoped_execution.md)
-  (lines 164-167, "including unselected target implementations") and
-  [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection)
-  (line 106) require ordinary source checks of every supplied implementation.
-  They do not say whether target-fact layout formation is one.
-- [Behavior exclusions](wiki/spec/build/behavior_exclusions.md) (lines 126-131)
-  already draw the same line for another obligation: "An unused unselected
-  implementation ... need not satisfy a product exclusion, but remains subject to
-  ordinary source checks."
-- [Machines](wiki/spec/language/machines.md) (lines 186-190),
-  [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection)
-  (lines 91-93, 107) and [Build-owned native binding](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)
-  (lines 36-39) keep target keys on Build rows, which is why a row cannot scope
-  the code.
-- The layout implementation note (`omega-rust/psi/compilation/build-time-evaluation/layouts.md`,
-  not a contract) leans both ways. Lines 43-45 say Build supplies "selected
-  providers" and that a scope with no application needs no facts. Lines 96-98 and
-  110-113 follow provider bodies "under each applicable target" and reject a bad
-  target-family member "even when deployment requests another target".
+Option B, acceptance belongs to package acceptance policy: assumptions are
+accepted through the lock and acceptance comparison, like other trust-bearing
+decisions, keyed by assumption meaning rather than a spelling. The Build call is
+retired. So are the five `fail/build/component_assumption_*` fixtures, the probe control and the Build calls in
+the four pass fixtures and two samples. The `policy_*` distinction moves to
+lock-acceptance fixtures. The verifier receives the set the lock accepted.
 
-### 2. Must a lent local's domain qualification hold again when the borrow returns?
+Option C, both: the Build call states the build's intent, and the lock records
+the reviewed acceptance as a risk-bearing row, as it does for assumed binding
+relationships. Verification requires the digest in both, so the spelling rule
+of Option A applies to the call.
 
-A local binding can carry a domain qualification, for example
-`let mut bytes: [u8; 2] in Ascii = "ab";`. When it is lent through
-`&mut` to a callee whose formal carries the same qualification, the contracts
-do not say whether the local's qualification is a stored invariant, which the
-callee must restore before returning, or an input qualification, which may
-expire.
-
-`tests/omega/fail/collections/fixed_array_write_rejects_element_domain` assumes
-it is a stored invariant. Its `corrupt(bytes: &mut [u8; 2] in Ascii, index: u64)`
-stores 255 into the lent array and is expected to reject with
-`cannot prove default-domain field requirement`. It compiles today. That fixture
-is left unchanged pending this decision.
-
-The product requirement is soundness of encoding domains on byte storage. If
-the local's qualification may expire, the caller's binding still has type
-`[u8; 2] in Ascii`, yet it may hold a non-ASCII byte after the call. Callers
-that later rely on the declared type would then rely on a fact that no longer
-holds, unless the qualification expires at the lend as well.
-
-Option A, stored invariant: a local's own domain qualification is owed at every
-consumption point, like a declared field domain. A callee that receives it
-through `&mut` must re-establish it before returning. A formal's additional
-input qualification still expires as it does today. Only the lent storage's own
-declaration is owed at return.
-
-Option B, input qualification: lending a qualified local makes its
-qualification an input to the callee, which may retire it as it may retire any
-additional input domain. The caller's fact about the local ends at the lend and
-must be re-established before the next use that requires it. The fixture
-migrates: it should expect acceptance, or move the rejection to a later use of
-`bytes` that needs `Ascii`.
+A `TopologyRequest` (topology.md, owner intent) also lists accepted assumptions,
+but it is a package-defined plan input for instance graphs, not a compiler
+input for single-component verification, so it is not offered as a separate
+option.
 
 Contracts checked, and why they do not decide it:
-- [Mutable arguments and declared field domains](wiki/spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains)
-  (lines 143-146) say an ordinary `&mut T` argument carries "the declared
-  field/default-domain obligations of `T`", which the callee restores at return.
-  Lines 149-151 say "An additional input domain need not survive a call unless
-  the ordinary contract guarantees it." Neither says which of the two a local's
-  own qualification is.
-- [Byte containers and encoding domains](wiki/spec/language/domains.md#byte-containers-and-encoding-domains)
-  (line 684) says "Mutation must preserve or re-establish the facts on affected
-  places." Read alone, this favors Option A. Read together with the lines above,
-  it can mean only the facts a place still owes, which favors Option B.
-- The ratified witnesses cover the two neighbors but not this case:
-  - `tests/omega/pass/domains/qualified_mutable_scalar_input_domain_expires`
-    ("An additional input qualification is not an implicit postcondition")
-    breaks a formal's `&mut [u16; 4] in Terminated` and is accepted.
-  - The fact row `samples/cli/facts/additional_input_domain_mutation` writes 73
-    through `&write Cell in Before` into an unqualified local and is accepted.
-  - `tests/omega/fail/domains/write_only_declared_field_domain_requires_restoration`
-    protects a stored field `Holder.cell: Cell in Before`, which must be
-    restored at return.
+- [Verified component descriptions](wiki/spec/build/component_publication.md#verified-component-descriptions)
+  (lines 91-96, 130-135): verification returns a `VerifiedComponent` "with
+  accepted assumptions", the expected subject and profile "come from independent
+  caller policy", "unaccepted assumptions" is a distinct failure, and
+  assumptions "are inseparable from claim consumption". This requires accepted
+  assumptions to reach verification but names no input that carries them.
+- [Topology](wiki/spec/packages/topology.md), verified-description consumer
+  (line 228) and owner intent (lines 376-382): the consumer uses "independently
+  selected subject, verification profile, and accepted assumptions", and a
+  `TopologyRequest` lists accepted assumptions. Neither says whether Build or
+  the lock supplies them to compilation.
+- [Package acceptance](wiki/spec/packages/acceptance.md) (line 96): "explicit
+  trust-bearing assumptions require acceptance". Line 249: "Acceptance binds
+  permission and assumption meaning, not diagnostic wording". This leans
+  toward Option B, and against keying acceptance on a diagnostic-reported
+  spelling, but does not mention component assumptions or the Build call.
+- [Locks](wiki/spec/packages/locks.md) (lines 36-43) and
+  [assumed binding contracts](wiki/spec/build/assumed_binding_contracts.md):
+  assumed binding relationships are risk-bearing rows the lock retains. This is a
+  precedent for Option C's shape, but it is stated for binding relationships only.
+- [Compiler request](wiki/spec/build/compiler_request.md) (line 52): "External
+  admissions cover the assumptions and authority required by the requested
+  compilation". This bears on Option B without naming component assumptions.
+- No clause in `wiki/spec/build` defines `Build::accept_component_assumption`
+  or a digest spelling rule.
