@@ -6,7 +6,7 @@
 //! distinction explicit avoids traversing successor graphs for local alias
 //! queries without publishing truncated effects as complete evidence.
 
-use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+use crate::declarations::symbols::TopLevelSymbols;
 use crate::machine_calls::calls::write_frames::alias_origins::{
     stable_assignment_target_path, stable_local_reference_alias_origin,
     stable_local_reference_alias_origins,
