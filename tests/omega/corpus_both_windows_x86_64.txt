@@ -718,6 +718,8 @@ pass/calls/mutable_receiver_computation_exit built 8753ms exit:70 interpreter-ex
 pass/calls/mutable_receiver_scalar_destinations_exit built 8773ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/calls/mutual_cycle_tail_admitted_exit built 11190ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/calls/named_target_payload_dispatch built 8931ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/calls/native_code_layout_region_snapshot_exit built 5968ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/calls/native_code_layout_uncalled_cycle_exit built 5972ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
 pass/calls/negated_edge_guard_requires_exit built 8823ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/calls/nested_binding_call checked 3494ms @5f668826adf3+wt
 pass/calls/nested_call_footprints_follow_occurrences built 4247ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -4189,12 +4191,15 @@ pass/facts/selected_crash_formal_through_other_machine_exit built 2505ms exit:0 
 pass/facts/selected_crash_formal_through_other_state_exit built 3563ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/selected_crash_formal_through_parameter_exit built 2931ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/selected_crash_formal_through_target_body_exit built 2945ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/facts/selected_native_code_layout_through_match_join_exit rejected 2922ms interpreter:unchecked @5f668826adf3+wt
-	native artifact target lowering failed: StructuralStateBindingMismatch { machine: MachineId(2), reason: "binding=AbstractStructuralBinding { parameter: PlaceId(9), argument: StructuralArgument { place: PlaceId(10), path: [], access: Owned } }; parameter=StructuralParameterDeclaration { place: PlaceId(9), position: 0, structural_type: StructuralTypeId(1), multiplicity: Affine, access: Owned, qualifications: [], projected_qualifications: [] }; source_type=Some(StructuralTypeId(1)); argument_type=Some(StructuralTypeId(1)); source_storage_contract=Some(false); leaf_copy_owned_contract=None; crosses_loan_leaf=false" }
-pass/facts/selected_native_code_layout_through_other_state_exit rejected 3229ms interpreter:unchecked @5f668826adf3+wt
-	native artifact target lowering failed: StructuralStateBindingMismatch { machine: MachineId(3), reason: "binding=AbstractStructuralBinding { parameter: PlaceId(8), argument: StructuralArgument { place: PlaceId(9), path: [], access: Owned } }; parameter=StructuralParameterDeclaration { place: PlaceId(8), position: 0, structural_type: StructuralTypeId(1), multiplicity: Affine, access: Owned, qualifications: [], projected_qualifications: [] }; source_type=Some(StructuralTypeId(1)); argument_type=Some(StructuralTypeId(1)); source_storage_contract=Some(false); leaf_copy_owned_contract=None; crosses_loan_leaf=false" }
-pass/facts/selected_native_code_layout_through_parameter_exit rejected 3216ms interpreter:unchecked @5f668826adf3+wt
-	native artifact target lowering failed: InvalidOwnedStructuralArgument { source: PlaceId(9), parameter: PlaceId(9), structural_type: StructuralTypeId(1), reason: "source home multiplicity differs from its formal" }
+pass/facts/selected_native_code_layout_through_call_result_exit built 5765ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_const_name_exit built 5671ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_field_exit built 5512ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_local_exit built 5524ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_match_join_exit built 5442ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_other_machine_exit built 5552ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_other_state_exit built 5565ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_parameter_exit built 5594ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_target_body_exit built 5618ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
 pass/facts/selected_scalar_initializer_through_call_result_exit built 3226ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/selected_scalar_initializer_through_const_name_exit built 2844ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/selected_scalar_initializer_through_field_exit built 2964ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

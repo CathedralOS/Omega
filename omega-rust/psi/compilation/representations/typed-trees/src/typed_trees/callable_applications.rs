@@ -419,6 +419,7 @@ impl CallableApplication {
     ) -> Result<data::MachineParameterContract, &'static str> {
         use crate::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
 
+        let receiving_arguments = arguments.clone();
         let (declaration, signature) = program
             .trait_machine_signature(requirement)
             .ok_or("nominal requirement lost its declaring trait")?;
@@ -463,6 +464,8 @@ impl CallableApplication {
             program.apply_callable_refinements(signature, &clauses)?;
         }
         Ok(data::MachineParameterContract::Nominal {
+            receiving_trait: selected_trait,
+            receiving_arguments,
             trait_definition: declaring_trait,
             requirement,
             trait_arguments: arguments,
@@ -680,16 +683,17 @@ impl TypedTrees {
                 data::TypeParameterKind::Machine {
                     contract:
                         data::MachineParameterContract::Nominal {
-                            trait_definition,
+                            receiving_trait,
+                            receiving_arguments,
                             requirement,
-                            trait_arguments,
                             instantiated: None,
+                            ..
                         },
                 } => Some((
                     handle,
-                    *trait_definition,
+                    *receiving_trait,
                     *requirement,
-                    trait_arguments.clone(),
+                    receiving_arguments.clone(),
                     parameter.symbol,
                 )),
                 _ => None,

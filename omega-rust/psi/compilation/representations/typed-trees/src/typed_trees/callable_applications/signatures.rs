@@ -325,17 +325,25 @@ impl CallableApplication {
                         )
                     }
                     data::MachineParameterContract::Nominal {
+                        receiving_trait,
+                        receiving_arguments,
                         trait_definition,
                         requirement,
                         trait_arguments,
                         instantiated,
                     } => {
+                        let receiving_arguments = receiving_arguments
+                            .into_iter()
+                            .map(|argument| self.type_reference(program, argument))
+                            .collect::<Result<Vec<_>, _>>()?;
                         let arguments = trait_arguments
                             .into_iter()
                             .map(|argument| self.type_reference(program, argument))
                             .collect::<Result<Vec<_>, _>>()?;
                         if let Some(signature) = instantiated {
                             data::MachineParameterContract::Nominal {
+                                receiving_trait,
+                                receiving_arguments,
                                 trait_definition,
                                 requirement,
                                 trait_arguments: arguments,
@@ -344,9 +352,9 @@ impl CallableApplication {
                         } else {
                             self.nominal_contract(
                                 program,
-                                trait_definition,
+                                receiving_trait,
                                 requirement,
-                                arguments,
+                                receiving_arguments,
                             )?
                         }
                     }

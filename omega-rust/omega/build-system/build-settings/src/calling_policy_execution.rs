@@ -60,6 +60,7 @@ pub fn evaluate_terminal_calling_policy(
     let program = TerminalProgram::borrow(artifact.view());
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            native_code_layouts: None,
             x86_flags: None,
             memory_ordering: None,
             installation: Some(providers),
@@ -101,6 +102,7 @@ pub fn evaluate_terminal_calling_policy(
     )?;
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            native_code_layouts: None,
             x86_flags: None,
             memory_ordering: None,
             installation: Some(providers),

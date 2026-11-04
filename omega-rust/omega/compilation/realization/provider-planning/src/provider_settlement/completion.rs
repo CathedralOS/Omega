@@ -162,7 +162,22 @@ impl CompletionReview<'_> {
             let requirement = self.requirement;
             let leaves: Vec<_> = self.candidates.iter().flat_map(|candidate| {
                 candidate.plan.rows.iter().enumerate().filter_map(move |(position, row)| {
-                    (candidate.provenance.row_realizations.get(position).and_then(crate::ProviderRowRealization::authored) == Some(machine.symbol)
+                    // The leaf is the external operation the call actually
+                    // reaches: an authored realization names the machine
+                    // directly; a build-owned native binding names it through
+                    // the requirement its satisfies edge carries.
+                    let realization_is_leaf = match candidate.provenance.row_realizations.get(position) {
+                        Some(crate::ProviderRowRealization::Authored(symbol)) => {
+                            *symbol == machine.symbol
+                        }
+                        Some(crate::ProviderRowRealization::BuildNative(origin)) => context
+                            .typed
+                            .machine_trait_conformances(machine)
+                            .iter()
+                            .any(|edge| edge.requirement_symbol == origin.requirement),
+                        _ => false,
+                    };
+                    (realization_is_leaf
                         && candidate.provenance.row_requirements.get(position) == Some(&requirement)
                         && matches!(row.binding, effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
                             | effects::provider_plan::ProviderBinding::Import { .. }))
