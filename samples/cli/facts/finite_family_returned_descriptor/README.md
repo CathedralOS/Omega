@@ -128,66 +128,52 @@ The complete acceptance requires the following:
 
 ## Current validation
 
-The frozen baseline at `04ff8c536ae05d4460591625073bb954df308df6`
-([hosted run](https://github.com/CathedralOS/Omega/actions/runs/41563092092))
-checks eleven positives and rejects all twelve controls for their intended
-reasons. Eleven positive fixtures exit 0 in both native and Terminal execution.
-The replacement example remains incomplete in both legs: lowering reports
-`reference result has no complete captured origin paths`. Public sample
-execution was not reached. This is an open compiler failure, not a passing row.
+The unchanged replacement program fails during lowering on fixed baseline
+`0d2886a26e6b17ede96f1accbb6501a2a85fbd30`
+([run](https://github.com/CathedralOS/Omega/actions/runs/41575232529)).
+The repair at `a251628c888a10e0f2871d4b15a1429cf1746d53`
+([run](https://github.com/CathedralOS/Omega/actions/runs/41668616576)) executes
+that program and the stored-pointer program with native and Terminal exit 0
+through both corpus and public sample commands. Their local-storage twins reject.
+Those observations cover the two examples. The complete row still needs current
+validation.
 
-The integrated baseline at `0d2886a26e6b17ede96f1accbb6501a2a85fbd30`
-([run](https://github.com/CathedralOS/Omega/actions/runs/41575232529)) reproduces
-the replacement refusal and its twin's lifetime rejection. The first repair at
-`fa4d6c3bdb9cf67799754a1fd3e542e3a875aa1a`
-([run](https://github.com/CathedralOS/Omega/actions/runs/41576191506)) preserves
-eleven fact engine agreements but does not fix that refusal. A separate
-write-only forwarding probe refuses identically on the unchanged integrated
-base; it is not claimed as a passing check or attributed to this repair.
+At `750caced8cc6b894273004bf2ecb2d94ec57ed3c`, all twelve original fact programs
+execute with native and Terminal exit 0 on
+[Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41754288583)
+and [Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/41754324372).
+Every measured local-storage control rejects. The missing-supply control refuses
+publication on Linux x86-64 and executes on its supplied ARM target. The source
+leg selects macOS ARM64 independently and also observes its missing-supply refusal.
+The reports remain failed because the new caller-view example still loses its
+input origins. Neither report reaches public sample execution. Linux also has a
+slice-return refusal whose current-main attribution remains unresolved.
 
-The completed-return repair at `a251628c888a10e0f2871d4b15a1429cf1746d53`
-([run](https://github.com/CathedralOS/Omega/actions/runs/41668616576)) makes the
-unchanged replacement and stored-pointer programs execute with native and
-Terminal exit 0, through both the corpus and public sample commands. Both
-local-storage twins still reject. This establishes those two examples; the
-complete nine-place row is being checked separately.
+The next probe at `faa7d0645db43495ece24190cc3f6def9d489942`
+([run](https://github.com/CathedralOS/Omega/actions/runs/41759230903)) still refuses
+the caller-view and incoming-pointer join. Its stored-pointer, replacement and
+existing view-composition controls execute with exit 0 in both engines; all six
+intended source controls reject. These partial results do not establish the new
+examples.
 
-The missing-supply control was previously judged only by source checking, which
-cannot prove its native refusal. The actual publication check at
-`08cea6d698f3b6a47c715f9bd977278ad00ea143`
-([run](https://github.com/CathedralOS/Omega/actions/runs/41662688648)) confirms a
-compiler defect: Linux x86-64 builds the control even though only Linux ARM64
-has an authored provider selection. No execution is counted for that build-only
-control. The provider-selection repair and full row remain under validation.
-Both parent requirements remain open. Evidence is retained under
+Current source separates the captured pointer from the callee's later read of
+its contents. The pointer keeps its original evaluated value. When the callee
+reads data through that pointer, it uses storage after every argument has
+completed, including effects from later arguments. Independent source review accepted
+this correction. Fresh execution of the caller-view, incoming-pointer join and
+saved-pointer replacement, followed by all public fact projects, remains open.
+The preceding `e46c33e3c75a055c41e48fbc53c7ead8c2548e8b` probe
+([run](https://github.com/CathedralOS/Omega/actions/runs/41763942681)) checks all
+three new examples, but native legalization refuses their storage relationships.
+The stored-pointer and existing view-composition programs execute with exit 0 in
+both engines. The original replacement also refuses lowering at that source.
+An existing case-descriptor example rejects; its earlier-baseline attribution is
+being measured separately. These failures remain open.
+
+Actual producer identities, raw reports and earlier source are retained under
 `build/finite-descriptor-selected-20261103/`.
 
-<details>
-<summary>Earlier observations</summary>
-
-At `036605466510d2361fd579cf9fd97b722e070beb`, the borrowed-record source passed
-normal update but `run --both` exited 200 with `argument referent requires a
-reference carrier`. Parameter and nested-machine composition also reported
-`captured reference leaves have no resources`. A stored-pointer variation exposed
-the same source-coordinate problem and native result transport that retained
-only moved reference metadata. The historical repair's inputs and optimized
-producer observations remain under `build/slot9-resume-evidence`.
-
-At fixed baseline `7df8b4d92070d83d357849fb2eb77e05c61f36a4`, the replacement
-example passed ordinary execution, while the separate retained audit incorrectly
-reported duplicate custody for its shared stored and returned references. That
-repair allowed independent shared receiving references under the actual source
-contract; it did not permit duplicating exclusive access. Retained auditing
-remained separate from ordinary compilation.
-
-The previous target-place migration was measured with optimized producer
-`11bdd2fe41f` on macOS x86-64: the positive exited 0 in both engines, and the twin
-rejected for returning local storage that did not outlive the call. Those older
-programs used separate x86 and ARM forwarding wrappers and marker checks. Their
-observations do not validate the changed programs here.
-
-</details>
-
-Windows x86-64, macOS ARM64 and Linux ARM64 execution remain unverified for this
-change. Broader generic dispatch, automatic cleanup and product-compiler
-acceptance are not established by this row. No owner design decision is needed.
+Windows x86-64 and macOS ARM64 native execution remain unverified for this
+change. Broader generic dispatch, cleanup and product-compiler acceptance are
+not established by this row. Both parent requirements remain open. No owner
+design decision is needed.
