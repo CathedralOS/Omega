@@ -6,9 +6,9 @@
 //! installation authority; those remain obligations of the receiving owner.
 //!
 //! A slot is settled by the first of: an explicit override, a target default,
-//! a covering candidate that a Build row keys to the selected target, or the
-//! one covering candidate in scope. Candidates in scope for every target stay
-//! checked but do not compete with a row that names this target.
+//! a covering candidate that a Build row keys to the selected target.
+//! Implementations merely in scope stay checked; their presence supplies no
+//! missing target row and does not compete with authored supply.
 
 mod identities;
 pub use identities::{ApplicationKey, selected_application_slots};

@@ -510,7 +510,12 @@ pub(crate) fn bound_symbol_declared_type(
     found
 }
 
+mod array_extents;
 mod attached_storage;
+pub use array_extents::{
+    ResolvedArrayExtent, resolved_array_extent, resolved_array_extent_at,
+    resolved_projected_array_extent,
+};
 mod builtin_coordinates;
 mod exact_self_field;
 mod structural_scalar_field;

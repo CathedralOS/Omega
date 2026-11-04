@@ -143,6 +143,28 @@ impl StructuralPrefixVisitor for Bounds {
             self.proven = false;
             return;
         };
+        let array_extent = if crate::fixed_array_type_extent(program, reference).is_some() {
+            match crate::resolved_array_extent_at(
+                program,
+                state,
+                self.site.statement_index,
+                indexed.collection,
+            ) {
+                Ok(extent) => Some(extent),
+                Err(reason) => {
+                    if super::struct_trace() {
+                        eprintln!(
+                            "STRUCT collection-extent machine={} reason={reason}",
+                            machine.name
+                        );
+                    }
+                    self.proven = false;
+                    return;
+                }
+            }
+        } else {
+            None
+        };
         let Some(entries) = judge.normal_operation_entries(
             self.site.statement_index,
             self.expression,
@@ -150,7 +172,18 @@ impl StructuralPrefixVisitor for Bounds {
             environment,
             (machine, state, state.return_type),
         ) else {
-            self.proven = false;
+            // The operation query deliberately treats no reached operation as
+            // unavailable. The expression cut distinguishes a completely
+            // explored unreachable occurrence from an incomplete observation;
+            // only that independent result can make bounds vacuous.
+            self.proven &= judge
+                .normal_expression_entries(
+                    self.site.statement_index,
+                    self.expression,
+                    environment,
+                    (machine, state, state.return_type),
+                )
+                .is_some_and(|entries| entries.is_empty());
             return;
         };
         self.proven &= !entries.is_empty();
@@ -171,6 +204,7 @@ impl StructuralPrefixVisitor for Bounds {
                 &entry.judge,
                 indexed,
                 reference,
+                array_extent.as_ref(),
                 collection.clone(),
                 |source| {
                     let value = entry.arguments.get(position)?.as_ref()?.clone();
