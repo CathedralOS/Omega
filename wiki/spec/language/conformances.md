@@ -117,6 +117,15 @@ checker consumes the selected evidence; it does not search for an algebra or
 infer one from operator punctuation. [Licensed normalization](../proofs/contracts.md#licensed-normalization)
 defines which transformations that evidence permits.
 
+Different algebras can coexist, but index normalization retains each exact
+applied conformance and cannot borrow another selection's laws. Changing a
+trait's laws changes its published contract; below-budget preservation of
+identifications is subject to the explicit
+[mutual-distributivity exception](../proofs/contracts.md#bounded-canonical-index-normalization).
+Neither policy names nor an added law promise unconditional preservation across
+expansion cutoffs. The identity profile and its provenance remain shared across
+producers, not selected by a caller's local proof-work allowance.
+
 Generic conformances own their telescopes independently of data declarations.
 Select one through a nested application with every type, const,
 and static-machine argument explicit; expected shape or visibility cannot infer
