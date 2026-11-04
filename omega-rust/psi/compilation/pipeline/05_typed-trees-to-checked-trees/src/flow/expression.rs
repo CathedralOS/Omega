@@ -302,6 +302,7 @@ pub(super) fn append_statement_calls<'plans>(
                         *constraints,
                         *constraints,
                         returned_value,
+                        execution.storage_snapshot,
                         false,
                         HandleSpan::empty(),
                     );
