@@ -594,7 +594,27 @@ impl<'program> StructuralJudge<'program> {
                 .unwrap_or(&[]);
             let mut previous_cuts = Vec::new();
             let mut cut = at.snapshot;
-            for _ in 0..4 {
+            let describe_writes = |span| {
+                graph.operand_origin_writes.span(span).map(|writes| {
+                    let prefix = writes
+                        .iter()
+                        .take(4)
+                        .map(|write| {
+                            let path = graph.operand_referent_segments.span(write.segments).map(
+                                |segments| {
+                                    (
+                                        segments.len(),
+                                        segments.iter().take(4).copied().collect::<Vec<_>>(),
+                                    )
+                                },
+                            );
+                            (write.root, path)
+                        })
+                        .collect::<Vec<_>>();
+                    (writes.len(), prefix)
+                })
+            };
+            for _ in 0..16 {
                 if !graph.storage_snapshots.is_valid(cut) {
                     break;
                 }
@@ -614,7 +634,19 @@ impl<'program> StructuralJudge<'program> {
                         )
                     })
                     .collect::<Vec<_>>();
-                previous_cuts.push((cut, snapshot.previous, snapshot.operation, associations));
+                let writes = match snapshot.operation {
+                    checked_trees::FlowStorageOperation::Writes {
+                        bindings, contents, ..
+                    } => Some((describe_writes(bindings), describe_writes(contents))),
+                    _ => None,
+                };
+                previous_cuts.push((
+                    cut,
+                    snapshot.previous,
+                    snapshot.operation,
+                    associations,
+                    writes,
+                ));
                 if snapshot.previous == cut {
                     break;
                 }
