@@ -337,7 +337,10 @@ retired-syntax deletions to completion.
     reject binder-kind/order substitutions, weakened public contracts and any
     provider attempt to fill or replace a caller's evidence argument.
   - Carry the facts that still refuse behind a selected implementation: opaque
-    write-only boundaries requiring an admitted claim for the selected implementation. Their
+    write-only boundaries requiring an admitted claim for the selected implementation;
+    float facts from an implementation member's own `requires` about a field
+    (`float_result_equality`, `exclusive_observation_exposure/float`); and a
+    float precondition on a `dyn` requirement call with a literal argument. Their
     `target_body` places keep the retired prefix until then. A requirement
     publishes `invokes` for each boundary trait its implementations invoke, and
     a public caller with an explicit ceiling names the requirement; migrated

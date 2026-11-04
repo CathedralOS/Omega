@@ -103,10 +103,10 @@ rows, 0 Rust files): the same filter is `clean — 9 fixtures ({'built': 9})`,
 fragment, 0 fail fixtures that did not reject.
 
 The mechanism is exercised by this host rather than merely compiled for it.
-No positive place is target-scoped except `target_body`, whose four bodies each
-invoke `Fraction::get`, so the realized `macos_arm64` body performs the dynamic
-call and the `f64` comparison itself; the other eight places are target-neutral
-and run the same dispatch on this host.
+No positive place is target-scoped. In `target_body` the selector passes
+through the requirement `SelectedInvoke::invoke`, whose implementation Build
+selects per target (`X86Invoke` or `ArmInvoke`); the selected body performs the
+dynamic call itself. The other eight places run the same dispatch directly.
 
 The recorded 0 is discriminating at the artifact level, not just at build
 level. Changing the authored comparison in
@@ -163,7 +163,7 @@ Full 8-layer specification and lowering evidence:
   - `const_name`: selector bound to a named constant (`const SELECTED: dyn Fraction = Quarter as dyn Fraction;`).
   - `other_state`: selector forwarded across state transitions (`transition { _ -> consume(selected) }`).
   - `other_machine`: selector passed through an inter-machine calling chain (`Consumer::run(selected)`).
-  - `target_body`: selector received and invoked in target-scoped machine bodies for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`).
+  - `target_body`: selector passed to the requirement `SelectedInvoke::invoke` and invoked inside the implementation that a target-keyed Build row selects (`X86Invoke` for x86-64 targets, `ArmInvoke` for AArch64 targets).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in Quarter returning `0.75` outside `[0.0, 0.5]`.
 - **Soundness boundaries:** If an implementation's guarantees do not imply the public contract (e.g. `0.75 <= 0.5` fails), the compiler strictly rejects during type and contract refinement checking with `machine 'Quarter::get' realizes 'Fraction::get' but does not guarantee its 'ensures result <= 0.5'`. Proof preserves ownership, carrier format, and strictness bounds, and unproved bounds cannot escape into Terminal Psi or native code.
 - **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source dynamic trait conversions (`Quarter as dyn Fraction`) and contract guarantees lower into canonical Terminal Psi (`PSITERM\0`). Dynamic dispatch routes lower into explicit selector table indices and `CallDynamic` invocations with separate selector and data lanes. Erased contracts leave no runtime footprint, and programs execute identically in the Terminal Psi interpreter (`omega run --both`), observing `0.25`.
@@ -183,3 +183,19 @@ same IEEE fact through named caller preconditions at selector calls.
 
 The [input-alternative production](input_alternatives/README.md) proves public
 IEEE bounds from every admitted prefix alternative without choosing a branch.
+
+## Build-owned target-body migration
+
+The `target_body` places of this production and of the
+[named interval production](alias_contract/README.md) carry no source target
+prefix. Their four prefixed `invoke` bodies became the boundary requirement
+`SelectedInvoke::invoke(selected: dyn Fraction) -> f64` (the named production
+keeps `ensures public_interval(result, 0.0, 0.5)` on it), implemented by
+ordinary `X86Invoke` and `ArmInvoke` and selected by target-keyed
+`Build::select_provider` rows (`BUILD-OWNED-TARGET-SELECTION`). Each
+implementation and entry wrapper checks a target tag through `SelectedBodyCheck`,
+so a wrong Build row traps. The `Quarter` guarantee, the 0.75 twins and the
+`observed == 0.25` oracle are unchanged. On macOS x86-64 both positives exit 0
+under `omega run --both`, and the twins and the `outside_interval` control
+reject because `Quarter::get` does not guarantee the public interval. No
+compiler change was needed. The other hosted targets were not executed here.
