@@ -1,5 +1,8 @@
 # Selected native code layout
 
+These programs ask where a compiled function starts and which instruction ranges
+belong to it, then check that the answer survives ordinary records and calls.
+
 The exact selected executable application supplies a nonzero native entry and finite attributed code regions at runtime.
 
 Every standard place queries `code_layout<selected<u64, 7>>()` and checks the
@@ -56,6 +59,12 @@ record is mutable ([write control](controls/immutable_regions/main.omg)). The
 snapshot checks its copied base and length after the creating helper returns;
 no caller-owned `CodeLayout` keeps the old descriptor alive.
 
+The [dormant-cycle control](controls/uncalled_cycle/main.omg) selects a function
+whose helpers form a tail-call cycle. Its successful zero exit must come from
+inspecting that function, without executing it. The matching
+[constant twin](controls/uncalled_cycle/invalid/main.omg) retains the same query
+and still refuses late metadata during semantic evaluation.
+
 ## Execution and metadata ownership
 
 Every positive and the root bind `ProgramEntry` for Windows x86-64, Linux
@@ -91,7 +100,8 @@ and [borrowed views](../../../../wiki/spec/terminal-psi/byte_views.md).
 
 ## Current evidence
 
-Acceptance is unfinished. Evidence is retained in
+The direct-image row now has actual native/Terminal agreement on all four hosted
+targets. Evidence is retained in
 `build/code-layout-selected-20261103` and [PR #1755](https://github.com/CathedralOS/Omega/pull/1755).
 
 The fixed published base is `108f8a95dcd8`. Its verified retained producer
@@ -108,11 +118,58 @@ provider. A newly authored borrowed match-marker helper also violated the
 existing lifetime rule; its ordinary record replacement is a source correction,
 not a compiler repair. That failed replay did not reach ordinary project checks.
 
-The fresh replay at `42acf360b846` is pending. It includes all nine places and
-twins, the root and additional controls through ordinary project review. The
-extra shared-parameter recast probe has an identical legalization failure with
-the verified published-main-equivalent producer; its source, oracle and golden
-remain unchanged and it supplies no passing execution coverage.
+The later exact `42acf360b846` replay established actual zero agreements for
+all nine original places, but still refused the complete-region snapshot.
+The subsequent descriptor dependency repair at `b6026a4cba3` and `06899beec3f`
+preserved those agreements on all four matching hosts. The snapshot then
+reached native lowering and exposed a missing producer access contract.
+Those full jobs remain failed; their successful rows retain their own sources.
+
+A retained-producer trace identified that the layout's type was present, but a
+second list of value producers omitted the native-layout query. The repair at
+`f3399003ce5` replaces that duplicate list with one explicit classification of
+produced values. Its focused replay passed the unchanged snapshot, both existing
+atomic/activation positives, and every selected authority rejection.
+
+Main then changed how borrowed records establish entry facts and how completed
+records supply field information. Those changes affect this row, so they were
+integrated as `b0fa0866008` and require fresh observations. All nine places, the copied-region snapshot and the dormant cycle now execute
+at zero in both engines on all four matching hosts. All 24 ordinary projects
+per host meet their authored oracles: 12 actual zero agreements and 12 intended
+Source rejections. The 36 native-layout Source pins check or reject for their
+intended obligation.
+
+| Host | Query/control agreements | Corpus report | Ordinary projects |
+| --- | --- | --- | --- |
+| Linux x86-64 | 18 at exit zero | [run 41746709533](https://github.com/CathedralOS/Omega/actions/runs/41746709533) | [retained replay](https://github.com/CathedralOS/Omega/actions/runs/41750183833) |
+| macOS ARM64 | 12 at exit zero | [run 41746709933](https://github.com/CathedralOS/Omega/actions/runs/41746709933) | [retained replay](https://github.com/CathedralOS/Omega/actions/runs/41750670926) |
+| Windows x86-64 | 11 at exit zero | [run 41746709821](https://github.com/CathedralOS/Omega/actions/runs/41746709821) | Same successful run |
+| Linux ARM64 | 11 at exit zero | [run 41746709614](https://github.com/CathedralOS/Omega/actions/runs/41746709614) | [retained replay](https://github.com/CathedralOS/Omega/actions/runs/41750681047) |
+
+The counts include existing optional queries only where their Build files
+already supply an entry. Windows's complete selected scope passes. The other
+original full reports remain failed on supplemental controls; their valid
+query observations are retained at their actual source, not relabeled as a
+new successful full run.
+
+The extra shared-parameter recast probe has an identical legalization failure
+with the verified published-main-equivalent producer. Its source, oracle and
+golden remain unchanged, and it supplies no passing execution coverage. The
+separate scalar shared-view adjunct is slow: the Linux full Source leg timed
+out, then checked in 102 seconds in an isolated same-binary replay with the same
+120-second limit. Its current Mac execution leg still times out, and its earlier
+Windows legs remain unverified. No compiler repair or scheduling cause is
+inferred from that replay. Its relevant result roles are unchanged.
+
+The additional atomic control has the same Linux ARM instruction-catalog refusal
+at `06899beec3f`, before the result-role repair, and at `b0fa0866008`. The
+[exact retained-producer comparison](https://github.com/CathedralOS/Omega/actions/runs/41751521903)
+executes neither engine for that case. Its original zero-exit oracle remains
+unmet; this row does not claim atomic support on that target. The atomic
+positive does execute at zero on the other three hosts, and the forged-outcome
+and activation conservation/lifetime controls retain their intended Source
+refusals. Older optional queries count only on targets for which
+they actually supply an entry.
 
 ## Requirements and remaining acceptance
 
@@ -140,8 +197,9 @@ remain unchanged and it supplies no passing execution coverage.
   function and frame instructions. Register homes, spills and prologue changes
   feed final geometry rather than a second estimate of function size.
 - **Encoding and images:** final instruction layout owns region lengths and
-  relocated bases. Matching-host native and Terminal observations, final owned
-  records and independent evidence review are still required before completion.
+  relocated bases. Actual matching-host observations and exact-source records
+  establish this direct-image row. Independent final review and publication
+  verification remain required before landing.
 
 This row does not close either parent. Real split/shared production with exact
 fragment/frame custody, unsupported or ambiguous realization refusal,

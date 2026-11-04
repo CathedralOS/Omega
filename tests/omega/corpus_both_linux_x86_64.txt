@@ -19,6 +19,14 @@ pass/borrows/rebound_parameter_keeps_earlier_copy_exit built 8645ms exit:0 inter
 pass/borrows/runtime_byte_case_partial_cleanup_exit built 15056ms exit:0 interpreter-exit:0 interpreter:agrees @3139db74cf0d
 pass/borrows/runtime_exclusive_byte_field_cleanup_exit built 15242ms exit:0 interpreter-exit:0 interpreter:agrees @60b8f1171d45
 pass/borrows/view_local_rebind_keeps_alias_exit built 184696ms exit:70 interpreter-exit:70 interpreter:agrees @7a2c1562808d
+pass/calls/native_code_layout_discarded_exit built 7504ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/calls/native_code_layout_forward_machine_exit built 7648ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/calls/native_code_layout_frame_exit built 7858ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/calls/native_code_layout_lifetime_exit built 7603ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/calls/native_code_layout_nested_type_const_exit built 7845ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/calls/native_code_layout_region_snapshot_exit built 7674ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/calls/native_code_layout_uncalled_boundary_exit built 8977ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/calls/native_code_layout_uncalled_cycle_exit built 7684ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
 pass/calls/selected_crash_argument_snapshot_exit built 10692ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_distinct_limits_exit built 10688ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_match_record_exit built 13834ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
@@ -882,7 +890,7 @@ pass/calls/mutable_receiver_computation_exit built 6339ms exit:70 interpreter-ex
 pass/calls/mutable_receiver_scalar_destinations_exit built 6308ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/mutual_cycle_tail_admitted_exit built 6744ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/named_target_payload_dispatch built 5791ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/calls/native_code_layout_shadowing_exit built 1936ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/calls/native_code_layout_shadowing_exit built 7276ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
 pass/calls/negated_edge_guard_requires_exit built 6290ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/nested_binding_call checked 1890ms @a92f16431042
 pass/calls/nested_call_init_transition built 6240ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -4687,12 +4695,15 @@ pass/facts/selected_crash_formal_through_other_machine_exit built 10406ms exit:0
 pass/facts/selected_crash_formal_through_other_state_exit built 10627ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/facts/selected_crash_formal_through_parameter_exit built 10122ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/facts/selected_crash_formal_through_target_body_exit built 11815ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
-pass/facts/selected_native_code_layout_through_match_join_exit rejected 2734ms interpreter:unchecked @a92f16431042
-	native artifact target lowering failed: StructuralStateBindingMismatch { machine: MachineId(2), reason: "binding=AbstractStructuralBinding { parameter: PlaceId(9), argument: StructuralArgument { place: PlaceId(10), path: [], access: Owned } }; parameter=StructuralParameterDeclaration { place: PlaceId(9), position: 0, structural_type: StructuralTypeId(1), multiplicity: Affine, access: Owned, qualifications: [], projected_qualifications: [] }; source_type=Some(StructuralTypeId(1)); argument_type=Some(StructuralTypeId(1)); source_storage_contract=Some(false); leaf_copy_owned_contract=None; crosses_loan_leaf=false" }
-pass/facts/selected_native_code_layout_through_other_state_exit rejected 2535ms interpreter:unchecked @a92f16431042
-	native artifact target lowering failed: StructuralStateBindingMismatch { machine: MachineId(3), reason: "binding=AbstractStructuralBinding { parameter: PlaceId(8), argument: StructuralArgument { place: PlaceId(9), path: [], access: Owned } }; parameter=StructuralParameterDeclaration { place: PlaceId(8), position: 0, structural_type: StructuralTypeId(1), multiplicity: Affine, access: Owned, qualifications: [], projected_qualifications: [] }; source_type=Some(StructuralTypeId(1)); argument_type=Some(StructuralTypeId(1)); source_storage_contract=Some(false); leaf_copy_owned_contract=None; crosses_loan_leaf=false" }
-pass/facts/selected_native_code_layout_through_parameter_exit rejected 3994ms interpreter:unchecked @a92f16431042
-	native artifact target lowering failed: InvalidOwnedStructuralArgument { source: PlaceId(9), parameter: PlaceId(9), structural_type: StructuralTypeId(1), reason: "source home multiplicity differs from its formal" }
+pass/facts/selected_native_code_layout_through_call_result_exit built 7448ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_const_name_exit built 8123ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_field_exit built 7646ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_local_exit built 7733ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_match_join_exit built 7612ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_other_machine_exit built 8858ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_other_state_exit built 7765ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_parameter_exit built 7567ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
+pass/facts/selected_native_code_layout_through_target_body_exit built 7651ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
 pass/facts/selected_scalar_initializer_through_call_result_exit built 3333ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/selected_scalar_initializer_through_const_name_exit built 2930ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/selected_scalar_initializer_through_field_exit built 3703ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

@@ -106,6 +106,12 @@ fail/calls/attached_parameter_overload_wrong_argument rejected 1149ms expected @
 	argument `value` for state `choose` expects `u64`, got `bool`
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/calls/native_code_layout_region_snapshot_const_rejected rejected 392ms expected @b0fa0866008e
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/calls/native_code_layout_region_write_rejected rejected 1600ms expected @b0fa0866008e
+	machine `overwrite` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/calls/native_code_layout_uncalled_cycle_const_rejected rejected 404ms expected @b0fa0866008e
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
 fail/calls/nested_machine_duplicate_helper_overload rejected 2717ms expected @11bdd2fe41ff+wt
 	duplicate named machine overload `outer::helper` with parameter signature `parameter(mutable(no),const(no),named(name(u64)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 	machine `outer` state `entry`: value call `helper(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
@@ -4667,16 +4673,15 @@ pass/calls/mutable_receiver_computation_exit checked 15525ms check-target:macos_
 pass/calls/mutable_receiver_scalar_destinations_exit checked 15913ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/mutual_cycle_tail_admitted_exit checked 15249ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/named_target_payload_dispatch checked 15121ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/native_code_layout_discarded_exit checked 3457ms check-target:linux_x86_64 @ccdb99ca2214
-pass/calls/native_code_layout_forward_machine_exit rejected 3429ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "describe$specialized$89ba5991dbe80421$0", reason: "return materialized custody has another carrier", gap: None })
-pass/calls/native_code_layout_frame_exit checked 2936ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/native_code_layout_lifetime_exit rejected 3751ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "describe", reason: "return materialized custody has another carrier", gap: None })
-pass/calls/native_code_layout_nested_type_const_exit rejected 3134ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "describe$specialized$f4dc146df69dbae0$0", reason: "return materialized custody has another carrier", gap: None })
-pass/calls/native_code_layout_shadowing_exit checked 3674ms check-target:linux_x86_64 @ccdb99ca2214
-pass/calls/native_code_layout_uncalled_boundary_exit checked 4131ms check-target:linux_x86_64 @ccdb99ca2214
+pass/calls/native_code_layout_discarded_exit checked 7581ms check-target:linux_x86_64 @b0fa0866008e
+pass/calls/native_code_layout_forward_machine_exit checked 7623ms check-target:linux_x86_64 @b0fa0866008e
+pass/calls/native_code_layout_frame_exit checked 10482ms check-target:macos_arm64 @b0fa0866008e
+pass/calls/native_code_layout_lifetime_exit checked 8687ms check-target:linux_x86_64 @b0fa0866008e
+pass/calls/native_code_layout_nested_type_const_exit checked 8393ms check-target:linux_x86_64 @b0fa0866008e
+pass/calls/native_code_layout_region_snapshot_exit checked 8081ms check-target:macos_arm64 @b0fa0866008e
+pass/calls/native_code_layout_shadowing_exit checked 7529ms check-target:linux_x86_64 @b0fa0866008e
+pass/calls/native_code_layout_uncalled_boundary_exit checked 7743ms check-target:linux_x86_64 @b0fa0866008e
+pass/calls/native_code_layout_uncalled_cycle_exit checked 7646ms check-target:macos_arm64 @b0fa0866008e
 pass/calls/negated_edge_guard_requires_exit checked 16439ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/nested_binding_call checked 3552ms @ccdb99ca2214
 pass/calls/nested_call_footprints_follow_occurrences checked 3767ms check-target:macos_arm64 @ccdb99ca2214
@@ -10990,19 +10995,15 @@ pass/facts/selected_crash_formal_through_other_machine_exit checked 10677ms chec
 pass/facts/selected_crash_formal_through_other_state_exit checked 10250ms check-target:macos_arm64 @feef96dc297d
 pass/facts/selected_crash_formal_through_parameter_exit checked 11662ms check-target:macos_arm64 @feef96dc297d
 pass/facts/selected_crash_formal_through_target_body_exit checked 10709ms check-target:macos_arm64 @feef96dc297d
-pass/facts/selected_native_code_layout_through_call_result_exit rejected 3578ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "fetch", reason: "return materialized custody has another carrier", gap: None })
-pass/facts/selected_native_code_layout_through_const_name_exit checked 3613ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_native_code_layout_through_field_exit checked 3202ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_native_code_layout_through_local_exit checked 3572ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_native_code_layout_through_match_join_exit rejected 3450ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact target lowering failed: StructuralStateBindingMismatch { machine: MachineId(2), reason: "binding=AbstractStructuralBinding { parameter: PlaceId(10), argument: StructuralArgument { place: PlaceId(11), path: [], access: Owned } }; parameter=StructuralParameterDeclaration { place: PlaceId(10), position: 0, structural_type: StructuralTypeId(1), multiplicity: Affine, access: Owned, qualifications: [], projected_qualifications: [] }; source_type=Some(StructuralTypeId(1)); argument_type=Some(StructuralTypeId(1)); source_storage_contract=Some(false); leaf_copy_owned_contract=None; crosses_loan_leaf=false" }
-pass/facts/selected_native_code_layout_through_other_machine_exit rejected 3580ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "query_in_caller", reason: "return materialized custody has another carrier", gap: None })
-pass/facts/selected_native_code_layout_through_other_state_exit checked 3866ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_native_code_layout_through_parameter_exit rejected 3209ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact target lowering failed: InvalidOwnedStructuralArgument { source: PlaceId(10), parameter: PlaceId(10), structural_type: StructuralTypeId(1), reason: "source home multiplicity differs from its formal" }
-pass/facts/selected_native_code_layout_through_target_body_exit checked 3329ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/selected_native_code_layout_through_call_result_exit checked 7739ms check-target:macos_arm64 @b0fa0866008e
+pass/facts/selected_native_code_layout_through_const_name_exit checked 7575ms check-target:macos_arm64 @b0fa0866008e
+pass/facts/selected_native_code_layout_through_field_exit checked 7632ms check-target:macos_arm64 @b0fa0866008e
+pass/facts/selected_native_code_layout_through_local_exit checked 7934ms check-target:macos_arm64 @b0fa0866008e
+pass/facts/selected_native_code_layout_through_match_join_exit checked 7687ms check-target:macos_arm64 @b0fa0866008e
+pass/facts/selected_native_code_layout_through_other_machine_exit checked 7490ms check-target:macos_arm64 @b0fa0866008e
+pass/facts/selected_native_code_layout_through_other_state_exit checked 7771ms check-target:macos_arm64 @b0fa0866008e
+pass/facts/selected_native_code_layout_through_parameter_exit checked 8121ms check-target:macos_arm64 @b0fa0866008e
+pass/facts/selected_native_code_layout_through_target_body_exit checked 7599ms check-target:macos_arm64 @b0fa0866008e
 pass/facts/selected_provider_issuance_through_call_result_exit checked 3159ms check-target:macos_arm64 @8ce11b402e09+wt
 pass/facts/selected_provider_issuance_through_const_name_exit checked 3166ms check-target:macos_arm64 @8ce11b402e09+wt
 pass/facts/selected_provider_issuance_through_field_exit checked 3774ms check-target:macos_arm64 @8ce11b402e09+wt
@@ -17623,17 +17624,17 @@ fail/calls/named_transition_float_suffix_mismatch rejected 1664ms expected @ccdb
 	literal `1.5` is suffixed `f64` but lands in a `f32` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/calls/named_transition_scalar_operand_mismatch rejected 1674ms expected @ccdb99ca2214
 	argument `value` for state `entry` expects `f64`, got `bool`
-fail/calls/native_code_layout_family_head_rejected rejected 1339ms expected @ccdb99ca2214
+fail/calls/native_code_layout_family_head_rejected rejected 1599ms expected @b0fa0866008e
 	`code_layout` selected an unavailable native realization; an opaque or bodyless declaration has no attributed native instruction regions
-fail/calls/native_code_layout_incomplete_selection_rejected rejected 1506ms expected @ccdb99ca2214
+fail/calls/native_code_layout_incomplete_selection_rejected rejected 1555ms expected @b0fa0866008e
 	`code_layout` requires one complete exact selected machine application; static arguments remain unresolved
-fail/calls/native_code_layout_proof_only_rejected rejected 1122ms expected @ccdb99ca2214
+fail/calls/native_code_layout_proof_only_rejected rejected 1529ms expected @b0fa0866008e
 	`code_layout` selected a proof-only machine with no executable native realization
-fail/calls/native_code_layout_unavailable_rejected rejected 1137ms expected @ccdb99ca2214
+fail/calls/native_code_layout_unavailable_rejected rejected 1550ms expected @b0fa0866008e
 	`code_layout` selected an unavailable native realization; an opaque or bodyless declaration has no attributed native instruction regions
-fail/calls/native_code_layout_undeclared_lifetime_rejected rejected 559ms expected @ccdb99ca2214
+fail/calls/native_code_layout_undeclared_lifetime_rejected rejected 616ms expected @b0fa0866008e
 	nested machine lifetime argument is not declared in its lexical owner
-fail/calls/native_code_layout_wrong_lifetime_arity_rejected rejected 1411ms expected @ccdb99ca2214
+fail/calls/native_code_layout_wrong_lifetime_arity_rejected rejected 620ms expected @b0fa0866008e
 	nested machine lifetime arguments do not match its complete declared telescope
 fail/calls/nested_call_argument_constraints_unproven rejected 2002ms expected @ccdb99ca2214
 	machine `initialized` state `entry` value call to `admit` violates required fact `value >= 0.0 && value <= 0.5`: the instantiated fact is structurally false (`20.0 >= 0.0 && 20.0 <= 0.5`)
@@ -29103,23 +29104,23 @@ fail/facts/selected_crash_formal_through_target_body_rejected rejected 8975ms ex
 	call from `LinuxX86Forward::forward$specialized$7fc74963fe106ff2$0$2730` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 	call from `MacosForward::forward$specialized$1ff53a77a5d9c8f5$0$2733` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 	call from `LinuxArmForward::forward$specialized$59f03e25c0846416$0$2736` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/selected_native_code_layout_through_call_result_rejected rejected 356ms expected @ccdb99ca2214
+fail/facts/selected_native_code_layout_through_call_result_rejected rejected 396ms expected @b0fa0866008e
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
-fail/facts/selected_native_code_layout_through_const_name_rejected rejected 359ms expected @ccdb99ca2214
+fail/facts/selected_native_code_layout_through_const_name_rejected rejected 388ms expected @b0fa0866008e
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
-fail/facts/selected_native_code_layout_through_field_rejected rejected 459ms expected @ccdb99ca2214
+fail/facts/selected_native_code_layout_through_field_rejected rejected 402ms expected @b0fa0866008e
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
-fail/facts/selected_native_code_layout_through_local_rejected rejected 392ms expected @ccdb99ca2214
+fail/facts/selected_native_code_layout_through_local_rejected rejected 405ms expected @b0fa0866008e
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
-fail/facts/selected_native_code_layout_through_match_join_rejected rejected 344ms expected @ccdb99ca2214
+fail/facts/selected_native_code_layout_through_match_join_rejected rejected 410ms expected @b0fa0866008e
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
-fail/facts/selected_native_code_layout_through_other_machine_rejected rejected 381ms expected @ccdb99ca2214
+fail/facts/selected_native_code_layout_through_other_machine_rejected rejected 820ms expected @b0fa0866008e
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
-fail/facts/selected_native_code_layout_through_other_state_rejected rejected 553ms expected @ccdb99ca2214
+fail/facts/selected_native_code_layout_through_other_state_rejected rejected 811ms expected @b0fa0866008e
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
-fail/facts/selected_native_code_layout_through_parameter_rejected rejected 393ms expected @ccdb99ca2214
+fail/facts/selected_native_code_layout_through_parameter_rejected rejected 505ms expected @b0fa0866008e
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
-fail/facts/selected_native_code_layout_through_target_body_rejected rejected 450ms expected @ccdb99ca2214
+fail/facts/selected_native_code_layout_through_target_body_rejected rejected 421ms expected @b0fa0866008e
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
 fail/facts/selected_provider_issuance_through_call_result_ordinary_call rejected 2279ms expected @8ce11b402e09+wt
 	cannot prove default-domain field requirement for return from deliver, state entry, at statement 0: InitialSupplyProvider.acquire() requires Buffer::Owned
