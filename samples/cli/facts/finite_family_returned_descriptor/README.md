@@ -141,11 +141,22 @@ program/library inputs. Its earlier direct-fixture command remains failed on
 an unaccepted program-entry binding; it ran neither engine.
 
 [Integrated validation](https://github.com/CathedralOS/Omega/actions/runs/41815976095)
-is running at `059fb0b41d8`: 49 Source cases, 26 execution or publication
-outcomes, and 30 ordinary fact outcomes. It includes the complete fact and the
-existing related view, call and cleanup controls. No integrated result or
-current four-host completion is claimed yet; the three other-host fact checks
-remain pending.
+at `059fb0b41d8` passes all 49 Source cases and records 24 actual exit-zero
+agreements, including all 15 fact examples, plus the intended supply refusal.
+That report remains failed because its additional slice corpus run timed out
+at 120 seconds; the public stage did not run.
+
+The [same-compiler replay](https://github.com/CathedralOS/Omega/actions/runs/41822182167)
+completes those missing observations without a rebuild. With one corpus worker
+and the unchanged limit, the slice agrees at 70 in 72 seconds. The ordinary fact
+commands produce all 15 exit-zero agreements and 15 intended refusals; ordinary
+slice package review and execution also agree at 70. The audit verifies 451
+distinct source/oracle/library inputs and the original retained binary profiles.
+The earlier timeout remains a failed observation, not a passing report.
+
+The three required other-host fact checks are running at the same fixed
+compiler `059fb0b41d8`. Their results and current four-host completion remain
+pending; no other-host result is inferred from Linux.
 
 The earlier failed corpus reports remain retained. Separate case-descriptor
 and nested-view programs also refuse on published compiler `9566f10e0d29`.
