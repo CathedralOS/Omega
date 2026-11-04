@@ -3747,17 +3747,17 @@ fail/control_flow/sum_tuple_matrix_uncovered_rejected rejected 14400ms unexpecte
 	tests/omega/fail/control_flow/sum_tuple_matrix_uncovered_rejected/main.omg:1:1: call target must be a path or member access
 fail/control_flow/terminal_unit_linear_local_cleanup rejected 3070ms expected @ccdb99ca2214
 	linear value `frame` reaches scope exit without being consumed or transferred in machine `drive` state `entry`
-fail/control_flow/termination_countdown_stalled_decrease rejected 3393ms expected @6eb0846194af
+fail/control_flow/termination_countdown_stalled_decrease rejected 3818ms expected @30712fbdd1a2
 	terminating machine Main::countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `Main::countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/control_flow/termination_cycle_missing_decreases rejected 3288ms expected @6eb0846194af
+fail/control_flow/termination_cycle_missing_decreases rejected 3484ms expected @30712fbdd1a2
 	terminating machine Main::countdown contains a recursive cycle but carries no ranking witness -- spell one with `terminates by <subjects> [-> View];` (decision 23)
 	machine call cycle: `Main::countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/control_flow/transition_empty_arms_rejected rejected 2ms expected @ccdb99ca2214
 	tests/omega/fail/control_flow/transition_empty_arms_rejected/main.omg:9:18: a transition block must carry at least one arm; an empty dispatch can never proceed
 fail/control_flow/transition_fall_through_bool rejected 13133ms expected @ccdb99ca2214
 	transition dispatch in `Main::main` can fall through: no arm matches when every guard is false, and no `_` arm exists; add a `_ ->` arm (or complete the `true`/`false` pair)
-fail/control_flow/transition_target_undeclared_state rejected 43821ms expected @6eb0846194af
+fail/control_flow/transition_target_undeclared_state rejected 44762ms expected @30712fbdd1a2
 	unreachable branch: the `true` arm of a transition in machine `Main::main` state `main` can never run; its guard contradicts the facts in force here: x >= 5
 	terminal call `vanished` does not select a declared machine entry or callable requirement
 fail/control_flow/transition_value_without_result rejected 1010ms unexpected @ccdb99ca2214
@@ -14387,7 +14387,7 @@ fail/float/mixed_float_contract_formats rejected 1807ms expected @ccdb99ca2214
 	builtin `<` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
 fail/float/named_argument_format_rejected rejected 1926ms expected @ccdb99ca2214
 	argument `value` for state `entry` delivers a `f64` value to a `f32` parameter; a landed float retains its format, so changing format requires an explicit conversion
-fail/float/named_boundary_transition_shadowed_namespace rejected 1925ms expected @6eb0846194af
+fail/float/named_boundary_transition_shadowed_namespace rejected 1767ms expected @30712fbdd1a2
 	terminal call `F64::from_i32` does not select a declared machine entry or callable requirement
 fail/float/named_boundary_transition_wrong_arity rejected 2362ms expected @ccdb99ca2214
 	state `from_i32` expects 1 argument(s), got 2
@@ -16727,16 +16727,16 @@ fail/proofs/indexed_field_changed_selector rejected 690ms expected @ccdb99ca2214
 	exact arithmetic in machine `increment` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/proofs/indexed_field_changed_value rejected 721ms expected @ccdb99ca2214
 	exact arithmetic in machine `increment` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/proofs/inductive_climbing_sum_step_false_twin rejected 928ms expected @6eb0846194af
+fail/proofs/inductive_climbing_sum_step_false_twin rejected 925ms expected @30712fbdd1a2
 	exact arithmetic in machine `Main::climb` ensures contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::climb` ensures contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	machine `Main::climb` cannot prove ensures contract proof fact `result >= acc + limit - index` on the transition arm guarded by `__transition_subject#21 == true`
 fail/proofs/inductive_climbing_sum_unbounded_accumulator rejected 676ms expected @ccdb99ca2214
 	terminal call `climb` does not select a declared machine entry or callable requirement
 	exact arithmetic in machine `Main::climb` state `climb` transition argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/proofs/inductive_gauss_sum_false_twin rejected 3407ms expected @6eb0846194af
+fail/proofs/inductive_gauss_sum_false_twin rejected 3310ms expected @30712fbdd1a2
 	machine `Main::gauss_sum` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1 + 1` on the transition arm guarded by `__transition_subject#27 == false`
-fail/proofs/inductive_gauss_sum_step_false_twin rejected 3276ms expected @6eb0846194af
+fail/proofs/inductive_gauss_sum_step_false_twin rejected 3288ms expected @30712fbdd1a2
 	machine `Main::gauss_sum` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 3` on the transition arm guarded by `__transition_subject#25 == true`
 fail/proofs/integer_piecewise_wrong_result rejected 1931ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from bounded at statement 0: result >= lower && result <= upper && value < lower && result == lower || value > upper && result == upper || value >= lower && value <= upper && result == value
@@ -18172,7 +18172,7 @@ fail/slices/stored_write_only_view_shared_call rejected 625ms expected @ccdb99ca
 	argument `values` for state `entry` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access
 fail/slices/subslice_range_operator_contract_unproven rejected 6859ms expected @93ac4da811fe
 	cannot prove subslice range start bound `9..4` is within slice length 4
-fail/slices/termination_slice_length_order_unimplemented rejected 3424ms expected @6eb0846194af
+fail/slices/termination_slice_length_order_unimplemented rejected 3407ms expected @30712fbdd1a2
 	terminating machine Main::walk: cannot prove strict rank decrease on a recurrent arrival: the transition from `walk` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `Main::walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/slices/unbounded_length_increment_requires_fit rejected 969ms expected @ccdb99ca2214
@@ -18363,20 +18363,20 @@ fail/termination/computed_result_rank_nondecreasing rejected 1955ms expected @cc
 fail/termination/constrained_measure_parameter_domain rejected 4396ms expected @d159e82b5a61
 	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/custom_ranking_order_unknown rejected 3386ms expected @6eb0846194af
+fail/termination/custom_ranking_order_unknown rejected 3426ms expected @30712fbdd1a2
 	terminating machine Main::weaken: `Card::PowerOrder` names no ranking view; the builtin views are `Nat::Descending`, `Nat::BoundedDistance`, `Nat::IncreasingTo(limit)` and `Slice::Length`
 	machine call cycle: `Main::weaken` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
 	terminating machine walk_flat: cannot prove rank range `0..=10` for the rank produced by the selected view
 	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
 	machine call cycle: `walk_flat` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/default_order_ambiguous rejected 3326ms expected @6eb0846194af
+fail/termination/default_order_ambiguous rejected 3480ms expected @30712fbdd1a2
 	cannot infer a ranking for `terminates by remaining` in machine Main::countdown: signed values have no default well-founded order -- select one with `terminates by remaining -> View` (builtin views: Nat::Descending, Nat::BoundedDistance, Slice::Length)
 	machine call cycle: `Main::countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/default_order_declared_measure_not_inferred rejected 3274ms expected @6eb0846194af
+fail/termination/default_order_declared_measure_not_inferred rejected 3418ms expected @30712fbdd1a2
 	cannot infer a ranking for `terminates by card` in machine Main::weaken: `Card` has no builtin well-founded order -- declared measures are never selected implicitly; select one with `terminates by card -> Card::PowerOrder`
 	machine call cycle: `Main::weaken` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/distance_constant_bound_past_bound rejected 3267ms expected @6eb0846194af
+fail/termination/distance_constant_bound_past_bound rejected 3538ms expected @30712fbdd1a2
 	cannot prove the `terminates by` ranking for machine Main::walk
 	machine call cycle: `Main::walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/endpoint_folded_into_payload rejected 3933ms expected regressed-from:checked @d352d5e8e77e
@@ -18409,7 +18409,7 @@ fail/termination/identity_measure_call_component_mixed_view rejected 2344ms expe
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- members do not share the same ranking order; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/implicit_cleanup_without_progress rejected 9236ms expected @ee4dbb4b2d56
 	cannot prove published termination for machine `finish`: its checked body reaches an operation without a usable termination guarantee
-fail/termination/increasing_unbounded_rejected rejected 3334ms expected @6eb0846194af
+fail/termination/increasing_unbounded_rejected rejected 3386ms expected @30712fbdd1a2
 	terminating machine Main::climb: unbounded `Nat::Increasing` is not a well-founded ranking -- the bound is part of the view: name it with `-> Nat::IncreasingTo(limit)`
 	machine call cycle: `Main::climb` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/joint_machine_call_cycle_stalled rejected 1990ms expected @ccdb99ca2214
@@ -18573,7 +18573,7 @@ fail/termination/rank_range_call_component_prefix_write rejected 2402ms expected
 fail/termination/rank_range_declared_step_unbounded rejected 3118ms expected regressed-from:checked @d352d5e8e77e
 	terminating machine pair: cannot prove strict rank decrease on a recurrent arrival: the transition from `pair` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `pair` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/rank_range_endpoint_intervening_write rejected 3344ms expected @6eb0846194af
+fail/termination/rank_range_endpoint_intervening_write rejected 3507ms expected @30712fbdd1a2
 	terminating machine Main::walk: cannot prove rank range `0..=limit + 1` for the rank produced by the selected view
 	machine call cycle: `Main::walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/rank_range_excludes_floor rejected 1877ms expected @ccdb99ca2214
@@ -18583,7 +18583,7 @@ fail/termination/rank_range_mutable_endpoint_overflow_after_write rejected 882ms
 	exact arithmetic in machine `walk` state `entry` local `endpoint` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/termination/rank_range_record_stepped_copy_stale rejected 3188ms expected regressed-from:checked @d352d5e8e77e
 	machine call cycle: `s`, `finish` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/rank_range_subject_intervening_write rejected 3465ms expected @6eb0846194af
+fail/termination/rank_range_subject_intervening_write rejected 3565ms expected @30712fbdd1a2
 	terminating machine Main::walk: cannot prove rank range `0..=limit + 1` for the rank produced by the selected view
 	machine call cycle: `Main::walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/rank_state_dependent_bound_prefix_write rejected 2729ms expected regressed-from:checked @d352d5e8e77e
@@ -18692,7 +18692,7 @@ fail/termination/unselected_implementation_nontail_reentry_rejected rejected 701
 	machine call cycle: `ArmSelection::selected`, `again` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/unselected_implementation_reentry_rejected rejected 6640ms expected @c807f05bace3
 	machine call cycle: `ArmSelection::selected`, `walk`, `done` -- a bounded cursor rank lacks independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/wrapping_subject_unguarded_decrement rejected 3398ms expected @6eb0846194af
+fail/termination/wrapping_subject_unguarded_decrement rejected 3541ms expected @30712fbdd1a2
 	terminating machine Main::drain: cannot prove strict rank decrease on a recurrent arrival: the transition from `drain` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `Main::drain` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/zero_local_does_not_decrease_rank rejected 1874ms expected @ccdb99ca2214
@@ -20080,11 +20080,11 @@ pass/borrows/suspension_saved_reference_view_source_replaced_exit checked 5500ms
 pass/borrows/tagged_scalar_field_live_copy_exit checked 3101ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/target_family_backing_alternatives_exit checked 3334ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/terminal_call_loan_completion_exit checked 3580ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/transition_shared_borrow_result checked 94928ms check-target:macos_arm64 @6eb0846194af
+pass/borrows/transition_shared_borrow_result checked 91433ms check-target:macos_arm64 @30712fbdd1a2
 pass/borrows/view_field_record_exit_disposal checked 2706ms @ccdb99ca2214
 pass/borrows/view_local_rebind_keeps_alias_exit checked 173205ms check-target:macos_arm64 @7a2c1562808d
 pass/borrows/write_projection_loan checked 3150ms @ccdb99ca2214
-pass/borrows/writeonly_record_field_store checked 85513ms check-target:macos_arm64 @6eb0846194af
+pass/borrows/writeonly_record_field_store checked 87075ms check-target:macos_arm64 @30712fbdd1a2
 pass/borrows/writeonly_record_field_store_variants checked 18054ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/interleaved_structural_crash_formal_exit checked 4048ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/later_state_requirement_scalar_result_exit rejected 16018ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -20686,14 +20686,14 @@ pass/collections/contract_length_qualified_result_cast_exit checked 3326ms check
 pass/collections/contract_length_results_exit checked 6891ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/cyclic_shared_plain_array_parameter_exit checked 35589ms check-target:macos_arm64 @1e29a538216e
 pass/collections/element_policy_array_literal_store checked 16905ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/element_view_borrow_local checked 85917ms check-target:macos_arm64 @6eb0846194af
-pass/collections/element_view_edge_loan checked 86352ms check-target:macos_arm64 @6eb0846194af
+pass/collections/element_view_borrow_local checked 86888ms check-target:macos_arm64 @30712fbdd1a2
+pass/collections/element_view_edge_loan checked 89801ms check-target:macos_arm64 @30712fbdd1a2
 pass/collections/element_view_field_write checked 17975ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/element_view_indexed_read checked 18486ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/element_view_indexed_write checked 22124ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/element_view_runtime_field_write checked 84941ms check-target:macos_arm64 @6eb0846194af
-pass/collections/element_view_runtime_loan_read checked 85514ms check-target:macos_arm64 @6eb0846194af
-pass/collections/element_view_whole_write checked 88121ms check-target:macos_arm64 @6eb0846194af
+pass/collections/element_view_runtime_field_write checked 88936ms check-target:macos_arm64 @30712fbdd1a2
+pass/collections/element_view_runtime_loan_read checked 88884ms check-target:macos_arm64 @30712fbdd1a2
+pass/collections/element_view_whole_write checked 87787ms check-target:macos_arm64 @30712fbdd1a2
 pass/collections/element_view_write_transition checked 11948ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/empty_record_array_borrow_exit checked 3012ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/float_array_completed_call_store_exit checked 22636ms check-target:macos_arm64 @ccdb99ca2214
@@ -20707,7 +20707,7 @@ pass/collections/integer_index_every_width checked 1969ms @ccdb99ca2214
 pass/collections/local_byte_array_input_state_loan_exit checked 17121ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/mutable_slice_view_edge_release checked 17361ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/mutable_slice_view_establishment checked 11878ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/named_transition_completion checked 87475ms check-target:macos_arm64 @6eb0846194af
+pass/collections/named_transition_completion checked 90301ms check-target:macos_arm64 @30712fbdd1a2
 pass/collections/nested_empty_record_array_borrow_exit checked 3226ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/nested_runtime_indexed_successor_argument_exit checked 16621ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/owned_array_scalar_comparisons checked 2641ms @ccdb99ca2214
@@ -20811,7 +20811,7 @@ pass/collections/runtime_three_indexed_record_float_read_exit checked 17197ms ch
 pass/collections/runtime_vec_u32_growth_exit checked 37271ms check-target:macos_arm64 @66ee9999011e+wt
 pass/collections/runtime_view_element_structural_replacement_exit checked 2994ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/runtime_whole_array_value_copy_exit checked 5630ms check-target:macos_arm64 @27c558b731f4
-pass/collections/shared_slice_view_dropped_receiver checked 87611ms check-target:macos_arm64 @6eb0846194af
+pass/collections/shared_slice_view_dropped_receiver checked 89469ms check-target:macos_arm64 @30712fbdd1a2
 pass/collections/std_option_runtime_match_exit checked 17317ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/std_option_surface checked 2089ms @ccdb99ca2214
 pass/collections/view_record_element_member_read_exit checked 20495ms check-target:macos_arm64 @ccdb99ca2214
@@ -27749,7 +27749,7 @@ pass/recast/returned_same_type_view_capture_exit checked 3563ms check-target:mac
 pass/recast/returned_view_state_and_record_composition_exit checked 3840ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_aggregate_slice_representation_recast_exit checked 82004ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_authored_toolchain_type_shadow_exit checked 3041ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/runtime_bool_representation_recast_exit checked 93446ms check-target:macos_arm64 @2cf5daf37afc
+pass/recast/runtime_bool_representation_recast_exit checked 87510ms check-target:macos_arm64 @30712fbdd1a2
 pass/recast/runtime_boolean_view_decision_exit checked 11185ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_byte_region_state_transfer_exit checked 3561ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_captured_guard_conjunction_exit checked 4074ms check-target:macos_arm64 @ccdb99ca2214
@@ -27777,7 +27777,7 @@ pass/recast/runtime_nested_scalar_view_loan_exit checked 3302ms check-target:mac
 pass/recast/runtime_nested_view_subregion_forwarding_exit checked 3688ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_offset_byte_recast_mutable_write_exit rejected 17004ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
 	cannot establish assignment invariants: source storage interpretation is unavailable
-pass/recast/runtime_recast_record_view_indexed_write_exit checked 86333ms check-target:macos_arm64 @6eb0846194af
+pass/recast/runtime_recast_record_view_indexed_write_exit checked 88048ms check-target:macos_arm64 @30712fbdd1a2
 pass/recast/runtime_record_array_view_mutable_write_exit rejected 22967ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
 	cannot establish assignment invariants: source storage interpretation is unavailable
 	cannot establish assignment invariants: source storage interpretation is unavailable
@@ -28302,7 +28302,7 @@ pass/termination/rank_arrival_captured_record_fields_exit checked 4431ms check-t
 pass/termination/rank_arrival_fresh_nested_owner checked 4903ms check-target:macos_arm64 @d352d5e8e77e
 pass/termination/rank_arrival_same_carrier_fields_exit checked 4555ms check-target:macos_arm64 @d352d5e8e77e
 pass/termination/rank_arrival_unobserved_array_extent_compile checked 4028ms check-target:macos_arm64 @d352d5e8e77e
-pass/termination/rank_endpoint_borrows_recovery checked 86172ms check-target:macos_arm64 @6eb0846194af
+pass/termination/rank_endpoint_borrows_recovery checked 86957ms check-target:macos_arm64 @30712fbdd1a2
 pass/termination/rank_range_call_component checked 3522ms check-target:macos_arm64 @ccdb99ca2214
 pass/termination/rank_range_call_declared_step_copy checked 2127ms @ccdb99ca2214
 pass/termination/rank_range_declared_step_copies checked 3634ms @d352d5e8e77e
