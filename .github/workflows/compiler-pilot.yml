@@ -1,142 +1,64 @@
-name: Compiler queue pilot
-
+name: Attribute Linux ARM atomic publication refusal
 on:
-  pull_request:
-    branches: [integration-pilot]
-  merge_group:
-    branches: [integration-pilot]
-    types: [checks_requested]
   workflow_dispatch:
-    inputs:
-      smoke:
-        description: Also build executables and run the native/Terminal smoke (not admission)
-        type: boolean
-        default: false
-      fixtures:
-        description: Optional comma-separated exact pass/group/name and fail/group/name IDs; replaces smoke
-        type: string
-        default: ''
-      checking_only:
-        description: Check only the exact fixtures and rejection controls, without repeating runtime observations
-        type: boolean
-        default: false
-      samples:
-        description: Optional comma-separated exact samples/cli/facts project paths (with descendants); replaces smoke
-        type: string
-        default: ''
-      cli_fixtures:
-        description: Optional exact pass/... or samples/cli/... normal-exit projects through ordinary CLI package review and both engines
-        type: string
-        default: ''
-      native_host:
-        description: Matching native host for manual executable observations
-        type: choice
-        options:
-          - linux_x86_64
-          - linux_arm64
-          - windows_x86_64
-          - macos_arm64
-        default: linux_x86_64
-
 permissions:
   contents: read
-
-# A new PR revision supersedes its old check; never cancel a merge-group check
-# merely because another PR entered the queue.
-concurrency:
-  group: compiler-pilot-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
+  actions: read
 jobs:
-  compiler-pilot:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","linux_arm64":"ubuntu-24.04-arm","windows_x86_64":"windows-2022","macos_arm64":"macos-15"}')[inputs.native_host] || 'ubuntu-24.04' }}
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
+  compare:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
     env:
-      CARGO_BUILD_JOBS: '2'
-      CARGO_INCREMENTAL: '0'
-      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
-      CARGO_BUILD_FINGERPRINT: content
-      OMEGA_CORPUS_JOBS: '2'
+      GH_TOKEN: ${{ github.token }}
       RUST_MIN_STACK: '67108864'
-      # Match Linux/macOS post-merge storage; Windows keeps its short target path.
-      CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: 06899beec3ffc28ee0af5084c6752585f0a3bb73
+          path: baseline
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: b0fa0866008e6a0189192d9446005437a471af29
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Test the gate's refusal paths
-        run: python tools/tests/test_compiler_pilot.py -v
-      - name: Validate exact fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_fixtures; import os; print(select_fixtures(os.environ['OMEGA_COMPILER_PILOT_FIXTURES']))"
-      - name: Validate exact fact sample selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.samples != ''
-        env:
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-        run: python -c "from tools.ci.compiler_pilot import select_samples; import os; print(select_samples(os.environ['OMEGA_COMPILER_PILOT_SAMPLES']))"
-      - name: Validate exact ordinary CLI fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.cli_fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_cli_fixtures; import os; print(select_cli_fixtures(os.environ['OMEGA_COMPILER_PILOT_CLI_FIXTURES']))"
-      - name: Provision Windows rooted temporary directory for hosted applications
-        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && inputs.cli_fixtures != ''
-        run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        id: build-cache
+      - name: Compare the frozen atomic control with authenticated retained producers
+        shell: bash
+        run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          import json,hashlib,subprocess,os,sys,time
+          settings=[{'label': 'baseline', 'source': '06899beec3ffc28ee0af5084c6752585f0a3bb73', 'tree': 'e21461da4e7534eb400ed4f0a83ad1dd4b3cdec2', 'run': 41736100240, 'artifact': 'compiler-pilot-linux_arm64-06899beec3ffc28ee0af5084c6752585f0a3bb73-1', 'profile': {'binary': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-pwlz11x4/corpus_runner', 'sha256': '061667cbcd02282a640613c246fd9cd35570b9486e4a3bab0d7ad1b2754340ea', 'profile': {'schema': 'omega-compiler-build-profile-v1', 'opt_level': '1'}}, 'fixture': 'pass/facts/atomic_compare_exchange_once_local_exit', 'inputs': {'tests/omega/pass/facts/atomic_compare_exchange_once_local_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'tests/omega/pass/facts/atomic_compare_exchange_once_local_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'tests/omega/pass/facts/atomic_compare_exchange_once_local_exit/build.omg': 'ef91ae2576401646f76f827c2a9ac46f52110b046c9548e681e1aa4a4fe9150e', 'tests/omega/pass/facts/atomic_compare_exchange_once_local_exit/main.omg': 'e79be1662614533301411e8cf2a51c1aae08928f5b9767e3a746293a0c0cb845'}}, {'label': 'candidate', 'source': 'b0fa0866008e6a0189192d9446005437a471af29', 'tree': '2b5353e52a8cb2c5d9528f00ac90e5c6e7d62a83', 'run': 41746709614, 'artifact': 'compiler-pilot-linux_arm64-b0fa0866008e6a0189192d9446005437a471af29-1', 'profile': {'binary': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-2x8rnuxc/corpus_runner', 'sha256': '3045a5714c7ce61043a430705ddc1e28a3d5b29333307373ea76e041432c4fce', 'profile': {'schema': 'omega-compiler-build-profile-v1', 'opt_level': '1'}}, 'fixture': 'pass/facts/atomic_compare_exchange_once_local_exit', 'inputs': {'tests/omega/pass/facts/atomic_compare_exchange_once_local_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'tests/omega/pass/facts/atomic_compare_exchange_once_local_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'tests/omega/pass/facts/atomic_compare_exchange_once_local_exit/build.omg': 'ef91ae2576401646f76f827c2a9ac46f52110b046c9548e681e1aa4a4fe9150e', 'tests/omega/pass/facts/atomic_compare_exchange_once_local_exit/main.omg': 'e79be1662614533301411e8cf2a51c1aae08928f5b9767e3a746293a0c0cb845'}}]
+          workspace=Path.cwd();out=workspace/'atomic-arm-comparison';out.mkdir()
+          rows=[]
+          for item in settings:
+           root=workspace/item['label'];assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()==item['source'];assert subprocess.check_output(['git','rev-parse','HEAD^{tree}'],cwd=root,text=True).strip()==item['tree']
+           for p,h in item['inputs'].items():assert hashlib.sha256((root/p).read_bytes()).hexdigest()==h,p
+           retained=workspace/('retained-'+item['label']);subprocess.run(['gh','run','download',str(item['run']),'--name',item['artifact'],'--dir',str(retained)],cwd=root,check=True)
+           runners=list(retained.glob('**/corpus_runner'));assert len(runners)==1;runner=runners[0].resolve();runner.chmod(0o755)
+           if not rows:sys.path.insert(0,str(root/'tools'));import corpus_gate,corpus_records
+           profile=corpus_gate.require_optimized(runner);assert profile['sha256']==item['profile']['sha256'] and profile['profile']['opt_level']=='1'
+           cache=out/(item['label']+'-cache');cache.mkdir()
+           env=dict(os.environ,OMEGA_COMPILER_CHECK_SITES='1',OMEGA_CORPUS_JOBS='1',OMEGA_CORPUS_ROOT=str(root),OMEGA_LIBRARY_ROOT=str(root/'source/library'),OMEGA_CORPUS_FIXTURE_FILTER=item['fixture'],OMEGA_CORPUS_RECORDS=str(out/(item['label']+'.records.txt')),OMEGA_CORPUS_NATIVE='1',OMEGA_CORPUS_INTERPRET='1',OMEGA_CORPUS_NATIVE_TARGET='linux_arm64',XDG_CACHE_HOME=str(cache))
+           for k in ['NEXTEST','OMEGA_CORPUS_CHECKED_INTERPRETER']:env.pop(k,None)
+           start=time.monotonic()
+           with (out/(item['label']+'.stdout')).open('w') as stdout,(out/(item['label']+'.stderr')).open('w') as stderr:r=subprocess.run([str(runner)],cwd=root,env=env,stdout=stdout,stderr=stderr)
+           actual=corpus_records.read(out/(item['label']+'.records.txt'));assert len(actual)==1
+           rows.append({'settings':item,'actual_profile':profile,'exit':r.returncode,'seconds':time.monotonic()-start,'observations':actual});(out/'observations.json').write_text(json.dumps(rows,indent=2)+'\n');print(item['label'],actual,flush=True)
+           assert corpus_gate.require_optimized(runner)==profile
+           for p,h in item['inputs'].items():assert hashlib.sha256((root/p).read_bytes()).hexdigest()==h,p
+           assert not subprocess.check_output(['git','status','--porcelain'],cwd=root,text=True).strip()
+          print('These are actual separate-source observations, not a success assertion.',flush=True)
+          PYTHON
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
+          name: atomic-arm-comparison-${{ github.run_id }}
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
-      - name: Check the exact integration candidate
-        id: compiler-check
-        run: cargo check --locked -p omega
-      - name: Optional executable observations
-        if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py
-      - name: Report actual producer and fixture observations
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json') if (root / name).is_file()]"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        with:
-          name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/
-          if-no-files-found: warn
-          compression-level: 0
-          retention-days: 7
-      # The corpus reports alone, so `corpus_gate.py --compare --remote` reads
-      # rows without downloading the retained producer (350-520 MB).
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        with:
-          name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/*.json
-          if-no-files-found: warn
-          retention-days: 7
-      # A source/runtime fixture failure does not invalidate compiled Cargo
-      # objects. Retain them for the next correction; check outcomes stay red.
-      - name: Save build cache after fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
+            atomic-arm-comparison/*.json
+            atomic-arm-comparison/*.txt
+            atomic-arm-comparison/*.stdout
+            atomic-arm-comparison/*.stderr
