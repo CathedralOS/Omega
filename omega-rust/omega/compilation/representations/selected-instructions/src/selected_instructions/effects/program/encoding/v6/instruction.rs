@@ -557,6 +557,8 @@ fn decode_alternative_for_version(
         251 => MachineAlternativeFamily::ModelSpecificRead,
         252 => MachineAlternativeFamily::ModelSpecificWrite,
         253 => MachineAlternativeFamily::ProcessorHalt,
+        259 => MachineAlternativeFamily::GlobalDescriptorTableLoad,
+        260 => MachineAlternativeFamily::GlobalDescriptorTableStore,
         254 => MachineAlternativeFamily::ControlRegisterRead,
         255 => MachineAlternativeFamily::ControlRegisterWrite,
         256 => MachineAlternativeFamily::InterruptControl,
@@ -790,6 +792,10 @@ fn decode_encoded_effects(
             count_operand: cursor.u16()?,
         },
         0 => MachineEncodedMemoryEffect::NoneV1,
+        21 => MachineEncodedMemoryEffect::WriteFixedPointerV1 {
+            pointer_operand: cursor.u16()?,
+            byte_count: cursor.u16()?,
+        },
         7 => MachineEncodedMemoryEffect::WritePointerV1 {
             pointer_operand: cursor.u16()?,
         },

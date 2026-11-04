@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy the emitted interrupt entry and its image at their original ELF addresses."""
+"""Copy the emitted private entry and its image at their original ELF addresses."""
 import argparse
 import hashlib
 import json
@@ -12,16 +12,17 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def extract(directory):
+def extract(directory, entry_control="InterruptReturn"):
     data = (directory / "native-image.bin").read_bytes()
     entries = [
         path for path in directory.glob("private-entry-*.txt")
-        if "entry_control=Some(InterruptReturn)" in path.read_text()
+        if f"entry_control=Some({entry_control})" in path.read_text()
     ]
-    require(len(entries) == 1, "exactly one compiler-recorded interrupt entry required")
+    require(len(entries) == 1, "exactly one compiler-recorded entry of the selected kind required")
     record = entries[0].read_text()
     require("body_foreign_calls=0\n" in record, "the CPU witness cannot call host imports")
-    require("body_footprint=Some(" in record, "actual body footprint required")
+    if entry_control == "InterruptReturn":
+        require("body_footprint=Some(" in record, "actual body footprint required")
     require(len(data) >= 64 and data[:6] == b"\x7fELF\x02\x01", "64-bit little-endian ELF required")
     require(struct.unpack_from("<H", data, 18)[0] == 62, "x86-64 ELF required")
     header_offset = struct.unpack_from("<Q", data, 32)[0]
@@ -55,6 +56,7 @@ def extract(directory):
         offset = segment["address"] - start
         payload[offset:offset + segment["size"]] = data[segment["offset"]:segment["offset"] + segment["size"]]
     receipt = dict(
+        entry_control=entry_control,
         elf_sha256=hashlib.sha256(data).hexdigest(),
         entry_record_sha256=hashlib.sha256(entries[0].read_bytes()).hexdigest(),
         payload_sha256=hashlib.sha256(payload).hexdigest(),
@@ -70,8 +72,9 @@ def extract(directory):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("export", type=Path)
+    parser.add_argument("--entry-control", choices=["InterruptReturn", "CallReturn"], default="InterruptReturn")
     arguments = parser.parse_args()
-    print(json.dumps(extract(arguments.export), indent=2))
+    print(json.dumps(extract(arguments.export, arguments.entry_control), indent=2))
 
 
 if __name__ == "__main__":

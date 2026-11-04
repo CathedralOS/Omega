@@ -86,6 +86,12 @@ pub enum AbstractOperation {
         result: OperationResult,
         machine: semantic_vocabulary::MachineId,
     },
+    GlobalDescriptorTable {
+        psi_operation: OperationId,
+        service: ServiceId,
+        operation: terminal_psi::GlobalDescriptorTableOperation,
+        source: StructuralArgument,
+    },
     StorageAddress {
         psi_operation: OperationId,
         result: AbstractResult,
@@ -1140,6 +1146,7 @@ impl AbstractOperation {
                 .location()
                 .map(|location| vec![location.path.as_slice()])
                 .unwrap_or_default(),
+            Self::GlobalDescriptorTable { source, .. } => vec![source.path.as_slice()],
             Self::StorageAddress { path, .. }
             | Self::PrimitiveScalarRead { path, .. }
             | Self::ElementViewRead { path, .. }
@@ -1267,6 +1274,7 @@ impl AbstractOperation {
             | Self::EstablishPrimitiveLocal { psi_operation, .. }
             | Self::PrimitiveLocalStore { psi_operation, .. }
             | Self::StorageAddress { psi_operation, .. }
+            | Self::GlobalDescriptorTable { psi_operation, .. }
             | Self::PrimitiveScalarRead { psi_operation, .. }
             | Self::StructuralCaseMembership { psi_operation, .. }
             | Self::StructuralByteSequenceFieldLength { psi_operation, .. }

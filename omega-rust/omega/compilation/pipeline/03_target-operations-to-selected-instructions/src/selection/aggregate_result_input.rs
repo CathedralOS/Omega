@@ -130,6 +130,7 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             // Projected primitive reads need the same addressable owned home
             // as field observations, including arrays passed in ABI registers.
             LegalizedScalarInstructionKind::StorageAddress { source, .. }
+                | LegalizedScalarInstructionKind::GlobalDescriptorTable { source, .. }
             | LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
             | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. } => *source == place,

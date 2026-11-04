@@ -101,6 +101,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub port_write: Option<RegisterConstraintKey>,
     pub system_register_read: Option<RegisterConstraintKey>,
     pub system_register_write: Option<RegisterConstraintKey>,
+    pub global_descriptor_table: Option<RegisterConstraintKey>,
     pub control_register_read: Option<RegisterConstraintKey>,
     pub control_register_write: Option<RegisterConstraintKey>,
     pub port_register_read: Option<RegisterConstraintKey>,

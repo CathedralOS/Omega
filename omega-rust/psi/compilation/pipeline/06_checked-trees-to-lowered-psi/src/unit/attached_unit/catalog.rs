@@ -1726,7 +1726,8 @@ pub(super) fn lower_unit_services_including(
                 CheckedUnitEffectOperationPlan::Call(call) => {
                     collect_service_summary(&facts.rows, call.target.service_reach, &mut selected)?;
                 }
-                CheckedUnitEffectOperationPlan::RegisterAccess { service_reach, .. } => {
+                CheckedUnitEffectOperationPlan::RegisterAccess { service_reach, .. }
+                | CheckedUnitEffectOperationPlan::GlobalDescriptorTable { service_reach, .. } => {
                     collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
                 }
                 CheckedUnitEffectOperationPlan::EstablishLocal(

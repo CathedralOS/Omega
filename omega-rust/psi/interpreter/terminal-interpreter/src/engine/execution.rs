@@ -1241,7 +1241,14 @@ impl<'artifact> TerminalExecution<'artifact> {
                                         }
                                         OperationFlow::Advance
                                     }
-                                    OperationKind::RegisterAccess { event, .. } => {
+                                    OperationKind::GlobalDescriptorTable { operation, .. } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess {
+                                operation: terminal_psi::RegisterOperation::GlobalDescriptorTable(operation),
+                            },
+                        ));
+                    }
+                    OperationKind::RegisterAccess { event, .. } => {
                                         return Err(TerminalInterpretError::UnsupportedCapability(
                                             crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess {
                                                 operation: event.operation(),

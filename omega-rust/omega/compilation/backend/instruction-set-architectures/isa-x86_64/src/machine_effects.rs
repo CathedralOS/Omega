@@ -213,6 +213,7 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             port_write: Some(crate::X86_64_PORT_WRITE),
             system_register_read: Some(crate::X86_64_FLAGS_SNAPSHOT),
             system_register_write: Some(crate::X86_64_FLAGS_RESTORE),
+            global_descriptor_table: Some(crate::X86_64_GLOBAL_DESCRIPTOR_TABLE),
             control_register_read: Some(crate::X86_64_CONTROL_REGISTER_READ),
             control_register_write: Some(crate::X86_64_CONTROL_REGISTER_WRITE),
             port_register_read: Some(crate::X86_64_PORT_REGISTER_READ),
@@ -559,6 +560,8 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
         | Semantic::ProcessorHalt
         | Semantic::InterruptControl
         | Semantic::ControlRegisterRead
+        | Semantic::GlobalDescriptorTableLoad
+        | Semantic::GlobalDescriptorTableStore
         | Semantic::ControlRegisterWrite
         | Semantic::SystemRegisterRead => {
             return crate::selected_form_encoding::register_access::effects(
@@ -858,6 +861,8 @@ fn size(semantic: Semantic) -> Size {
         | Semantic::SystemRegisterRead
         | Semantic::SystemRegisterWrite
         | Semantic::ControlRegisterRead
+        | Semantic::GlobalDescriptorTableLoad
+        | Semantic::GlobalDescriptorTableStore
         | Semantic::ControlRegisterWrite => crate::encoder_resolved(1, Some(40)),
         Semantic::AccessorScalarAccess(_) => crate::encoder_resolved(7, Some(9)),
         Semantic::PortWrite => Size::ExactBytes(x86_encoding::IMMEDIATE_PORT_WRITE_WIDTH as u16),

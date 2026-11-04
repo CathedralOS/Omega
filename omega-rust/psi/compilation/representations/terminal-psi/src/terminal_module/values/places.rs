@@ -326,6 +326,7 @@ impl OperationKind {
             Self::ReleaseActivationClaim { source, .. }
             | Self::SplitActivationClaim { source, .. }
             | Self::StorageAddress { source }
+            | Self::GlobalDescriptorTable { source, .. }
             | Self::MoveStructuralValue { source }
             | Self::EstablishAccessReference { source, .. }
             | Self::EstablishReference { source, .. }
@@ -502,6 +503,7 @@ impl OperationKind {
             Self::ReleaseActivationClaim { source, .. }
             | Self::SplitActivationClaim { source, .. }
             | Self::StorageAddress { source }
+            | Self::GlobalDescriptorTable { source, .. }
             | Self::MoveStructuralValue { source }
             | Self::EstablishAccessReference { source, .. }
             | Self::EstablishReference { source, .. }
@@ -707,6 +709,7 @@ impl OperationKind {
             Self::ReleaseActivationClaim { source, .. }
             | Self::SplitActivationClaim { source, .. }
             | Self::StorageAddress { source }
+            | Self::GlobalDescriptorTable { source, .. }
             | Self::MoveStructuralValue { source }
             | Self::EstablishAccessReference { source, .. }
             | Self::EstablishReference { source, .. }
