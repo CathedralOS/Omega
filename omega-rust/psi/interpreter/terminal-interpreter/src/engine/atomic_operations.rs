@@ -132,6 +132,12 @@ impl TerminalExecution<'_> {
                 matched.then(|| operand(replacement)).transpose()?
             }
         };
+        let proposed = match event {
+            AtomicAccessEvent::CompareExchangeOnce { replacement, .. } => {
+                Some(operand(replacement)?)
+            }
+            _ => None,
+        };
         if replacement.is_some() {
             self.require_guest_storage_mutation(&cell.parent)?;
         }
@@ -139,30 +145,39 @@ impl TerminalExecution<'_> {
             (Some(prior), OperationResult::Structural(result))
                 if matches!(event, AtomicAccessEvent::CompareExchangeOnce { .. }) =>
             {
-                if !result.is_unrestricted_plain()
-                    || !result.qualification_establishments.is_empty()
-                {
+                let custody = event.single_attempt_custody().ok_or_else(malformed)?;
+                if !terminal_psi::types::atomic_once_result_is_plain(result, custody) {
                     return Err(malformed());
                 }
                 let types = self.structural_types();
                 let cases = terminal_psi::types::atomic_once_outcome_cases(
                     types.declaration(&result.structural_type)?,
                     scalar_type,
+                    custody,
                 )
                 .ok_or_else(malformed)?;
                 // The serial engine has no interfering activation or failed
                 // conditional-store attempt. It never invents Uncommitted.
                 let index = usize::from(replacement.is_some());
                 let result_case = cases[index].id;
-                let fields = if index == 0 {
-                    vec![(
-                        vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                            cases[0].fields[0].id,
-                        )],
-                        prior,
-                    )]
-                } else {
-                    Vec::new()
+                let fields = match custody.outcome_identity.cases()[index].payload {
+                    None => Vec::new(),
+                    Some(payload) => {
+                        use language_core::atomic::AtomicCompareExchangeOutcomePayload;
+                        let value = match payload {
+                            AtomicCompareExchangeOutcomePayload::Observed
+                            | AtomicCompareExchangeOutcomePayload::Displaced => prior,
+                            AtomicCompareExchangeOutcomePayload::Proposed => {
+                                proposed.ok_or_else(malformed)?
+                            }
+                        };
+                        vec![(
+                            vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                                cases[index].fields[0].id,
+                            )],
+                            value,
+                        )]
+                    }
                 };
                 self.publish_scalar_aggregate(
                     result,

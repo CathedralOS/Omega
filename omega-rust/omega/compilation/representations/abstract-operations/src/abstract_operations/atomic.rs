@@ -324,13 +324,10 @@ pub enum AbstractAtomicEvent {
         replacement: ValueId,
         observed: AbstractResult,
     },
-    /// One observing compare-exchange attempt. `outcome` carries the
-    /// three-case result — `Mismatched(observed)`, `Exchanged`, or
-    /// `Uncommitted(observed)` — and `custody` retains the canonical
-    /// single-attempt identity. The custody fields are deliberately
-    /// redundant with the operation so every phase rechecks their agreement
-    /// and a decisive operation, two-arm shape, or sibling outcome identity
-    /// cannot substitute under an unchanged ordering plan.
+    /// One compare-exchange attempt with its complete canonical outcome.
+    /// The separate custody record states whether failures return observed
+    /// values or retain the proposal, and whether success owns a displaced value.
+    /// Every consumer rechecks that contract rather than inferring it from shape.
     CompareExchangeOnce {
         location: AbstractAtomicLocation,
         success: MemoryOrdering,
@@ -440,9 +437,9 @@ impl AbstractAtomicEvent {
             | Self::ReadModifyWrite { .. }
             | Self::Swap { .. }
             | Self::CompareExchange { .. } => Some(AtomicExpressionResultCustody::Scalar),
-            Self::CompareExchangeOnce { custody, .. } => Some(
-                AtomicExpressionResultCustody::ObservingCompareExchangeOnce(*custody),
-            ),
+            Self::CompareExchangeOnce { custody, .. } => {
+                Some(AtomicExpressionResultCustody::CompareExchangeOnce(*custody))
+            }
             Self::Store { .. } | Self::Fence { .. } => None,
         }
     }
@@ -468,8 +465,8 @@ impl AbstractAtomicEvent {
     }
 
     /// Re-check that the retained result custody is valid for the retained
-    /// ordering plan. A single-attempt event requires the canonical
-    /// observing three-case custody; every other result-carrying event
+    /// ordering plan. A single-attempt event requires its exact canonical
+    /// three-case custody; every other result-carrying event
     /// carries the scalar custody, and result-free events are consistent by
     /// construction.
     pub const fn custody_is_consistent(&self) -> bool {

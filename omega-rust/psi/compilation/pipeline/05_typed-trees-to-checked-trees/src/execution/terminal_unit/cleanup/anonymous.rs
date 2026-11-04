@@ -111,6 +111,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     invocation: &OperationPlan,
     trace: &super::super::control::LocalConstructionTrace,
 ) -> Option<Vec<OperationPlan>> {
+    let caller_trace = trace.mark();
     let coordinate = invocation.invocation_coordinate()?;
     let completion_phase = |phase| {
         trace.phase(phase);
@@ -133,6 +134,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         shapes,
     )?;
 
+    completion_phase("normal completion: selected descriptor producers");
     // Capture recognition preserves ancestry; it is not evidence that this
     // carrier has already ended. The descriptor owner above has checked input
     // retention and bound the exact loan group. Publish its selected physical
@@ -183,6 +185,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         selected_descriptors.push(completion);
     }
     completions = selected_descriptors;
+    completion_phase("normal completion: temporary owner roster");
     let statement = coordinate.statement_index;
     let values = &facts.values.structural_values;
     let mut dying = Vec::new();
@@ -209,11 +212,13 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     );
     if dying.is_empty() {
         completion_phase("normal completion: finished");
+        trace.restore(&caller_trace);
         return Some(completions);
     }
 
     // Completed value dependencies and captured lifetime roots authenticate
     // storage independently. Neither relation selects an additional death.
+    completion_phase("normal completion: retained operand dependencies");
     let mut retained = Vec::new();
     for argument in invocation.structural_operands() {
         completion_phase("normal completion: operand result bindings");
@@ -256,6 +261,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     if source_calls.next().is_some() {
         return None;
     }
+    completion_phase("normal completion: input lifetime roots");
     let mut retained_owners = Vec::new();
     completion_phase("normal completion: input lifetimes");
     for operand in facts.flow.control.operands.span(source_call.operands)? {
@@ -393,5 +399,6 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         });
     }
     completion_phase("normal completion: finished");
+    trace.restore(&caller_trace);
     Some(completions)
 }

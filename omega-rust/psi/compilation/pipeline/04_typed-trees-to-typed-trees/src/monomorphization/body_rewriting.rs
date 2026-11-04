@@ -14,6 +14,7 @@ use validation::collect_statement_expression_trees;
 use validation::runtime_field_subject;
 
 mod cloned_calls;
+pub use cloned_calls::restore_copied_call_sources;
 mod const_substitution;
 mod evidence_rewrites;
 mod machine_arguments;
@@ -98,6 +99,193 @@ pub(super) fn runtime_value_operands(
         .into_iter()
         .map(|plan| realize_operand(program, plan))
         .collect()
+}
+
+/// Preparing the same call twice must not evaluate a runtime Value argument
+/// again. Reuse operands only when the saved source parameters and incoming
+/// bindings identify those exact evaluations; an argument count is insufficient.
+pub(super) fn runtime_call_operands(
+    program: &mut TypedTrees,
+    site: CallSite,
+    state_symbol: SymbolHandle,
+    bindings: &[super::RuntimeValueBinding],
+) -> Vec<ExpressionHandle> {
+    let count = bindings
+        .iter()
+        .filter(|binding| !matches!(binding, super::RuntimeValueBinding::Carrier))
+        .count();
+    if let Some(operands) = retained_runtime_operands(program, site, count)
+        && bindings
+            .iter()
+            .filter(|binding| !matches!(binding, super::RuntimeValueBinding::Carrier))
+            .zip(&operands)
+            .all(|(binding, actual)| {
+                runtime_operand_matches(program, state_symbol, binding, *actual)
+            })
+    {
+        return operands;
+    }
+    runtime_value_operands(program, state_symbol, bindings)
+}
+
+fn runtime_operand_matches(
+    program: &TypedTrees,
+    state: SymbolHandle,
+    binding: &super::RuntimeValueBinding,
+    actual: ExpressionHandle,
+) -> bool {
+    let plan = match binding {
+        super::RuntimeValueBinding::Carrier => return false,
+        super::RuntimeValueBinding::Authored(argument) => state_by_symbol(program, state)
+            .and_then(|state| plan_runtime_operand(program, state, argument)),
+        super::RuntimeValueBinding::CapturedArgument {
+            site,
+            position,
+            source,
+            descriptor,
+        } => {
+            return retained_capture_operand(program, *site, *position, *source, *descriptor)
+                == Some(actual);
+        }
+    };
+    match plan {
+        Some(OperandPlan::Existing(expression) | OperandPlan::Recipe(expression)) => {
+            expression == actual
+        }
+        Some(OperandPlan::Name(_, subject)) => {
+            validation::canonical_place_from_expression(program, actual).is_some_and(|place| {
+                place.root.as_symbol() == Some(subject) && place.segments.is_empty()
+            })
+        }
+        Some(OperandPlan::Field {
+            receiver, field, ..
+        }) => {
+            let ExpressionNode::Member(member) = expressions_of(program).expression(actual) else {
+                return false;
+            };
+            member.member_symbol == field
+                && validation::canonical_place_from_expression(program, member.receiver)
+                    .is_some_and(|place| {
+                        place.root.as_symbol() == Some(receiver) && place.segments.is_empty()
+                    })
+        }
+        _ => false,
+    }
+}
+
+fn retained_runtime_operands(
+    program: &TypedTrees,
+    site: CallSite,
+    count: usize,
+) -> Option<Vec<ExpressionHandle>> {
+    use typed_trees::data::TypeParameterKind;
+    let (application, arguments, dispatch) = match site {
+        CallSite::Expression(handle) => {
+            let call = expressions_of(program).call_node(handle)?;
+            (
+                call.authored_machine_application,
+                expressions_of(program).expression_handles(call.arguments),
+                call.static_requirement_dispatch.as_ref(),
+            )
+        }
+        CallSite::Statement(handle) => {
+            let call = program.statement_table.statement(handle).as_call()?;
+            (
+                call.authored_machine_application,
+                program.statement_table.expression_handles(call.arguments),
+                call.static_requirement_dispatch.as_ref(),
+            )
+        }
+    };
+    if !application.is_valid() || count == 0 {
+        return None;
+    }
+    let source = expressions_of(program).static_machine_application(application);
+    let parameters = if let Some(machine) = program.machine_by_symbol(source.binding_declaration) {
+        program.machine_callable_parameters(machine)
+    } else if let Some((_, signature)) = program.trait_machine_signature(source.binding_declaration)
+    {
+        program
+            .requirement_invocation_contract_parameters(signature)
+            .to_vec()
+    } else {
+        return None;
+    };
+    let bindings = expressions_of(program).static_machine_application_bindings(application);
+    let runtime = parameters
+        .iter()
+        .filter(|parameter| {
+            matches!(parameter.kind, TypeParameterKind::Value { .. })
+                && bindings.iter().any(|binding| {
+                    binding.parameter == parameter.symbol
+                        && matches!(
+                            binding.value,
+                            StaticMachineBindingValue::RuntimeValue { .. }
+                        )
+                })
+        })
+        .collect::<Vec<_>>();
+    if runtime.len() != count
+        || bindings
+            .iter()
+            .filter(|binding| {
+                matches!(
+                    binding.value,
+                    StaticMachineBindingValue::RuntimeValue { .. }
+                )
+            })
+            .count()
+            != count
+    {
+        return None;
+    }
+    let operation = dispatch.map_or(source.registration_operation, |dispatch| {
+        dispatch.requirement
+    });
+    let ordinary = if let Some((_, signature)) = program.trait_machine_signature(operation) {
+        program.state_signature_parameters(signature).len()
+    } else if let Some((_, signature)) = program.machine_parameter_signature(operation) {
+        program.state_signature_parameters(signature).len()
+    } else {
+        let state = program.state_by_symbol(operation).or_else(|| {
+            program
+                .machine_by_symbol(operation)
+                .and_then(|machine| program.machine_states(machine).first())
+        })?;
+        program.state_parameters(state).len()
+    };
+    if arguments.len() != ordinary + count {
+        return None;
+    }
+    for (parameter, actual) in runtime.into_iter().zip(&arguments[ordinary..]) {
+        let mut matches = bindings
+            .iter()
+            .filter(|binding| binding.parameter == parameter.symbol);
+        let binding = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        let StaticMachineBindingValue::RuntimeValue {
+            subject,
+            expression,
+            ..
+        } = binding.value
+        else {
+            return None;
+        };
+        if expression.is_valid() {
+            if expression != *actual {
+                return None;
+            }
+        } else if !subject.is_valid()
+            || !validation::canonical_place_from_expression(program, *actual).is_some_and(|place| {
+                place.root.as_symbol() == Some(subject) && place.segments.is_empty()
+            })
+        {
+            return None;
+        }
+    }
+    Some(arguments[ordinary..].to_vec())
 }
 
 /// The source edge and executable argument must name one capture occurrence.
@@ -350,6 +538,21 @@ pub(super) fn rewrite_selected_call_with_name(
     target_name: typed_trees::name::Identifier,
     subjects: &[ExpressionHandle],
 ) {
+    let retained = retained_runtime_operands(program, site, subjects.len());
+    let reuse = retained.as_deref() == Some(subjects)
+        && program.state_by_symbol(target).is_some_and(|state| {
+            program.state_parameters(state).len()
+                == match site {
+                    CallSite::Expression(handle) => expressions_of(program)
+                        .call_node(handle)
+                        .map_or(0, |call| call.arguments.len() as usize),
+                    CallSite::Statement(handle) => program
+                        .statement_table
+                        .statement(handle)
+                        .as_call()
+                        .map_or(0, |call| call.arguments.len() as usize),
+                }
+        });
     match site {
         CallSite::Statement(handle) => {
             let StatementNode::Call(snapshot) = program.statement_table.statement(handle).clone()
@@ -365,8 +568,11 @@ pub(super) fn rewrite_selected_call_with_name(
                     &snapshot.machine_arguments,
                 )
             };
-            let new_arguments =
-                insert_arguments_with_subjects(program, snapshot.arguments, subjects);
+            let new_arguments = if reuse {
+                snapshot.arguments
+            } else {
+                insert_arguments_with_subjects(program, snapshot.arguments, subjects)
+            };
             let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
                 unreachable!();
             };
@@ -404,7 +610,9 @@ pub(super) fn rewrite_selected_call_with_name(
             let mut arguments = expressions_of(program)
                 .expression_handles(snapshot.arguments)
                 .to_vec();
-            insert_subject_operands(&mut arguments, subjects);
+            if !reuse {
+                insert_subject_operands(&mut arguments, subjects);
+            }
             let new_arguments = expressions_of_mut(program).insert_expression_handles(arguments);
             let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle)
             else {

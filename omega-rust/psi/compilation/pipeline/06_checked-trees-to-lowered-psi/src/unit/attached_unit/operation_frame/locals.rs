@@ -583,7 +583,7 @@ impl OperationFrame<'_, '_> {
                 &mut self.calls.next_obligation_identity,
                 self.operations,
             )?;
-        self.register_structural_result(declaration, result, produced)
+        self.register_structural_result(declaration, result, produced, false)
     }
 
     /// Bind one immutable view local to an exclusive range. The range
@@ -676,7 +676,7 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "view subslice established no structural value",
             ))?;
-        self.register_structural_result(declaration, result, produced)
+        self.register_structural_result(declaration, result, produced, false)
     }
 
     /// Register `declaration` on this route's results roster and bind
@@ -689,11 +689,9 @@ impl OperationFrame<'_, '_> {
         declaration: StructuralPlaceDeclaration,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         produced: terminal_psi::StructuralOperationResult,
+        discard_on_return: bool,
     ) -> Result<(), LoweringError> {
-        match &mut self.results {
-            StructuralResults::Dense(roster) => roster.push((Some(declaration), false)),
-            StructuralResults::StateGraph { places, .. } => places.push(declaration),
-        }
+        self.results.push(declaration, discard_on_return);
         self.evaluation.establish_structural_result(
             self.state,
             result,

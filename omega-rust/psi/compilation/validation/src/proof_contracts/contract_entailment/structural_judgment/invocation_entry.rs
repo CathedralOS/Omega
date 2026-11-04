@@ -1,7 +1,8 @@
-//! Bind one completed actual roster before entering a checked runtime body.
-//! Caller values are captured before any formal name is installed. Live storage
-//! moves into the callee's declaration coordinates; detached evidence keeps its
-//! identity. This imports neither the callee's requirements nor its completion.
+//! Bind a call's evaluated arguments before checking its runtime body.
+//! Save caller values before binding the callee's parameter names. Storage
+//! observations use the callee's parameter paths; saved values keep their
+//! original identity. Entering the body does not establish its preconditions
+//! or prove its return guarantees.
 
 use super::{StructuralJudge, StructuralTerm, TypeReferenceHandle};
 use crate::machine_calls::calls::InvocationEntrySubject;
@@ -42,6 +43,7 @@ impl<'program> StructuralJudge<'program> {
         if parameters.len() != arguments.len() {
             return None;
         }
+        self.returned_value_source = None;
         if !self.requires_value_preservation() {
             return Some((
                 parameters
@@ -65,9 +67,9 @@ impl<'program> StructuralJudge<'program> {
             })
             .collect::<Vec<_>>();
         self.enter_storage_scope(entry, scope.1, subjects, &bindings);
-        // Expression caches and source premises are invocation-local. Their
-        // captured equations/predicates remain detached values, not a license
-        // to reevaluate a caller expression through new callee bindings.
+        // Cached expressions and source assumptions belong to this invocation.
+        // Saved equations still describe the original evaluated values; they
+        // cannot reevaluate caller expressions using the callee's parameters.
         self.normal_results = std::sync::Arc::new(Vec::new());
         // Nominal receipts name detached completed values, not callee source
         // expressions. Passed values retain those receipts across activation.
@@ -76,6 +78,13 @@ impl<'program> StructuralJudge<'program> {
         self.declaration_state = entry.symbol;
         let (callee, _) = self.runtime_declaration_scope()?;
         self.body_type_parameters = self.program.machine_type_parameters(callee);
+        self.retain_entry_scalar_parameters(
+            callee,
+            entry,
+            bindings
+                .iter()
+                .filter_map(|(symbol, value)| value.as_ref().map(|value| (*symbol, value.clone()))),
+        );
         let incoming = parameters
             .iter()
             .zip(bindings)
@@ -91,36 +100,44 @@ impl<'program> StructuralJudge<'program> {
         Some((incoming, self))
     }
 
-    /// Restore the caller's source question without discarding the completed
-    /// path's detached predicates and value identities. Storage returns through
-    /// exact entry origins after applying the call's complete write summary.
+    /// Resume the caller with the completed path's saved facts and values.
+    /// Map storage back through the actual argument origins, accounting for
+    /// every write recorded for the call.
     pub(in crate::proof_contracts::contract_entailment) fn complete_invocation(
         mut self,
         caller: &Self,
         state: &State,
         subjects: &[InvocationEntrySubject],
         writes: &facts::NormalizedWriteFrame,
+        returned: &StructuralTerm,
+        completion_version: Option<super::storage_effects::StorageVersion>,
     ) -> Option<Self> {
         if !self.requires_value_preservation() {
+            self.returned_value_source = caller.returned_value_source.clone();
             return Some(self);
         }
+        if (caller.graph_storage_mode() && completion_version.is_none())
+            || completion_version.is_some_and(|version| version.state != state.symbol)
+        {
+            return None;
+        }
+        let returned_nominal_values = self.returned_nominal_values(returned, caller);
+        self.returned_value_source = caller.returned_value_source.clone();
         self.leave_storage_scope(caller, state, subjects, writes)?;
         self.body_invocations = std::sync::Arc::clone(&caller.body_invocations);
         self.declaration_state = caller.declaration_state;
         self.body_type_parameters = caller.body_type_parameters;
         self.normal_results = std::sync::Arc::clone(&caller.normal_results);
-        // Both activations may retain completed values. Restoring only caller
-        // receipts loses the admission of a value returned by the callee; losing
-        // caller receipts drops payload facts across an otherwise disjoint call.
-        let receipts = std::sync::Arc::make_mut(&mut self.completed_nominal_values);
-        for receipt in caller.completed_nominal_values.iter() {
-            if !receipts
-                .iter()
-                .any(|retained| retained.value == receipt.value)
-            {
-                receipts.push(receipt.clone());
-            }
+        // Restore the caller's snapshots and the saved field information
+        // carried by this returned value. Other callee captures stay private.
+        self.completed_nominal_values = std::sync::Arc::clone(&caller.completed_nominal_values);
+        if !returned_nominal_values.is_empty() {
+            std::sync::Arc::make_mut(&mut self.completed_nominal_values)
+                .extend(returned_nominal_values);
         }
+        // Preservation checks may read declaration-local scalar bindings.
+        // Run them only after restoring the caller's scope and saved values.
+        self.advance_storage_version(completion_version);
         Some(self)
     }
 }

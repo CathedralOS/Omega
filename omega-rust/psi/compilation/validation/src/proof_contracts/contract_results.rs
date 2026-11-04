@@ -33,9 +33,9 @@ pub struct ReservedResultMember {
     pub authored_case: symbols::SymbolHandle,
 }
 
-/// Resolve declared fields and literal fixed indices rooted at the contract result.
+/// Resolve declared fields and literal element indices rooted at the contract result.
 /// Case payloads keep their nominal Case/Field coordinates; resolving a path
-/// supplies neither membership nor read authority.
+/// supplies neither membership, dynamic bounds nor read authority.
 /// The result name and the complete projection share one owning ensures when
 /// the occurrence index lists both. An intermediate field node that the index
 /// does not list separately still belongs to that result; a different owner
@@ -129,22 +129,25 @@ pub fn reserved_result_place(
             }
             let receiver =
                 crate::value_custody::places::unwrapped_type_reference(program, type_reference)?;
-            let typed_trees::types::TypeReferenceNode::FixedArray {
-                element_type,
-                length: typed_trees::types::FixedArrayLength::Literal(extent),
-            } = program.type_reference_table.type_reference(receiver)
-            else {
-                return None;
+            let element_type = match program.type_reference_table.type_reference(receiver) {
+                typed_trees::types::TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: typed_trees::types::FixedArrayLength::Literal(extent),
+                } if index < *extent => *element_type,
+                // This coordinate retains the literal selector, not a bounds
+                // proof. Formation checks the slice's current extent before
+                // the projection can be observed or its contract imported.
+                typed_trees::types::TypeReferenceNode::Slice { element_type } => *element_type,
+                _ => return None,
             };
-            if index >= *extent
-                || !program
-                    .type_reference_table
-                    .contains_type_reference(*element_type)
+            if !program
+                .type_reference_table
+                .contains_type_reference(element_type)
             {
                 return None;
             }
             segments.push(facts::PlaceSegment::FixedIndex { index });
-            type_reference = *element_type;
+            type_reference = element_type;
             continue;
         }
         let ExpressionNode::Member(member) = expression_table(program).expression(projection)
