@@ -29,6 +29,8 @@ public upper bound. Rejection must name `ensures result <= 0.5`.
 The match example executes both choices and carries a different route marker
 with each selector; selecting the wrong arm changes its result to `0.125`,
 which the caller detects. The named constant stores the selector itself.
+The existing nested `controls/outside_interval` projects use the same migrated
+source and rejection metadata as their adjacent invalid twins.
 
 The [named-predicate production](alias_contract/README.md) carries the same
 public interval into a caller precondition. The already ordinary
