@@ -272,7 +272,7 @@ fn validate_value_range_with_decision_sink(
     if !expression.is_valid() {
         return (Interval::UNBOUNDED, None, None);
     }
-    validate_anonymous_address_landing(
+    validate_anonymous_integer_landing(
         program,
         machine,
         state,
@@ -310,10 +310,11 @@ fn validate_value_range_with_decision_sink(
     )
 }
 
-/// All ordinary anonymous Addr receiving boundaries use the same formation
-/// owner. Payload validation remains separate from symbolic model admission.
+/// An anonymous calculation must fit before its destination policy applies.
+/// Observe its complete value through ordered branches; neither a receiving
+/// width nor Wrapping/Saturating can qualify the calculation's intermediates.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn validate_anonymous_address_landing(
+pub(crate) fn validate_anonymous_integer_landing(
     program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
@@ -323,35 +324,33 @@ pub(crate) fn validate_anonymous_address_landing(
     diagnostics: &mut Vec<Diagnostic>,
     obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
-    if target != Some(PrimitiveType::Addr)
-        || !crate::value_custody::literals::has_anonymous_numeric_results(program, expression)
-    {
+    let Some(target) = target.filter(|target| target.accepts_integer_literal()) else {
+        return;
+    };
+    if !crate::value_custody::literals::has_anonymous_numeric_results(program, expression) {
         return;
     }
     let before = diagnostics.len();
-    validate_anonymous_integer_primitive_range(
-        program,
-        PrimitiveType::Addr,
-        expression,
-        owner,
-        diagnostics,
-    );
-    if diagnostics.len() != before {
+    let closed =
+        validate_anonymous_integer_primitive_range(program, target, expression, owner, diagnostics);
+    if diagnostics.len() != before || closed.is_some() {
         return;
     }
     let fit = crate::proof_contracts::contract_entailment::anonymous_value_fit_at_occurrence(
-        program,
-        machine,
-        state,
-        expression,
-        PrimitiveType::Addr,
+        program, machine, state, expression, target,
     );
     if !fit.retain(expression, machine.symbol, owner, obligations) {
+        let message = if target == PrimitiveType::Addr {
+            format!("anonymous address value cannot prove fit in `addr::Bound` in {owner}")
+        } else {
+            format!(
+                "anonymous value cannot prove fit in `{}` in {owner}",
+                target.name()
+            )
+        };
         diagnostics.push(
-            Diagnostic::error(format!(
-                "anonymous address value cannot prove fit in `addr::Bound` in {owner}",
-            ))
-            .with_source_span(expression_table(program).source_span(expression)),
+            Diagnostic::error(message)
+                .with_source_span(expression_table(program).source_span(expression)),
         );
     }
 }

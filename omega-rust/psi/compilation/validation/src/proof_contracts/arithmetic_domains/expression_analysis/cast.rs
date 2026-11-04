@@ -46,10 +46,10 @@ pub(super) fn analyze(
         };
     }
     // Executable operands use their actual invocation. Declaration recipes
-    // receive the same address-fit check from specification formation, with
+    // receive their anonymous-value fit check from specification formation, with
     // their lexical telescope and retained obligations rather than a frame.
     if let Some(machine) = walk.machine {
-        crate::proof_contracts::arithmetic_domains::validate_anonymous_address_landing(
+        crate::proof_contracts::arithmetic_domains::validate_anonymous_integer_landing(
             program,
             machine,
             walk.state,

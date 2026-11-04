@@ -698,6 +698,36 @@ pub(super) fn structural_term(
         return Some(StructuralTerm::Integer(value));
     }
     match expression_table(program).expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            let (owner, parameters) = frame.or_else(|| {
+                scope.map(|(machine, state, _)| (machine.symbol, program.state_parameters(state)))
+            })?;
+            let judge = super::StructuralJudge::from_declaration_requires(
+                program,
+                owner,
+                parameters,
+                &[],
+                true,
+            );
+            judge.declaration_match_term(expression, dispatch, |path, operand| {
+                structural_term(
+                    program,
+                    scope,
+                    frame,
+                    operand,
+                    Some(&|source| {
+                        bindings.and_then(|bindings| bindings(source)).or_else(|| {
+                            let ExpressionNode::SavedSubject(saved) =
+                                expression_table(program).expression(source)
+                            else {
+                                return None;
+                            };
+                            path.completed_match_subject(saved)
+                        })
+                    }),
+                )
+            })
+        }
         ExpressionNode::Name(path) => {
             if program.symbols.builtin_type_member(path.symbol)
                 == Some(symbols::BuiltinTypeMember::AddressBound)

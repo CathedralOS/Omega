@@ -43,7 +43,7 @@ pub(super) fn report_argument_bounds(
         "machine `{}` state `{target_name}` argument `{}`",
         current_machine.name, parameter.name,
     );
-    arithmetic_domains::validate_anonymous_address_landing(
+    arithmetic_domains::validate_anonymous_integer_landing(
         program,
         current_machine,
         current_state,

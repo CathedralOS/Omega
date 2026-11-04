@@ -46,6 +46,21 @@ impl StructuralJudge<'_> {
             return Some(StructuralTerm::Integer(value));
         }
         match expression_table(program).expression(expression) {
+            ExpressionNode::SavedSubject(saved) => self.completed_match_subject(saved),
+            ExpressionNode::Match(dispatch) => {
+                self.declaration_match_term(expression, dispatch, |judge, operand| {
+                    judge.bound_contract_term(
+                        operand,
+                        scope,
+                        parameters,
+                        callable,
+                        bindings,
+                        type_bindings,
+                        result,
+                        depth + 1,
+                    )
+                })
+            }
             ExpressionNode::Name(path) => {
                 if let Some((_, value)) = bindings
                     .iter()
