@@ -81,10 +81,11 @@ pub fn evaluate_anonymous_value<const ALLOW_DECIMAL_LITERALS: bool>(
     })
 }
 
-/// Absence of a discovered type is not evidence of anonymity. Result joins
-/// inherit a destination only when every leaf is an actual anonymous number;
-/// named values, typed operations and suffixed floats remain conversions.
-/// Operator selection and destination checking share this classification.
+/// Numbers selected by a Match stay anonymous when arithmetic surrounds them.
+/// Classify their result leaves without selecting an arm or claiming that an
+/// operation is defined. Named values, typed operations and suffixed floats
+/// remain conversions; operator selection and destination checking share this
+/// classification.
 pub fn has_anonymous_numeric_results(program: &TypedTrees, expression: ExpressionHandle) -> bool {
     fn visit(
         program: &TypedTrees,
@@ -95,23 +96,29 @@ pub fn has_anonymous_numeric_results(program: &TypedTrees, expression: Expressio
         {
             return false;
         }
-        if let Some(dispatch) = program.expression_table.match_node(expression) {
-            active.push(expression);
-            let anonymous = !program
-                .expression_table
-                .match_arms(dispatch.arms)
-                .is_empty()
-                && program
+        active.push(expression);
+        let anonymous = match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                !program
                     .expression_table
-                    .match_arms_all(dispatch.arms, |_, value| visit(program, value, active));
-            active.pop();
-            anonymous
-        } else {
-            evaluate_anonymous_value::<true>(program, expression, &[], &mut |expression| {
+                    .match_arms(dispatch.arms)
+                    .is_empty()
+                    && program
+                        .expression_table
+                        .match_arms_all(dispatch.arms, |_, value| visit(program, value, active))
+            }
+            ExpressionNode::Binary(binary)
+                if has_anonymous_operator_meaning(program, expression) =>
+            {
+                visit(program, binary.left, active) && visit(program, binary.right, active)
+            }
+            _ => evaluate_anonymous_value::<true>(program, expression, &[], &mut |expression| {
                 has_anonymous_operator_meaning(program, expression)
             })
-            .is_some()
-        }
+            .is_some(),
+        };
+        active.pop();
+        anonymous
     }
     visit(program, expression, &mut Vec::new())
 }

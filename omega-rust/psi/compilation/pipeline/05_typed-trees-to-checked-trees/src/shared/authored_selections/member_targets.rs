@@ -323,8 +323,7 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
                 // evaluation (language guide chapter 5), so an authored
                 // spelling for some carrier never selects it. Any other
                 // unknown operand keeps the question unanswered here.
-                return expression_is_anonymous_arithmetic(program, binary.left)
-                    && expression_is_anonymous_arithmetic(program, binary.right);
+                return validation::has_anonymous_numeric_results(program, expression);
             }
             if !resolve_spelling_for_operand_types(
                 program,
@@ -367,31 +366,4 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
     type_reference
         .and_then(|type_reference| program.primitive_type_reference(type_reference))
         .is_some()
-}
-
-/// Whether an expression is anonymous arithmetic: a literal that has not
-/// landed (no width suffix and no captured carrier), or arithmetic whose
-/// operands are all anonymous. Such an expression carries no type of its own
-/// until it lands, so no authored operator spelling applies to it.
-fn expression_is_anonymous_arithmetic(
-    program: &dyn ::validation::CheckingInput,
-    expression: ExpressionHandle,
-) -> bool {
-    use typed_trees::expression::BinaryOperator;
-    match program.tables.expression_table.expression(expression) {
-        ExpressionNode::Float(literal) => literal.landing().is_none(),
-        ExpressionNode::Integer(literal) => literal.landing().is_none(),
-        ExpressionNode::Binary(binary) => {
-            matches!(
-                binary.operator,
-                BinaryOperator::Add
-                    | BinaryOperator::Subtract
-                    | BinaryOperator::Multiply
-                    | BinaryOperator::Divide
-                    | BinaryOperator::Modulo
-            ) && expression_is_anonymous_arithmetic(program, binary.left)
-                && expression_is_anonymous_arithmetic(program, binary.right)
-        }
-        _ => false,
-    }
 }

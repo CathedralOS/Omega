@@ -85,6 +85,24 @@ pub(crate) fn binary_term_in_scope(
     let owner = frame
         .map(|(owner, _)| owner)
         .or_else(|| state_scope.map(|(machine, _)| machine.symbol))?;
+    // Arithmetic around an observed anonymous number still has no finite
+    // carrier. Preserve its exact integer expression so a selected match
+    // result can justify the enclosing call condition. The common classifier
+    // preserves operator authority; formation is checked separately.
+    if matches!(
+        binary.operator,
+        BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+    ) && matches!(
+        (&left, &right),
+        (StructuralTerm::Integer(_), StructuralTerm::Integer(_))
+    ) && typed_trees::closed_numeric::has_anonymous_numeric_results(program, expression)
+    {
+        return Some(StructuralTerm::MathematicalBinary {
+            operator: binary.operator,
+            left: Box::new(left),
+            right: Box::new(right),
+        });
+    }
     let expected = scope.map(|(_, _, expected)| expected);
     let expression_type = |expression| {
         if let Some((owner, parameters)) = frame {
