@@ -117,6 +117,18 @@ impl Execution<'_, '_, '_> {
     ) -> Option<Vec<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>> {
         let actual_value = *self.context.control.operands.get(actual);
         let desired = reference_shell(self.program, destination)?;
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE call-backing-value-input state={:?} statement={} actual={actual:?} actual_type={:?} destination={destination:?} source_root={:?} source_path={:?} recasts={:?} representation={:?}",
+                self.state.symbol,
+                self.statement_index,
+                actual_value.type_reference,
+                source.root,
+                source.segments,
+                source.recasts,
+                source.representation
+            );
+        }
         if source.recasts.is_empty() && source.representation.is_none() {
             if source.segments.is_empty()
                 && reference_shell(self.program, actual_value.type_reference).is_some()
@@ -203,18 +215,22 @@ impl Execution<'_, '_, '_> {
                     .get_mut(retention)
                     .reborrow_sources = reborrow_sources;
             }
-            return Some(vec![(
-                self.context.control.operands.insert(FlowOperandFact {
-                    type_reference: destination,
-                    state_symbol: self.state.symbol,
-                    statement_index: self.statement_index,
-                    storage_snapshot: at,
-                    referents,
-                    retention,
-                    ..Default::default()
-                }),
-                Vec::new(),
-            )]);
+            let value = self.context.control.operands.insert(FlowOperandFact {
+                type_reference: destination,
+                state_symbol: self.state.symbol,
+                statement_index: self.statement_index,
+                storage_snapshot: at,
+                referents,
+                retention,
+                ..Default::default()
+            });
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE call-backing-value-created kind=reborrow state={:?} statement={} value={value:?} actual={actual:?} retention={retention:?} reborrow_sources={reborrow_sources:?}",
+                    self.state.symbol, self.statement_index
+                );
+            }
+            return Some(vec![(value, Vec::new())]);
         }
         // A checked presentation relation may establish a different view
         // without exporting executable geometry into the caller. Preserve
@@ -227,18 +243,22 @@ impl Execution<'_, '_, '_> {
         let retention = self.append_retention(&roots);
         let places = Vec::new();
         let referents = self.append_referent_places(&places);
-        Some(vec![(
-            self.context.control.operands.insert(FlowOperandFact {
-                type_reference: destination,
-                state_symbol: self.state.symbol,
-                statement_index: self.statement_index,
-                storage_snapshot: at,
-                referents,
-                retention,
-                ..Default::default()
-            }),
-            Vec::new(),
-        )])
+        let value = self.context.control.operands.insert(FlowOperandFact {
+            type_reference: destination,
+            state_symbol: self.state.symbol,
+            statement_index: self.statement_index,
+            storage_snapshot: at,
+            referents,
+            retention,
+            ..Default::default()
+        });
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE call-backing-value-created kind=presentation state={:?} statement={} value={value:?} actual={actual:?} retention={retention:?}",
+                self.state.symbol, self.statement_index
+            );
+        }
+        Some(vec![(value, Vec::new())])
     }
 
     pub(super) fn call_slot_values(

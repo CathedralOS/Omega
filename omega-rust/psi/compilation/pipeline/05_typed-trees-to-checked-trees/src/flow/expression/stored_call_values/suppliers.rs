@@ -532,6 +532,29 @@ impl Execution<'_, '_, '_> {
                         retention,
                         ..Default::default()
                     });
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!(
+                            "CHECKSITE stored-call-value-created state={:?} statement={} target={:?} value={value:?} retention={retention:?} reference={reference:?} suppliers_known={suppliers_known} suppliers={:?} sources={:?}",
+                            self.state.symbol,
+                            self.statement_index,
+                            call.target_symbol,
+                            self.context
+                                .control
+                                .operand_retained_suppliers
+                                .span_or_empty(suppliers),
+                            effect
+                                .sources
+                                .iter()
+                                .map(|source| (
+                                    source.backing.root,
+                                    &source.backing.segments,
+                                    &source.backing.recasts,
+                                    &source.backing.representation,
+                                    source.lifetime_access
+                                ))
+                                .collect::<Vec<_>>()
+                        );
+                    }
                     alternatives.push(CallStoredValue::Captured(value));
                 }
                 if effect.retains_incoming || effect.may_select || weak_destination {
