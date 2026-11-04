@@ -214,6 +214,14 @@ pub(super) fn check_call_requires(
                                         &facts.semantic,
                                         fact.payload,
                                         fact.place,
+                                    ) || qualified_argument_grants_domain(
+                                        program,
+                                        facts,
+                                        requirement_contexts,
+                                        fact,
+                                        membership
+                                            .as_ref()
+                                            .and_then(|evidence| evidence.whole_argument),
                                     ) || subslice_grants_domain(
                                         program,
                                         facts,
@@ -1024,4 +1032,39 @@ fn selected_evidence_proves_requirement(
                         })
                 })
     })
+}
+
+/// An argument written `x as T in D` names its operand's storage place, while
+/// flow publishes the checked qualification's membership on the cast itself.
+/// That membership establishes the formal's requirement for this exact value.
+fn qualified_argument_grants_domain(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    contexts: &[facts::FactContextHandle],
+    requirement: &facts::Fact,
+    argument: Option<typed_trees::expression::ExpressionHandle>,
+) -> bool {
+    let Some(argument) = argument else {
+        return false;
+    };
+    let Some((_, _, domain_symbol, semantic_domain)) = requirement.payload.domain_membership()
+    else {
+        return false;
+    };
+    let qualified = matches!(
+        program.expression_table.expression(argument),
+        typed_trees::expression::ExpressionNode::Cast(cast) if !cast.semantic_domain.is_empty()
+    );
+    qualified
+        && super::exact_scalar_membership(
+            program,
+            facts,
+            contexts,
+            &validation::CanonicalPlace {
+                root: facts::PlaceRoot::Expression(argument),
+                segments: Vec::new(),
+            },
+            domain_symbol,
+            semantic_domain,
+        )
 }
