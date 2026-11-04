@@ -3384,6 +3384,12 @@ fail/float/constructor_case_invalid_wide_rejected rejected 3115ms expected @5de7
 fail/float/finite_return_arm_guard_misses_bound rejected 4813ms expected @66107356a089
 	cannot prove return value `narrowed` satisfies `finite` for bounded return type in `early.entry`
 	cannot prove return value `narrowed` satisfies `finite` for bounded return type in `late.entry`
+fail/float/ieee_collection_call_write_retires_guard rejected 3800ms expected @085f035b8b6e+wt
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/float/ieee_collection_index_rewrite_retires_guard rejected 3499ms expected @085f035b8b6e+wt
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[slot]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/float/ieee_collection_other_element_write_retires_guard rejected 2367ms expected @085f035b8b6e+wt
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/specification_index_reference_selector_unbounded rejected 4743ms expected @e8827ad1dd64+wt
 	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
 	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
@@ -12480,8 +12486,7 @@ pass/float/runtime_float_predicate_domain_exit checked 14633ms check-target:maco
 pass/float/runtime_format_conversion_result_bounds_exit checked 6477ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_generic_constructor_literal_landing_exit checked 15759ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_guarded_float_capture_exit checked 5942ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/runtime_ieee_collection_disjoint_exit rejected 2778ms check-target:macos_arm64 @ccdb99ca2214
-	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/float/runtime_ieee_collection_disjoint_exit checked 11402ms check-target:macos_arm64 @085f035b8b6e+wt
 pass/float/runtime_ieee_saved_boolean_epochs_exit rejected 2236ms check-target:macos_arm64 @ccdb99ca2214
 	machine `disjoint` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 	machine `snapshot` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
@@ -31727,8 +31732,8 @@ fail/float/guarded_range_requires_ordered_value rejected 4216ms expected @ccdb99
 	cannot prove requires contract for call bounded from narrow_negation: unordered >= 0.0 && unordered <= 1.0 (needs fact `narrow >= 0.0 && narrow <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call bounded from wrong_subject: unordered >= 0.0 && unordered <= 1.0 (needs fact `other >= 0.0 && other <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call bounded from integer_view: unordered >= 0.0 && unordered <= 1.0 (needs fact `recast >= 0.0 && recast <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/float/ieee_collection_write_retires_guard rejected 2660ms unexpected @ccdb99ca2214
-	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/ieee_collection_write_retires_guard rejected 2246ms expected @085f035b8b6e+wt
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/indexed_ieee_i64_upper_ceiling_rejected rejected 2275ms unexpected @ccdb99ca2214
 	machine `convert` state `entry`: value call `I64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 fail/float/indexed_ieee_u64_upper_ceiling_rejected rejected 2162ms unexpected @ccdb99ca2214
