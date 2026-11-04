@@ -401,17 +401,17 @@ fn bind_numeric_import<'host>(
 /// Bind independently admitted semantic imports to this existing invocation.
 /// This creates no host environment, execution loop or service delegation.
 pub fn bind_admitted_intrinsics(
-    program: &TerminalProgram,
     instance: &mut TerminalInstance<'_, '_>,
     admitted: &provider_admission::provider_admission::AdmittedTerminalIntrinsics,
 ) -> Result<(), TerminalRuntimeError> {
+    let program = instance.program().clone();
     if program.execution_identity() != admitted.terminal() {
         return Err(TerminalRuntimeError::InvalidProvision(
             "semantic intrinsic admission belongs to another Terminal artifact",
         ));
     }
     for (slot, realization) in admitted.operations() {
-        bind_numeric_import(program, instance, *slot, *realization)?;
+        bind_numeric_import(&program, instance, *slot, *realization)?;
     }
     Ok(())
 }

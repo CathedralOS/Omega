@@ -241,12 +241,8 @@ impl TerminalBuildHost {
                 ..Default::default()
             })
             .map_err(describe)?;
-        terminal_runtime::bind_admitted_intrinsics(
-            &program,
-            &mut instance,
-            &self.providers.intrinsics,
-        )
-        .map_err(|reason| format!("Build selected intrinsic binding: {reason:?}"))?;
+        terminal_runtime::bind_admitted_intrinsics(&mut instance, &self.providers.intrinsics)
+            .map_err(|reason| format!("Build selected intrinsic binding: {reason:?}"))?;
         for boundary in instance.unbound_imports().collect::<Vec<_>>() {
             if provider_slots.contains(&boundary) {
                 continue;
