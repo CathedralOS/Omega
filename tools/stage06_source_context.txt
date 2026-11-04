@@ -56,7 +56,7 @@
 6 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/projections/task_activation/stack_graphs.rs
 3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/projections/task_activation/start_selections.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/projections/task_activation/target_layouts.rs
-2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared/terminal_identities.rs
+1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared/terminal_identities.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs
 7 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/boundaries.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/byte_locals.rs

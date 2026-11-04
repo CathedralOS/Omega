@@ -65,17 +65,17 @@ id_constructor!(contract_id, ContractId);
 id_constructor!(obligation_id, ObligationId);
 id_constructor!(proposition_id, PropositionId);
 
-/// Publish the resolved service declaration, including its package and module.
-/// The service reach table's name is a diagnostic label: distinct modules may
-/// each declare `Sink`. Executable catalogs and retained reach contracts must
-/// use this same identity or an unused contract can silently select its sibling.
+/// Keep a service tied to its exact declaration, just like a callable.
+/// Build constants may use local interfaces before their package owner is
+/// sealed. The existing declaration owner retains those coordinates only in
+/// invocation code; portable code still requires a package or toolchain owner.
+/// A reach table's diagnostic name cannot distinguish same-named interfaces.
 pub(crate) fn service_declaration_identity(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     symbol: symbols::SymbolHandle,
-) -> Result<String, LoweringError> {
-    checked
-        .typed
-        .normalized_hermetic_symbol_identity(symbol)
+) -> Result<terminal_psi::TerminalIdentityIndex, LoweringError> {
+    crate::machine_lowering::declarations::semantic_identity(identities, checked, symbol)
         .map_err(LoweringError::InvalidServiceIdentity)
 }
 
