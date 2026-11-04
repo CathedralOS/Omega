@@ -426,7 +426,8 @@ impl TerminalExecution<'_> {
                 &argument,
                 identity_cursor,
                 &mut RuntimeRows::new(self.account.as_ref()),
-            )?
+            )
+            .map_err(|error| error.in_reference_formation("capture collection backing"))?
         } else {
             None
         };
@@ -533,7 +534,9 @@ impl TerminalExecution<'_> {
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             };
-            let mut loan = self.capture_primitive_loan(&parameter, source, identity_cursor)?;
+            let mut loan = self
+                .capture_primitive_loan(&parameter, source, identity_cursor)
+                .map_err(|error| error.in_reference_formation("capture scalar backing"))?;
             if let Some(storage) = storage {
                 let stored_scalar = storage.stored_scalar.ok_or_else(malformed)?;
                 let crate::boundary::values::TerminalScalarValue::Integer {
@@ -564,7 +567,8 @@ impl TerminalExecution<'_> {
                     usize::try_from(byte_offset).map_err(|_| malformed())?,
                     stored_scalar,
                     logical_scalar,
-                )?;
+                )
+                .map_err(|error| error.in_reference_formation("position scalar storage view"))?;
                 loan.referent.structural_type = referent_type;
             }
             loan.access = access;
@@ -661,7 +665,13 @@ impl TerminalExecution<'_> {
                     || offset_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
                     || !compatible
                 {
-                    return Err(malformed());
+                    return Err(TerminalInterpretError::ReferenceFormation {
+                        stage: "validate aggregate storage view",
+                        detail: format!(
+                            "source_type={original_type:?}, reference={reference_type:?}, offset_type={offset_type:?}, compatible={compatible}: {:?}",
+                            malformed()
+                        ),
+                    });
                 }
                 let byte_length = usize::try_from(
                     terminal_semantics::reference_storage_size(
@@ -693,7 +703,12 @@ impl TerminalExecution<'_> {
                         qualifications: Vec::new(),
                         projected_qualifications: Vec::new(),
                     };
-                    Some(self.capture_primitive_loan(&parameter, source, identity_cursor)?)
+                    Some(
+                        self.capture_primitive_loan(&parameter, source, identity_cursor)
+                            .map_err(|error| {
+                                error.in_reference_formation("capture byte endpoint")
+                            })?,
+                    )
                 } else {
                     None
                 };
@@ -705,12 +720,16 @@ impl TerminalExecution<'_> {
                         access,
                         ..backing_source.clone()
                     };
-                    collection_loan = self.prepare_scalar_array_reference(
-                        original_type,
-                        &argument,
-                        identity_cursor,
-                        &mut RuntimeRows::new(self.account.as_ref()),
-                    )?;
+                    collection_loan = self
+                        .prepare_scalar_array_reference(
+                            original_type,
+                            &argument,
+                            identity_cursor,
+                            &mut RuntimeRows::new(self.account.as_ref()),
+                        )
+                        .map_err(|error| {
+                            error.in_reference_formation("capture aggregate collection backing")
+                        })?;
                 }
                 let (projected, projected_view) = match &byte_loan {
                     Some(loan) => (loan.referent.clone(), None),
@@ -801,7 +820,10 @@ impl TerminalExecution<'_> {
                         )
                     } else {
                         let mut loan = byte_loan.ok_or_else(malformed)?;
-                        self.position_reference_storage(&mut loan, byte_offset, byte_length)?;
+                        self.position_reference_storage(&mut loan, byte_offset, byte_length)
+                            .map_err(|error| {
+                                error.in_reference_formation("position aggregate byte region")
+                            })?;
                         (
                             loan.referent,
                             ReferenceByteRegion {
@@ -1043,7 +1065,9 @@ impl TerminalExecution<'_> {
             )
             .map_err(|error| TerminalInterpretError::ReferenceFormation {
                 stage: "establish reference",
-                detail: format!("source={source:?} result={result:?}: {error:?}"),
+                detail: format!(
+                    "source={source:?} result={result:?} storage={storage:?}: {error:?}"
+                ),
             })?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
