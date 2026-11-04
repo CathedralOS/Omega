@@ -3585,6 +3585,9 @@ fail/termination/nested_helper_field_rank_subject_not_decreasing rejected 9094ms
 fail/termination/nested_helper_nested_field_rank_subject_not_decreasing rejected 7221ms expected @39f3b68ee83e
 	terminating machine iterate: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/nested_helper_record_measure_rank_not_decreasing rejected 4835ms expected @8ff88b9df484
+	terminating machine iterate: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/nested_machine_computed_distance_indexed_upper_rejected rejected 4231ms expected @6c0b29931314
 	machine call cycle: `count`, `forward`, `reduce` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/nested_machine_computed_distance_missing_formation rejected 3030ms expected @6c0b29931314
@@ -14557,54 +14560,30 @@ pass/termination/lexicographic_measure rejected 2911ms regressed-from:checked @c
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- ranking preservation or strict DECREASE is unproven at a call site; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 pass/termination/lower_upper_endpoints checked 3381ms @ccdb99ca2214
 pass/termination/measure_borrowed_projection_range checked 3115ms @ccdb99ca2214
-pass/termination/measure_computed_endpoint rejected 13683ms regressed-from:checked @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/termination/measure_computed_endpoint checked 8824ms @8ff88b9df484
 pass/termination/measure_field_call_component checked 13724ms @911f6617ba9e
 pass/termination/measure_field_computed_arrival checked 4641ms @911f6617ba9e
-pass/termination/measure_field_computed_limit rejected 3131ms regressed-from:checked @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/termination/measure_field_computed_limit checked 8107ms @8ff88b9df484
 pass/termination/measure_field_cycle checked 6558ms @911f6617ba9e
 pass/termination/measure_field_fresh_arrival checked 3803ms @911f6617ba9e
 pass/termination/measure_field_named_arrival checked 3979ms @911f6617ba9e
-pass/termination/measure_field_pinned_limit rejected 3383ms regressed-from:checked @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..=countdown.limit` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/termination/measure_field_pinned_limit checked 5843ms @8ff88b9df484
 pass/termination/measure_field_projection checked 3014ms @ccdb99ca2214
-pass/termination/measure_field_rank_arithmetic rejected 3089ms regressed-from:checked @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..ceiling + padding` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-pass/termination/measure_field_rank_endpoint rejected 4122ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..=ceiling` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-pass/termination/measure_field_rank_range rejected 2793ms regressed-from:checked @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-pass/termination/measure_field_rank_step rejected 2708ms regressed-from:checked @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-pass/termination/measure_field_relational_range rejected 3215ms regressed-from:checked @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..=ceiling` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-pass/termination/measure_field_remainder_limit rejected 3218ms regressed-from:checked @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..countdown.limit % 5 + 6` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-pass/termination/measure_member_endpoint rejected 3067ms regressed-from:checked @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..=countdown.limit` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/termination/measure_field_rank_arithmetic checked 6172ms @8ff88b9df484
+pass/termination/measure_field_rank_endpoint checked 8269ms check-target:macos_arm64 @8ff88b9df484
+pass/termination/measure_field_rank_range checked 6275ms @8ff88b9df484
+pass/termination/measure_field_rank_step checked 6067ms @8ff88b9df484
+pass/termination/measure_field_relational_range checked 6238ms @8ff88b9df484
+pass/termination/measure_field_remainder_limit checked 5853ms @8ff88b9df484
+pass/termination/measure_member_endpoint checked 7082ms @8ff88b9df484
 pass/termination/measure_nested_projection_range_pinned_limit rejected 13475ms regressed-from:checked @911f6617ba9e
 	terminating machine walk: cannot prove rank range `0..=countdown.bounds.limit` for the rank produced by the selected view
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-pass/termination/measure_nested_projection_range_relational rejected 4716ms regressed-from:checked @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..=ceiling` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/termination/measure_nested_projection_range_relational checked 6454ms @8ff88b9df484
 pass/termination/measure_param_endpoint checked 6277ms @911f6617ba9e
 pass/termination/measure_projected_rank checked 6240ms @911f6617ba9e
 pass/termination/measure_record_projection checked 3047ms @ccdb99ca2214
-pass/termination/measure_variable_step rejected 11118ms regressed-from:checked @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/termination/measure_variable_step checked 7501ms @8ff88b9df484
 pass/termination/mutable_rank_endpoint checked 3559ms @ccdb99ca2214
 pass/termination/named_computed_rank_endpoints checked 2079ms @ccdb99ca2214
 pass/termination/native_layout_family_premises checked 3817ms check-target:linux_x86_64 @ccdb99ca2214
@@ -14612,15 +14591,14 @@ pass/termination/native_layout_ordinary_progress checked 4103ms check-target:lin
 pass/termination/natural_call_variable_step checked 2302ms @ccdb99ca2214
 pass/termination/nested_helper_field_rank_subject_exit checked 13418ms check-target:macos_arm64 @7fc524eaec1a+wt
 pass/termination/nested_helper_nested_field_rank_subject_exit checked 9507ms check-target:macos_arm64 @39f3b68ee83e
+pass/termination/nested_helper_record_measure_rank_exit checked 7728ms check-target:macos_arm64 @8ff88b9df484
 pass/termination/nested_leaf_rank checked 2841ms @ccdb99ca2214
 pass/termination/nested_machine_computed_distance_indexed_upper_exit checked 4191ms check-target:macos_arm64 @6c0b29931314
 pass/termination/nested_machine_computed_distance_narrow_inputs_exit checked 3895ms check-target:macos_arm64 @6c0b29931314
 pass/termination/nested_pair_endpoint rejected 11099ms regressed-from:checked @911f6617ba9e
 	terminating machine walk: cannot prove rank range `0..=countdown.bounds.limit` for the rank produced by the selected view
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-pass/termination/nested_projection_measure rejected 11040ms regressed-from:checked @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..=ceiling` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/termination/nested_projection_measure checked 7486ms @8ff88b9df484
 pass/termination/predicate_requires_ranked_cycle checked 13641ms @ccdb99ca2214
 pass/termination/private_rank_endpoint_composed_endpoint_exit checked 27470ms check-target:macos_arm64 @4449c9d8ccc0
 pass/termination/private_self_call_without_promise_compile checked 2690ms @ccdb99ca2214
@@ -14667,9 +14645,7 @@ pass/termination/rank_range_scratch_input_write checked 2782ms @ccdb99ca2214
 pass/termination/rank_range_state_call checked 12727ms check-target:macos_arm64 @ccdb99ca2214
 pass/termination/rank_range_state_call_requires_bridge checked 2949ms @ccdb99ca2214
 pass/termination/rank_range_state_cycle checked 2300ms @ccdb99ca2214
-pass/termination/rank_sum_endpoint rejected 2550ms regressed-from:checked @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..ceiling + padding` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/termination/rank_sum_endpoint checked 7635ms @8ff88b9df484
 pass/termination/ranked_callee_projected_receiver_compile checked 82597ms check-target:macos_arm64 @911f6617ba9e
 pass/termination/rankless_boundary_operator_suffix checked 2060ms @ccdb99ca2214
 pass/termination/rankless_boundary_slice_suffix checked 2648ms @ccdb99ca2214
@@ -35515,10 +35491,8 @@ fail/termination/joint_rankless_finish_reenters_component rejected 2051ms unexpe
 	machine call cycle: `left`, `finish`, `right` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/lexicographic_component_zero_step_rejected rejected 2176ms expected @ccdb99ca2214
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- ranking preservation or strict DECREASE is unproven at a call site; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/measure_field_arrival_contract rejected 4410ms expected @911f6617ba9e
-	cannot prove requires contract for call walk from walk: constructor:83:package:df924e4ffe1bca6f1face80add22d9b9cc8b4a7c2047233050b7f105240207bd::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.remaining <= constructor:83:package:df924e4ffe1bca6f1face80add22d9b9cc8b4a7c2047233050b7f105240207bd::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.spare && constructor:83:package:df924e4ffe1bca6f1face80add22d9b9cc8b4a7c2047233050b7f105240207bd::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.spare <= constructor:83:package:df924e4ffe1bca6f1face80add22d9b9cc8b4a7c2047233050b7f105240207bd::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.limit (needs fact `countdown.remaining <= countdown.spare && countdown.spare <= countdown.limit` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	terminating machine walk: cannot prove rank range `0..=countdown.limit` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/measure_field_arrival_contract rejected 4978ms expected @8ff88b9df484
+	cannot prove requires contract for call walk from walk: constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.remaining <= constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.spare && constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.spare <= constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.limit (needs fact `countdown.remaining <= countdown.spare && countdown.spare <= countdown.limit` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/termination/measure_field_computed_limit_overflow rejected 4360ms expected @911f6617ba9e
 	terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
