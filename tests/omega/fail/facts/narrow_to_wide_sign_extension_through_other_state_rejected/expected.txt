@@ -1,1 +1,1 @@
-Exact integer cast in machine `compute` state `entry` from `u64` to `i32` is not provably representable
+exact arithmetic in machine `compute` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation).

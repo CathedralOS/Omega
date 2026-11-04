@@ -1,1 +1,1 @@
-exact arithmetic in machine `invalid` state `entry`
+exact arithmetic in value argument `Count` of `Counted` may overflow `u64`

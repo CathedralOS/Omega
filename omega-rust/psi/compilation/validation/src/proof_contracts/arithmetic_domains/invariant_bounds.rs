@@ -408,6 +408,25 @@ fn bounds(
             value.type_reference,
         ));
     }
+    // A fixed array's `.len` is its declared extent. Comparisons and exact
+    // successors (`index < items.len`, then `index + 1`) read that count;
+    // a slice length stays symbolic.
+    if let Some(receiver) = crate::value_custody::places::collection_length_receiver(
+        program, machine, state, expression,
+    ) && let Some(extent) =
+        crate::value_custody::places::declared_collection_extent(program, machine, state, receiver)
+    {
+        let type_reference = crate::value_custody::places::declared_place_type_raw(
+            program, machine, state, expression,
+        );
+        let primitive =
+            type_reference.and_then(|reference| program.primitive_type_reference(reference));
+        let value = BigInt::from_u64(u64::try_from(extent).ok()?);
+        if let Some(primitive) = primitive {
+            typed_trees::closed_numeric::land_integer(&value, primitive)?;
+        }
+        return Some(Bounds::constant(value, primitive, type_reference));
+    }
     match program.expression_table.expression(expression) {
         // Literal failure in the shared query is final, not a second landing path.
         ExpressionNode::Integer(_) => None,
