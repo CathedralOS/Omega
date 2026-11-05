@@ -3914,17 +3914,20 @@ fail/core/generic_resident_adapter_no_authority rejected 2781ms expected @ccdb99
 	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Granted
 fail/core/guaranteed_return_bound_actuals_rejected rejected 14148ms expected @ccdb99ca2214
 	exact arithmetic in machine `main` state `entry` local `second_difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/core/guarded_trap_ceiling_altered_carrier_rejected rejected 10622ms unexpected @ccdb99ca2214
+fail/core/guarded_trap_ceiling_altered_carrier_rejected rejected 128054ms expected @3f64aa42f0a9
 	call from `narrow` to `invalid` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/core/guarded_trap_ceiling_misses_signed_minimum_rejected rejected 10894ms unexpected @ccdb99ca2214
+	machine `narrow` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/core/guarded_trap_ceiling_misses_signed_minimum_rejected rejected 122502ms expected @3f64aa42f0a9
 	call from `narrow` to `invalid` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `narrow` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/core/guarded_trap_ceiling_other_site_rejected rejected 11723ms unexpected @ccdb99ca2214
 	call from `pack` to `check_high` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/core/guarded_trap_ceiling_unbounded_addend_rejected rejected 8955ms expected @ccdb99ca2214
 	uncovered Trap crash in machine `accumulate` state `entry` cast expression: Trapping `+` of `total as u8` and `step as u8` in `u8` traps when its result lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
 	uncovered Trap crash in machine `accumulate` state `entry` terminal expression: Trapping `+` of `total as u8` and `step as u8` in `u8` traps when its result lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
-fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 11119ms unexpected @ccdb99ca2214
+fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 121128ms expected @3f64aa42f0a9
 	call from `narrow` to `invalid` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `narrow` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/core/image_address_observation_does_not_grant rejected 4105ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume_granted from numeric_image_observation_is_not_a_root: unqualified in Extent::Granted in state `entry`
 fail/core/independent_content_contract_borrowed_input rejected 1218ms expected @ee4dbb4b2d56
