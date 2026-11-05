@@ -27937,12 +27937,8 @@ pass/time/static_duration_accessors checked 48566ms check-target:macos_arm64 @cc
 pass/traits/applied_callable_law_equality_exit checked 7049ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/applied_conformance_captured_fresh_regions_exit checked 3647ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/applied_contract_arithmetic_refinement checked 3619ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/applied_nominal_callback_closed_local_types_exit rejected 1233ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	static type tuple lost its declared binder
-	static type tuple lost its declared binder
-pass/traits/applied_nominal_callback_local_types_exit rejected 1450ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	static type tuple lost its declared binder
-	static type tuple lost its declared binder
+pass/traits/applied_nominal_callback_closed_local_types_exit checked 10984ms check-target:macos_arm64 @e08fd38eeab5
+pass/traits/applied_nominal_callback_local_types_exit checked 10439ms check-target:macos_arm64 @e08fd38eeab5
 pass/traits/applied_nominal_callback_proposition_contract checked 3031ms @ccdb99ca2214
 pass/traits/applied_nominal_callback_scopes_exit checked 4132ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/applied_qualified_signature_region_scope_exit checked 4383ms check-target:macos_arm64 @ccdb99ca2214
@@ -28062,12 +28058,10 @@ pass/traits/runtime_qualified_byte_crash_equality_exit checked 12345ms check-tar
 pass/traits/runtime_qualified_owned_requirement_calls_exit checked 3750ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_selected_case_reference_exit checked 3322ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_selected_reference_region checked 4251ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/runtime_selected_slice_reference_exit rejected 3500ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("closed reach call has ambiguous emitted occurrences"))
+pass/traits/runtime_selected_slice_reference_exit checked 11329ms check-target:macos_arm64 @e08fd38eeab5
 pass/traits/runtime_trait_default_requirement_scope_exit checked 13178ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/satisfies_bound_trait_parameter_exit checked 3606ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/structural_array_crash_identity_exit rejected 19934ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(MissingCrashArgumentSource { argument: StructuralArgument { place: PlaceId(153), path: [], access: SharedBorrow } })
+pass/traits/structural_array_crash_identity_exit checked 100695ms check-target:macos_arm64 @e08fd38eeab5
 pass/traits/structural_identity_crash_contract checked 4766ms @ccdb99ca2214
 pass/traits/trait_generic_bound_static_dispatch checked 11552ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/trait_member_effects checked 3379ms @ccdb99ca2214
@@ -28421,9 +28415,7 @@ run/state_shared_nested_backing checked 2950ms check-target:macos_arm64 @ccdb99c
 run/stores/runtime_float_indexed_call_result_exit checked 340220ms check-target:macos_arm64 @72a0af2d293d
 run/stores/runtime_float_store_selector_snapshot_exit checked 339598ms check-target:macos_arm64 @72a0af2d293d
 run/traits/named_map_record_result_contract checked 2913ms check-target:macos_arm64 @ccdb99ca2214
-run/traits/static_implementation_method_arguments rejected 1441ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call `keep` has an invalid argument correspondence: selected executable carrier differs from its exact public application
-	call `fill` has an invalid argument correspondence: selected call has no admitted public application
+run/traits/static_implementation_method_arguments checked 11135ms check-target:macos_arm64 @e08fd38eeab5
 run/traits/target_scoped_map_method_arguments checked 6166ms check-target:macos_arm64 terminal-inspections:match @f6273e83f99c
 run/variant_decimal_runtime_division checked 10069ms check-target:linux_x86_64 @ccdb99ca2214
 run/variant_record_normalization_repeats checked 305495ms check-target:linux_x86_64 @e1cfe02f1a9b
