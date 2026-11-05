@@ -1,23 +1,36 @@
-name: Run only the unmeasured proof-wire tests
+name: Qualify complete-value storage on matching hosts
 on:
   workflow_dispatch:
 permissions:
   contents: read
-  actions: read
 env:
   CARGO_BUILD_JOBS: '2'
   CARGO_INCREMENTAL: '0'
   CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
   CARGO_BUILD_FINGERPRINT: content
-  CARGO_TARGET_DIR: /tmp/ot
   RUST_MIN_STACK: '67108864'
+  OMEGA_CORPUS_JOBS: '1'
   OMEGA_CORPUS_FIXTURE_SECS: '120'
 jobs:
-  tests:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
+  matching-host:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host: windows_x86_64
+            runner: windows-2022
+            target_dir: D:/ot
+          - host: macos_arm64
+            runner: macos-15
+            target_dir: /tmp/ot
+          - host: linux_arm64
+            runner: ubuntu-24.04-arm
+            target_dir: /tmp/ot
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 220
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NATIVE_HOST: ${{ matrix.host }}
+      CARGO_TARGET_DIR: ${{ matrix.target_dir }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -32,51 +45,108 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            /tmp/ot
-          key: compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-49ee070c01637756d629596c78b8bbc543b343f2
+            ${{ env.CARGO_TARGET_DIR }}
+          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
-            compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-            compiler-regression-${{ runner.os }}-${{ runner.arch }}-
-      - name: Run only the two existing proof-wire tests
+            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
+      - name: Prepare the exact optimized compiler
+        id: preparation
+        shell: bash
         run: |
-          python3 - <<'OBSERVE'
+          python - <<'OBSERVE'
           from pathlib import Path
           import hashlib,json,os,sys
-          root=Path.cwd()
-          sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          root=Path.cwd();sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
           import compiler_pilot
-          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA']
+          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA'];target=os.environ['NATIVE_HOST']
           assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
-          os.environ['GITHUB_SHA']=source
-          assert compiler_pilot.corpus_gate.host_target()=='linux_x86_64'
+          assert compiler_pilot.corpus_gate.host_target()==target and target in ['windows_x86_64','macos_arm64','linux_arm64']
           assert os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
-          output=root/'build/compiler-pilot/integrated'
-          positive=('pass/traits/named_contract_arithmetic_refinement', 'pass/traits/float_contract_refinement_boundaries_exit', 'pass/providers/inline_member_generic_requirement_exit', 'pass/providers/generic_required_instance_roster_exit', 'pass/providers/canonical_inherited_provider_instances_exit', 'pass/providers/occurrence_region_binding_forwarding_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/build/provider_applied_static_capture_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit', 'pass/traits/public_method_callback_prefix_inference_exit');negative=('fail/proofs/quotient_representative_admitted_closure_rejected', 'fail/traits/inline_requirement_inherited_false_ensures', 'fail/traits/member_omits_requirement_ensures', 'fail/providers/provider_type_slot_unknown', 'fail/traits/exact_application_keeps_parameter_types', 'fail/providers/inline_member_sibling_requirement_rejected', 'fail/providers/occurrence_region_binding_conflicting_inputs', 'fail/build/float_default_wrong_value', 'fail/packages/rootless_numeric_provider_missing_satisfaction', 'fail/traits/conformance_reference_row_retired', 'fail/contracts/mutable_owned_call_ensures_keeps_poststate', 'fail/references/rebound_parameter_reference_drops_referent_bound', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/borrows/whole_referent_store_through_shared_loan', 'fail/traits/ordinary_selection_name_missing_conformance_region', 'fail/traits/explicit_implementation_missing_const_argument', 'fail/build/provider_structural_type_application_conflict', 'fail/providers/inherited_provider_phantom_arguments', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner', 'fail/traits/public_method_callback_prefix_wrong_contract');checking_only=('pass/packages/rootless_numeric_provider_review', 'pass/packages/rootless_numeric_provider_consumer', 'pass/float/runtime_classification_result_categories_exit')
-          import build_slot,compiler_profile,shutil,subprocess,time,re
-          out=root/'build/compiler-pilot/existing-tests';out.mkdir(parents=True,exist_ok=False)
-          requests=[('terminal-codec','proof_term_wire::mathematical_tests')]
+          os.environ['GITHUB_SHA']=source
+          output=root/'build/compiler-pilot/affected-host'
+          positive=('pass/traits/float_contract_refinement_boundaries_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit');negative=('fail/build/float_default_wrong_value', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner')
+          output.mkdir(parents=True,exist_ok=False)
+          (output/'driver.json').write_text(json.dumps({'source':source,'driver':driver,'target':target},indent=2)+'\n')
+          raise SystemExit(compiler_pilot.run_suite('compiler-pilot/affected-host',positive,negative,phase='prepare'))
+          OBSERVE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: core-float-affected-preparation-${{ matrix.host }}-${{ github.run_id }}
+          path: build/compiler-pilot/affected-host/
+          include-hidden-files: true
+          compression-level: 0
+          retention-days: 30
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        if: always() && !cancelled() && steps.preparation.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ env.CARGO_TARGET_DIR }}
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
+      - name: Observe the affected corpus and original controls
+        if: ${{ !cancelled() && steps.preparation.outcome == 'success' }}
+        shell: bash
+        run: |
+          python - <<'OBSERVE'
+          from pathlib import Path
+          import hashlib,json,os,sys
+          root=Path.cwd();sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          import compiler_pilot
+          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA'];target=os.environ['NATIVE_HOST']
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
+          assert compiler_pilot.corpus_gate.host_target()==target and target in ['windows_x86_64','macos_arm64','linux_arm64']
+          assert os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
+          os.environ['GITHUB_SHA']=source
+          output=root/'build/compiler-pilot/affected-host'
+          positive=('pass/traits/float_contract_refinement_boundaries_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit');negative=('fail/build/float_default_wrong_value', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner')
+          prepared=json.loads((output/'preparation.json').read_text())
+          assert prepared['passed'] and prepared['candidate']==source and prepared['target']==target
+          assert json.loads((output/'driver.json').read_text())=={'source':source,'driver':driver,'target':target}
+          producer=compiler_pilot.load_producer(output/'producer.json');producer.verify()
+          status=compiler_pilot.run_suite('compiler-pilot/affected-corpus',positive,negative,producer=producer)
+          producer.verify();observed=root/'build/compiler-pilot/affected-corpus'
+          latency=all(item['millis']<=120000 for name in ['checking.json','both.json'] for item in json.loads((observed/name).read_text())['observations']) if all((observed/name).exists() for name in ['checking.json','both.json']) else False
+          (observed/'scope.json').write_text(json.dumps({'source':source,'driver':driver,'target':target,'producer':producer.record(),'suite_exit':status,'latency_within_original_limit':latency,'passed':status==0 and latency},indent=2)+'\n')
+          raise SystemExit(0 if status==0 and latency else 1)
+          OBSERVE
+      - name: Observe the original ordinary customers
+        if: ${{ !cancelled() && steps.preparation.outcome == 'success' }}
+        shell: bash
+        run: |
+          python - <<'OBSERVE'
+          from pathlib import Path
+          import hashlib,json,os,sys
+          root=Path.cwd();sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          import compiler_pilot
+          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA'];target=os.environ['NATIVE_HOST']
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
+          assert compiler_pilot.corpus_gate.host_target()==target and target in ['windows_x86_64','macos_arm64','linux_arm64']
+          assert os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
+          os.environ['GITHUB_SHA']=source
+          output=root/'build/compiler-pilot/affected-host'
+          positive=('pass/traits/float_contract_refinement_boundaries_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit');negative=('fail/build/float_default_wrong_value', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner')
+          prepared=json.loads((output/'preparation.json').read_text())
+          assert prepared['passed'] and prepared['candidate']==source and prepared['target']==target
+          assert json.loads((output/'driver.json').read_text())=={'source':source,'driver':driver,'target':target}
+          producer=compiler_pilot.load_producer(output/'producer.json');producer.verify()
           rows=[]
-          with build_slot.hold(root):
-           for index,(package,selected) in enumerate(requests):
-            arguments=(['mbx','nextest','run'] if shutil.which('mbx') else ['cargo','test'])+['--locked','-p',package,'--lib',selected]
-            row={'source':source,'package':package,'filter':selected,'command':arguments,'timeout_seconds':600};started=time.monotonic()
-            try:
-             with (out/(str(index)+'.stdout')).open('wb') as stdout,(out/(str(index)+'.stderr')).open('wb') as stderr:
-              result=subprocess.run(arguments,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr,env=compiler_profile.optimized_environment(),timeout=600)
-             row['exit']=result.returncode
-            except subprocess.TimeoutExpired:row.update(exit=None,error='The existing filtered test request timed out; no pass inferred.')
-            row['seconds']=round(time.monotonic()-started,3);row['passed']=row['exit']==0
-            text='\n'.join((out/(str(index)+'.'+suffix)).read_text(errors='replace') for suffix in ['stdout','stderr'])
-            counts=[int(value) for value in re.findall(r'(?:running|Starting) ([0-9]+) tests?',text)]
-            row['observed_test_counts']=counts;row['passed']=row['passed'] and 2 in counts
-            row['channels']={suffix:{'path':str(index)+'.'+suffix,'sha256':hashlib.sha256((out/(str(index)+'.'+suffix)).read_bytes()).hexdigest()} for suffix in ['stdout','stderr']}
-            rows.append(row);(out/'summary.json').write_text(json.dumps({'source':source,'driver':driver,'observations':rows,'passed':all(row['passed'] for row in rows)},indent=2)+'\n')
+          for index,fixture in enumerate(('pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/borrows/runtime_reference_aggregate_alias_replacement_exit')):
+           producer.verify()
+           row=compiler_pilot.ordinary_cli_fixture.observe(root,producer,fixture,root/'build/compiler-pilot/affected-ordinary'/str(index))
+           rows.append(row);producer.verify()
+           (root/'build/compiler-pilot/affected-ordinary/summary.json').write_text(json.dumps({'source':source,'driver':driver,'target':target,'producer':producer.record(),'observations':rows,'passed':all(row['passed'] for row in rows)},indent=2)+'\n')
           raise SystemExit(0 if all(row['passed'] for row in rows) else 1)
           OBSERVE
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: core-float-integrated-proof-codec-${{ github.run_id }}
-          path: build/compiler-pilot/existing-tests/
+          name: core-float-affected-observations-${{ matrix.host }}-${{ github.run_id }}
+          path: |
+            build/compiler-pilot/affected-corpus/
+            build/compiler-pilot/affected-ordinary/
           include-hidden-files: true
+          compression-level: 0
           retention-days: 30
