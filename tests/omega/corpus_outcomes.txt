@@ -24944,31 +24944,17 @@ pass/facts/source_indexed_family_through_other_machine_exit checked 5488ms check
 pass/facts/source_indexed_family_through_other_state_exit checked 5635ms check-target:macos_arm64 @0be3713483e9
 pass/facts/source_indexed_family_through_parameter_exit checked 11366ms check-target:macos_arm64 terminal-inspections:match @6b26c447f83
 pass/facts/source_indexed_family_through_target_body_exit checked 5415ms check-target:macos_arm64 @0be3713483e9
-pass/facts/source_indexed_type_parameter_exit rejected 1687ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 1719, end: 1726 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_type_parameter_baseline"), path: "tests/omega/pass/facts/source_indexed_type_parameter_exit/main.omg", line: 38, column: 23 }) }]
-pass/facts/source_indexed_type_parameter_through_call_result_exit rejected 1101ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced` state `produced::entry`
-pass/facts/source_indexed_type_parameter_through_const_name_exit rejected 774ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_type_parameter_through_field_exit rejected 675ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_type_parameter_through_local_exit rejected 740ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_type_parameter_through_match_join_exit rejected 1630ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`
-	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2244, end: 2254 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_type_parameter_through_match_join_exit/main.omg", line: 51, column: 43 }) }]
-pass/facts/source_indexed_type_parameter_through_other_machine_exit rejected 718ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_type_parameter_through_other_state_exit rejected 1202ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_type_parameter_through_parameter_exit rejected 1495ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2183, end: 2200 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_type_parameter_through_parameter_exit/main.omg", line: 49, column: 26 }) }]
-pass/facts/source_indexed_type_parameter_through_target_body_exit rejected 735ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced::windows_x86_64` state `produced::windows_x86_64::entry`
-pass/facts/source_indexed_type_parameter_u64_payload_exit rejected 761ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_type_parameter_exit checked 11221ms check-target:macos_arm64 terminal-inspections:match @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_call_result_exit checked 5815ms check-target:macos_arm64 @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_const_name_exit checked 5581ms check-target:macos_arm64 @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_field_exit checked 5551ms check-target:macos_arm64 @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_local_exit checked 5487ms check-target:macos_arm64 @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_match_join_exit checked 11371ms check-target:macos_arm64 terminal-inspections:match @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_other_machine_exit checked 5634ms check-target:macos_arm64 @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_other_state_exit checked 5531ms check-target:macos_arm64 @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_parameter_exit checked 11316ms check-target:macos_arm64 terminal-inspections:match @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_target_body_exit checked 5596ms check-target:macos_arm64 @6f9181f2497
+pass/facts/source_indexed_type_parameter_u64_payload_exit checked 5443ms check-target:macos_arm64 @6f9181f2497
 pass/facts/sret_aggregate_return_bound_through_call_result_exit checked 6236ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/sret_aggregate_return_bound_through_const_name_exit checked 6200ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/sret_aggregate_return_bound_through_field_exit checked 7333ms check-target:macos_arm64 @911f6617ba9e
