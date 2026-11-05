@@ -1,202 +1,202 @@
-name: Compiler queue pilot
-
+name: Attribute the copied-case control with the exact earlier compiler
 on:
-  pull_request:
-    branches: [integration-pilot]
-  merge_group:
-    branches: [integration-pilot]
-    types: [checks_requested]
   workflow_dispatch:
-    inputs:
-      smoke:
-        description: Also build executables and run the native/Terminal smoke (not admission)
-        type: boolean
-        default: false
-      fixtures:
-        description: Optional comma-separated exact pass/group/name and fail/group/name IDs; replaces smoke
-        type: string
-        default: ''
-      checking_only:
-        description: Check only the exact fixtures and rejection controls, without repeating runtime observations
-        type: boolean
-        default: false
-      phase_profile:
-        description: Record compiler phase timings for a focused attribution run
-        type: boolean
-        default: false
-      samples:
-        description: Optional comma-separated exact samples/cli/facts project paths (with descendants); replaces smoke
-        type: string
-        default: ''
-      cli_fixtures:
-        description: Optional exact pass/... or samples/cli/... normal-exit projects through ordinary CLI package review and both engines
-        type: string
-        default: ''
-      build_consent:
-        description: Run public source-produced Build consent and filesystem isolation controls
-        type: boolean
-        default: false
-      native_host:
-        description: Matching native host for manual executable observations
-        type: choice
-        options:
-          - linux_x86_64
-          - linux_arm64
-          - windows_x86_64
-          - macos_arm64
-        default: linux_x86_64
-
 permissions:
   contents: read
-
-# A new PR revision supersedes its old check; never cancel a merge-group check
-# merely because another PR entered the queue. Manual revisions use isolated
-# runners and may proceed while an earlier revision finishes its consumers.
-concurrency:
-  group: compiler-pilot-${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
+  actions: read
 jobs:
-  compiler-pilot:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","linux_arm64":"ubuntu-24.04-arm","windows_x86_64":"windows-2022","macos_arm64":"macos-15"}')[inputs.native_host] || 'ubuntu-24.04' }}
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     env:
-      CARGO_BUILD_JOBS: '2'
-      CARGO_INCREMENTAL: '0'
-      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
-      CARGO_BUILD_FINGERPRINT: content
-      # Large calling-policy checks use about 2.8 GiB each. Run one fixture
-      # at a time to reduce concurrent memory pressure.
-      OMEGA_CORPUS_JOBS: '1'
+      GH_TOKEN: ${{ github.token }}
       RUST_MIN_STACK: '67108864'
-      # Match Linux/macOS post-merge storage; Windows keeps its short target path.
-      CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: db7ce305caa821a9a568a0790da79e3555aaa664
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Test the gate's refusal paths
-        run: python tools/tests/test_compiler_pilot.py -v
-      - name: Test Build control evidence refusal paths
-        run: python tools/tests/test_build_consent_controls.py -v
-      - name: Validate exact fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_fixtures; import os; print(select_fixtures(os.environ['OMEGA_COMPILER_PILOT_FIXTURES']))"
-      - name: Validate exact fact sample selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.samples != ''
-        env:
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-        run: python -c "from tools.ci.compiler_pilot import select_samples; import os; print(select_samples(os.environ['OMEGA_COMPILER_PILOT_SAMPLES']))"
-      - name: Validate exact ordinary CLI fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.cli_fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_cli_fixtures; import os; print(select_cli_fixtures(os.environ['OMEGA_COMPILER_PILOT_CLI_FIXTURES']))"
-      - name: Provision Windows rooted temporary directory for hosted applications
-        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
-      - name: Select the retained compiler cache from its validated plan
-        id: replay-cache
-        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "import os; from tools.ci import compiler_pilot; compiler_pilot.write_replay_cache_key(os.environ['OMEGA_COMPILER_PILOT_FIXTURES'], os.environ['GITHUB_OUTPUT'])"
-      - name: Restore the exact retained compiler cache
-        id: replay-build-cache
-        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - name: Authenticate the retained compiler and observe the carrier native result
+        shell: bash
+        run: |
+          python3 - <<'REPLAY'
+          from pathlib import Path
+          from types import SimpleNamespace
+          import hashlib,json,os,subprocess,sys
+          settings={'label': 'structural-generic-copied-case-db7-linux',
+           'target': 'linux_x86_64',
+           'run': 41996808310,
+           'artifact': 'compiler-pilot-linux_x86_64-db7ce305caa821a9a568a0790da79e3555aaa664-1',
+           'producer_source': 'db7ce305caa821a9a568a0790da79e3555aaa664',
+           'producer_tree': '282fcf003add312b4bbd70557258d4d598a581ce',
+           'program_source': 'db7ce305caa821a9a568a0790da79e3555aaa664',
+           'program_tree': '282fcf003add312b4bbd70557258d4d598a581ce',
+           'original_producer': {'revision': 'db7ce305caa821a9a568a0790da79e3555aaa664',
+                                 'tree': '282fcf003add312b4bbd70557258d4d598a581ce',
+                                 'target': 'linux_x86_64',
+                                 'toolchain': 'rustc 1.100.0-nightly (a69a63265 2026-09-03)\n'
+                                              'binary: rustc\n'
+                                              'commit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\n'
+                                              'commit-date: 2026-09-03\n'
+                                              'host: x86_64-unknown-linux-gnu\n'
+                                              'release: 1.100.0-nightly\n'
+                                              'LLVM version: 23.1.1',
+                                 'cli': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-w0qea8fl/omega',
+                                 'runner': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-w0qea8fl/corpus_runner',
+                                 'cli_profile': {'binary': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-w0qea8fl/omega',
+                                                 'sha256': '1bcd8761988b238b006259e207f8e7d165cef0291794db415dfef926aa13d62a',
+                                                 'profile': {'schema': 'omega-compiler-build-profile-v1',
+                                                             'opt_level': '1'}},
+                                 'runner_profile': {'binary': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-w0qea8fl/corpus_runner',
+                                                    'sha256': '71a22d264a71ace871450a3d3c60a75a47de033421efe0e935a1e9c704249d51',
+                                                    'profile': {'schema': 'omega-compiler-build-profile-v1',
+                                                                'opt_level': '1'}}},
+           'objects': {'omega-rust': 'ad9a7a5cbe64f9d2e5b1c05e575bd71e3fed150c',
+                       'source/library': 'e3e1296eab03464c3ca08a0c419c76e25c24ec6a',
+                       'tools': '4c4948a65a9394812dc40ce9de89ac90f03cf46e',
+                       '.github': '28d646336b736ecc18904871833be8d8a26847d7',
+                       'Cargo.toml': '2699e0a8d0be49c789639cbd3c603521634145d9',
+                       'Cargo.lock': 'b9590ac649fdf234e519f0197a05372d3fe65df5',
+                       'rust-toolchain.toml': '34677fc928123970d13e8b81641724e2a9e6f929'},
+           'program_objects': {'omega-rust': 'ad9a7a5cbe64f9d2e5b1c05e575bd71e3fed150c',
+                               'source/library': 'e3e1296eab03464c3ca08a0c419c76e25c24ec6a',
+                               'tools': '4c4948a65a9394812dc40ce9de89ac90f03cf46e',
+                               '.github': '28d646336b736ecc18904871833be8d8a26847d7',
+                               'Cargo.toml': '2699e0a8d0be49c789639cbd3c603521634145d9',
+                               'Cargo.lock': 'b9590ac649fdf234e519f0197a05372d3fe65df5',
+                               'rust-toolchain.toml': '34677fc928123970d13e8b81641724e2a9e6f929'},
+           'baseline': False,
+           'input_hashes': {'tests/omega/fail/borrows/empty_array_snapshot_requires_read_authority/build.omg': '385d32ce284165c23d7a8d11dedb66e3ab26d4d42e7820a8489d3fbfc26dfba2',
+                            'tests/omega/fail/borrows/empty_array_snapshot_requires_read_authority/expected.txt': '83c6eddc570991544805f74448212578da6a2a3e282814b9364b5d92f1a36d75',
+                            'tests/omega/fail/borrows/empty_array_snapshot_requires_read_authority/main.omg': '4aac6853f1ee677af2675d784c5d32d7eb151a9dee8ca39fe2cad7402378fdfa',
+                            'tests/omega/fail/cases/constructor_subject_range_neighbor_not_evidence/expected.txt': '4d5ffdca9fc2c5e8bde4f23031b0d1b98a8aa3450e41b5ffe7a3ced50ea67bbe',
+                            'tests/omega/fail/cases/constructor_subject_range_neighbor_not_evidence/main.omg': '225659b96322507f7adba8271db9500da06c1cf8a80e98f83f6fc24a7ec2c06a',
+                            'tests/omega/fail/data/constructor_distinct_field_versions/expected.txt': 'cac1de6fd3822e8134cb4dc7056d5ae4a47c9b7e479e8452c04b5be68798dd77',
+                            'tests/omega/fail/data/constructor_distinct_field_versions/main.omg': 'ae2622309697565c369a8b0a3f182594d0d9015f1b4d051975c27790b41e0c03',
+                            'tests/omega/fail/data/constructor_prior_operand_write/expected.txt': '6606c33d719fe3fe1481aec48bdeff174afaab2c50ebb9a72f6a4636ef6d39a4',
+                            'tests/omega/fail/data/constructor_prior_operand_write/main.omg': 'bf7dc8a87db4ece9f004bb9bc87ec18b1e1eedfd26977fc18c3884dedb446c13',
+                            'tests/omega/fail/generics/generic_carrier_equation_index_conflict/expected.txt': 'ce99563d1a8412aa9ea9a7d31b937258f0b18a6467b6293d20b9feed2736ecdb',
+                            'tests/omega/fail/generics/generic_carrier_equation_index_conflict/main.omg': '44a38f9d85ac3153cab27d763e0cc9448255dac0c64a75096820fc882e28c342',
+                            'tests/omega/fail/generics/generic_carrier_equation_mismatch/expected.txt': '939f57ebe8efbf566e9c828f9bd48396bed403e50fa700509a7b8d54851cc6f7',
+                            'tests/omega/fail/generics/generic_carrier_equation_mismatch/main.omg': '8934cb90b2dd25bd3efabaa5bc92b0222672ac9772552dfd057086622e176788',
+                            'tests/omega/fail/generics/generic_carrier_equation_repeated_carrier_conflict/expected.txt': '939f57ebe8efbf566e9c828f9bd48396bed403e50fa700509a7b8d54851cc6f7',
+                            'tests/omega/fail/generics/generic_carrier_equation_repeated_carrier_conflict/main.omg': '7d803ea6f061537697ed41c8e76ffb884b250c54e5c41f7e32064a18a4a70529',
+                            'tests/omega/fail/generics/generic_carrier_equation_repeated_index_conflict/expected.txt': '939f57ebe8efbf566e9c828f9bd48396bed403e50fa700509a7b8d54851cc6f7',
+                            'tests/omega/fail/generics/generic_carrier_equation_repeated_index_conflict/main.omg': '831f48a75080edc61d7367a3510c4623080b25db9daf56f412615439af64bc69',
+                            'tests/omega/fail/generics/omitted_data_binder_explicit_conflict/expected.txt': '1751a64bbf4c37e7cac504861933177c4977feb9607a0f25e42d47b5273b5bcc',
+                            'tests/omega/fail/generics/omitted_data_binder_explicit_conflict/main.omg': 'de621adec4292e558dbbca83722ab2c5ecade4f0a535e9978a5e91fd94f02c52',
+                            'tests/omega/fail/generics/omitted_data_binder_underdetermined/expected.txt': '2f37ed6d553b1a62c7fa3bcae52890456302fe00ac883c38bb7486b3da496f21',
+                            'tests/omega/fail/generics/omitted_data_binder_underdetermined/main.omg': 'a0d363bdd43d62c20784f55fe472c358ed11e6ef829e279b4f5b808dba922a3e',
+                            'tests/omega/pass/calls/runtime_nested_constructor_child_snapshots_exit/build.omg': 'd5d5b93f93f47be642e43c67bb4b34e7f675f6af689d9eefc9ce1b82f7b98b42',
+                            'tests/omega/pass/calls/runtime_nested_constructor_child_snapshots_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/calls/runtime_nested_constructor_child_snapshots_exit/main.omg': '2a0db65ff8192b0d286c44dac8456cb4222f4c46ec71cffe9821809eb3de06d0',
+                            'tests/omega/pass/core/aggregate_snapshot_copy_exit/build.omg': '9283d44d9cccaedf3e6fb27c3029418db166eedf4354576ea43dff73acada0dc',
+                            'tests/omega/pass/core/aggregate_snapshot_copy_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/core/aggregate_snapshot_copy_exit/main.omg': '9cfa86033d71f3707e62effa2c88e3b0f9891c10943edc6b74cde8dd238b0244',
+                            'tests/omega/pass/generics/omitted_data_binder_range_equation/build.omg': 'aa37cf0e6c0ab081c71c6c174fbfd01b43066386da636acb54fd72ad1a450a15',
+                            'tests/omega/pass/generics/omitted_data_binder_range_equation/expected_native_exit.txt': '13c1dc569ae4a0d7f90d8f83d22fc9c8fa526e133f8fea0f9526c8533c4d8da3',
+                            'tests/omega/pass/generics/omitted_data_binder_range_equation/main.omg': '836a91eb9644eda9320269203dc09d464f134db13f034e8913cf6506f24dde42',
+                            'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/README.md': '661fab92aa01bab89746f912a9b2094c25d49d819740c886ef65a45b7a127b8c',
+                            'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/build.omg': '7a7baea772c6c8f1863abb9731aa725a204d474414405645e09559ae0df6199b',
+                            'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/expected_native_exit.txt': '10159baf262b43a92d95db59dae1f72c645127301661e0a3ce4e38b295a97c58',
+                            'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/main.omg': '504a673682bb074ef9b7ea0f9b4c735c54256e523f34ce0d6248e1a03b589f4a',
+                            'tests/omega/pass/borrows/fixed_array_reference_backing_exit/build.omg': '2bd96f876a7d9dbd48a7dac305b895a78d922fcb0df5583a40345bdaa7cd808a',
+                            'tests/omega/pass/borrows/fixed_array_reference_backing_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/borrows/fixed_array_reference_backing_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/borrows/fixed_array_reference_backing_exit/main.omg': '1c557adf6cc9d1b5fa4f40dd35597daa392931521586bf76efbdf017938b9858',
+                            'tests/omega/pass/contracts/runtime_literal_view_extent_calls_exit/build.omg': '7ee1ff2cb0dd3396284d0fc0184014dc871ff6ac66c8b9d7a08e75e892718517',
+                            'tests/omega/pass/contracts/runtime_literal_view_extent_calls_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/contracts/runtime_literal_view_extent_calls_exit/main.omg': 'c3bf221dbea04a95cb13172622552591cc07baf841da1164398aa56b44ff214b',
+                            'tests/omega/pass/calls/runtime_completed_operand_then_forwarded_shared_borrow_exit/README.md': 'd16df7a1f5070aa2c1706a8b3aa3bbdca902a5fe7c1de5b9b203494f00a067d0',
+                            'tests/omega/pass/calls/runtime_completed_operand_then_forwarded_shared_borrow_exit/build.omg': '399f8a8551b302e2bf7badafd656943598f72da4d1ed3528ced8c46e0fa29687',
+                            'tests/omega/pass/calls/runtime_completed_operand_then_forwarded_shared_borrow_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/calls/runtime_completed_operand_then_forwarded_shared_borrow_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/calls/runtime_completed_operand_then_forwarded_shared_borrow_exit/main.omg': '085f4760cb6c3cf05c49438ddd60acf53b01b031923e5c7ec70b1089d8828fe5',
+                            'tests/omega/fail/borrows/local_subslice_live_parent_mutable_argument/expected.txt': '8aeb2d983cca8cdeb7f7306237a29413ed4ce42a3e1f1dffd9bd04b33aedc052',
+                            'tests/omega/fail/borrows/local_subslice_live_parent_mutable_argument/main.omg': '8687310d660f2fdae2788ff56dac0ae221a1848bbac817af128a2ea9019503cb',
+                            'tests/omega/fail/calls/boundary_nested_argument_conflicting_loan/expected.txt': '8274600563cff6fa80464a6878c4d0a34148dfce30aab72b27f7662f8aa78447',
+                            'tests/omega/fail/calls/boundary_nested_argument_conflicting_loan/main.omg': 'd33c0d41e1ab3f0ee61163eae82f97917a5d02d38a1dfff840e2b57e20ce318b',
+                            'tests/omega/fail/calls/nested_call_footprint_retires_second_argument/expected.txt': '5d14741f78ccb4c67fc7c9edc33137682f3983e9fca566c04c634fe0d8db639a',
+                            'tests/omega/fail/calls/nested_call_footprint_retires_second_argument/main.omg': '4b9e2eacb406df46757c7696de73157fc0f328fbd5b98c8daae6c2e96937a618',
+                            'tests/omega/pass/borrows/copied_empty_case_before_active_replacement_exit/build.omg': '3c860adaaf5df8899f53ac47ef2b96cba164c21d74afb429db1c886e385d0b8a',
+                            'tests/omega/pass/borrows/copied_empty_case_before_active_replacement_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/borrows/copied_empty_case_before_active_replacement_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/borrows/copied_empty_case_before_active_replacement_exit/main.omg': '17fc685a863829fb7af2ee1680d4437b2fbc00bd961ffb5ce1d59b539ff20695',
+                            'tests/omega/fail/control_flow/saved_case_predicate_receiver_trailing_write_rejected/build.omg': '0bbe0603fbcb67aea34382cdd5b5a9baf4fe523e9a48ee0a10919f7eea8f47cc',
+                            'tests/omega/fail/control_flow/saved_case_predicate_receiver_trailing_write_rejected/expected.txt': 'ec39ff24c0ea7dd303137ea18d77ac2b51926f2a43c39da43d30f9b452cb17e7',
+                            'tests/omega/fail/control_flow/saved_case_predicate_receiver_trailing_write_rejected/main.omg': 'e607a04858fe604111a0f9a8f77a30b016292b306f07b35a7d112fc6adab7184'},
+           'fixtures': ['pass/borrows/copied_empty_case_before_active_replacement_exit'],
+           'samples': [],
+           'sample_roles': {},
+           'sample_root': 'samples/cli/facts/inferred_array_equation_call',
+           'meaning': 'Exact before-change native attribution for the added existing case-copy control; original zero '
+                      'oracle unchanged, actual outcome is not assumed.',
+           'expected_exits': {'pass/generics/runtime_generic_carrier_equation_exit': 7}}
+          root=Path.cwd();out=root/'build'/settings['label'];out.mkdir(parents=True,exist_ok=True)
+          def git(*args):return subprocess.check_output(['git',*args],text=True).strip()
+          assert git('rev-parse','HEAD')==settings['program_source']
+          assert git('rev-parse','HEAD^{tree}')==settings['program_tree']
+          assert not git('status','--porcelain')
+          subprocess.run(['git','fetch','--no-tags','--depth=1','origin',settings['producer_source']],check=True)
+          objects={p:git('rev-parse',settings['producer_source']+':'+p) for p in settings['objects']}
+          assert objects==settings['objects']
+          for p,expected in settings['program_objects'].items():assert git('rev-parse','HEAD:'+p)==expected
+          run=json.loads(subprocess.check_output(['gh','api','repos/CathedralOS/Omega/actions/runs/'+str(settings['run'])],text=True))
+          assert run['head_sha']==settings['producer_source'] and run['status']=='completed'
+          retained=out/'retained';subprocess.run(['gh','run','download',str(settings['run']),'--name',settings['artifact'],'--dir',str(retained)],check=True)
+          records=[p for p in retained.rglob('producer.json') if json.loads(p.read_text())==settings['original_producer']];assert len(records)==1
+          original=json.loads(records[0].read_text());assert original==settings['original_producer']
+          assert original['revision']==settings['producer_source'] and original['tree']==settings['producer_tree'] and original['target']==settings['target']
+          sys.path.insert(0,'tools/ci');import compiler_pilot,platform
+          assert compiler_pilot.corpus_gate.host_target()==settings['target']
+          cli=(records[0].parent/Path(original['cli']).name).resolve();runner=(records[0].parent/Path(original['runner']).name).resolve()
+          for p in [cli,runner]:p.chmod(0o755)
+          tracked=sorted(set(settings['input_hashes']) | set(subprocess.check_output(['git','ls-files','source/library'],text=True).splitlines()))
+          inputs={p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in tracked}
+          for p,h in settings['input_hashes'].items():assert inputs[p]==h,p
+          actual_profiles={key:compiler_pilot.corpus_gate.require_optimized(binary) for binary,key in [(cli,'cli_profile'),(runner,'runner_profile')]}
+          def profile_identity(profile):
+              identity={k:v for k,v in profile.items() if k!='binary'}
+              if isinstance(identity.get('build_receipt'),dict):
+                  identity['build_receipt']={k:v for k,v in identity['build_receipt'].items() if k!='path'}
+              return identity
+          for key,observed in actual_profiles.items():
+              assert profile_identity(observed)==profile_identity(original[key])
+          def verify():
+              assert git('rev-parse','HEAD')==settings['program_source'] and not git('status','--porcelain')
+              for binary,key in [(cli,'cli_profile'),(runner,'runner_profile')]:assert compiler_pilot.corpus_gate.require_optimized(binary)==actual_profiles[key]
+              for p,h in inputs.items():assert hashlib.sha256(Path(p).read_bytes()).hexdigest()==h,p
+          verify()
+          producer=SimpleNamespace(cli=cli,runner=runner,target=settings['target'],verify=verify,record=lambda:original)
+          (out/'retained-origin.json').write_text(json.dumps({'settings':settings,'driver':os.environ['GITHUB_SHA'],'program_source':settings['program_source'],'original_producer':original,'original_run_conclusion':run['conclusion'],'actual_cli':str(cli),'actual_runner':str(runner),'actual_profiles':actual_profiles,'host':{'system':platform.system(),'machine':platform.machine(),'version':platform.version()},'inputs':inputs,'builds_rust':False},indent=2)+'\n')
+          import tempfile
+          cache=Path(tempfile.mkdtemp(prefix='omega-copied-case-baseline-',dir='/tmp'))
+          assert cache.stat().st_uid==os.getuid() and cache.stat().st_mode & 0o077==0
+          (out/'environment.json').write_text(json.dumps({'uid':os.getuid(),'private_cache':str(cache),'cache_mode':oct(cache.stat().st_mode & 0o7777),'phase_profile':False},indent=2)+'\n')
+          report=out/'both.json'
+          command=[sys.executable,'tools/corpus_gate.py','--runner',str(runner),'--both','--filter',settings['fixtures'][0],'--json',str(report),'--golden',str(compiler_pilot.observation_golden(out,both=True,target=settings['target']))]
+          with (out/'workload.stdout').open('w') as stdout,(out/'workload.stderr').open('w') as stderr:
+              result=subprocess.run(command,stdout=stdout,stderr=stderr,env=dict(os.environ,XDG_CACHE_HOME=str(cache),OMEGA_PHASE_PROFILE='0',OMEGA_CORPUS_JOBS='1',OMEGA_CORPUS_SWEEP='1',OMEGA_CORPUS_CAPTURE_ARTIFACTS=str(out/'both-artifacts')),timeout=150)
+          verify()
+          observed=json.loads(report.read_text())
+          assert observed['revision']==settings['program_source'] and observed['dirty'] is False and observed['leg']=='both' and observed['target']==settings['target'] and not observed['infrastructure_error']
+          assert [row['fixture'] for row in observed['observations']]==settings['fixtures']
+          row=observed['observations'][0]
+          positive=row['status']=='built' and row['facts']=={'exit':'0','interpreter-exit':'0','interpreter':'agrees'} and row['millis']<120000
+          (out/'summary.json').write_text(json.dumps({'attribution_only':True,'phase_profile':False,'command_exit':result.returncode,'producer':original,'program_source':settings['program_source'],'driver':os.environ['GITHUB_SHA'],'builds_rust':False,'limits_changed':False,'input_count':len(inputs),'actual_observation':row,'original_positive_oracle_satisfied':positive},indent=2)+'\n')
+          raise SystemExit(0 if positive and result.returncode==0 else (result.returncode or 1))
+          REPLAY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
+          name: structural-generic-copied-case-db7-linux-${{ github.run_id }}
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.replay-cache.outputs.key }}
-          fail-on-cache-miss: true
-      - name: Refuse an absent or partial retained compiler cache
-        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@') && steps.replay-build-cache.outputs.cache-hit != 'true'
-        run: python -c "raise SystemExit('The exact retained compiler cache was not restored; no rebuild was attempted')"
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        id: build-cache
-        if: github.event_name != 'workflow_dispatch' || !startsWith(inputs.fixtures, '@')
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
-      - name: Check the exact integration candidate
-        id: compiler-check
-        run: cargo check --locked -p omega
-      - name: Prepare and retain the optimized producer
-        id: producer-preparation
-        if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py --phase prepare
-      - name: Upload the prepared producer and build receipts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        with:
-          name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/
-          if-no-files-found: warn
-          compression-level: 0
-          retention-days: 7
-      # Save compiled objects before any program consumer can use the job budget.
-      # A failed preparation still retains useful objects and keeps the job red.
-      - name: Save build cache before fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
-      - name: Observe public Build consent and filesystem isolation
-        if: github.event_name == 'workflow_dispatch' && inputs.build_consent
-        run: python tools/ci/build_consent_controls.py
-      - name: Enable requested compiler phase timings
-        if: github.event_name == 'workflow_dispatch' && inputs.phase_profile
-        run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_PHASE_PROFILE=1\n')"
-      - name: Optional executable observations
-        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py --phase consume
-      - name: Report actual producer and fixture observations
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('preparation.json', 'summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        with:
-          name: compiler-pilot-observations-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: |
-            build/compiler-pilot/
-            !build/compiler-pilot/producer-*/**
-          if-no-files-found: warn
-          compression-level: 0
-          retention-days: 7
-      # The corpus reports alone, so `corpus_gate.py --compare --remote` reads
-      # rows without downloading the retained producer (350-520 MB).
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        with:
-          name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/*.json
-          if-no-files-found: warn
+            build/structural-generic-copied-case-db7-linux/*.json
+            build/structural-generic-copied-case-db7-linux/*.txt
+            build/structural-generic-copied-case-db7-linux/*.stderr
+            build/structural-generic-copied-case-db7-linux/*.stdout
+            build/structural-generic-copied-case-db7-linux/*.time
           retention-days: 7
