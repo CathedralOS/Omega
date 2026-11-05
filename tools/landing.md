@@ -97,7 +97,10 @@ Verify the landing on a later turn with `python tools/landing.py status NUMBER`
 (`state` MERGED and `mergeCommit`), or, where the host lets a command run in the
 background, add `--wait-seconds N` (at most 86400) so `land` also waits: it exits
 0 for MERGED, 2 at the deadline, and 1 for a red check, a conflict, a closed PR
-or removal from the queue. Waiting never re-enqueues a removed entry. A later
+or removal from the queue. A PR whose newest queue run passed but which still
+reads OPEN with no queue entry is merging, not removed: GitHub flips its state
+after main moves, so `land` keeps reading it for up to five minutes. Waiting
+never re-enqueues a removed entry. A later
 `land` leaves merged or queued PRs untouched, retains an armed pending request,
 and enqueues an already-armed green head. An armed request alone does not
 guarantee unattended publication; verify the final state.
