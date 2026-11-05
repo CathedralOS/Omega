@@ -6,7 +6,7 @@ A finite-family result retains its exclusive input counter through storage and f
 
 The source uses independent static machines under [machine declarations](../../../../wiki/spec/language/machines.md), public input-relative origins under [dynamic method families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families), and [returned carrier lifetimes](../../../../wiki/spec/language/lifetimes.md#returned-views).
 
-All nine places carry the backing counter into the same selected-result operation: local, field, parameter, call result, match join, const name, another state, another machine and another target body. The const place materializes the named initial array in owned runtime storage. Each place selects both rows and providers, stores and forwards each returned owner through a state transition, and checks that two consumptions increment the same surviving counter exactly twice. `settle` is an explicit independent consuming machine; this row does not claim domain-selected automatic cleanup coverage.
+All nine places carry the backing counter into the same selected-result operation: local, field, parameter, call result, match join, const name, a nested machine, another machine and another target body. The const place materializes the named initial array in owned runtime storage. Each place selects both rows and providers, stores and forwards each returned owner through a state transition, and checks that two consumptions increment the same surviving counter exactly twice. The data declaration selects the ordinary `drop_token(value: &mut Token)` cleanup hook. `finish` reads the marker and returns; cleanup of its remaining ticket increments the borrowed counter. There is no explicit increment or disposal call in `finish`.
 
 The preserved baseline compiler accepts update of the valid frozen control, then refuses lowering with `captured reference leaves have no resources`. The fix rejoins the exact existing checked loan by its formation expression, state, statement and result-relative leaf before enclosing destination prefixes. It neither turns public regions into permission suppliers nor changes exclusive access admission. Unknown replacements, mismatching leaves, unresolved selectors and incomplete alternatives retain conservative refusal.
 
@@ -31,3 +31,19 @@ Observed with the optimized producer at `11bdd2fe41f` on macOS x86-64: the
 migrated positive exits 0 under `omega run --both` (native and Terminal Psi
 agree), and the twin still rejects for returning a view of a local that does not outlive the call. No compiler change was needed. The other hosted
 targets were not executed here.
+
+## Automatic cleanup qualification
+
+The current programs use the same counter, widths 16/32, implementation choices,
+transport and exit-zero checks. Their data owner now selects a nominal cleanup
+hook, and returning from `finish` disposes the remaining ticket. The hook must
+run exactly once per returned token. Each twin still changes only the backing
+to an invocation-local array and must reject its escape.
+
+A focused frozen precursor with the same nominal hook checks with optimized
+compiler `538cc2df6785`, but native lowering refuses the hook's read of its
+stored pointer: `descriptor storage access conflicts with a retained loan`.
+The original lifetime twin still rejects. Its immutable inputs and raw results
+are retained in the owning qualification record. Current nine-place execution
+and the read-specific compiler repair remain pending; earlier explicit-settler
+observations below do not establish automatic cleanup.
