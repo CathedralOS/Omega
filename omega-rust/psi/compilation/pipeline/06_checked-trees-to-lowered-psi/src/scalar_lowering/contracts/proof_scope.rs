@@ -40,6 +40,10 @@ pub(crate) fn bind_invocation_proof_references(
         Terminator::Jump {
             erased_proof_arguments,
             ..
+        }
+        | Terminator::InvokeNoNormal {
+            erased_proof_arguments,
+            ..
         } => bind_terms(erased_proof_arguments, invocation_formal_count)?,
         Terminator::Conditional {
             when_true,
