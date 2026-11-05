@@ -105,7 +105,8 @@ MAX_NEW_OMG_FILES = 6
 NEAR_DUPLICATE = 0.8
 SUBJECT_LIMIT = 85
 TASKS_BOARD = "TASKS.md"
-TASKS_LINE_LIMIT = 460
+TASKS_LINE_LIMIT = 210
+TASKS_CHAR_LIMIT = 22500
 TASKS_ITEM_LINE = re.compile(
     r"^(?:## \S|<a id=\"[a-z0-9-]+\"></a>$|- \*\*[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+\.\*\* \S|  - \S|  Acceptance: \S)"
 )
@@ -446,6 +447,10 @@ def tasks_board_violations(head_text: str, base_text: str = "") -> list:
         violations.append(
             f"{TASKS_BOARD}: {len(head_lines)} lines (limit is {TASKS_LINE_LIMIT}); "
             "keep outcomes as discrete one-line bullets and delete completed work")
+    if len(head_text) > TASKS_CHAR_LIMIT:
+        violations.append(
+            f"{TASKS_BOARD}: {len(head_text)} characters (limit is {TASKS_CHAR_LIMIT}); "
+            "keep bullets concise rather than packing prose onto single lines")
     if base_text:
         base_lines = base_text.splitlines()
         if len(head_lines) > len(base_lines):
@@ -453,6 +458,10 @@ def tasks_board_violations(head_text: str, base_text: str = "") -> list:
                 f"{TASKS_BOARD}: grew from {len(base_lines)} to {len(head_lines)} lines; "
                 "update by subtraction (delete completed bullets or fold without growing "
                 "the board, AGENTS.md 'Monotonic board closure')")
+        if len(head_text) > len(base_text):
+            violations.append(
+                f"{TASKS_BOARD}: grew from {len(base_text)} to {len(head_text)} characters; "
+                "update by subtraction rather than appending prose to existing lines")
         base_subbullets = sum(1 for line in base_lines if line.startswith("  - "))
         head_subbullets = sum(1 for line in head_lines if line.startswith("  - "))
         if head_subbullets > base_subbullets:
