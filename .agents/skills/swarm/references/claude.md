@@ -23,7 +23,7 @@ Never schedule periodic timers, `schedule` calls, `send_later` check-ins, or sle
 ## 2. Warm Containers & Dispatch
 
 1. **Start sessions warm:**
-   - Keep the environment's setup script synced with [environment-setup.sh](environment-setup.sh) (pinned Rust toolchain, crates, `zstd`, prebuilt `cargo-nextest`).
+   - Set the environment's setup script to `if [ -d Omega ]; then bash Omega/tools/agent_setup.sh; fi`; [agent_setup.sh](../../../../tools/agent_setup.sh) installs the pinned Rust toolchain, `zstd`, `mbx`, prebuilt `cargo-nextest` and the crates.
    - Instruct each session to run `python3 tools/warm_build.py wait` first and work inside `.agents/worktree/warm` at the commit it was built from (building with plain `cargo build -p omega` so sample and corpus gates reuse `target/`).
    - Instruct sessions to run long builds/gates in the background and wait on completion notifications rather than `sleep` or `pgrep` loops, and pass `--base <commit>` to `tools/check_rules.py`.
 2. **Record & dispatch:** Fetch `origin/main`, reserve outcomes via [dispatch.md](../../../../tools/swarm/dispatch.md), record the wave ledger under `build/swarm/<wave>/`, and pass each session its `TASKS.md` capability, witness path, and instruction to follow [advance](../../advance/SKILL.md) (`/advance`), stop at a draft PR (`gh pr create --draft`), and print a final JSON verdict block (`candidate_ready`).

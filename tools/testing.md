@@ -1457,7 +1457,9 @@ links, and runs a probe binary (which is what an Xcode linker older than the
 active SDK breaks), verifies the pinned toolchain resolves, reports mbx and
 cargo-nextest versions, confirms the claims coordination ref answers, and
 checks `pull.rebase`. Exit 1 means a check failed; warnings are degradations
-with the remedy printed beside them.
+with the remedy printed beside them. On Linux, `bash tools/agent_setup.sh`
+installs everything doctor checks for; it is also the setup script for Claude
+Code cloud environments (`if [ -d Omega ]; then bash Omega/tools/agent_setup.sh; fi`).
 
 The selector requires Python 3.9+, Git, the pinned Rust toolchain, and
 `cargo-nextest` 0.9.140 or newer. It uses `mbx` when available, otherwise Cargo.
