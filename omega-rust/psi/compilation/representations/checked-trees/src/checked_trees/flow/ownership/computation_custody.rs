@@ -848,9 +848,11 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 StructuralValue { value, calls, .. } => self.structural(*value, calls),
                 ByteSequence { value, .. } => self.bytes(value, value.root),
                 crate::CheckedUnitLocalBindingPlan::Structural { initial_value, .. } => {
+                    // installed_value accounts for transferring the completed
+                    // source. This query counts calls, not that transfer again.
                     initial_value
                         .as_ref()
-                        .map_or(0, |value| self.argument(value.source()))
+                        .map_or(0, |value| self.argument_evaluation(value.source()))
                 }
                 crate::CheckedUnitLocalBindingPlan::TrivialAffine { .. } => 0,
             },
