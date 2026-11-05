@@ -393,7 +393,16 @@ impl Retirement<'_> {
                 reference,
                 u32::try_from(formation).ok()?,
                 &[],
-            )? {
+            )
+            .or_else(|| {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE backing-storage-retirement state={:?} current_statement={} formation={formation} owner={owner:?} reference={reference:?}",
+                        self.state.symbol, self.statement_index,
+                    );
+                }
+                None
+            })? {
                 let transfers = transfers::from_storage(
                     self.program,
                     self.facts,

@@ -1434,16 +1434,54 @@ pub fn storage_place_loans(
     statement_index: u32,
     selection: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<Vec<RecordLeafLoans>> {
+    let result = storage_place_loans_inner(
+        program,
+        facts,
+        machine,
+        state,
+        owner,
+        reference,
+        statement_index,
+        selection,
+    );
+    if let Err(reason) = &result
+        && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+    {
+        eprintln!(
+            "CHECKSITE storage-place-loans state={:?} statement={statement_index} owner={owner:?} reference={reference:?} selection={selection:?} refusal={reason}",
+            state.symbol,
+        );
+    }
+    result.ok()
+}
+
+fn storage_place_loans_inner(
+    program: &dyn CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &State,
+    owner: facts::PlaceRoot,
+    reference: TypeReferenceHandle,
+    statement_index: u32,
+    selection: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Result<Vec<RecordLeafLoans>, &'static str> {
     let selected_owner_path = crate::corresponding_loan_owner_path(
         program,
         reference,
-        &loan_owner_path(program, reference, selection)?,
-    )?;
-    let borrowing = facts.borrow.unique_state_borrow(machine, state.symbol)?;
+        &loan_owner_path(program, reference, selection)
+            .ok_or("the selected storage has no typed loan path")?,
+    )
+    .ok_or("the selected loan path does not fit its storage type")?;
+    let borrowing = facts
+        .borrow
+        .unique_state_borrow(machine, state.symbol)
+        .ok_or("the storage has no unique borrow state")?;
     let loans = facts
         .borrow
-        .storage_loans(borrowing, owner, statement_index as usize)?;
-    let flow = state_flow(facts, machine, state.symbol)?;
+        .storage_loans(borrowing, owner, statement_index as usize)
+        .ok_or("the storage has no complete formation loan group")?;
+    let flow = state_flow(facts, machine, state.symbol)
+        .ok_or("the storage has no completed state flow")?;
     let order = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
@@ -1459,14 +1497,30 @@ pub fn storage_place_loans(
         .flow
         .borrow_lifetimes
         .activations
-        .span(flow.borrow_activations)?;
+        .span(flow.borrow_activations)
+        .ok_or("the storage has no complete activation roster")?;
     let mut captured = Vec::new();
-    for (handle, loan) in facts.borrow.loan_group(loans)? {
+    for (handle, loan) in facts
+        .borrow
+        .loan_group(loans)
+        .ok_or("the storage loan group contains an unavailable loan")?
+    {
+        let home_path = homes.owner_path(program, loan);
         if !crate::corresponding_loan_owner_path(
             program,
             reference,
-            homes.owner_path(program, loan).as_ref(),
-        )?
+            home_path.as_ref(),
+        )
+        .ok_or_else(|| {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE storage-loan-home loan={handle:?} formation={:?} storage_owner={:?} root={:?} reference={reference:?} published_path={:?} home_path={home_path:?}",
+                    loan.formation_expression, loan.storage_owner, loan.root,
+                    facts.borrow.loan_owner_path(loan),
+                );
+            }
+            "the recorded descriptor home path does not fit its storage type"
+        })?
         .starts_with(&selected_owner_path)
         {
             continue;
@@ -1474,19 +1528,23 @@ pub fn storage_place_loans(
         let mut matching = activations
             .iter()
             .filter(|activation| activation.loan == handle);
-        if matching.next()?.source
+        if matching
+            .next()
+            .ok_or("the storage loan has no actual formation activation")?
+            .source
             != (checked_trees::FlowInvalidationSource::Statement {
                 statement_index: statement_index as usize,
             })
             || matching.next().is_some()
         {
-            return None;
+            return Err("the storage loan has no unique activation at its formation statement");
         }
         captured.push(handle);
     }
     record_leaf_loan_groups(
         program, facts, reference, owner, &captured, selection, homes,
     )
+    .ok_or("the activated storage loans have no complete typed leaf grouping")
 }
 
 /// Authenticate a reference slot's first installed descriptor. A declaration
