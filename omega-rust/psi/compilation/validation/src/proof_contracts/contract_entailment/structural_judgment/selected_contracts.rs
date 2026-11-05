@@ -659,6 +659,7 @@ impl StructuralJudge<'_> {
         callable: SymbolHandle,
         parameters: &[typed_trees::signature::StateParameter],
         bindings: &[(SymbolHandle, StructuralTerm)],
+        type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> StructuralJudgment {
         let program = self.program;
         if !self.runtime_body_values
@@ -668,13 +669,48 @@ impl StructuralJudge<'_> {
         {
             return StructuralJudgment::Unknown;
         }
+        // A callee's D<T> names its own T until the admitted call telescope
+        // substitutes it. Compare that complete instance with the caller's
+        // retained membership; a matching domain declaration alone is not
+        // evidence, and lookup cannot manufacture a new established instance.
+        let mut applied_required = *required;
+        if !type_bindings.is_empty() && !required.domain_arguments.is_empty() {
+            let Some(definition) = program.domain_definition(required.domain_symbol) else {
+                return StructuralJudgment::Unknown;
+            };
+            let substitutions = type_bindings
+                .iter()
+                .map(|(symbol, reference)| {
+                    (
+                        *symbol,
+                        typed_trees::type_identity::IndexIdentityArgument::TypeArgument(*reference),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let identity = typed_trees::domain::indexed_domain_instance_name_with_substitutions(
+                program,
+                definition,
+                typed_trees::domain::index_parameters(program, definition),
+                program
+                    .type_reference_table
+                    .type_reference_handles(required.domain_arguments),
+                &substitutions,
+            )
+            .ok()
+            .and_then(|name| program.semantic_domains.lookup(&name));
+            let Some(identity) = identity else {
+                return StructuralJudgment::Unknown;
+            };
+            applied_required.semantic_domain = identity;
+        }
+        let required = &applied_required;
         let Some(subject) = self.bound_contract_term(
             required.value,
             callable,
             parameters,
             callable,
             bindings,
-            &[],
+            type_bindings,
             None,
             0,
         ) else {
@@ -818,7 +854,8 @@ impl StructuralJudge<'_> {
                 {
                     return false;
                 }
-                &self.completed_nominal_subject(&projected) == subject
+                let completed = self.completed_nominal_subject(&projected);
+                &completed == subject
             })
     }
 }
