@@ -148,7 +148,7 @@ pass/asm/observation_preserves_address_model checked 2360ms @5f668826adf3+wt
 pass/asm/port_write_effect_contract checked 2193ms @5f668826adf3+wt
 pass/asm/scratch_snapshot_survives_input_write_exit built 2212ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/asm/state_fact_transfers_exit built 2660ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/atomics/atomic_global_order_operations checked 1660ms @5f668826adf3+wt
+pass/atomics/atomic_global_order_operations built 4620ms exit:0 interpreter-exit:0 interpreter:agrees @7b9ecb41a26f
 pass/atomics/atomic_order_surface checked 2297ms @5f668826adf3+wt
 pass/atomics/runtime_atomic_after_quoted_write_exit built 7521ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/atomics/runtime_atomic_bitwise_widths_exit built 101279ms exit:70 interpreter-exit:70 interpreter:agrees @417a79072379
@@ -2976,6 +2976,14 @@ pass/facts/finite_family_returned_descriptor/target_body built 3885ms exit:0 int
 pass/facts/finite_family_returned_descriptor/target_qualification built 3696ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply rejected 3838ms expected native-rejection:match @059fb0b41d83
 	no provider is selected for boundary requirement `SelectedTarget::target_only`, which the program entry reaches on target `windows_x86_64`
+pass/facts/finite_family_static_inline_result/call_result built 4640ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/const_name built 4640ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/field built 4812ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/local built 4741ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/match_join built 4833ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/other_machine built 4886ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/other_state built 4788ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/parameter built 4696ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
 pass/facts/finite_family_static_inline_result/target_body built 7363ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/five_variant_enum_payload_bound_through_call_result_exit built 4474ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/five_variant_enum_payload_bound_through_const_name_exit built 7117ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

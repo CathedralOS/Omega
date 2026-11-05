@@ -118,17 +118,9 @@ pub(super) fn lower(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let field = terminal_semantics::projected_field_declaration(
-        types.values().copied(),
-        root,
-        &location.path,
-        location.field,
-    )
-    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    let scalar_type = field
-        .field_type
-        .atomic_scalar_type()
+    let cell = terminal_semantics::atomic_cell_type(types.values().copied(), root, &location.path)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    let scalar_type = cell.scalar_type();
     let integer = target_operations::operations::atomic_storage_integer_type(access, scalar_type)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let regions = reference_projection_regions(root, &location.path, types)
@@ -141,10 +133,9 @@ pub(super) fn lower(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let (field_byte_offset, bytes) = crate::lowering::structural_layout::static_field_geometry(
+    let (field_byte_offset, bytes) = crate::lowering::structural_layout::static_atomic_geometry(
         regions.root,
         regions.path,
-        location.field,
         scalar_type,
         types,
     )?;
@@ -213,7 +204,6 @@ pub(super) fn lower(
             access: root_access,
             path: location.path.clone(),
         },
-        field: location.field,
         scalar_type: integer,
         field_byte_offset,
         event: access,

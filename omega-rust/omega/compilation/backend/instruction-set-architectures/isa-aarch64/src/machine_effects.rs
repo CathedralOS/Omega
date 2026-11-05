@@ -236,18 +236,15 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             interrupt_control: None,
             memory_fence: Some(crate::AARCH64_MEMORY_FENCE),
             atomic_fence: Some(crate::AARCH64_ATOMIC_FENCE),
-            // Loads, stores and one exclusive attempt need only baseline A64.
-            // LSE updates below require Apple Silicon's declared baseline;
-            // generic AArch64/ELF does not promise that feature.
+            // All canonical atomic forms use baseline A64. Decisive updates
+            // retain their exclusive retry work; Once remains one attempt.
             access_read: Some(crate::AARCH64_ACCESSOR_READ),
             access_write: Some(crate::AARCH64_ACCESSOR_WRITE),
             atomic_load: Some(crate::AARCH64_ATOMIC_LOAD),
             atomic_store: Some(crate::AARCH64_ATOMIC_STORE),
-            atomic_update: (target == NativeTarget::macos_arm64())
-                .then_some(crate::AARCH64_ATOMIC_UPDATE),
-            atomic_bitwise_update: Some(crate::AARCH64_ATOMIC_BITWISE_UPDATE),
-            atomic_compare_exchange: (target == NativeTarget::macos_arm64())
-                .then_some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE),
+            atomic_update: Some(crate::AARCH64_ATOMIC_UPDATE),
+            atomic_bitwise_update: Some(crate::AARCH64_ATOMIC_UPDATE),
+            atomic_compare_exchange: Some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE),
             atomic_compare_exchange_once: Some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE_ONCE),
             crash: crate::AARCH64_CRASH,
             copy_bytes: Some(crate::AARCH64_COPY_BYTES),

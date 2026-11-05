@@ -266,11 +266,16 @@ fn invocation_reference_effects(
     let parameters = match parameters {
         Some(parameters) => parameters,
         None if crate::compiler_operations::static_call_intrinsic(program, selected_call)
-            .is_some() =>
+            .is_some_and(|intrinsic| {
+                intrinsic
+                    != language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection
+            }) =>
         {
             // Some compiler operations have no executable parameter list.
             // A real public signature above takes priority and still owns
             // its slots; absence alone never classifies an ordinary call.
+            // Provider selection needs its retained operation above, even
+            // when declaration lookup recognizes the same intrinsic.
             return Some(SlotRelationTransfer::complete(Vec::new()));
         }
         None => {

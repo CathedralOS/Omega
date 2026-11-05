@@ -23,7 +23,7 @@ use crate::optimization_unit::identity::structural_encoding::{
 };
 
 // Explicit scalar-read pointer steps have their own canonical identity tag.
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v53\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v54\0";
 pub fn recompute_psi_optimization_unit_identity(
     unit: &PsiOptimizationUnit,
 ) -> OptimizationUnitIdentity {

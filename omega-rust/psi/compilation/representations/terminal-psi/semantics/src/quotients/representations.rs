@@ -142,6 +142,7 @@ fn validate_carrier(
         }
     };
     match &declaration.shape {
+        S::AtomicCell(_) => return Err("quotient carrier contains atomic storage"),
         S::Reference { .. }
         | S::ElementView { .. }
         | S::ByteSequence(

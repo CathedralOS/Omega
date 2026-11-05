@@ -783,11 +783,7 @@ fn adapt(
                 }
                 O::AtomicEvent { event, .. } => {
                     if let Some(location) = event.location() {
-                        payload_writes.push(payload_query(
-                            location.root,
-                            &location.path,
-                            Some(location.field),
-                        ));
+                        payload_writes.push(payload_query(location.root, &location.path, None));
                     }
                 }
                 _ => {}

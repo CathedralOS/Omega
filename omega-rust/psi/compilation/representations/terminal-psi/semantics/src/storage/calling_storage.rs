@@ -123,6 +123,7 @@ pub fn foreign_storage_extent_dependencies(
         } else {
             match &declaration.shape {
                 StructuralTypeShape::PrimitiveScalar(_)
+                | StructuralTypeShape::AtomicCell(_)
                 | StructuralTypeShape::Reference { .. }
                 | StructuralTypeShape::ByteSequence(_)
                 | StructuralTypeShape::ElementView { .. } => {}
