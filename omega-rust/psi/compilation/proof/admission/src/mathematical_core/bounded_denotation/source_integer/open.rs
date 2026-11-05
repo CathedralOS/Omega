@@ -67,6 +67,24 @@ impl Denotation {
                 domain: self.source_normal_proposition(domain, depth + 1)?,
                 codomain: self.source_normal_proposition(codomain, depth + 1)?,
             },
+            Term::Pi { domain, codomain } => Term::Pi {
+                domain: self.source_normal_proposition(domain, depth + 1)?,
+                codomain: self.source_normal_proposition(codomain, depth + 1)?,
+            },
+            Term::Lambda { domain, body } => Term::Lambda {
+                domain: self.source_normal_proposition(domain, depth + 1)?,
+                body: self.source_normal_proposition(body, depth + 1)?,
+            },
+            Term::Pair { first, second } => Term::Pair {
+                first: self.source_normal_proposition(first, depth + 1)?,
+                second: self.source_normal_proposition(second, depth + 1)?,
+            },
+            Term::Fst { pair } => Term::Fst {
+                pair: self.source_normal_proposition(pair, depth + 1)?,
+            },
+            Term::Snd { pair } => Term::Snd {
+                pair: self.source_normal_proposition(pair, depth + 1)?,
+            },
             _ => return Ok(head),
         };
         Ok(self.arena.insert(node))

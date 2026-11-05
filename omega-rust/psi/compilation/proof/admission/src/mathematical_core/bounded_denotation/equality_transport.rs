@@ -356,6 +356,25 @@ impl Denotation {
                     },
                 )
             }
+            Term::Pair { first, second } => {
+                let (first, context_first) = child!(first, depth);
+                let (second, context_second) = child!(second, depth);
+                (
+                    Term::Pair { first, second },
+                    Term::Pair {
+                        first: context_first,
+                        second: context_second,
+                    },
+                )
+            }
+            Term::Fst { pair } | Term::Snd { pair } => {
+                let (pair, context_pair) = child!(pair, depth);
+                if matches!(term, Term::Fst { .. }) {
+                    (Term::Fst { pair }, Term::Fst { pair: context_pair })
+                } else {
+                    (Term::Snd { pair }, Term::Snd { pair: context_pair })
+                }
+            }
             Term::Id { ty, left, right } => {
                 let (ty, context_ty) = child!(ty, depth);
                 let (left, context_left) = child!(left, depth);
