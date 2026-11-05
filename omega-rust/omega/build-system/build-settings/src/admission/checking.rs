@@ -4,10 +4,10 @@
 //! authority is an additional obligation, not the switch that enables checking.
 //! Transfer the prepared and checked typed program: checking one clone and
 //! interpreting a separately specialized clone would not bind execution to
-//! the admitted bodies. Provider planning uses the Build declaration context
-//! and admitted execution profile, never the current product's unfinished
-//! provider choices. Only comparison execution facts enter the interpreter;
-//! runtime adapter dispatch does not grant Build host-service authority.
+//! the admitted bodies. Provider planning uses the Build declaration context,
+//! its completed defaults and admitted execution profile. The checked program
+//! and selected provider plans pass together to interpreter installation;
+//! host services still require this activation's own authority.
 //!
 //! Product declarations remain a frozen selection view. The complete Build
 //! dependency context goes through ordinary checking, including helper bodies;
