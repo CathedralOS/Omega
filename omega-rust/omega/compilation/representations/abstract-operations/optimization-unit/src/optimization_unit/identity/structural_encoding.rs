@@ -448,7 +448,6 @@ pub(super) fn encode_provider_candidate(
                 bytes.id(qualification.domain);
             },
         );
-        encode_projected_qualification_roster(bytes, &parameter.additional_input_qualifications);
     });
     bytes.slice(
         &candidate.refinement.positional_parameters,

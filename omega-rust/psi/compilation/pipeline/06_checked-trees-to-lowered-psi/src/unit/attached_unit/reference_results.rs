@@ -394,16 +394,22 @@ pub(crate) fn emit_carrier(
             storage,
             PublishedReferenceStorage::Declared | PublishedReferenceStorage::RepresentationView(_)
         ) {
-            result
-                .projected_qualifications
-                .extend(source_contract_memberships(
-                    identities,
-                    &formation,
-                    declaration,
-                    source.access,
-                    storage,
-                    declarations,
-                )?);
+            let required = source_contract_memberships(
+                identities,
+                &formation,
+                declaration,
+                source.access,
+                storage,
+                declarations,
+            )?;
+            // A fact can also be required by the original storage. Transporting
+            // its input origin cannot waive that independently recorded duty.
+            result.additional_input_qualifications.retain(|row| {
+                !terminal_psi::StructuralPathQualification::select(&[], &required, &row.path)
+                    .0
+                    .contains(&row.domain)
+            });
+            result.projected_qualifications.extend(required);
             if let checked_trees::CheckedReferenceSourceContract::Standing {
                 source_requirements: requirements,
                 ..
