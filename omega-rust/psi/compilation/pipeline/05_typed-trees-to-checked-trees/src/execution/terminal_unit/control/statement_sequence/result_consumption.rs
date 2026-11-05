@@ -1233,6 +1233,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             returned,
             ..statement_retirement
         };
+        trace.phase("statement sequence: completion reference complements");
         let complements = complement_completions(&retirement)?;
         if !complements.is_empty() {
             for (position, complement) in complements {
@@ -1247,6 +1248,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             }
             continue;
         }
+        trace.phase("statement sequence: completion reference carrier dependencies");
         let mut next = None;
         for (index, (_, operation, storage_loans)) in pending.iter().enumerate() {
             let OperationPlan::ReleaseReference { loans, source, .. } = operation else {
@@ -1319,12 +1321,14 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             scheduled.push(pending.remove(index).1);
             continue;
         }
+        trace.phase("statement sequence: completion reference backing dependencies");
         let mut releases = retirement.backing_releases()?;
         // A final store can establish a new named descriptor after the last
         // ordinary statement boundary. Its RHS transferred into that home;
         // retiring only result carriers would strand the receiving occurrence
         // until after its backing's source-state death. Reuse the same exact
         // formation groups and dependency checks at this selected completion.
+        trace.phase("statement sequence: completion stored reference dependencies");
         for operation in operations
             .iter()
             .rev()

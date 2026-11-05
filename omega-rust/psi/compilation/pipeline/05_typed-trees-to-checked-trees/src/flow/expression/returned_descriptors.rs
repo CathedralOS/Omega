@@ -97,6 +97,9 @@ impl Execution<'_, '_, '_> {
                 candidates.push((Vec::new(), true, None, false));
                 continue;
             }
+            // Unknown elements retain their dimension without a callee-local
+            // selector. Their typed source and borrowing parents remain usable;
+            // they cannot publish an exact descriptor supplier or address.
             // An indexed descriptor home coarsens the may-write footprint,
             // even after its loaded value resolves to an exact supplier. The
             // structural source below owns descriptor identity; the footprint
@@ -106,6 +109,7 @@ impl Execution<'_, '_, '_> {
                 || !source.source.segments.iter().all(|segment| {
                     super::super::place_segment_has_static_identity(segment)
                         || matches!(segment, PlaceSegment::OpaqueRange)
+                        || matches!(segment, PlaceSegment::Index { expression } if !expression.is_valid())
                 })
             {
                 return None;
