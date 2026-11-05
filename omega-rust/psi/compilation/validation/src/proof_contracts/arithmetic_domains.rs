@@ -73,7 +73,7 @@ mod float_arithmetic;
 mod float_contracts;
 pub use float_contracts::{float_return_postcondition, normal_return_float_predicates};
 mod guard_narrowing;
-pub(crate) use guard_narrowing::ReturnInference;
+pub(crate) use guard_narrowing::{CrossMachineArrivalSites, ReturnInference};
 mod guard_requirements;
 mod integer_carriers;
 mod integer_ranges;
