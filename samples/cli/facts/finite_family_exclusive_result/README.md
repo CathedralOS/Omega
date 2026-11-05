@@ -71,7 +71,11 @@ origin and lifetime debt still participates in its applicable check. It uses no
 cleanup-specific source pattern and grants no extra write or disposal access.
 The focused [two-pointer record](../../../../tests/omega/pass/borrows/borrowed_record_descriptor_carriers/main.omg)
 checks both updates and six canaries without a cleanup hook or family call.
-Existing ownership controls test the restrictions above.
+Existing ownership controls test the restrictions above. The returned-parent
+control forms its child directly from the returned reference. Its previous
+extra projected-return call rejected during formation, hiding the intended
+active-child mutation check. The original refusal is retained, and the revised
+control reaches the unchanged child-borrow diagnostic.
 
 Nineteen existing Rust reference tests passed at `e625011af644`; compiler code,
 library and configuration are unchanged in the later source-only inputs. Local
