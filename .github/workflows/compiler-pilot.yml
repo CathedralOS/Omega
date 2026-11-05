@@ -57,11 +57,11 @@ on:
 permissions:
   contents: read
 
-# A new PR revision supersedes its old check; never cancel a merge-group check
-# merely because another PR entered the queue. Manual revisions use isolated
-# runners and may proceed while an earlier revision finishes its consumers.
+# A new PR revision supersedes its old check; merge-group checks keep running.
+# Retained @plan requests run independently. Ordinary manual builds still share
+# one revision and host group.
 concurrency:
-  group: compiler-pilot-${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
+  group: compiler-pilot-${{ github.event_name == 'workflow_dispatch' && (startsWith(inputs.fixtures, '@') && github.run_id || github.sha) || github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
