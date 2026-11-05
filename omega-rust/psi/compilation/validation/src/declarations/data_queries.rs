@@ -50,6 +50,11 @@ pub(crate) fn data_field_type_by_symbol(
             DataMember::Field(field) if symbol.is_valid() && field.symbol == symbol => {
                 Some(field.type_reference)
             }
+            DataMember::Variant(variant) => program
+                .data_payload_fields(variant)
+                .iter()
+                .find(|field| symbol.is_valid() && field.symbol == symbol)
+                .map(|field| field.type_reference),
             _ => None,
         })
 }

@@ -1,7 +1,7 @@
 # Local swarm: one session, one measured host
 
 This guide prepares **in-session subagents**, not separate Devin cloud VMs.
-Read [the local-swarm skill](SKILL.md), [AGENTS.md](../../../AGENTS.md) and the
+Read [the swarm skill](../SKILL.md), [local setup](local.md), [AGENTS.md](../../../../AGENTS.md) and the
 repository's testing/landing rules. Setup is not authority to launch a swarm.
 Every editing agent owns an isolated worktree and an outcome through acceptance.
 
@@ -162,7 +162,7 @@ nested pool users — a nested `build_slot.py` and `corpus_gate.py`'s runner bui
 inherit it and short-circuit. Local check → crate tests → scoped corpus gate
 costs one acquisition. Release the hold before submitting or waiting for
 GitHub's merge queue; integration builds run on GitHub
-([build slots](../../../tools/build_slot.md#one-hold-for-a-whole-chain)).
+([build slots](../../../../tools/build_slot.md#one-hold-for-a-whole-chain)).
 
 Two habits keep a killed lane cheap to resume, learned across two host
 restarts in one day:
@@ -185,14 +185,14 @@ attempt pays the multi-hour wait for a one-line fix. Do the loop inside the
 ONE chain hold when you have it (acquire once, iterate until green, then
 continue through the local gates, then release before PR submission),
 and run quick single-crate checks in the separate diag pool
-([build slots](../../../tools/build_slot.md#diagnostics-dont-queue-with-chains))
+([build slots](../../../../tools/build_slot.md#diagnostics-dont-queue-with-chains))
 when you need one before a chain, so diag work never contends with the two
 chain slots.
 
 ## Submit once to the merge queue
 
 After focused validation and required review, push the source branch, open or
-update its draft PR, and follow [landing](../../../tools/landing.md). Mark it
+update its draft PR, and follow [landing](../../../../tools/landing.md). Mark it
 ready only at enqueue. GitHub checks the integrated
 candidate and serializes publication. Main advancing does not send the author
 back through a rebase/build/review loop. Resolve actual conflicts or failed

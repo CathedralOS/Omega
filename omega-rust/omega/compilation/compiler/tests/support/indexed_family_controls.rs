@@ -150,7 +150,7 @@ pub(super) fn produce(
             carrier.domains.is_empty()
                 && program
                     .type_identity_text(carrier.type_identity)
-                    .is_some_and(|text| text.matches("integer-const(0)").count() == 2)
+                    .is_some_and(|text| text.matches("integer(0)").count() == 2)
         })
         .ok_or("source Nil has no independently checked closed carrier")?;
     let nil_identity = program

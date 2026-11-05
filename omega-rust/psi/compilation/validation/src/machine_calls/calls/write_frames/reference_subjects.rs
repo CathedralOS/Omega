@@ -10,7 +10,7 @@ use super::{
 use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::write_frames::alias_origins::stable_alias_initializer_origins;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
-    CollectedStatementPrefix, collected_prefix_at,
+    CollectedStatementPrefix, collected_prefix_at, collected_prefix_with_readiness_at,
 };
 use facts::PlaceSegment;
 use std::sync::Mutex;
@@ -347,7 +347,17 @@ pub(super) fn expression_sources_before_statement(
         machine,
         caller_aliases::CallerWriteSite::Statement(before),
     )?;
-    let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
+    // A machine-parameter dispatch defers its exact relation to each closed
+    // instance, but its conservative transfer still names every stored
+    // reference leaf it may rewrite; those leaves read as unknown origins
+    // rather than stale ones, so this prefix's remaining exact origins stay
+    // sound evidence. A call whose effects could not even be conservatively
+    // framed is different: its missing writes could leave a stale exact
+    // origin, so an incomplete prefix still cannot mint source evidence.
+    let prefix = collected_prefix_with_readiness_at(
+        collections, program, machine, state, symbols, index, true,
+    )
+    .filter(|prefix| prefix.incomplete_calls.is_empty())?;
     let origins = value_origins(
         program,
         machine,

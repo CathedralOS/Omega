@@ -130,7 +130,12 @@ impl Builder<'_, '_> {
             checked_trees::CheckedUnitStructuralArgumentPlan {
                 projection_evaluations: Default::default(),
                 // Keep storage identity until the receiver resolves its roster.
-                source,
+                source: crate::execution::terminal_unit::calls::retain_local_reference_source(
+                    self.program,
+                    self.state,
+                    source,
+                    &path,
+                ),
                 path,
                 type_identity: validation::stored_structural_type_identity(
                     self.program,

@@ -187,10 +187,13 @@ pub(crate) struct Evaluation {
     /// positions inside proof-only call actuals lowered in this namespace.
     pub erased_scalar_formals: Vec<ValueDeclaration>,
     /// The enclosing signature's erased proof-only roster, in checked order.
-    /// Every emitted block redeclares it and every internal edge forwards it,
-    /// so `ProofTerm::Formal` positions stay in scope across the evaluation's
-    /// private joins.
+    /// Edges that enter the scalar completion forward this roster, and that
+    /// completion redeclares it. Other closing blocks do not.
     pub erased_proof_formals: Vec<checked_trees::CheckedErasedProofParameterPlan>,
+    /// Proof formals of the scalar completion that is `current`, when this
+    /// evaluation has split a computation into that block. Empty when `current`
+    /// is not that completion.
+    pub(crate) completion_proof_formals: Vec<terminal_psi::ErasedProofFormal>,
     pub entry: BlockId,
     pub current: BlockId,
     pub parameters: Vec<ValueDeclaration>,
@@ -758,6 +761,7 @@ impl Evaluation {
             structural_cases: self.structural_cases.clone(),
             erased_scalar_formals: self.erased_scalar_formals.clone(),
             erased_proof_formals: self.erased_proof_formals.clone(),
+            completion_proof_formals: Vec::new(),
             entry: self.entry,
             current: block,
             parameters: Vec::new(),
@@ -1224,6 +1228,7 @@ impl Evaluation {
             enclosing_structural_arrivals: Vec::new(),
             erased_scalar_formals: Vec::new(),
             erased_proof_formals: Vec::new(),
+            completion_proof_formals: Vec::new(),
             entry,
             current: entry,
             parameters: Vec::new(),
@@ -2043,6 +2048,11 @@ impl Evaluation {
         self.current = completion;
         self.parameters = completion_parameters;
         self.operation_start = operations.len();
+        // The completion is the block incoming edges forward this roster into.
+        // Its formals are that same roster, including a closed integer
+        // instantiation already recorded on the enclosing signature.
+        self.completion_proof_formals =
+            erased_proof_formal_declarations(identities, checked, &self.erased_proof_formals);
         Ok(result)
     }
 }

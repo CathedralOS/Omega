@@ -531,6 +531,49 @@ pub fn is_single_segment_name_path(
     expression_table(program).name_path_is_single_member(path)
 }
 
+/// Report the source obligations that leave a dispatch subject without storage.
+///
+/// Name scope, case-membership identity, and float-format combination are the
+/// same checks ordinary validation runs later. A subject whose result type is
+/// missing only because one of those obligations failed must surface that
+/// obligation at the completion fence. This does not invent a type or admit
+/// the expression.
+pub fn record_unresolved_subject_source_obligations(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    prior_statements: &[typed_trees::statement::StatementNode],
+    symbols: &crate::TopLevelSymbols<'_>,
+    expression: ExpressionHandle,
+    diagnostics: &mut Vec<diagnostics::Diagnostic>,
+) {
+    let mut names = Vec::new();
+    collect_expression_tree(program, expression, &mut names);
+    for name in names {
+        crate::machine_calls::calls::report_unresolved_name_use(
+            program,
+            machine,
+            state,
+            prior_statements,
+            symbols,
+            name,
+            diagnostics,
+        );
+    }
+    if let Err(mut construction) =
+        crate::validate_value_construction(program, machine, state, expression, &mut Vec::new())
+    {
+        diagnostics.append(&mut construction);
+    }
+    crate::value_custody::expression_types::validate_float_expression_formats(
+        program,
+        state.symbol,
+        expression,
+        &|operand| crate::expression_result_type_reference(program, machine, state, operand),
+        diagnostics,
+    );
+}
+
 /// Append structural expression handles in preorder, once per existing roster.
 /// Atomic result edges are structural evidence too; executable occurrence
 /// traversal deliberately has a different edge contract.

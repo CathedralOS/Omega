@@ -122,8 +122,13 @@ with at most a single focused positive/negative fixture pair under
    - Third, remaining `TASKS.md` items and failing `samples/` programs.
 2. **Execute `/advance` and chain on the warm worktree:** Follow the 5-step
    workflow in [.agents/skills/advance/SKILL.md](.agents/skills/advance/SKILL.md).
-   After landing or handing off a slice, continue the next requirement of the
-   same capability on the warm worktree.
+   When running with subagents, the coordinator runs Step 1 (triage from
+   `TASKS.md` and `tests/omega/corpus_outcomes.txt`, worktree creation, and
+   claim registration) and dispatches workers immediately so each worker owns
+   Steps 2–5 (all `omega-rust/` source reading, root-cause tracing, repair,
+   validation, and draft PR) in its own context window. After landing or
+   handing off a slice, continue the next requirement of the same capability on
+   the warm worktree.
 
 ### Requirements and evidence
 
@@ -200,15 +205,23 @@ locally (`corpus_gate.py` enforces a 200-fixture local selection budget).
 
 ## Sessions and subagents
 
-- **Coordinator vs. Standalone landing boundary:**
-  - **Under a coordinator session (local or cloud swarm):** Workers push their
+- **Division of labor (Coordinator vs. Worker):**
+  - **Coordinator owns triage and review; workers own investigation and implementation:**
+    Subagents exist so each capability outcome or diagnostic cluster gets its
+    own isolated worktree and clean context window for compiler reading and
+    root-cause tracing. When running with subagents, the coordinator selects
+    outcomes from `TASKS.md` and `tests/omega/corpus_outcomes.txt` (by board
+    item and diagnostic cluster, without reading `omega-rust/` source files to
+    pre-diagnose the bug), creates the worktrees and claims, and dispatches
+    workers immediately. Workers execute Steps 2–5 of `/advance`, push their
     branch, open a **draft** PR (`gh pr create --draft`), and stop
     (`candidate_ready`). Workers never mark a PR ready or run `tools/landing.py`
     themselves. The coordinator audits `gh pr diff <pr>` with
     [.agents/skills/coordinator-review/SKILL.md](.agents/skills/coordinator-review/SKILL.md)
     before running `python3 tools/landing.py land <pr> --expected-head <sha>`.
-  - **Standalone single-agent session:** Self-review against
-    `coordinator-review`, then run `python3 tools/landing.py land <pr> --expected-head <sha>`.
+  - **Standalone single-agent session:** One agent executes Steps 1–5 of
+    `/advance`, self-reviews against `coordinator-review`, and runs
+    `python3 tools/landing.py land <pr> --expected-head <sha>`.
 - **Reactive wakeup only:** Never poll in loops, `sleep`, or schedule periodic
   timers waiting on subagents or background tasks; end the turn and let completion
   notifications wake the session.

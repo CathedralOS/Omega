@@ -350,7 +350,9 @@ fn retain_loan_graph(
                 if !borrow.output_lifetime_dependencies.is_valid(resource)
                     || borrow.output_lifetime_dependencies.get(resource).loan != loan
                 {
-                    return invalid_suspension("suspension lifetime dependency lost its checked resource");
+                    return invalid_suspension(
+                        "suspension lifetime dependency lost its checked resource",
+                    );
                 }
                 let mut suppliers = HandleSpan::empty();
                 for source in borrow
@@ -400,7 +402,9 @@ fn retain_loan_graph(
                     return invalid_suspension("suspension input invocation is ambiguous");
                 }
                 let path = borrow.call_loan_paths.span(input.capture_path).ok_or(
-                    LoweringError::InvalidSuspensionPlan("suspension input capture path is unavailable"),
+                    LoweringError::InvalidSuspensionPlan(
+                        "suspension input capture path is unavailable",
+                    ),
                 )?;
                 let (operation, argument, path) = captured_call_leaf(
                     identities,
@@ -473,10 +477,11 @@ fn retain_loan_graph(
                     };
                     let call = checked.facts.flow.control.calls.get(output.call);
                     let parameters =
-                        validation::call_target_parameters(checked, call.target_symbol)
-                            .ok_or(LoweringError::InvalidSuspensionPlan(
+                        validation::call_target_parameters(checked, call.target_symbol).ok_or(
+                            LoweringError::InvalidSuspensionPlan(
                                 "suspension output call has no formal telescope",
-                            ))?;
+                            ),
+                        )?;
                     let position = parameters
                         .iter()
                         .position(|parameter| parameter.symbol == identity.parameter_symbol)
@@ -1222,21 +1227,24 @@ fn captured_call_leaf(
     let mut occurrences = source_calls.iter().filter(|occurrence| {
         occurrence.matches_statement(state, call.statement_index, call.call_ordinal)
     });
-    let occurrence = occurrences.next().ok_or(LoweringError::InvalidSuspensionPlan(
-        "captured output/input call has no emitted occurrence",
-    ))?;
+    let occurrence = occurrences
+        .next()
+        .ok_or(LoweringError::InvalidSuspensionPlan(
+            "captured output/input call has no emitted occurrence",
+        ))?;
     if occurrences.next().is_some()
         || owning_callable_symbol(checked, occurrence.source_target)
             != owning_callable_symbol(checked, call.target_symbol)
     {
         return invalid_suspension("captured output/input call is ambiguous or redirected");
     }
-    let operation = occurrence
-        .terminal_site
-        .operation()
-        .ok_or(LoweringError::InvalidSuspensionPlan(
-            "captured output/input has no normal call operation",
-        ))?;
+    let operation =
+        occurrence
+            .terminal_site
+            .operation()
+            .ok_or(LoweringError::InvalidSuspensionPlan(
+                "captured output/input has no normal call operation",
+            ))?;
     let emitted = module
         .machines
         .iter()
