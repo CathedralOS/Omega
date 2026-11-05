@@ -1,7 +1,7 @@
-// A literal finite-family call preserves its selected inline result shape and the first and last bytes of its input while evaluating each nested input producer once.
+// Auxiliary type-identity control: Prepared<16> and Prepared<32> have the same physical bytes but distinct nominal applications.
 // Expected exit: 0
 // Place: local.
-data Prepared<const Width: u64> { bytes: [u8; Width]; }
+data Prepared<const Width: u64> { bytes: [u8; 32]; }
 data InlineInput { case Narrow(value: Prepared<16>); case Wide(value: Prepared<32>); }
 data Escaped { case Narrow(value: Prepared<16>); case Wide(value: Prepared<32>); }
 data StoredResult { returned: Escaped; }
@@ -86,7 +86,7 @@ machine check(first: Prepared<16>, second: Prepared<32>) crashes Trap {
 }
 
 machine main() crashes Trap {
-    let first: Prepared<16> = Prepared { bytes: [11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23] };
+    let first: Prepared<16> = Prepared { bytes: [11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] };
     let second: Prepared<32> = Prepared { bytes: [17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 29] };
     check(first, second);
 }
