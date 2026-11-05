@@ -4145,51 +4145,19 @@ pass/facts/finite_family_static_inline_result/argument_effect rejected 820ms int
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_static_inline_result/authored_sum rejected 818ms interpreter:unchecked @6e42425cd720
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/call_result rejected 715ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/const_name rejected 847ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/field rejected 896ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/local rejected 763ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/match_join rejected 823ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+pass/facts/finite_family_static_inline_result/call_result built 5945ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/const_name built 6010ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/field built 6122ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/local built 6035ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/match_join built 6054ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
 pass/facts/finite_family_static_inline_result/nested_static rejected 768ms interpreter:unchecked @6e42425cd720
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/other_machine rejected 871ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/other_state rejected 818ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/parameter rejected 817ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+pass/facts/finite_family_static_inline_result/other_machine built 6047ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/other_state built 6029ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/parameter built 6057ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
 pass/facts/finite_family_static_inline_result/stale_input rejected 716ms interpreter:unchecked @6e42425cd720
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/target_body built 6182ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_static_inline_result/target_body built 6121ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
 pass/facts/finite_family_static_inline_result/uncalled_target built 5925ms exit:0 interpreter-exit:0 interpreter:agrees @b31668d9a31f
 pass/facts/finite_family_static_inline_result/uncalled_target_missing_supply built 5998ms exit:0 interpreter-exit:0 interpreter:agrees @b31668d9a31f
 pass/facts/five_variant_enum_payload_bound_through_call_result_exit built 2213ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720

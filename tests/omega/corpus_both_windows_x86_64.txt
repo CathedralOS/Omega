@@ -2974,7 +2974,15 @@ pass/facts/finite_family_returned_descriptor/target_body built 3885ms exit:0 int
 pass/facts/finite_family_returned_descriptor/target_qualification built 3696ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply rejected 3838ms expected native-rejection:match @059fb0b41d83
 	no provider is selected for boundary requirement `SelectedTarget::target_only`, which the program entry reaches on target `windows_x86_64`
-pass/facts/finite_family_static_inline_result/target_body built 7363ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
+pass/facts/finite_family_static_inline_result/call_result built 4640ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/const_name built 4640ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/field built 4812ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/local built 4741ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/match_join built 4833ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/other_machine built 4886ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/other_state built 4788ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/parameter built 4696ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/target_body built 4793ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
 pass/facts/five_variant_enum_payload_bound_through_call_result_exit built 4474ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/five_variant_enum_payload_bound_through_const_name_exit built 7117ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/five_variant_enum_payload_bound_through_field_exit built 5470ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
