@@ -1380,9 +1380,10 @@ impl Scope<'_> {
             return;
         }
         let before = diagnostics.len();
-        self.check(expression, required.clone(), diagnostics);
+        let reference = required.reference;
+        self.check(expression, required, diagnostics);
         if erased && diagnostics.len() > before {
-            let reason = if !is_source_evidence_carrier(self.program, required.reference) {
+            let reason = if !is_source_evidence_carrier(self.program, reference) {
                 "the receiving type has no checked mathematical carrier"
             } else if expected_proof_identity.is_none() {
                 "the receiving indices have no stable proof identity"
@@ -1398,7 +1399,7 @@ impl Scope<'_> {
             diagnostics.push(
                 Diagnostic::error(format!(
                     "erased binding to `{}` cannot retain its indices: {reason}",
-                    self.program.display_type_reference(required.reference),
+                    self.program.display_type_reference(reference),
                 ))
                 .with_source_span(self.program.expression_table.source_span(expression)),
             );
