@@ -3038,7 +3038,6 @@ fn guard_case_value(
             (field, StructuralTerm::Variable(variable))
         })
         .collect();
-    fields.sort_by(|(left, _), (right, _)| left.cmp(right));
     Some(super::structural_terms::constructed_term(
         definition,
         Some(variant),
