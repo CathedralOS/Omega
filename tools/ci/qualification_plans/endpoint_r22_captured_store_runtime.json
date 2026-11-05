@@ -24,6 +24,13 @@
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
+      },
+      "runner": {
+        "sha256": "2b47ad239759a48b791f0f9d7241447bfff8bfa7c7a5ff75bfb11f1c299aed59",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
       }
     },
     "origin_run": 42038627226,
