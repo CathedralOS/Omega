@@ -413,9 +413,22 @@ pub(crate) fn receiving_restriction(
         &place.additional_input_qualifications,
         &place.path,
     )
-    .ok_or(LoweringError::Unsupported(
-        "primitive write does not preserve enclosing qualifications",
-    ))?;
+    .ok_or_else(|| {
+        if std::env::var_os("OMEGA_PHASE_PROFILE").is_some() {
+            let domains = calls.domain_declarations.iter().filter(|domain| {
+                place.qualifications.contains(&domain.id)
+                    || place.projected_qualifications.iter().any(|row| row.domain == domain.id)
+            }).take(8).map(|domain| (
+                domain.id, domain.carrier, domain.complete_predicate_theory,
+                &domain.required_memberships, domain.establishment_routes.len(),
+                domain.content_projection.is_some(),
+            )).collect::<Vec<_>>();
+            eprintln!("primitive receiving refusal: root={:?} path={:?} whole={:?} projected={:?} input={:?} domains={domains:?}",
+                place.root_type, place.path, place.qualifications,
+                place.projected_qualifications, place.additional_input_qualifications);
+        }
+        LoweringError::Unsupported("primitive write does not preserve enclosing qualifications")
+    })?;
     let declared = declared_restriction(place, calls.structural_types);
     match (restriction, declared) {
         (None, declared) => Ok(declared),

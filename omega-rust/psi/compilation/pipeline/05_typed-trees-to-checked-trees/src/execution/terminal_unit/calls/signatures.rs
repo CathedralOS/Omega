@@ -159,8 +159,12 @@ pub(crate) fn parameter_signatures(
         // callers still establish the complete ordinary qualification roster.
         let mut additional_input_qualifications = Vec::new();
         if let Some(shell) = validation::reference_shell(program, parameter_type) {
-            let storage =
-                validation::structural_qualification_contract(program, shell.referee).ok()?;
+            // The annotation on the referee is an entry condition. The
+            // carrier's declared fields still retain their own domains.
+            let carrier = program
+                .type_reference_table
+                .unconstrained_type_reference(shell.referee);
+            let storage = validation::structural_qualification_contract(program, carrier).ok()?;
             additional_input_qualifications.extend(
                 qualifications
                     .iter()

@@ -394,7 +394,7 @@ impl Retirement<'_> {
             }
             self.trace
                 .phase("statement sequence: completion backing descriptor loans");
-            for (source, loans) in storage_place_loans(
+            let groups = match storage_place_loans(
                 self.program,
                 self.facts,
                 self.machine,
@@ -403,7 +403,14 @@ impl Retirement<'_> {
                 reference,
                 u32::try_from(formation).ok()?,
                 &[],
-            )? {
+            ) {
+                Ok(groups) => groups,
+                Err(reason) => {
+                    self.trace.phase(reason);
+                    return None;
+                }
+            };
+            for (source, loans) in groups {
                 self.trace
                     .phase("statement sequence: completion backing descriptor transfers");
                 let transfers = transfers::from_storage(
