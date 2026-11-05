@@ -74,7 +74,7 @@ pub(crate) fn proof_interval_strict_decrease_judged(
     if relation
         .evidence
         .dependencies
-        .machines
+        .declarations
         .iter()
         .any(|dependency| *dependency == machine.symbol || ranked_entries.contains(dependency))
     {

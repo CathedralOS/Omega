@@ -153,6 +153,77 @@ fn unchecked_value_call_candidate(
     Ok(())
 }
 
+/// An unused condition may forget its Boolean result only after its own
+/// evaluation is known not to change later values. This checks the expression
+/// and its call closures; assignments elsewhere in the caller remain outside
+/// this judgment. No result, input fact, or call precondition is established.
+pub(crate) fn unused_condition_has_value_only_evaluation(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    operational: &flow_effects::OperationalPlan,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
+) -> Result<(), &'static str> {
+    if !expression_table(program).expression_is_valid(expression)
+        || !expression_is_fact_observation_free(program, expression, &|_| false)
+    {
+        return Err("the omitted condition has no independent observation-free evaluation");
+    }
+    let mut checked_targets = symbols::SymbolKeyMap::default();
+    let mut failure = None;
+    program.subtree_any(
+        expression,
+        typed_trees::SubtreeEdges::VALUES,
+        |handle, node| {
+            let result = match node {
+                ExpressionNode::Call(call) => {
+                    // Mathematical definitions have no executable mutation. Their
+                    // exact declaration/application checking remains mandatory;
+                    // the traversal still checks every actual operand below.
+                    if crate::mathematical_applications::selected_definition(program, call)
+                        .is_some()
+                    {
+                        Ok(())
+                    } else if let Some((callee, entry)) =
+                        super::calls::machine_state_by_symbol(program, call.target_symbol)
+                    {
+                        if checked_targets.insert(entry.symbol, ()).is_none() {
+                            checked_value_call_candidate(
+                                program,
+                                callee,
+                                entry,
+                                operational,
+                                service_reaches,
+                            )
+                        } else {
+                            Ok(())
+                        }
+                    } else {
+                        Err("the omitted condition has no exact independent call-effect judgment")
+                    }
+                }
+                _ if crate::value_custody::expression_effects::expression_has_no_own_effects(
+                    program, machine, state, handle,
+                ) =>
+                {
+                    Ok(())
+                }
+                _ => Err(
+                    "the omitted condition has an operation without independent effect evidence",
+                ),
+            };
+            if let Err(reason) = result {
+                failure = Some(reason);
+                typed_trees::SubtreeVisit::Found
+            } else {
+                typed_trees::SubtreeVisit::Descend
+            }
+        },
+    );
+    failure.map_or(Ok(()), Err)
+}
+
 /// Whether every call inside this expression denotes one value per spelling,
 /// so two equal terms name one observation. A call that is neither a
 /// repeatable value-only normal return nor an already-admitted denotational

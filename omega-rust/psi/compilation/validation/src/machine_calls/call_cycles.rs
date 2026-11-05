@@ -537,6 +537,9 @@ pub fn computed_order_demand_sites(
 /// ranking judgment that the theorem is meant to justify.
 #[derive(Clone, Debug)]
 pub struct StructuralCallClosure {
+    /// Complete authored proof sources, including contracts and erased citations.
+    pub declarations: Vec<SymbolHandle>,
+    /// Executable owners reached through those declarations.
     pub machines: Vec<SymbolHandle>,
     pub components: Vec<ValidatedProofRecursiveComponent>,
 }
@@ -546,28 +549,39 @@ pub fn structurally_admitted_call_closure(
     target: SymbolHandle,
 ) -> Result<StructuralCallClosure, &'static str> {
     let machines = program.machines();
-    let root = machines
-        .iter()
-        .position(|machine| {
-            program
-                .machine_states(machine)
-                .first()
-                .is_some_and(|entry| entry.symbol == target)
-        })
-        .ok_or("the structural dependency closure has no exact callable entry")?;
     let proof_only = crate::proof_only_classification(program);
     let graph = build_machine_call_graph(program, &proof_only);
+    let mut machine_positions = symbols::SymbolKeyMap::default();
+    for (position, machine) in machines.iter().enumerate() {
+        machine_positions.insert(machine.symbol, position);
+        for state in program.machine_states(machine) {
+            machine_positions.insert(state.symbol, position);
+        }
+    }
     let mut reached = vec![false; machines.len()];
-    let mut pending = vec![root];
-    while let Some(position) = pending.pop() {
-        if reached[position] {
+    let mut declarations = Vec::new();
+    let mut visited = symbols::SymbolKeyMap::default();
+    let mut pending = vec![target];
+    while let Some(declaration) = pending.pop() {
+        // A state's proof sources are owned by its machine. Resolve that
+        // coordinate before traversing contracts or bodies, so repeated calls
+        // and different state arrivals share the same dependency visit.
+        let declaration = machine_positions
+            .get(&declaration)
+            .map_or(declaration, |&position| machines[position].symbol);
+        if visited.insert(declaration, ()).is_some() {
             continue;
         }
-        reached[position] = true;
-        if !proof_only.is_proof_machine(program, &machines[position]) {
-            return Err("the comparison dependency has no proof-value source meaning");
+        let (owner, dependencies) = declaration_call_dependencies(program, declaration)
+            .ok_or("the comparison has an unavailable authored proof dependency")?;
+        declarations.push(owner);
+        if let Some(&position) = machine_positions.get(&owner) {
+            reached[position] = true;
+            if !proof_only.is_proof_machine(program, &machines[position]) {
+                return Err("the comparison dependency has no proof-value source meaning");
+            }
         }
-        pending.extend(graph.edges[position].iter().copied());
+        pending.extend(dependencies);
     }
     let complete = proof_components::complete(
         program,
@@ -604,6 +618,7 @@ pub fn structurally_admitted_call_closure(
         components.push(admitted);
     }
     Ok(StructuralCallClosure {
+        declarations,
         machines: machines
             .iter()
             .enumerate()

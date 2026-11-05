@@ -186,11 +186,9 @@ pub(super) fn body(
     program: &dyn crate::CheckingInput,
     carrier: &OrdinalCarrier,
     machine: &Machine,
+    entry: &State,
+    guard_effects: &mut Option<crate::PreparedEffectPlans>,
 ) -> Result<Vec<SourceCase>, &'static str> {
-    let entry = program
-        .machine_states(machine)
-        .first()
-        .ok_or("the source comparison graph has no entry state")?;
     let inputs = program
         .state_parameters(entry)
         .iter()
@@ -223,40 +221,20 @@ pub(super) fn body(
         program,
         carrier,
         machine,
+        guard_effects,
     }
-    .state(entry, path, &mut Vec::new())
+    .state_body(entry, path)
 }
 
 struct Reader<'a> {
     program: &'a dyn crate::CheckingInput,
     carrier: &'a OrdinalCarrier,
     machine: &'a Machine,
+    guard_effects: &'a mut Option<crate::PreparedEffectPlans>,
 }
 
 impl Reader<'_> {
-    fn state(
-        &self,
-        state: &State,
-        path: Path,
-        active: &mut Vec<SymbolHandle>,
-    ) -> Result<Vec<SourceCase>, &'static str> {
-        if active.contains(&state.symbol) {
-            return Err(
-                "the source comparison graph needs a checked recurrent state interpretation",
-            );
-        }
-        active.push(state.symbol);
-        let result = self.state_body(state, path, active);
-        active.pop();
-        result
-    }
-
-    fn state_body(
-        &self,
-        state: &State,
-        path: Path,
-        active: &mut Vec<SymbolHandle>,
-    ) -> Result<Vec<SourceCase>, &'static str> {
+    fn state_body(&mut self, state: &State, path: Path) -> Result<Vec<SourceCase>, &'static str> {
         let statements = self
             .program
             .statement_table
@@ -349,7 +327,6 @@ impl Reader<'_> {
                                     ordinal,
                                     transition.target,
                                     branch,
-                                    active,
                                 )?);
                             }
                         }
@@ -379,7 +356,7 @@ impl Reader<'_> {
     }
 
     fn guard(
-        &self,
+        &mut self,
         state: &State,
         statement: usize,
         guard: TransitionGuardNode,
@@ -394,51 +371,48 @@ impl Reader<'_> {
     }
 
     fn condition(
-        &self,
+        &mut self,
         state: &State,
         statement: usize,
         expression: ExpressionHandle,
         mut path: Path,
     ) -> Result<Vec<(bool, Path)>, &'static str> {
-        use typed_trees::expression::BinaryOperator;
         if let ExpressionNode::Boolean(value) = self.program.expression_table.expression(expression)
         {
             path.guards.push((expression, *value));
             return Ok(vec![(*value, path)]);
         }
-        if let Some(binary) = self.program.expression_table.binary_node(expression)
-            && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
-            && crate::has_builtin_binary_expression_meaning(
-                self.program,
-                self.machine,
-                Some(state),
-                expression,
-            )
-        {
-            let mut outcomes = Vec::new();
-            for (left, path) in self.condition(state, statement, binary.left, path)? {
-                if (binary.operator == BinaryOperator::And && !left)
-                    || (binary.operator == BinaryOperator::Or && left)
-                {
-                    let mut path = path;
-                    path.guards.push((expression, left));
-                    outcomes.push((left, path));
-                } else {
-                    for (right, mut path) in self.condition(state, statement, binary.right, path)? {
-                        path.guards.push((expression, right));
-                        outcomes.push((right, path));
-                    }
-                }
-            }
-            return Ok(outcomes);
-        }
-        let (definition, variant) = super::super::structural_terms::case_guard_classifier(
+        let Some((definition, variant)) = super::super::structural_terms::case_guard_classifier(
             self.program,
             self.machine,
             Some(state),
             expression,
-        )
-        .ok_or("the source comparison guard has no complete Boolean execution graph")?;
+        ) else {
+            // The theorem needs no value fact from this guard. Prove that its
+            // evaluation leaves later values unchanged, then cover both source
+            // outcomes without expanding all short-circuit histories. The exact
+            // source occurrence still retains its operand/call order.
+            let effects = self.guard_effects.get_or_insert_with(|| {
+                let operational = crate::infer_operational_may(self.program);
+                let service_reaches = crate::infer_service_reaches(self.program, &operational);
+                crate::PreparedEffectPlans {
+                    operational,
+                    service_reaches,
+                }
+            });
+            crate::machine_calls::denotational_calls::unused_condition_has_value_only_evaluation(
+                self.program,
+                self.machine,
+                state,
+                expression,
+                &effects.operational,
+                &effects.service_reaches,
+            )?;
+            let mut other = path.clone();
+            path.guards.push((expression, true));
+            other.guards.push((expression, false));
+            return Ok(vec![(true, path), (false, other)]);
+        };
         let selected = self
             .program
             .data_constructor_definition(self.carrier.reference, definition.symbol)
@@ -531,7 +505,6 @@ impl Reader<'_> {
         statement: usize,
         target: TransitionTargetHandle,
         mut path: Path,
-        active: &mut Vec<SymbolHandle>,
     ) -> Result<Vec<SourceCase>, &'static str> {
         if !self
             .program
@@ -572,28 +545,14 @@ impl Reader<'_> {
             }
             TransitionTargetNode::Named { .. } => {
                 let application = SourceApplication::Transition { target };
-                let site = application.site(self.program)?;
-                if site.is_internal_state_transfer(self.program, self.machine.symbol) {
-                    let selected = self
-                        .program
-                        .state_in_machine(self.machine, site.target_symbol(self.program))
-                        .ok_or("the source comparison state transfer has no exact arrival")?;
-                    let arguments = self.arguments(state, statement, &site, &mut path)?;
-                    let parameters = self.program.state_parameters(selected);
-                    if parameters.len() != arguments.len() {
-                        return Err("the source comparison state arrival has incomplete actuals");
-                    }
-                    for (parameter, argument) in parameters.iter().zip(arguments) {
-                        path.bind(parameter.symbol, argument)?;
-                    }
-                    self.state(selected, path, active)
-                } else {
-                    let value = self.call(state, statement, application, &mut path)?;
-                    Ok(vec![path.finish(
-                        source_return,
-                        value.map_or(SourceOutcome::Unit, SourceOutcome::Value),
-                    )])
-                }
+                // State arrivals share the destination's one evaluation body.
+                // The edge retains these exact actuals instead of copying every
+                // earlier path into a reconverging state.
+                let value = self.call(state, statement, application, &mut path)?;
+                Ok(vec![path.finish(
+                    source_return,
+                    value.map_or(SourceOutcome::Unit, SourceOutcome::Value),
+                )])
             }
         }
     }
@@ -635,42 +594,37 @@ impl Reader<'_> {
         let site = application.site(self.program)?;
         let target = site.target_symbol(self.program);
         let arguments = self.arguments(state, statement, &site, path)?;
-        let selected =
-            super::super::structural_terms::selected_application_machine(self.program, target)
-                .ok_or("the source comparison call has no exact selected entry body")?;
-        let entry = self
-            .program
-            .machine_states(selected)
-            .first()
-            .ok_or("the source comparison call has no retained entry")?;
+        let (_, entry) = crate::machine_calls::calls::machine_state_by_symbol(self.program, target)
+            .ok_or("the source comparison call has no exact selected state body")?;
         if self.program.state_parameters(entry).len() != arguments.len() {
             return Err("the source comparison call lost its complete actual/formal roster");
         }
-        let result_type = crate::call_target_return_type(self.program, target)
-            .ok_or("the source comparison call has no exact result carrier")?;
-        let result = if self.program.package_qualified_type_identity(result_type)
-            == self.carrier.identity
-        {
-            let SourceOrderValue::Variable(position) =
-                path.fresh(SourceValueOrigin::CallResult {
-                    call: path.calls.len(),
-                })?
-            else {
-                unreachable!()
+        let result_type = entry.return_type;
+        let result =
+            if self.program.package_qualified_type_identity(result_type) == self.carrier.identity {
+                let SourceOrderValue::Variable(position) =
+                    path.fresh(SourceValueOrigin::CallResult {
+                        call: path.calls.len(),
+                    })?
+                else {
+                    unreachable!()
+                };
+                Some(position)
+            } else if matches!(
+                self.program
+                    .type_reference_table
+                    .type_reference(result_type),
+                typed_trees::types::TypeReferenceNode::Unit
+            ) {
+                None
+            } else {
+                return Err("the source comparison call returns an unrepresented value carrier");
             };
-            Some(position)
-        } else if super::super::structural_terms::selected_application_machine(self.program, target)
-            .is_some_and(|machine| crate::machine_has_unit_result(self.program, machine))
-        {
-            None
-        } else {
-            return Err("the source comparison call returns an unrepresented value carrier");
-        };
         path.calls.push(SourceCall {
             owner: self.machine.symbol,
             state: state.symbol,
             statement,
-            target,
+            target: entry.symbol,
             application,
             arguments,
             result_type,
@@ -727,6 +681,19 @@ impl Reader<'_> {
                 Err("the source comparison name has no exact supplying value")
             }
             ExpressionNode::StructLiteral(literal) => {
+                let actual = crate::expression_type_reference_in_state(
+                    self.program,
+                    state.symbol,
+                    statement,
+                    expression,
+                )
+                .ok_or("the source comparison constructor has no complete applied carrier")?;
+                let identity = self.program.package_qualified_type_identity(actual);
+                if !identity.is_valid() || identity != self.carrier.identity {
+                    return Err(
+                        "the source comparison constructor has another complete carrier application",
+                    );
+                }
                 let definition = self
                     .program
                     .data_constructor_definition(self.carrier.reference, literal.type_symbol)

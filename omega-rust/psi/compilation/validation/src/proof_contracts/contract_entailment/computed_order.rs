@@ -90,39 +90,65 @@ pub fn ordinal_carrier(
     })
 }
 
-pub fn source_order_body(
-    program: &dyn crate::CheckingInput,
-    carrier: &OrdinalCarrier,
-    target: SymbolHandle,
-) -> Result<SourceOrderBody, &'static str> {
-    let machine = selected_application_machine(program, target)
-        .ok_or("the comparison graph has no exact selected entry body")?;
-    let entry = program
-        .machine_states(machine)
-        .first()
-        .ok_or("the comparison graph source body has no entry")?;
-    let parameter_types = program
-        .state_parameters(entry)
-        .iter()
-        .map(|parameter| parameter.type_reference)
-        .collect::<Vec<_>>();
-    if parameter_types
-        .iter()
-        .any(|reference| program.package_qualified_type_identity(*reference) != carrier.identity)
-        || (program.package_qualified_type_identity(entry.return_type) != carrier.identity
-            && !crate::machine_has_unit_result(program, machine))
-    {
-        return Err("the comparison graph loses an exact value carrier application");
+/// Source association owns any effect preparation needed for omitted guard
+/// results. Plans are requested at most once for this demand cohort and never
+/// depend on the computed-order theorem being constructed.
+pub struct SourceOrderPreparation<'program> {
+    program: &'program dyn crate::CheckingInput,
+    guard_effects: Option<crate::PreparedEffectPlans>,
+}
+
+impl<'program> SourceOrderPreparation<'program> {
+    pub fn new(program: &'program dyn crate::CheckingInput) -> Self {
+        Self {
+            program,
+            guard_effects: None,
+        }
     }
-    let cases = source_graph::body(program, carrier, machine)?;
-    Ok(SourceOrderBody {
-        machine: machine.symbol,
-        entry: entry.symbol,
-        states: machine.states,
-        parameter_types,
-        result_type: entry.return_type,
-        cases,
-    })
+
+    pub fn body(
+        &mut self,
+        carrier: &OrdinalCarrier,
+        target: SymbolHandle,
+    ) -> Result<SourceOrderBody, &'static str> {
+        let program = self.program;
+        let (machine, entry) =
+            crate::machine_calls::calls::machine_state_by_symbol(program, target)
+                .ok_or("the comparison graph has no exact selected state body")?;
+        if !crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
+            program, machine, entry,
+        ) {
+            return Err(
+                "the source comparison graph needs a checked recurrent state interpretation",
+            );
+        }
+        let parameter_types = program
+            .state_parameters(entry)
+            .iter()
+            .map(|parameter| parameter.type_reference)
+            .collect::<Vec<_>>();
+        if parameter_types.iter().any(|reference| {
+            program.package_qualified_type_identity(*reference) != carrier.identity
+        }) || (program.package_qualified_type_identity(entry.return_type) != carrier.identity
+            && !matches!(
+                program
+                    .type_reference_table
+                    .type_reference(entry.return_type),
+                TypeReferenceNode::Unit
+            ))
+        {
+            return Err("the comparison graph loses an exact value carrier application");
+        }
+        let cases = source_graph::body(program, carrier, machine, entry, &mut self.guard_effects)?;
+        Ok(SourceOrderBody {
+            machine: machine.symbol,
+            entry: entry.symbol,
+            states: machine.states,
+            parameter_types,
+            result_type: entry.return_type,
+            cases,
+        })
+    }
 }
 
 /// Authored comparisons only request a proof. A matching signature or a

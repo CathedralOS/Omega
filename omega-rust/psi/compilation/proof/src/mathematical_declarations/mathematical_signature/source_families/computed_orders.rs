@@ -33,8 +33,9 @@ impl Elaborator<'_> {
                     GraphFailure::Unavailable(reason) | GraphFailure::Kernel(reason) => reason,
                 })
             })?;
+        let mut sources = validation::computed_order::SourceOrderPreparation::new(self.program);
         for demand in demands {
-            let judgment = match self.computed_order(&demand, &ranks) {
+            let judgment = match self.computed_order(&demand, &ranks, &mut sources) {
                 Ok(evidence) => Ok(evidence),
                 Err(GraphFailure::Unavailable(reason)) => {
                     if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
@@ -60,43 +61,51 @@ impl Elaborator<'_> {
         &mut self,
         demand: &OrderDemand,
         ranks: &order_graph::CheckedGraph,
+        sources: &mut validation::computed_order::SourceOrderPreparation<'_>,
     ) -> Result<PreparedComputedOrderEvidence, GraphFailure> {
         let dependencies =
             validation::structurally_admitted_call_closure(self.program, demand.target)
                 .map_err(|reason| GraphFailure::Unavailable(reason.into()))?;
-        let root = validation::computed_order::source_order_body(
-            self.program,
-            &demand.carrier,
-            demand.target,
-        )
-        .map_err(|reason| GraphFailure::Unavailable(reason.into()))?;
+        let root = sources
+            .body(&demand.carrier, demand.target)
+            .map_err(|reason| GraphFailure::Unavailable(reason.into()))?;
+        let mut body_positions = symbols::SymbolKeyMap::default();
+        body_positions.insert(root.entry, 0);
         let mut bodies = vec![root];
-        for &symbol in &dependencies.machines {
-            if bodies.iter().any(|body| body.machine == symbol) {
-                continue;
+        let eligible_machines = dependencies
+            .machines
+            .iter()
+            .map(|&machine| (machine, ()))
+            .collect::<symbols::SymbolKeyMap<_, _>>();
+        // Proof dependencies can include contracts and erased citations. Only
+        // actual source calls supply children of the evaluation graph.
+        let mut position = 0;
+        while position < bodies.len() {
+            let targets = bodies[position]
+                .cases
+                .iter()
+                .flat_map(|case| case.calls.iter().map(|call| call.target))
+                .collect::<Vec<_>>();
+            for target in targets {
+                if body_positions.contains_key(&target) {
+                    continue;
+                }
+                let body = sources
+                    .body(&demand.carrier, target)
+                    .map_err(|reason| GraphFailure::Unavailable(reason.into()))?;
+                if body_positions.contains_key(&body.entry) {
+                    continue;
+                }
+                if !eligible_machines.contains_key(&body.machine) {
+                    return Err(GraphFailure::Unavailable(
+                        "the comparison call is outside its complete structural dependency closure"
+                            .into(),
+                    ));
+                }
+                body_positions.insert(body.entry, bodies.len());
+                bodies.push(body);
             }
-            let machine = self.program.machine_by_symbol(symbol).ok_or_else(|| {
-                GraphFailure::Unavailable(
-                    "the comparison dependency lost its exact source machine".into(),
-                )
-            })?;
-            let entry = self
-                .program
-                .machine_states(machine)
-                .first()
-                .ok_or_else(|| {
-                    GraphFailure::Unavailable(
-                        "the comparison dependency lost its source entry".into(),
-                    )
-                })?;
-            bodies.push(
-                validation::computed_order::source_order_body(
-                    self.program,
-                    &demand.carrier,
-                    entry.symbol,
-                )
-                .map_err(|reason| GraphFailure::Unavailable(reason.into()))?,
-            );
+            position += 1;
         }
         // These are candidate proof goals, not recognized function meanings.
         // A helper may lose a finite number of successors only if every case
@@ -119,6 +128,7 @@ impl Elaborator<'_> {
                 &mut self.declarations,
                 theory,
                 &bodies,
+                &body_positions,
                 &allowances,
             ) {
                 Ok(graph) => {
@@ -129,6 +139,7 @@ impl Elaborator<'_> {
                         ranks,
                         &graph,
                         &bodies,
+                        &body_positions,
                         &allowances,
                     )?;
                     let arity = bodies

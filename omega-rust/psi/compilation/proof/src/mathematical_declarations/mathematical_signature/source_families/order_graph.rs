@@ -638,6 +638,7 @@ pub(super) fn comparison_graph(
     declarations: &mut Vec<Declaration>,
     theory: &mut SourceIntegerTheory,
     bodies: &[SourceOrderBody],
+    body_positions: &symbols::SymbolKeyMap<symbols::SymbolHandle, usize>,
     allowances: &[usize],
 ) -> Result<CheckedGraph, GraphFailure> {
     if bodies.len() != allowances.len() || bodies.is_empty() {
@@ -716,7 +717,12 @@ pub(super) fn comparison_graph(
             let constraints = p.close(predicate, &domains);
             let mut children = Vec::new();
             for call in &source.calls {
-                let selected = bodies.iter().position(|body| body.entry == call.target).ok_or_else(|| GraphFailure::Unavailable("a comparison call has no complete source body in its structural closure".into()))?;
+                let &selected = body_positions.get(&call.target).ok_or_else(|| {
+                    GraphFailure::Unavailable(
+                        "a comparison call has no complete source body in its structural closure"
+                            .into(),
+                    )
+                })?;
                 let mut index = vec![p.literal(selected)?];
                 let (rank, shift) = p.allowance(allowances[selected]);
                 index.extend([rank, shift]);
@@ -815,6 +821,7 @@ pub(super) fn source_return_schemas(
     ranks: &CheckedGraph,
     graph: &CheckedGraph,
     bodies: &[SourceOrderBody],
+    body_positions: &symbols::SymbolKeyMap<symbols::SymbolHandle, usize>,
     allowances: &[usize],
 ) -> Result<Vec<(TermHandle, TermHandle)>, GraphFailure> {
     let mut p = producer(arena, declarations, theory)?;
@@ -908,12 +915,9 @@ pub(super) fn source_return_schemas(
             }
             result = apply(p.arena, result, predicate);
             for call in &source.calls {
-                let selected = bodies
-                    .iter()
-                    .position(|body| body.entry == call.target)
-                    .ok_or_else(|| {
-                        GraphFailure::Unavailable("the source call has no exact graph child".into())
-                    })?;
+                let &selected = body_positions.get(&call.target).ok_or_else(|| {
+                    GraphFailure::Unavailable("the source call has no exact graph child".into())
+                })?;
                 let mut index = vec![p.literal(selected)?];
                 let (rank, shift) = p.allowance(allowances[selected]);
                 index.extend([rank, shift]);
@@ -1211,9 +1215,21 @@ mod tests {
             .map_err(error)
             .unwrap();
         let bodies = [comparison, predecessor];
-        let graph = comparison_graph(&mut arena, &mut declarations, &mut theory, &bodies, &[0, 1])
-            .map_err(error)
-            .unwrap();
+        let positions = bodies
+            .iter()
+            .enumerate()
+            .map(|(position, body)| (body.entry, position))
+            .collect::<symbols::SymbolKeyMap<_, _>>();
+        let graph = comparison_graph(
+            &mut arena,
+            &mut declarations,
+            &mut theory,
+            &bodies,
+            &positions,
+            &[0, 1],
+        )
+        .map_err(error)
+        .unwrap();
         let associations = source_return_schemas(
             &mut arena,
             &mut declarations,
@@ -1221,6 +1237,7 @@ mod tests {
             &ranks,
             &graph,
             &bodies,
+            &positions,
             &[0, 1],
         )
         .map_err(error)
@@ -1244,7 +1261,15 @@ mod tests {
             2,
             vec![source_case(2, 2, vec![], vec![], SourceOrderValue::Base)],
         );
-        match comparison_graph(&mut arena, &mut declarations, &mut theory, &[fake], &[0]) {
+        let positions = [(fake.entry, 0)].into_iter().collect();
+        match comparison_graph(
+            &mut arena,
+            &mut declarations,
+            &mut theory,
+            &[fake],
+            &positions,
+            &[0],
+        ) {
             Err(GraphFailure::Unavailable(_)) => {}
             Err(GraphFailure::Kernel(reason)) => {
                 panic!("the negative graph caused a malformed proof: {reason}")
