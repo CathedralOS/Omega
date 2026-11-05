@@ -8347,39 +8347,39 @@ fail/facts/finite_family_owned_field/target_body rejected 5473ms expected @17be1
 	cannot prove ensures contract for exit from ReadField::read at statement 2: result >= 100
 	cannot prove ensures contract for exit from ReadField::read$specialized$ef379b294b035803$0$2723 at statement 2: result >= 100
 	cannot prove ensures contract for exit from ReadField::read$specialized$d45a4b2c8f81ae01$1$2728 at statement 2: result >= 100
-fail/facts/finite_family_returned_descriptor/call_result rejected 5568ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/call_result rejected 5568ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/const_name rejected 5429ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/const_name rejected 5429ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/field rejected 5354ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/field rejected 5354ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/local rejected 5302ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/local rejected 5302ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/match_join rejected 5323ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/match_join rejected 5323ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/other_machine rejected 5305ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/other_machine rejected 5305ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/other_state rejected 5320ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/other_state rejected 5320ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/parameter rejected 5323ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/parameter rejected 5323ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/target_body rejected 5335ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/target_body rejected 5335ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
@@ -18764,6 +18764,8 @@ fail/traits/external_row_does_not_capture_map_region rejected 799ms expected @cc
 	machine `read` state `entry` parameter `context` uses undeclared lifetime `'storage'; declare it in the owner's generic parameter list
 fail/traits/family_carrier_pack_dependent_storage_rejected rejected 6022ms expected @48bf716629cb+wt
 	machine `hold_any` state `entry` does not satisfy trait `Holding` machine `hold`: conformance borrow contract: unimplemented: callable input region frontier is incomplete
+fail/traits/finite_family_case_view_nonmember rejected 4176ms expected @f37c9cfc83e2
+	cannot prove requires contract for call check from main: 24 == 16 || 24 == 32 (needs fact `width == 16 || width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/finite_family_const_forwarding rejected 2014ms expected @a50253a693d8
 	cannot prove requires contract for call dyn Family::row from static_forward: Width == 16 && Lanes == 1 || Width == 32 && Lanes == 2 (needs fact `Width == 16 && Lanes == 1 || Width == 32 && Lanes == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/finite_family_const_missing_row rejected 515ms expected @a50253a693d8
@@ -22788,15 +22790,15 @@ pass/facts/finite_family_owned_field/other_machine checked 10031ms check-target:
 pass/facts/finite_family_owned_field/other_state checked 10045ms check-target:macos_arm64 @4969443addd0
 pass/facts/finite_family_owned_field/parameter checked 12194ms check-target:macos_arm64 @4969443addd0
 pass/facts/finite_family_owned_field/target_body checked 7332ms check-target:macos_arm64 @17be13e1a9ff
-pass/facts/finite_family_returned_descriptor/call_result checked 6985ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/const_name checked 7112ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/field checked 7042ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/local checked 7024ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/match_join checked 6992ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/other_machine checked 6964ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/other_state checked 6979ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/parameter checked 6993ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/target_body checked 7080ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/call_result checked 6985ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/const_name checked 7112ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/field checked 7042ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/local checked 7024ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/match_join checked 6992ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/other_machine checked 6964ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/other_state checked 6979ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/parameter checked 6993ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/target_body checked 7080ms check-target:macos_arm64 @f37c9cfc83e2
 pass/facts/finite_family_static_inline_result/call_result checked 5117ms check-target:macos_arm64 @ddc17fff6a3c
 pass/facts/finite_family_static_inline_result/const_name checked 4947ms check-target:macos_arm64 @ddc17fff6a3c
 pass/facts/finite_family_static_inline_result/field checked 4957ms check-target:macos_arm64 @ddc17fff6a3c
@@ -28004,6 +28006,7 @@ pass/traits/equatable_string_field_equality_exit checked 12265ms check-target:ma
 pass/traits/equatable_synthesis checked 4469ms @ccdb99ca2214
 pass/traits/evidence_member_empty_output_frontier checked 2533ms @ccdb99ca2214
 pass/traits/exact_edge_application_and_invocation_parameters checked 11835ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/finite_family_case_view_result_exit checked 8006ms check-target:macos_arm64 @f37c9cfc83e2
 pass/traits/finite_family_const_forwarding checked 2762ms check-target:macos_arm64 @a50253a693d8
 pass/traits/finite_family_uncalled_target checked 2779ms check-target:macos_arm64 @64d08af188aa
 pass/traits/float_contract_refinement_boundaries_exit checked 5171ms check-target:macos_arm64 @ccdb99ca2214
