@@ -11,6 +11,7 @@ use proof_admission::{
     Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, IndexedFamily, Signature,
     SourceIntegerTheory, Term, TermArena, TermHandle, judgment_assumption_closure,
 };
+use std::collections::HashMap;
 use validation::computed_order::{SourceOrderBody, SourceOrderValue, SourceOutcome};
 
 #[derive(Debug, Clone)]
@@ -28,9 +29,13 @@ pub(super) enum GraphFailure {
     Kernel(String),
 }
 
-/// Untrusted term construction over one append-only integer vocabulary.
-/// The kernel checks every returned theorem and constructor schema.
-struct Producer<'a> {
+/// Two source comparisons can require the same mathematical proof. Keep that
+/// proof once while preparing this one signature.
+/// The exclusive arena/signature borrow prevents a caller from replacing a
+/// referenced declaration or carrying this list into another preparation.
+/// Every declaration producer used here appends; checked prefixes stay fixed.
+/// Source bodies and their return associations are still prepared separately.
+pub(super) struct OrderProofPreparation<'a> {
     arena: &'a mut TermArena,
     declarations: &'a mut Vec<Declaration>,
     theory: &'a mut SourceIntegerTheory,
@@ -38,6 +43,101 @@ struct Producer<'a> {
     function: TermHandle,
     zero: TermHandle,
     one: TermHandle,
+    families: HashMap<FamilyKey, Vec<CompletedFamily>>,
+}
+
+#[derive(Clone)]
+struct FamilyModel {
+    description: IndexedFamily,
+    invariant: TermHandle,
+    common: Vec<(Key, TermHandle)>,
+    cases: Vec<Case<Key>>,
+}
+
+#[derive(PartialEq, Eq, Hash)]
+struct FamilyKey {
+    levels: [proof_admission::Level; 3],
+    common: Vec<Key>,
+    cases: Vec<(Vec<Key>, usize)>,
+    terms: Vec<u64>,
+}
+
+#[derive(Clone)]
+struct CompletedFamily {
+    model: FamilyModel,
+    result: CheckedGraph,
+    checked_prefix: usize,
+}
+
+impl FamilyModel {
+    fn roots(&self) -> Vec<TermHandle> {
+        let IndexedFamily {
+            levels: _,
+            index,
+            carrier,
+            children,
+            out,
+            next,
+        } = &self.description;
+        let mut roots = vec![*index, *carrier, *children, *out, *next, self.invariant];
+        roots.extend(self.common.iter().map(|&(_, ty)| ty));
+        for case in &self.cases {
+            let Case {
+                payload,
+                constraints,
+                child_indices,
+            } = case;
+            roots.extend(payload.iter().map(|&(_, ty)| ty));
+            roots.push(*constraints);
+            roots.extend_from_slice(child_indices);
+        }
+        roots
+    }
+
+    fn key(&self, arena: &TermArena) -> Option<FamilyKey> {
+        Some(FamilyKey {
+            levels: self.description.levels.clone(),
+            common: self.common.iter().map(|&(key, _)| key).collect(),
+            cases: self
+                .cases
+                .iter()
+                .map(|case| {
+                    (
+                        case.payload.iter().map(|&(key, _)| key).collect(),
+                        case.child_indices.len(),
+                    )
+                })
+                .collect(),
+            terms: arena.structural_hashes(&self.roots())?,
+        })
+    }
+
+    fn matches(&self, other: &Self, arena: &TermArena) -> bool {
+        if self.description.levels != other.description.levels
+            || self.common.len() != other.common.len()
+            || self.cases.len() != other.cases.len()
+            || !self
+                .common
+                .iter()
+                .zip(&other.common)
+                .all(|(left, right)| left.0 == right.0)
+            || !self.cases.iter().zip(&other.cases).all(|(left, right)| {
+                left.payload.len() == right.payload.len()
+                    && left.child_indices.len() == right.child_indices.len()
+                    && left
+                        .payload
+                        .iter()
+                        .zip(&right.payload)
+                        .all(|(left, right)| left.0 == right.0)
+            })
+        {
+            return false;
+        }
+        self.roots()
+            .iter()
+            .zip(other.roots())
+            .all(|(&left, right)| arena.structurally_equal(left, right))
+    }
 }
 
 fn constant(arena: &mut TermArena, declaration: u32) -> TermHandle {
@@ -87,7 +187,17 @@ fn projection(
     value
 }
 
-impl Producer<'_> {
+impl OrderProofPreparation<'_> {
+    pub(super) fn declaration_count(&self) -> usize {
+        self.declarations.len()
+    }
+
+    pub(super) fn assumption_closure(&self, roots: &[TermHandle]) -> Vec<u32> {
+        let signature = Signature::from_declarations(self.declarations.clone());
+        judgment_assumption_closure(self.arena, &signature, roots)
+            .into_iter()
+            .collect()
+    }
     fn literal(&mut self, value: usize) -> Result<TermHandle, GraphFailure> {
         self.theory
             .literal(
@@ -541,14 +651,46 @@ impl Producer<'_> {
             ));
         }
         let indices = common.iter().map(|(key, _)| *key).collect::<Vec<_>>();
-        let family = terms::description(self.arena, common, &indices, cases, &[])
-            .and_then(|family| terms::intern_description(self.arena, self.declarations, family))
+        let description = terms::description(self.arena, common, &indices, cases, &[])
             .map_err(|error| GraphFailure::Kernel(error.into()))?;
         let index = self.arena.insert(Term::Variable(0));
         let coordinates = (0..common.len())
             .map(|position| projection(self.arena, index, position, common.len()))
             .collect::<Vec<_>>();
         let goal = invariant(self, &coordinates);
+        let raw_invariant = self.arena.insert(Term::Lambda {
+            domain: description.index,
+            body: goal,
+        });
+        let model = FamilyModel {
+            description,
+            invariant: raw_invariant,
+            common: common.to_vec(),
+            cases: cases.to_vec(),
+        };
+        let key = model.key(self.arena);
+        if let Some(previous) = key
+            .as_ref()
+            .and_then(|key| self.families.get(key))
+            .and_then(|families| {
+                families.iter().find(|previous| {
+                    previous.checked_prefix <= self.declarations.len()
+                        && previous.model.matches(&model, self.arena)
+                })
+            })
+        {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT comparison complete family reused checked_prefix={} declarations={}",
+                    previous.checked_prefix,
+                    self.declarations.len()
+                );
+            }
+            return Ok(previous.result.clone());
+        }
+        let family =
+            terms::intern_description(self.arena, self.declarations, model.description.clone())
+                .map_err(|error| GraphFailure::Kernel(error.into()))?;
         let invariant = self.arena.insert(Term::Lambda {
             domain: family.index,
             body: goal,
@@ -651,22 +793,30 @@ impl Producer<'_> {
         let mut roots = vec![theorem, ty];
         roots.extend(constructors.iter().flat_map(|&(term, ty)| [term, ty]));
         let assumption_closure = judgment_assumption_closure(self.arena, &signature, &roots);
-        Ok(CheckedGraph {
+        let result = CheckedGraph {
             family,
             theorem,
             ty,
             invariant,
             constructors,
             assumption_closure: assumption_closure.into_iter().collect(),
-        })
+        };
+        if let Some(key) = key {
+            self.families.entry(key).or_default().push(CompletedFamily {
+                model,
+                result: result.clone(),
+                checked_prefix: self.declarations.len(),
+            });
+        }
+        Ok(result)
     }
 }
 
-fn producer<'a>(
+pub(super) fn prepare<'a>(
     arena: &'a mut TermArena,
     declarations: &'a mut Vec<Declaration>,
     theory: &'a mut SourceIntegerTheory,
-) -> Result<Producer<'a>, GraphFailure> {
+) -> Result<OrderProofPreparation<'a>, GraphFailure> {
     let integer = constant(arena, theory.vocabulary().carrier);
     let function = arena.insert(Term::Pi {
         domain: integer,
@@ -682,7 +832,7 @@ fn producer<'a>(
         .map_err(|error| {
             GraphFailure::Unavailable(format!("successor rank is unavailable: {error:?}"))
         })?;
-    Ok(Producer {
+    Ok(OrderProofPreparation {
         arena,
         declarations,
         theory,
@@ -690,6 +840,7 @@ fn producer<'a>(
         function,
         zero,
         one,
+        families: HashMap::new(),
     })
 }
 
@@ -706,410 +857,411 @@ fn coordinates(arity: usize, integer: TermHandle, function: TermHandle) -> Vec<(
         .collect()
 }
 
-pub(super) fn comparison_graph(
-    arena: &mut TermArena,
-    declarations: &mut Vec<Declaration>,
-    theory: &mut SourceIntegerTheory,
-    bodies: &[SourceOrderBody],
-    body_positions: &symbols::SymbolKeyMap<symbols::SymbolHandle, usize>,
-    allowances: &[usize],
-) -> Result<CheckedGraph, GraphFailure> {
-    if bodies.len() != allowances.len() || bodies.is_empty() {
-        return Err(GraphFailure::Unavailable(
-            "the comparison source roster is incomplete".into(),
-        ));
-    }
-    let mut p = producer(arena, declarations, theory)?;
-    let arity = bodies
-        .iter()
-        .map(|body| body.parameter_types.len())
-        .max()
-        .unwrap_or(0);
-    if arity == 0 {
-        return Err(GraphFailure::Unavailable(
-            "the comparison graph has no ranked input".into(),
-        ));
-    }
-    let coordinate_fields = coordinates(arity, p.integer, p.function);
-    let count = coordinate_fields.len();
-    let coordinate_types = coordinate_fields
-        .iter()
-        .map(|&(_, ty)| ty)
-        .collect::<Vec<_>>();
-    let index_type = tuple_type(p.arena, &coordinate_types)?;
-    // A completed evaluation has one index tuple. Retain it once in the label
-    // and relate it to the exact source actuals with one typed equality, rather
-    // than duplicating every coordinate and its own equation in each case.
-    let common = [(Key::Graph(0), index_type)];
-    let mut cases = Vec::new();
-    for (body_position, body) in bodies.iter().enumerate() {
-        for source in &body.cases {
-            let SourceOutcome::Value(output) = &source.outcome else {
-                return Err(GraphFailure::Unavailable(
-                    "the comparison has a source path without a represented normal value".into(),
-                ));
-            };
-            let payload = (0..source.values.len())
-                .flat_map(|position| {
-                    [
-                        (Key::Graph(1 + position * 2), p.integer),
-                        (Key::Graph(2 + position * 2), p.function),
-                    ]
-                })
-                .collect::<Vec<_>>();
-            let fields = common.iter().chain(&payload).copied().collect::<Vec<_>>();
-            let values = (0..fields.len())
-                .map(|position| {
-                    p.arena
-                        .insert(Term::Variable((fields.len() - position - 1) as u32))
-                })
-                .collect::<Vec<_>>();
-            let (index, locals) = values.split_at(1);
-            let locals = locals
-                .chunks_exact(2)
-                .map(|pair| (pair[0], pair[1]))
-                .collect::<Vec<_>>();
-            let mut actuals = vec![p.literal(body_position)?];
-            let (rank, shift) = p.allowance(allowances[body_position]);
-            actuals.extend([rank, shift]);
-            for position in 0..arity {
-                let (rank, shift) = match source.inputs.get(position) {
-                    Some(value) => p.source_value(value, &locals)?,
-                    None => (p.zero, p.identity_shift()),
+impl OrderProofPreparation<'_> {
+    pub(super) fn comparison_graph(
+        &mut self,
+        bodies: &[SourceOrderBody],
+        body_positions: &symbols::SymbolKeyMap<symbols::SymbolHandle, usize>,
+        allowances: &[usize],
+    ) -> Result<CheckedGraph, GraphFailure> {
+        if bodies.len() != allowances.len() || bodies.is_empty() {
+            return Err(GraphFailure::Unavailable(
+                "the comparison source roster is incomplete".into(),
+            ));
+        }
+        let p = self;
+        let arity = bodies
+            .iter()
+            .map(|body| body.parameter_types.len())
+            .max()
+            .unwrap_or(0);
+        if arity == 0 {
+            return Err(GraphFailure::Unavailable(
+                "the comparison graph has no ranked input".into(),
+            ));
+        }
+        let coordinate_fields = coordinates(arity, p.integer, p.function);
+        let count = coordinate_fields.len();
+        let coordinate_types = coordinate_fields
+            .iter()
+            .map(|&(_, ty)| ty)
+            .collect::<Vec<_>>();
+        let index_type = tuple_type(p.arena, &coordinate_types)?;
+        // A completed evaluation has one index tuple. Retain it once in the label
+        // and relate it to the exact source actuals with one typed equality, rather
+        // than duplicating every coordinate and its own equation in each case.
+        let common = [(Key::Graph(0), index_type)];
+        let mut cases = Vec::new();
+        for (body_position, body) in bodies.iter().enumerate() {
+            for source in &body.cases {
+                let SourceOutcome::Value(output) = &source.outcome else {
+                    return Err(GraphFailure::Unavailable(
+                        "the comparison has a source path without a represented normal value"
+                            .into(),
+                    ));
                 };
+                let payload = (0..source.values.len())
+                    .flat_map(|position| {
+                        [
+                            (Key::Graph(1 + position * 2), p.integer),
+                            (Key::Graph(2 + position * 2), p.function),
+                        ]
+                    })
+                    .collect::<Vec<_>>();
+                let fields = common.iter().chain(&payload).copied().collect::<Vec<_>>();
+                let values = (0..fields.len())
+                    .map(|position| {
+                        p.arena
+                            .insert(Term::Variable((fields.len() - position - 1) as u32))
+                    })
+                    .collect::<Vec<_>>();
+                let (index, locals) = values.split_at(1);
+                let locals = locals
+                    .chunks_exact(2)
+                    .map(|pair| (pair[0], pair[1]))
+                    .collect::<Vec<_>>();
+                let mut actuals = vec![p.literal(body_position)?];
+                let (rank, shift) = p.allowance(allowances[body_position]);
                 actuals.extend([rank, shift]);
-            }
-            let (rank, shift) = p.source_value(output, &locals)?;
-            actuals.extend([rank, shift]);
-            let actual_index = tuple(p.arena, &actuals)?;
-            let mut predicates = vec![p.typed_equation(index_type, index[0], actual_index)];
-            for (left, right) in &source.equations {
-                let (left_rank, left_shift) = p.source_value(left, &locals)?;
-                let (right_rank, right_shift) = p.source_value(right, &locals)?;
-                predicates.push(p.equation(left_rank, right_rank));
-                predicates.push(p.typed_equation(p.function, left_shift, right_shift));
-            }
-            for &(rank, shift) in &locals {
-                predicates.push(p.shift_laws(rank, shift));
-            }
-            let predicate = p.conjunction(&predicates);
-            let domains = fields.iter().map(|(_, ty)| *ty).collect::<Vec<_>>();
-            let constraints = p.close(predicate, &domains);
-            let mut children = Vec::new();
-            for call in &source.calls {
-                let &selected = body_positions.get(&call.target).ok_or_else(|| {
-                    GraphFailure::Unavailable(
+                for position in 0..arity {
+                    let (rank, shift) = match source.inputs.get(position) {
+                        Some(value) => p.source_value(value, &locals)?,
+                        None => (p.zero, p.identity_shift()),
+                    };
+                    actuals.extend([rank, shift]);
+                }
+                let (rank, shift) = p.source_value(output, &locals)?;
+                actuals.extend([rank, shift]);
+                let actual_index = tuple(p.arena, &actuals)?;
+                let mut predicates = vec![p.typed_equation(index_type, index[0], actual_index)];
+                for (left, right) in &source.equations {
+                    let (left_rank, left_shift) = p.source_value(left, &locals)?;
+                    let (right_rank, right_shift) = p.source_value(right, &locals)?;
+                    predicates.push(p.equation(left_rank, right_rank));
+                    predicates.push(p.typed_equation(p.function, left_shift, right_shift));
+                }
+                for &(rank, shift) in &locals {
+                    predicates.push(p.shift_laws(rank, shift));
+                }
+                let predicate = p.conjunction(&predicates);
+                let domains = fields.iter().map(|(_, ty)| *ty).collect::<Vec<_>>();
+                let constraints = p.close(predicate, &domains);
+                let mut children = Vec::new();
+                for call in &source.calls {
+                    let &selected = body_positions.get(&call.target).ok_or_else(|| {
+                        GraphFailure::Unavailable(
                         "a comparison call has no complete source body in its structural closure"
                             .into(),
                     )
-                })?;
-                let mut index = vec![p.literal(selected)?];
-                let (rank, shift) = p.allowance(allowances[selected]);
-                index.extend([rank, shift]);
-                for position in 0..arity {
-                    let (rank, shift) = match call.arguments.get(position) {
-                        Some(value) => p.source_value(value, &locals)?,
-                        None => (p.zero, p.identity_shift()),
-                    };
+                    })?;
+                    let mut index = vec![p.literal(selected)?];
+                    let (rank, shift) = p.allowance(allowances[selected]);
                     index.extend([rank, shift]);
+                    for position in 0..arity {
+                        let (rank, shift) = match call.arguments.get(position) {
+                            Some(value) => p.source_value(value, &locals)?,
+                            None => (p.zero, p.identity_shift()),
+                        };
+                        index.extend([rank, shift]);
+                    }
+                    let result = call.result.ok_or_else(|| {
+                        GraphFailure::Unavailable(
+                            "a comparison call has no ordinary structural result".into(),
+                        )
+                    })?;
+                    let &(rank, shift) = locals.get(result).ok_or_else(|| {
+                        GraphFailure::Unavailable(
+                            "the comparison call result lost its exact source binder".into(),
+                        )
+                    })?;
+                    index.extend([rank, shift]);
+                    let index = tuple(p.arena, &index)?;
+                    children.push(p.close(index, &domains));
                 }
-                let result = call.result.ok_or_else(|| {
-                    GraphFailure::Unavailable(
-                        "a comparison call has no ordinary structural result".into(),
-                    )
-                })?;
-                let &(rank, shift) = locals.get(result).ok_or_else(|| {
-                    GraphFailure::Unavailable(
-                        "the comparison call result lost its exact source binder".into(),
-                    )
-                })?;
-                index.extend([rank, shift]);
-                let index = tuple(p.arena, &index)?;
-                children.push(p.close(index, &domains));
-            }
-            cases.push(Case {
-                payload,
-                constraints,
-                child_indices: children,
-            });
-        }
-    }
-    p.checked_family(&common, &cases, |p, index| {
-        let values = (0..count)
-            .map(|position| projection(p.arena, index[0], position, count))
-            .collect::<Vec<_>>();
-        let mut bound = values[count - 2];
-        for position in 1..arity {
-            bound = apply(p.arena, values[4 + position * 2], bound);
-        }
-        bound = apply(p.arena, values[2], bound);
-        p.le(values[3], bound)
-    })
-}
-
-/// A finite source value supplies both its rank and the checked fold that
-/// adds its successors to another rank. Keeping that fold makes the actual
-/// pred/recursive-call composition exact without an assumed reassociation law.
-pub(super) fn rank_graph(
-    arena: &mut TermArena,
-    declarations: &mut Vec<Declaration>,
-    theory: &mut SourceIntegerTheory,
-) -> Result<CheckedGraph, GraphFailure> {
-    let mut p = producer(arena, declarations, theory)?;
-    let common = [(Key::Graph(0), p.integer), (Key::Graph(1), p.function)];
-    let rank = p.arena.insert(Term::Variable(1));
-    let shift = p.arena.insert(Term::Variable(0));
-    let identity = p.identity_shift();
-    let rank_eq = p.equation(rank, p.zero);
-    let shift_eq = p.typed_equation(p.function, shift, identity);
-    let predicate = p.conjunction(&[rank_eq, shift_eq]);
-    let base = p.close(predicate, &[p.integer, p.function]);
-    let rank = p.arena.insert(Term::Variable(3));
-    let shift = p.arena.insert(Term::Variable(2));
-    let child_rank = p.arena.insert(Term::Variable(1));
-    let child_shift = p.arena.insert(Term::Variable(0));
-    let successor_rank = p.add(child_rank, p.one);
-    let successor_shift = p.successor_shift(child_shift);
-    let rank_eq = p.equation(rank, successor_rank);
-    let shift_eq = p.typed_equation(p.function, shift, successor_shift);
-    let predicate = p.conjunction(&[rank_eq, shift_eq]);
-    let domains = [p.integer, p.function, p.integer, p.function];
-    let step = p.close(predicate, &domains);
-    let child_index = tuple(p.arena, &[child_rank, child_shift])?;
-    let child_index = p.close(child_index, &domains);
-    let cases = [
-        Case {
-            payload: Vec::new(),
-            constraints: base,
-            child_indices: Vec::new(),
-        },
-        Case {
-            payload: vec![(Key::Graph(2), p.integer), (Key::Graph(3), p.function)],
-            constraints: step,
-            child_indices: vec![child_index],
-        },
-    ];
-    p.checked_family(&common, &cases, |p, values| {
-        p.shift_laws(values[0], values[1])
-    })
-}
-
-/// Compose the source return constructors with the exact finite-rank witnesses
-/// of their values. Rank laws are proved by the rank theorem, not asserted by
-/// a caller as part of the comparison's contract.
-pub(super) fn source_return_schemas(
-    arena: &mut TermArena,
-    declarations: &mut Vec<Declaration>,
-    theory: &mut SourceIntegerTheory,
-    ranks: &CheckedGraph,
-    graph: &CheckedGraph,
-    bodies: &[SourceOrderBody],
-    body_positions: &symbols::SymbolKeyMap<symbols::SymbolHandle, usize>,
-    allowances: &[usize],
-) -> Result<Vec<(TermHandle, TermHandle)>, GraphFailure> {
-    let mut p = producer(arena, declarations, theory)?;
-    let arity = bodies
-        .iter()
-        .map(|body| body.parameter_types.len())
-        .max()
-        .unwrap_or(0);
-    let coordinate_types = coordinates(arity, p.integer, p.function)
-        .iter()
-        .map(|&(_, ty)| ty)
-        .collect::<Vec<_>>();
-    let index_type = tuple_type(p.arena, &coordinate_types)?;
-    let mut ordinal = 0;
-    let mut schemas = Vec::new();
-    for (body_position, body) in bodies.iter().enumerate() {
-        for source in &body.cases {
-            let SourceOutcome::Value(output) = &source.outcome else {
-                return Err(GraphFailure::Unavailable(
-                    "the source return has no complete value association".into(),
-                ));
-            };
-            let mut parameters = Vec::new();
-            let mut locals = Vec::new();
-            for _ in &source.values {
-                let key = Key::Graph(parameters.len());
-                let rank = p.placeholder(p.integer, key, &mut parameters);
-                let key = Key::Graph(parameters.len());
-                let shift = p.placeholder(p.function, key, &mut parameters);
-                locals.push((rank, shift));
-            }
-            let mut common = vec![p.literal(body_position)?];
-            let (rank, shift) = p.allowance(allowances[body_position]);
-            common.extend([rank, shift]);
-            for position in 0..arity {
-                let (rank, shift) = match source.inputs.get(position) {
-                    Some(value) => p.source_value(value, &locals)?,
-                    None => (p.zero, p.identity_shift()),
-                };
-                common.extend([rank, shift]);
-            }
-            let (rank, shift) = p.source_value(output, &locals)?;
-            common.extend([rank, shift]);
-            let mut source_equations = Vec::new();
-            for (left, right) in &source.equations {
-                let (left_rank, left_shift) = p.source_value(left, &locals)?;
-                let (right_rank, right_shift) = p.source_value(right, &locals)?;
-                for (ty, left, right) in [
-                    (p.integer, left_rank, right_rank),
-                    (p.function, left_shift, right_shift),
-                ] {
-                    let ty = p.typed_equation(ty, left, right);
-                    let key = Key::Graph(parameters.len());
-                    source_equations.push(p.placeholder(ty, key, &mut parameters));
-                }
-            }
-            let mut rank_laws = Vec::new();
-            for &(rank, shift) in &locals {
-                let index = tuple(p.arena, &[rank, shift])?;
-                let ty = ranks.family.indexed_w(p.arena, index);
-                let key = Key::Graph(parameters.len());
-                let witness = p.placeholder(ty, key, &mut parameters);
-                let theorem = apply(p.arena, ranks.theorem, index);
-                rank_laws.push(apply(p.arena, theorem, witness));
-            }
-            let index = tuple(p.arena, &common)?;
-            let mut proofs = vec![p.arena.insert(Term::Refl {
-                ty: index_type,
-                value: index,
-            })];
-            proofs.extend(source_equations);
-            proofs.extend(rank_laws);
-            let mut predicate = p.arena.insert(Term::Refl {
-                ty: p.integer,
-                value: p.zero,
-            });
-            for first in proofs.into_iter().rev() {
-                predicate = p.arena.insert(Term::Pair {
-                    first,
-                    second: predicate,
+                cases.push(Case {
+                    payload,
+                    constraints,
+                    child_indices: children,
                 });
             }
-            let (constructor, _) = *graph.constructors.get(ordinal).ok_or_else(|| {
-                GraphFailure::Kernel(
-                    "the complete graph has no constructor for a source return".into(),
-                )
-            })?;
-            let mut result = apply(p.arena, constructor, index);
-            for &(rank, shift) in &locals {
-                result = apply(p.arena, result, rank);
-                result = apply(p.arena, result, shift);
+        }
+        p.checked_family(&common, &cases, |p, index| {
+            let values = (0..count)
+                .map(|position| projection(p.arena, index[0], position, count))
+                .collect::<Vec<_>>();
+            let mut bound = values[count - 2];
+            for position in 1..arity {
+                bound = apply(p.arena, values[4 + position * 2], bound);
             }
-            result = apply(p.arena, result, predicate);
-            for call in &source.calls {
-                let &selected = body_positions.get(&call.target).ok_or_else(|| {
-                    GraphFailure::Unavailable("the source call has no exact graph child".into())
-                })?;
-                let mut index = vec![p.literal(selected)?];
-                let (rank, shift) = p.allowance(allowances[selected]);
-                index.extend([rank, shift]);
+            bound = apply(p.arena, values[2], bound);
+            p.le(values[3], bound)
+        })
+    }
+
+    /// A finite source value supplies both its rank and the checked fold that
+    /// adds its successors to another rank. Keeping that fold makes the actual
+    /// pred/recursive-call composition exact without an assumed reassociation law.
+    pub(super) fn rank_graph(&mut self) -> Result<CheckedGraph, GraphFailure> {
+        let p = self;
+        let common = [(Key::Graph(0), p.integer), (Key::Graph(1), p.function)];
+        let rank = p.arena.insert(Term::Variable(1));
+        let shift = p.arena.insert(Term::Variable(0));
+        let identity = p.identity_shift();
+        let rank_eq = p.equation(rank, p.zero);
+        let shift_eq = p.typed_equation(p.function, shift, identity);
+        let predicate = p.conjunction(&[rank_eq, shift_eq]);
+        let base = p.close(predicate, &[p.integer, p.function]);
+        let rank = p.arena.insert(Term::Variable(3));
+        let shift = p.arena.insert(Term::Variable(2));
+        let child_rank = p.arena.insert(Term::Variable(1));
+        let child_shift = p.arena.insert(Term::Variable(0));
+        let successor_rank = p.add(child_rank, p.one);
+        let successor_shift = p.successor_shift(child_shift);
+        let rank_eq = p.equation(rank, successor_rank);
+        let shift_eq = p.typed_equation(p.function, shift, successor_shift);
+        let predicate = p.conjunction(&[rank_eq, shift_eq]);
+        let domains = [p.integer, p.function, p.integer, p.function];
+        let step = p.close(predicate, &domains);
+        let child_index = tuple(p.arena, &[child_rank, child_shift])?;
+        let child_index = p.close(child_index, &domains);
+        let cases = [
+            Case {
+                payload: Vec::new(),
+                constraints: base,
+                child_indices: Vec::new(),
+            },
+            Case {
+                payload: vec![(Key::Graph(2), p.integer), (Key::Graph(3), p.function)],
+                constraints: step,
+                child_indices: vec![child_index],
+            },
+        ];
+        p.checked_family(&common, &cases, |p, values| {
+            p.shift_laws(values[0], values[1])
+        })
+    }
+
+    /// Compose the source return constructors with the exact finite-rank witnesses
+    /// of their values. Rank laws are proved by the rank theorem, not asserted by
+    /// a caller as part of the comparison's contract.
+    pub(super) fn source_return_schemas(
+        &mut self,
+        ranks: &CheckedGraph,
+        graph: &CheckedGraph,
+        bodies: &[SourceOrderBody],
+        body_positions: &symbols::SymbolKeyMap<symbols::SymbolHandle, usize>,
+        allowances: &[usize],
+    ) -> Result<Vec<(TermHandle, TermHandle)>, GraphFailure> {
+        let p = self;
+        let arity = bodies
+            .iter()
+            .map(|body| body.parameter_types.len())
+            .max()
+            .unwrap_or(0);
+        let coordinate_types = coordinates(arity, p.integer, p.function)
+            .iter()
+            .map(|&(_, ty)| ty)
+            .collect::<Vec<_>>();
+        let index_type = tuple_type(p.arena, &coordinate_types)?;
+        let mut ordinal = 0;
+        let mut schemas = Vec::new();
+        for (body_position, body) in bodies.iter().enumerate() {
+            for source in &body.cases {
+                let SourceOutcome::Value(output) = &source.outcome else {
+                    return Err(GraphFailure::Unavailable(
+                        "the source return has no complete value association".into(),
+                    ));
+                };
+                let mut parameters = Vec::new();
+                let mut locals = Vec::new();
+                for _ in &source.values {
+                    let key = Key::Graph(parameters.len());
+                    let rank = p.placeholder(p.integer, key, &mut parameters);
+                    let key = Key::Graph(parameters.len());
+                    let shift = p.placeholder(p.function, key, &mut parameters);
+                    locals.push((rank, shift));
+                }
+                let mut common = vec![p.literal(body_position)?];
+                let (rank, shift) = p.allowance(allowances[body_position]);
+                common.extend([rank, shift]);
                 for position in 0..arity {
-                    let (rank, shift) = match call.arguments.get(position) {
+                    let (rank, shift) = match source.inputs.get(position) {
                         Some(value) => p.source_value(value, &locals)?,
                         None => (p.zero, p.identity_shift()),
                     };
-                    index.extend([rank, shift]);
+                    common.extend([rank, shift]);
                 }
-                let position = call.result.ok_or_else(|| {
-                    GraphFailure::Unavailable("the source call has no exact normal result".into())
-                })?;
-                let &(rank, shift) = locals.get(position).ok_or_else(|| {
+                let (rank, shift) = p.source_value(output, &locals)?;
+                common.extend([rank, shift]);
+                let mut source_equations = Vec::new();
+                for (left, right) in &source.equations {
+                    let (left_rank, left_shift) = p.source_value(left, &locals)?;
+                    let (right_rank, right_shift) = p.source_value(right, &locals)?;
+                    for (ty, left, right) in [
+                        (p.integer, left_rank, right_rank),
+                        (p.function, left_shift, right_shift),
+                    ] {
+                        let ty = p.typed_equation(ty, left, right);
+                        let key = Key::Graph(parameters.len());
+                        source_equations.push(p.placeholder(ty, key, &mut parameters));
+                    }
+                }
+                let mut rank_laws = Vec::new();
+                for &(rank, shift) in &locals {
+                    let index = tuple(p.arena, &[rank, shift])?;
+                    let ty = ranks.family.indexed_w(p.arena, index);
+                    let key = Key::Graph(parameters.len());
+                    let witness = p.placeholder(ty, key, &mut parameters);
+                    let theorem = apply(p.arena, ranks.theorem, index);
+                    rank_laws.push(apply(p.arena, theorem, witness));
+                }
+                let index = tuple(p.arena, &common)?;
+                let mut proofs = vec![p.arena.insert(Term::Refl {
+                    ty: index_type,
+                    value: index,
+                })];
+                proofs.extend(source_equations);
+                proofs.extend(rank_laws);
+                let mut predicate = p.arena.insert(Term::Refl {
+                    ty: p.integer,
+                    value: p.zero,
+                });
+                for first in proofs.into_iter().rev() {
+                    predicate = p.arena.insert(Term::Pair {
+                        first,
+                        second: predicate,
+                    });
+                }
+                let (constructor, _) = *graph.constructors.get(ordinal).ok_or_else(|| {
                     GraphFailure::Kernel(
-                        "the source call's result binder is outside its case".into(),
+                        "the complete graph has no constructor for a source return".into(),
                     )
                 })?;
-                index.extend([rank, shift]);
-                let index = tuple(p.arena, &index)?;
+                let mut result = apply(p.arena, constructor, index);
+                for &(rank, shift) in &locals {
+                    result = apply(p.arena, result, rank);
+                    result = apply(p.arena, result, shift);
+                }
+                result = apply(p.arena, result, predicate);
+                for call in &source.calls {
+                    let &selected = body_positions.get(&call.target).ok_or_else(|| {
+                        GraphFailure::Unavailable("the source call has no exact graph child".into())
+                    })?;
+                    let mut index = vec![p.literal(selected)?];
+                    let (rank, shift) = p.allowance(allowances[selected]);
+                    index.extend([rank, shift]);
+                    for position in 0..arity {
+                        let (rank, shift) = match call.arguments.get(position) {
+                            Some(value) => p.source_value(value, &locals)?,
+                            None => (p.zero, p.identity_shift()),
+                        };
+                        index.extend([rank, shift]);
+                    }
+                    let position = call.result.ok_or_else(|| {
+                        GraphFailure::Unavailable(
+                            "the source call has no exact normal result".into(),
+                        )
+                    })?;
+                    let &(rank, shift) = locals.get(position).ok_or_else(|| {
+                        GraphFailure::Kernel(
+                            "the source call's result binder is outside its case".into(),
+                        )
+                    })?;
+                    index.extend([rank, shift]);
+                    let index = tuple(p.arena, &index)?;
+                    let ty = graph.family.indexed_w(p.arena, index);
+                    let key = Key::Graph(parameters.len());
+                    let witness = p.placeholder(ty, key, &mut parameters);
+                    result = apply(p.arena, result, witness);
+                }
+                let index = tuple(p.arena, &common)?;
                 let ty = graph.family.indexed_w(p.arena, index);
-                let key = Key::Graph(parameters.len());
-                let witness = p.placeholder(ty, key, &mut parameters);
-                result = apply(p.arena, result, witness);
+                schemas.push(p.abstracted(
+                    result,
+                    ty,
+                    &parameters,
+                    "source evaluation association",
+                )?);
+                ordinal += 1;
             }
-            let index = tuple(p.arena, &common)?;
-            let ty = graph.family.indexed_w(p.arena, index);
-            schemas.push(p.abstracted(result, ty, &parameters, "source evaluation association")?);
-            ordinal += 1;
         }
+        if ordinal != graph.constructors.len() {
+            return Err(GraphFailure::Kernel(
+                "the graph constructor roster differs from the source return roster".into(),
+            ));
+        }
+        Ok(schemas)
     }
-    if ordinal != graph.constructors.len() {
-        return Err(GraphFailure::Kernel(
-            "the graph constructor roster differs from the source return roster".into(),
-        ));
-    }
-    Ok(schemas)
-}
 
-/// The exact zero comparison gives strict decrease of the successor's child.
-/// This schema consumes actual finite-rank and evaluation witnesses; a bare
-/// equality from an arbitrary comparison cannot supply those witnesses.
-pub(super) fn zero_comparison_schema(
-    arena: &mut TermArena,
-    declarations: &mut Vec<Declaration>,
-    theory: &mut SourceIntegerTheory,
-    ranks: &CheckedGraph,
-    graph: &CheckedGraph,
-    arity: usize,
-) -> Result<(TermHandle, TermHandle, Vec<u32>), GraphFailure> {
-    if arity < 2 {
-        return Err(GraphFailure::Kernel(
-            "the zero comparison has no complete pair of ranked operands".into(),
-        ));
-    }
-    let mut p = producer(arena, declarations, theory)?;
-    let mut parameters = Vec::new();
-    let next_rank = p.placeholder(p.integer, Key::Graph(0), &mut parameters);
-    let next_shift = p.placeholder(p.function, Key::Graph(1), &mut parameters);
-    let current_rank = p.placeholder(p.integer, Key::Graph(2), &mut parameters);
-    let current_shift = p.placeholder(p.function, Key::Graph(3), &mut parameters);
-    let next_index = tuple(p.arena, &[next_rank, next_shift])?;
-    let current_index = tuple(p.arena, &[current_rank, current_shift])?;
-    let mut index = vec![p.zero, p.zero, p.identity_shift()];
-    let successor_rank = p.add(next_rank, p.one);
-    let successor_shift = p.successor_shift(next_shift);
-    index.extend([successor_rank, successor_shift, current_rank, current_shift]);
-    for _ in 2..arity {
+    /// The exact zero comparison gives strict decrease of the successor's child.
+    /// This schema consumes actual finite-rank and evaluation witnesses; a bare
+    /// equality from an arbitrary comparison cannot supply those witnesses.
+    pub(super) fn zero_comparison_schema(
+        &mut self,
+        ranks: &CheckedGraph,
+        graph: &CheckedGraph,
+        arity: usize,
+    ) -> Result<(TermHandle, TermHandle, Vec<u32>), GraphFailure> {
+        if arity < 2 {
+            return Err(GraphFailure::Kernel(
+                "the zero comparison has no complete pair of ranked operands".into(),
+            ));
+        }
+        let p = self;
+        let mut parameters = Vec::new();
+        let next_rank = p.placeholder(p.integer, Key::Graph(0), &mut parameters);
+        let next_shift = p.placeholder(p.function, Key::Graph(1), &mut parameters);
+        let current_rank = p.placeholder(p.integer, Key::Graph(2), &mut parameters);
+        let current_shift = p.placeholder(p.function, Key::Graph(3), &mut parameters);
+        let next_index = tuple(p.arena, &[next_rank, next_shift])?;
+        let current_index = tuple(p.arena, &[current_rank, current_shift])?;
+        let mut index = vec![p.zero, p.zero, p.identity_shift()];
+        let successor_rank = p.add(next_rank, p.one);
+        let successor_shift = p.successor_shift(next_shift);
+        index.extend([successor_rank, successor_shift, current_rank, current_shift]);
+        for _ in 2..arity {
+            index.extend([p.zero, p.identity_shift()]);
+        }
         index.extend([p.zero, p.identity_shift()]);
+        let index = tuple(p.arena, &index)?;
+        let assumptions = [
+            p.shift_laws(next_rank, next_shift),
+            p.shift_laws(current_rank, current_shift),
+            apply(p.arena, graph.invariant, index),
+        ];
+        let goal = p.binary(p.theory.vocabulary().less_than, next_rank, current_rank);
+        let proof = p.derive(goal, &assumptions, 0)?.ok_or_else(|| {
+            GraphFailure::Kernel(
+                "the checked zero comparison does not derive strict structural descent".into(),
+            )
+        })?;
+        let next_type = ranks.family.indexed_w(p.arena, next_index);
+        let current_type = ranks.family.indexed_w(p.arena, current_index);
+        let evaluation_type = graph.family.indexed_w(p.arena, index);
+        let domains = [next_type, current_type, evaluation_type];
+        let next_witness = p.arena.insert(Term::Variable(2));
+        let current_witness = p.arena.insert(Term::Variable(1));
+        let evaluation = p.arena.insert(Term::Variable(0));
+        let next_theorem = apply(p.arena, ranks.theorem, next_index);
+        let current_theorem = apply(p.arena, ranks.theorem, current_index);
+        let evaluation_theorem = apply(p.arena, graph.theorem, index);
+        let next_laws = apply(p.arena, next_theorem, next_witness);
+        let current_laws = apply(p.arena, current_theorem, current_witness);
+        let property = apply(p.arena, evaluation_theorem, evaluation);
+        let mut body = proof;
+        for evidence in [next_laws, current_laws, property] {
+            body = apply(p.arena, body, evidence);
+        }
+        for &domain in domains.iter().rev() {
+            body = p.arena.insert(Term::Lambda { domain, body });
+        }
+        let ty = p.premise_type(goal, &domains);
+        let (schema, ty) =
+            p.abstracted(body, ty, &parameters, "zero comparison to strict descent")?;
+        let signature = Signature::from_declarations(p.declarations.clone());
+        let closure = judgment_assumption_closure(p.arena, &signature, &[schema, ty]);
+        Ok((schema, ty, closure.into_iter().collect()))
     }
-    index.extend([p.zero, p.identity_shift()]);
-    let index = tuple(p.arena, &index)?;
-    let assumptions = [
-        p.shift_laws(next_rank, next_shift),
-        p.shift_laws(current_rank, current_shift),
-        apply(p.arena, graph.invariant, index),
-    ];
-    let goal = p.binary(p.theory.vocabulary().less_than, next_rank, current_rank);
-    let proof = p.derive(goal, &assumptions, 0)?.ok_or_else(|| {
-        GraphFailure::Kernel(
-            "the checked zero comparison does not derive strict structural descent".into(),
-        )
-    })?;
-    let next_type = ranks.family.indexed_w(p.arena, next_index);
-    let current_type = ranks.family.indexed_w(p.arena, current_index);
-    let evaluation_type = graph.family.indexed_w(p.arena, index);
-    let domains = [next_type, current_type, evaluation_type];
-    let next_witness = p.arena.insert(Term::Variable(2));
-    let current_witness = p.arena.insert(Term::Variable(1));
-    let evaluation = p.arena.insert(Term::Variable(0));
-    let next_theorem = apply(p.arena, ranks.theorem, next_index);
-    let current_theorem = apply(p.arena, ranks.theorem, current_index);
-    let evaluation_theorem = apply(p.arena, graph.theorem, index);
-    let next_laws = apply(p.arena, next_theorem, next_witness);
-    let current_laws = apply(p.arena, current_theorem, current_witness);
-    let property = apply(p.arena, evaluation_theorem, evaluation);
-    let mut body = proof;
-    for evidence in [next_laws, current_laws, property] {
-        body = apply(p.arena, body, evidence);
-    }
-    for &domain in domains.iter().rev() {
-        body = p.arena.insert(Term::Lambda { domain, body });
-    }
-    let ty = p.premise_type(goal, &domains);
-    let (schema, ty) = p.abstracted(body, ty, &parameters, "zero comparison to strict descent")?;
-    let signature = Signature::from_declarations(p.declarations.clone());
-    let closure = judgment_assumption_closure(p.arena, &signature, &[schema, ty]);
-    Ok((schema, ty, closure.into_iter().collect()))
 }
 
 #[cfg(test)]
@@ -1195,9 +1347,12 @@ mod tests {
         let mut arena = TermArena::new();
         let mut declarations = proof_admission::indexed_scheme(&mut arena);
         let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
-        let rank = rank_graph(&mut arena, &mut declarations, &mut theory)
-            .map_err(error)
-            .unwrap();
+        let rank = {
+            let mut proofs = prepare(&mut arena, &mut declarations, &mut theory)
+                .map_err(error)
+                .unwrap();
+            proofs.rank_graph().map_err(error).unwrap()
+        };
         let accepted = theory.source_safety_roster();
         assert!(
             rank.assumption_closure
@@ -1242,13 +1397,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn computed_order_checks_pred_composition_and_refuses_constant_zero() {
-        // These are equation graphs for the mathematical producer, not source
-        // admission records. The actual source-check control separately tests
-        // the typed source-to-graph association and recursive component gate.
-        let relation = SymbolHandle::from_arena_index(1);
-        let pred = SymbolHandle::from_arena_index(2);
+    fn pred_comparison_bodies(relation: SymbolHandle, pred: SymbolHandle) -> [SourceOrderBody; 2] {
         let comparison = body(
             relation,
             2,
@@ -1292,74 +1441,237 @@ mod tests {
                 ),
             ],
         );
+        [comparison, predecessor]
+    }
+
+    #[test]
+    fn computed_order_checks_pred_composition_and_refuses_constant_zero() {
+        // These are equation graphs for the mathematical producer, not source
+        // admission records. The actual source-check control separately tests
+        // the typed source-to-graph association and recursive component gate.
+        let relation = SymbolHandle::from_arena_index(1);
+        let pred = SymbolHandle::from_arena_index(2);
         let mut arena = TermArena::new();
         let mut declarations = proof_admission::indexed_scheme(&mut arena);
         let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
-        let ranks = rank_graph(&mut arena, &mut declarations, &mut theory)
+        let mut proofs = prepare(&mut arena, &mut declarations, &mut theory)
             .map_err(error)
             .unwrap();
-        let bodies = [comparison, predecessor];
+        let ranks = proofs.rank_graph().map_err(error).unwrap();
+        let bodies = pred_comparison_bodies(relation, pred);
         let positions = bodies
             .iter()
             .enumerate()
             .map(|(position, body)| (body.entry, position))
             .collect::<symbols::SymbolKeyMap<_, _>>();
-        let graph = comparison_graph(
-            &mut arena,
-            &mut declarations,
-            &mut theory,
-            &bodies,
-            &positions,
-            &[0, 1],
-        )
-        .map_err(error)
-        .unwrap();
-        let associations = source_return_schemas(
-            &mut arena,
-            &mut declarations,
-            &mut theory,
-            &ranks,
-            &graph,
-            &bodies,
-            &positions,
-            &[0, 1],
-        )
-        .map_err(error)
-        .unwrap();
+        let graph = proofs
+            .comparison_graph(&bodies, &positions, &[0, 1])
+            .map_err(error)
+            .unwrap();
+        let associations = proofs
+            .source_return_schemas(&ranks, &graph, &bodies, &positions, &[0, 1])
+            .map_err(error)
+            .unwrap();
         assert_eq!(associations.len(), 4);
-        let (_, _, closure) = zero_comparison_schema(
-            &mut arena,
-            &mut declarations,
-            &mut theory,
-            &ranks,
-            &graph,
-            2,
-        )
-        .map_err(error)
-        .unwrap();
-        let accepted = theory.source_safety_roster();
+        let (_, _, closure) = proofs
+            .zero_comparison_schema(&ranks, &graph, 2)
+            .map_err(error)
+            .unwrap();
+        let accepted = proofs.theory.source_safety_roster();
         assert!(closure.iter().all(|position| accepted.contains(position)));
-        checked_signature(&mut arena, &declarations);
+        checked_signature(proofs.arena, proofs.declarations);
         let fake = body(
             relation,
             2,
             vec![source_case(2, 2, vec![], vec![], SourceOrderValue::Base)],
         );
         let positions = [(fake.entry, 0)].into_iter().collect();
-        match comparison_graph(
-            &mut arena,
-            &mut declarations,
-            &mut theory,
-            &[fake],
-            &positions,
-            &[0],
-        ) {
+        match proofs.comparison_graph(&[fake], &positions, &[0]) {
             Err(GraphFailure::Unavailable(_)) => {}
             Err(GraphFailure::Kernel(reason)) => {
                 panic!("the negative graph caused a malformed proof: {reason}")
             }
             Ok(_) => panic!("an honest constant-zero function cannot justify unchanged recursion"),
         }
-        checked_signature(&mut arena, &declarations);
+        checked_signature(proofs.arena, proofs.declarations);
+    }
+
+    #[test]
+    fn complete_comparison_family_reuse_keeps_each_source_return_association() {
+        let mut arena = TermArena::new();
+        let mut declarations = proof_admission::indexed_scheme(&mut arena);
+        let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
+        let mut proofs = prepare(&mut arena, &mut declarations, &mut theory)
+            .map_err(error)
+            .unwrap();
+        let ranks = proofs.rank_graph().map_err(error).unwrap();
+        let first_bodies = pred_comparison_bodies(
+            SymbolHandle::from_arena_index(1),
+            SymbolHandle::from_arena_index(2),
+        );
+        let positions = |bodies: &[SourceOrderBody]| {
+            bodies
+                .iter()
+                .enumerate()
+                .map(|(position, body)| (body.entry, position))
+                .collect::<symbols::SymbolKeyMap<_, _>>()
+        };
+        let first = proofs
+            .comparison_graph(&first_bodies, &positions(&first_bodies), &[0, 1])
+            .map_err(error)
+            .unwrap();
+        let first_returns = proofs
+            .source_return_schemas(
+                &ranks,
+                &first,
+                &first_bodies,
+                &positions(&first_bodies),
+                &[0, 1],
+            )
+            .map_err(error)
+            .unwrap();
+        proofs
+            .zero_comparison_schema(&ranks, &first, 2)
+            .map_err(error)
+            .unwrap();
+        let completed_prefix = proofs.declaration_count();
+
+        // Different source calls retain their own bodies and associations.
+        // Only their complete mathematical family and invariant are equal.
+        let second_bodies = pred_comparison_bodies(
+            SymbolHandle::from_arena_index(3),
+            SymbolHandle::from_arena_index(4),
+        );
+        let second = proofs
+            .comparison_graph(&second_bodies, &positions(&second_bodies), &[0, 1])
+            .map_err(error)
+            .unwrap();
+        assert_eq!(first.theorem, second.theorem);
+        assert_eq!(first.ty, second.ty);
+        assert_eq!(first.constructors, second.constructors);
+        assert_eq!(first.invariant, second.invariant);
+        assert_eq!(
+            proofs.declaration_count(),
+            completed_prefix,
+            "the checked family is not appended again"
+        );
+        let second_returns = proofs
+            .source_return_schemas(
+                &ranks,
+                &second,
+                &second_bodies,
+                &positions(&second_bodies),
+                &[0, 1],
+            )
+            .map_err(error)
+            .unwrap();
+        assert_eq!(second_returns.len(), first_returns.len());
+        assert_ne!(
+            second_returns, first_returns,
+            "source associations are constructed and checked again"
+        );
+        proofs
+            .zero_comparison_schema(&ranks, &second, 2)
+            .map_err(error)
+            .unwrap();
+        checked_signature(proofs.arena, proofs.declarations);
+
+        // Keep the same parameter and case roster, but return zero on the
+        // right-zero branch. A partial family match must not hide that error.
+        let mut changed = second_bodies;
+        changed[0].cases[0].outcome = SourceOutcome::Value(SourceOrderValue::Base);
+        assert!(matches!(
+            proofs.comparison_graph(&changed, &positions(&changed), &[0, 1]),
+            Err(GraphFailure::Unavailable(_))
+        ));
+    }
+
+    #[test]
+    fn family_lookup_checks_every_parameter_and_term_after_key_selection() {
+        let mut arena = TermArena::new();
+        let mut declarations = proof_admission::indexed_scheme(&mut arena);
+        let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
+        let mut proofs = prepare(&mut arena, &mut declarations, &mut theory)
+            .map_err(error)
+            .unwrap();
+        let rank = proofs.rank_graph().map_err(error).unwrap();
+        let completed = proofs
+            .families
+            .values()
+            .flat_map(|rows| rows.iter())
+            .find(|row| row.result.theorem == rank.theorem)
+            .unwrap()
+            .clone();
+        let model = &completed.model;
+        let mut changed = model.clone();
+        changed.common[0].0 = Key::Graph(99);
+        assert!(!model.matches(&changed, proofs.arena));
+        changed = model.clone();
+        changed.common[0].1 = proofs.function;
+        assert!(!model.matches(&changed, proofs.arena));
+        changed = model.clone();
+        changed.cases[1].payload[0].0 = Key::Graph(99);
+        assert!(!model.matches(&changed, proofs.arena));
+        changed = model.clone();
+        changed.cases[1].payload[0].1 = proofs.function;
+        assert!(!model.matches(&changed, proofs.arena));
+        changed = model.clone();
+        changed.cases[1].constraints = proofs.zero;
+        assert!(!model.matches(&changed, proofs.arena));
+        changed = model.clone();
+        changed.cases[1].child_indices[0] = proofs.zero;
+        assert!(!model.matches(&changed, proofs.arena));
+        changed = model.clone();
+        changed.description.levels[0] = proof_admission::Level::Constant(1);
+        assert!(!model.matches(&changed, proofs.arena));
+
+        let false_goal = proofs.le(proofs.one, proofs.zero);
+        let mut changed = model.clone();
+        changed.invariant = proofs.arena.insert(Term::Lambda {
+            domain: model.description.index,
+            body: false_goal,
+        });
+        let key = changed.key(proofs.arena).unwrap();
+        // Simulate a colliding lookup key. Exact model comparison must still
+        // reject the entry rather than lend its unrelated checked theorem.
+        proofs
+            .families
+            .entry(key)
+            .or_default()
+            .push(completed.clone());
+        assert!(matches!(
+            proofs.checked_family(&model.common, &model.cases, |_, _| false_goal),
+            Err(GraphFailure::Unavailable(_))
+        ));
+    }
+
+    #[test]
+    fn completed_family_reuse_does_not_escape_its_signature_preparation() {
+        let mut arena = TermArena::new();
+        let mut declarations = proof_admission::indexed_scheme(&mut arena);
+        let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
+        let first = {
+            let mut proofs = prepare(&mut arena, &mut declarations, &mut theory)
+                .map_err(error)
+                .unwrap();
+            proofs.rank_graph().map_err(error).unwrap()
+        };
+        // Releasing the exclusive borrow also releases its completed-family
+        // list. A later preparation cannot silently reuse a previous prefix.
+        declarations.push(Declaration::assumption(
+            0,
+            arena.insert(Term::Sort(proof_admission::Sort::Type(
+                proof_admission::Level::Constant(0),
+            ))),
+        ));
+        let prefix = declarations.len();
+        let mut next = prepare(&mut arena, &mut declarations, &mut theory)
+            .map_err(error)
+            .unwrap();
+        assert!(next.families.is_empty());
+        let second = next.rank_graph().map_err(error).unwrap();
+        assert_ne!(first.theorem, second.theorem);
+        assert!(next.declaration_count() > prefix);
+        checked_signature(next.arena, next.declarations);
     }
 }

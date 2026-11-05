@@ -35,6 +35,7 @@ pub enum Level {
 }
 
 mod levels;
+mod structural_hashes;
 pub(crate) use levels::{instantiate_level, levels_equal};
 
 /// Semantic sort equality: the layers agree (`Type` never converts to

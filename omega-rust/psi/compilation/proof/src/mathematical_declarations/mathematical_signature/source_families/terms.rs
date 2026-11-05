@@ -59,7 +59,7 @@ macro_rules! term {
     };
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) enum Key {
     Source(SymbolHandle),
     Internal(usize),
@@ -224,6 +224,7 @@ impl S {
     }
 }
 
+#[derive(Clone)]
 pub(super) struct Case<K = SymbolHandle> {
     pub payload: Vec<(K, TermHandle)>,
     /// Closed function of common fields then nonrecursive payload fields,

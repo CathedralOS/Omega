@@ -10,6 +10,7 @@ mod schemes_and_quotients;
 mod spine_chains;
 mod strict_layer;
 mod substitution_worklists;
+mod term_structure;
 mod type_checking;
 
 use crate::mathematical_core::{
