@@ -17,6 +17,58 @@ pub(crate) struct AssignmentObservationBatch<'input> {
     observations: Vec<AssignmentObservation>,
 }
 
+/// Read each root's assignments once for the current operand.
+/// The selected contexts belong to this reader, so the next operand prepares
+/// its own observations even when it uses the same place.
+pub(crate) struct RootAssignmentObservations<'input> {
+    program: &'input dyn ::validation::CheckingInput,
+    semantic: &'input FactPlan,
+    contexts: &'input [facts::FactContextHandle],
+    roots: Vec<(facts::PlaceRoot, AssignmentObservationBatch<'input>)>,
+}
+
+impl<'input> RootAssignmentObservations<'input> {
+    pub(crate) fn new(
+        program: &'input dyn ::validation::CheckingInput,
+        semantic: &'input FactPlan,
+        contexts: &'input [facts::FactContextHandle],
+    ) -> Self {
+        Self {
+            program,
+            semantic,
+            contexts,
+            roots: Vec::new(),
+        }
+    }
+
+    fn for_root(&mut self, root: facts::PlaceRoot) -> &AssignmentObservationBatch<'input> {
+        let position = match self.roots.iter().position(|(known, _)| *known == root) {
+            Some(position) => position,
+            None => {
+                let batch = AssignmentObservationBatch::prepare_for_root(
+                    self.program,
+                    self.semantic,
+                    self.contexts
+                        .iter()
+                        .map(|context| self.semantic.contexts.get(*context)),
+                    root,
+                );
+                self.roots.push((root, batch));
+                self.roots.len() - 1
+            }
+        };
+        &self.roots[position].1
+    }
+
+    pub(crate) fn scalar_value(&mut self, place: &CanonicalPlace) -> Option<ScalarValue> {
+        self.for_root(place.root).scalar_value(place)
+    }
+
+    pub(crate) fn integer_bounds(&mut self, place: &CanonicalPlace) -> Option<facts::IntegerRange> {
+        self.for_root(place.root).integer_bounds(place)
+    }
+}
+
 impl<'input> AssignmentObservationBatch<'input> {
     pub(crate) fn prepare<'context>(
         program: &'input dyn ::validation::CheckingInput,

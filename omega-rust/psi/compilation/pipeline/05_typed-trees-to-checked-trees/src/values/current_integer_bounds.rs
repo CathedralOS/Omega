@@ -4,7 +4,7 @@
 //! These consequences do not grant initialization, index formation or access.
 
 use super::scalar::structural_fields::resolve_structural_path;
-use super::snapshots::AssignmentObservationBatch;
+use super::snapshots::RootAssignmentObservations;
 use crate::published::facts::boolean_predicates::{self, BoundPredicate};
 use facts::{FactContextHandle, FactPlan, IntegerRange, PlaceSegment, ProgramPoint};
 use symbols::SymbolHandle;
@@ -24,7 +24,7 @@ pub(crate) struct CurrentIntegerBounds<'a> {
     predicates: Vec<(facts::PlaceRoot, Vec<BoundPredicate>)>,
     /// Repeated element and predicate reads share the exact selected root's
     /// assignments. The borrowed fact plan cannot change within this read.
-    assignments: Vec<(facts::PlaceRoot, AssignmentObservationBatch<'a>)>,
+    assignments: RootAssignmentObservations<'a>,
 }
 
 pub(crate) enum IntegerReadStep {
@@ -177,7 +177,7 @@ impl<'a> CurrentIntegerBounds<'a> {
             operators,
             point,
             predicates: Vec::new(),
-            assignments: Vec::new(),
+            assignments: RootAssignmentObservations::new(program, semantic, contexts),
         }
     }
 
@@ -266,57 +266,17 @@ impl<'a> CurrentIntegerBounds<'a> {
         hull
     }
 
-    fn assignment_batch<'query>(
-        program: &'a dyn validation::CheckingInput,
-        semantic: &'a FactPlan,
-        contexts: &[FactContextHandle],
-        assignments: &'query mut Vec<(facts::PlaceRoot, AssignmentObservationBatch<'a>)>,
-        root: facts::PlaceRoot,
-    ) -> &'query AssignmentObservationBatch<'a> {
-        let position = match assignments.iter().position(|(known, _)| *known == root) {
-            Some(position) => position,
-            None => {
-                let batch = AssignmentObservationBatch::prepare_for_root(
-                    program,
-                    semantic,
-                    contexts
-                        .iter()
-                        .map(|context| semantic.contexts.get(*context)),
-                    root,
-                );
-                assignments.push((root, batch));
-                assignments.len() - 1
-            }
-        };
-        &assignments[position].1
-    }
-
     fn exact(&mut self, place: &CanonicalPlace, primitive: PrimitiveType) -> Option<IntegerRange> {
         let rows = self.rows_position(place.root);
         let mut bounds = validation::carrier_integer_range(primitive)?;
-        if let Some(snapshot) = Self::assignment_batch(
-            self.program,
-            self.semantic,
-            self.contexts,
-            &mut self.assignments,
-            place.root,
-        )
-        .integer_bounds(place)
-        {
+        if let Some(snapshot) = self.assignments.integer_bounds(place) {
             bounds.minimum = bounds.minimum.max(snapshot.minimum);
             bounds.maximum = bounds.maximum.min(snapshot.maximum);
         }
         for predicate in &self.predicates[rows].1 {
             if let Some(consequence) =
                 predicate.integer_interval_at_place(place, primitive, |subject| {
-                    Self::assignment_batch(
-                        self.program,
-                        self.semantic,
-                        self.contexts,
-                        &mut self.assignments,
-                        subject.root,
-                    )
-                    .scalar_value(subject)
+                    self.assignments.scalar_value(subject)
                 })
             {
                 bounds.minimum = bounds.minimum.max(consequence.minimum);
