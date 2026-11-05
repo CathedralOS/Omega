@@ -814,17 +814,12 @@ impl TerminalExecution<'_> {
     ) -> Result<OperationFlow, TerminalInterpretError> {
         dispatched_operation!(operation => EstablishStructuralLocal {});
         let result = operation.result.structural().ok_or_else(malformed)?;
-        // A descriptor home may declare byte qualifications its stores prove.
-        let descriptor_home = matches!(
-            self.structural_types().get(&result.structural_type),
-            Some(declaration) if declaration.shape.is_borrowed_byte_view()
-        );
-        if !matches!(result.multiplicity, nonlinear_multiplicity_pair_pattern!())
-            || (!result.qualifications.is_empty() && !descriptor_home)
-            || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
-            || self.result_place_in_use(result.place)
-        {
+        terminal_semantics::validate_vacant_structural_local(
+            self.structural_types().values(),
+            result,
+        )
+        .map_err(|reason| TerminalInterpretError::VerifiedOperationContractInvalid { reason })?;
+        if self.result_place_in_use(result.place) {
             return Err(malformed());
         }
         self.structural_values.insert(
