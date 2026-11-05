@@ -763,6 +763,7 @@ struct InductionBuilder<'a, 'b, K> {
     reconstruction_equality: TermHandle,
     invariant: TermHandle,
     lemmas: &'b [TermHandle],
+    case_adapters: Vec<TermHandle>,
 }
 impl<K: Copy + Eq + Into<Key>> InductionBuilder<'_, '_, K> {
     fn reconstructed_label(&mut self, label: S) -> S {
@@ -849,12 +850,24 @@ impl<K: Copy + Eq + Into<Key>> InductionBuilder<'_, '_, K> {
         }
         lam(ih, hypotheses, body)
     }
+    fn case_application(&self, case: usize, payload: S) -> Result<S, &'static str> {
+        let adapter = self
+            .case_adapters
+            .get(case)
+            .copied()
+            .ok_or("the source induction case has no checked adapter")?;
+        let mut body = S::Closed(adapter);
+        for (symbol, _) in self.b.common {
+            body = app(body, S::Var((*symbol).into()));
+        }
+        Ok(app(body, payload))
+    }
     fn eliminate(&mut self, start: usize, value: S) -> Result<S, &'static str> {
         if start >= self.b.cases.len() {
             return Err("source induction cannot eliminate an empty constructor roster");
         }
         if start + 1 == self.b.cases.len() {
-            return Ok(self.case_body(start, value));
+            return self.case_application(start, value);
         }
         let tag = self.b.terms.fresh();
         let payload = self.b.terms.fresh();
@@ -865,7 +878,7 @@ impl<K: Copy + Eq + Into<Key>> InductionBuilder<'_, '_, K> {
         let result = self.result_type(start, pair(S::Var(tag), S::Var(payload)));
         let motive = lam(tag, S::Two, pi(payload, payload_type, result));
         let z = self.b.terms.fresh();
-        let zero_body = self.case_body(start, S::Var(z));
+        let zero_body = self.case_application(start, S::Var(z))?;
         let zero = lam(z, zero_type, zero_body);
         let o = self.b.terms.fresh();
         let one_body = self.eliminate(start + 1, S::Var(o))?;
@@ -978,9 +991,9 @@ pub(super) fn induction<K: Copy + Eq + Into<Key>>(
     lemmas: &[TermHandle],
     declarations: &mut Vec<Declaration>,
     type_parameters: &[K],
-) -> Result<(TermHandle, TermHandle, TermHandle, TermHandle), &'static str> {
+) -> Result<(TermHandle, TermHandle, TermHandle, TermHandle), String> {
     if cases.len() != lemmas.len() {
-        return Err("source induction lemma roster differs from its exact cases");
+        return Err("source induction lemma roster differs from its exact cases".into());
     }
     fn retain(
         arena: &mut TermArena,
@@ -1063,7 +1076,52 @@ pub(super) fn induction<K: Copy + Eq + Into<Key>>(
         reconstruction_equality: TermHandle::default(),
         invariant,
         lemmas,
+        case_adapters: Vec::with_capacity(cases.len()),
     };
+    // Each source case applies the same predicate and child hypotheses in
+    // several dependent motives. Check that application once at its exact
+    // payload type; the branch eliminator can then use its declared type
+    // without repeatedly rebuilding the whole case application.
+    for case in 0..cases.len() {
+        let payload = producer.b.terms.fresh();
+        let domain = producer.b.payload_type(case);
+        let value = S::Var(payload);
+        let body = producer.case_body(case, value.clone());
+        let sum_value = if case + 1 == cases.len() {
+            value
+        } else {
+            pair(S::Zero, value)
+        };
+        let result = producer.result_type(case, sum_value);
+        let mut body = lam(payload, domain.clone(), body);
+        let mut ty = pi(payload, domain, result);
+        for (symbol, reference) in common.iter().rev() {
+            body = lam(
+                (*symbol).into(),
+                producer.b.domain(*symbol, *reference),
+                body,
+            );
+            ty = pi((*symbol).into(), producer.b.domain(*symbol, *reference), ty);
+        }
+        let body = body.term(arena, &mut Vec::new())?;
+        let ty = ty.term(arena, &mut Vec::new())?;
+        let context = proof_admission::Context::empty().with_signature(
+            proof_admission::Signature::from_declarations(declarations.clone()),
+        );
+        proof_admission::check_type(
+            arena,
+            &context,
+            body,
+            ty,
+            &mut proof_admission::Budget::new(proof_admission::DEFAULT_CONVERSION_STEPS),
+        )
+        .map_err(|error| {
+            format!("source induction case {case} adapter fails kernel checking: {error:?}")
+        })?;
+        producer
+            .case_adapters
+            .push(retain(arena, declarations, ty, body));
+    }
     // Check typed dependent-pair eta once at the actual label carrier. The
     // case adapter then transports its already proved result along this
     // ordinary equality, rather than repeatedly comparing the reconstructed
