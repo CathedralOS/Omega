@@ -117,7 +117,6 @@ pub(crate) fn build_checked_machine_residual_parts(
     trace.phase("signature: parameter storage");
     let parameter_storage =
         parameter_storage_plans(program, shapes, state, &binders, &scalar_parameters)?;
-    let attachment_type_identity = None::<typed_trees::type_identity::TypeIdentityId>;
     trace.phase("state contracts");
     if !checked_state_contracts_have_plan(
         program,
@@ -368,7 +367,6 @@ pub(crate) fn build_checked_machine_residual_parts(
             structural_result,
             machine: machine.symbol,
             state: state.symbol,
-            attachment_type_identity,
             structural_parameters,
             scalar_parameters,
             parameter_storage,

@@ -366,6 +366,42 @@ pub(in crate::lowering) fn catalog(
                                 sources.push(Source::Provider(effects.provider_origin(&provider)
                                     .ok_or("stored-reference provider origin is unresolved")?));
                             }
+                            // An exact contents query with no further projection is
+                            // the incoming pointer at that query. The caller
+                            // already holds that leaf, so the stored effect
+                            // can retarget it.
+                            DescriptorStoredOrigin::IncomingContents {
+                                position,
+                                steps,
+                                projection,
+                            } if projection.exact
+                                && !projection.indirect
+                                && projection.path.is_empty()
+                                && projection.window.is_none()
+                                && projection.captured_at.is_none() =>
+                            {
+                                let parameter = function.structural_parameters.get(position)
+                                    .ok_or("stored-reference contents parameter is unavailable")?;
+                                let query_path = steps
+                                    .iter()
+                                    .map(|step| match step {
+                                        terminal_semantics::descriptor_lifetimes::DescriptorContentsStep::Address(segment) => {
+                                            Some(segment.clone())
+                                        }
+                                        terminal_semantics::descriptor_lifetimes::DescriptorContentsStep::AnyElement { .. } => None,
+                                    })
+                                    .collect::<Option<Vec<_>>>()
+                                    .ok_or("stored-reference contents query has an unbounded element")?;
+                                sources.push(Source::Incoming(StructuralArgument {
+                                    place: parameter.place,
+                                    path: descriptor_path(
+                                        types.catalog(),
+                                        parameter.structural_type,
+                                        &query_path,
+                                    ).ok_or("stored-reference contents path has no typed storage")?,
+                                    access: parameter.access,
+                                }));
+                            }
                             DescriptorStoredOrigin::Invocation { .. } => return Err("stored-reference invocation origin has no physical metadata conversion"),
                             DescriptorStoredOrigin::IncomingContents { .. } => return Err("stored-reference captured incoming contents have no physical metadata conversion"),
                             DescriptorStoredOrigin::Literal { .. } => return Err("stored-reference literal origin has no physical metadata conversion"),

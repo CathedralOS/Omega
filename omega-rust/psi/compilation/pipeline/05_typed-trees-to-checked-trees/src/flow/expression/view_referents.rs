@@ -1021,6 +1021,36 @@ impl Execution<'_, '_, '_> {
         self.context.control.operand_referents.insert_many(returned)
     }
 
+    /// Every covered arm must supply its completed descriptor. Keep formation
+    /// identity with the address; equal paths can have different load obligations.
+    pub(super) fn capture_alternative_referents(
+        &mut self,
+        alternatives: HandleSpan<checked_trees::FlowOperandAlternative>,
+    ) -> HandleSpan<FlowOperandReferent> {
+        let Some(alternatives) = self.context.control.operand_alternatives.span(alternatives)
+        else {
+            return HandleSpan::empty();
+        };
+        if alternatives.is_empty() {
+            return HandleSpan::empty();
+        }
+        let mut places = Vec::new();
+        for alternative in alternatives {
+            if !alternative.source_arm.is_valid()
+                || !self.context.control.operands.is_valid(alternative.value)
+            {
+                return HandleSpan::empty();
+            }
+            let value = self.context.control.operands.get(alternative.value);
+            let captured = self.captured_reference_places(value.referents);
+            if captured.is_empty() {
+                return HandleSpan::empty();
+            }
+            places.extend(captured);
+        }
+        self.append_captured_references(&places)
+    }
+
     /// Read the completed value installed by a reaching store. A matching
     /// unresolved capture or an intervening replacement is authoritative:
     /// neither may fall back to the declaration's initializer.

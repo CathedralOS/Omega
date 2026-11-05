@@ -682,14 +682,9 @@ pub(crate) fn build_checked_unit_effect_plans(
     let mut retained_type_identities = boundary_machines
         .iter()
         .flat_map(|plan| {
-            plan.attachment_type_identity
+            plan.structural_parameters
                 .iter()
-                .copied()
-                .chain(
-                    plan.structural_parameters
-                        .iter()
-                        .map(|parameter| parameter.type_identity),
-                )
+                .map(|parameter| parameter.type_identity)
                 .chain(plan.result.structural_identity())
         })
         .chain(calling_signatures.iter().filter_map(|row| row.storage.as_ref().ok()).flat_map(|storage| storage.type_roots()))
@@ -700,14 +695,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                 .chain(plan.result.structural_identity())
         }))
         .chain(candidates.iter().chain(partial_affine_machines.iter().map(|plan| &plan.machine)).flat_map(|plan| {
-            plan.attachment_type_identity
+            plan.structural_parameters
                 .iter()
-                .copied()
-                .chain(
-                    plan.structural_parameters
-                        .iter()
-                        .map(|parameter| parameter.type_identity),
-                )
+                .map(|parameter| parameter.type_identity)
                 .chain(
                     plan.parameter_storage
                         .iter()
@@ -740,10 +730,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                 )
         }))
         .chain(composed_machines.iter().flat_map(|plan| {
-            plan.attachment_type_identity
-                .iter()
-                .copied()
-                .chain(plan.result.structural_identity())
+            plan.result
+                .structural_identity()
+                .into_iter()
                 .chain(
                     plan.states
                         .iter()

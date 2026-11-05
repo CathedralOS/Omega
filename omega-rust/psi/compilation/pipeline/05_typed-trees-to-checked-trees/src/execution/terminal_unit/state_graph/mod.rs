@@ -22,15 +22,14 @@ use super::{
 };
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::calls::{
-    entry_claims, free_structural_scalar_entry_signature_traced, structural_scalar_signature_traced,
+    entry_claims, free_structural_scalar_entry_signature_traced,
 };
 use crate::execution::terminal_unit::structural_value_calls::PreparedCalls;
 use crate::execution::terminal_unit::types::erased_proof_parameter_plans;
 use crate::execution::terminal_unit::types::erased_scalar_parameter_plans;
 use crate::execution::terminal_unit::types::parameter_storage_plans;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, fold_parameter_entry_domains, machine_binders,
-    retain_parameter_arrival_domains, state_flow,
+    ShapeCollector, machine_binders, retain_parameter_arrival_domains, state_flow,
 };
 use crate::execution::terminal_unit::{composed_control, control};
 use crate::values::lower_state_declared_range_predicate;
@@ -158,7 +157,6 @@ pub(super) fn build_traced(
     let _sig_guard = phase_profile::guard(
         "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.signatures",
     );
-    let mut attachment = None;
     let mut signatures = Vec::new();
     let mut state_entry_claims = Vec::new();
     let mut state_requires = Vec::new();
@@ -278,21 +276,8 @@ pub(super) fn build_traced(
         );
         state_requires.push(requires);
         trace.phase("state graph: state signature: parameter signature");
-        let (mut structural, scalar) = if owner.attached_data.is_some() {
-            let (identity, mut structural, scalar) =
-                structural_scalar_signature_traced(program, shapes, state, &[], trace)?;
-            // One graph can publish only one attachment identity. Static
-            // qualification contributes no attachment storage.
-            if attachment.is_some() && attachment != identity {
-                trace.phase("state graph: state signature: fused attachment differs");
-                return None;
-            }
-            attachment = attachment.or(identity);
-            fold_parameter_entry_domains(program, shapes, state.symbol, &[], &mut structural)?;
-            (structural, scalar)
-        } else {
-            free_structural_scalar_entry_signature_traced(program, shapes, state, &[], trace)?
-        };
+        let (mut structural, scalar) =
+            free_structural_scalar_entry_signature_traced(program, shapes, state, &[], trace)?;
         trace.phase("state graph: state signature: entry domains");
         if let Err(reason) =
             retain_parameter_arrival_domains(program, facts, shapes, owner, state, &mut structural)
@@ -700,10 +685,9 @@ pub(super) fn build_traced(
         }
     }
     trace.phase("state graph: finish");
-    let mut plan =
-        composed_control::finish_state_graph(program, facts, machine, attachment, planned)
-            .map_err(|reason| trace.phase(reason))
-            .ok()?;
+    let mut plan = composed_control::finish_state_graph(program, facts, machine, planned)
+        .map_err(|reason| trace.phase(reason))
+        .ok()?;
     plan.natural_ranks = natural_ranks;
     plan.rank_components = rank_components;
     plan.preserving_rank_edges = preserving_rank_edges;

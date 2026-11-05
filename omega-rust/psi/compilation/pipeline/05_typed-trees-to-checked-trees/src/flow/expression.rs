@@ -1688,22 +1688,20 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 // Its natural reference type is not a second outer read after
                 // an arm already produced an owned primitive observation.
                 *formed_type = destination;
-                *completion = checked_trees::FlowOperandCompletion::Selected(self.dispatch(
-                    expression,
-                    *dispatch,
-                    destination,
-                    contexts,
-                    constraints,
-                ));
-                *retention = Some(self.capture_alternative_retention(
-                    expression,
-                    match *completion {
-                        checked_trees::FlowOperandCompletion::Selected(alternatives) => {
-                            alternatives
-                        }
-                        _ => unreachable!("match completion is selected"),
-                    },
-                ));
+                let alternatives =
+                    self.dispatch(expression, *dispatch, destination, contexts, constraints);
+                *completion = checked_trees::FlowOperandCompletion::Selected(alternatives);
+                // These are the arm values already evaluated at their own cuts.
+                // A later source lookup could see a replacement descriptor.
+                let binds_view = if destination.is_valid() {
+                    self.is_view_type(destination)
+                } else {
+                    self.operand_is_view(expression)
+                };
+                if binds_view {
+                    *referents = Some(self.capture_alternative_referents(alternatives));
+                }
+                *retention = Some(self.capture_alternative_retention(expression, alternatives));
                 return None;
             }
             ExpressionNode::Boolean(value) => return Some(*value),
@@ -2312,12 +2310,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         expression: ExpressionHandle,
         constraints: HandleSpan<FlowConstraintRef>,
     ) -> Handle<checked_trees::FlowCaseAccessFact> {
-        let Some(place) = place_at(
-            self.program,
-            self.state.symbol,
-            self.statement_index,
-            expression,
-        ) else {
+        // A selected payload copy keeps its own case even after its old home
+        // changes. Address formation still asks for the live source place.
+        let Some(place) = self.completed_read_place(expression) else {
             return Handle::invalid();
         };
         let places = self.append_referent_places(&[place]);

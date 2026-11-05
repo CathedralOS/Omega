@@ -967,6 +967,41 @@ pub(in crate::flow) fn append_match_pattern_context(
                 active_contexts,
                 active_constraints,
             );
+            // The caller has checked writes since the subject was evaluated.
+            // Publish on its source only if that read still names live storage;
+            // an older completed copy cannot establish the source's current case.
+            let source =
+                build.canonical_place_at(program, state_symbol, statement_index, dispatch.subject);
+            let observed = build.completed_read_place_at(
+                program,
+                state_symbol,
+                statement_index,
+                dispatch.subject,
+            );
+            if alias.is_valid()
+                && dispatch.subject.is_valid()
+                && alias != dispatch.subject
+                && source.is_some()
+                && observed == source
+            {
+                append_observation_context(
+                    program,
+                    semantic,
+                    build,
+                    state_symbol,
+                    statement_index,
+                    &[dispatch.subject],
+                    &[],
+                    FactPayload::CaseValue {
+                        variant: case,
+                        value: true,
+                    },
+                    point,
+                    FactOrigin::TransitionGuard,
+                    active_contexts,
+                    active_constraints,
+                );
+            }
         }
     }
     let Some((subject, pattern, matched)) = payload.match_pattern_comparison(program) else {
