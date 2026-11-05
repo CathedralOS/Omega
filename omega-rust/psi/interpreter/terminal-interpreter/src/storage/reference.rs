@@ -1543,11 +1543,20 @@ impl TerminalExecution<'_> {
                 )
             })
             .unwrap_or(argument.path.len())];
-        self.validate_complete_owned_value_claims(
-            argument.place,
-            self.live_structural_type(argument.place)?,
-            owned_prefix,
-        )?;
+        let machine = self.program.verified_machine(self.current_machine)?;
+        let caller_owned_borrow = argument.access != StructuralAccess::Owned
+            && terminal_semantics::arrival_parameter(machine, argument.place)
+                .is_some_and(|parameter| parameter.access != StructuralAccess::Owned);
+        if !caller_owned_borrow {
+            self.validate_complete_owned_value_claims(
+                argument.place,
+                self.live_structural_type(argument.place)?,
+                owned_prefix,
+            )?;
+        }
+        // Borrowed ingress may lend the caller's resident value without
+        // acquiring its claims in this frame. This exemption applies only to
+        // a borrowed presentation, never to owned transport or return.
         let projected = self.resolve_live_projection_with_leaf_type(
             argument.place,
             &argument.path,

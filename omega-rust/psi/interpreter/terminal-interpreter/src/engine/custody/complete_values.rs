@@ -4,7 +4,7 @@
 use crate::boundary::errors::{TerminalInterpretError, malformed};
 use crate::engine::execution::TerminalExecution;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
-use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
+use terminal_psi::{StructuralMultiplicity, StructuralPathSegment};
 
 impl TerminalExecution<'_> {
     pub(crate) fn validate_complete_owned_value_claims(
@@ -13,15 +13,6 @@ impl TerminalExecution<'_> {
         structural_type: StructuralTypeId,
         region: &[StructuralPathSegment],
     ) -> Result<(), TerminalInterpretError> {
-        let machine = self.program.verified_machine(self.current_machine)?;
-        if terminal_semantics::arrival_parameter(machine, place)
-            .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
-        {
-            // A descriptor returned from borrowed ingress retains caller-owned
-            // backing. Its existing return/loan check owns that authority;
-            // this frame did not acquire the caller's nominal claims.
-            return Ok(());
-        }
         let root = self.structural_value(place)?;
         if root.structural_type != structural_type {
             return Err(malformed());
