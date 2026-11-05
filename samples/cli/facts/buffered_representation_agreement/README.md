@@ -82,20 +82,20 @@ also execute at native 0 and Terminal 0 in this run. Their precondition and
 runtime-service refusal controls reject. Four hosted Build entries are authored;
 these runtime observations are Linux x86-64 only.
 
-The PR remains unfinished. Two additional storage programs still return native
-0 but decline in Terminal Psi: a qualified write-only array and a reference into
-a byte view. Separate rebinding and nominal-cleanup controls also need precise
-baseline attribution. None of those failures is recorded as passing. The latest
-failure-only diagnostics retain the supplying reference contracts and failed
-operation name; they do not change any execution verdict.
+Four additional storage controls remain separate repairs. The qualified-array
+and byte-view element programs return native 0 but decline in Terminal Psi;
+reference rebinding fails during lowering, and nominal cleanup fails native
+legalization. [Fixed-base comparison 41922376454](https://github.com/CathedralOS/Omega/actions/runs/41922376454)
+reproduces all four on exact base
+`b750758f9e4f2981abf643595b2f099752172e56`, at the same stages and operations.
+Their complete diagnostics match; the array comparison removes only the later
+outer diagnostic field `storage=None`. No failed positive from that comparison
+is recorded as passing. The failure diagnostics retain the supplying reference
+contracts and operation name for the next repair.
 
 The [original valid-source baseline](https://github.com/CathedralOS/Omega/actions/runs/41546898552)
 and [earlier compiler repairs](https://github.com/CathedralOS/Omega/pull/1562)
-retain the original diagnostics. [Comparison 41772865951](https://github.com/CathedralOS/Omega/actions/runs/41772865951)
-and [comparison 41774777402](https://github.com/CathedralOS/Omega/actions/runs/41774777402)
-attribute six earlier failures to fixed main
-`db92349b9c2ef6e6e3705372ba6754b3e70e4874`. Those historical observations are
-separate from current execution evidence. The full standard Representation
+retain the earlier contract failures. The full standard Representation
 interface, reflection adapters and other hosts remain parent work.
 
 The programs exercise the following obligations. The parent task retains the
