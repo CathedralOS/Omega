@@ -24,6 +24,7 @@ use crate::emission::structural_byte_sequence_store::literal_view_type;
 use crate::expression_preparation::bindings::structural_paths::terminal_access;
 use crate::expression_preparation::computation_graph::reachable_structural_values;
 use crate::expression_preparation::computation_graph::value_call_operations;
+use crate::expression_preparation::structural_value_requirements::ReferenceContractCatalog;
 use crate::expression_preparation::structural_value_requirements::collect_operation_requirements;
 use crate::expression_preparation::structural_value_requirements::collect_value_requirements;
 use crate::machine_lowering::declarations::semantic_identity;
@@ -1060,6 +1061,7 @@ pub(super) fn lower_unit_structural_domains(
     ),
     LoweringError,
 > {
+    let reference_contracts = ReferenceContractCatalog::new(checked);
     let mut selected = Vec::new();
     let sources = plans.source_machines(checked, closure)?;
     for (_, region) in checked.facts.flow.ownership.loan_completions.iter() {
@@ -1131,7 +1133,13 @@ pub(super) fn lower_unit_structural_domains(
         }
         for (state, operation) in body.operations_with_states() {
             let (owner, _) = state_declaration(checked, state)?;
-            collect_operation_requirements(checked, owner.symbol, operation, &mut selected)?;
+            collect_operation_requirements(
+                checked,
+                owner.symbol,
+                operation,
+                &mut selected,
+                Some(&reference_contracts),
+            )?;
         }
         for domain in body
             .structural_parameters()
@@ -1194,7 +1202,13 @@ pub(super) fn lower_unit_structural_domains(
     // including the complete membership roster checked on each produced value.
     for source in sources {
         for value in reachable_structural_values(checked, source)? {
-            collect_value_requirements(checked, source, value, &mut selected)?;
+            collect_value_requirements(
+                checked,
+                source,
+                value,
+                &mut selected,
+                Some(&reference_contracts),
+            )?;
         }
     }
     for (boundary, _) in boundaries {

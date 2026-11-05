@@ -28,7 +28,7 @@ pub(crate) fn type_requirements(
         // as a named local does. Retain the walk's literal-carrier requirement
         // before emitters borrow this catalog; the receiving call's signature
         // cannot describe intermediate inputs of nested producers.
-        literal_view |= collect_value_requirements(checked, machine, value, &mut Vec::new())?;
+        literal_view |= collect_value_requirements(checked, machine, value, &mut Vec::new(), None)?;
     }
     let plans = &checked.facts.values.scalar_computations;
     for handle in super::machine_computation_handles(checked, machine)? {

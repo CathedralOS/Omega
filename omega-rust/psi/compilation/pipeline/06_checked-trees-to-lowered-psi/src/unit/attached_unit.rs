@@ -349,6 +349,7 @@ pub(crate) fn lower_unit_closure(
                 *machine_symbol,
                 operation,
                 &mut Vec::new(),
+                None,
             )? {
                 crate::emission::structural_byte_sequence_store::literal_view_type(identities, &mut structural_types)?;
             }
