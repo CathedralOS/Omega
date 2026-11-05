@@ -115,17 +115,9 @@ impl<'execution> ConstructorValue<'execution> {
             // home. It needs the same constructor transaction as other payloads.
             return Ok(None);
         }
-        // A fixed `u8` array keeps one byte backing. Rewriting it as scalar
-        // cells would leave that backing on the source identity, so a later
-        // byte view of the stored local finds no payload.
-        if terminal_semantics::fixed_byte_extent(
-            execution.structural_types().values(),
-            self.structural_type(),
-        )
-        .is_some()
-        {
-            return Ok(None);
-        }
+        // New homes are installed by the store's constructor transaction.
+        // Replacement instead writes through each original endpoint, including
+        // a byte array pinned in a suspended caller's activation.
         let mut writes = crate::storage::primitive_storage::PrimitiveStorageWrites::default();
         let supported =
             self.visit_scalar_leaves(execution, source, |selectors, scalar_type, value| {

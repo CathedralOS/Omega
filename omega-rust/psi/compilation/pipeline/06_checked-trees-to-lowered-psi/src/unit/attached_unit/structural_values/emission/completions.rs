@@ -301,6 +301,9 @@ impl Emission<'_, '_, '_> {
             continuation.common_claims = Some(claims);
         }
         self.join_memberships(&structural_arguments, continuation)?;
+        self.operations
+            .reference_backings
+            .forward(&structural_arguments[0], continuation.place)?;
         let edge = self.edge(
             continuation.block,
             self.values.iter().map(|value| value.id).collect(),

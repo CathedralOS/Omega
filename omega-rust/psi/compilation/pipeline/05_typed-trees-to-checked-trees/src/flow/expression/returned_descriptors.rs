@@ -69,17 +69,25 @@ impl Execution<'_, '_, '_> {
         completion: FlowOperandCompletion,
     ) -> Option<Handle<FlowOperandFact>> {
         let target = validation::call_target_symbol(self.program, call);
-        let state = validation::call_target_state(self.program, target)?;
+        // A slot with one admitted implementation has an ordinary checked
+        // body. Its data parameters exclude the selector that the call still
+        // evaluates first. The original call retains its public lifetime debts.
+        let (state, argument_offset) =
+            if let Some(slot) = self.program.dynamic_slot_by_symbol(target) {
+                (validation::unique_dispatched_entry(self.program, slot)?, 1)
+            } else {
+                (validation::call_target_state(self.program, target)?, 0)
+            };
         let parameters = self.program.state_parameters(state);
+        let arguments = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments)
+            .get(argument_offset..)?;
         let sources = self
             .context
             .call_frames?
-            .reference_result_leaf_origins_for_arguments(
-                state.symbol,
-                self.program
-                    .expression_table
-                    .expression_handles(call.arguments),
-            )?;
+            .reference_result_leaf_origins_for_arguments(state.symbol, arguments)?;
         // Selector expressions belong to the callee. Erase them the same way
         // the returned loan does, keeping element versus window shape, so the
         // descriptor and the loan name one captured place.
@@ -130,7 +138,7 @@ impl Execution<'_, '_, '_> {
                 .all(super::super::place_segment_has_static_identity);
             let position =
                 typed_trees::signature::state_parameter_position(parameters, source.source.root)?;
-            inputs.get(position)?;
+            inputs.get(position + argument_offset)?;
             let FlowOperandCompletion::InvocationResult { invocation, .. } = completion else {
                 return None;
             };
@@ -141,7 +149,7 @@ impl Execution<'_, '_, '_> {
                 .get(invocation)
                 .argument_operands()
                 .handles()
-                .nth(position)?;
+                .nth(position + argument_offset)?;
             let values =
                 self.call_backing_values(actual, &source.source, reference, source_snapshot)?;
             for (operand, projection) in values {

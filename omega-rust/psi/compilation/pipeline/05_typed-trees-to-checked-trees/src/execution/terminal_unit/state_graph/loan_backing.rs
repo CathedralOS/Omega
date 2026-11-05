@@ -215,7 +215,7 @@ pub(super) fn retained_storage(
         {
             // A completed descriptor requires its whole invocation resource.
             // Missing resolution is not evidence of caller-owned storage.
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if std::env::var_os("OMEGA_STATE_REFERENCE_DIAGNOSTICS").is_some() {
                 eprintln!(
                     "CHECKSITE state reference resource missing: machine={machine:?} state={state:?} call={call_handle:?} operand={operand:?} type={:?} expression={:?} completion={:?} permission={:?}",
                     capture.type_reference,
@@ -223,6 +223,17 @@ pub(super) fn retained_storage(
                     capture.completion,
                     capture.descriptor_permission,
                 );
+                if facts
+                    .flow
+                    .control
+                    .operand_retentions
+                    .is_valid(capture.retention)
+                {
+                    eprintln!(
+                        "CHECKSITE state reference retention: {:?}",
+                        facts.flow.control.operand_retentions.get(capture.retention),
+                    );
+                }
                 for (_, row) in records
                     .call_resources(call_handle, machine, state)
                     .into_iter()
