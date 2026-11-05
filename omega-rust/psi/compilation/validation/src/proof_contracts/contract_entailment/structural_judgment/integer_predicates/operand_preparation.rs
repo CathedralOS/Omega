@@ -26,6 +26,7 @@ impl StructuralJudge<'_> {
         value: &StructuralTerm,
         observations: &'observations mut IntegerObservations<'_>,
     ) -> Option<&'observations mut PreparedIntegerOperand> {
+        let _profile = phase_profile::guard("psi.05.numeric.operands.lookup");
         // A dependency collector needs the actual reads, even if an earlier
         // question in this batch already computed the same description.
         if self.has_resolution_dependency_collector() {
@@ -56,6 +57,7 @@ impl StructuralJudge<'_> {
         value: StructuralTerm,
         observations: &mut IntegerObservations<'_>,
     ) -> StructuralTerm {
+        let _profile = phase_profile::guard("psi.05.numeric.operands.resolve");
         let Some(operand) = self.operand_preparation(&value, observations) else {
             return self.integer_projection_value(value);
         };
@@ -70,6 +72,7 @@ impl StructuralJudge<'_> {
         value: &StructuralTerm,
         observations: &mut IntegerObservations<'_>,
     ) -> StructuralTerm {
+        let _profile = phase_profile::guard("psi.05.numeric.operands.identity");
         let Some(operand) = self.operand_preparation(value, observations) else {
             return self.completed_value_identity(value.clone());
         };
@@ -84,6 +87,7 @@ impl StructuralJudge<'_> {
         value: &StructuralTerm,
         observations: &mut IntegerObservations<'_>,
     ) -> Option<CompletedCall> {
+        let _profile = phase_profile::guard("psi.05.numeric.operands.call");
         let Some(operand) = self.operand_preparation(value, observations) else {
             return self.completed_integer_call(value);
         };
@@ -99,6 +103,7 @@ impl StructuralJudge<'_> {
         primitive: PrimitiveType,
         observations: &mut IntegerObservations<'_>,
     ) -> Option<(StructuralTerm, ArithmeticDomain)> {
+        let _profile = phase_profile::guard("psi.05.numeric.operands.observation");
         let Some(operand) = self.operand_preparation(value, observations) else {
             return self.completed_scalar_observation(value, primitive);
         };

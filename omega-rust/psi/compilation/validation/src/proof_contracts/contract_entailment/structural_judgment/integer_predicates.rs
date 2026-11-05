@@ -1619,7 +1619,9 @@ impl<'program> StructuralJudge<'program> {
     fn prepare_integer_premises(&self) -> Option<PreparedIntegerPremises<'program>> {
         let mut observations = IntegerObservations::empty(self.program);
         observations.operand_preparations = Some(Vec::new());
-        let mut premises = self.project_observed_integer_premises(&mut observations);
+        let mut premises = phase_profile::scope("psi.05.numeric.prove.prep.project", || {
+            self.project_observed_integer_premises(&mut observations)
+        });
         // Descriptions belong to this immutable judge invocation. The retained
         // premise owner and its reusable goal scratch must not retain them.
         observations.operand_preparations = None;
@@ -1637,10 +1639,12 @@ impl<'program> StructuralJudge<'program> {
                 goal_work: std::sync::Mutex::new(None),
             });
         }
-        if !observations.install_premises(&mut premises.comparisons)
-            || !premises.comparisons.is_empty()
-            || !observations.admitted(0..observations.operations.len())
-        {
+        let admitted = phase_profile::scope("psi.05.numeric.prove.prep.install_and_admit", || {
+            observations.install_premises(&mut premises.comparisons)
+                && premises.comparisons.is_empty()
+                && observations.admitted(0..observations.operations.len())
+        });
+        if !admitted {
             return None;
         }
         // The engine retains the laws of these independently formed operations.
