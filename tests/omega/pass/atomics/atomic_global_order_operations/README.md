@@ -52,7 +52,9 @@ shared references, incompatible recasts and invalid orderings. The write-only
 stored-pointer control rejects reference formation before any observation. It
 supplies no observed read result.
 
-Records keep actual source stamps. The Linux combined record file remains
+Records keep actual source stamps. The nine unchanged refusal records retain
+their incoming measurements; fresh checks remain in the raw report. The Linux
+combined record file remains
 absent; its full report is retained separately. The Linux native record uses
 its genuine native-only probe at `2bb67af4e82e`. Other native-only pins retain
 their original lane. The first `af33106a1e7` workflow attempt passed the

@@ -5916,23 +5916,23 @@ fail/facts/atomic_bounded_fetch/parameter rejected 906ms expected @d322ce056e15
 	machine `main` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/atomic_bounded_fetch/target_body rejected 937ms expected @d322ce056e15
 	machine `main` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/call_result rejected 1087ms expected @af33106a1e73
+fail/facts/atomic_bounded_resident/call_result rejected 11270ms expected @46cdd6b85b82+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/const_name rejected 1073ms expected @af33106a1e73
+fail/facts/atomic_bounded_resident/const_name rejected 8011ms expected @46cdd6b85b82+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/field rejected 1082ms expected @af33106a1e73
+fail/facts/atomic_bounded_resident/field rejected 11292ms expected @46cdd6b85b82+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/local rejected 1095ms expected @af33106a1e73
+fail/facts/atomic_bounded_resident/local rejected 8528ms expected @46cdd6b85b82+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/match_join rejected 1092ms expected @af33106a1e73
+fail/facts/atomic_bounded_resident/match_join rejected 5748ms expected @46cdd6b85b82+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/other_machine rejected 1132ms expected @af33106a1e73
+fail/facts/atomic_bounded_resident/other_machine rejected 6836ms expected @46cdd6b85b82+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/other_state rejected 1141ms expected @af33106a1e73
+fail/facts/atomic_bounded_resident/other_state rejected 6771ms expected @46cdd6b85b82+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/parameter rejected 1088ms expected @af33106a1e73
+fail/facts/atomic_bounded_resident/parameter rejected 7570ms expected @46cdd6b85b82+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/target_body rejected 1073ms expected @af33106a1e73
+fail/facts/atomic_bounded_resident/target_body rejected 6963ms expected @46cdd6b85b82+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/atomic_compare_exchange_once_composition_rejected rejected 317ms expected @1ee74504bebf
 	tests/omega/fail/facts/atomic_compare_exchange_once_composition_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
