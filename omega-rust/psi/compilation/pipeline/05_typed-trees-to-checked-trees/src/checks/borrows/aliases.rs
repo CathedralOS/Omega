@@ -1,6 +1,7 @@
 //! Local reference operands rejoin retained storage before overlap comparison.
 //! A captured place does not grant ancestry: only receivers with independently
 //! retained lineage may exempt their own parent loans from interference.
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowFacts, BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment, StateBorrowFact,
@@ -27,13 +28,13 @@ impl ResolvedAlias {
     /// replacement, another leaf or a child descriptor is a different occurrence.
     pub(in crate::checks::borrows) fn retains_loan(
         &self,
-        program: &dyn validation::CheckingInput,
         facts: &CheckFacts,
+        loan_occurrences: &LoanOccurrences<'_>,
         handle: Handle<BorrowLoanFact>,
     ) -> bool {
         self.lineage.iter().any(|ancestor| {
-            same_descriptor(program, facts, *ancestor, handle)
-                || retains_lifetime_dependency(program, facts, *ancestor, handle)
+            same_descriptor(facts, loan_occurrences, *ancestor, handle)
+                || retains_lifetime_dependency(facts, loan_occurrences, *ancestor, handle)
         })
     }
 }
@@ -41,8 +42,8 @@ impl ResolvedAlias {
 /// Alternatives belong to an exact descriptor occurrence, never merely to
 /// equal backing geometry. Wildcard paths may describe coexisting slots.
 pub(in crate::checks::borrows) fn same_descriptor(
-    program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     left: Handle<BorrowLoanFact>,
     right: Handle<BorrowLoanFact>,
 ) -> bool {
@@ -62,7 +63,7 @@ pub(in crate::checks::borrows) fn same_descriptor(
     {
         return false;
     }
-    same_carrier_occurrence(program, facts, left, right)
+    same_carrier_occurrence(facts, loan_occurrences, left, right)
 }
 
 /// One spatial descriptor retains its own lifetime cohort independently of
@@ -70,8 +71,8 @@ pub(in crate::checks::borrows) fn same_descriptor(
 /// requiring this exact historical occurrence cannot revive a replaced slot or
 /// turn an unselected input's address into a descriptor alternative.
 fn retains_lifetime_dependency(
-    program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     descriptor: Handle<BorrowLoanFact>,
     debt: Handle<BorrowLoanFact>,
 ) -> bool {
@@ -91,19 +92,19 @@ fn retains_lifetime_dependency(
         && (!matches!(descriptor.root, facts::PlaceRoot::InvocationOutput(_))
             || descriptor.incoming_reference.is_valid())
         && debt.lineage == BorrowLoanLineage::LifetimeDependency
-        && same_carrier_occurrence(program, facts, descriptor, debt)
+        && same_carrier_occurrence(facts, loan_occurrences, descriptor, debt)
 }
 
 fn same_carrier_occurrence(
-    program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     left: &BorrowLoanFact,
     right: &BorrowLoanFact,
 ) -> bool {
     let borrow = &facts.borrow;
     let path = borrow.loan_owner_path(right);
     (same_carrier_generation(left, right)
-        || same_resolved_descriptor_load(program, facts, left, right))
+        || same_resolved_descriptor_load(facts, loan_occurrences, left, right))
         && borrow.loan_owner_path(left) == path
         && !path.contains(&checked_trees::BorrowLoanOwnerSegment::DynamicIndex)
 }
@@ -112,8 +113,8 @@ fn same_carrier_occurrence(
 /// occurrence. The completed source identifies the slot; expression-owned
 /// temporary homes remain independent of the input's field path.
 fn same_resolved_descriptor_load(
-    program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     left: &BorrowLoanFact,
     right: &BorrowLoanFact,
 ) -> bool {
@@ -125,9 +126,7 @@ fn same_resolved_descriptor_load(
     {
         return false;
     }
-    let slot = |loan| {
-        validation::reference_result_custody::completed_descriptor_load_slot(program, facts, loan)
-    };
+    let slot = |loan| loan_occurrences.descriptor_slot(loan);
     matches!((slot(left), slot(right)), (Ok(left), Ok(right)) if left == right)
 }
 
@@ -157,14 +156,15 @@ fn same_carrier_generation(left: &BorrowLoanFact, right: &BorrowLoanFact) -> boo
 pub(in crate::checks::borrows) fn formation_preserves_loan(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &StateBorrowFact,
     lineage: &[Handle<BorrowLoanFact>],
     active: Handle<BorrowLoanFact>,
 ) -> bool {
     lineage.iter().any(|ancestor| {
-        same_descriptor(program, facts, *ancestor, active)
-            || retains_lifetime_dependency(program, facts, *ancestor, active)
-            || retains_lifetime_dependency(program, facts, active, *ancestor)
+        same_descriptor(facts, loan_occurrences, *ancestor, active)
+            || retains_lifetime_dependency(facts, loan_occurrences, *ancestor, active)
+            || retains_lifetime_dependency(facts, loan_occurrences, active, *ancestor)
             || exclusive_carrier_cases(program, &facts.borrow, state, *ancestor, active)
     })
 }
@@ -231,17 +231,26 @@ pub(in crate::checks::borrows) struct ResolvedPlace {
 pub(in crate::checks::borrows) fn resolve_place(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state_flow: &FlowStateFact,
     entry_constraints: HandleSpan<checked_trees::FlowConstraintRef>,
     place: CapturedPlace,
 ) -> Option<ResolvedPlace> {
-    let mut places = resolve_places(program, facts, state_flow, entry_constraints, place)?;
+    let mut places = resolve_places(
+        program,
+        facts,
+        loan_occurrences,
+        state_flow,
+        entry_constraints,
+        place,
+    )?;
     (places.len() == 1).then(|| places.remove(0))
 }
 
 pub(in crate::checks::borrows) fn resolve_places(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state_flow: &FlowStateFact,
     entry_constraints: HandleSpan<checked_trees::FlowConstraintRef>,
     place: CapturedPlace,
@@ -249,6 +258,7 @@ pub(in crate::checks::borrows) fn resolve_places(
     resolve_places_with_loans(
         program,
         facts,
+        loan_occurrences,
         state_flow,
         facts.flow.borrow_loan_constraints(entry_constraints),
         place,
@@ -260,6 +270,7 @@ pub(in crate::checks::borrows) fn resolve_places(
 pub(in crate::checks::borrows) fn resolve_places_with_loans(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state_flow: &FlowStateFact,
     loans: impl Iterator<Item = Handle<BorrowLoanFact>>,
     place: CapturedPlace,
@@ -283,6 +294,7 @@ pub(in crate::checks::borrows) fn resolve_places_with_loans(
     resolve_descriptor_places_with_loans(
         program,
         facts,
+        loan_occurrences,
         state_flow,
         loans,
         std::iter::empty(),
@@ -296,6 +308,7 @@ pub(in crate::checks::borrows) fn resolve_places_with_loans(
 pub(in crate::checks::borrows) fn resolve_descriptor_places(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state_flow: &FlowStateFact,
     entry_constraints: HandleSpan<checked_trees::FlowConstraintRef>,
     place: CapturedPlace,
@@ -303,6 +316,7 @@ pub(in crate::checks::borrows) fn resolve_descriptor_places(
     resolve_descriptor_places_with_loans(
         program,
         facts,
+        loan_occurrences,
         state_flow,
         facts.flow.borrow_loan_constraints(entry_constraints),
         facts.flow.incoming_reference_constraints(entry_constraints),
@@ -313,6 +327,7 @@ pub(in crate::checks::borrows) fn resolve_descriptor_places(
 fn resolve_descriptor_places_with_loans(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state_flow: &FlowStateFact,
     loans: impl Iterator<Item = Handle<BorrowLoanFact>>,
     incoming: impl Iterator<Item = Handle<checked_trees::IncomingReferenceIdentity>>,
@@ -370,10 +385,7 @@ fn resolve_descriptor_places_with_loans(
             // The captured read names the original input slot even after
             // replacement. Never project that slot's path through the loaded
             // pointer's temporary home or use it as the pointee namespace.
-            let slot = validation::reference_result_custody::completed_descriptor_load_slot(
-                program, facts, loan,
-            )
-            .ok()?;
+            let slot = loan_occurrences.descriptor_slot(loan).ok()?;
             (slot.root == place.root
                 && slot.segments.len() <= place.segments.len()
                 && slot

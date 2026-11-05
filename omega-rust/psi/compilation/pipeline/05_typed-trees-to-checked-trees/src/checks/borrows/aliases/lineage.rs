@@ -4,6 +4,7 @@
 //! access. Joined routes retain only ancestors present on every route.
 
 use super::same_descriptor;
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use arena::Handle;
 use checked_trees::{
     BorrowFacts, BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment, StateBorrowFact,
@@ -14,12 +15,18 @@ use checked_trees::{
 /// formation alongside a common ancestor. This query is only for formation:
 /// ordinary descriptor access still rejects LifetimeDependency as a source.
 pub(in crate::checks::borrows) fn formation_lineage(
-    program: &dyn validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &StateBorrowFact,
     handle: Handle<BorrowLoanFact>,
 ) -> Option<Vec<Handle<BorrowLoanFact>>> {
-    descriptor_lineage(program, facts, state, handle, LineagePurpose::Formation)
+    descriptor_lineage(
+        facts,
+        loan_occurrences,
+        state,
+        handle,
+        LineagePurpose::Formation,
+    )
 }
 
 /// The exact occurrences a descriptor transfer transports. Each supplier is
@@ -87,12 +94,18 @@ fn retained_input_terminal(
 }
 
 pub(in crate::checks::borrows) fn retained_lineage(
-    program: &dyn validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &StateBorrowFact,
     handle: Handle<BorrowLoanFact>,
 ) -> Option<Vec<Handle<BorrowLoanFact>>> {
-    descriptor_lineage(program, facts, state, handle, LineagePurpose::Access)
+    descriptor_lineage(
+        facts,
+        loan_occurrences,
+        state,
+        handle,
+        LineagePurpose::Access,
+    )
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -102,8 +115,8 @@ enum LineagePurpose {
 }
 
 fn descriptor_lineage(
-    program: &dyn validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &StateBorrowFact,
     handle: Handle<BorrowLoanFact>,
     purpose: LineagePurpose,
@@ -152,9 +165,9 @@ fn descriptor_lineage(
                     // only occurrences present on every supplier path, not
                     // merely identical row handles or equal backing places.
                     common.retain(|ancestor| {
-                        ancestors
-                            .iter()
-                            .any(|candidate| same_descriptor(program, facts, *ancestor, *candidate))
+                        ancestors.iter().any(|candidate| {
+                            same_descriptor(facts, loan_occurrences, *ancestor, *candidate)
+                        })
                     });
                 }
             }
@@ -174,7 +187,7 @@ fn descriptor_lineage(
                     } else {
                         forwarded.retain(|ancestor| {
                             ancestors.iter().any(|candidate| {
-                                same_descriptor(program, facts, *ancestor, *candidate)
+                                same_descriptor(facts, loan_occurrences, *ancestor, *candidate)
                             })
                         });
                     }
