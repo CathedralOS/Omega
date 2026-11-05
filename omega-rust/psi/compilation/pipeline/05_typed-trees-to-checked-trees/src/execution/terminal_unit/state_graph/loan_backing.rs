@@ -234,6 +234,11 @@ pub(super) fn retained_storage(
                         facts.flow.control.operand_retentions.get(capture.retention),
                     );
                 }
+                if let Some((_, borrowing)) = facts.borrow.first_state_borrow(machine, state) {
+                    for (handle, row) in facts.borrow.state_loans(borrowing).take(8) {
+                        eprintln!("CHECKSITE state reference loan: handle={handle:?} row={row:?}");
+                    }
+                }
                 for (_, row) in records
                     .call_resources(call_handle, machine, state)
                     .into_iter()

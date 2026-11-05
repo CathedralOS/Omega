@@ -837,7 +837,23 @@ impl TerminalExecution<'_> {
             self.structural_cases.as_map(),
             self.account.as_ref(),
         )
-        .map_err(|error| error.in_argument_preparation("bind captured state arrivals"))?;
+        .map_err(|error| {
+            if std::env::var_os("OMEGA_STATE_REFERENCE_DIAGNOSTICS").is_some() {
+                for (((parameter, source), value), origin) in descriptor_parameters
+                    .iter()
+                    .zip(descriptor_arguments)
+                    .zip(&resolved_arguments)
+                    .zip(&provenance)
+                {
+                    eprintln!(
+                        "STATE arrival refused: error={error:?} parameter={parameter:?} source={source:?} value={value:?} source_parameter={:?} reference_projection={:?}",
+                        origin.parameter,
+                        origin.reference_projection,
+                    );
+                }
+            }
+            error.in_argument_preparation("bind captured state arrivals")
+        })?;
         let mut bound_claims = BTreeMap::new();
         for parameter in descriptor_parameters {
             let catalogue = machine
