@@ -3,8 +3,8 @@
 
 use super::child_types;
 use crate::exactly_one::exactly_one;
-use semantic_vocabulary::{StructuralCaseId, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
+use semantic_vocabulary::{IdSet, StructuralCaseId, StructuralTypeId};
+use std::collections::BTreeSet;
 use terminal_psi::{StructuralPathSegment as Path, StructuralTypeDeclaration, StructuralTypeShape};
 
 /// Compare actual live claim paths with the complete selected value's typed
@@ -30,7 +30,7 @@ pub fn validate_complete_claim_frontier<'a>(
             return Err("complete value repeats a live claim path");
         }
     }
-    let mut possible = BTreeMap::new();
+    let mut possible = ClaimTypes::default();
     let consumed = visit(
         &declaration,
         root,
@@ -46,28 +46,37 @@ pub fn validate_complete_claim_frontier<'a>(
     Ok(())
 }
 
+#[derive(Default)]
+struct ClaimTypes {
+    known: IdSet<StructuralTypeId>,
+    with_claims: IdSet<StructuralTypeId>,
+    active: IdSet<StructuralTypeId>,
+}
+
 fn contains_claim<'a>(
     declaration: &impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
     current: StructuralTypeId,
-    possible: &mut BTreeMap<StructuralTypeId, bool>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    possible: &mut ClaimTypes,
 ) -> Result<bool, &'static str> {
     let row = declaration(current).ok_or("complete value type is absent")?;
     if row.owns_linear_claim {
         return Ok(true);
     }
-    if let Some(known) = possible.get(&current) {
-        return Ok(*known);
+    if possible.known.contains(current) {
+        return Ok(possible.with_claims.contains(current));
     }
-    if !active.insert(current) {
+    if !possible.active.insert(current) {
         return Err("complete value has a cyclic by-value type");
     }
     let mut found = false;
     for child in child_types(row) {
-        found |= contains_claim(declaration, child, possible, active)?;
+        found |= contains_claim(declaration, child, possible)?;
     }
-    active.remove(&current);
-    possible.insert(current, found);
+    possible.active.remove(current);
+    possible.known.insert(current);
+    if found {
+        possible.with_claims.insert(current);
+    }
     Ok(found)
 }
 
@@ -78,7 +87,7 @@ fn visit<'a>(
     region: &[Path],
     held: &BTreeSet<&[Path]>,
     selected: &dyn Fn(&[Path], StructuralCaseId) -> bool,
-    possible: &mut BTreeMap<StructuralTypeId, bool>,
+    possible: &mut ClaimTypes,
 ) -> Result<usize, &'static str> {
     let row = declaration(current).ok_or("complete value type is absent")?;
     if row.owns_linear_claim {
@@ -87,7 +96,7 @@ fn visit<'a>(
             .then_some(1)
             .ok_or("complete value is missing its declaration-owned claim");
     }
-    if !contains_claim(declaration, current, possible, &mut BTreeSet::new())? {
+    if !contains_claim(declaration, current, possible)? {
         return Ok(0);
     }
     if let Some((step, tail)) = region.split_first() {
