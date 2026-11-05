@@ -1,32 +1,18 @@
-// Source-visible floating-point operation identities.
+// Public floating-point operations.
 //
-// Primitive spellings resolve to the root Float operators below. All f32/f64
-// arithmetic and comparison overloads now have explicit native-target
-// satisfiers and selected-ProviderPlan realizations. The migrated named cohort
-// includes min/max, square root, negate, bool and enum classification,
-// multiply-then-add, the cross-target directed
-// add/subtract/multiply/divide/square-root families, and the AArch64
-// nearest/directed fused-multiply-add families; remaining named requirements
-// retain bootstrap compiler lowering while their semantic identities and
-// contracts no longer live only in Rust match arms.
+// Primitive spellings resolve to the Float operators below. The core Build
+// companion selects the ordinary NativeFloats implementation for each target.
+// Public signatures and contracts stay at these selectable boundaries; the
+// fixed compiler catalog supplies their primitive IEEE execution.
 //
-// Unspelled operations use format-qualified F32/F64 names. This keeps named
-// call resolution exact while the operator-call resolver is arity-based:
-// `F32::fused_multiply_add` and `F64::fused_multiply_add` are distinct
-// requirements, never return-type overloads.
+// Named operations use format-qualified F32/F64 names. For example,
+// F32::fused_multiply_add and F64::fused_multiply_add are distinct requirements;
+// choosing one does not depend on the expected result type.
 
 use omega::language::core::float_format;
 use omega::language::core::float_meaning;
-use omega::language::core::targets::macos_arm64::float_impl;
-use omega::language::core::targets::macos_x86_64::float_impl;
-use omega::language::core::targets::linux_arm64::float_impl;
-use omega::language::core::targets::linux_x86_64::float_impl;
-use omega::language::core::targets::windows_x86_64::float_impl;
 
-// Nominal owner of the selected native float-operation provider closure.
-// Target-scoped leaves below satisfy exact overloaded boundary-operator
-// requirements; the carrier has no runtime state.
-data FloatNativeProvider { }
+use omega::language::core::float_provider;
 
 public data FloatClass [copy] {
     case NaN;

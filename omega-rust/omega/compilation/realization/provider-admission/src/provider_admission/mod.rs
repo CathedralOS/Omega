@@ -33,8 +33,8 @@ mod terminal_authority_review;
 
 pub use callback_arguments::project_native_callback_arguments;
 pub use compiler_builtins::{
-    CompilerIntrinsicPlanProvenance, SettledCompilerBuiltin, TerminalCompilerBuiltinProposal,
-    TerminalCompilerBuiltinSettlement,
+    AdmittedTerminalIntrinsics, CompilerIntrinsicPlanProvenance, SettledCompilerBuiltin,
+    TerminalCompilerBuiltinProposal, TerminalCompilerBuiltinSettlement, admit_terminal_intrinsics,
 };
 pub use compiler_builtins::{
     derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins,

@@ -74,7 +74,7 @@ pub struct AdmittedAssumedBinding {
 /// grants no host adapter, external-completion authority, or runtime state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedProviderSelections {
-    terminal_psi: terminal_psi::TerminalPsiIdentity,
+    code_identity: terminal_codec::TerminalExecutionIdentity,
     providers: BTreeMap<BoundaryMachineId, AdmittedProviderSelection>,
     assumed_bindings: Vec<AdmittedAssumedBinding>,
     /// Historical compatibility only; this adds no runtime provider row.
@@ -88,6 +88,7 @@ pub struct AdmittedProviderSelections {
 struct AdmittedProviderSelection {
     candidate: MachineId,
     provider_declaration: terminal_psi::NominalDeclarationIdentity,
+    declaration_application: terminal_psi::TerminalIdentityIndex,
     receiving_application: terminal_psi::TerminalIdentityIndex,
     receiving_region_arguments: Vec<terminal_psi::TerminalIdentityIndex>,
 }
@@ -97,7 +98,7 @@ impl AdmittedProviderSelections {
     /// retained row still names the same body, selecting declaration, receiving
     /// application and assumed supply chain; absence never permits replacement.
     pub fn is_subset_of(&self, complete: &Self) -> bool {
-        self.terminal_psi == complete.terminal_psi
+        self.code_identity == complete.code_identity
             && self
                 .providers
                 .iter()
@@ -123,7 +124,9 @@ impl AdmittedProviderSelections {
         target: &str,
         plan_preimages: &[Vec<u8>],
     ) -> Result<Self, String> {
-        if self.terminal_psi != artifact.identity() {
+        if self.code_identity
+            != terminal_codec::TerminalExecutionIdentity::portable(artifact.identity())
+        {
             return Err("folded constant closure names another Terminal artifact".into());
         }
         let module = artifact.module();
@@ -184,8 +187,13 @@ impl AdmittedProviderSelections {
         historical.dedup();
         // This temporary admission proves catalog choice, not an installation
         // into the runtime provider map retained by self.
-        admit_provider_selections(module, artifact.identity(), &historical, &[])
-            .map_err(|error| format!("folded constant catalog admission rejected: {error:?}"))?;
+        admit_provider_selections(
+            module,
+            terminal_codec::TerminalExecutionIdentity::portable(artifact.identity()),
+            &historical,
+            &[],
+        )
+        .map_err(|error| format!("folded constant catalog admission rejected: {error:?}"))?;
         self.folded_constant_target = Some(target.to_owned());
         Ok(self)
     }
@@ -204,13 +212,18 @@ impl AdmittedProviderSelections {
             .is_some_and(|installed| {
                 installed.candidate == candidate.candidate
                     && installed.provider_declaration == candidate.provider_declaration
+                    && installed.declaration_application == candidate.declaration_application
                     && installed.receiving_application == candidate.receiving_application
                     && installed.receiving_region_arguments == candidate.receiving_region_arguments
             })
     }
 
     pub const fn terminal_psi(&self) -> terminal_psi::TerminalPsiIdentity {
-        self.terminal_psi
+        self.code_identity.semantic()
+    }
+
+    pub fn execution_identity(&self) -> &terminal_codec::TerminalExecutionIdentity {
+        &self.code_identity
     }
 
     pub fn assumed_bindings(&self) -> &[AdmittedAssumedBinding] {
@@ -304,9 +317,23 @@ pub fn admit_provider_installation_from_artifact(
 }
 
 /// Admit receiving-host selections against a retained canonical artifact.
-/// The immutable view preserves the module/identity relationship; selection
-/// and assumption checks are identical to external byte admission. No module
-/// decoding or identity reconstruction is needed within the same invocation.
+/// Admit selected rows against the same live code owner used for execution.
+/// Invocation identity remains private custody; it is never relabeled portable.
+pub fn admit_provider_execution_installation(
+    code: terminal_codec::TerminalExecutionView<'_>,
+    selections: &[ProviderInstallationSelection],
+    assumptions: &[AssumedBindingSelection],
+) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
+    admit_provider_selections(
+        code.module(),
+        code.custody_identity(),
+        selections,
+        assumptions,
+    )
+}
+
+/// Admit portable rows against the immutable module and semantic identity.
+/// Selection checks are identical to external byte admission.
 pub fn admit_provider_installation(
     artifact: terminal_codec::TerminalArtifactView<'_>,
     selections: &[ProviderInstallationSelection],
@@ -314,7 +341,7 @@ pub fn admit_provider_installation(
 ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
     admit_provider_selections(
         artifact.module(),
-        artifact.identity(),
+        terminal_codec::TerminalExecutionIdentity::portable(artifact.identity()),
         selections,
         assumptions,
     )
@@ -351,12 +378,17 @@ pub fn admit_provider_installation_with_assumed_bindings_from_artifact(
         .map_err(ProviderInstallationError::SemanticDecode)?;
     let identity = terminal_codec::terminal_psi_identity(&module)
         .map_err(ProviderInstallationError::SemanticDecode)?;
-    admit_provider_selections(&module, identity, selections, assumptions)
+    admit_provider_selections(
+        &module,
+        terminal_codec::TerminalExecutionIdentity::portable(identity),
+        selections,
+        assumptions,
+    )
 }
 
 fn admit_provider_selections(
     module: &terminal_psi::TerminalModule,
-    identity: terminal_psi::TerminalPsiIdentity,
+    identity: terminal_codec::TerminalExecutionIdentity,
     selections: &[ProviderInstallationSelection],
     assumptions: &[AssumedBindingSelection],
 ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
@@ -414,6 +446,7 @@ fn admit_provider_selections(
                 AdmittedProviderSelection {
                     candidate: candidate.candidate,
                     provider_declaration: candidate.provider_declaration.clone(),
+                    declaration_application: candidate.declaration_application,
                     receiving_application: candidate.receiving_application,
                     receiving_region_arguments: candidate.receiving_region_arguments.clone(),
                 },
@@ -422,7 +455,7 @@ fn admit_provider_selections(
     }
     let assumed_bindings = admit_assumed_bindings(module, &installed, assumptions)?;
     Ok(AdmittedProviderSelections {
-        terminal_psi: identity,
+        code_identity: identity,
         providers: installed,
         assumed_bindings,
         folded_constant_target: None,

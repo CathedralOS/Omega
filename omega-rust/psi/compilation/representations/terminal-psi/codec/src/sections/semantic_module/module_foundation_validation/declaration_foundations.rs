@@ -198,13 +198,19 @@ pub(super) fn validate_provider_candidate(
     candidate: &ProviderCandidateConformance,
 ) -> Result<(), CodecError> {
     if candidate.receiving_application.is_absent() {
-        if !candidate.receiving_region_arguments.is_empty() {
+        if !candidate.declaration_application.is_absent()
+            || !candidate.receiving_region_arguments.is_empty()
+        {
             return malformed("provider regions have no receiving application");
         }
     } else if module
         .identities
-        .text(candidate.receiving_application)
+        .text(candidate.declaration_application)
         .is_none_or(str::is_empty)
+        || module
+            .identities
+            .text(candidate.receiving_application)
+            .is_none_or(str::is_empty)
         || candidate
             .receiving_region_arguments
             .iter()

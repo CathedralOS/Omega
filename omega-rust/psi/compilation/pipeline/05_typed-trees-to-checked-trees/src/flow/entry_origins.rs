@@ -10,6 +10,7 @@ use checked_trees::{FlowExitParameterOrigin, FlowSemanticContextRef};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::state_position;
+use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::TypeReferenceNode;
 
@@ -543,6 +544,7 @@ pub(super) fn rebase_contexts(
     };
     let mut rebased = HandleSpan::empty();
     let mut parameter_origins = HandleSpan::empty();
+    let mut value_contracts = Vec::new();
     let sources = build
         .contexts
         .semantic_context_refs
@@ -556,6 +558,15 @@ pub(super) fn rebase_contexts(
             .iter()
             .map(|reference| (reference.fact, *semantic.facts.get(reference.fact)))
             .collect::<Vec<_>>();
+        if !assumptions {
+            for (_, fact) in &source_facts {
+                if let FactPayload::ContractBooleanExpression { fact: contract, .. } = fact.payload
+                    && !value_contracts.contains(&contract)
+                {
+                    value_contracts.push(contract);
+                }
+            }
+        }
         if !source_facts.iter().any(|(_, fact)| {
             matches!(fact.point, ProgramPoint::Machine { machine_symbol } if machine_symbol == machine.symbol)
         }) {
@@ -665,58 +676,6 @@ pub(super) fn rebase_contexts(
                     );
                 }
             }
-            // A result predicate need not spell the input whose exact value
-            // is returned. Retain every available immutable scalar origin,
-            // independently of names mentioned in this guarantee. Missing
-            // optional correspondences grant nothing and do not create new
-            // obligations for unrelated parameters; demanded roots above keep
-            // their existing explicit missing-origin rows.
-            if !assumptions
-                && matches!(fact.payload, FactPayload::ContractBooleanExpression { .. })
-                && let Some(contract) = contract
-            {
-                for (original, current) in &origins {
-                    let Some(parameter) = program
-                        .state_parameter_by_symbol(entry, *original)
-                        .filter(|parameter| immutable_value(program, parameter))
-                    else {
-                        continue;
-                    };
-                    let Some(primitive) =
-                        program.primitive_type_reference(parameter.type_reference)
-                    else {
-                        continue;
-                    };
-                    if !current.is_valid()
-                        || !program
-                            .state_parameter_by_symbol(state, *current)
-                            .is_some_and(|parameter| {
-                                immutable_value(program, parameter)
-                                    && program.primitive_type_reference(parameter.type_reference)
-                                        == Some(primitive)
-                            })
-                        || build
-                            .control
-                            .exit_parameter_origins
-                            .span_or_empty(parameter_origins)
-                            .iter()
-                            .any(|origin| {
-                                origin.contract == contract && origin.entry_parameter == *original
-                            })
-                    {
-                        continue;
-                    }
-                    build.control.exit_parameter_origins.append_to_span(
-                        &mut parameter_origins,
-                        FlowExitParameterOrigin {
-                            contract,
-                            entry_parameter: *original,
-                            state_parameter: *current,
-                            retained_referent_type: Default::default(),
-                        },
-                    );
-                }
-            }
             let fact = semantic.append_fact(fact);
             semantic.append_ref(&mut refs, fact);
         }
@@ -729,5 +688,75 @@ pub(super) fn rebase_contexts(
             );
         }
     }
+    for contract in value_contracts {
+        append_immutable_exit_origins(
+            program,
+            build,
+            entry,
+            state,
+            &origins,
+            contract,
+            &mut parameter_origins,
+        );
+    }
     (rebased, parameter_origins)
+}
+
+/// Retain value correspondences for every result predicate, including a public
+/// requirement inherited at the entry state. The goal is never an assumption.
+/// Only independently established, immutable all-arrival origins enter this
+/// roster; missing optional origins supply no proof and revive no storage.
+fn append_immutable_exit_origins(
+    program: &dyn ::validation::CheckingInput,
+    build: &mut FlowBuildContext,
+    entry: &typed_trees::state::State,
+    state: &typed_trees::state::State,
+    origins: &[(SymbolHandle, SymbolHandle)],
+    contract: arena::Handle<typed_trees::domain::ProofFact>,
+    parameter_origins: &mut HandleSpan<FlowExitParameterOrigin>,
+) {
+    for (original, current) in origins {
+        let Some(parameter) = program
+            .state_parameter_by_symbol(entry, *original)
+            .filter(|parameter| immutable_value(program, parameter))
+        else {
+            continue;
+        };
+        let carrier = program
+            .type_reference_table
+            .unconstrained_type_reference(parameter.type_reference);
+        if !carrier.is_valid() {
+            continue;
+        }
+        if !current.is_valid()
+            || !program
+                .state_parameter_by_symbol(state, *current)
+                .is_some_and(|parameter| {
+                    let current = program
+                        .type_reference_table
+                        .unconstrained_type_reference(parameter.type_reference);
+                    immutable_value(program, parameter)
+                        && current.is_valid()
+                        && program.type_identity(TypeIdentityRequest::ordinary(current))
+                            == program.type_identity(TypeIdentityRequest::ordinary(carrier))
+                })
+            || build
+                .control
+                .exit_parameter_origins
+                .span_or_empty(*parameter_origins)
+                .iter()
+                .any(|origin| origin.contract == contract && origin.entry_parameter == *original)
+        {
+            continue;
+        }
+        build.control.exit_parameter_origins.append_to_span(
+            parameter_origins,
+            FlowExitParameterOrigin {
+                contract,
+                entry_parameter: *original,
+                state_parameter: *current,
+                retained_referent_type: Default::default(),
+            },
+        );
+    }
 }

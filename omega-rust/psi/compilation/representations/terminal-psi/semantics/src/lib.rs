@@ -28,6 +28,7 @@ pub use storage::calling_storage::{
 pub use storage::storage_dependencies::{
     inline_storage_extent_dependencies, storage_operand_dependencies,
 };
+pub use storage::structural_locals::validate_vacant_structural_local;
 pub mod control_graph;
 pub use access::access_lifecycles::{
     AccessResultContract, access_result_contract, access_view_reference_slot,

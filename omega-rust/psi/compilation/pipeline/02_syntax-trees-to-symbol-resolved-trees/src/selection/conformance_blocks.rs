@@ -747,6 +747,35 @@ fn normalize_one(
                 .filter(|row| row.source == ConformanceRowSource::TraitDefault),
         )
     {
+        // Resolve every inline clause against the inherited declaration
+        // identities. Independent exact satisfactions stay on the member;
+        // clause order cannot choose or suppress an inherited row qualifier.
+        let inherited_qualifiers = (authored.source == ConformanceRowSource::Inline).then(|| {
+            let member = authored
+                .provisional_realization_ordinal
+                .filter(|ordinal| *ordinal < program.machines.len())
+                .map(|ordinal| &program.machines[ordinal])
+                .or_else(|| {
+                    program
+                        .machines
+                        .iter()
+                        .find(|machine| machine.symbol == authored.realization_machine)
+                });
+            member
+                .into_iter()
+                .flat_map(|machine| program.machine_trait_conformances(machine.satisfies))
+                .filter(|edge| edge.requirement.as_ref() == Some(&authored.requirement_name))
+                .filter_map(|edge| {
+                    requirements
+                        .iter()
+                        .any(|requirement| {
+                            requirement.declaring_trait == edge.symbol
+                                && requirement.requirement_name == authored.requirement_name
+                        })
+                        .then_some(edge.symbol)
+                })
+                .collect::<Vec<_>>()
+        });
         let candidates = requirements
             .iter()
             .filter(|instance| {
@@ -757,12 +786,20 @@ fn normalize_one(
                 // but the path match is what distinguishes same-spelled
                 // module owners.
                 requirement.requirement_name == authored.requirement_name
-                    && (authored.declaring_trait_name.as_str().is_empty()
-                        || requirement.declaring_trait_name == authored.declaring_trait_name
-                        || program
-                            .symbols
-                            .display_path(requirement.declaring_trait, "::")
-                            == authored.declaring_trait_name.as_str())
+                    && inherited_qualifiers.as_ref().map_or_else(
+                        || {
+                            authored.declaring_trait_name.as_str().is_empty()
+                                || requirement.declaring_trait_name == authored.declaring_trait_name
+                                || program
+                                    .symbols
+                                    .display_path(requirement.declaring_trait, "::")
+                                    == authored.declaring_trait_name.as_str()
+                        },
+                        |qualifiers| {
+                            qualifiers.is_empty()
+                                || qualifiers.contains(&requirement.declaring_trait)
+                        },
+                    )
                     && authored
                         .provisional_requirement_ordinal
                         .is_none_or(|ordinal| requirement.ordinal == ordinal)

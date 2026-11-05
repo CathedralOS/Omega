@@ -261,10 +261,25 @@ fn validate_exact_requirement_lifetime_partition(
     realization: &checked_trees::typed_trees::machine::Machine,
 ) -> Result<(), diagnostics::Diagnostic> {
     let typed = context.typed;
-    // Named maps own their trait application independently of the selected
-    // machine. Requiring an attached satisfies edge loses the map's regions.
-    if crate::provider_identity::named_provider(context, plan).is_some() {
-        let application = crate::provider_identity::named_provider_row(context, plan, row)
+    // A map's own requirement uses its captured trait application. An
+    // independent exact member satisfaction keeps the separate authored
+    // application below; the primary map cannot replace its region slots.
+    let own_map_row =
+        crate::provider_identity::named_provider_row(context, plan, row).filter(|entry| {
+            typed
+                .trait_definition_by_symbol(entry.declaring_trait)
+                .and_then(|owner| {
+                    typed
+                        .trait_machine_signature_by_symbol(owner, entry.requirement)
+                        .map(|requirement| {
+                            typed.trait_requirement_callable_identity_text(owner, requirement)
+                        })
+                })
+                .as_deref()
+                == Some(plan.identities.text(row.requirement_identity))
+        });
+    if let Some(entry) = own_map_row {
+        let application = Some(entry)
             .and_then(|entry| {
                 crate::provider_identity::provider_trait_application(
                     context,

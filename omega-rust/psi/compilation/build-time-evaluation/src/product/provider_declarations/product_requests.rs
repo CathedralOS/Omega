@@ -59,13 +59,13 @@ fn identities(
             }
             selected
         } else {
-            let incomplete = context
-                .typed
-                .trait_definition_by_symbol(symbol)
-                .is_some_and(|definition| {
-                    !context.typed.trait_type_parameters(definition).is_empty()
-                })
-                || context
+            // A bare boundary subject chooses its nominal declaration family.
+            // Receiving settlement still names every exact prepared application,
+            // including caller regions. Only an authored application chooses a
+            // static tuple here; Build cannot manufacture a caller's region.
+            // Providers with Type/Const inputs still owe their complete closure.
+            let incomplete_provider = role == ProductOperandKind::Provider
+                && context
                     .typed
                     .conformance_by_symbol(symbol)
                     .is_some_and(|definition| {
@@ -74,7 +74,7 @@ fn identities(
                             .conformance_type_parameters(definition)
                             .is_empty()
                     });
-            if incomplete {
+            if incomplete_provider {
                 return Err(Diagnostic::error(
                     "provider choice must supply the declaration's complete static application",
                 )

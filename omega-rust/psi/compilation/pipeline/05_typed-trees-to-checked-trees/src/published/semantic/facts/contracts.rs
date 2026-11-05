@@ -15,8 +15,10 @@ mod case_observations;
 mod parameters;
 mod payload;
 mod places;
+mod scopes;
 pub(crate) use parameters::{contract_parameter_position, projected_argument_place};
 pub(crate) use places::contract_fact_place;
+pub(crate) use scopes::{applied_inherited_requirement, inherited_contract_scope_parts};
 
 use payload::semantic_contract_payload;
 
@@ -405,36 +407,6 @@ fn seed_current_requirement(
         return;
     };
     crate::published::facts::boolean_predicates::seed(facts, &predicate, fact.point, fact.origin);
-}
-
-/// Resolve one inherited contract fact's migrated proposition endpoint: the
-/// declaring trait, its requirement signature, and the satisfying state the
-/// fact is owned by. `None` fails closed -- the fact keeps its authored schema
-/// identity rather than publishing a partial substitution.
-pub(crate) fn inherited_contract_scope_parts<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    proof: &'program ProofFacts,
-    contract: &ContractProofFact,
-) -> Option<(
-    &'program typed_trees::trait_definition::TraitDefinition,
-    &'program typed_trees::signature::StateSignature,
-    &'program typed_trees::state::State,
-    &'program checked_trees::InheritedContractScope,
-)> {
-    let scope = proof
-        .inherited_contract_scopes
-        .get(contract.inherited_scope?);
-    let trait_definition = program.trait_definition_by_symbol(scope.declaring_trait)?;
-    let requirement =
-        program.trait_machine_signature_by_symbol(trait_definition, scope.requirement)?;
-    let ContractProofFactOwner::MachineState { state_symbol, .. } = contract.owner else {
-        return None;
-    };
-    let satisfier_state = program
-        .machines()
-        .iter()
-        .find_map(|machine| program.state_in_machine(machine, state_symbol))?;
-    Some((trait_definition, requirement, satisfier_state, scope))
 }
 
 /// Instantiate one requirement-authored proposition fact through the exact

@@ -20,6 +20,7 @@ pub struct SettledBuildSource {
     pub package_inputs: Option<package_compilation::PackageCompilationInputs>,
     pub original_assembly: package_compilation::SourceAssemblyInputs,
     pub build_execution_profile: Option<target::TargetProfile>,
+    pub toolchain_provider_defaults: Option<package_compilation::CompletedProviderDefaults>,
     pub timings: CompileTimings,
     pub build_elapsed_micros: u128,
 }
@@ -50,6 +51,7 @@ impl SettledPackageBuild {
                 package_inputs: self.source.package_inputs.clone(),
                 original_assembly: self.source.original_assembly.clone(),
                 build_execution_profile: self.source.build_execution_profile,
+                toolchain_provider_defaults: self.source.toolchain_provider_defaults.clone(),
                 timings: self.source.timings.clone(),
                 build_elapsed_micros: self.source.build_elapsed_micros,
             },
@@ -61,6 +63,9 @@ impl SettledPackageBuild {
 /// completes. Pending authored bodies and generated sources grant no execution.
 #[derive(Clone)]
 pub struct BuiltTypedProgram {
+    /// The source assembly that produced this Product declaration context,
+    /// separate from the input capture consumed by its earlier Build.
+    pub anonymous_source: Option<package_compilation::AnonymousSourceCapture>,
     pub preparation: crate::SourcePreparation,
     pub source: psi_compiler::SourceContinuation,
     pub base_sources: Arc<source::SourceMap>,
