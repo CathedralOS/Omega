@@ -277,6 +277,16 @@ impl ByteSequenceBinding {
                 ) {
                 Ok(())
             } else {
+                eprintln!(
+                    "Mutable byte array mismatch: value={} identity={} path={} window={} projected_empty={} has_home={} array_type={array_type:?} referent_type={:?} offset={offset} length={length}",
+                    value == descriptor_home.as_ref().unwrap_or(referent),
+                    array.referent.opaque_identity == referent.opaque_identity,
+                    array.referent.path == backing_path,
+                    exact_window,
+                    referent.projected_qualifications.is_empty(),
+                    descriptor_home.is_some(),
+                    referent.structural_type,
+                );
                 Err(malformed())
             };
         }

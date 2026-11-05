@@ -2573,12 +2573,23 @@ fn sliced_build_retains_effects() {
     let account = sponsor(limits(1_000_000));
     let mut request = CheckedCompileRequest::new(&root, Some("linux_x86_64"));
     request.build.evaluation_sponsor = Some(account.clone());
-    let before = counters::build_execution_count();
+    let before = (
+        counters::build_execution_count(),
+        counters::source_build_execution_count(),
+        counters::provider_defaults_execution_count(),
+    );
     orchestration::check_source(&mut CompilationSession::default(), request)
         .result
         .expect("sliced Build completes");
     build_sequence::print_execution_counts("sliced source Build completed");
-    assert_eq!(counters::build_execution_count() - before, 1);
+    assert_eq!(
+        (
+            counters::build_execution_count() - before.0,
+            counters::source_build_execution_count() - before.1,
+            counters::provider_defaults_execution_count() - before.2,
+        ),
+        (2, 1, 1)
+    );
     let fuel = account.consumed_fuel_units();
     assert!(
         fuel > 1024,
@@ -2590,7 +2601,11 @@ fn sliced_build_retains_effects() {
     let limited = sponsor(limits(fuel - 1));
     let mut request = CheckedCompileRequest::new(&root, Some("linux_x86_64"));
     request.build.evaluation_sponsor = Some(limited.clone());
-    let before = counters::build_execution_count();
+    let before = (
+        counters::build_execution_count(),
+        counters::source_build_execution_count(),
+        counters::provider_defaults_execution_count(),
+    );
     let failure = orchestration::check_source(&mut CompilationSession::default(), request)
         .result
         .expect_err("slice replenishment must not enlarge the invocation allowance");
@@ -2602,7 +2617,14 @@ fn sliced_build_retains_effects() {
         "{diagnostics:?}"
     );
     build_sequence::print_execution_counts("sliced source Build refused for fuel");
-    assert_eq!(counters::build_execution_count() - before, 1);
+    assert_eq!(
+        (
+            counters::build_execution_count() - before.0,
+            counters::source_build_execution_count() - before.1,
+            counters::provider_defaults_execution_count() - before.2,
+        ),
+        (2, 1, 1)
+    );
     assert_eq!(limited.live_storage_cells(), 0);
     assert_eq!(limited.live_payload_bytes(), 0);
     println!("sliced_build_short_allowance_refused_and_storage_retired");
