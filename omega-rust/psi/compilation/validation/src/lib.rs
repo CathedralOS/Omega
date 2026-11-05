@@ -35,11 +35,13 @@ pub use declarations::traits::{
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
 pub use machine_calls::{compiler_operations, contract_identities};
 pub use proof_contracts::contract_entailment::specification_calls::invocation_is_fact_only;
+pub use proof_contracts::default_domains::case_predicate_expressions;
 pub use proof_contracts::qualification_evidence::boundary_qualification_authorization;
 pub use proof_contracts::qualification_evidence::{
     BoundaryQualificationObligation, CallQualificationContract, CallQualificationSource,
     boundary_provider_qualification_obligations, call_qualification_source,
 };
+pub use proof_contracts::relevance::dispatch_subject_of_erased_binding;
 pub use proof_contracts::{
     contract_argument_root, contract_structure, expression_owners, mathematical_applications,
 };

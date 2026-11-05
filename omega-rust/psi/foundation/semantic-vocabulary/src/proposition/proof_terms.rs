@@ -78,6 +78,14 @@ pub enum ProofTerm {
     /// scalar term's `ValueId`s refer to the caller's own admitted scalar
     /// scope — the same namespace erased scalar actuals name.
     Scalar(ScalarTerm),
+    /// A payload projection of an enclosing erased proof formal. `fields` is
+    /// the root-to-leaf field identity path. The formal position is the
+    /// enclosing roster, the same index `Formal` uses.
+    Projection {
+        type_identity: String,
+        formal_position: u32,
+        fields: Vec<String>,
+    },
 }
 
 impl ProofTerm {
@@ -105,8 +113,10 @@ impl ProofTerm {
                         }
                     }
                 }
-                Self::Mathematical { .. } | Self::Formal { .. } | Self::InvocationFormal { .. } => {
-                }
+                Self::Mathematical { .. }
+                | Self::Formal { .. }
+                | Self::InvocationFormal { .. }
+                | Self::Projection { .. } => {}
             }
         }
         true
@@ -180,6 +190,18 @@ impl ProofTerm {
                     }
                 }
                 Step::Term(ProofTerm::Formal { .. } | ProofTerm::InvocationFormal { .. }) => {}
+                Step::Term(ProofTerm::Projection {
+                    type_identity,
+                    fields,
+                    ..
+                }) => {
+                    if type_identity.is_empty()
+                        || fields.is_empty()
+                        || fields.iter().any(String::is_empty)
+                    {
+                        return Err(PropositionError::EmptyProofTermTypeIdentity);
+                    }
+                }
                 Step::Term(ProofTerm::Scalar(term)) => term.validate()?,
                 Step::Field(field) => {
                     if field.field_identity.is_empty() {

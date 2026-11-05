@@ -21,7 +21,7 @@ use super::{
     SymbolKind, TypeReferenceHandle, TypeReferenceNode, TypedTrees, failed,
 };
 use crate::monomorphization::body_rewriting::{
-    cloned_expression_roots, rebind_state_value_parameters,
+    cloned_expression_roots, drop_refuted_closed_transition_arms, rebind_state_value_parameters,
     reject_runtime_bound_static_occurrences, rewrite_cloned_calls, statement_span_handles,
     substitute_cloned_type_parameters,
 };
@@ -1079,6 +1079,7 @@ pub(super) fn clone_single_specialized_machine(
         expression_start,
         cloned.states,
     )?;
+    drop_refuted_closed_transition_arms(program, candidate, &cloned);
     let instance_symbol = cloned.symbol;
     let authored_service_reach_rows = source
         .unwrap_or(program)

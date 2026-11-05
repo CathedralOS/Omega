@@ -123,7 +123,13 @@ pub(crate) fn validate_relevance(program: &dyn CheckingInput, diagnostics: &mut 
                     }
                     StatementNode::LocalData(local) => relevance_child!(
                         local.initial_value,
-                        if local.relevance.is_erased() && machine_context == Context::Runtime {
+                        if machine_context == Context::Runtime
+                            && (local.relevance.is_erased()
+                                || dispatch_subject_of_erased_binding(program, state, local))
+                        {
+                            // A transition subject captured from erased indexed
+                            // evidence is proof custody. Its initializer is not
+                            // a runtime read of that binding.
                             Context::ErasedInitializer
                         } else {
                             machine_context
@@ -131,7 +137,14 @@ pub(crate) fn validate_relevance(program: &dyn CheckingInput, diagnostics: &mut 
                     ),
                     StatementNode::Transition(transition) => {
                         if let TransitionGuardNode::When(guard) = transition.guard {
-                            relevance_child!(guard, machine_context);
+                            let guard_context = if machine_context == Context::Runtime
+                                && expression_is_erased_binding(program, state, guard)
+                            {
+                                Context::ErasedInitializer
+                            } else {
+                                machine_context
+                            };
+                            relevance_child!(guard, guard_context);
                         }
                         for target in transition.targets() {
                             match program.statement_table.transition_target(target) {
@@ -150,14 +163,21 @@ pub(crate) fn validate_relevance(program: &dyn CheckingInput, diagnostics: &mut 
                                         .iter()
                                         .enumerate()
                                     {
-                                        relevance_child!(
-                                            *argument,
-                                            argument_position_context(
-                                                machine_context,
-                                                target_parameters,
-                                                position,
-                                            ),
+                                        let position_context = argument_position_context(
+                                            machine_context,
+                                            target_parameters,
+                                            position,
                                         );
+                                        let position_context = if position_context
+                                            == Context::Runtime
+                                            && expression_is_erased_binding(
+                                                program, state, *argument,
+                                            ) {
+                                            Context::ErasedInitializer
+                                        } else {
+                                            position_context
+                                        };
+                                        relevance_child!(*argument, position_context);
                                     }
                                 }
                                 TransitionTargetNode::Value(value) => {
@@ -171,6 +191,75 @@ pub(crate) fn validate_relevance(program: &dyn CheckingInput, diagnostics: &mut 
             }
         }
     }
+}
+
+fn expression_is_erased_binding(
+    program: &dyn CheckingInput,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let typed_trees::expression::ExpressionNode::Name(path) =
+        program.expression_table.expression(expression)
+    else {
+        return false;
+    };
+    program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| parameter.symbol == path.symbol && parameter.relevance.is_erased())
+        || program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                statement
+                    .as_local_data()
+                    .is_some_and(|local| local.symbol == path.symbol && local.relevance.is_erased())
+            })
+}
+
+/// Transition dispatch captured from an erased parameter or local.
+/// The subject is the scrutinee's proof identity, not a runtime carrier.
+pub fn dispatch_subject_of_erased_binding(
+    program: &dyn CheckingInput,
+    state: &typed_trees::state::State,
+    local: &typed_trees::statement::TableLocalData,
+) -> bool {
+    // Monomorphization settles the capture as an ordinary value local. The
+    // generated name is the capture's identity after that role change.
+    if !local.name.as_str().starts_with("__transition_subject") || !local.initial_value.is_valid() {
+        return false;
+    }
+    let mut expression = local.initial_value;
+    let mut symbol = symbols::SymbolHandle::invalid();
+    for _ in 0..8 {
+        match program.expression_table.expression(expression) {
+            typed_trees::expression::ExpressionNode::Borrow(borrow) => {
+                expression = borrow.target;
+            }
+            typed_trees::expression::ExpressionNode::Name(path) => {
+                symbol = path.symbol;
+                break;
+            }
+            _ => return false,
+        }
+    }
+    if !symbol.is_valid() {
+        return false;
+    }
+    program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| parameter.symbol == symbol && parameter.relevance.is_erased())
+        || program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                statement.as_local_data().is_some_and(|binding| {
+                    binding.symbol == symbol && binding.relevance.is_erased()
+                })
+            })
 }
 
 mod shape_admission;

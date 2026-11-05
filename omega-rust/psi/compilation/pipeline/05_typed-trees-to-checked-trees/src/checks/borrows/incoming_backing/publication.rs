@@ -119,12 +119,7 @@ fn retained_requirement(
         || store.state_symbol != row.state_symbol
         || store.statement_index != row.statement_index
         || !facts.borrow.loans.is_valid(descriptor_loan)
-        || facts
-            .borrow
-            .loans
-            .get(descriptor_loan)
-            .incoming_reference
-            != loan.incoming_reference
+        || facts.borrow.loans.get(descriptor_loan).incoming_reference != loan.incoming_reference
     {
         return Err(
             "the retained incoming compatibility requirement has mismatched load/store owners",

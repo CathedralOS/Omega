@@ -233,6 +233,11 @@ pub(crate) enum LoweredProofTerm {
     Formal {
         position: u32,
     },
+    Projection {
+        type_identity: typed_trees::type_identity::TypeIdentityId,
+        formal_position: u32,
+        fields: Vec<String>,
+    },
     Scalar(LoweredDirectExpression),
 }
 
@@ -383,25 +388,46 @@ pub(crate) fn checked_proof_term(
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?,
         }),
-        CheckedProofTerm::Formal { parameter_symbol } => {
-            let position = caller_erased_proof_parameters
+        CheckedProofTerm::Projection {
+            parameter_symbol,
+            field_symbols,
+            type_identity,
+        } => Ok(LoweredProofTerm::Projection {
+            type_identity: *type_identity,
+            formal_position: erased_proof_formal_position(
+                caller_erased_proof_parameters,
+                *parameter_symbol,
+            )?,
+            fields: field_symbols
                 .iter()
-                .position(|parameter| parameter.parameter_symbol == *parameter_symbol)
-                .ok_or(LoweringError::Unsupported(
-                    "proof actual references a formal outside the caller's erased-proof roster",
-                ))?;
-            Ok(LoweredProofTerm::Formal {
-                position: u32::try_from(position).map_err(|_| {
-                    LoweringError::Unsupported(
-                        "erased-proof roster position exceeds the terminal term width",
-                    )
-                })?,
-            })
-        }
+                .map(|symbol| checked.symbols.display_path(*symbol, "::"))
+                .collect(),
+        }),
+        CheckedProofTerm::Formal { parameter_symbol } => Ok(LoweredProofTerm::Formal {
+            position: erased_proof_formal_position(
+                caller_erased_proof_parameters,
+                *parameter_symbol,
+            )?,
+        }),
         CheckedProofTerm::Scalar(expression) => Ok(LoweredProofTerm::Scalar(
             lower_checked_scalar_expression(identities, expression, &[])?,
         )),
     }
+}
+
+fn erased_proof_formal_position(
+    caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
+    parameter_symbol: symbols::SymbolHandle,
+) -> Result<u32, LoweringError> {
+    let position = caller_erased_proof_parameters
+        .iter()
+        .position(|parameter| parameter.parameter_symbol == parameter_symbol)
+        .ok_or(LoweringError::Unsupported(
+            "proof actual references a formal outside the caller's erased-proof roster",
+        ))?;
+    u32::try_from(position).map_err(|_| {
+        LoweringError::Unsupported("erased-proof roster position exceeds the terminal term width")
+    })
 }
 
 /// Emit a lowering-stage proof term into its terminal form. `values` is the
@@ -494,6 +520,17 @@ pub(crate) fn lowered_proof_term(
         }),
         LoweredProofTerm::Formal { position } => Ok(ProofTerm::Formal {
             position: *position,
+        }),
+        LoweredProofTerm::Projection {
+            type_identity,
+            formal_position,
+            fields,
+        } => Ok(ProofTerm::Projection {
+            type_identity: checked
+                .type_identity_text(*type_identity)
+                .unwrap_or_default(),
+            formal_position: *formal_position,
+            fields: fields.clone(),
         }),
         LoweredProofTerm::Scalar(expression) => Ok(ProofTerm::Scalar(lowered_direct_scalar_term(
             expression, values, erased,

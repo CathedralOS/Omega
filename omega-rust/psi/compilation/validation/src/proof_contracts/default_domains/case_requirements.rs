@@ -21,7 +21,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 /// whose active case is `case`. Atoms keep the declaration's spelling over the
 /// predicate subject (`self.v >= 40`); consumers project `self` onto the
 /// dispatched place.
-pub(crate) fn selected_case_requirements(
+pub fn selected_case_requirements(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     case: symbols::SymbolHandle,
@@ -41,6 +41,46 @@ pub(crate) fn selected_case_requirements(
         }
     }
     requirements
+}
+
+/// Predicate expressions one source case owes: the selected-case projection of
+/// the data `requires` clause, plus any data clause that does not mention a
+/// case. Case-membership atoms stay out; they name the case, they are not
+/// scalar obligations inside it.
+pub fn case_predicate_expressions(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    case: symbols::SymbolHandle,
+) -> Vec<ExpressionHandle> {
+    let mut requirements = selected_case_requirements(program, definition, case);
+    for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+        let Some(expression) = fact.as_expression() else {
+            continue;
+        };
+        let mut clauses = Vec::new();
+        flatten(program, *expression, BinaryOperator::And, &mut clauses);
+        for clause in clauses {
+            if !clause_mentions_membership(program, clause) {
+                requirements.push(clause);
+            }
+        }
+    }
+    requirements
+}
+
+fn clause_mentions_membership(
+    program: &dyn crate::CheckingInput,
+    clause: ExpressionHandle,
+) -> bool {
+    let mut disjuncts = Vec::new();
+    flatten(program, clause, BinaryOperator::Or, &mut disjuncts);
+    disjuncts.into_iter().any(|disjunct| {
+        let mut atoms = Vec::new();
+        flatten(program, disjunct, BinaryOperator::And, &mut atoms);
+        atoms
+            .into_iter()
+            .any(|atom| membership_case(program, atom).is_some())
+    })
 }
 
 fn project_clause(

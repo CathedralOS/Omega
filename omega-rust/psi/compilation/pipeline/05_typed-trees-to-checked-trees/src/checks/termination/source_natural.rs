@@ -25,6 +25,7 @@ pub(super) struct Component {
     pub members: Vec<CheckedSourceNaturalRankMember>,
     pub edges: Vec<CheckedSourceNaturalRankEdge>,
 }
+#[derive(Clone)]
 struct Coordinate {
     subject: ExpressionHandle,
     carrier: TypeReferenceHandle,
@@ -46,29 +47,80 @@ pub(super) fn admit(
         .iter()
         .map(|position| &program.machines()[*position])
         .collect::<Vec<_>>();
-    if machines.is_empty()
-        || !machines.iter().all(|machine| {
-            validation::mathematical_applications::is_indexed_logical_machine(program, machine)
-        })
-    {
+    if machines.is_empty() {
         return None;
     }
-    let coordinates = machines
-        .iter()
-        .map(|machine| coordinate(program, machine, 0))
-        .collect::<Option<Vec<_>>>()?;
+    let mut ranked = false;
+    let mut coordinates = Vec::with_capacity(machines.len());
+    for machine in &machines {
+        if validation::mathematical_applications::is_indexed_logical_machine(program, machine) {
+            let Some(coordinate) = coordinate(program, machine, 0) else {
+                return None;
+            };
+            ranked = true;
+            coordinates.push(Some(coordinate));
+        } else if nested_source_helper(program, machine, &machines) {
+            coordinates.push(None);
+        } else {
+            return None;
+        }
+    }
+    if !ranked {
+        return None;
+    }
     Some(admit_coordinates(program, &machines, &coordinates, frames))
+}
+
+/// A nested helper has no private rank. It stays in the source component when
+/// its declaration is inside a ranked member, so calls back to that member are
+/// the descent edges.
+fn nested_source_helper(
+    program: &dyn validation::CheckingInput,
+    machine: &Machine,
+    component: &[&Machine],
+) -> bool {
+    if machine.termination_plan.implementation_witness.is_some()
+        || machine
+            .termination_plan
+            .interface
+            .published()
+            .is_some_and(language_semantics::TerminationGuarantee::promises_termination)
+    {
+        return false;
+    }
+    let scope = program.declaration_scope_parent(machine.symbol);
+    let Some(declaring) = scope
+        .is_valid()
+        .then(|| program.machine_declaration_for_lexical_scope(scope))
+        .flatten()
+    else {
+        return false;
+    };
+    component.iter().any(|member| {
+        member.symbol == declaring.symbol
+            || program
+                .typed_program()
+                .executable_application_template(member.symbol)
+                .ok()
+                .flatten()
+                == Some(declaring.symbol)
+    })
 }
 
 fn admit_coordinates(
     program: &dyn validation::CheckingInput,
     machines: &[&Machine],
-    coordinates: &[Coordinate],
+    coordinates: &[Option<Coordinate>],
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<Component, String> {
-    if !coordinates
+    let ranked = coordinates
         .iter()
-        .all(|coordinate| coordinate.primitive == coordinates[0].primitive)
+        .filter_map(Option::as_ref)
+        .collect::<Vec<_>>();
+    if ranked.is_empty()
+        || !ranked
+            .iter()
+            .all(|coordinate| coordinate.primitive == ranked[0].primitive)
     {
         return Err("logical recursive members do not share one exact natural carrier".into());
     }
@@ -81,17 +133,37 @@ fn admit_coordinates(
                 machine.name
             ));
         }
+        let rank = match rank {
+            Some(rank) => rank.clone(),
+            None => enclosing_coordinate(program, machine, machines, coordinates)?,
+        };
+        let realized_parameters = if rank.realized_from.is_some()
+            && coordinates
+                .iter()
+                .zip(machines)
+                .any(|(coordinate, member)| coordinate.is_some() && member.symbol == machine.symbol)
+        {
+            if let Some(original) = rank.realized_from {
+                realized_forwarding(program, machine, original, rank.carrier)?
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        };
+        let realized_from = coordinates
+            .iter()
+            .zip(machines)
+            .any(|(coordinate, member)| coordinate.is_some() && member.symbol == machine.symbol)
+            .then_some(rank.realized_from)
+            .flatten();
         members.push(CheckedSourceNaturalRankMember {
             machine: machine.symbol,
             body: machine.states,
             subject: rank.subject,
             carrier: rank.carrier,
-            realized_from: rank.realized_from,
-            realized_parameters: if let Some(original) = rank.realized_from {
-                realized_forwarding(program, machine, original, rank.carrier)?
-            } else {
-                Vec::new()
-            },
+            realized_from,
+            realized_parameters,
         });
         for state in program.machine_states(machine) {
             for ordinal in 0..state_statements(program, state.statement_nodes).len() {
@@ -157,7 +229,11 @@ fn admit_coordinates(
                         continue;
                     };
                     let callee = machines[callee_position];
-                    let destination = &coordinates[callee_position];
+                    // A call into a nested helper is not the descent. The
+                    // helper's call back to the ranked machine is.
+                    let Some(destination) = coordinates[callee_position].as_ref() else {
+                        continue;
+                    };
                     let (source_callee, arguments) = if application.is_valid() {
                         let selected = expressions(program).static_machine_application(application);
                         (
@@ -310,11 +386,60 @@ fn admit_coordinates(
     if edges.is_empty()
         || machines
             .iter()
-            .any(|machine| !edges.iter().any(|edge| edge.caller == machine.symbol))
+            .zip(coordinates)
+            .any(|(machine, coordinate)| {
+                coordinate.is_some() && !edges.iter().any(|edge| edge.callee == machine.symbol)
+            })
     {
         return Err("source recursive component has an incomplete exact call inventory".into());
     }
     Ok(Component { members, edges })
+}
+
+fn enclosing_coordinate(
+    program: &dyn validation::CheckingInput,
+    helper: &Machine,
+    machines: &[&Machine],
+    coordinates: &[Option<Coordinate>],
+) -> Result<Coordinate, String> {
+    let scope = program.declaration_scope_parent(helper.symbol);
+    let declaring = scope
+        .is_valid()
+        .then(|| program.machine_declaration_for_lexical_scope(scope))
+        .flatten()
+        .ok_or_else(|| {
+            format!(
+                "nested source helper `{}` has no enclosing machine",
+                helper.name
+            )
+        })?;
+    let mut matches = machines
+        .iter()
+        .zip(coordinates)
+        .filter_map(|(machine, coordinate)| {
+            let coordinate = coordinate.as_ref()?;
+            let encloses = machine.symbol == declaring.symbol
+                || program
+                    .typed_program()
+                    .executable_application_template(machine.symbol)
+                    .ok()
+                    .flatten()
+                    == Some(declaring.symbol);
+            encloses.then(|| coordinate.clone())
+        });
+    let coordinate = matches.next().ok_or_else(|| {
+        format!(
+            "nested source helper `{}` does not decrease an enclosing source rank",
+            helper.name
+        )
+    })?;
+    if matches.next().is_some() {
+        return Err(format!(
+            "nested source helper `{}` decreases more than one enclosing rank",
+            helper.name
+        ));
+    }
+    Ok(coordinate)
 }
 
 /// Source state procedures can be invoked by statements or nested expressions
