@@ -88,7 +88,6 @@ pub(crate) struct CheckedMathematicalSignature {
     /// authored declaration order.
     authored: Vec<u32>,
     prepared: PreparedMathematicalApplications,
-    order_demands: Vec<validation::computed_order::OrderDemand>,
 }
 
 impl CheckedMathematicalSignature {
@@ -219,6 +218,7 @@ struct Elaborator<'a> {
     integer_theory: Option<proof_admission::SourceIntegerTheory>,
     integer_multiply: Option<u32>,
     prepared: PreparedMathematicalApplications,
+    order_demands: Vec<validation::computed_order::OrderDemand>,
 }
 
 /// Elaborate every mathematical declaration of `program` into a kernel
