@@ -61,10 +61,9 @@ pub enum LoweringError {
     /// A verified atomic access whose location, result, or ordering did not
     /// rejoin its declared scalar field and normalized event.
     VerifiedAtomicAccessMalformed(semantic_vocabulary::OperationId),
-    /// An atomic event with no single happens-before latest write to its
-    /// location in this activation (a join of distinct writes, or a
-    /// non-atomic write or write-authority loan between), so no retained
-    /// reads-from or modification-after edge could be checked.
+    /// An atomic event whose incoming storage or latest residency cannot be
+    /// reconstructed completely. Distinct known paths retain alternatives;
+    /// unknown projections cannot supply a checked coherence edge.
     UnsupportedAtomicCoherence(semantic_vocabulary::OperationId),
     /// The length observation did not retain its exact scalar u64 result.
     InvalidByteSequenceLength(semantic_vocabulary::OperationId),

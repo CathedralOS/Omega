@@ -823,6 +823,25 @@ impl Retirement<'_> {
             })
     }
 
+    /// The symbol owns a home this plan already established: a structural
+    /// local binding, or a named result rooted at that symbol. An expression
+    /// carrier with the symbol erased is not that home.
+    fn owner_home_established(&self, symbol: SymbolHandle) -> bool {
+        if !symbol.is_valid() {
+            return false;
+        }
+        self.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::EstablishLocal(
+                    CheckedUnitLocalBindingPlan::Structural { symbol: local, .. }
+                ) if *local == symbol
+            )
+        }) || self.results.iter().any(|(result, root)| {
+            *root == PlaceRoot::Symbol(symbol) && result.local.symbol == symbol
+        })
+    }
+
     pub(super) fn holder_retired(&self, handle: Handle<BorrowLoanFact>) -> bool {
         self.holder_retired_following(handle, &mut Vec::new())
     }
@@ -905,6 +924,26 @@ impl Retirement<'_> {
             // Transfer discharges a descriptor locally, but keeps its backing
             // alive when selecting that backing's pending owner disposition.
             return self.uncommitted_owner == PlaceRoot::Symbol(Default::default());
+        }
+        // Last use at this exit ends a descriptor only when its owner is an
+        // established local home. A weakening by itself does not invent that
+        // home: lowering still has to resolve the same symbol.
+        if self.at_exit
+            && let Some(weakening) =
+                loan_weakening(self.facts, self.machine, self.state.symbol, handle)
+            && matches!(
+                weakening.reason,
+                FlowBorrowWeakeningReason::LastUseExpired | FlowBorrowWeakeningReason::StateExit
+            )
+            && let FlowInvalidationSource::Statement { statement_index } = weakening.source
+            && (self.order.position(statement_index).is_none()
+                || self
+                    .order
+                    .at_or_before(statement_index, self.statement_index as usize))
+        {
+            if self.owner_home_established(loan.owner_symbol) {
+                return true;
+            }
         }
         // A completed call can version a stored occurrence without moving an
         // owned argument or returning a value. Its preserved alternatives name

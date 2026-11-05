@@ -293,6 +293,17 @@ pub(super) fn type_is_caller_isolated_proof_value(
     type_is_caller_isolated(program, handle, true, &[])
 }
 
+/// Prefix tracking and its fallback use the same local storage rule.
+/// Keep ordinary local isolation, and also accept values proved to contain
+/// no references when their mathematical type has no runtime layout.
+pub(super) fn local_storage_is_caller_isolated(
+    program: &dyn crate::CheckingInput,
+    handle: TypeReferenceHandle,
+) -> bool {
+    type_is_caller_isolated_local(program, handle)
+        || type_is_caller_isolated_proof_value(program, handle)
+}
+
 /// `visiting` records instantiated containers, not bare definition symbols:
 /// `Wrap<Wrap<u64>>` is finite while a genuinely recursive instantiation
 /// re-encounters an equal container.

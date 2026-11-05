@@ -30,24 +30,24 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedConsume {
     machine consume(items: [u8; 2]) -> Observation
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+        reaches invokes SelectedBodyCheck crashes Trap;
 }
 
 X86Consume satisfies SelectedConsume {
     machine consume(items: [u8; 2]) -> Observation
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+        reaches invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-     capacity<[u8; 2], marker, 7, 3, Positive>(items) 
+        capacity<[u8; 2], marker, 7, 3, Positive>(items)
     }
 }
 
 ArmConsume satisfies SelectedConsume {
     machine consume(items: [u8; 2]) -> Observation
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+        reaches invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-     capacity<[u8; 2], marker, 7, 3, Positive>(items) 
+        capacity<[u8; 2], marker, 7, 3, Positive>(items)
     }
 }
 

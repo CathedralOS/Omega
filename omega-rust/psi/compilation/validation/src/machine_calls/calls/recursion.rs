@@ -90,13 +90,53 @@ fn validate_terminal_value(
     }
 }
 
+fn recursive_entry_path(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    call: &TableCallExpression,
+) -> Option<String> {
+    // Qualification and leaf spelling do not define recursion. The exact
+    // selected entry does, including a declaration-qualified call. A nested
+    // machine is a separate machine, so a call to an enclosing entry is
+    // still that enclosing machine's self-recursion.
+    if !call.target_symbol.is_valid() {
+        return None;
+    }
+    let mut symbol = machine.symbol;
+    let mut seen = Vec::new();
+    while symbol.is_valid() && !seen.contains(&symbol) {
+        seen.push(symbol);
+        if let Some(owner) = program.machine_by_symbol(symbol)
+            && (call.target_symbol == owner.symbol
+                || program
+                    .machine_states(owner)
+                    .first()
+                    .is_some_and(|entry| call.target_symbol == entry.symbol))
+        {
+            return Some(owner.name.as_str().to_owned());
+        }
+        let parent = program
+            .machine_by_symbol(symbol)
+            .and_then(|owner| owner.lexical_region_origin)
+            .map(|origin| origin.machine)
+            .filter(|parent| parent.is_valid())
+            .unwrap_or_else(|| program.typed_program().declaration_scope_parent(symbol));
+        if parent == symbol {
+            break;
+        }
+        symbol = parent;
+    }
+    None
+}
+
 fn is_current_entry_call(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     call: &TableCallExpression,
 ) -> bool {
-    // Qualification and leaf spelling do not define recursion. The exact
-    // selected current entry does, including declaration-qualified calls.
+    // Proof descent stays on the machine being checked. An enclosing entry is
+    // a runtime frame obligation, handled by `recursive_entry_path`, and is
+    // not an extra measure on the nested proof step.
     call.target_symbol.is_valid()
         && (call.target_symbol == machine.symbol
             || program
@@ -122,12 +162,15 @@ fn reject_embedded_self_calls(
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => recurse(atomic.value, diagnostics),
         ExpressionNode::Call(call) => {
-            if is_current_entry_call(program, machine, call) {
+            if let Some(path) = recursive_entry_path(program, machine, call) {
                 // A transition arm names the entry by its leaf; the
                 // qualification that selects the machine is not respelled
                 // there.
-                let path = machine.name.as_str();
-                let leaf = path.rsplit("::").next().unwrap_or(path);
+                let leaf = path
+                    .rsplit("::")
+                    .next()
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| path.clone());
                 diagnostics.push(Diagnostic::error(format!(
                     "`{path}(..)` here is NON-TAIL self-recursion: the \
                      result feeds the surrounding computation, so the frame must \

@@ -24,6 +24,7 @@ use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
 
 mod cases;
+mod conditional_guarantees;
 mod data_identity;
 mod domain_premises;
 mod equations;
@@ -582,6 +583,7 @@ pub(super) struct StructuralJudge<'program> {
     // identity distinct when reusing equations. Executable branch comparisons
     // remain ordinary normal-path proof facts.
     captured_result_equations: Arc<Vec<normal_returns::CapturedResultEquation>>,
+    conditional_guarantees: Arc<Vec<conditional_guarantees::ConditionalGuarantees>>,
     resolve_applications: bool,
     // Closed computation owes completion of every eager operand. Symbolic
     // law normalization can retain applications without asserting completion.
@@ -650,6 +652,7 @@ impl Clone for StructuralJudge<'_> {
             storage_write_sequence: self.storage_write_sequence,
             normal_guarantees: Arc::clone(&self.normal_guarantees),
             captured_result_equations: Arc::clone(&self.captured_result_equations),
+            conditional_guarantees: Arc::clone(&self.conditional_guarantees),
             resolve_applications: self.resolve_applications,
             require_closed_computation: self.require_closed_computation,
             runtime_body_values: self.runtime_body_values,
@@ -690,6 +693,7 @@ impl<'program> StructuralJudge<'program> {
             && self.storage_write_sequence == base.storage_write_sequence
             && self.invalidated_storage.len() == base.invalidated_storage.len()
             && self.captured_result_equations.len() == base.captured_result_equations.len()
+            && Arc::ptr_eq(&self.conditional_guarantees, &base.conditional_guarantees)
             && self.returned_field_owners.len() == base.returned_field_owners.len()
             && self.normal_memberships.len() == base.normal_memberships.len()
             && (Arc::ptr_eq(
@@ -708,6 +712,9 @@ impl<'program> StructuralJudge<'program> {
     /// True when `self` has added no non-boolean rewrites, non-boolean
     /// substitutions, or integer ordering/equality guarantees since `base`.
     pub(super) fn has_no_new_non_boolean_facts_since(&self, base: &Self) -> bool {
+        if !Arc::ptr_eq(&self.conditional_guarantees, &base.conditional_guarantees) {
+            return false;
+        }
         let is_bool = |term: &StructuralTerm| term.boolean_value().is_some();
         self.substitutions
             .get(base.substitutions.len()..)
@@ -1165,6 +1172,7 @@ impl<'program> StructuralJudge<'program> {
             storage_write_sequence: 0,
             normal_guarantees: Arc::new(Vec::new()),
             captured_result_equations: Arc::new(Vec::new()),
+            conditional_guarantees: Arc::new(Vec::new()),
             resolve_applications,
             require_closed_computation: false,
             runtime_body_values: false,
@@ -1257,8 +1265,25 @@ impl<'program> StructuralJudge<'program> {
             None,
             Some(self.declaration_scope()?),
             expression,
-            None,
+            Some(&|expression| {
+                let ExpressionNode::SavedSubject(saved) =
+                    expression_table(self.program).expression(expression)
+                else {
+                    return None;
+                };
+                self.completed_match_subject(saved)
+            }),
         )
+    }
+
+    /// Formation has already read these subjects in its immutable declaration
+    /// frame. Retain their scoped anchors before intaking arm conditions; a
+    /// capture never gains a premise from an arm that has not been selected.
+    pub(super) fn bind_formed_match_subjects(
+        &mut self,
+        captures: &[(ExpressionHandle, StructuralTerm)],
+    ) {
+        Arc::make_mut(&mut self.normal_results).extend_from_slice(captures);
     }
 
     /// The ordinary predicate reader can also consume an executed prefix's
@@ -1588,6 +1613,16 @@ impl<'program> StructuralJudge<'program> {
             {
                 term = saved;
                 continue;
+            }
+            // Public field guarantees belong to the captured value, before a
+            // case refinement replaces its parent with fresh payload binders.
+            // Read those exact completed equations without unfolding the call.
+            if matches!(term, StructuralTerm::Projection { .. }) {
+                let completed = self.completed_integer_call_description(&term);
+                if !completed.same_resolution_payload(&term) {
+                    term = completed;
+                    continue;
+                }
             }
             // Authenticate the original applied identity before the existing
             // canonical-result owner runs. Only the Application arm consumes

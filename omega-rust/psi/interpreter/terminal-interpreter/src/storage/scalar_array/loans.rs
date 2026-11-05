@@ -12,27 +12,27 @@ use crate::storage::runtime_rows::RuntimeRows;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeShape, nonlinear_multiplicity_pair_pattern,
+    StructuralPathSegment, StructuralTypeShape,
 };
 
 /// Captured backing retains its actual memberships before a receiving contract
-/// is applied. Resident aggregate storage needs no activation companion.
+/// is applied. Resident cells retain their array identity; packed payloads also
+/// retain the activation that owns those cells.
 struct CapturedArrayLoan {
     value: TerminalStructuralValue,
-    companion: Option<ElementView>,
+    companion: ElementView,
 }
 
 impl CapturedArrayLoan {
-    fn into_companion(self) -> Option<(TerminalStructuralValue, ElementView)> {
-        self.companion.map(|companion| (self.value, companion))
+    fn into_companion(self) -> (TerminalStructuralValue, ElementView) {
+        (self.value, self.companion)
     }
 }
 
 impl TerminalExecution<'_> {
-    /// Packed arrays and forwarded collection loans need an activation home.
-    /// Ordinary structural arrays already have stable resident identity and
-    /// keep the reference owner's normal storage projection. This selects a
-    /// physical backing owner, not a different source reference operation.
+    /// Keep the array's extent beside its actual cells. Resident arrays can
+    /// have individually initialized cells rather than a packed payload; their
+    /// identity must survive an indexed borrow just as an activation home does.
     pub(crate) fn prepare_scalar_array_reference(
         &self,
         referent_type: StructuralTypeId,
@@ -43,21 +43,12 @@ impl TerminalExecution<'_> {
         if self.lent_collection_type(referent_type, argument).is_none() {
             return Ok(None);
         }
-        if !self.scalar_array_values.contains_key(&argument.place)
-            && !self.element_view_values.contains_key(&argument.place)
-            && self
-                .resolve_live_storage_projection(argument.place, &argument.path, argument.access)?
-                .collection_home
-                .is_none()
-        {
-            return Ok(None);
-        }
         // Reference formation owns its authenticated current observations. A
         // backing capture cannot require those fresh facts as standing source
         // memberships, nor publish them back onto the owner's storage.
         Ok(self
             .capture_scalar_array_loan(referent_type, argument, identity_cursor, local_roots)?
-            .and_then(CapturedArrayLoan::into_companion))
+            .map(CapturedArrayLoan::into_companion))
     }
 
     /// A fixed array lent to a fixed-array formal, or lent whole to an
@@ -112,7 +103,7 @@ impl TerminalExecution<'_> {
         if fixed_array_formal && !borrowed_array_memberships_match(&captured.value, parameter) {
             return Err(malformed());
         }
-        Ok(captured.into_companion())
+        Ok(Some(captured.into_companion()))
     }
 
     fn capture_scalar_array_loan(
@@ -142,9 +133,6 @@ impl TerminalExecution<'_> {
         let preserves_membership_carrier = |whole: &[_], projected: &[_]| {
             fixed_array_formal || whole.is_empty() && projected.is_empty()
         };
-        if crate::engine::custody::place_is_claimed(&self.live_claims, argument.place) {
-            return Err(malformed());
-        }
         let StructuralTypeShape::FixedArray {
             length: terminal_psi::ArrayExtent::Literal(length),
             ..
@@ -153,47 +141,18 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let length = usize::try_from(length).map_err(|_| malformed())?;
-        // Validate the source declaration even for empty arrays: no element
-        // access will happen there to catch an illicit mutable reborrow.
-        let machine = self.program.machine(self.current_machine)?;
+        // Borrow the exact resident subtree without consuming its owner. A
+        // linear claim or a moved sibling does not make a different live array
+        // unavailable; absent custody still refuses, including empty arrays.
         let root_type = self.live_structural_type(argument.place)?;
-        let source_access = if let Some(source) = machine.structural_parameter(argument.place) {
-            if source.structural_type != root_type
-                || !matches!(source.multiplicity, nonlinear_multiplicity_pair_pattern!())
-                || (source.access != StructuralAccess::Owned
-                    && source.multiplicity != StructuralMultiplicity::Unrestricted)
-            {
-                return Err(malformed());
-            }
-            source.access
-        } else {
-            let (operation, declared) = machine
-                .producing_operation(argument.place)
-                .ok_or_else(malformed)?;
-            let source = operation.result.structural().ok_or_else(malformed)?;
-            if declared != root_type
-                || source.place != argument.place
-                || source.structural_type != root_type
-                || !matches!(source.multiplicity, nonlinear_multiplicity_pair_pattern!())
-                || !source.claims.is_empty()
-            {
-                return Err(malformed());
-            }
-            StructuralAccess::Owned
-        };
-        // Root declarations authenticate access and custody. Only the selected
-        // array's memberships classify this loan; unrelated containing-record
-        // invariants remain with checked formation and ancestor preservation.
+        let source_access =
+            self.storage_carrier_access(argument.place, root_type, &argument.path)?;
+        // Only the selected array's memberships classify this loan. Unrelated
+        // containing-record invariants remain with checked formation.
         // Capturing a loan pins backing; it never observes its contents. The
         // requested access must still fit the actual source, including when
         // forwarding a write-only loan or attenuating mutable access.
-        if !argument.access.admits(source_access)
-            || (!argument.path.contains(&StructuralPathSegment::Referent)
-                && self
-                    .live_affine_frontier
-                    .iter()
-                    .any(|entry| entry.place == argument.place && !entry.path.is_empty()))
-        {
+        if !argument.access.admits(source_access) {
             return Err(malformed());
         }
         if argument.path.is_empty()
@@ -218,7 +177,7 @@ impl TerminalExecution<'_> {
                 .with_descriptor_home(presented.clone());
             return Ok(Some(CapturedArrayLoan {
                 value: presented,
-                companion: Some(loan),
+                companion: loan,
             }));
         }
         let (root, _) =
@@ -252,22 +211,6 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        // A resident fixed-array reference binds the already-loaded opaque
-        // referent through ordinary aggregate transport. Pinning the argument's
-        // descriptor path here would replay a replaceable pointer after the
-        // call or state edge. Only packed storage and existing collection loans
-        // need an activation-home companion. A real element-view formal still
-        // forms its explicit descriptor through the collection path below.
-        if fixed_array_formal
-            && captured_home.is_none()
-            && !self.scalar_array_values.contains_key(&argument.place)
-            && !self.element_view_values.contains_key(&argument.place)
-        {
-            return Ok(Some(CapturedArrayLoan {
-                value: referent,
-                companion: None,
-            }));
-        }
         let mut presented = referent.clone();
         presented.structural_type = structural_type;
         let home = match captured_home {
@@ -284,16 +227,21 @@ impl TerminalExecution<'_> {
                 }
                 loan.captured_storage_home(&self.structural_types(), &argument.path)?
             }
-            None => Some(ElementViewHome {
-                storage: self.capture_primitive_home(argument.place)?,
-                path: argument.path.clone(),
-            }),
+            None if self.scalar_array_values.contains_key(&argument.place) => {
+                Some(ElementViewHome {
+                    storage: self.capture_primitive_home(argument.place)?,
+                    path: argument.path.clone(),
+                })
+            }
+            // Resident cells are already rooted in the captured value. A path
+            // through a replaceable reference descriptor is not their home.
+            None => None,
         };
         let loan = ElementView::structural(referent, length, argument.access, home, argument.place)
             .with_descriptor_home(presented.clone());
         Ok(Some(CapturedArrayLoan {
             value: presented,
-            companion: Some(loan),
+            companion: loan,
         }))
     }
 

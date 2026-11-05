@@ -895,7 +895,7 @@ impl OperationFrame<'_, '_> {
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::ReleaseReference {
-            source,
+            source: released,
             path,
             case_conditions,
             select_evaluated_storage,
@@ -908,7 +908,7 @@ impl OperationFrame<'_, '_> {
         };
         let storage = self
             .evaluation
-            .value_storage(source, &self.parameters, |binding| {
+            .value_storage(released, &self.parameters, |binding| {
                 self.results.value_storage(binding, self.operations)
             })?;
         let types = self.structural_types.declarations();
@@ -992,7 +992,17 @@ impl OperationFrame<'_, '_> {
             // A whole descriptor release ends this physical owner. Keeping it
             // in the selection frontier would move a dead parent on the next
             // private edge; projected releases retain the owner's siblings.
-            self.evaluation.retire_structural_home(source);
+            // A result carrier and the declared local share that place. Ending
+            // the result leaves the named local established for the release
+            // that still names the symbol.
+            if matches!(
+                released,
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+            ) {
+                self.evaluation.retire_structural_home(source);
+            } else {
+                self.evaluation.retire_result_carrier(source);
+            }
         }
         let checked = self.checked;
         let control = &checked.facts.flow.terminal_unit_effects.cleanup_control;

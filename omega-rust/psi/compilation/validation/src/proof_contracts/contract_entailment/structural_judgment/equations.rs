@@ -49,6 +49,7 @@ impl StructuralJudge<'_> {
         let left = self.resolve_with_at(left, resolution_depth, purpose);
         let right = self.resolve_with_at(right, resolution_depth, purpose);
         self.intake_equation_fact_with_purpose(left, right, depth, purpose);
+        self.activate_conditional_guarantees();
     }
 
     /// Shared fact storage after the producer has selected its value inputs.
@@ -62,6 +63,7 @@ impl StructuralJudge<'_> {
         depth: usize,
     ) {
         self.intake_equation_fact_with_purpose(left, right, depth, ResolutionPurpose::General);
+        self.activate_conditional_guarantees();
     }
 
     fn equation_inputs_are_observed(

@@ -15,6 +15,10 @@ use typed_trees::expression::{
 enum MatchObservation<'scope> {
     Executed(ValueScope<'scope>),
     Declaration,
+    BoundDeclaration {
+        scope: symbols::SymbolHandle,
+        parameters: &'scope [typed_trees::signature::StateParameter],
+    },
 }
 
 impl<'program> StructuralJudge<'program> {
@@ -63,9 +67,11 @@ impl<'program> StructuralJudge<'program> {
                 MatchObservation::Executed(scope) => subject
                     .judge
                     .complete_match_subject(expression, dispatch, value, scope),
-                MatchObservation::Declaration => subject
-                    .judge
-                    .complete_declared_match_subject(expression, dispatch, value),
+                MatchObservation::Declaration | MatchObservation::BoundDeclaration { .. } => {
+                    subject
+                        .judge
+                        .complete_declared_match_subject(expression, dispatch, value)
+                }
             }?;
         }
         for arm in program.expression_table.match_arms(dispatch.arms) {
@@ -74,7 +80,7 @@ impl<'program> StructuralJudge<'program> {
             // that decision with the same owner used by formation/coverage.
             let scope = match observation {
                 MatchObservation::Executed(scope) => Some(scope),
-                MatchObservation::Declaration => None,
+                MatchObservation::Declaration | MatchObservation::BoundDeclaration { .. } => None,
             };
             let case = scope
                 .filter(|_| matches!(arm.pattern, MatchPattern::Value(_)))
@@ -90,6 +96,50 @@ impl<'program> StructuralJudge<'program> {
                 });
             let mut next_remaining = Vec::new();
             for subject in remaining {
+                if let MatchObservation::BoundDeclaration { scope, parameters } = observation {
+                    // Bound contracts retain their typed case conditions. The
+                    // same ordered path walk keeps earlier failures and joins
+                    // only values justified on every feasible alternative.
+                    let condition = subject.judge.bound_match_condition(
+                        dispatch,
+                        &subject.value,
+                        arm.pattern,
+                        scope,
+                        parameters,
+                        &mut |judge, operand| {
+                            let paths = evaluate(judge.clone(), operand, NormalValueDemand::Value)?;
+                            judge.common_match_value(operand, paths)
+                        },
+                    )?;
+                    let comparison = condition
+                        .as_ref()
+                        .map_or(StructuralJudgment::Proven, |condition| {
+                            condition.judgment(&subject.judge)
+                        });
+                    if !matches!(comparison, StructuralJudgment::Proven) {
+                        let mut skipped = subject.judge.clone();
+                        if let Some(condition) = &condition {
+                            condition.assume(&mut skipped, false);
+                        }
+                        next_remaining.push(NormalReturnPath {
+                            value: subject.value.clone(),
+                            judge: skipped,
+                            source: subject.source.clone(),
+                            observation: subject.observation,
+                            value_requested: subject.value_requested,
+                        });
+                    }
+                    if !matches!(comparison, StructuralJudgment::Refuted) {
+                        let mut selected = subject.judge;
+                        if let Some(condition) = &condition {
+                            condition.assume(&mut selected, true);
+                        }
+                        for value in evaluate(selected, arm.value, demand)? {
+                            outcomes.push(value.at_expression(expression, demand));
+                        }
+                    }
+                    continue;
+                }
                 let pattern = match arm.pattern {
                     MatchPattern::Value(pattern) => Some((pattern, false)),
                     MatchPattern::Destructure(pattern) => Some((pattern.condition, true)),
@@ -342,6 +392,28 @@ impl<'program> StructuralJudge<'program> {
             dispatch,
             &[],
             MatchObservation::Declaration,
+            NormalValueDemand::Value,
+            |judge, operand, _| {
+                let value = observe(&judge, operand)?;
+                Some(vec![NormalReturnPath::observed(value, judge)])
+            },
+        )?;
+        self.common_match_value(expression, outcomes)
+    }
+
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn bound_declaration_match_term(
+        &self,
+        expression: ExpressionHandle,
+        dispatch: &TableMatchExpression,
+        scope: symbols::SymbolHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        mut observe: impl FnMut(&Self, ExpressionHandle) -> Option<StructuralTerm>,
+    ) -> Option<StructuralTerm> {
+        let outcomes = self.clone().match_paths(
+            expression,
+            dispatch,
+            &[],
+            MatchObservation::BoundDeclaration { scope, parameters },
             NormalValueDemand::Value,
             |judge, operand, _| {
                 let value = observe(&judge, operand)?;

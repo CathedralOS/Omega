@@ -481,6 +481,22 @@ fn assign_name_in_role(
         expression_table,
         path,
     );
+    // A pattern head `Type::Domain` names a root domain, not a data child.
+    // Membership `x in Type::Domain` already resolves that spelling; a
+    // transition arm uses the same selection so the domain's case union
+    // counts toward exhaustiveness.
+    if role == NameRole::PatternHead && !symbol.is_valid() {
+        let members = expression_table.name_path_members(path.members);
+        if members.len() >= 2 {
+            let joined = members.joined_path();
+            let reference = diagnostic_path_source_span(members);
+            if let Ok(Some(crate::symbols::MembershipSelection::Domain(domain))) =
+                crate::symbols::membership_selection(symbols, &joined, reference)
+            {
+                symbol = domain;
+            }
+        }
+    }
     // Attached machines are not children of their carrier in the symbol tree.
     // A qualified selection must retain the same exact declaration as a
     // call, otherwise equation/non-value checks see an unresolved leaf. Keep

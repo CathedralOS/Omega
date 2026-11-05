@@ -215,8 +215,8 @@ trait_machine_identity_slots: &trait_machine_identity_slots,
             true,
         );
 
-        // Machine-owned value expressions (owned-data initializers and
-        // conformance `via` paths) resolve against the same enclosing scope.
+        // Owned-data initializers, satisfaction arguments and `via` paths
+        // resolve value expressions in the same enclosing declaration scope.
         let expression_scope = MachineScope {
             attached_machines: &attached_machines,
             resolution_indexes: &program.resolution_indexes,
@@ -375,6 +375,13 @@ trait_machine_identity_slots: &trait_machine_identity_slots,
             crate::symbols::type_references::assign_trait_implementation_argument_symbols(
                 symbols, child_type_references, &local_type_parameters,
                 conformance.symbol, conformance.arguments,
+            );
+            crate::symbols::type_references::assign_type_argument_value_expression_symbols(
+                symbols,
+                &expression_scope,
+                expression_table,
+                child_type_references,
+                conformance.arguments,
             );
             if conformance.via_expression.is_valid() {
                 assign_expression_table_symbols(
