@@ -557,33 +557,14 @@ impl Producer<'_> {
                     &mut parameters,
                 ));
             }
-            let mut label = predicate_value;
-            for &value in values[common.len()..].iter().rev() {
-                label = self.arena.insert(Term::Pair {
-                    first: value,
-                    second: label,
-                });
-            }
-            if ordinal + 1 < cases.len() {
-                let tag = self.arena.insert(Term::TwoZero);
-                label = self.arena.insert(Term::Pair {
-                    first: tag,
-                    second: label,
-                });
-            }
-            for _ in 0..ordinal {
-                let tag = self.arena.insert(Term::TwoOne);
-                label = self.arena.insert(Term::Pair {
-                    first: tag,
-                    second: label,
-                });
-            }
-            for &value in values[..common.len()].iter().rev() {
-                label = self.arena.insert(Term::Pair {
-                    first: value,
-                    second: label,
-                });
-            }
+            let label = terms::constructor_label(
+                self.arena,
+                ordinal,
+                cases.len(),
+                values.iter().copied(),
+                predicate_value,
+            )
+            .map_err(|error| GraphFailure::Kernel(error.into()))?;
             self.check(label, family.carrier, "source return label")?;
             let supplied = terms::constructor_children(self.arena, &family, label, &children)
                 .map_err(|error| GraphFailure::Kernel(error.into()))?;

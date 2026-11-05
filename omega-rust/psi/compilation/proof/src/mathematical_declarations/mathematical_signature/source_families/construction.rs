@@ -609,33 +609,14 @@ impl Elaborator<'_> {
                 "generated source constructor predicate proof fails kernel checking: {error:?}"
             ))
         })?;
-        let mut label = proof;
-        for value in payload.into_iter().rev() {
-            label = self.arena.insert(Term::Pair {
-                first: value,
-                second: label,
-            });
-        }
-        if case + 1 < family.cases.len() {
-            let tag = self.arena.insert(Term::TwoZero);
-            label = self.arena.insert(Term::Pair {
-                first: tag,
-                second: label,
-            });
-        }
-        for _ in 0..case {
-            let tag = self.arena.insert(Term::TwoOne);
-            label = self.arena.insert(Term::Pair {
-                first: tag,
-                second: label,
-            });
-        }
-        for value in common.into_iter().rev() {
-            label = self.arena.insert(Term::Pair {
-                first: value,
-                second: label,
-            });
-        }
+        let label = super::terms::constructor_label(
+            &mut self.arena,
+            case,
+            family.cases.len(),
+            common.into_iter().chain(payload),
+            proof,
+        )
+        .map_err(|error| self.refuse(error.into()))?;
         check_type(
             &mut self.arena,
             &context,
