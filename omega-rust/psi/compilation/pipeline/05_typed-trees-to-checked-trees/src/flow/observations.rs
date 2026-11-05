@@ -44,7 +44,8 @@ pub(crate) fn completed_dispatch_extraction(
         .control
         .unique_state(machine.symbol, state.symbol)?;
     let statement = facts.flow.state_statement(state_flow, statement_index)?;
-    let mut extraction = DispatchExtraction::of_transition_arm(program, state, statement_index);
+    let mut extraction =
+        DispatchExtraction::of_transition_arm(program, machine, state, statement_index);
     let mut completed = false;
     for observation in facts
         .flow
