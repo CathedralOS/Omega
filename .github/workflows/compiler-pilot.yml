@@ -1,202 +1,385 @@
-name: Compiler queue pilot
-
+name: Replay the imported numeric root choice and package review
 on:
-  pull_request:
-    branches: [integration-pilot]
-  merge_group:
-    branches: [integration-pilot]
-    types: [checks_requested]
   workflow_dispatch:
-    inputs:
-      smoke:
-        description: Also build executables and run the native/Terminal smoke (not admission)
-        type: boolean
-        default: false
-      fixtures:
-        description: Optional comma-separated exact pass/group/name and fail/group/name IDs; replaces smoke
-        type: string
-        default: ''
-      checking_only:
-        description: Check only the exact fixtures and rejection controls, without repeating runtime observations
-        type: boolean
-        default: false
-      phase_profile:
-        description: Record compiler phase timings for a focused attribution run
-        type: boolean
-        default: false
-      samples:
-        description: Optional comma-separated exact samples/cli/facts project paths (with descendants); replaces smoke
-        type: string
-        default: ''
-      cli_fixtures:
-        description: Optional exact pass/... or samples/cli/... normal-exit projects through ordinary CLI package review and both engines
-        type: string
-        default: ''
-      build_consent:
-        description: Run public source-produced Build consent and filesystem isolation controls
-        type: boolean
-        default: false
-      native_host:
-        description: Matching native host for manual executable observations
-        type: choice
-        options:
-          - linux_x86_64
-          - linux_arm64
-          - windows_x86_64
-          - macos_arm64
-        default: linux_x86_64
-
 permissions:
   contents: read
-
-# A new PR revision supersedes its old check; never cancel a merge-group check
-# merely because another PR entered the queue. Manual revisions use isolated
-# runners and may proceed while an earlier revision finishes its consumers.
-concurrency:
-  group: compiler-pilot-${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
+  actions: read
 jobs:
-  compiler-pilot:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","linux_arm64":"ubuntu-24.04-arm","windows_x86_64":"windows-2022","macos_arm64":"macos-15"}')[inputs.native_host] || 'ubuntu-24.04' }}
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     env:
-      CARGO_BUILD_JOBS: '2'
-      CARGO_INCREMENTAL: '0'
-      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
-      CARGO_BUILD_FINGERPRINT: content
-      # Large calling-policy checks use about 2.8 GiB each. Run one fixture
-      # at a time to reduce concurrent memory pressure.
-      OMEGA_CORPUS_JOBS: '1'
+      GH_TOKEN: ${{ github.token }}
       RUST_MIN_STACK: '67108864'
-      # Match Linux/macOS post-merge storage; Windows keeps its short target path.
-      CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: 43ea67e7d1b39d81d7911f7239c5c73b3dbd7a93
+          fetch-depth: 1
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Test the gate's refusal paths
-        run: python tools/tests/test_compiler_pilot.py -v
-      - name: Test Build control evidence refusal paths
-        run: python tools/tests/test_build_consent_controls.py -v
-      - name: Validate exact fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_fixtures; import os; print(select_fixtures(os.environ['OMEGA_COMPILER_PILOT_FIXTURES']))"
-      - name: Validate exact fact sample selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.samples != ''
-        env:
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-        run: python -c "from tools.ci.compiler_pilot import select_samples; import os; print(select_samples(os.environ['OMEGA_COMPILER_PILOT_SAMPLES']))"
-      - name: Validate exact ordinary CLI fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.cli_fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_cli_fixtures; import os; print(select_cli_fixtures(os.environ['OMEGA_COMPILER_PILOT_CLI_FIXTURES']))"
-      - name: Provision Windows rooted temporary directory for hosted applications
-        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
-      - name: Select the retained compiler cache from its validated plan
-        id: replay-cache
-        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "import os; from tools.ci import compiler_pilot; compiler_pilot.write_replay_cache_key(os.environ['OMEGA_COMPILER_PILOT_FIXTURES'], os.environ['GITHUB_OUTPUT'])"
-      - name: Restore the exact retained compiler cache
-        id: replay-build-cache
-        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - name: Authenticate the actual compiler and observe both input-copy paths
+        shell: bash
+        run: |
+          python3 - <<'REPLAY'
+          from pathlib import Path,PurePosixPath
+          from types import SimpleNamespace
+          import hashlib,json,os,stat,subprocess,sys,urllib.request,urllib.error,zipfile
+          settings={'artifact': {'archive_download_url': 'https://api.github.com/repos/CathedralOS/Omega/actions/artifacts/13390908130/zip',
+                        'created_at': '2026-11-05T05:27:45Z',
+                        'digest': 'sha256:655175116da72065fc1eac9f372ce14b114c914c84828a11e222b085a5c040e7',
+                        'expired': False,
+                        'expires_at': '2026-12-05T05:27:30Z',
+                        'id': 13390908130,
+                        'name': 'core-float-application-roles-41969387280',
+                        'node_id': 'MDg6QXJ0aWZhY3QxMzM5MDkwODEzMA==',
+                        'size_in_bytes': 147285711,
+                        'updated_at': '2026-11-05T05:27:45Z',
+                        'url': 'https://api.github.com/repos/CathedralOS/Omega/actions/artifacts/13390908130',
+                        'workflow_run': {'head_branch': 'evidence/core-float-canonical-join-20261105',
+                                         'head_repository_id': 1275568129,
+                                         'head_sha': 'd92d7ae9b9aa6bf3c9d99d4d208e65d9707dbfef',
+                                         'id': 41969387280,
+                                         'repository_id': 1275568129}},
+           'compiler_inputs': {'.cargo': None,
+                               'Cargo.lock': 'e881ca0c250750753b5cf7294ce69621add8dfee',
+                               'Cargo.toml': '2699e0a8d0be49c789639cbd3c603521634145d9',
+                               'bootstrap': 'cfb29e665d301b5ad7dabdb8cb16177c164ab035',
+                               'omega-rust': 'af4d00d8dc28048c5f6d42d1c3233a1223baacdd',
+                               'rust-toolchain.toml': '34677fc928123970d13e8b81641724e2a9e6f929',
+                               'source/library': '51b55fc8c72ffcb7b759f04e14b4848b5dce31b5',
+                               'source/omega': '96169168741fcd8265771a647ba3bfadd2bc7e8c',
+                               'source/psi': '400feb4e6c0c556f0fd5d6b44043e92f93d7f30c',
+                               'tools/benchmark': '6c1a4399e3f037c808a23ad59825e76664482e2f'},
+           'dependency': 'pass/packages/rootless_numeric_provider_review',
+           'fixture': 'pass/packages/rootless_numeric_provider_consumer',
+           'helper_path': 'tools/ci/ordinary_cli_fixture.py',
+           'helper_revision': '34f3fa76cccdda4608c34c89264f8c6c68c3367b',
+           'helper_sha256': 'f3d6394f097f137b54a2a7b033d4b3709ba5a8d6230fcb3f0d9f259282c6ffe7',
+           'input_hashes': {'source/library/README.md': 'e374f4608105d3fd7011e181f3ce39296a9a7e4bbda6fa69d99b02aab080a814',
+                            'source/library/alloc/build.omg': '7e2ceee9a760a528a8258d67f578e8a0f641a67ad26bd1ba84bf9261f6555f14',
+                            'source/library/alloc/bump.omg': 'ae94f131622d2817e589defcca00e669ef9883de3c7a562e3d955d215fb3ca8d',
+                            'source/library/alloc/main.omg': '417edeed95556dad5f2b971625458b71d49e74aa0cd812108659ab263eccf940',
+                            'source/library/alloc/vec.omg': 'b95dac0f69a03754009aaa6f4d95e0a9ee899566c6f1107979fe127cb2b35030',
+                            'source/library/blocking-executor/build.omg': 'b09bbce1281a080d73db6c6a90b7b06a8b3196af03938e1e68a5d281244d987d',
+                            'source/library/blocking-executor/executor.omg': '1c6c925807663a8be02b5261559923848384d43cf6f479dd9659dd8adf06e362',
+                            'source/library/blocking-executor/main.omg': '0d86baaa3867d51c29b5e146f0f363676049aca709f181d597730e044a6c8fd4',
+                            'source/library/blocking-executor/queue.omg': 'a8559109c4614970b2d638c4f45e8f3733f9fb45edfa19fd6ece0877f11db415',
+                            'source/library/core/activation.omg': '8a801bf20b3ba1f12ad89cf7f31ebf30b58ce828793cce787602f12b378011e1',
+                            'source/library/core/algebra.omg': '9b398ebe8147c69da12e4e76aaf845b2cd0adfc3ccef58657352427a2be4b368',
+                            'source/library/core/arena.omg': '1ed545ffc20a139bef89db4787abcb9850760496459b8c1cb2e24b4b47bfbc0f',
+                            'source/library/core/array.omg': '8475298774460d6823c47bbd03a7b1fd1bccade0be29c5160f56aaa832e3b862',
+                            'source/library/core/assembly.omg': '59f31f1af00d3180693f39cde47e5a4ff08fdc20e36f6d97e38aea1377713f15',
+                            'source/library/core/assembly_model.omg': 'fc18b838fb2866cb40c116936998c30fc204d0e4cb2be13de9790747fec9c924',
+                            'source/library/core/atomic.omg': '9be58e4b42ee56546896e68067ac1356678514b89ed78fd95633ce9bb6278a3b',
+                            'source/library/core/build.omg': '5fe6ec9cfe493b25fcf400eafc8df404d819cebfefc7a7074cd281fb14359f37',
+                            'source/library/core/c_layout.omg': '0549fd3542786bba54471e60451efca3b486f25bc7696d20cf856da1fa5d4edf',
+                            'source/library/core/cauchy.omg': 'c8244b9b6bdb9d63090998f56a2ef81644751d3e7658ec7c678a2eb1b1c107ed',
+                            'source/library/core/code_layout.omg': 'd60c1e5d7af2211855f231813e3ab3185c8f07b89f22eda27d50b0f09485b1f6',
+                            'source/library/core/code_segment.omg': 'a6325408aab55d269d2325fc8d68e300eb79299c585fc0901c791d280ba9b7f8',
+                            'source/library/core/complex.omg': 'ff87af686b8cc3924baa835358107bab5fee3d6519f6402e83ee4f36c092eed8',
+                            'source/library/core/content.omg': 'e492260d91704cd7acf80816083748e144c4010c5b0375689671b5fcd882deef',
+                            'source/library/core/conversion.omg': '35ba3c9bfd11b8575c66acec246a47f17159b3d2781f8ab772325d70de850718',
+                            'source/library/core/data_segment.omg': '50d796b144994a594c90f3559c6ef27dc19b9d6563530eb109dc935ce5a35f7b',
+                            'source/library/core/device.omg': '2a83f8d59d75b590d03d8d64fd1c596bc55a8b5f091917cd0e2b96ef24513202',
+                            'source/library/core/drop.omg': '6e9291c7dcf87547e612ed061561fe505e2c289bab853efe4ed2e42d2ca468ff',
+                            'source/library/core/extent.omg': '6c7e60276b79b8763212b704df12fb0fd8127f83ebe390fe43d8d363be2de93d',
+                            'source/library/core/external_binding.omg': '85e12a3043ee54047fce1499d15bc72efafb196687de0b6b9f71444e77229cde',
+                            'source/library/core/filesystem_authority.omg': '99d99ab7a334c02d5807ab0b405bdcb3ee3e479abd6e9542b2d0ac9110940a82',
+                            'source/library/core/fixed_vec.omg': '47e764a2cd3c5698dcd7133ef433f86e1bbd8182dc5cc2d365074bf87b701090',
+                            'source/library/core/float.omg': 'a85f6128796f325b63a59993c7a1be79d93ecdd069f048f93ba6af1586231d41',
+                            'source/library/core/float_accuracy.omg': '13a6588eaa0f4079c26dcaeff87ca6af4714de85503c1b57559a75719a73e314',
+                            'source/library/core/float_format.omg': 'b226b82c067bb771f67afd0dac0f6d3292e96ae5b6d8f6514e45f396251067f1',
+                            'source/library/core/float_meaning.omg': '7d4db28b4313fae9fc2b4b9bad94b689f09be53ab13ee24dcd03a4229db93b68',
+                            'source/library/core/float_operations.omg': '6803ae543d400fa21c90806fbd3c70610657f54d2cb54169f6d17157590d0688',
+                            'source/library/core/float_order.omg': '4615ab1edf7e9c159e725ac829d459e7a43ef3451753a24f09b6b197d9cb4211',
+                            'source/library/core/float_provider.omg': '82fcdeee590b893cd9301085040d56212a5506a3e9e69c3b648693e43c909324',
+                            'source/library/core/format_lineage.omg': 'd1b1693ea2f039dc4f74fdb0eb807cbc4a5e9f99bd9054862e77849e8abf7dcf',
+                            'source/library/core/int.omg': 'c243116b743bc71696e793006aeff7a9aac32e307e8feefe2c48e33417ea1864',
+                            'source/library/core/integer.omg': 'ea66601ed8be27b434c45ce337f904587da63201b13ef959a737a27939c5b815',
+                            'source/library/core/interrupt.omg': '27e708d754b5aa0cf4544f43b14fa4004eaff54ecd9a593a0ff9bf9f2c7fb936',
+                            'source/library/core/iteration.omg': 'c086484294a47fa9d21ff39f215b43822429e82c5c6bb81712b359c25082dbdf',
+                            'source/library/core/layout.omg': 'ffc4b3c56d0d43ae2a871e8d3943df19237fb0c270f68480fc7515956fbcd67a',
+                            'source/library/core/linear_algebra.omg': '10c8a96afe181a92d958c4f566b705485f9fc2fd48d9473764aef857c0b354b9',
+                            'source/library/core/main.omg': '686287f7436b84f3f9138764aa7f310d6f0f024eaeaf4e29f504e2403d56b6d8',
+                            'source/library/core/math.omg': '0cf56548ab39c00787c4732b363393fb90e32015b1e9d3b18e24bd7772879e44',
+                            'source/library/core/matrix_layout.omg': '98596f3630d2964951aa1123ae0a783e34d10619607c7ca7026cd07a2481c5c1',
+                            'source/library/core/nat.omg': '1ab74b959aa4ee7cd7c43c8831b4381d73afbfbf1d2b418741328946e137bc5b',
+                            'source/library/core/nat_metric.omg': '8f3c0a5bfd6fbc3ba0007436a87f8733257fcf9e608574b10eb3ebe3b8a6024d',
+                            'source/library/core/native_execution_authority.omg': '369890c7fbb5b86e50a2fdd7471193442a34d3cf3c50880f90f7a85bd966b720',
+                            'source/library/core/numeric_conversion.omg': 'd6025109f03bd7a00b380356e4ed563f7c71bc50feefc4ba3269edd3785c11ca',
+                            'source/library/core/option.omg': '336a593fe4c77c96253718ce8a65ba851db99f9bfe1fb7abbd40f9e8569edadb',
+                            'source/library/core/presentation_authority.omg': '55f97d0f8a05f5a976a0a30b506d4fc42ea16a18dea51f987d5677199fcaf9d5',
+                            'source/library/core/process_authority.omg': 'ee6a26d734deaccf1a803e3bbff0b6aa4df08846a36124e5e642c478e333df07',
+                            'source/library/core/process_exit.omg': '6ff9daba6a70e09db8367f90ff18a39c599dfea9ceb512cbda204ff700a0789f',
+                            'source/library/core/program_image.omg': 'fc4c0cf6e8015431f5ab963fd7f2fa2fe651e6a1458f6c93da159eda4a57ad9f',
+                            'source/library/core/ptr.omg': '5356de96870c4dcf8e52b05e877d297e00a2c71d698b8715a31ad8c08bb3f60a',
+                            'source/library/core/rat.omg': '1c4f1ed60bed9395bb843590d7c951c23c590c95a8216ebd6ef9a7c6771cb2f5',
+                            'source/library/core/real.omg': '2b3ed03c8567f1d3052bfcc6468b196eab0be767eaf121e0243d23bf98e75b48',
+                            'source/library/core/reflect.omg': '3588e4597e5396af0f253a8faf71aa3ea11a8a6911f224cbaa15504cbd3dbd23',
+                            'source/library/core/relation.omg': 'e2ee07b137e2c3ae1922e9b6dfe7a9877a4fe1d45edc61da484bc21d836ac297',
+                            'source/library/core/representation.omg': '17a6e03c1901bbb3da9488d38b343d33b84721f44453966bc461ac6051126086',
+                            'source/library/core/run.omg': '2f3e92282a5b0afd94b11597c3a13b8bdfd21a68ae62ee0454c372e84bb4b17b',
+                            'source/library/core/seq.omg': 'cedbc5945f7741216d398d472e12f947f17cb5484f98b0c9779d9da2d385698d',
+                            'source/library/core/sha256.omg': 'a98361567eb4442c2c990aff467374a10f9c9ddb3dbfb69fbc8cc28d04884583',
+                            'source/library/core/slice.omg': 'd315632a3d69a5dc799e88eb162317ed39d67937f5eeee5a42a98a050afa34b6',
+                            'source/library/core/slice_views.omg': 'e1905daa75b6fe8db9b485213892b7a253a42430c7436103eba2224797857daa',
+                            'source/library/core/task.omg': 'a84168714a1bdbbc7d4ca0f5d3c17f7a88c884fd9dccb3bccf9e26e1bdb5597d',
+                            'source/library/core/task_register.omg': 'e24a90e7a420a238115511834f88d8fc61b3aad368f68b1496bfce5660a6cd9c',
+                            'source/library/core/time_authority.omg': '2a1ecc75b1b4b97193a7e8e7fd05bab6c4956f519f2aaf54ab88586df25a93e1',
+                            'source/library/core/units.omg': '729a2bb44d0306c32eb42268324cbb8e0d89cba08583619501c5bd376a5d2c86',
+                            'source/library/core/vec.omg': '3967c855446e800f82ed7c034c6e95630141df041e9b5141988295898350b486',
+                            'source/library/core/wait_wake.omg': '8afcc11b7d27e1ac5c6acf093810cfabcb1f970006ebab75816890edd35a78aa',
+                            'source/library/core/wire.omg': '160efe9d92f92fdab022326e99ff57a278604767ae531833d0b217011b417a62',
+                            'source/library/std/build.omg': 'cdbbb123e104f21dbb9b192119e076ec653be35e13ab72843cdae37befcd45f3',
+                            'source/library/std/calling.omg': 'f14dca8aa59e19b49ef8a04687ba6dd3fb6d0018ee0a275c652dd3fa6823f58d',
+                            'source/library/std/clock.omg': '9c812bbe05c2ff7bf665bb71be0e966807a2da5322c4980dce214a99f74880aa',
+                            'source/library/std/console.omg': '7a09f99ca49fa7807cc6e9d385ed5b5a4a6064183496043ebfba5dc400176a10',
+                            'source/library/std/darwin_calling.omg': '8ded2adfff396de7a438b010e52ce4345f73627d7f9f1920d4c0477a7c033c70',
+                            'source/library/std/entry_shapes.omg': '7bfafec9f87f500e4be3bd2c5f346fb0c4453398f4611fbfcd72699efaf17ab6',
+                            'source/library/std/filesystem.omg': 'b7445d229242f73bbd7c3ae17fb76686f5297f0bb784bf13ecf7ec97424f6306',
+                            'source/library/std/filesystem_host.omg': 'fc43a5045ca2b287b4cc62ef5b9ea079916cfd5c862f729a35b7a06da73b64d2',
+                            'source/library/std/macos_gui.omg': 'd77d7c6c63ab1da3963801cf8e332979a47611bf17c7aedf156bb4d02944593a',
+                            'source/library/std/macos_image.omg': '9cb6895722b14b7d0f27b0098cc481aa345cbcb76446f4550ca915a6b35ae0ab',
+                            'source/library/std/main.omg': '963f8655814ce864e0f59995fb777a35fc08859a6753d0ee5205e840aeefa78b',
+                            'source/library/std/posix_byte_view_calling.omg': '37ee12290da93a93ec2611f81aecd503221487531d9e0e0434e8bc68ef6d9e6e',
+                            'source/library/std/posix_filesystem_adapter.omg': 'f9d314ea97c6454d7a467fc1c881e7bc1f786d30af8474c6bb6fce66d00c50ff',
+                            'source/library/std/posix_filesystem_host.omg': '7d5cc4ff79ee747539d96443e1898b8f8e977e14adfcdde7188bb3e8a9b68e36',
+                            'source/library/std/process_exit.omg': '176c2f4f973a1e51551dd6b30d83c70d1f0e0f3da0631229c40c1ce4cee94ca3',
+                            'source/library/std/targets/linux_arm64.omg': '84b1531498851bf39d0118e3372aa83cbb6a7e97ab238b4a651f68e980caf8db',
+                            'source/library/std/targets/linux_arm64/clock_impl.omg': '081386b86b79b42a2fe447f3d137910f4d8af24ba7bcaf58038bcf80732344de',
+                            'source/library/std/targets/linux_arm64/console_impl.omg': '07ffd2ba49a05b3ee776a3a2edb99d6a5adc7c8172f66ab581c4bc59c5468cec',
+                            'source/library/std/targets/linux_arm64/entry.omg': 'cd19ce187c3176e752b8c6c42af15a7b212921c34fb497bfe0c26ad3a2961f24',
+                            'source/library/std/targets/linux_arm64/filesystem_impl.omg': '1c64e3d5b7d4f9d4567c4f220eacef710c53f38341e4b96f59c3da03f274b233',
+                            'source/library/std/targets/linux_arm64/posix_filesystem_impl.omg': '5b3b9d6e13fcea7cbb09abae1eb6c43ad124c87203aec9b60094ff72400544f5',
+                            'source/library/std/targets/linux_arm64/process_exit_impl.omg': 'faee0497fb8972fed86730d3daa93d9412408d41b88324b53cba58a063b208a5',
+                            'source/library/std/targets/linux_arm64/time_host_impl.omg': 'dceca5582618fe79331dd054443d2c6e736c334019be5fc3b4abb06fcb4fa541',
+                            'source/library/std/targets/linux_x86_64.omg': 'e9614e94d70ba5406ae4ccb6fb365a0c6b2a95108de7762f1982c903f91c3965',
+                            'source/library/std/targets/linux_x86_64/clock_impl.omg': '9070181d4cf4b63d92227ad06296b7869d8324ab0ee057279e6eb29145b493d7',
+                            'source/library/std/targets/linux_x86_64/console_impl.omg': '8a7dbc73a801e40be06e93c5fab91b05387b10037538a88aa5bc20b8e5718bde',
+                            'source/library/std/targets/linux_x86_64/entry.omg': '8cd4883d7658d3ecc68742243e0f4e6e0788fedce09e063607596ff86ca45e6b',
+                            'source/library/std/targets/linux_x86_64/filesystem_impl.omg': '41f9b3f071a2a82b942029179ed19e9bada4563ab3f9ef7a9a691f7b9ee59635',
+                            'source/library/std/targets/linux_x86_64/posix_filesystem_impl.omg': '9d6b0952204caa579efe01a2a304f094b70405596a3bb40f3538c98c6d81c3be',
+                            'source/library/std/targets/linux_x86_64/process_exit_impl.omg': '30d8f1d85491adfb53db5f7473671f61d155f0a805da1e3207b7c2e1cec84c66',
+                            'source/library/std/targets/linux_x86_64/time_host_impl.omg': '36b16cb563077ccac7ae85f9805ae27b4acaaeedd66610a49b453d67aaf98097',
+                            'source/library/std/targets/macos_arm64.omg': 'e6840a086a0265363f6c0c9c95cbec9edf85512f9e834167895b339aa40825a1',
+                            'source/library/std/targets/macos_arm64/clock_impl.omg': '701d129008a28fd1cb63a2dc3bc3885c39278947a76de34b2452c729f2029c33',
+                            'source/library/std/targets/macos_arm64/console_impl.omg': '6033f6928bdc4a281d4a31d98c02797025f1562c6f6d57ca419e4cea5b29578a',
+                            'source/library/std/targets/macos_arm64/entry.omg': '59e0eab05c8f892009454eb4318d643f3a10b567081b37f9a099f7f1d6f91546',
+                            'source/library/std/targets/macos_arm64/filesystem_abi.omg': '14a12c108d2590f0ef812fcc638bc4e42aba6cc275bf8bd479c9ad37655565c2',
+                            'source/library/std/targets/macos_arm64/filesystem_impl.omg': 'aa5473acbad9bfe9264b00770a5644692dd3e59b112f3b3b15a2034256f36440',
+                            'source/library/std/targets/macos_arm64/posix_filesystem_impl.omg': 'ee1f67cb50da18733723dfccb3d4bc3d0c56fc97bea680ceb4ea1f5365507fcd',
+                            'source/library/std/targets/macos_arm64/process_exit_impl.omg': '430abf139bad47dc53b232455155d4c2ed4de94d4a78e495a97c073da4c3573a',
+                            'source/library/std/targets/macos_arm64/time_host_impl.omg': '46e7c58a857ab304f5c476059596663e2407547f9c5edd85d789f05b3a5991c7',
+                            'source/library/std/targets/macos_x86_64.omg': '6390191487ebc95a7ec1131b4e8416cdec94f214d84eabca90d5ac56a4507df5',
+                            'source/library/std/targets/macos_x86_64/console_impl.omg': '1850e5627da3dae680645a6fe8092a1ad0a9a90d1ff2e459a2d01f9cb540adb8',
+                            'source/library/std/targets/macos_x86_64/entry.omg': '7be3781f183978a4d14a0fbb9df9d5d33905a78cad7a2cb50b01ad2ff75f7cb1',
+                            'source/library/std/targets/macos_x86_64/process_exit_impl.omg': '7758dc035d9454db301aefac1ae4548b4383023cbcc23b4ed1695c59d9356a24',
+                            'source/library/std/targets/uefi_x86_64.omg': '77b16f0553c13fdc6f3a42b1b6c4911adc7dbd0ed5332a33310c6b3d884ab5e2',
+                            'source/library/std/targets/uefi_x86_64/entry.omg': 'fa6e4fa7391ada822535cbaa7d14016644b27a75c63c901e953e789aa4829003',
+                            'source/library/std/targets/uefi_x86_64/handoff.omg': '32b4078f9eae37a9b9faf128ebeebad71f271ddfb22a3357118286f88fe00c35',
+                            'source/library/std/targets/uefi_x86_64/integrity.omg': '436dbd0b23af3eb2a42d21b0891946c053da2bbd22d8639aba9823cae29bfde7',
+                            'source/library/std/targets/uefi_x86_64/tables.omg': '11b1de141602a40e82db89ab205d9b2f585091a3489a4bfa75872b350eb1af73',
+                            'source/library/std/targets/windows_x86_64.omg': '7888fd18d5abcc5a9f5c5789d37f8662fd1d54922aef8f4c9ee5d3a3a0406b91',
+                            'source/library/std/targets/windows_x86_64/console_impl.omg': '5175c4201129aed2d279d8d3018f38340a0e34ee165b19b083d644513225f5cd',
+                            'source/library/std/targets/windows_x86_64/entry.omg': 'eaef882e8b574021a38392c08676b9aa7a30fb24e13ac1c31307b79d50a12f34',
+                            'source/library/std/targets/windows_x86_64/filesystem/copy.omg': 'bd068eeafe032fe25aa543bc5aba4c74fe80fdafe2d017a1f568b7ca4fb44e84',
+                            'source/library/std/targets/windows_x86_64/filesystem/directory.omg': '8044e302c5cb2c831c8691ed537da892b5f314a5d32fb279a72ba32d5d4eb41c',
+                            'source/library/std/targets/windows_x86_64/filesystem/errors.omg': '5b229d1c6c434f45599d2a080c32737263de57cee66e18b408a53ca7f80a83a4',
+                            'source/library/std/targets/windows_x86_64/filesystem/handles.omg': '27c8c23c61f403e8cffdaba78ff9a1d231c2b863b6ca0c0743d0c7dc29b367fa',
+                            'source/library/std/targets/windows_x86_64/filesystem/locking.omg': 'f18d15a5dda6879b594491d2cd1095e15f07d868b0c131e4effb4817e6c297b8',
+                            'source/library/std/targets/windows_x86_64/filesystem/metadata.omg': '2f38719cc8872171016ca2ba9306850ed1e61cb53dcbc9f9c56c7eed2015d752',
+                            'source/library/std/targets/windows_x86_64/filesystem/paths.omg': 'c5510a8d36a3a64dd0be67e53763d9f68fbfa8e99ff9eeec8e1705ec8424a617',
+                            'source/library/std/targets/windows_x86_64/filesystem/provider.omg': '431212682f321bce89da1b0b9a89cd5f56dda935bc3a88ec9d37a238eff68ec0',
+                            'source/library/std/targets/windows_x86_64/filesystem/sequences.omg': '653102df18d1c00aa4b79022ebbdae882e24ae09f0f5b279d62420a40ee0d345',
+                            'source/library/std/targets/windows_x86_64/filesystem_impl.omg': '64369358c6b38666e819835e2154ed15124c4338097a428d459cb812501cd95f',
+                            'source/library/std/targets/windows_x86_64/filesystem_removal/acquisition.omg': 'dd8339eed78b3a67249fafd1067aa298c9ac48a4af54baab41634560f6f8e091',
+                            'source/library/std/targets/windows_x86_64/filesystem_removal/attributes.omg': 'e27e8d40f8c1b7a70138c81822b6dad66e7f237a3ca93f364a51962d69787034',
+                            'source/library/std/targets/windows_x86_64/filesystem_removal/completion.omg': '53bae575b252133a99b3b47c0983fdab30af2003382e5a0ac0cee4ee9a5b681a',
+                            'source/library/std/targets/windows_x86_64/filesystem_removal/native.omg': 'e6e8a68edc50e666e678a7efc6051e1ad8c7d782d99cea23db1104b2dd826fbf',
+                            'source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg': 'fcd305c6f980c837950b305e8777f27ac615fa0a094026af4eef3c2baaf86aec',
+                            'source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg': 'afbc12780b96c459b6f7b990ac8b365ac241a38b9f63340bb39257df5fecbb46',
+                            'source/library/std/targets/windows_x86_64/process_exit_impl.omg': 'c6cc28c82d4d80f43f1a7ac476936da5d593a53a26ef0e0f055a9c079bfc5a87',
+                            'source/library/std/targets/windows_x86_64/time_host_impl.omg': '9f8a2fac9028d13b2572c3bfb89cf562c7e6aa899bcce07f84a7258d7c2c725a',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_calling.omg': 'a40dbad40b2e02d546cac7fe6a54d05dbbcf6842581b291b85a436cbe29e60c7',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_control.omg': '4f4844e76d0b181bfef71bc01434750afc9d609144fb07dea96d106a4985f5c7',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg': 'a30387944e29657417eae165440c0c5cb7f7a53ea71893f39f7de7166db10b32',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg': 'a1bdf637efeb9c03791edf8cbf598ee0f853175c81f8400e07932bd044132414',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_directory_native.omg': '861111183d91f92e4136c348b65847724e8c12fbe8cfed1944cacb0d0429ed02',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg': '7c3867b6700323946e4d14a7625833862e7a44837b6a20b78aa82aadb7bf7013',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_file_control_native.omg': '67b6c70cc82dab23c42ba3db7ee38434c3c8a4a63c48db546ace9bf8cb931a42',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_impl.omg': '22f236efddb3c2271d0b5aa7a25216c52ebc6046132cdad7421401378c6f094b',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg': '1f98a21779bf73e819ca392bec7140c2d9e44ee1d02c23b32afceb247da40671',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_lock_native.omg': 'df03f298557be49f994ddf3d60ffd104fe3ec9da6dbe40abf7f4d165973781d1',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg': 'd6f915a77a7b2fd1cba1271c2efbdb55d0cca4d12afc094b2a3efd7f1cbcb0a8',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_metadata_native.omg': 'b3c9dd7a15fe53848d3e0f66ba048aa426ceddc47c132c34c34c57caabbd0d2d',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_native.omg': '219a6285c608a65fd4081f3620668c36804b67adecb8cef4ad2c64b66e60060f',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_path_query.omg': '479ec6a2fdfc86205075d450089dc49a2480d21b334ac211d99b093ea3a13c82',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_path_query_native.omg': '673e8b3331e5f3b89afd553d38675a3f51e472472140a14cf916d896e92c0db3',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_paths.omg': '08fdc03cab28420ba7d2b75314d469748f2dcc09fd26dadaa60ce9396205fe82',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_position.omg': 'fd732662ebff82d66337b281170263fae90e51f6170ce720c2a3e49f822fca89',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_position_native.omg': '43c50dce03c207ae5e7134dab1e2740e238e823eba363f82e2c1932dbbed1620',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg': '3f5f2a787b97ee5b3fbfc5b9d743f5ac4a43bf86f604cbf2215c62c61d5aa4a8',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_private_handles.omg': 'fd117dfa8dca56b8d084047bd245e724829d482e2744dde095b578b60a5fef06',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_reparse.omg': '1ba727888454ff7693fea63bb9adca9350917bf4640935ffcb8820a83efa24a0',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_reparse_data.omg': 'a7e00804e237df52f2b9ca9f4d4de88491ae52f7d0b9833fea20fde3df18055d',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_reparse_native.omg': 'a8f1065fe25021a2c9553cdd1a346bb3a1823cd5ab7d17a147b8adc3d17ee8c1',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg': '580322a1d64477cf093b500d6a11c383123fbde289375fa5a20e6743e625efbb',
+                            'source/library/std/targets/windows_x86_64/windows_filesystem_transfer_native.omg': '0eef1a4d3cf23a17c3af8b65049465f84dcdab22475f8d23a71e30b6c6b491c3',
+                            'source/library/std/targets/windows_x86_64/windows_gui_impl.omg': '60d847a11f394e59b0fe798857798ddfe1249b3ecdca7e0fd4bbe3b8100378c4',
+                            'source/library/std/tests/callback_materialization_closure.omg': '49ea071f0827540af6882dcff24a04c416a6e26ab44d2d9c6ccb90e1da38da58',
+                            'source/library/std/tests/direct_callback_parameter.omg': '426947bdbb10bad23f4bf1fa0996b27cb948ca0a21966c5989772f12b1a03d8f',
+                            'source/library/std/time.omg': 'ea9c32ee63f68f8b26b6fbe958ec3676d6ee3c1663def3faee594d6b21b7948a',
+                            'source/library/std/time_host.omg': '1274706e9a0fc615ed6a20e918f32630db89bcac1d90f42bdd58b1968112175d',
+                            'source/library/std/windows_filesystem_host.omg': 'f7db0271334fc52acdff2d07918d9f1ab54b0a019cd4a50f7aac0fd1d9973bce',
+                            'source/library/std/windows_gui_host.omg': '90c5cf0f578f13c6307e6dd9235c9cc58146c648a10d0aa662ba3bb9ce2a415f',
+                            'tests/omega/pass/packages/rootless_numeric_provider_consumer/build.omg': '4bd3d1efd32eb2ebfde22f96799d02ebff67c6238087c9874b2d87b0a59dff95',
+                            'tests/omega/pass/packages/rootless_numeric_provider_consumer/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/packages/rootless_numeric_provider_consumer/main.omg': 'bbaa8a88da37d2ecb811b41d65efdb74d9595045c7ce0e81cadea98171a2184c',
+                            'tests/omega/pass/packages/rootless_numeric_provider_review/README.md': '090bb33cc205775c3d05d275cf1287e9290348a6898c5439d8e8fc2da604c770',
+                            'tests/omega/pass/packages/rootless_numeric_provider_review/build.omg': 'bb4b4d8089e17dc6c683bc23f00a2c8df018dc9fcc73414a208f29b4c3b31b68',
+                            'tests/omega/pass/packages/rootless_numeric_provider_review/main.omg': '6d5e3ed7c8623aaf23480407d4728e52c23d58a2d715b123abe106126de69b36'},
+           'label': 'compiler-pilot/rootless-import-replay',
+           'objects': {'.github': '28d646336b736ecc18904871833be8d8a26847d7',
+                       'Cargo.lock': 'e881ca0c250750753b5cf7294ce69621add8dfee',
+                       'Cargo.toml': '2699e0a8d0be49c789639cbd3c603521634145d9',
+                       'omega-rust': 'af4d00d8dc28048c5f6d42d1c3233a1223baacdd',
+                       'rust-toolchain.toml': '34677fc928123970d13e8b81641724e2a9e6f929',
+                       'source/library': '51b55fc8c72ffcb7b759f04e14b4848b5dce31b5',
+                       'tests/omega': '976b008f13862b3c7ad8745eded265c9ea4ac554',
+                       'tools': '450338bc3b8ce570d35c6beabe3242d02e75ee69'},
+           'original_driver': 'd92d7ae9b9aa6bf3c9d99d4d208e65d9707dbfef',
+           'original_run': 41969387280,
+           'producer': {'cli': '/home/runner/work/Omega/Omega/build/compiler-pilot/selected-execution/producer-tx049aby/omega',
+                        'cli_profile': {'binary': '/home/runner/work/Omega/Omega/build/compiler-pilot/selected-execution/producer-tx049aby/omega',
+                                        'profile': {'opt_level': '1', 'schema': 'omega-compiler-build-profile-v1'},
+                                        'sha256': '6554c8fa217bb9ec1852ebb8b94eb4b9bbdaf46396fc7606733f248777bdb835'},
+                        'revision': '69ec9f80599b6dc0a38cb7c555545895eb2810b1',
+                        'runner': '/home/runner/work/Omega/Omega/build/compiler-pilot/selected-execution/producer-tx049aby/corpus_runner',
+                        'runner_profile': {'binary': '/home/runner/work/Omega/Omega/build/compiler-pilot/selected-execution/producer-tx049aby/corpus_runner',
+                                           'profile': {'opt_level': '1', 'schema': 'omega-compiler-build-profile-v1'},
+                                           'sha256': 'd434a5ef952af9fcd24c3037a8ac24c7ddb82bb31299e3e0a2849f9695edb975'},
+                        'target': 'linux_x86_64',
+                        'toolchain': 'rustc 1.100.0-nightly (a69a63265 2026-09-03)\n'
+                                     'binary: rustc\n'
+                                     'commit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\n'
+                                     'commit-date: 2026-09-03\n'
+                                     'host: x86_64-unknown-linux-gnu\n'
+                                     'release: 1.100.0-nightly\n'
+                                     'LLVM version: 23.1.1',
+                        'tree': '543aa0b5e6cefa841f8554012f3ec989d6fa84c8'},
+           'producer_record': 'selected-execution/producer-tx049aby/producer.json',
+           'producer_source': '69ec9f80599b6dc0a38cb7c555545895eb2810b1',
+           'producer_tree': '543aa0b5e6cefa841f8554012f3ec989d6fa84c8',
+           'source': '43ea67e7d1b39d81d7911f7239c5c73b3dbd7a93',
+           'target': 'linux_x86_64',
+           'tree': '34c5471148c08c590dc702a2cae4cb6cd05e5e9c'}
+          root=Path.cwd().resolve();out=root/'build'/settings['label'];out.mkdir(parents=True,exist_ok=False)
+          def git(*args):return subprocess.check_output(['git',*args],text=True).strip()
+          assert git('rev-parse','HEAD')==settings['source'] and git('rev-parse','HEAD^{tree}')==settings['tree'] and not git('status','--porcelain')
+          for p,obj in settings['objects'].items():assert git('rev-parse','HEAD:'+p)==obj,p
+          run=json.loads(subprocess.check_output(['gh','api','repos/CathedralOS/Omega/actions/runs/'+str(settings['original_run'])],text=True))
+          assert run['head_sha']==settings['original_driver'] and run['status']=='completed'
+          expected=settings['artifact'];actual=json.loads(subprocess.check_output(['gh','api','repos/CathedralOS/Omega/actions/artifacts/'+str(expected['id'])],text=True))
+          for key in ['id','name','size_in_bytes','digest']:assert actual[key]==expected[key],key
+          assert actual['workflow_run']['head_sha']==settings['original_driver'] and actual['workflow_run']['id']==settings['original_run'] and not actual['expired']
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs):return None
+          request=urllib.request.Request(actual['archive_download_url'],headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+          try:urllib.request.build_opener(NoRedirect()).open(request,timeout=30);raise ValueError('Expected signed artifact redirect')
+          except urllib.error.HTTPError as error:
+              assert error.code==302;url=error.headers['Location']
+          archive=out/'original.zip';digest=hashlib.sha256();size=0
+          with urllib.request.urlopen(url,timeout=120) as response,archive.open('wb') as output:
+              while True:
+                  chunk=response.read(1024*1024)
+                  if not chunk:break
+                  output.write(chunk);digest.update(chunk);size+=len(chunk)
+          assert size==actual['size_in_bytes'] and 'sha256:'+digest.hexdigest()==actual['digest']
+          retained=out/'retained';retained.mkdir()
+          record=PurePosixPath(settings['producer_record']);prefix=record.parent
+          with zipfile.ZipFile(archive) as bundled:
+              assert sum(entry.filename==str(record) for entry in bundled.infolist())==1
+              for entry in bundled.infolist():
+                  path=PurePosixPath(entry.filename)
+                  assert not path.is_absolute() and '..' not in path.parts and not stat.S_ISLNK(entry.external_attr>>16)
+                  if not entry.is_dir() and (path.parent==prefix or path.parts[:2]==('integrated-controls','source') or entry.filename in ['integrated-controls/summary.json','selected-execution/scope.json']):
+                      target=retained/path;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(bundled.read(entry))
+          producer_record=retained/record;original=json.loads(producer_record.read_text());assert original==settings['producer']
+          cargo=[json.loads(line) for line in (producer_record.parent/'cli-build.jsonl').read_text().splitlines() if line.startswith('{')]
+          assert cargo[-1]['reason']=='build-finished' and cargo[-1]['success'] is True
+          assert any(row.get('reason')=='compiler-artifact' and row.get('target',{}).get('name')=='omega' and row.get('executable') and row['profile']['opt_level']=='1' for row in cargo)
+          summary=json.loads((retained/'integrated-controls/summary.json').read_text())
+          assert summary['candidate']==settings['producer_source'] and summary['producer']==original
+          assert any(stage['name']=='retain measured source' and stage['passed'] for stage in summary['stages'])
+          for exported in summary['source_exports']:
+              assert exported['revision']==settings['producer_source'] and exported['tree']==settings['producer_tree']
+              if exported['bundle']:
+                  bundle=retained/'integrated-controls/source'/Path(exported['bundle']).name
+                  assert bundle.stat().st_size==exported['bytes'] and hashlib.sha256(bundle.read_bytes()).hexdigest()==exported['sha256']
+          sys.path.insert(0,str(root/'tools/ci'));import compiler_pilot,compiler_replay_plan
+          subprocess.run(['git','fetch','--no-tags','--depth=1','origin',settings['producer_source']],check=True)
+          assert compiler_replay_plan.input_objects(root,settings['producer_source'])==settings['compiler_inputs']==compiler_replay_plan.input_objects(root,settings['source'])
+          assert compiler_pilot.corpus_gate.host_target()==settings['target']
+          cli=producer_record.parent/Path(original['cli']).name;runner=producer_record.parent/Path(original['runner']).name
+          for p in [cli,runner]:p.chmod(0o755)
+          profiles={name:compiler_pilot.corpus_gate.require_optimized(binary) for name,binary in [('cli_profile',cli),('runner_profile',runner)]}
+          def identity(profile):
+              result={k:v for k,v in profile.items() if k!='binary'}
+              if isinstance(result.get('build_receipt'),dict):result['build_receipt']={k:v for k,v in result['build_receipt'].items() if k!='path'}
+              return result
+          for key,profile in profiles.items():assert identity(profile)==identity(original[key]) and profile['profile']['opt_level']=='1'
+          def verify():
+              assert compiler_replay_plan.input_objects(root,settings['source'])==settings['compiler_inputs']
+              assert git('rev-parse','HEAD')==settings['source'] and not git('status','--porcelain')
+              for p,h in settings['input_hashes'].items():assert hashlib.sha256(Path(p).read_bytes()).hexdigest()==h,p
+              for key,binary in [('cli_profile',cli),('runner_profile',runner)]:assert compiler_pilot.corpus_gate.require_optimized(binary)==profiles[key]
+          verify()
+          producer=SimpleNamespace(cli=cli,runner=runner,target=settings['target'],verify=verify,record=lambda:original)
+          (out/'origin.json').write_text(json.dumps({'settings':settings,'driver':os.environ['GITHUB_SHA'],'original_run_conclusion':run['conclusion'],'archive_sha256':digest.hexdigest(),'archive_bytes':size,'actual_profiles':profiles,'source_exports':summary['source_exports'],'builds_rust':False},indent=2)+'\n')
+          subprocess.run(['git','fetch','--no-tags','--depth=1','origin',settings['helper_revision']],check=True)
+          helper=subprocess.check_output(['git','show',settings['helper_revision']+':'+settings['helper_path']])
+          assert hashlib.sha256(helper).hexdigest()==settings['helper_sha256']
+          helper_path=out/'reviewed_ordinary_cli_fixture.py';helper_path.write_bytes(helper)
+          import importlib.util,time
+          spec=importlib.util.spec_from_file_location('reviewed_ordinary_cli_fixture',helper_path)
+          reviewed=importlib.util.module_from_spec(spec);spec.loader.exec_module(reviewed)
+          rows=[]
+          for index,(fixture,dependencies) in enumerate([(settings['fixture'],(settings['dependency'],))]):
+           verify();destination=(out/'ordinary'/str(index)).resolve()
+           row=reviewed.observe(root,producer,fixture,destination,dependency_projects=dependencies);rows.append(row)
+           (out/'observations.json').write_text(json.dumps(rows,indent=2)+'\n')
+          review={'attempted':False,'passed':False}
+          if rows[0]['passed']:
+           destination=out/'ordinary/0';workspace=destination/'workspace';project=workspace/'tests/omega'/settings['fixture']
+           command=[str(cli),'audit','packages','--project',str(project),'--target',settings['target'],'--details']
+           review.update(attempted=True,command=command)
+           try:
+            with (out/'package-review.stdout').open('wb') as stdout,(out/'package-review.stderr').open('wb') as stderr:
+             result=subprocess.run(command,cwd=workspace,env=dict(os.environ,OMEGA_LIBRARY_ROOT=str(workspace/'source/library')),stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr,timeout=240)
+            review['exit']=result.returncode
+           except subprocess.TimeoutExpired:
+            review.update(exit=None,error='Fresh package details audit timed out; no review membership is inferred.')
+           text='\n'.join((out/('package-review.'+suffix)).read_text(errors='replace') for suffix in ['stdout','stderr'])
+           for p in [destination/'review.original.txt',destination/'review.accepted.txt']:
+            if p.is_file():text+='\n'+p.read_text()
+           review['unused_member_visible']='UnusedNumericProvider::native_negate' in text
+           review['passed']=review['exit']==0 and review['unused_member_visible']
+           review['channels']={suffix:{'path':'package-review.'+suffix,'sha256':hashlib.sha256((out/('package-review.'+suffix)).read_bytes()).hexdigest()} for suffix in ['stdout','stderr']}
+          (out/'package-review.json').write_text(json.dumps(review,indent=2)+'\n')
+          verify()
+          passed=all(row['passed'] for row in rows) and review['passed']
+          (out/'summary.json').write_text(json.dumps({'program_source':settings['source'],'producer_source':settings['producer_source'],'driver':os.environ['GITHUB_SHA'],'producer':original,'tool_revision':settings['helper_revision'],'builds_rust':False,'passed':passed,'outcomes':[{k:row.get(k) for k in ['fixture','passed','native_exit','terminal_exit','error','stages']} for row in rows],'package_review':review},indent=2)+'\n')
+          raise SystemExit(0 if passed else 1)
+          REPLAY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
+          name: core-float-rootless-import-${{ github.run_id }}
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.replay-cache.outputs.key }}
-          fail-on-cache-miss: true
-      - name: Refuse an absent or partial retained compiler cache
-        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@') && steps.replay-build-cache.outputs.cache-hit != 'true'
-        run: python -c "raise SystemExit('The exact retained compiler cache was not restored; no rebuild was attempted')"
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        id: build-cache
-        if: github.event_name != 'workflow_dispatch' || !startsWith(inputs.fixtures, '@')
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
-      - name: Check the exact integration candidate
-        id: compiler-check
-        run: cargo check --locked -p omega
-      - name: Prepare and retain the optimized producer
-        id: producer-preparation
-        if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py --phase prepare
-      - name: Upload the prepared producer and build receipts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        with:
-          name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/
-          if-no-files-found: warn
-          compression-level: 0
-          retention-days: 7
-      # Save compiled objects before any program consumer can use the job budget.
-      # A failed preparation still retains useful objects and keeps the job red.
-      - name: Save build cache before fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
-      - name: Observe public Build consent and filesystem isolation
-        if: github.event_name == 'workflow_dispatch' && inputs.build_consent
-        run: python tools/ci/build_consent_controls.py
-      - name: Enable requested compiler phase timings
-        if: github.event_name == 'workflow_dispatch' && inputs.phase_profile
-        run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_PHASE_PROFILE=1\n')"
-      - name: Optional executable observations
-        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py --phase consume
-      - name: Report actual producer and fixture observations
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('preparation.json', 'summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        with:
-          name: compiler-pilot-observations-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: |
-            build/compiler-pilot/
-            !build/compiler-pilot/producer-*/**
-          if-no-files-found: warn
-          compression-level: 0
-          retention-days: 7
-      # The corpus reports alone, so `corpus_gate.py --compare --remote` reads
-      # rows without downloading the retained producer (350-520 MB).
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        with:
-          name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/*.json
-          if-no-files-found: warn
-          retention-days: 7
+            build/compiler-pilot/rootless-import-replay/
+            !build/compiler-pilot/rootless-import-replay/original.zip
+            !build/compiler-pilot/rootless-import-replay/retained/**
+          retention-days: 30
