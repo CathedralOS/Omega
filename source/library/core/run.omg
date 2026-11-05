@@ -26,6 +26,10 @@ public machine Run::initialize_cell<P, T, Role>(
 >
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply
+ensures (match result {
+    AccessOutcome::Ready { view } -> view.storage.base == storage.base && view.storage.length == storage.length,
+    AccessOutcome::Rejected { returned, reason } -> returned.source.base == storage.base && returned.source.length == storage.length,
+})
 {
     let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
         &storage as &Extent in Granted
@@ -38,6 +42,9 @@ public machine Run::extract_cell<P, T, Role>(run: Run<P, T> in Live<P, T>)
 requires run.count == 1
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply
+ensures (match result {
+    AccessExtraction::Moved { storage, value } -> storage.base == run.storage.base && storage.length == run.storage.length,
+})
 {
     let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(&run.storage);
     Run::extract_from_profile<P, T, Role>(run, &profile)

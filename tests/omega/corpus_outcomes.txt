@@ -15772,6 +15772,8 @@ fail/memory/resident_result_requires_execution_contract rejected 1333ms expected
 fail/memory/resident_transfer_cast_forgery rejected 2632ms expected @ccdb99ca2214
 	`as ... in Resident` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove default-domain field requirement for return from forge, state entry, at statement 0: storage requires Resident
+fail/memory/typed_run_backing_geometry rejected 6920ms expected @c35d90e77142
+	cannot prove requires contract for call extract from allocated: (__transition_subject#183.view as Run<WordPlacement, Word> ).storage.length != backing_length (needs fact `run.storage.length != backing_length` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/memory/vacant_transfer_checked_adapter_forgery rejected 2567ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Vacant
 	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Granted
@@ -25163,8 +25165,8 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit checked 359
 pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit checked 4669ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/typed_run_nested_owned checked 6936ms @9a26074461a7
-pass/facts/typed_run_singleton checked 16389ms check-target:macos_arm64 @9a26074461a7
-pass/facts/typed_run_singleton_rejection checked 15738ms check-target:macos_arm64 @9a26074461a7
+pass/facts/typed_run_singleton checked 25439ms check-target:macos_arm64 @c35d90e77142
+pass/facts/typed_run_singleton_rejection checked 23801ms check-target:macos_arm64 @c35d90e77142
 pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 6521ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 6552ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_direct_boundary_call_through_field_exit checked 6444ms check-target:macos_arm64 @d68d95fa82f8
