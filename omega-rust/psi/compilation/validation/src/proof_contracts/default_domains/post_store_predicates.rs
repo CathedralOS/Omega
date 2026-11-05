@@ -32,7 +32,7 @@ use crate::{
 };
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
-use typed_trees::data::TypeParameterKind;
+use typed_trees::data::{DataDefinition, DataMember, TypeParameterKind};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
@@ -113,15 +113,32 @@ pub(super) fn post_store_predicate_holds(
             state.symbol,
             statement_index,
             written_value,
-        )
-        .or_else(|| declared_member_field_bounds(program, machine, state, written_value));
+        );
+    // A shared or immutable carrier still has its data declaration's field
+    // bounds. Those bounds belong to the source value, so they may prove the
+    // destination field. An exclusive binding can sit in a restoration window,
+    // and its current contents are not the declaration interval.
+    let declared_bounds = source_field_declaration_interval(program, machine, state, written_value);
     let written = ScopedArithmeticValue::Term(ScopedArithmeticExpression {
         owner: machine.symbol,
         expression: written_value,
         bindings: arrivals.clone(),
     });
-    let written = match written_bounds {
-        Some((minimum, maximum)) => ScopedArithmeticValue::BoundedInteger {
+    let interval = match written_bounds {
+        Some((minimum, maximum)) => {
+            let observed = BigIntInterval {
+                low: Some(BigInt::from_i128(i128::from(minimum))),
+                high: Some(BigInt::from_i128(i128::from(maximum))),
+            };
+            Some(match declared_bounds {
+                Some(declared) => observed.intersect(&declared),
+                None => observed,
+            })
+        }
+        None => declared_bounds,
+    };
+    let written = match interval {
+        Some(interval) => ScopedArithmeticValue::BoundedInteger {
             value: Box::new(ScopedArithmeticValue::Atom {
                 identity: format!(
                     "\0stored-value:{:?}:{:?}:{statement_index}:{written_value:?}",
@@ -136,10 +153,7 @@ pub(super) fn post_store_predicate_holds(
                 .and_then(|reference| program.primitive_type_reference(reference))
                 .is_some_and(|primitive| !primitive.is_signed_integer()),
             }),
-            interval: BigIntInterval {
-                low: Some(BigInt::from_i128(i128::from(minimum))),
-                high: Some(BigInt::from_i128(i128::from(maximum))),
-            },
+            interval,
         },
         None => written,
     };
@@ -325,25 +339,128 @@ pub(super) fn post_store_predicate_holds(
         )
 }
 
-/// Closed bounds a data `requires` interval states for this field read.
-/// Unsigned fields with only an upper conjunct start at zero. A missing
-/// bound stays unknown rather than inventing the carrier width.
-fn declared_member_field_bounds(
+/// The declaration interval of a field read whose carrier cannot have dropped
+/// that interval. `None` when the read is not one field of a shared or
+/// immutable binding, or when the declaration does not bound that field.
+fn source_field_declaration_interval(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-) -> Option<(i64, i64)> {
-    let interval = super::where_fact_intervals::stored_field_where_interval(
-        program, machine, state, expression,
-    )?;
-    let primitive = crate::expression_result_type_reference(program, machine, state, expression)
-        .and_then(|reference| program.primitive_type_reference(reference))?;
-    let low = interval
-        .low
-        .or_else(|| (!primitive.is_signed_integer()).then_some(0))?;
-    let high = interval.high?;
-    (low <= high).then_some((low, high))
+) -> Option<BigIntInterval> {
+    let table = crate::frozen_program::expression_table(program);
+    if let Some(member) = table.member_node(expression) {
+        if !receiver_retains_declared_domain(program, state, member.receiver) {
+            return None;
+        }
+        let definition = super::place_queries::data_definition_for_expression(
+            program,
+            machine,
+            Some(state),
+            member.receiver,
+        )?;
+        return declared_field_interval(program, definition, member.member.as_str());
+    }
+    let path = table.name_path_node(expression)?;
+    let members = table.name_path_members(path.members);
+    let [field_name] = members else {
+        return None;
+    };
+    if !binding_retains_declared_domain(program, state, path.head_symbol) {
+        return None;
+    }
+    let binding_type = binding_type_reference(program, state, path.head_symbol)?;
+    let definition = super::place_queries::data_definition_for_type(program, binding_type)?;
+    declared_field_interval(program, definition, field_name.as_str())
+}
+
+fn declared_field_interval(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    field_name: &str,
+) -> Option<BigIntInterval> {
+    let field = program
+        .data_members(definition)
+        .iter()
+        .find_map(|member| match member {
+            DataMember::Field(field) if field.name.as_str() == field_name => Some(field.symbol),
+            DataMember::Field(_) | DataMember::Variant(_) => None,
+        })?;
+    let (_, low, high) =
+        super::where_fact_intervals::data_where_field_intervals(program, definition)?
+            .into_iter()
+            .find(|(symbol, _, _)| *symbol == field)?;
+    if low.is_none() && high.is_none() {
+        return None;
+    }
+    Some(BigIntInterval {
+        low: low.map(|bound| BigInt::from_i128(i128::from(bound))),
+        high: high.map(|bound| BigInt::from_i128(i128::from(bound))),
+    })
+}
+
+fn receiver_retains_declared_domain(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    mut expression: ExpressionHandle,
+) -> bool {
+    let table = crate::frozen_program::expression_table(program);
+    for _ in 0..16 {
+        if !expression.is_valid() {
+            return false;
+        }
+        match table.expression(expression) {
+            typed_trees::expression::ExpressionNode::Member(member) => {
+                expression = member.receiver;
+            }
+            typed_trees::expression::ExpressionNode::Borrow(borrow) => {
+                if borrow.access.is_exclusive() {
+                    return false;
+                }
+                expression = borrow.target;
+            }
+            typed_trees::expression::ExpressionNode::Name(path) => {
+                return binding_retains_declared_domain(program, state, path.head_symbol);
+            }
+            _ => return false,
+        }
+    }
+    false
+}
+
+fn binding_retains_declared_domain(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    symbol: SymbolHandle,
+) -> bool {
+    let Some(type_reference) = binding_type_reference(program, state, symbol) else {
+        return false;
+    };
+    if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
+        if parameter.is_mutable {
+            return false;
+        }
+    } else if let Some((_, local)) = program.state_local_declaration(state, symbol) {
+        if local.is_mutable {
+            return false;
+        }
+    } else {
+        return false;
+    }
+    crate::reference_shell(program, type_reference).is_none_or(|shell| !shell.access.is_exclusive())
+}
+
+fn binding_type_reference(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    symbol: SymbolHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
+        return Some(parameter.type_reference);
+    }
+    program
+        .state_local_declaration(state, symbol)
+        .map(|(_, local)| local.type_reference)
 }
 
 fn scalar_binding(symbol: SymbolHandle, primitive: PrimitiveType) -> ScopedArithmeticBinding {

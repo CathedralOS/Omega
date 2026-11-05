@@ -1257,8 +1257,25 @@ impl<'program> StructuralJudge<'program> {
             None,
             Some(self.declaration_scope()?),
             expression,
-            None,
+            Some(&|expression| {
+                let ExpressionNode::SavedSubject(saved) =
+                    expression_table(self.program).expression(expression)
+                else {
+                    return None;
+                };
+                self.completed_match_subject(saved)
+            }),
         )
+    }
+
+    /// Formation has already read these subjects in its immutable declaration
+    /// frame. Retain their scoped anchors before intaking arm conditions; a
+    /// capture never gains a premise from an arm that has not been selected.
+    pub(super) fn bind_formed_match_subjects(
+        &mut self,
+        captures: &[(ExpressionHandle, StructuralTerm)],
+    ) {
+        Arc::make_mut(&mut self.normal_results).extend_from_slice(captures);
     }
 
     /// The ordinary predicate reader can also consume an executed prefix's

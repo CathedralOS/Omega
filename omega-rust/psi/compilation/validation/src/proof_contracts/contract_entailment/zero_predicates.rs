@@ -87,6 +87,7 @@ pub fn data_predicates_admit_zero(
                     &[],
                     &[],
                     None,
+                    false,
                 );
             if super::struct_trace() && !matches!(judgment, StructuralJudgment::Proven) {
                 let term = super::structural_terms::structural_term(
@@ -152,6 +153,7 @@ pub(crate) fn domain_predicates_admit_zero(
                     &[],
                     &[],
                     None,
+                    false,
                 ),
                 StructuralJudgment::Proven
             )
