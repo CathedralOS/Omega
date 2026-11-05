@@ -14,9 +14,10 @@ from check_rules import (
     SOURCE_READS, STAGE06_ROOT, STATUS_PHRASES,
     board_task_ids, changed_golden_rows, citing_documents, count_source_reads,
     count_status_phrases, dangling_task_ids, dangling_task_violations,
-    diff_hygiene_violations, fact_row_violations,
-    golden_row_quality_violations, golden_rows, golden_violations, lanes,
-    measurement_violations, nearest_rows,
+    already_pinned_fact_violations, diagnostic_fragments, diff_hygiene_violations,
+    expected_pin_violations, fact_row_violations,
+    fixture_owner, golden_row_quality_violations, golden_rows, golden_violations, lanes,
+    measurement_violations, nearest_rows, pinned_fixture_for_fact,
     program_shingles, ratchet_counts, ratchet_violations, read_baseline,
     read_dangling_baseline, subject_violations, tasks_board_violations,
     write_dangling_baseline, write_ratchet,
@@ -451,6 +452,136 @@ class FactRowTests(unittest.TestCase):
                                {"live_across_two": program_shingles(self.TWO)})
         self.assertLess(nearest["variant_payload"][0], check_rules.NEAR_DUPLICATE)
         self.assertEqual(fact_row_violations(nearest, {}), [])
+
+
+class ChecklistRefusalTests(unittest.TestCase):
+    """Sessions were scoring the checklist: rewriting a pinned diagnostic, or
+    adding a samples/cli/facts program for a fact the corpus already pins."""
+
+    OLD = "tests/omega/fail/facts/length_through_local_rejected/expected.txt"
+    LENGTH = {"fail/facts/length_through_local_rejected",
+              "pass/facts/length_through_local_exit"}
+    FACTS = {"length", "may_write_codec", "may_write_codec_argument"}
+
+    def test_rewriting_an_existing_pin_names_the_file_and_rule(self):
+        changes = [("M", self.OLD)]
+        violations = expected_pin_violations(
+            changes,
+            lambda path: "may overflow `u8`\n",
+            lambda path: "may overflow `u64`\n")
+        self.assertEqual(len(violations), 1)
+        self.assertIn(self.OLD, violations[0])
+        self.assertIn("existing-diagnostic-pin", violations[0])
+        self.assertIn("dropped 'may overflow `u8`'", violations[0])
+        self.assertIn("added 'may overflow `u64`'", violations[0])
+
+    def test_whitespace_and_order_do_not_change_the_pin(self):
+        changes = [("M", self.OLD)]
+        self.assertEqual(expected_pin_violations(
+            changes,
+            lambda path: "alpha\n\nbeta\n",
+            lambda path: "  beta  \nalpha\n"), [])
+        self.assertEqual(diagnostic_fragments("alpha\n\nbeta\n"),
+                         diagnostic_fragments("  beta  \nalpha\n"))
+
+    def test_a_new_expected_file_and_other_oracles_are_allowed(self):
+        changes = [
+            ("A", "tests/omega/fail/text/fresh_refusal/expected.txt"),
+            ("M", "tests/omega/fail/text/fresh_refusal/expected_error.txt"),
+            ("M", "samples/cli/facts/length/local/expected.txt"),
+            ("M", "tests/omega/pending/note.txt"),
+        ]
+        self.assertEqual(expected_pin_violations(
+            changes, lambda path: "old\n", lambda path: "new\n"), [])
+
+    def test_deleting_an_existing_pin_is_refused(self):
+        violations = expected_pin_violations(
+            [("D", self.OLD)], lambda path: "holds no value\n", lambda path: "")
+        self.assertEqual(len(violations), 1)
+        self.assertIn("existing-diagnostic-pin", violations[0])
+        self.assertIn("removed the file", violations[0])
+
+    def test_a_longer_fact_keeps_its_own_fixtures(self):
+        fixtures = {"pass/facts/may_write_codec_argument_through_field_exit",
+                    "pass/facts/may_write_codec_through_local_exit"}
+        self.assertEqual(
+            fixture_owner("may_write_codec_argument_through_field_exit", self.FACTS),
+            "may_write_codec_argument")
+        self.assertEqual(
+            pinned_fixture_for_fact("may_write_codec", fixtures, self.FACTS),
+            "pass/facts/may_write_codec_through_local_exit")
+        self.assertEqual(
+            pinned_fixture_for_fact("may_write_codec_argument", fixtures, self.FACTS),
+            "pass/facts/may_write_codec_argument_through_field_exit")
+
+    def test_a_new_program_for_a_pinned_fact_names_the_file_and_rule(self):
+        path = "samples/cli/facts/length/field/main.omg"
+        violations = already_pinned_fact_violations(
+            [("A", path),
+             ("M", "samples/cli/facts/length/local/main.omg"),
+             ("A", "samples/cli/facts/brand_new/local/main.omg")],
+            self.LENGTH, self.FACTS)
+        self.assertEqual(len(violations), 1, violations)
+        self.assertIn(path, violations[0])
+        self.assertIn("already-pinned-fact", violations[0])
+        self.assertIn("fail/facts/length_through_local_rejected", violations[0])
+
+    def test_a_nested_fixture_directory_pins_its_fact_name(self):
+        witness = pinned_fixture_for_fact(
+            "length", {"pass/facts/length"}, {"length"})
+        self.assertEqual(witness, "pass/facts/length")
+
+    def test_diff_checks_wires_both_refusals(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            environment = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
+                               GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+
+            def git(*arguments):
+                return subprocess.run(["git", "-C", directory, *arguments], check=True,
+                                      capture_output=True, text=True, env=environment).stdout.strip()
+
+            def write(path, text):
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / path).write_text(text)
+
+            git("init", "-q")
+            write("tests/omega/fail/facts/length_through_local_rejected/expected.txt",
+                  "may overflow `u8`\n")
+            write("tests/omega/fail/facts/length_through_local_rejected/main.omg",
+                  "machine main() -> u64 { return 0u64; }\n")
+            write("samples/cli/facts/length/local/main.omg",
+                  "machine main() -> u64 { return 0u64; }\n")
+            write("tests/omega/pass/facts/may_write_codec_argument_through_field_exit/main.omg",
+                  "machine main() -> u64 { return 0u64; }\n")
+            write("samples/cli/facts/may_write_codec/local/main.omg",
+                  "machine main() -> u64 { return 0u64; }\n")
+            write("samples/cli/facts/may_write_codec_argument/local/main.omg",
+                  "machine main() -> u64 { return 0u64; }\n")
+            git("add", "-A")
+            git("commit", "-q", "-m", "base")
+            base = git("rev-parse", "HEAD")
+            write("tests/omega/fail/facts/length_through_local_rejected/expected.txt",
+                  "may overflow `u64`\n")
+            write("tests/omega/fail/text/fresh_refusal/expected.txt", "a new pin\n")
+            write("samples/cli/facts/length/field/main.omg",
+                  "machine main() -> u64 { return 1u64; }\n")
+            write("samples/cli/facts/may_write_codec/field/main.omg",
+                  "machine main() -> u64 { return 1u64; }\n")
+            git("add", "-A")
+            git("commit", "-q", "-m", "change")
+            violations = check_rules.diff_checks(base, root)
+            text = "\n".join(violations)
+            pins = [line for line in violations if "existing-diagnostic-pin" in line]
+            duplicates = [line for line in violations if "already-pinned-fact" in line]
+            self.assertEqual(len(pins), 1, violations)
+            self.assertIn("length_through_local_rejected/expected.txt", pins[0])
+            self.assertEqual(duplicates, [
+                line for line in duplicates
+                if "samples/cli/facts/length/field/main.omg" in line], violations)
+            self.assertEqual(len(duplicates), 1, violations)
+            self.assertNotIn("fresh_refusal/expected.txt", text)
+            self.assertNotIn("may_write_codec/field/main.omg", "\n".join(duplicates))
 
 
 class LaneTests(unittest.TestCase):

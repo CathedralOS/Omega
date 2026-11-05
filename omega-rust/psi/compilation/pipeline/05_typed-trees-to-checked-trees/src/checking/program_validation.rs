@@ -15,6 +15,7 @@ pub(crate) struct PreparedTypedProgram<'program> {
     pub(crate) operational: OperationalPlan,
     pub(crate) service_reaches: ServiceReachInferencePlan,
     pub(crate) validation_facts: validation::ProgramValidationFacts,
+    pub(crate) deferred_overflow: Vec<Diagnostic>,
 }
 
 pub(crate) fn prepare_typed_program<'program>(
@@ -34,7 +35,7 @@ pub(crate) fn prepare_typed_program<'program>(
     // Quotient requests are judged after the checked termination facts exist
     // (`lower_typed_trees` calls `admit_checked_quotient_requests` beside
     // `build_check_facts`); validation keeps formation checking here.
-    let validated = phase_profile::scope("psi.05.prepare_typed_program.validate", || {
+    let mut validated = phase_profile::scope("psi.05.prepare_typed_program.validate", || {
         validation::prepare_specialized_program(
             program,
             opaque_properties,
@@ -60,11 +61,13 @@ pub(crate) fn prepare_typed_program<'program>(
     } = match decisions {
         Ok(decisions) => decisions,
         Err(errors) => {
-            return Err(entailment_errors_first(
+            let mut diagnostics = std::mem::take(&mut validated.deferred_overflow);
+            diagnostics.extend(entailment_errors_first(
                 program,
                 validated.deferred_entailment,
                 errors,
             ));
+            return Err(diagnostics);
         }
     };
 
@@ -80,6 +83,7 @@ pub(crate) fn prepare_typed_program<'program>(
         operational,
         validation_facts: validated.facts,
         service_reaches: validated.service_reaches,
+        deferred_overflow: validated.deferred_overflow,
     })
 }
 

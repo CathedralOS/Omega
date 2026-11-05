@@ -307,6 +307,12 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
                     .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?,
             }
         }
+        tag if tag == selected_instructions::AtomicForm::ONCE_FAMILY_TAG => {
+            SelectedInstructionKind::AtomicAccess {
+                form: selected_instructions::AtomicForm::from_once_payload(cursor.byte()?)
+                    .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?,
+            }
+        }
         tag if selected_instructions::AtomicForm::from_machine_tag(tag).is_some() => {
             SelectedInstructionKind::AtomicAccess {
                 form: selected_instructions::AtomicForm::from_machine_tag(tag)
@@ -628,7 +634,11 @@ mod tests {
             let kind = SelectedInstructionKind::AtomicAccess { form };
             let mut bytes = Vec::new();
             encode_kind(&mut bytes, kind);
-            assert_eq!(bytes, [form.machine_tag()]);
+            let mut expected = vec![form.machine_tag()];
+            if let Some(payload) = form.machine_payload() {
+                expected.push(payload);
+            }
+            assert_eq!(bytes, expected);
             assert_eq!(decode_kind(&mut Cursor::new(&bytes)).unwrap(), kind);
         }
     }
