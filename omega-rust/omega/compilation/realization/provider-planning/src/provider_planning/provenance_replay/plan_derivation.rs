@@ -244,27 +244,10 @@ fn derive_top_level_requirement_plans(
     let context = services.context();
     let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
-    let debug = std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some();
     for machine in typed.machines() {
-        let authored = is_authored_provider_machine(typed, machine);
-        let realizes_target =
-            authored && crate::target_machines::realizes_machine(context, machine, selected_target);
-        if debug && !typed.machine_trait_conformances(machine).is_empty() {
-            eprintln!(
-                "[prov] top-level-candidate machine={:?} path={} target={selected_target:?} scope={:?} in_scope={} authored={} realizes_target={} provider_owner={:?} provider_path={:?} supply={:?} body={}",
-                machine.symbol,
-                typed.symbols.display_path(machine.symbol, "::"),
-                context.scope,
-                context.contains(machine.symbol),
-                authored,
-                realizes_target,
-                provider_type_symbol(typed, machine),
-                typed.attached_data_path(machine),
-                machine.supply_mode,
-                machine.body_is_present,
-            );
-        }
-        if !authored || !realizes_target {
+        if !is_authored_provider_machine(typed, machine)
+            || !crate::target_machines::realizes_machine(context, machine, selected_target)
+        {
             continue;
         }
         let is_checked_adapter = machine.supply_mode
@@ -275,41 +258,17 @@ fn derive_top_level_requirement_plans(
             language_semantics::MachineSupplyMode::ExternalRealization { .. }
         ) && !machine.body_is_present;
         if !is_checked_adapter && !is_external_leaf {
-            if debug && !typed.machine_trait_conformances(machine).is_empty() {
-                eprintln!(
-                    "[prov] top-level-skip machine={:?} reason=unsupported-supply",
-                    machine.symbol
-                );
-            }
             continue;
         }
         let Some(provider_type_symbol) = provider_type_symbol(typed, machine) else {
-            if debug && !typed.machine_trait_conformances(machine).is_empty() {
-                eprintln!(
-                    "[prov] top-level-skip machine={:?} reason=missing-provider-owner",
-                    machine.symbol
-                );
-            }
             continue;
         };
         let Some(provider_type) = typed.attached_data_path(machine) else {
-            if debug && !typed.machine_trait_conformances(machine).is_empty() {
-                eprintln!(
-                    "[prov] top-level-skip machine={:?} reason=missing-provider-path",
-                    machine.symbol
-                );
-            }
             continue;
         };
         let provider_type_package_identity = provider_type_package_identity(typed, machine);
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
         for clause in typed.machine_trait_conformances(machine) {
-            if debug {
-                eprintln!(
-                    "[prov] top-level-conformance machine={:?} provider_owner={provider_type_symbol:?} declaring_symbol={:?} requirement_symbol={:?}",
-                    machine.symbol, clause.symbol, clause.requirement_symbol,
-                );
-            }
             // The authored satisfies edge names the requirement declaration
             // the provider claims: for a generic token-machine template the
             // row retains that authored template identity because provider
@@ -324,69 +283,23 @@ fn derive_top_level_requirement_plans(
                     && candidate.supply_mode
                         == language_semantics::MachineSupplyMode::TopLevelRequirement
             }) else {
-                if debug {
-                    eprintln!(
-                        "[prov] top-level-skip machine={:?} declaring_symbol={:?} requirement_symbol={:?} reason=no-exact-top-level-requirement",
-                        machine.symbol, clause.symbol, clause.requirement_symbol
-                    );
-                }
                 continue;
             };
             let Some(prepared) = services.declaration(
                 ProviderSchemaDeclaration::BoundaryRequirement(requirement.symbol),
             ) else {
-                if debug {
-                    eprintln!(
-                        "[prov] top-level-skip machine={:?} requirement={:?} requirement_in_scope={} reason=no-projected-service-surface states={} path={} published_termination={} body={}",
-                        machine.symbol,
-                        requirement.symbol,
-                        context.contains(requirement.symbol),
-                        typed.machine_states(requirement).len(),
-                        typed.symbols.display_path(requirement.symbol, "::"),
-                        requirement.termination_plan.interface.published().is_some(),
-                        requirement.body_is_present,
-                    );
-                }
                 continue;
             };
-            if debug {
-                eprintln!(
-                    "[prov] top-level-surface machine={:?} requirement={:?} schema_owner={:?} argument_owner={:?} path={} methods={}",
-                    machine.symbol,
-                    requirement.symbol,
-                    prepared.schema,
-                    prepared.argument_owner,
-                    prepared.path,
-                    prepared.requirements.len()
-                );
-            }
             let schema = ServiceSchema::from_declaration(prepared.declaration.clone());
             let requirement_identity = typed
                 .machine_callable_identity_text(requirement)
                 .unwrap_or_default();
             let [schema_method] = schema.declaration.methods.as_slice() else {
-                if debug {
-                    eprintln!(
-                        "[prov] top-level-skip machine={:?} requirement={:?} reason=service-method-count count={}",
-                        machine.symbol,
-                        requirement.symbol,
-                        schema.declaration.methods.len()
-                    );
-                }
                 continue;
             };
             if requirement_identity.is_empty()
                 || schema.identity_text(schema_method.requirement_identity) != requirement_identity
             {
-                if debug {
-                    eprintln!(
-                        "[prov] top-level-skip machine={:?} requirement={:?} reason=service-requirement-identity callable={} projected={}",
-                        machine.symbol,
-                        requirement.symbol,
-                        requirement_identity,
-                        schema.identity_text(schema_method.requirement_identity)
-                    );
-                }
                 continue;
             }
             let binding = match (machine.supply_mode, clause.external_binding) {
@@ -403,25 +316,11 @@ fn derive_top_level_requirement_plans(
                         clause,
                         selected_target,
                     ) else {
-                        if debug {
-                            eprintln!(
-                                "[prov] top-level-skip machine={:?} requirement={:?} reason=no-external-realization",
-                                machine.symbol, requirement.symbol
-                            );
-                        }
                         continue;
                     };
                     binding
                 }
-                _ => {
-                    if debug {
-                        eprintln!(
-                            "[prov] top-level-skip machine={:?} requirement={:?} reason=no-realization-binding",
-                            machine.symbol, requirement.symbol
-                        );
-                    }
-                    continue;
-                }
+                _ => continue,
             };
             let target = selected_target.unwrap_or_default().to_owned();
             let plan_name = satisfies_plan_name(&target, trait_name_text(&schema), &provider_type);
@@ -449,17 +348,6 @@ fn derive_top_level_requirement_plans(
             plans[position]
                 .provenance
                 .push_authored_row(requirement.symbol, machine.symbol, None);
-            if debug {
-                eprintln!(
-                    "[prov] top-level-derived machine={:?} requirement={:?} plan={} provider={} target={} schema={}",
-                    machine.symbol,
-                    requirement.symbol,
-                    plans[position].plan.name,
-                    plans[position].plan.provider_type,
-                    plans[position].plan.target,
-                    trait_name_text(&schema)
-                );
-            }
         }
     }
     plans
