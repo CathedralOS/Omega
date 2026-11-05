@@ -576,6 +576,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         returned: None,
         scalar_completion: None,
         transported_loans: &transported_loans,
+        storage_borrowers: &owner_candidates.storage_borrowers,
     };
     // Receiving carriers retire before their retained supplying descriptors.
     // Call inputs have the same statement boundaries as standalone producers;
@@ -1218,6 +1219,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         returned: None,
         scalar_completion,
         transported_loans: &transported_loans,
+        storage_borrowers: &owner_candidates.storage_borrowers,
     };
     // Lexical last use does not order descriptor death: a parent's last
     // authored use can form a child that lives until this same completion.

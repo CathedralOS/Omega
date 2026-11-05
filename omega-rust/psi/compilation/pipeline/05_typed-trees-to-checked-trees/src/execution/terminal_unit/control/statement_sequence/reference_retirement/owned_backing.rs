@@ -27,6 +27,8 @@ struct OwnerCandidate {
 /// It names issued source/value relationships, never a second liveness ledger.
 pub(in crate::execution::terminal_unit) struct OwnerCandidates {
     owners: Vec<OwnerCandidate>,
+    pub(in crate::execution::terminal_unit::control::statement_sequence) storage_borrowers:
+        super::StorageBorrowers,
 }
 
 impl OwnerCandidates {
@@ -122,7 +124,10 @@ impl OwnerCandidates {
                 }
             }
         }
-        Some(Self { owners })
+        Some(Self {
+            owners,
+            storage_borrowers: super::StorageBorrowers::new(facts, machine, state),
+        })
     }
 }
 
@@ -263,6 +268,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn prepare_
                 returned,
                 scalar_completion,
                 transported_loans: &transported_loans,
+                storage_borrowers: &candidates.storage_borrowers,
             };
             let loans = validation::reference_result_custody::storage_loans(
                 facts,
