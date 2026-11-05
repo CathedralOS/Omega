@@ -16,8 +16,9 @@ use super::structural_prefix::{
     PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor,
     expression_is_transition_target,
 };
-use super::structural_terms::{selected_application_machine, structural_term};
+use super::structural_terms::{constructed_term, selected_application_machine, structural_term};
 use symbols::SymbolHandle;
+use typed_trees::data::{DataDefinition, DataMember, DataVariant};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::statement::StatementNode;
@@ -71,6 +72,7 @@ pub(crate) fn proof_interval_strict_decrease_judged(
         return None;
     }
     let relation = selected_decrease_relation(program, machine, state, measure)?;
+    let relation_symbol = relation.symbol;
     let requires = machine_requires_facts(program, machine);
     let judge = StructuralJudge::from_requires(program, machine, &requires, true);
     let mut edge = StrictDecrease {
@@ -100,13 +102,14 @@ pub(crate) fn proof_interval_strict_decrease_judged(
         &mut diagnostics,
         Some(&mut edge),
     );
-    (recognized.is_some() && diagnostics.is_empty() && edge.seen && edge.proven).then_some(relation)
+    (recognized.is_some() && diagnostics.is_empty() && edge.seen && edge.proven)
+        .then_some(relation_symbol)
 }
 
 struct StrictDecrease<'a> {
     site: StructuralPrefixSite,
     argument: ExpressionHandle,
-    relation: SymbolHandle,
+    relation: SelectedDecreaseRelation<'a>,
     measure: String,
     ranked_entries: &'a [SymbolHandle],
     seen: bool,
@@ -143,29 +146,24 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
             return;
         };
         let left = StructuralTerm::Application {
-            result_type: crate::call_target_return_type(program, self.relation).unwrap_or_default(),
-            target: self.relation,
+            result_type: crate::call_target_return_type(program, self.relation.symbol)
+                .unwrap_or_default(),
+            target: self.relation.symbol,
             selections: Vec::new(),
             machine: "saturating_sub".to_owned(),
             arguments: vec![
-                StructuralTerm::Constructor {
-                    declaration: None,
-                    data: "Nat".to_owned(),
-                    case: "Succ".to_owned(),
-                    fields: vec![(
+                constructed_term(
+                    self.relation.carrier,
+                    Some(self.relation.successor),
+                    vec![(
                         "prev".to_owned(),
                         StructuralJudge::substitute_term(&argument, environment),
                     )],
-                },
+                ),
                 StructuralTerm::Variable(self.measure.clone()),
             ],
         };
-        let right = StructuralTerm::Constructor {
-            declaration: None,
-            data: "Nat".to_owned(),
-            case: "Zero".to_owned(),
-            fields: Vec::new(),
-        };
+        let right = constructed_term(self.relation.carrier, Some(self.relation.zero), Vec::new());
         self.proven &= matches!(
             judge.judge_equation(judge.resolve(left), judge.resolve(right), 0),
             StructuralJudgment::Proven
@@ -177,12 +175,19 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
 /// spelling restricts the bridge's supported relation; it cannot select a
 /// declaration or rescue a missing symbol. Multiple occurrences of one selected
 /// relation agree; conflicting relations remain unsupported.
-fn selected_decrease_relation(
-    program: &dyn crate::CheckingInput,
+struct SelectedDecreaseRelation<'program> {
+    symbol: SymbolHandle,
+    carrier: &'program DataDefinition,
+    successor: &'program DataVariant,
+    zero: &'program DataVariant,
+}
+
+fn selected_decrease_relation<'program>(
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     measure: &typed_trees::signature::StateParameter,
-) -> Option<SymbolHandle> {
+) -> Option<SelectedDecreaseRelation<'program>> {
     let TypeReferenceNode::Named {
         symbol: carrier, ..
     } = program
@@ -291,5 +296,26 @@ fn selected_decrease_relation(
             }
         }
     }
-    selected.is_valid().then_some(selected)
+    if !selected.is_valid() {
+        return None;
+    }
+    // The ranked parameter already selects this carrier. Keep that declaration
+    // on the comparison goal when another package retains a same-named type.
+    let case = |name| {
+        program.data_members(definition).iter().find_map(|member| {
+            if let DataMember::Variant(variant) = member
+                && variant.name.as_str() == name
+            {
+                Some(variant)
+            } else {
+                None
+            }
+        })
+    };
+    Some(SelectedDecreaseRelation {
+        symbol: selected,
+        carrier: definition,
+        successor: case("Succ")?,
+        zero: case("Zero")?,
+    })
 }
