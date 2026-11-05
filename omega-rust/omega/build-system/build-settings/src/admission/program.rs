@@ -57,10 +57,11 @@ impl AdmittedBuildProgram {
             || !self.restricted_build_requests().is_empty()
         {
             eprintln!(
-                "Pure Build input declined: entry {:?}, filesystem={}, mode={:?}, restricted_requests={}",
+                "Pure Build input declined: entry {:?}, filesystem={}, pure={}, restricted_requests={}",
                 self.machine.symbol,
                 self.machine.filesystem_reachable,
-                self.machine.execution_mode,
+                self.machine.execution_mode
+                    == build_time_evaluation::BuildMachineExecutionMode::Pure,
                 self.restricted_build_requests().len(),
             );
             return None;
