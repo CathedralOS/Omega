@@ -135,19 +135,19 @@ pub(in crate::machine_calls::calls::write_frames) struct SlotInventory {
     pub(in crate::machine_calls::calls::write_frames) ancestors: Vec<Vec<PlaceSegment>>,
 }
 
-/// Why one operand's completed slot relation cannot be published. Unknown
+/// Why a completed slot relation cannot be published at this evaluation. Unknown
 /// template structure is not a proved failure: a template body defers it and
 /// every selected closed instance re-checks the same operand with concrete
 /// types, while an unavailable relation stays an obligation of this body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StoredReferenceRelationRefusal {
-    Unavailable,
+    Unavailable(&'static str),
     TemplateDependent,
 }
 
 /// A failed invocation remains an obligation even if a later call overwrites
 /// every affected slot. Declaration dependence is recorded separately.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StoredReferenceCallFailure {
     pub target: SymbolHandle,
     pub requires_relation: bool,

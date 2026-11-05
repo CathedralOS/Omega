@@ -107,7 +107,8 @@ def load(root, request):
             and isinstance(producer["toolchain"], str) and producer["toolchain"],
             "retained target or toolchain is invalid")
     require(type(producer["origin_run"]) is int and producer["origin_run"] > 0
-            and isinstance(producer["cache_key"], str) and producer["cache_key"],
+            and isinstance(producer["cache_key"], str) and producer["cache_key"]
+            and "\n" not in producer["cache_key"] and "\r" not in producer["cache_key"],
             "retained producer needs its original run and cache reference")
     executables = producer["executables"]
     require(isinstance(executables, dict) and set(executables) == {"cli", "runner"},

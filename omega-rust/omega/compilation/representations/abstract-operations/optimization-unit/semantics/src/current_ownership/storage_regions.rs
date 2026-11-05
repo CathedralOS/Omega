@@ -108,7 +108,7 @@ pub(crate) fn storage_cannot_retain_loan(
         return false;
     };
     let result = match &declaration.shape {
-        StructuralTypeShape::PrimitiveScalar(_) => true,
+        StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::AtomicCell(_) => true,
         StructuralTypeShape::ByteSequence(carrier) => !carrier.is_borrowed(),
         StructuralTypeShape::Record { fields, .. } => {
             fields_cannot_retain_loan(types, fields, established)

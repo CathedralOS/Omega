@@ -78,6 +78,13 @@ fn call_effects(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<SlotRelationTransfer> {
+    if crate::machine_calls::compiler_operations::statement_wire_codec_intrinsic(program, call)
+        .is_some()
+    {
+        // The codec writes through its exclusive arguments. It does not
+        // install a new caller reference slot.
+        return Some(SlotRelationTransfer::complete(Vec::new()));
+    }
     invocation_effects(
         program,
         machine,
@@ -137,6 +144,53 @@ fn invocation_effects(
     Some(transfer)
 }
 
+fn declaration_intrinsic_has_no_signature(
+    program: &dyn crate::CheckingInput,
+    call_site: super::caller_aliases::CallerWriteSite<'_>,
+) -> bool {
+    // Provider selection needs its retained operation below. A missing record
+    // cannot regain that rule here just because the call has a familiar name.
+    let other_intrinsic = |intrinsic| {
+        intrinsic
+            != language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection
+    };
+    match call_site {
+        super::caller_aliases::CallerWriteSite::Call(call) => {
+            crate::compiler_operations::classify_statement_call_intrinsic(program, call)
+                .is_some_and(other_intrinsic)
+        }
+        super::caller_aliases::CallerWriteSite::Expression(expression) => program
+            .expression_table
+            .call_node(expression)
+            .is_some_and(|call| {
+                crate::compiler_operations::classify_expression_call_intrinsic(program, call)
+                    .is_some_and(other_intrinsic)
+                    || crate::compiler_operations::authored_call_intrinsic(
+                        program,
+                        typed_trees::references::StaticArgumentCall::Expression(expression, call),
+                    )
+                    .is_some_and(other_intrinsic)
+            }),
+        _ => false,
+    }
+}
+
+/// A declaration intrinsic with no parameter list does not replace a caller
+/// reference descriptor. A signature, including a public-contract fallback,
+/// still classifies slots. An unknown call with no signature stays incomplete.
+fn declaration_intrinsic_without_parameters(
+    program: &dyn crate::CheckingInput,
+    call_site: super::caller_aliases::CallerWriteSite<'_>,
+    trace_refusal: &impl Fn(&str),
+    phase: &str,
+) -> Option<SlotRelationTransfer> {
+    if declaration_intrinsic_has_no_signature(program, call_site) {
+        return Some(SlotRelationTransfer::complete(Vec::new()));
+    }
+    trace_refusal(phase);
+    None
+}
+
 fn invocation_reference_effects(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -151,6 +205,19 @@ fn invocation_reference_effects(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<SlotRelationTransfer> {
+    // Asm intrinsics write registers and scalar destinations. `embed`
+    // yields a proof integer. Neither replaces caller reference slots, and
+    // neither has a machine signature for the ordinary parameter inventory.
+    if program
+        .typed_program()
+        .symbols
+        .builtin_function_for_symbol(target)
+        .is_some_and(|builtin| {
+            builtin.is_asm_intrinsic() || builtin == symbols::BuiltinFunction::IntegerEmbed
+        })
+    {
+        return Some(SlotRelationTransfer::complete(Vec::new()));
+    }
     let trace_refusal = |phase: &str| {
         if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
             eprintln!(
@@ -199,19 +266,15 @@ fn invocation_reference_effects(
         trace_refusal("argument-capture-correspondence");
         return None;
     }
-    // The occurrence's applied logical contract owns caller-visible access.
-    // A private body's open telescope or availability cannot turn a known
-    // empty writable slot frontier into an unknown descriptor mutation.
-    let parameters = match call_site {
+    let (call, intrinsic_call, missing_parameters) = match call_site {
         super::caller_aliases::CallerWriteSite::Call(call)
             if !call_expression.is_valid() && call.target_symbol == target =>
         {
-            crate::CallSite::Statement(call)
-                .parameters(program, machine.symbol)
-                .or_else(|| {
-                    trace_refusal("statement-parameters");
-                    None
-                })?
+            (
+                crate::CallSite::Statement(call),
+                typed_trees::references::StaticArgumentCall::Statement(call),
+                "statement-parameters",
+            )
         }
         super::caller_aliases::CallerWriteSite::Expression(expression)
             if expression == call_expression =>
@@ -220,14 +283,41 @@ fn invocation_reference_effects(
             if call.target_symbol != target {
                 return None;
             }
-            crate::CallSite::Expression { expression, call }
-                .parameters(program, machine.symbol)
-                .or_else(|| {
-                    trace_refusal("expression-parameters");
-                    None
-                })?
+            (
+                crate::CallSite::Expression { expression, call },
+                typed_trees::references::StaticArgumentCall::Expression(expression, call),
+                "expression-parameters",
+            )
         }
         _ => return None,
+    };
+    // The argument captures above come after operand evaluation. Returning an
+    // empty relation here preserves those effects; it describes only what the
+    // compiler operation itself does to stored reference descriptors.
+    if crate::compiler_operations::call_preserves_reference_slots(program, intrinsic_call) {
+        return Some(SlotRelationTransfer::complete(Vec::new()));
+    }
+    // The occurrence's applied logical contract owns caller-visible access.
+    // A private body's open telescope or availability cannot turn a known
+    // empty writable slot frontier into an unknown descriptor mutation.
+    let parameters = call.parameters(program, machine.symbol).or_else(|| {
+        // The applied logical signature can be absent while the selected
+        // requirement still names its public contract. That contract classifies
+        // caller slots; a private satisfier body does not.
+        let crate::CallSite::Expression { call, .. } = call else {
+            return None;
+        };
+        let dispatch = call.static_requirement_dispatch.as_ref()?;
+        let (_, signature) = program.trait_machine_signature(dispatch.contract_symbol())?;
+        Some(program.state_signature_parameters(signature))
+    });
+    let Some(parameters) = parameters else {
+        return declaration_intrinsic_without_parameters(
+            program,
+            call_site,
+            &trace_refusal,
+            missing_parameters,
+        );
     };
     if parameters.len() != captures.len() {
         trace_refusal("parameter-capture-correspondence");

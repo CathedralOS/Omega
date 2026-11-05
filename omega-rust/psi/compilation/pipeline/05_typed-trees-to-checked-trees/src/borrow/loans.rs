@@ -170,7 +170,7 @@ impl BorrowFormationSources<'_, '_> {
             validation::StoredReferenceRelationRefusal::TemplateDependent => {
                 "call input reference slots depend on an unresolved template at this evaluation"
             }
-            validation::StoredReferenceRelationRefusal::Unavailable => {
+            validation::StoredReferenceRelationRefusal::Unavailable(_) => {
                 "call input has no complete reference-slot relation at its own evaluation"
             }
         })
@@ -531,7 +531,7 @@ fn binding_borrow_loans(
                 // A template body defers unknown type-parameter structure to
                 // its selected closed instances, which re-check this binding.
                 Err(validation::StoredReferenceRelationRefusal::TemplateDependent) => continue,
-                Err(validation::StoredReferenceRelationRefusal::Unavailable) => {
+                Err(validation::StoredReferenceRelationRefusal::Unavailable(_)) => {
                     return Err("operand has no complete completed call-slot relation");
                 }
             };
@@ -570,7 +570,7 @@ fn binding_borrow_loans(
         Err(validation::StoredReferenceRelationRefusal::TemplateDependent) => {
             return Ok(Vec::new());
         }
-        Err(validation::StoredReferenceRelationRefusal::Unavailable) => {
+        Err(validation::StoredReferenceRelationRefusal::Unavailable(_)) => {
             return Err("operand has no complete completed call-slot relation");
         }
     };

@@ -284,6 +284,13 @@ def retained_producer(output, plan):
     return producer
 
 
+def write_replay_cache_key(request, output):
+    """Restore the requested compiler, rather than the newest branch cache."""
+    plan = compiler_replay_plan.load(ROOT, request)
+    with Path(output).open("a", encoding="utf-8") as destination:
+        destination.write("key=" + plan.producer["cache_key"] + "\n")
+
+
 def write_new_record(path, record):
     """Publish a completed preparation record without replacing prior evidence."""
     with Path(path).open("x", encoding="utf-8") as stream:

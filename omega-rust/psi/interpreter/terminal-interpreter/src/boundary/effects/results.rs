@@ -339,7 +339,9 @@ pub(crate) fn requires_materialized_host_custody(
             StructuralTypeShape::Reference { .. } => {
                 return true;
             }
-            StructuralTypeShape::ByteSequence(_) => return true,
+            StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::AtomicCell(_) => {
+                return true;
+            }
             StructuralTypeShape::PrimitiveScalar(_) => {}
             StructuralTypeShape::FixedArray { element, .. }
             | StructuralTypeShape::ElementView { element, .. } => pending.push(*element),

@@ -1160,7 +1160,6 @@ defines the complete product bar.
   Owners:
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization/dynamic_families.rs`
   and `omega-rust/psi/compilation/validation/src/machine_calls/calls/dynamic_requirement.rs`.
-  - Complete target-ineligible/const-only bridge qualification.
   Acceptance: pass/fail/run finite-family fixtures execute via `omega run --both`
   preserving effects, index identity, and once-only moves/cleanup across
   selection, forwarding, and storage, while unproved membership, missing/wrong
@@ -1344,8 +1343,7 @@ defines the complete product bar.
   beyond Omega 00's serial unique-reaching-write restriction
   (`omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering/machine/operation/atomic_events.rs`).
   - Qualify `pass/atomics/shared_receiver_atomic_store` on Linux x86-64 and
-    Windows x86-64 and add an executable entry for
-    `pass/atomics/atomic_global_order_operations`.
+    Windows x86-64.
   - Complete target operations, selection/encoding, and checked refinement for
     every admitted width, alignment, and ordering (swap/fetch return the
     instruction-observed prior; preserve observing/non-observing,

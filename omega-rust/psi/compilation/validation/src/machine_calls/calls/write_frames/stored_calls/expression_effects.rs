@@ -91,7 +91,11 @@ pub(super) fn prepare_normal_exits<'program>(
         symbols,
     };
     let mut context = context.clone();
-    let mut effects = SlotRelationTransfer::default();
+    let mut effects = SlotRelationTransfer {
+        template_dependent: context.template_dependent,
+        incomplete_calls: context.incomplete_calls.clone(),
+        ..SlotRelationTransfer::default()
+    };
     let empty = SlotRelationTransfer::default();
     let mut capture = Capture::default();
     if let TransitionGuardNode::When(guard) = transition.guard {
@@ -381,7 +385,11 @@ fn evaluate_statement(
         symbols,
     };
     let mut context = context.clone();
-    let mut effects = SlotRelationTransfer::default();
+    let mut effects = SlotRelationTransfer {
+        template_dependent: context.template_dependent,
+        incomplete_calls: context.incomplete_calls.clone(),
+        ..SlotRelationTransfer::default()
+    };
     let mut fallthrough = None;
     let empty_prefix = SlotRelationTransfer::default();
     if let StatementNode::Transition(transition) = statement {
@@ -466,30 +474,43 @@ fn evaluate_statement(
             }
         }
         if let Some(call) = statement.as_call() {
-            let called = super::call_effects(
-                program,
-                machine,
-                state,
-                call,
-                &completed_arguments,
-                &context,
-                symbols,
-                inference,
-            )
-            .unwrap_or_else(|| {
-                SlotRelationTransfer::unknown(
-                    &context,
-                    call.target_symbol,
-                    false,
-                    super::provider_output_relation_required(
-                        program,
-                        machine.symbol,
-                        call.target_symbol,
-                        ExpressionHandle::invalid(),
-                    ),
+            let wire_codec =
+                crate::machine_calls::compiler_operations::statement_wire_codec_intrinsic(
+                    program, call,
                 )
-            });
-            capture.completed_call(ExpressionHandle::invalid(), &called);
+                .is_some();
+            let called = if wire_codec {
+                SlotRelationTransfer::complete(Vec::new())
+            } else {
+                super::call_effects(
+                    program,
+                    machine,
+                    state,
+                    call,
+                    &completed_arguments,
+                    &context,
+                    symbols,
+                    inference,
+                )
+                .unwrap_or_else(|| {
+                    SlotRelationTransfer::unknown(
+                        &context,
+                        call.target_symbol,
+                        false,
+                        super::provider_output_relation_required(
+                            program,
+                            machine.symbol,
+                            call.target_symbol,
+                            ExpressionHandle::invalid(),
+                        ),
+                    )
+                })
+            };
+            // A derived codec has no checked invocation. Publishing the zero
+            // handle is the absence state, and completion rejects it.
+            if !wire_codec {
+                capture.completed_call(ExpressionHandle::invalid(), &called);
+            }
             install(program, &mut context, &mut effects, called, inference);
         }
     }
@@ -843,6 +864,10 @@ fn install(
     next: SlotRelationTransfer,
     inference: &mut FrameInference,
 ) {
+    context.template_dependent |= next.template_dependent;
+    context
+        .incomplete_calls
+        .extend(next.incomplete_calls.iter().cloned());
     super::apply_transfer(
         program,
         &mut context.stored,

@@ -87,6 +87,21 @@ impl StructuralJudge<'_> {
             }
         }
         match expression_table(program).expression(expression) {
+            ExpressionNode::SavedSubject(saved) => self.completed_match_subject(saved),
+            ExpressionNode::Match(dispatch) => {
+                self.bound_match_term(expression, dispatch, scope, parameters, |judge, operand| {
+                    judge.bound_contract_term(
+                        operand,
+                        scope,
+                        parameters,
+                        callable,
+                        bindings,
+                        type_bindings,
+                        result,
+                        depth + 1,
+                    )
+                })
+            }
             ExpressionNode::Name(path) => {
                 if let Some((_, value)) = bindings
                     .iter()
@@ -369,21 +384,32 @@ impl StructuralJudge<'_> {
                 structural_terms::structural_term(program, None, None, expression, None)
             }
             ExpressionNode::Binary(binary) => {
-                // A sealed primitive float comparison is an IEEE Boolean, not
-                // identity and not a reason to drop the substituted operands.
-                // Other non-builtin operators stay unbound here.
-                if !crate::has_builtin_parameter_bound_expression_meaning(
-                    program, scope, parameters, expression,
+                if crate::proof_contracts::bound_expression_meaning::has_exact_declaration_case_membership_meaning(
+                    program, scope, parameters, expression, binary,
                 ) {
-                    let types = [binary.left, binary.right].map(|operand| {
-                        crate::parameter_expression_result_type_reference(
-                            program, scope, parameters, operand,
-                        )
-                    });
-                    structural_terms::sealed_primitive_float_operator(
-                        program, scope, expression, &types,
+                    let reference = crate::parameter_expression_result_type_reference(
+                        program, scope, parameters, binary.left,
+                    );
+                    let (definition, variant) = super::super::cases::applied_case_classifier(
+                        program, binary.right, reference,
                     )?;
+                    let subject = self.bound_contract_term(
+                        binary.left, scope, parameters, callable, bindings, type_bindings, result,
+                        depth + 1,
+                    )?;
+                    let judgment = self.judge_case(subject, definition.symbol, variant.symbol);
+                    return match judgment {
+                        super::StructuralJudgment::Proven =>
+                            Some(super::super::value_predicates::boolean_term(true)),
+                        super::StructuralJudgment::Refuted =>
+                            Some(super::super::value_predicates::boolean_term(false)),
+                        super::StructuralJudgment::Unknown => None,
+                    };
                 }
+                // Each bound operand retains its own selected meaning. The
+                // binary-term owner below authenticates this operation; a
+                // whole-subtree builtin test would reject a conjunction merely
+                // because its child is a nominal case test rather than a scalar.
                 let left = self.bound_contract_term(
                     binary.left,
                     scope,
@@ -394,6 +420,25 @@ impl StructuralJudge<'_> {
                     result,
                     depth + 1,
                 )?;
+                // An unselected Boolean operand supplies no observation. In
+                // particular, a failed case test does not read its payload.
+                if matches!(
+                    binary.operator,
+                    typed_trees::expression::BinaryOperator::And
+                ) && matches!(
+                    self.judge_observed_predicate(left.clone(), depth + 1),
+                    super::StructuralJudgment::Refuted
+                ) {
+                    return Some(super::super::value_predicates::boolean_term(false));
+                }
+                if matches!(binary.operator, typed_trees::expression::BinaryOperator::Or)
+                    && matches!(
+                        self.judge_observed_predicate(left.clone(), depth + 1),
+                        super::StructuralJudgment::Proven
+                    )
+                {
+                    return Some(super::super::value_predicates::boolean_term(true));
+                }
                 let right = self.bound_contract_term(
                     binary.right,
                     scope,
@@ -404,6 +449,19 @@ impl StructuralJudge<'_> {
                     result,
                     depth + 1,
                 )?;
+                if (binary.operator == typed_trees::expression::BinaryOperator::And
+                    && matches!(
+                        self.judge_observed_predicate(left.clone(), depth + 1),
+                        super::StructuralJudgment::Proven
+                    ))
+                    || (binary.operator == typed_trees::expression::BinaryOperator::Or
+                        && matches!(
+                            self.judge_observed_predicate(left.clone(), depth + 1),
+                            super::StructuralJudgment::Refuted
+                        ))
+                {
+                    return Some(right);
+                }
                 structural_terms::binary_term_in_scope(
                     program,
                     None,

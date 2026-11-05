@@ -37,7 +37,7 @@ impl AbstractOperation {
         match self {
             Self::AtomicEvent { event, .. } if event.joins_modification_order() => event
                 .location()
-                .map(|location| region(location.root, &location.path, Some(location.field)))
+                .map(|location| region(location.root, &location.path, None))
                 .unwrap_or_default(),
             // Every invocation form hands its structural arguments over, and a
             // non-invocation carries none, so one delegation covers the roster.

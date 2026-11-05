@@ -1,8 +1,8 @@
 // A finite-family result retains its exclusive input counter through storage and forwarding, and consuming that result increments the counter once.
 // Expected exit: 0
 // Place: match_join.
-data Token { drops: &mut [u64; 1]; }
-machine settle(token: Token) {
+data Token dropped by drop_token { drops: &mut [u64; 1]; }
+machine drop_token(token: &mut Token) {
     token.drops[0] = ((token.drops[0] as u64 in Wrapping) + 1) as u64;
 }
 data Ticket { token: Token; marker: u32; }
@@ -33,7 +33,6 @@ requires width == 16 || width == 32
     transition { _ -> finish(forward(stored.ticket), width) }
     machine finish(ticket: Ticket, width: u32) -> bool {
         let correct: bool = ticket.marker == width;
-        settle(ticket.token);
         correct
     }
 }
@@ -46,8 +45,18 @@ machine check(drops: &mut [u64; 1]) crashes Trap {
     machine bad() { crash Trap; }
 }
 
+data JoinedCounter { counter: [u64; 1]; tag: u32; }
 machine choose(first: bool) crashes Trap {
-    let mut counter: [u64; 1] = match first { true -> [0], false -> [0] };
-    check(&mut counter);
+    let mut joined: JoinedCounter = match first {
+        true -> JoinedCounter { counter: [0], tag: 17 },
+        _ -> JoinedCounter { counter: [0], tag: 29 }
+    };
+    check(&mut joined.counter);
+    transition (first && joined.tag == 17) || (!first && joined.tag == 29) {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap { choose(true); choose(false); }

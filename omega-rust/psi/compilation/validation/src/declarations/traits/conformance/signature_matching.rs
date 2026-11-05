@@ -985,22 +985,51 @@ fn fixed_array_lengths_match(
     }) else {
         return actual == required;
     };
-    let FixedArrayLength::ConstParameter {
-        symbol: actual_symbol,
-        ..
-    } = actual
-    else {
-        return false;
-    };
     match binding.target {
-        TraitTypeBindingTarget::Parameter(expected_symbol) => {
-            expected_symbol.is_valid() && *actual_symbol == expected_symbol
-        }
-        TraitTypeBindingTarget::Type(expected) => matches!(
-            program.type_reference_table.type_reference(expected),
-            TypeReferenceNode::Named { symbol, .. }
-                if symbol.is_valid() && *actual_symbol == *symbol
+        TraitTypeBindingTarget::Parameter(expected_symbol) => matches!(
+            actual,
+            FixedArrayLength::ConstParameter { symbol, .. }
+                if expected_symbol.is_valid() && *symbol == expected_symbol
         ),
+        TraitTypeBindingTarget::Type(expected) => {
+            // A supplied const argument can be a completed value, not another
+            // binder. Compare its array size with the ordinary identity query,
+            // keeping each argument in its original outer scope. Callable
+            // value parameters above still require exact symbol correspondence.
+            let Some(outer) = bindings.get(..binding.scope_start) else {
+                return false;
+            };
+            let mut substitutions = Vec::with_capacity(outer.len() + 1);
+            let mut scope_starts = Vec::new();
+            for (ordinal, outer) in outer.iter().enumerate() {
+                let TraitTypeBindingTarget::Type(argument) = outer.target else {
+                    return false;
+                };
+                if outer.scope_start > ordinal
+                    || scope_starts
+                        .last()
+                        .is_some_and(|start| *start > outer.scope_start)
+                {
+                    return false;
+                }
+                if scope_starts.last() != Some(&outer.scope_start) {
+                    scope_starts.push(outer.scope_start);
+                }
+                substitutions.push((outer.parameter_symbol, argument));
+            }
+            // The receiving binder's argument sees only this outer prefix,
+            // never its own or a sibling replacement.
+            scope_starts.push(substitutions.len());
+            substitutions.push((binding.parameter_symbol, expected));
+            program
+                .scoped_fixed_array_length_identity(actual, &[], &[])
+                .zip(program.scoped_fixed_array_length_identity(
+                    required,
+                    &substitutions,
+                    &scope_starts,
+                ))
+                .is_some_and(|(actual, required)| actual == required)
+        }
     }
 }
 

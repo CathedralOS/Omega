@@ -21,16 +21,19 @@
 //! intervening effect. An effect boundary expires knowledge of residency; the
 //! next instruction observes current backing without claiming an internal
 //! writer or reusing old facts. Independent replay requires that exact latest
-//! effect on every path. Only one unanimous frontier supplies a retained edge;
-//! branch-selected writes and ambiguous mutation refuse. The backward worklist follows exact projected locations; a cycle that changes
+//! effect on every path. A unanimous frontier supplies one retained edge;
+//! different known paths retain their complete alternatives. Unknown storage
+//! or ambiguous mutation still refuses. The backward worklist follows exact projected locations; a cycle that changes
 //! a projection remains unknown rather than growing an unbounded path.
 //! Event locations stay block-local so downstream authority and native address
 //! checks use the actual arrival declaration, not an invented invocation alias.
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::atomic::AbstractAtomicLocation;
-use abstract_operations::{AbstractAtomicEvent, AbstractOperation, AtomicResidencyEdge};
-use semantic_vocabulary::{OperationId, PlaceId, ScalarType, StructuralFieldId};
+use abstract_operations::{
+    AbstractAtomicEvent, AbstractOperation, AtomicResidencyEdge, AtomicResidencySource,
+};
+use semantic_vocabulary::{OperationId, PlaceId, ScalarType};
 use terminal_psi::{
     AtomicAccessEvent, Operation, OperationKind, StructuralPathSegment, StructuralTypeDeclaration,
     TerminalMachine,
@@ -46,7 +49,6 @@ pub(super) fn lower(
     let OperationKind::AtomicAccess {
         place,
         path,
-        field,
         event,
         resident_obligation,
     } = &operation.kind
@@ -62,11 +64,10 @@ pub(super) fn lower(
                 .map(|(_, structural_type)| structural_type)
         })
         .ok_or(LoweringError::UnsupportedAtomicAccess(operation.id))?;
-    let leaf = field_type(structural_types, root, path, *field).ok_or_else(malformed)?;
+    let leaf = field_type(structural_types, root, path).ok_or_else(malformed)?;
     let location = AbstractAtomicLocation {
         root: *place,
         path: path.clone(),
-        field: *field,
     };
     let prior = || {
         operation
@@ -158,30 +159,40 @@ pub(super) fn lower(
         return Err(malformed());
     }
     let reached = reaching_fact(machine, operation.id, structural_types)?;
-    let edge = |fact: &BTreeSet<Reaching>| match fact.iter().collect::<Vec<_>>().as_slice() {
-        [reaching @ (Reaching::Initial | Reaching::Atomic(_) | Reaching::Effect(_))] => {
-            Ok(**reaching)
-        }
-        _ => Err(LoweringError::UnsupportedAtomicCoherence(operation.id)),
-    };
-    // One retained residency edge carries both coherence claims: whichever
-    // roster admits it, the edge answers the same reaching fact.
-    let retained = match (
-        lowered.observes_resident(),
-        lowered.joins_modification_order(),
-    ) {
-        (false, false) => None,
-        _ => Some(match edge(&reached)? {
-            Reaching::Initial => AtomicResidencyEdge::InitialResidency,
-            Reaching::Atomic(operation) => AtomicResidencyEdge::Write { operation },
-            Reaching::Effect(operation) => AtomicResidencyEdge::AfterEffect { operation },
-            Reaching::Unknown => return Err(malformed()),
-        }),
+    // Preserve every known incoming residency. First and later iterations of
+    // a loop can have different writers without losing the exact location.
+    let retained = if !lowered.observes_resident() && !lowered.joins_modification_order() {
+        None
+    } else {
+        let source = |reaching| match reaching {
+            Reaching::Initial => Ok(AtomicResidencySource::Initial),
+            Reaching::Atomic(operation) => Ok(AtomicResidencySource::Write { operation }),
+            Reaching::Effect(operation) => Ok(AtomicResidencySource::AfterEffect { operation }),
+            Reaching::Unknown => Err(LoweringError::UnsupportedAtomicCoherence(operation.id)),
+        };
+        let sources = reached
+            .iter()
+            .copied()
+            .map(source)
+            .collect::<Result<Vec<_>, _>>()?;
+        Some(match sources.as_slice() {
+            [AtomicResidencySource::Initial] => AtomicResidencyEdge::InitialResidency,
+            [AtomicResidencySource::Write { operation }] => AtomicResidencyEdge::Write {
+                operation: *operation,
+            },
+            [AtomicResidencySource::AfterEffect { operation }] => {
+                AtomicResidencyEdge::AfterEffect {
+                    operation: *operation,
+                }
+            }
+            [] => return Err(LoweringError::UnsupportedAtomicCoherence(operation.id)),
+            _ => AtomicResidencyEdge::PathAlternatives { sources },
+        })
     };
     let (reads_from, modification_after) = match retained {
         None => (None, None),
         Some(edge) => (
-            lowered.observes_resident().then_some(edge),
+            lowered.observes_resident().then(|| edge.clone()),
             lowered.joins_modification_order().then_some(edge),
         ),
     };
@@ -201,11 +212,9 @@ fn field_type(
     structural_types: &[StructuralTypeDeclaration],
     root: semantic_vocabulary::StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
-    field: semantic_vocabulary::StructuralFieldId,
 ) -> Option<ScalarType> {
-    terminal_semantics::projected_field_declaration(structural_types.iter(), root, path, field)?
-        .field_type
-        .atomic_scalar_type()
+    terminal_semantics::atomic_cell_type(structural_types.iter(), root, path)
+        .map(|cell| cell.scalar_type())
 }
 
 /// One fact about the latest write to a location on some execution path.
@@ -239,15 +248,12 @@ fn reaching_fact(
                 .enumerate()
                 .find_map(|(index, operation)| {
                     (operation.id == target).then(|| match &operation.kind {
-                        OperationKind::AtomicAccess {
-                            place, path, field, ..
-                        } => Some((
+                        OperationKind::AtomicAccess { place, path, .. } => Some((
                             block.id,
                             index,
                             AbstractAtomicLocation {
                                 root: *place,
                                 path: path.clone(),
-                                field: *field,
                             },
                         )),
                         _ => None,
@@ -277,7 +283,7 @@ fn reaching_fact(
         }
         ancestry.push(coordinate);
         let declaration = blocks.get(&block).ok_or_else(unsupported)?;
-        let local = (location.root, location.path.clone(), location.field);
+        let local = (location.root, location.path.clone());
         if let Some(write) = declaration.operations[..before]
             .iter()
             .rev()
@@ -320,7 +326,6 @@ fn reaching_fact(
                         AbstractAtomicLocation {
                             root: source.root,
                             path,
-                            field: location.field,
                         },
                         ancestry.clone(),
                     ));
@@ -337,7 +342,7 @@ fn reaching_fact(
     Ok(reached)
 }
 
-type Location = (PlaceId, Vec<StructuralPathSegment>, StructuralFieldId);
+type Location = (PlaceId, Vec<StructuralPathSegment>);
 
 /// The first preceding operation that prevents looking farther for a write.
 fn latest_write(
@@ -346,7 +351,7 @@ fn latest_write(
     machine: &TerminalMachine,
     structural_types: &[StructuralTypeDeclaration],
 ) -> Option<Reaching> {
-    let (root, path, field) = location;
+    let (root, path) = location;
     if operation
         .result
         .structural()
@@ -374,15 +379,10 @@ fn latest_write(
         OperationKind::AtomicAccess {
             place: other_root,
             path: other_path,
-            field: other_field,
             event,
             ..
         } => {
-            if other_root == root
-                && other_path == path
-                && other_field == field
-                && event.modifies_resident()
-            {
+            if other_root == root && other_path == path && event.modifies_resident() {
                 return Some(Reaching::Atomic(operation.id));
             }
             if event.modifies_resident()
@@ -400,12 +400,31 @@ fn latest_write(
             field: other_field,
             ..
         } => {
+            // Ordinary field writes retain a type-local field ID. Resolve it
+            // to the same complete projection the atomic event records before
+            // comparing siblings; an unknown declaration remains a fence.
+            let Some(other_type) = terminal_semantics::arrival_parameter(machine, *destination)
+                .map(|parameter| parameter.structural_type)
+                .or_else(|| machine.producing_operation(*destination).map(|(_, ty)| ty))
+            else {
+                return Some(Reaching::Unknown);
+            };
+            let Some(declaration) = terminal_semantics::projected_field_declaration(
+                structural_types.iter(),
+                other_type,
+                other_path,
+                *other_field,
+            ) else {
+                return Some(Reaching::Unknown);
+            };
+            let mut complete = other_path.clone();
+            complete.push(StructuralPathSegment::Field(declaration.identity));
+            let other_path = &complete;
             if (destination != root && may_alias(*destination, other_path))
                 || (destination == root
                     && (path.contains(&terminal_psi::StructuralPathSegment::Referent)
                         || other_path.contains(&terminal_psi::StructuralPathSegment::Referent)
-                        || terminal_semantics::structural_paths_may_overlap(other_path, path)
-                            && other_field == field))
+                        || terminal_semantics::structural_paths_may_overlap(other_path, path)))
             {
                 return Some(Reaching::Effect(operation.id));
             }

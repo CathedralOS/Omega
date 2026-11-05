@@ -158,6 +158,41 @@ pub fn classify_statement_call_intrinsic(
     )
 }
 
+/// `Schema::encode` / `Schema::decode` on a numbered data declaration.
+/// Synthesis no longer installs a callable, and the schema symbol is not a
+/// machine. The leaf still names that declaration's derived wire schema.
+pub fn statement_wire_codec_intrinsic(
+    program: &dyn crate::CheckingInput,
+    call: &typed_trees::statement::TableCall,
+) -> Option<AuthoredDeclarationSelectionIntrinsic> {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
+
+    if call.target_symbol.is_valid() {
+        return None;
+    }
+    let intrinsic = match call.target.as_str() {
+        "encode" => Intrinsic::WireEncode,
+        "decode" => Intrinsic::WireDecode,
+        _ => return None,
+    };
+    let members = program.statement_table.name_path_members(call.receiver);
+    let leaf = members.last()?;
+    program
+        .wire_schemas()
+        .iter()
+        .any(|schema| schema.name.as_str() == leaf.as_str())
+        .then_some(intrinsic)
+}
+
+/// The one caller place an exclusive reference argument denotes.
+pub fn single_exclusive_reference_storage(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    argument: typed_trees::expression::ExpressionHandle,
+) -> Option<(symbols::SymbolHandle, Vec<facts::PlaceSegment>)> {
+    crate::machine_calls::calls::single_exclusive_reference_storage(program, machine, argument)
+}
+
 pub fn classify_expression_call_intrinsic(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
@@ -268,6 +303,18 @@ pub fn storage_address_operand(
     .then(|| expression_table(program).expression_handles(call.arguments))
     .filter(|arguments| arguments.len() == 1)
     .map(|arguments| arguments[0])
+}
+
+/// Provider selection records a build choice without replacing references in
+/// its value arguments. Its operands still execute first, and their effects
+/// remain visible. This is only the descriptor effect of the exact retained
+/// intrinsic; declaration compatibility and Build activation remain separate.
+pub(crate) fn call_preserves_reference_slots(
+    program: &dyn crate::CheckingInput,
+    call: StaticArgumentCall<'_>,
+) -> bool {
+    authored_call_intrinsic(program, call)
+        == Some(AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection)
 }
 
 /// These resolved observations neither write caller storage nor install

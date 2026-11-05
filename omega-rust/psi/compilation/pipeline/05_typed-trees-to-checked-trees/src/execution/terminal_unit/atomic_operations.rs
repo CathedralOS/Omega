@@ -13,12 +13,11 @@
 //!   reserved ordinal to the instruction-observed prior;
 //! - loads are ordered scalar computations, whether inline or local-bound.
 //!
-//! The place is an atomic field reached through an ordinary shared structural
-//! receiver, retaining its actual home and stored-reference crossings. Static
-//! coordinates select one exact cell. Planning requires the field
-//! to be declared atomic storage. Its retained field type supplies atomic-cell
-//! identity, so shared access authorizes the event without granting ordinary
-//! shared mutation. Independent Terminal verification checks that identity.
+//! The place retains its actual atomic home and stored-reference crossings.
+//! Whole cells have an empty projection; record cells retain their real member
+//! identity. Static coordinates select one exact declared atomic endpoint, so
+//! shared access authorizes the event without granting ordinary shared mutation.
+//! Independent Terminal verification checks that identity.
 //! Operands retain `AtomicOperand` roles, either as pure scalar rows or ordinary
 //! computation roots. The latter own their nested calls and ordered effects;
 //! neither the generated update model nor a separate statement call executes.
@@ -367,14 +366,22 @@ fn place(
         root: facts::PlaceRoot::Symbol(symbol),
         segments,
     };
-    let Some(facts::PlaceSegment::Field { symbol: field }) = carrier.segments.pop() else {
-        return None;
+    // Retain a real member when the cell is inline in a record. A whole
+    // dedicated cell (including an array element) has no invented member:
+    // its declared atomic shape is the endpoint at this exact projection.
+    let field_identity = if let Some(facts::PlaceSegment::Field { symbol: field }) =
+        carrier.segments.last().copied()
+    {
+        carrier.segments.pop();
+        crate::execution::terminal_unit::types::terminal_field_identity(program, field)?
+    } else {
+        Default::default()
     };
-    let field_identity =
-        crate::execution::terminal_unit::types::terminal_field_identity(program, field)?;
     // The final case selects the field namespace of the sum itself. It is
     // not a structural child that can be passed as a standalone receiver.
-    let field_case = if let Some(facts::PlaceSegment::Case { variant }) = carrier.segments.last() {
+    let field_case = if field_identity.is_valid()
+        && let Some(facts::PlaceSegment::Case { variant }) = carrier.segments.last()
+    {
         let mut cases = program
             .data_definitions()
             .iter()

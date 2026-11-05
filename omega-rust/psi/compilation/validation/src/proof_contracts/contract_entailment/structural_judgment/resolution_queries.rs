@@ -623,6 +623,7 @@ impl<'program> StructuralJudge<'program> {
             address(&*self.stored_values),
             address(&*self.normal_guarantees),
             address(&*self.captured_result_equations),
+            address(&*self.conditional_guarantees),
             address(&*self.substitutions),
             address(&*self.rewrites),
             address(&*self.disequalities),
@@ -679,6 +680,7 @@ impl<'program> StructuralJudge<'program> {
             && self.capture_sequence == other.capture_sequence
             && self.storage_write_sequence == other.storage_write_sequence
             && Arc::ptr_eq(&self.normal_guarantees, &other.normal_guarantees)
+            && Arc::ptr_eq(&self.conditional_guarantees, &other.conditional_guarantees)
             && Arc::ptr_eq(
                 &self.captured_result_equations,
                 &other.captured_result_equations,

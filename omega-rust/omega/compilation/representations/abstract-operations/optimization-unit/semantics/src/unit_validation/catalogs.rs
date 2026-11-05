@@ -862,17 +862,13 @@ fn validate_structural_field_range_authority(
                 let root = optimization_unit::field_evidence(function, location.root)
                     .and_then(|row| row.root_type)
                     .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
-                let declaration = projected_field_declaration(
+                let cell = terminal_semantics::atomic_cell_type(
                     types.values().copied(),
                     root,
                     &location.path,
-                    location.field,
                 )
                 .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
-                let bounded = matches!(
-                    declaration.field_type,
-                    StructuralFieldType::AtomicBoundedInteger(_)
-                );
+                let bounded = cell.bounds().is_some();
                 let requires = bounded && event.joins_modification_order();
                 if requires != resident_obligation.is_some() {
                     return Err(
@@ -892,17 +888,17 @@ fn validate_structural_field_range_authority(
                         .ok_or(
                             OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
                         )?;
-                    let requirement = terminal_semantics::atomic_resident_requirement(
-                        &declaration.field_type,
-                        value,
-                    )
-                    .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
+                    let requirement =
+                        terminal_semantics::atomic_resident_requirement(&cell.into(), value)
+                            .ok_or(
+                            OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                        )?;
                     canonical_proposition_order_key(&requirement).map_err(|_| {
                         OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch
                     })?;
                     let receiving = SourceCheckedScalarReceiving {
                         value,
-                        restriction: declaration.field_type.clone(),
+                        restriction: cell.into(),
                     };
                     if unit
                         .accepted_obligation_facts

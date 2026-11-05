@@ -318,11 +318,18 @@ impl Evaluation {
         ))?;
         let scalar_type = terminal_scalar_type(primitive_type)?;
         match value {
-            CheckedCallScalarArgument::Pure(_) => {
+            CheckedCallScalarArgument::Pure(expression) => {
+                // Authored stores keep their role binding. A derived wire-codec
+                // cursor store carries the framed length on the plan itself:
+                // an integer literal has no source row to lose.
                 if value_facts(checked)
                     .scalar_expressions
                     .bound_expression_at(state, statement, role)
                     .is_none()
+                    && !matches!(
+                        expression,
+                        checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+                    )
                 {
                     return unsupported("scalar value lost its pure source binding");
                 }
