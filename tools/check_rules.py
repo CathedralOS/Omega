@@ -854,6 +854,26 @@ def subject_violations(subject: str, allowed: set) -> list:
     return []
 
 
+# Agent provenance -----------------------------------------------------------
+
+# Squash merges keep commit messages but drop the pull request description, and
+# AGENTS.md keeps tool attribution out of commits, so the description is the one
+# place a landing can say which agent wrote it. Several agents share each GitHub
+# account, so the account cannot say it either.
+AGENT_NAMES = ("Claude Code", "Codex", "Cursor", "Devin", "Antigravity", "Dot", "Human")
+AGENT_LINE = re.compile(r"^Agent: (?P<name>.+?)(?:,\s*(?P<detail>\S.*))?\s*$", re.MULTILINE)
+
+
+def provenance_violations(body: str) -> list:
+    """A pull request description must name its agent on an `Agent:` line."""
+    for match in AGENT_LINE.finditer(body):
+        if match["name"].strip() in AGENT_NAMES:
+            return []
+    return ["pull request description has no `Agent: <name>` line naming one of "
+            f"{', '.join(AGENT_NAMES)}, followed by its session link or worktree where "
+            "there is one (AGENTS.md 'Explain the change')"]
+
+
 # Driver ---------------------------------------------------------------------
 
 def show(revision: str, path: str, root: Path = ROOT) -> str:
@@ -1072,6 +1092,8 @@ def main(arguments=None):
     parser.add_argument("--base", help="compare HEAD with this revision "
                         "(default: merge base with origin/main)")
     parser.add_argument("--title", help="pull request title to check as a commit subject")
+    parser.add_argument("--body-file", type=Path,
+                        help="pull request description to check for its `Agent:` line")
     for ratchet in RATCHETS:
         parser.add_argument(f"--{ratchet.flag}", action="store_true",
                             help=f"rewrite {ratchet.baseline} from the tree")
@@ -1108,6 +1130,8 @@ def main(arguments=None):
     if options.title is not None:
         violations += subject_violations(
             options.title, lanes((ROOT / "AGENTS.md").read_text(encoding="utf-8")))
+    if options.body_file is not None:
+        violations += provenance_violations(options.body_file.read_text(encoding="utf-8"))
     for notice in capability_evidence(base):
         print(f"check_rules: notice: {notice}", file=sys.stderr)
     for violation in violations:

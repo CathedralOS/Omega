@@ -20,7 +20,7 @@ from check_rules import (
     fixture_owner, golden_row_quality_violations, golden_rows, golden_violations, lanes,
     measurement_violations, nearest_rows, pinned_fixture_for_fact,
     program_shingles, ratchet_counts, ratchet_violations, read_baseline,
-    read_dangling_baseline, subject_violations, tasks_board_violations,
+    read_dangling_baseline, subject_violations, provenance_violations, tasks_board_violations,
     write_dangling_baseline, write_ratchet,
 )
 
@@ -682,6 +682,22 @@ class LaneTests(unittest.TestCase):
 
     def test_long_subject_fails(self):
         self.assertEqual(len(subject_violations("psi: " + "x" * 90, self.lanes)), 1)
+
+
+class ProvenanceTests(unittest.TestCase):
+    def test_agent_line_with_session_passes(self):
+        body = "Fixes the bound.\n\nAgent: Claude Code, https://claude.ai/code/session_01abc\n"
+        self.assertEqual(provenance_violations(body), [])
+
+    def test_agent_line_without_detail_passes(self):
+        for name in ("Codex", "Cursor", "Human"):
+            self.assertEqual(provenance_violations(f"Body.\nAgent: {name}\n"), [], name)
+
+    def test_missing_or_unknown_agent_fails(self):
+        for body in ("No provenance here.", "Implemented by Codex.",
+                     "Agent: a helpful robot", "  Agent: Codex indented",
+                     "Agents: Codex"):
+            self.assertEqual(len(provenance_violations(body)), 1, body)
 
 
 class DanglingTaskTests(unittest.TestCase):

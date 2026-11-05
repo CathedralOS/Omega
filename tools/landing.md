@@ -18,6 +18,7 @@ it still lands it, and does not leave it across unrelated landings.
 git status --short
 git rev-parse HEAD
 git push origin HEAD:refs/heads/work/NAME
+python tools/check_rules.py --title "lane: statement" --body-file PR_BODY
 gh pr create --draft --base main --head work/NAME --title "lane: statement" --body-file PR_BODY
 ```
 
@@ -112,7 +113,8 @@ backticks and escape sequences can execute commands or corrupt identifiers.
 Check its opening against the submitted diff before creating the PR or marking
 it ready; update the whole explanation when the scope changes. Summarize focused
 validation after the behavior and mechanism, then link or include the detailed
-records. Include actual agent/model provenance there when known, not in commit trailers.
+records. End it with the `Agent:` line that [Explain the change](../AGENTS.md#explain-the-change)
+requires; `compiler-check` refuses a description without one. Keep provenance out of commit trailers.
 GitHub records the submitter and publication without a separate notes push.
 An existing PR for the owned branch is reused, not duplicated. Do not include
 unrelated local commits. Keep the candidate clean and committed before push.
