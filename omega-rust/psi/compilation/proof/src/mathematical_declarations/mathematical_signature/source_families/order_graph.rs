@@ -286,6 +286,65 @@ impl Producer<'_> {
         let right = proof_admission::substitute(self.arena, body, one);
         self.arena.structurally_equal(left, right).then_some(left)
     }
+    fn describe_goal(&self, term: TermHandle, remaining: &mut usize) -> String {
+        if *remaining == 0 {
+            return "…".into();
+        }
+        *remaining -= 1;
+        if self.arena.structurally_equal(term, self.zero) {
+            return "0".into();
+        }
+        if self.arena.structurally_equal(term, self.one) {
+            return "1".into();
+        }
+        match self.arena.get(term) {
+            Term::Constant { declaration, .. } => {
+                let vocabulary = self.theory.vocabulary();
+                if declaration == vocabulary.carrier {
+                    "Int".into()
+                } else if declaration == vocabulary.add {
+                    "add".into()
+                } else if declaration == vocabulary.less_or_equal {
+                    "le".into()
+                } else if declaration == vocabulary.less_than {
+                    "lt".into()
+                } else {
+                    format!("constant#{declaration}")
+                }
+            }
+            Term::Variable(position) => format!("bound#{position}"),
+            Term::Apply { function, argument } => format!(
+                "({} {})",
+                self.describe_goal(function, remaining),
+                self.describe_goal(argument, remaining)
+            ),
+            Term::Id { ty, left, right } => format!(
+                "(equal {} {} {})",
+                self.describe_goal(ty, remaining),
+                self.describe_goal(left, remaining),
+                self.describe_goal(right, remaining)
+            ),
+            Term::Pi { domain, codomain } => format!(
+                "(forall {} {})",
+                self.describe_goal(domain, remaining),
+                self.describe_goal(codomain, remaining)
+            ),
+            Term::Sigma { domain, codomain } => format!(
+                "(pair {} {})",
+                self.describe_goal(domain, remaining),
+                self.describe_goal(codomain, remaining)
+            ),
+            Term::Lambda { domain, body } => format!(
+                "(lambda {} {})",
+                self.describe_goal(domain, remaining),
+                self.describe_goal(body, remaining)
+            ),
+            Term::Fst { pair } => format!("(first {})", self.describe_goal(pair, remaining)),
+            Term::Snd { pair } => format!("(rest {})", self.describe_goal(pair, remaining)),
+            other => format!("{other:?}"),
+        }
+    }
+
     fn derive(
         &mut self,
         goal: TermHandle,
@@ -354,14 +413,27 @@ impl Producer<'_> {
                 premises.push(domain);
                 self.derive(body, &premises, depth + 1)
             }
-            _ => self
-                .theory
-                .predicate_from_assumptions(self.arena, self.declarations, goal, assumptions)
-                .map_err(|error| {
-                    GraphFailure::Unavailable(format!(
-                        "the order case arithmetic is unsupported: {error:?}"
-                    ))
-                }),
+            _ => {
+                let proof = self
+                    .theory
+                    .predicate_from_assumptions(self.arena, self.declarations, goal, assumptions)
+                    .map_err(|error| {
+                        GraphFailure::Unavailable(format!(
+                            "the order case arithmetic is unsupported: {error:?}"
+                        ))
+                    })?;
+                if proof.is_none() {
+                    let goal = self.describe_goal(goal, &mut 256);
+                    let premises = assumptions
+                        .iter()
+                        .map(|&premise| self.describe_goal(premise, &mut 512))
+                        .collect::<Vec<_>>();
+                    return Err(GraphFailure::Unavailable(format!(
+                        "the order leaf has no checked derivation: {goal}; supplied premises: {premises:?}"
+                    )));
+                }
+                Ok(proof)
+            }
         }
     }
 
