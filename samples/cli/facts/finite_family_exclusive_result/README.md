@@ -1,20 +1,38 @@
 # Cleanup of a returned exclusive counter
 
+A finite generic call returns a case containing a ticket that borrows the
+caller's counter exclusively. Storing, forwarding and consuming that ticket
+must increment the same counter exactly once. The existing compiler already
+handles this program; this change extends the earlier plain-ticket coverage
+with an active case payload. It makes no compiler change.
+
 Owning task: **FINITE-GENERIC-DISPATCH** in [TASKS.md](../../../../TASKS.md).
 
 Fact: A finite-family result retains its exclusive input counter through storage and forwarding, and consuming that result increments the counter once.
 
-Each positive calls `First` at width 16 and `Second` at width 32, stores and
-forwards the returned ticket, then returns from `finish`. The ticket retains an
-exclusive borrow of the original counter. Its data declaration selects
-`drop_token(value: &mut Token)` as the cleanup hook. The hook increments the
-counter; `finish` has no explicit increment or disposal call. The program checks
-one increment after the first result and two after the second. Missing,
-repeated or misdirected cleanup fails the exit-zero check.
+`First` at width 16 returns `Narrow`; `Second` at width 32 returns `Wide`.
+Each call puts its result in a record, forwards it and consumes its active
+payload. The ticket's `Token` selects `drop_token` as its cleanup machine.
+That machine increments the counter. The consumer has no explicit increment
+or disposal call: it checks the case and width, then returns. The caller
+checks one increment after the first call and two after the second. Missing,
+repeated or misdirected cleanup traps.
+
+Both alternatives explicitly carry the input counter's lifetime. The trait
+has independent input and output data parameters, and each named
+implementation captures that lifetime. A twin changes only the returned
+token's backing to a local array. Returning that reference must reject with
+`does not outlive the call`; no caller guard makes the return lawful.
 
 The place names describe how each program receives its input counter. Every
-returned ticket follows the common store, forward and cleanup path. The constant
-example copies a zero-filled array into runtime storage before borrowing it.
+returned case follows the common storage, forwarding and consumption path;
+this row does not claim nine different places for storing the returned case.
+The constant example copies an owned array into runtime storage before
+borrowing it. The match example checks both inputs and distinguishes tags
+17 and 29. The target example distinguishes the x86-64 and ARM64 helpers.
+All Main and Build sources match their copies under
+`tests/omega/{pass,fail}/facts/finite_family_exclusive_result/`.
+All positives bind the four hosted targets and require exit 0.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -28,84 +46,73 @@ example copies a zero-filled array into runtime storage before borrowing it.
 | Other machine | [program](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | Selected target code | [program](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
+## Contracts and coverage
 
-Each twin changes only the produced token’s backing to an invocation-local
-array. Returning it rejects with `does not outlive the call`. All Main and Build
-sources match their copies under
-`tests/omega/{pass,fail}/facts/finite_family_exclusive_result/`. All positives
-bind the four hosted targets. The match example executes both boolean inputs
-and checks distinct tags 17 and 29 against those inputs. Inverting its selection
-or always taking the fallback traps. The target example also distinguishes
-x86-64 tag 17 from ARM64 tag 29.
-
-## What the repair preserves
-
-The independent target audit previously confused the bytes holding a stored
-pointer with the storage that pointer addresses. Reading the pointer now uses
-the original record’s read permission. Updating the counter still requires the
-pointer’s separate exclusive permission. A real loan of the pointer bytes
-continues to block an overlapping read, even though its type is a reference.
-Unknown origins, lifetime obligations, live children, writes and disposal keep
-their ordinary checks. The repair uses no cleanup-specific Source pattern.
-
-The separate [two-pointer record](../../../../tests/omega/pass/borrows/borrowed_record_descriptor_carriers/main.omg)
-checks two updates to each pointed-to array, distinct results 17 and 39, and six
-surrounding values. It uses neither nominal cleanup nor a family call. Existing
-negative controls cover exclusive access, active children and write-only borrows.
-The returned-parent control now forms its child directly from the returned
-reference; the same mutation reaches its intended active-child diagnostic.
-Its previous extra projected-return call stopped at unrelated result formation.
-That original refusal is retained and is not counted as child-borrow evidence.
-
-The governing contracts are [ownership and cleanup](../../../../wiki/spec/language/ownership.md#consumers-and-cleanup),
+The governing rules are [ownership and cleanup](../../../../wiki/spec/language/ownership.md#consumers-and-cleanup),
 [nominal cleanup](../../../../wiki/spec/terminal-psi/ownership.md#nominal-cleanup),
-[structural access](../../../../wiki/spec/terminal-psi/structural_access.md),
-[loans](../../../../wiki/spec/terminal-psi/loans.md) and
-[returned views](../../../../wiki/spec/language/lifetimes.md#returned-views).
+[returned views](../../../../wiki/spec/language/lifetimes.md#returned-views) and
+[finite method families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
 
-| Requirement | Evidence in this row |
+| Requirement | What the programs check |
 | --- | --- |
-| Establishment | The data declaration selects the independent cleanup hook; each call starts with the lawful caller-owned counter. |
-| Identity and lifetime | The counter is observed after each result dies. Local-backing twins reject the escaping borrow. |
-| Composition | Storage, forwarding and each named place retain that same counter and its exclusive loan. Both match inputs and target-specific helpers are observable. |
-| Ownership and proof | Cleanup lends the valid token to its selected hook, consumes it once and restores caller access. Proof grants no extra storage authority. |
-| Checked-to-Terminal Psi | Terminal execution observes the normal-return cleanup effect. General proof-erasure and crash-route requirements retain their own acceptance. |
-| Build, layout and calls | Four hosted entries execute the same counter contract; the two-pointer control checks independent fields and neighboring storage. |
-| Instructions and frames | Repeated calls preserve the counter, pointer fields and markers. Explicit activation bounds and unrelated instruction families are outside this row. |
-| Native images | Native and Terminal Psi produce the authored result on all four matching hosts. Other image, relocation and branch-encoding requirements retain their own witnesses. |
+| Establishment | A lawful caller-owned counter enters the selected call. The data declaration selects its cleanup machine. |
+| Identity and lifetime | The caller observes that same counter after each ticket dies. Local-backing twins reject an escaping reference. |
+| Composition | Both selected rows retain the exclusive counter through case construction, record storage, forwarding and payload consumption. |
+| Ownership and proof | Cleanup lends the valid token to its selected machine, consumes it once and restores caller access. Proof grants no extra authority. |
+| Checked-to-Terminal Psi | Interpreter execution observes the cleanup effect on normal return. Proof erasure and crash-route obligations keep their own acceptance. |
+| Build, layout and calls | Four hosted entries carry the case, pointer and marker through repeated calls. Other calling conventions retain their own witnesses. |
+| Instructions and frames | The selected counter, case and marker survive storage and calls. This row does not establish explicit activation bounds or unrelated instructions. |
+| Native images | Native and Terminal Psi agree with the authored exit on each matching host. Other relocation and encoding requirements remain separate. |
 
-## Measured results
+## Tagged-case results
 
-| Matching host | Run | Actual compiler and program source |
-| --- | --- | --- |
-| Linux x86-64 | [41951791438](https://github.com/CathedralOS/Omega/actions/runs/41951791438) | `ed656648a42a` |
-| Linux ARM64 | [41952351050](https://github.com/CathedralOS/Omega/actions/runs/41952351050) | `ed656648a42a` |
-| macOS ARM64 | [41953420693](https://github.com/CathedralOS/Omega/actions/runs/41953420693) | `46cad3817d2f` |
-| Windows x86-64 | [41954199920](https://github.com/CathedralOS/Omega/actions/runs/41954199920) | `46cad3817d2f` |
+| Matching host | Run | Actual compiler | Program source |
+| --- | --- | --- | --- |
+| Linux x86-64 | [41993126604](https://github.com/CathedralOS/Omega/actions/runs/41993126604) | `4264bc537ced` | `4264bc537ced` |
+| Linux ARM64 | [41990133234](https://github.com/CathedralOS/Omega/actions/runs/41990133234) | `555bdbb56368` | `e2e2bad96355` |
+| macOS ARM64 | [41990141523](https://github.com/CathedralOS/Omega/actions/runs/41990141523) | `555bdbb56368` | `e2e2bad96355` |
+| Windows x86-64 | [41990149995](https://github.com/CathedralOS/Omega/actions/runs/41990149995) | `555bdbb56368` | `e2e2bad96355` |
 
-Every host records ten actual native/Terminal exit-zero agreements, nine sample
-exit-zero pairs, nine intended lifetime rejections and the focused ordinary CLI
-agreement. Mac and Windows also pass all 25 Source cases. The Linux reports
-remain failed because they contain the older, formation-masked ownership
-control. Its revised input passes the intended rejection check on Mac and
-Windows. The seven compiler, library, tool and configuration objects are
-identical across these sources; all positive programs and lifetime twins are
-also identical. Each result retains its actual source and producer identity.
+Together, each host supplies nine Source accepts, nine intended lifetime
+refusals, nine corpus native/Terminal exit-zero agreements and eighteen sample
+outcomes. The local ordinary CLI also updates and runs at 0/0 on each host.
+The original Linux local and eight-place runs remain at
+[41985245723](https://github.com/CathedralOS/Omega/actions/runs/41985245723) and
+[41990718557](https://github.com/CathedralOS/Omega/actions/runs/41990718557). A
+real observation-file merge conflict required integrating published main, which
+changed common checking code. The fresh Linux compiler then passed the entire
+cleanup scope. Its whole job remains failed because two additional, unchanged
+finite-family controls timed out at their existing adaptive limits. No timeout
+is recorded as an intended rejection. All compilers have verified optimization
+level 1. Only the integrated Linux compiler needed a fresh Rust build.
 
-The Source record replaces only twenty changed fixture rows. Mac, ARM and
-Windows combined records copy their actual ten execution rows; unrelated bytes
-remain unchanged. Linux combined execution stays in its original report rather
-than being projected into a native-only record or a new corpus file. Profiles,
-324 frozen inputs per host, raw reports, exact source archives and independent
-reviews are retained with [PR #1873](https://github.com/CathedralOS/Omega/pull/1873).
+The three `555bdbb56368` compilers retain that actual identity. Their only
+compiler difference from `f37c9cfc83e2` consolidates two public-contract conflict
+checks during target-neutral lowering. Independent review establishes identical
+catalog output on admitted paths; these are not executions of `f37` on those
+three hosts. The later integration changes common proof/checking consumers,
+which the fresh Linux scope covers, and fixed-byte construction absent from
+these cleanup values. Independent review found no changed target-specific
+consumer requiring another three builds. Original other-host identities and
+outcomes remain intact; no integrated-compiler execution is claimed there.
 
-The frozen baseline uses program `91805a009c1d` and verified compiler
-`538cc2df6785`: all nine ordinary programs already execute at 0/0, while the
-independent target audit wrongly refuses all nine. Two local compiler builds
-later exhausted disk space; both failures remain recorded. Nineteen earlier
-Rust tests apply to the unchanged compiler range `e625011af644` through
-`6a48b27b468b`, before the final pointer-storage guard correction.
+Two earlier attempts remain failed: the first local source omitted the lifetime
+required by its two case paths, and the first eight-place Linux observer passed
+an empty ordinary selection to a helper that requires a nonempty list. Neither
+attempt supplies execution acceptance. Their corrected runs are listed above.
 
-This completes the returned-counter cleanup requirement. Other finite-family
-requirements remain open, including the documented remaining host evidence for
-[inline array results](../finite_family_static_inline_result/README.md).
+## Earlier plain-ticket repair
+
+[PR #1873](https://github.com/CathedralOS/Omega/pull/1873) qualified the original
+plain-ticket row. Its pointer-storage repair distinguished reading the bytes
+holding a pointer from updating the storage that pointer addresses. Reading
+uses the record's permission; updating the counter still needs its separate
+exclusive permission. Loans of the pointer bytes continue to block overlapping
+reads. The repair added no cleanup-specific source exception.
+
+Those older runs used `ed656648a42a` on Linux and `46cad3817d2f` on macOS and
+Windows. They remain evidence for their original plain-ticket programs, with
+raw reports, baseline failures and independent reviews preserved on that PR.
+The new results above establish the active-payload extension. The parent task
+remains open. Its older controls for an incomplete provider and a width outside
+the family still time out before their intended contract errors.
