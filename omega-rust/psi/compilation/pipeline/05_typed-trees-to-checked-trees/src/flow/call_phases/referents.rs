@@ -41,6 +41,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     domains: &DomainFacts,
     writes: Option<&[ObservedCallMutation]>,
 ) {
+    let trace = std::env::var_os("OMEGA_STRUCT_TRACE").is_some();
     let key = (
         machine.symbol,
         state.symbol,
@@ -125,8 +126,20 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         let Some(targets) =
             argument_sources.and_then(|sources| sources.referent_places(argument_position))
         else {
+            if trace {
+                eprintln!(
+                    "FLOW field-restoration caller={} statement={} formal={:?} reason=no-completed-referents",
+                    machine.name, borrow_call.statement_index, parameter.symbol,
+                );
+            }
             continue;
         };
+        if trace {
+            eprintln!(
+                "FLOW field-restoration caller={} statement={} formal={:?} actuals={targets:?}",
+                machine.name, borrow_call.statement_index, parameter.symbol,
+            );
+        }
         // Facts live on the evaluated reference's captured backing. A
         // reference result may name one of finitely many candidates;
         // the callee guarantees the rows only on the candidate it received,
@@ -296,6 +309,26 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 ) && write_stays_in_captured_storage(program, parameters, source)
             })
             .collect();
+        if trace {
+            for (contribution, confined) in writes.iter().zip(&confined_writes) {
+                let checked_domains = contribution.write.checked_write_type.is_valid().then(|| {
+                    validation::field_domains::domain_constraint_identities(
+                        program,
+                        contribution.write.checked_write_type,
+                    )
+                });
+                eprintln!(
+                    "FLOW field-restoration-write caller={} statement={} confined={confined} write={:?} checked_domains={checked_domains:?}",
+                    machine.name, borrow_call.statement_index, contribution.write,
+                );
+            }
+            for guarantee in &guarantees {
+                eprintln!(
+                    "FLOW field-restoration-guarantee caller={} statement={} guarantee={guarantee:?}",
+                    machine.name, borrow_call.statement_index,
+                );
+            }
+        }
         if confined_writes.iter().any(|&confined| confined) {
             let guarantees = guarantees::PreparedGuarantees::prepare(guarantees);
             let contexts = build
@@ -331,6 +364,16 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 if !is_subslice_byte_domain
                     && !guarantees.has_domain(domain_symbol, semantic_domain)
                 {
+                    if trace {
+                        let subject = semantic.places.get(handle);
+                        eprintln!(
+                            "FLOW field-restoration-refused caller={} statement={} root={:?} path={:?} domain={domain_symbol:?} identity={semantic_domain:?} reason=no-guarantee-for-domain",
+                            machine.name,
+                            borrow_call.statement_index,
+                            subject.root,
+                            semantic.place_segments.span_or_empty(subject.segments),
+                        );
+                    }
                     continue;
                 }
                 let semantic_place = semantic.places.get(handle);
@@ -374,6 +417,12 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                         semantic_domain,
                     )
                 {
+                    if trace {
+                        eprintln!(
+                            "FLOW field-restoration-refused caller={} statement={} place={place:?} domain={domain_symbol:?} identity={semantic_domain:?} reason=no-matching-captured-place",
+                            machine.name, borrow_call.statement_index,
+                        );
+                    }
                     continue;
                 }
                 let mut affected = false;
@@ -445,6 +494,11 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                     // Keep its original issuer and proof point for the
                     // qualification join; only its liveness changes here.
                     preserved.push((place, fact_handle));
+                } else if trace && affected {
+                    eprintln!(
+                        "FLOW field-restoration-refused caller={} statement={} place={place:?} domain={domain_symbol:?} identity={semantic_domain:?} reason=an-overlapping-writer-did-not-restore-this-place",
+                        machine.name, borrow_call.statement_index,
+                    );
                 }
             }
         }

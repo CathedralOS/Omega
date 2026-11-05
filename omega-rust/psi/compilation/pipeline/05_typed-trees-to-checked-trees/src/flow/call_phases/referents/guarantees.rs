@@ -10,6 +10,7 @@ use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
 use validation::CanonicalPlace;
 
+#[derive(Debug)]
 pub(super) struct ReturnedGuarantee {
     pub parameter: SymbolHandle,
     pub place: CanonicalPlace,
