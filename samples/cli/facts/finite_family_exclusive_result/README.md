@@ -4,17 +4,27 @@ Owning task: **FINITE-GENERIC-DISPATCH** in [TASKS.md](../../../../TASKS.md).
 
 Fact: A finite-family result retains its exclusive input counter through storage and forwarding, and consuming that result increments the counter once.
 
-The next requirement puts that returned ticket in a `Narrow` or `Wide` case.
-The active payload must keep the same exclusive counter and cleanup hook while
-it is stored, forwarded and consumed. The counter must still advance once per
-call, and the case and marker must match the supplied width. Only the local
-program and its local-backing twin are converted so far; current-baseline
-qualification is pending. The eight other places and the measurements below
-retain their original plain-ticket programs. No tagged-case result is claimed
-from those older runs.
+The returned ticket is carried in a `Narrow` or `Wide` case. The active
+payload must keep the same exclusive counter and cleanup hook while it is
+stored, forwarded and consumed. The counter advances once per call, and the
+case and marker must match the supplied width. All nine programs and their
+local-backing twins now use this same operation.
+
+The local program already passes with the existing optimized compiler; this
+extension adds coverage, with no compiler change. Run
+[41985245723](https://github.com/CathedralOS/Omega/actions/runs/41985245723)
+checks program `0795de340570` with compiler `f37c9cfc83e2`: the positive runs
+at native exit 0 and Terminal exit 0 through the corpus, sample and ordinary
+CLI paths. The twin rejects with six local-storage lifetime diagnostics.
+The remaining eight places and the other matching hosts are not yet verified
+for the tagged-case programs. The older results below apply to plain tickets.
+
+Both case alternatives explicitly carry the input counter lifetime. The trait
+has independent input and output data parameters, and each named implementation
+captures that lifetime. No lifetime is inferred from two anonymous case paths.
 
 Each positive calls `First` at width 16 and `Second` at width 32, stores and
-forwards the returned ticket, then returns from `finish`. The ticket retains an
+forwards the returned ticket, then consumes the active payload in `finish`. The ticket retains an
 exclusive borrow of the original counter. Its data declaration selects
 `drop_token(value: &mut Token)` as the cleanup hook. The hook increments the
 counter; `finish` has no explicit increment or disposal call. The program checks
@@ -47,7 +57,7 @@ and checks distinct tags 17 and 29 against those inputs. Inverting its selection
 or always taking the fallback traps. The target example also distinguishes
 x86-64 tag 17 from ARM64 tag 29.
 
-## What the repair preserves
+## Earlier pointer-storage repair
 
 The independent target audit previously confused the bytes holding a stored
 pointer with the storage that pointer addresses. Reading the pointer now uses
@@ -83,7 +93,7 @@ The governing contracts are [ownership and cleanup](../../../../wiki/spec/langua
 | Instructions and frames | Repeated calls preserve the counter, pointer fields and markers. Explicit activation bounds and unrelated instruction families are outside this row. |
 | Native images | Native and Terminal Psi produce the authored result on all four matching hosts. Other image, relocation and branch-encoding requirements retain their own witnesses. |
 
-## Measured results
+## Earlier plain-ticket results
 
 | Matching host | Run | Actual compiler and program source |
 | --- | --- | --- |
@@ -115,6 +125,6 @@ later exhausted disk space; both failures remain recorded. Nineteen earlier
 Rust tests apply to the unchanged compiler range `e625011af644` through
 `6a48b27b468b`, before the final pointer-storage guard correction.
 
-This completes the returned-counter cleanup requirement. Other finite-family
-requirements remain open, including the documented remaining host evidence for
-[inline array results](../finite_family_static_inline_result/README.md).
+These runs complete the earlier plain-ticket cleanup requirement. Tagged-case
+coverage remains pending as described above. Other finite-family requirements
+remain open; each retains its own acceptance.
