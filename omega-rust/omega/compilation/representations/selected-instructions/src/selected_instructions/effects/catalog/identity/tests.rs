@@ -79,7 +79,9 @@ fn keys() -> SelectedConstraintKeys {
             atomic_store: Some(instruction(55)),
             atomic_update: Some(instruction(56)),
             atomic_compare_exchange: Some(instruction(57)),
-            atomic_compare_exchange_once: None,
+            // Both hosted targets declare a compare-exchange-once row. Leaving
+            // it absent makes every full-catalog identity test fail closed.
+            atomic_compare_exchange_once: Some(instruction(59)),
             atomic_bitwise_update: Some(instruction(58)),
             crash: instruction(780),
             copy_bytes: Some(instruction(40)),
