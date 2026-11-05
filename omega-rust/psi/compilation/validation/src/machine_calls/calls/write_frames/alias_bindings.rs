@@ -44,7 +44,8 @@ pub fn state_reference_parameter_binding_is_stable(
         .statement_table
         .statements(state.statement_nodes)
         .iter()
-        .all(|statement| {
+        .enumerate()
+        .all(|(statement_index, statement)| {
             if statement_returns_reference_without_effects(program, state, statement) {
                 return true;
             }
@@ -65,31 +66,39 @@ pub fn state_reference_parameter_binding_is_stable(
             {
                 return false;
             }
-            if let Some(call) = statement.as_call() {
-                let contract = super::super::callee_entry_contract(program, call.target_symbol);
-                return expression_table(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .enumerate()
-                    .all(|(position, argument)| {
-                        let expected = contract.as_ref().and_then(|contract| {
-                            let position = position.checked_sub(contract.leading_operands)?;
-                            Some(contract.parameters.get(position)?.type_reference)
-                        });
-                        !expression_exposes_reference_slot(
-                            program,
-                            *argument,
-                            expected,
-                            source_referee,
-                            &is_binding,
-                        )
-                    });
-            }
-            !super::statement_value_expression_roots(program, statement)
+            // Named transition arguments have the same receiving contract as
+            // other calls. Keep that contract when examining their borrows;
+            // a generic expression walk would discard it at the arm boundary.
+            if crate::collect_call_sites_in_statement(program, machine, state, statement_index)
                 .into_iter()
-                .any(|expression| {
+                .filter(|site| !matches!(site, crate::CallSite::Expression { .. }))
+                .any(|site| {
+                    call_arguments_expose_reference_slot(
+                        program,
+                        machine.symbol,
+                        site,
+                        source_referee,
+                        &is_binding,
+                    )
+                })
+            {
+                return false;
+            }
+            !program
+                .tables
+                .expression_roots(statement)
+                .into_iter()
+                .filter(|(role, _)| {
+                    !matches!(
+                        role,
+                        typed_trees::statement::StatementRootRole::CallArgument
+                            | typed_trees::statement::StatementRootRole::TransitionArgument
+                    )
+                })
+                .any(|(_, expression)| {
                     expression_exposes_reference_slot(
                         program,
+                        machine.symbol,
                         expression,
                         None,
                         source_referee,
@@ -99,12 +108,42 @@ pub fn state_reference_parameter_binding_is_stable(
         })
 }
 
+fn call_arguments_expose_reference_slot<'program>(
+    program: &'program dyn crate::CheckingInput,
+    lexical_owner: symbols::SymbolHandle,
+    site: crate::CallSite<'program>,
+    source_referee: Option<typed_trees::types::TypeReferenceHandle>,
+    is_binding: &impl Fn(ExpressionHandle) -> bool,
+) -> bool {
+    let parameters = site.parameters(program, lexical_owner);
+    let leading = super::super::callee_entry_contract(program, site.target_symbol(program))
+        .map_or(0, |contract| contract.leading_operands);
+    crate::call_site_argument_expressions(program, &site)
+        .iter()
+        .enumerate()
+        .any(|(position, argument)| {
+            let expected = position
+                .checked_sub(leading)
+                .and_then(|position| parameters?.get(position))
+                .map(|parameter| parameter.type_reference);
+            expression_exposes_reference_slot(
+                program,
+                lexical_owner,
+                *argument,
+                expected,
+                source_referee,
+                is_binding,
+            )
+        })
+}
+
 /// Distinguish lending a referent from lending the reference slot that
 /// points at it. The selected formal must name that same referent;
 /// an unknown consumer or a reference-to-reference formal keeps the exposure
 /// fence. Nested operands are checked under their own receiving declarations.
 fn expression_exposes_reference_slot(
     program: &dyn crate::CheckingInput,
+    lexical_owner: symbols::SymbolHandle,
     expression: ExpressionHandle,
     expected: Option<typed_trees::types::TypeReferenceHandle>,
     source_referee: Option<typed_trees::types::TypeReferenceHandle>,
@@ -130,6 +169,7 @@ fn expression_exposes_reference_slot(
         ExpressionNode::Call(call) => {
             if expression_exposes_reference_slot(
                 program,
+                lexical_owner,
                 call.receiver,
                 None,
                 source_referee,
@@ -137,30 +177,20 @@ fn expression_exposes_reference_slot(
             ) {
                 return true;
             }
-            let contract = super::super::callee_entry_contract(program, call.target_symbol);
-            expression_table(program)
-                .expression_handles(call.arguments)
-                .iter()
-                .enumerate()
-                .any(|(position, argument)| {
-                    let expected = contract.as_ref().and_then(|contract| {
-                        let position = position.checked_sub(contract.leading_operands)?;
-                        Some(contract.parameters.get(position)?.type_reference)
-                    });
-                    expression_exposes_reference_slot(
-                        program,
-                        *argument,
-                        expected,
-                        source_referee,
-                        is_binding,
-                    )
-                })
+            call_arguments_expose_reference_slot(
+                program,
+                lexical_owner,
+                crate::CallSite::Expression { expression, call },
+                source_referee,
+                is_binding,
+            )
         }
         node => {
             let mut exposed = false;
             crate::queries::expression_traversal::children(program, node, |child| {
                 exposed |= expression_exposes_reference_slot(
                     program,
+                    lexical_owner,
                     child,
                     None,
                     source_referee,
