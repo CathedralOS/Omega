@@ -4,13 +4,13 @@ Owning task: **FINITE-GENERIC-DISPATCH** in [TASKS.md](../../../../TASKS.md).
 
 Fact: A finite-family result retains its exclusive input counter through storage and forwarding, and consuming that result increments the counter once.
 
-Each program selects both providers at widths 16 and 32, stores and forwards the
-returned ticket, then returns from `finish`. The ticket retains an exclusive
-borrow of the original counter. Its data declaration selects the independent
-`drop_token(value: &mut Token)` cleanup hook. That hook increments the counter;
-`finish` has no explicit increment or disposal call. The program observes one
-increment after the first result and two after the second. A missing, repeated
-or misdirected cleanup fails its exit-zero check.
+Each positive calls `First` at width 16 and `Second` at width 32, stores and
+forwards the returned ticket, then returns from `finish`. The ticket retains an
+exclusive borrow of the original counter. Its data declaration selects
+`drop_token(value: &mut Token)` as the cleanup hook. The hook increments the
+counter; `finish` has no explicit increment or disposal call. The program checks
+one increment after the first result and two after the second. Missing,
+repeated or misdirected cleanup fails the exit-zero check.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -24,69 +24,84 @@ or misdirected cleanup fails its exit-zero check.
 | Other machine | [program](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | Selected target code | [program](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
-Each twin changes only the produced token's backing to an invocation-local
-array. Returning it must reject with `does not outlive the call`. Main and Build
+
+Each twin changes only the produced token’s backing to an invocation-local
+array. Returning it rejects with `does not outlive the call`. All Main and Build
 sources match their copies under
 `tests/omega/{pass,fail}/facts/finite_family_exclusive_result/`. All positives
-bind the four hosted targets. The match example constructs tags 17 and 29 on
-distinct arms and checks the selected tag against its boolean input after cleanup. It executes both arms;
-inverting the selection or always taking the fallback traps. The selected
-target example also checks tags 17 for x86-64 and 29 for ARM64, so choosing the
-wrong helper traps.
+bind the four hosted targets. The match example executes both boolean inputs
+and checks distinct tags 17 and 29 against those inputs. Inverting its selection
+or always taking the fallback traps. The target example also distinguishes
+x86-64 tag 17 from ARM64 tag 29.
 
-## Requirements
+## What the repair preserves
 
-The selected return must transfer the original exclusive pointer and its parent
-loans exactly once. Storing it, crossing a call or state transition, and reading
-its marker must preserve that custody. A local backing cannot escape through the
-same operation.
+The independent target audit previously confused the bytes holding a stored
+pointer with the storage that pointer addresses. Reading the pointer now uses
+the original record’s read permission. Updating the counter still requires the
+pointer’s separate exclusive permission. A real loan of the pointer bytes
+continues to block an overlapping read, even though its type is a reference.
+Unknown origins, lifetime obligations, live children, writes and disposal keep
+their ordinary checks. The repair uses no cleanup-specific Source pattern.
 
-The data owner's default domain selects one nominal cleanup hook. Cleanup
-begins consumption before lending the whole valid token to that hook. Reading
-the token's stored pointer uses the hook's original record borrow; modifying
-the pointed-to counter still uses the separate exclusive loan. Lifetime debts,
-live children, write-only access, writes and disposal retain their ordinary
-checks. An unknown origin or inline-looking state alias grants no authority.
+The separate [two-pointer record](../../../../tests/omega/pass/borrows/borrowed_record_descriptor_carriers/main.omg)
+checks two updates to each pointed-to array, distinct results 17 and 39, and six
+surrounding values. It uses neither nominal cleanup nor a family call. Existing
+negative controls cover exclusive access, active children and write-only borrows.
+The returned-parent control now forms its child directly from the returned
+reference; the same mutation reaches its intended active-child diagnostic.
+Its previous extra projected-return call stopped at unrelated result formation.
+That original refusal is retained and is not counted as child-borrow evidence.
 
-These obligations follow [ownership and cleanup](../../../../wiki/spec/language/ownership.md#consumers-and-cleanup),
+The governing contracts are [ownership and cleanup](../../../../wiki/spec/language/ownership.md#consumers-and-cleanup),
 [nominal cleanup](../../../../wiki/spec/terminal-psi/ownership.md#nominal-cleanup),
-[structural access](../../../../wiki/spec/terminal-psi/structural_access.md) and
-[returned carrier lifetimes](../../../../wiki/spec/language/lifetimes.md#returned-views).
-The checked cleanup, Terminal Psi interpretation, target calling/storage plans
-and native execution must preserve the same counter and once-only effect.
+[structural access](../../../../wiki/spec/terminal-psi/structural_access.md),
+[loans](../../../../wiki/spec/terminal-psi/loans.md) and
+[returned views](../../../../wiki/spec/language/lifetimes.md#returned-views).
 
-## Evidence and remaining work
+| Requirement | Evidence in this row |
+| --- | --- |
+| Establishment | The data declaration selects the independent cleanup hook; each call starts with the lawful caller-owned counter. |
+| Identity and lifetime | The counter is observed after each result dies. Local-backing twins reject the escaping borrow. |
+| Composition | Storage, forwarding and each named place retain that same counter and its exclusive loan. Both match inputs and target-specific helpers are observable. |
+| Ownership and proof | Cleanup lends the valid token to its selected hook, consumes it once and restores caller access. Proof grants no extra storage authority. |
+| Checked-to-Terminal Psi | Terminal execution observes the normal-return cleanup effect. General proof-erasure and crash-route requirements retain their own acceptance. |
+| Build, layout and calls | Four hosted entries execute the same counter contract; the two-pointer control checks independent fields and neighboring storage. |
+| Instructions and frames | Repeated calls preserve the counter, pointer fields and markers. Explicit activation bounds and unrelated instruction families are outside this row. |
+| Native images | Native and Terminal Psi produce the authored result on all four matching hosts. Other image, relocation and branch-encoding requirements retain their own witnesses. |
 
-At committed inputs `91805a009c1d`, verified optimized compiler `538cc2df6785`
-checks nine positives and rejects nine lifetime twins. All nine ordinary CLI
-programs already execute with native/Terminal exits 0; all nine ordinary twins
-reject. The corpus's independent target audit instead refuses all nine valid
-native cases with `descriptor storage access conflicts with a retained loan`.
-The exact sources, producer profiles, raw refusal reports and ordinary engine
-observations are preserved in the owning qualification record.
+## Measured results
 
-The repair separates a read of the original record's inline pointer storage
-from the pointer's captured pointee. Every concrete storage alternative, unknown
-origin and lifetime debt still participates in its applicable check. It uses no
-cleanup-specific source pattern and grants no extra write or disposal access.
-The focused [two-pointer record](../../../../tests/omega/pass/borrows/borrowed_record_descriptor_carriers/main.omg)
-checks both updates and six canaries without a cleanup hook or family call.
-Existing ownership controls test the restrictions above. The returned-parent
-control forms its child directly from the returned reference. Its previous
-extra projected-return call rejected during formation, hiding the intended
-active-child mutation check. The original refusal is retained, and the revised
-control reaches the unchanged child-borrow diagnostic.
+| Matching host | Run | Actual compiler and program source |
+| --- | --- | --- |
+| Linux x86-64 | [41951791438](https://github.com/CathedralOS/Omega/actions/runs/41951791438) | `ed656648a42a` |
+| Linux ARM64 | [41952351050](https://github.com/CathedralOS/Omega/actions/runs/41952351050) | `ed656648a42a` |
+| macOS ARM64 | [41953420693](https://github.com/CathedralOS/Omega/actions/runs/41953420693) | `46cad3817d2f` |
+| Windows x86-64 | [41954199920](https://github.com/CathedralOS/Omega/actions/runs/41954199920) | `46cad3817d2f` |
 
-Nineteen existing Rust reference tests passed at `e625011af644`. Their compiler
-code, library and configuration remain identical through `6a48b27b468b`.
-Local compiler preparation then exhausted disk space twice; both failures are
-retained. The first hosted Linux run at `6a48b27b468b` checks ten positives,
-executes all ten with native/Terminal exits 0, and passes nine sample pairs and
-nine reject twins. One older ownership control rejects during unrelated result
-formation; its corrected source reaches the intended active-child diagnostic.
+Every host records ten actual native/Terminal exit-zero agreements, nine sample
+exit-zero pairs, nine intended lifetime rejections and the focused ordinary CLI
+agreement. Mac and Windows also pass all 25 Source cases. The Linux reports
+remain failed because they contain the older, formation-masked ownership
+control. Its revised input passes the intended rejection check on Mac and
+Windows. The seven compiler, library, tool and configuration objects are
+identical across these sources; all positive programs and lifetime twins are
+also identical. Each result retains its actual source and producer identity.
 
-Independent review also required retaining real loans of pointer-field storage.
-That correction is in `ed656648a42a`; its fresh compiler qualification is
-pending. The revised match example and ownership control require their own
-current-input observations. Earlier explicit-settler results do not establish
-nominal cleanup, and the broader parent task remains open.
+The Source record replaces only twenty changed fixture rows. Mac, ARM and
+Windows combined records copy their actual ten execution rows; unrelated bytes
+remain unchanged. Linux combined execution stays in its original report rather
+than being projected into a native-only record or a new corpus file. Profiles,
+324 frozen inputs per host, raw reports, exact source archives and independent
+reviews are retained with [PR #1873](https://github.com/CathedralOS/Omega/pull/1873).
+
+The frozen baseline uses program `91805a009c1d` and verified compiler
+`538cc2df6785`: all nine ordinary programs already execute at 0/0, while the
+independent target audit wrongly refuses all nine. Two local compiler builds
+later exhausted disk space; both failures remain recorded. Nineteen earlier
+Rust tests apply to the unchanged compiler range `e625011af644` through
+`6a48b27b468b`, before the final pointer-storage guard correction.
+
+This completes the returned-counter cleanup requirement. Other finite-family
+requirements remain open, including the documented remaining host evidence for
+[inline array results](../finite_family_static_inline_result/README.md).

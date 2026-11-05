@@ -231,6 +231,7 @@ pass/borrows/borrow_returned_window_write_and_call built 2690ms exit:0 interpret
 pass/borrows/borrow_stated_index_disequality_mut checked 1484ms @5f668826adf3+wt
 pass/borrows/borrowed_array_loop checked 2370ms @5f668826adf3+wt
 pass/borrows/borrowed_case_leaf_copy_exit built 7104ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/borrows/borrowed_record_descriptor_carriers built 7143ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
 pass/borrows/borrowed_record_stack_parameter_writeback_exit built 7103ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/borrows/borrowed_sum_dispatch checked 2540ms @5f668826adf3+wt
 pass/borrows/borrowed_window_parameter_provenance_exit built 2625ms exit:0 interpreter-exit:0 interpreter:agrees @beacd47121d
@@ -2938,15 +2939,15 @@ pass/facts/field_where_index_through_other_machine_exit built 5071ms exit:0 inte
 pass/facts/field_where_index_through_other_state_exit built 4994ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/field_where_index_through_parameter_exit built 5040ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/field_where_index_through_target_body_exit built 5578ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/facts/finite_family_exclusive_result/call_result built 1566ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
-pass/facts/finite_family_exclusive_result/const_name built 2779ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
-pass/facts/finite_family_exclusive_result/field built 2755ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
-pass/facts/finite_family_exclusive_result/local built 3046ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
-pass/facts/finite_family_exclusive_result/match_join built 2966ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
-pass/facts/finite_family_exclusive_result/other_machine built 2504ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
-pass/facts/finite_family_exclusive_result/other_state built 2386ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
-pass/facts/finite_family_exclusive_result/parameter built 3060ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
-pass/facts/finite_family_exclusive_result/target_body built 2899ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
+pass/facts/finite_family_exclusive_result/call_result built 7244ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
+pass/facts/finite_family_exclusive_result/const_name built 7231ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
+pass/facts/finite_family_exclusive_result/field built 7254ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
+pass/facts/finite_family_exclusive_result/local built 7242ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
+pass/facts/finite_family_exclusive_result/match_join built 7221ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
+pass/facts/finite_family_exclusive_result/other_machine built 7238ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
+pass/facts/finite_family_exclusive_result/other_state built 7242ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
+pass/facts/finite_family_exclusive_result/parameter built 7256ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
+pass/facts/finite_family_exclusive_result/target_body built 7335ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
 pass/facts/finite_family_input_index/call_result built 7058ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/const_name built 7011ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/field built 7044ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
