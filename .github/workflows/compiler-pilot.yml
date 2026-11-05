@@ -130,8 +130,12 @@ jobs:
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
-      - name: Run constructor identity unit tests
-        run: python tools/build_slot.py -- cargo test --locked -p validation constructor_identity --lib
+      - name: Run constructor identity and storage observation unit tests
+        run: >-
+          python tools/build_slot.py -- python -c
+          "import subprocess;
+          subprocess.run(['cargo', 'test', '--locked', '-p', 'validation', 'constructor_identity', '--lib'], check=True);
+          subprocess.run(['cargo', 'test', '--locked', '-p', 'validation', 'completed_observation_of_incoming_storage_survives_only_preserved_cuts', '--lib'], check=True)"
       - name: Observe public Build consent and filesystem isolation
         if: github.event_name == 'workflow_dispatch' && inputs.build_consent
         run: python tools/ci/build_consent_controls.py
