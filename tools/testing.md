@@ -1461,6 +1461,9 @@ with the remedy printed beside them.
 
 The selector requires Python 3.9+, Git, the pinned Rust toolchain, and
 `cargo-nextest` 0.9.140 or newer. It uses `mbx` when available, otherwise Cargo.
+`mbx` is [Mr Boxington](https://mr-boxington.jdx.dev/), a shared build cache
+that wraps Cargo ([source](https://github.com/jdx/mr-boxington)); installation
+instructions are at <https://mr-boxington.jdx.dev/installation>.
 Check `mbx nextest --version` (or `cargo nextest --version`); nextest installation
 instructions are at <https://nexte.st/docs/installation/pre-built-binaries/>.
 Run these commands from the repository checkout.
