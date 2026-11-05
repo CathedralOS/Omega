@@ -100,6 +100,25 @@ fn data_definition_rows_follow_storage_and_roster_changes() {
     let other = SymbolHandle::from_parts(3, 1);
     let symbols = [original, replacement, other, SymbolHandle::invalid()];
     let names = ["First", "Second", "Replacement"];
+    // An append can make a previously out-of-range visible roster resolve.
+    // Its old empty index must not hide the newly present declaration.
+    let mut future = TypedTrees::default();
+    let first = future
+        .tables
+        .data_definitions
+        .insert(definition(original, "First"));
+    let next = Handle::from_parts(first.arena_index() + 1, first.generation());
+    future.roots.data_definitions = HandleSpan::from_parts(next, 1);
+    assert_fresh_rows(&future, &symbols, &names);
+    assert_eq!(
+        future
+            .tables
+            .data_definitions
+            .insert(definition(replacement, "Replacement")),
+        next
+    );
+    assert_fresh_rows(&future, &symbols, &names);
+
     let mut program = TypedTrees::default();
     program.push_data_definition(definition(original, "First"));
     program.push_data_definition(definition(other, "Second"));

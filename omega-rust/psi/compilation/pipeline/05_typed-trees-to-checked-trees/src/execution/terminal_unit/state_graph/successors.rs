@@ -378,10 +378,15 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 // remains the named binding's current occurrence. A replaced
                 // home is evaluated below through the ordinary edge operand
                 // route; forwarding its initializer would revive an old value.
+                // A declared mutable home is that same occupant: in-place
+                // stores update its storage, and a terminal transfer moves
+                // the home. Establishing the place name again would invent a
+                // second value and leave the home's temporary cleanup without
+                // a transfer to retire it.
                 if place.segments.is_empty()
                     && let Some(symbol) = place.root.as_symbol()
-                    && let Some(CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }) =
-                        super::super::local_storage::source(program, source, operations, symbol)
+                    && let Some(binding_ordinal) =
+                        super::super::local_storage::occupant(program, source, operations, symbol)
                     // Use the same declared-type relation as operand
                     // preparation. A completed call may have established more
                     // facts than the local annotation spells; forwarding its

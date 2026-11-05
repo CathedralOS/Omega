@@ -454,12 +454,11 @@ fn local_symbol_is_never_branched_on_in_remaining_prefix(
     // do not forward mentions: a read of one is an explicit program fact,
     // not value plumbing.
     let mut forwarded = vec![local_symbol];
-    let mentions_local =
-        |root: ExpressionHandle, forwarded: &[SymbolHandle]| {
-            forwarded
-                .iter()
-                .any(|symbol| expression_mentions_symbol(program, root, *symbol))
-        };
+    let mentions_local = |root: ExpressionHandle, forwarded: &[SymbolHandle]| {
+        forwarded
+            .iter()
+            .any(|symbol| expression_mentions_symbol(program, root, *symbol))
+    };
     let mentions_local_in_match = |root: ExpressionHandle, forwarded: &[SymbolHandle]| {
         if !root.is_valid() {
             return false;

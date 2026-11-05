@@ -299,6 +299,9 @@ pub(crate) struct OperationBuffer {
     /// Literal operations have Unit results, so their emitting owner retains
     /// the carrier here rather than recovering it from a source-call shape.
     pub(crate) literal_types: Vec<(PlaceId, semantic_vocabulary::StructuralTypeId)>,
+    /// Block-parameter homes established when capturing a completed structural
+    /// address across a private continuation jump.
+    pub(crate) captured_place_types: Vec<(PlaceId, semantic_vocabulary::StructuralTypeId)>,
     /// Value-establishment obligations accompany the exact private arrival.
     pub(crate) scalar_block_invariants: Vec<terminal_psi::ScalarBlockInvariant>,
     /// Source-proved singleton values keyed by their exact selector occurrence
@@ -645,6 +648,7 @@ impl OperationBuffer {
             structural_establishments: Vec::new(),
             structural_materializations: Vec::new(),
             literal_types: Vec::new(),
+            captured_place_types: Vec::new(),
             scalar_block_invariants: Vec::new(),
             scalar_index_coordinates: Vec::new(),
             next_identity: identity_base

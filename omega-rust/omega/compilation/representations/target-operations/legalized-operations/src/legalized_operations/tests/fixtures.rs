@@ -247,6 +247,7 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
         boundary,
         requirement_identity: terminal_psi::TerminalIdentityIndex(4),
         source_requirement_identity: terminal_psi::TerminalIdentityIndex(4),
+        declaration_application: terminal_psi::TerminalIdentityIndex::default(),
         receiving_application: terminal_psi::TerminalIdentityIndex::default(),
         receiving_region_arguments: Vec::new(),
         provider_identity: terminal_psi::TerminalIdentityIndex(5),

@@ -73,7 +73,11 @@ pub(super) fn realize(
             }
         };
         if let Some(application) = invocation.site.authored_machine_application(program) {
-            super::super::body_rewriting::stamp_field_subjects(program, application, &operands);
+            super::super::body_rewriting::record_runtime_call_operands(
+                program,
+                application,
+                &operands,
+            );
         }
         return Ok(());
     }
@@ -94,7 +98,7 @@ pub(super) fn realize(
         )]);
     }
     if let Some(application) = invocation.site.authored_machine_application(program) {
-        super::super::body_rewriting::stamp_field_subjects(program, application, &operands);
+        super::super::body_rewriting::record_runtime_call_operands(program, application, &operands);
     }
     match invocation.site {
         super::super::CallSite::Expression(expression) => {

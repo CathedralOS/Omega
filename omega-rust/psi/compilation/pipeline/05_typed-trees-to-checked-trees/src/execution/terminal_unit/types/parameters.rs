@@ -164,9 +164,11 @@ pub(crate) fn erased_proof_parameter_plans(
             proof_only.contract_term_carrier(program, parameter.type_reference)
                 || is_source_evidence_carrier(program, parameter.type_reference)
         })
-        .map(|(position, parameter)| {
+        .enumerate()
+        .map(|(lane, (position, parameter))| {
             Some(CheckedErasedProofParameterPlan {
                 source_position: u32::try_from(position).ok()?,
+                proof_position: u32::try_from(lane).ok()?,
                 parameter_symbol: parameter.symbol,
                 // Storage identity may erase layout-independent Value indices
                 // to Unit. Evidence names its full semantic carrier, derived

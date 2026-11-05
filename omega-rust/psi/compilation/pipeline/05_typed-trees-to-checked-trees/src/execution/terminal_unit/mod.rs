@@ -170,7 +170,7 @@ pub(crate) use structural_value_calls::retain as retain_structural_value_calls;
 mod calling_signatures;
 pub(crate) mod types;
 
-pub(crate) use calls::structural_computation_argument;
+pub(crate) use calls::ComputationCallArguments;
 pub(crate) use types::{is_reference, strips_erased_parameter};
 
 /// Present when the planning pass ends in the candidate closure, which

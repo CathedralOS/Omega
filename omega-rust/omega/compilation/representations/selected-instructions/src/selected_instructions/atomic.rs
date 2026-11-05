@@ -102,6 +102,18 @@ impl AtomicOperation {
         matches!(self, Self::FetchAnd | Self::FetchOr | Self::FetchXor)
     }
 
+    /// Work retained by the canonical native realization. Baseline AArch64
+    /// retries fetch/swap and strong compare-exchange; a single attempt never
+    /// acquires that progress behavior. X86 retries only bitwise fetches.
+    pub const fn retries_until_commit(self, architecture: target::Architecture) -> bool {
+        self.is_bitwise_fetch()
+            || matches!(architecture, target::Architecture::Aarch64)
+                && matches!(
+                    self,
+                    Self::FetchAdd | Self::FetchSub | Self::Swap | Self::CompareExchange
+                )
+    }
+
     pub const fn modifies_resident(self) -> bool {
         !matches!(self, Self::Load)
     }

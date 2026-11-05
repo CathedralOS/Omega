@@ -82,6 +82,10 @@ pub(super) fn encode_type(
                 encode_scalar_restriction(bytes, restriction)?;
             }
         }
+        StructuralTypeShape::AtomicCell(cell) => {
+            bytes.push(16);
+            encode_scalar_restriction(bytes, &(*cell).into())?;
+        }
         StructuralTypeShape::ByteSequence(carrier) => {
             bytes.push(1);
             encode_byte_sequence_carrier(bytes, *carrier);
@@ -258,6 +262,13 @@ pub(super) fn decode_type(
             }
             scalar_restriction = Some(restriction);
             StructuralTypeShape::PrimitiveScalar(scalar)
+        }
+        16 => {
+            let cell = decode_scalar_restriction(cursor)?
+                .atomic_cell_type()
+                .filter(|cell| cell.is_supported())
+                .ok_or(FixedViewCopyDecodeError::InvalidScalarRefinement)?;
+            StructuralTypeShape::AtomicCell(cell)
         }
         tag => return Err(FixedViewCopyDecodeError::UnknownStructuralTypeShape(tag)),
     };

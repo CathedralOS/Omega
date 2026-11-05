@@ -1013,7 +1013,7 @@ fn is_material_write_only_type(
             return false;
         };
         match &declaration.shape {
-            StructuralTypeShape::PrimitiveScalar(_) => {}
+            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::AtomicCell(_) => {}
             StructuralTypeShape::Record { fields, .. } => {
                 for field in fields {
                     if field.relevance.is_erased() {

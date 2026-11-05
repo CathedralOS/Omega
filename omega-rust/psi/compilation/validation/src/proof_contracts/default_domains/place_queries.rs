@@ -384,6 +384,13 @@ pub(crate) fn completed_case_occurrences(
                 {
                     continue;
                 }
+                if crate::proof_contracts::contract_entailment::completed_value_case_definition(
+                    program, reference,
+                )
+                .is_none()
+                {
+                    continue;
+                }
                 occurrences.push((statement_index, assignment.value, reference));
             }
             typed_trees::statement::StatementNode::LocalData(local) => {
@@ -393,16 +400,11 @@ pub(crate) fn completed_case_occurrences(
                 if !local.initial_value.is_valid() {
                     continue;
                 }
-                let Some(definition) = crate::field_domains::owned_nominal_data_definition(
+                if crate::proof_contracts::contract_entailment::completed_value_case_definition(
                     program,
                     local.type_reference,
-                ) else {
-                    continue;
-                };
-                if !program
-                    .data_members(definition)
-                    .iter()
-                    .any(|member| member.as_variant().is_some())
+                )
+                .is_none()
                 {
                     continue;
                 }

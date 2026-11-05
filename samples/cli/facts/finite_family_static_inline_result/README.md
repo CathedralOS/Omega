@@ -4,8 +4,8 @@ These programs pass arrays of 16 and 32 bytes through a function selected at
 runtime. Each result must keep its exact array size and the input's first and
 last bytes. Each nested function that supplies an input must run once.
 
-Owning tasks: **FINITE-GENERIC-DISPATCH** and
-**BUILD-OWNED-TARGET-SELECTION** in [TASKS.md](../../../../TASKS.md).
+Owning tasks: **MODULE-NAMESPACE-RESOLUTION** (including
+**FINITE-GENERIC-DISPATCH**) and **BUILD-OWNED-TARGET-SELECTION** in [TASKS.md](../../../../TASKS.md).
 
 A literal finite-family call preserves its selected inline result shape and the first and last bytes of its input while evaluating each nested input producer once.
 
@@ -41,251 +41,96 @@ both original arms had the same endpoints.
 | Other machine | [program](other_machine/main.omg) | [reject](other_machine/invalid/main.omg) |
 | Selected target body | [program](target_body/main.omg) | [reject](target_body/invalid/main.omg) |
 
-Every twin selects width 32 for the first call while retaining its 16-byte
-input. Width 32 is allowed, but the input cannot meet that call's exact type.
-Both versions retain the same member bodies and runtime checks. Each valid
-program binds the four required hosted targets and expects exit 0; the existing
-target place also retains its optional macOS x86-64 binding.
+Each selected call runs inside a branch and returns through an explicit finite
+sum. Its cases retain the exact 16-byte and 32-byte payload types. The caller
+stores and forwards both results, then checks the independently expected case,
+array endpoints and implementation marker. A snapshot after the first call
+must be one; the final producer count must be two.
 
-The other original projects remain in the same qualification scope:
+Every twin changes only the narrow branch's selected width from 16 to 32.
+The input still contains 16 bytes, so it cannot satisfy that call's 32-byte
+parameter. Both versions retain the same member bodies and runtime checks.
+The existing rejection pins remain unchanged. A [focused constructor
+control](../../../../tests/omega/fail/generics/runtime_index_carrier_constructor_wrong_payload/main.omg)
+keeps both selected calls valid and changes only the wide output case to
+`Narrow`; its 32-byte result cannot inhabit a case declared to contain 16 bytes.
+The [local positive](local/main.omg) is that control's valid counterpart.
+Each valid program binds the four required hosted targets and expects exit 0;
+the existing target place also retains its optional macOS x86-64 binding.
 
-- [authored_sum](authored_sum/main.omg) keeps one concrete result type when the
-  selected width varies at runtime.
-- [nested_static](nested_static/main.omg) distinguishes nested const binders
-  with the same spelling.
-- [argument_effect](argument_effect/main.omg) and its [twin](argument_effect/invalid/main.omg)
-  check completed input evaluation and the exact selected result index.
-- [stale_input](stale_input/main.omg) and its [twin](stale_input/invalid/main.omg)
-  distinguish a saved input from the value after an earlier operand changes it.
-- [runtime_shape](runtime_shape/invalid/main.omg) and
-  [nested_runtime_shape](nested_runtime_shape/invalid/main.omg) reject inline
-  arrays whose runtime extent has no valid storage representation.
-- [uncalled_target](uncalled_target/main.omg) and its
-  [missing-supply control](uncalled_target/invalid/main.omg) require target
-  support for the entire family, including the row that main does not call.
+## Requirements proved here
 
-The added [bad interior index control](local/controls/out_of_bounds/invalid/main.omg)
-uses index 16 under the unchanged width choices. It fits width 32 but is one
-past the end of width 16. A proof that checks only the larger alternative must
-not admit it. The original 28 projects are retained; this control brings the
-sample scope to 29 projects.
+Public contracts establish the allowed widths and each call's exact input and
+result type. The checker must substitute the actual width into the array field
+and prove interior index 1 safe for both alternatives. A caller's width binder
+and the data declaration's binder remain distinct declarations even when their
+names match.
 
-## Build selection and missing supply
+The arrays carry values through the nine input places into the common selected
+calls. These are nine input transport places and one common finite-sum return
+path, rather than nine different forms of sum storage. Each call must preserve
+its array size, endpoints and implementation marker through the returned case,
+Terminal Psi, calling plans and native execution. The producer
+counter checks that nested input evaluation occurs once. The const place stores
+copyable input arrays under const names; it does not transport an exclusive
+result through a const binding.
 
-The `uncalled_target` program calls only row 16. Row 32 calls
-`SelectedInlineTarget::target_only`, so creating the complete function table
-still requires that target's supply. Four identical prefixed helpers become one
-ordinary `PortableInlineTarget` implementation, selected by four explicit Build
-rows. It returns its input unchanged.
-
-The control supplies that implementation only for Linux ARM64 while retaining
-all four entry bindings. Its source is valid. Linux ARM64 may execute with exit
-0; Linux x86-64, macOS ARM64 and Windows x86-64 must refuse publication because
-no provider is selected there. Target-specific publication and exit oracles
-state those separate expectations. Publication refusal is not engine execution.
-The corresponding pin is the build-only pass fixture
-`tests/omega/pass/facts/finite_family_static_inline_result/uncalled_target_missing_supply`.
-
-The existing `target_body` place still selects the x86-64 or ARM64 pair producer.
-Each actual provider call checks tag 17 or 29 through `SelectedBodyCheck`, so a
-swapped provider traps. That requirement uses no services; the pair requirement
-and implementations now preserve empty service reach and name the synchronous
-call separately with `invokes SelectedBodyCheck`.
-
-These declarations follow [provider selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection),
+The target-body place selects an x86-64 or ARM64 pair producer through explicit
+Build rows. Each provider checks tag 17 or 29 through `SelectedBodyCheck`, so
+swapping providers traps. These declarations follow
+[provider selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection),
 [multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation)
 and [service reach](../../../../wiki/spec/language/effects.md).
 
-## Compiler requirements
-
-The checker must interpret an array field's extent through the actual arguments
-of its exact container. The data declaration's binder and a caller's binder are
-different declarations, even when both are named `Width`. The shared bounds
-judgment must prove index 1 safe for every alternative of `Width == 16 || Width == 32`.
-The contract remains intact; no width-specific source bodies or caller guards
-supply that proof.
-
-An array of bytes also contains no borrowed references regardless of its count.
-That proof does not establish an array's runtime size or storage. Reference-slot
-checking can omit element enumeration only after complete borrow-free contents
-and an empty retained-lifetime inventory are established. Pointer elements,
-unknown element types, opaque data and erased reference fields retain their
-independent restrictions.
-
-Public contracts establish the family and exact input/output types. Ordinary
-argument evaluation establishes the values and producer effects. Calls, stored
-values, joins and nested machines must retain their exact tuple and actual data
-through Terminal Psi, provider selection, calling plans and native emission.
-The runtime byte/count checks observe that behavior; they do not establish a
-missing static type or bounds guarantee.
+The runtime checks observe preserved values and effects. They do not supply a
+missing type, bounds proof or provider. This row covers copyable byte arrays;
+exclusive ownership, automatic cleanup, runtime-sized results and complete
+family supply have separate requirements.
 
 ## Validation and remaining scope
 
-All 29 ordinary projects meet their expected outcomes on Linux x86-64 and
-macOS ARM64 with compiler `b31668d9a31f`. Each host has 14 native/Terminal exit-zero agreements,
-14 intended source refusals and one source-checked publication refusal. This
-covers all nine places, both selections and match choices, saved input values,
-once-only input evaluation, the bad index and every matching twin.
+The current folder contains nine valid programs and nine reject twins, mirrored
+under `tests/omega/{pass,fail}/facts/finite_family_static_inline_result/`.
+The current programs add the explicit finite-sum return described above. The
+Build declarations and valid-program exit remain unchanged. Validation of this
+change is in progress; the table below records the earlier programs only.
 
-A conflict with main `ca30092c51e2` brought changed call cleanup, artifact formats,
-integer checking and bundled declarations. The combined source keeps all 343
-program/oracle inputs and 58 matching Main/Build pairs fixed. Fresh affected
-checks use the exact optimized seed CLI and runner without another Rust build:
+| Host | Compiler source | Fresh checking | Fresh corpus execution | Fresh sample execution |
+| --- | --- | --- | --- | --- |
+| Linux ARM64 | `ed656648a42a42ed65cfb991f1ac8941a7dbd558` | 9 pass, 9 intended rejects | 9 native/Terminal exit-zero agreements | 9 agreements, 9 intended rejects |
+| Windows x86-64 | `46cad3817d2fbb2d03aaa45b5fae6f68b89ad0ad` | 9 pass, 9 intended rejects | 9 native/Terminal exit-zero agreements | 9 agreements, 9 intended rejects |
 
-| Host | Fresh corpus checking | Fresh native/Terminal results | Ordinary projects |
-| --- | --- | --- | --- |
-| Linux x86-64 | 10 checked, 8 intended refusals | 7 zero agreements, 3 authored-70 agreements, 1 publication refusal | all 29 match |
-| macOS ARM64 | 10 checked, 8 intended refusals | 7 zero agreements, 3 authored-70 agreements, 1 publication refusal | all 29 match |
+The [Linux ARM64 run](https://github.com/CathedralOS/Omega/actions/runs/41961822390)
+and [Windows run](https://github.com/CathedralOS/Omega/actions/runs/41961828697)
+use program source `51ea1c54b2cfd7695dd666ae61cb55c27f8f61c8`.
+Both reuse authenticated optimization-level-1 executables from their recorded
+compiler sources. All compiler inputs and all 306 frozen program, fixture and
+library inputs match those sources. No Rust compiler build was needed. The
+workflow-only dispatch commits are recorded separately from the programs and
+compilers. Source checking uses the existing macOS ARM64 check target; execution
+uses each host's actual target.
 
-The [Linux seed](https://github.com/CathedralOS/Omega/actions/runs/41789332694) and [Mac seed](https://github.com/CathedralOS/Omega/actions/runs/41789336254)
-each check the local place and missing-supply control. Their
-[Linux affected replay](https://github.com/CathedralOS/Omega/actions/runs/41791962436) and
-[Mac affected replay](https://github.com/CathedralOS/Omega/actions/runs/41793153159) cover the changed guard, division,
-calling-policy, byte/case cleanup, boundary-call and reference-authority paths,
-then run every ordinary project. The existing adaptive time limits, expected
-results and worker count stay unchanged. The Linux supplied-policy check took
-206 seconds; no whole-loop speed claim is made. All producer profiles use
-optimization level 1.
+Earlier full-row Linux x86-64 and macOS ARM64 observations remain at their
+original sources in the [Linux](https://github.com/CathedralOS/Omega/actions/runs/41783441526)
+and [Mac](https://github.com/CathedralOS/Omega/actions/runs/41784898410) reports
+and existing corpus records. They are historical results, not fresh execution
+with either compiler above. The later explicit provider choices came from
+[PR #1789](https://github.com/CathedralOS/Omega/pull/1789).
 
-The records also retain 55 checking and 19 native/Terminal observations per
-full host from compiler `ddc17fff6a3c`, where the complete 73/30 corpus scope
-passed on [Linux](https://github.com/CathedralOS/Omega/actions/runs/41783441526)
-and [Mac](https://github.com/CathedralOS/Omega/actions/runs/41784898410).
-Those unrerun cases keep their actual `ddc` source stamps. Their array/proof
-owners and inputs are unchanged; fresh ordinary execution covers the complete
-fact through the new artifact formats, while fresh neighboring controls cover
-the changed consumers. This is retained evidence, not a fresh full 73/30 run.
+Earlier reports also include programs that have since been retired. Those
+reports remain historical evidence in [PR #1721](https://github.com/CathedralOS/Omega/pull/1721);
+they do not describe the contents or acceptance of this folder today.
 
-The [supplied Linux ARM64 pair](https://github.com/CathedralOS/Omega/actions/runs/41789340411) has actual exit-zero agreements
-for both corpus programs and both ordinary projects at `b316`. Its separate
-checking leg uses macOS ARM64 and refuses missing supply there. This qualifies
-only that pair. Windows execution and the rest of the row on Linux ARM64 remain
-unmeasured here. Both parent tasks remain open.
+Those earlier results filled the previously unmeasured Windows row and
+remaining Linux ARM64 places. They establish coverage of the earlier programs;
+they do not validate the new finite-sum return path. Both parent tasks remain open for their wider acceptance,
+including ownership and cleanup, escaping runtime-sized results, remaining
+source migrations and product-compiler support. No owner design decision is
+needed for this coverage update.
 
-Ordinary publication controls first pass the portable source check, then refuse
-target compilation for the exact missing provider. The corpus checking route
-also evaluates target publication. A publication refusal has no engine result.
-Every positive in this fact exits 0; the authored-70 results belong to additional
-storage controls. Independent source/raw reviews, archives and exact producer
-identities remain with [PR #1721](https://github.com/CathedralOS/Omega/pull/1721).
-The final README/record update changes no compiler, program or oracle bytes.
-
-The required explicit provider choices were published in
-[PR #1789](https://github.com/CathedralOS/Omega/pull/1789) and are included unchanged.
-Its records retain their actual input/compiler identities and the separate
-computed-const refusal; that limitation is not counted as passing array coverage.
-
-<details>
-<summary>Original baseline and earlier measured sources</summary>
-
-At `16349300ab35`, Linux and macOS each passed all 73 checking cases, 30
-native/Terminal cases and 29 ordinary projects. The supplied ARM pair also
-passed. Those results and their accepted metadata candidate `9054099475ed`
-remain historical. The next conflict brought shared checking and library
-changes, which required the completed ddc observations retained above.
-
-At `7ea5b8217acc`, the complete Linux scope and affected Mac scope passed,
-with all 29 ordinary projects on both hosts. The [Linux seed](https://github.com/CathedralOS/Omega/actions/runs/41754803449)
-and [full corpus replay](https://github.com/CathedralOS/Omega/actions/runs/41757296977)
-remain separate actual observations. The [Mac job](https://github.com/CathedralOS/Omega/actions/runs/41754806687)
-completed eight checking and seven BOTH fixtures, then reached its workflow
-limit during ordinary projects. It remains canceled. Its [ordinary replay](https://github.com/CathedralOS/Omega/actions/runs/41761785405)
-passed all 29 projects with the identical authenticated CLI. Those observations,
-their independent reviews and the prior `990` records remain retained at their
-actual source identities.
-
-The earlier `990cae4277cbd9182e82d58f4fb508c9c2394af9` source passed the full
-73 checking and 30 native/Terminal fixtures on both full hosts. Each host had
-24 exit-zero agreements, four authored exit-70 agreements and two publication
-refusals. All 29 ordinary projects also met their oracles. Those observations
-remain at their actual source identities.
-
-The [Linux corpus job](https://github.com/CathedralOS/Omega/actions/runs/41731569787)
-completed both corpus legs, then reached the workflow limit during ordinary
-projects. It remains canceled. A [separate ordinary replay](https://github.com/CathedralOS/Omega/actions/runs/41740343841)
-passed all 29 projects using the exact retained CLI. The original
-[Mac job](https://github.com/CathedralOS/Omega/actions/runs/41731574468) was canceled
-without usable artifacts and supplies no evidence. A [Mac seed](https://github.com/CathedralOS/Omega/actions/runs/41741397550)
-passed all 29 projects; its [complete corpus replay](https://github.com/CathedralOS/Omega/actions/runs/41746623572)
-passed with the identical CLI and runner. Case limits, oracles and worker counts
-were unchanged.
-
-The earlier a018 [Linux](https://github.com/CathedralOS/Omega/actions/runs/41697815800) and
-[macOS](https://github.com/CathedralOS/Omega/actions/runs/41697821789) runs passed the 57-fixture core and all 29 ordinary
-projects after the preceding main conflict. Its
-[Linux ARM64 pair](https://github.com/CathedralOS/Omega/actions/runs/41697827253) passed only that pair's supplied-target
-scope. Those observations keep their original source identities.
-
-The later 3bb [Linux](https://github.com/CathedralOS/Omega/actions/runs/41718008302) and
-[macOS](https://github.com/CathedralOS/Omega/actions/runs/41718012273) jobs remain failed. They contained valid supplied-policy
-and storage observations, but the new provider-choice control still had
-unsupported arm syntax. An additional returned-record probe declined in Terminal
-on Linux and timed out on macOS. Its identical Linux decline was reproduced with
-[a018](https://github.com/CathedralOS/Omega/actions/runs/41722538330) and a [retained compiler](https://github.com/CathedralOS/Omega/actions/runs/41724653440) matching
-published main `108f8a95dcd8`. That probe supplies no current passing coverage;
-no current outcome is inferred for it. Its source, oracle and historical records
-remain retained. The existing owned-snapshot program supplies the additional
-byte-field replacement, saved-copy and disjoint-sibling evidence instead.
-
-At a2b, the corrected provider-choice control and all 29 projects passed on
-[Linux](https://github.com/CathedralOS/Omega/actions/runs/41722369908) and [macOS](https://github.com/CathedralOS/Omega/actions/runs/41725743952).
-The separate snapshot check passed with native and Terminal exit 70 on
-[Linux](https://github.com/CathedralOS/Omega/actions/runs/41723253579) and [macOS](https://github.com/CathedralOS/Omega/actions/runs/41723406704).
-These earlier results remain historical; their actual source stamps remain in
-the retained reports. Earlier c831 diagnostic and malformed-control failures,
-canceled runs and review corrections remain retained as well.
-
-The original source is frozen at `d24ceb05541522559a6a41c9e8075390c18daea9`, whose
-tree equals published `e283856d96276d4c262d9b6c3f687584942da6c3`. Its scope is 28
-projects and 28 pins, with 196 authored input hashes and 56 matching Main/Build
-pairs. The [Linux](https://github.com/CathedralOS/Omega/actions/runs/41576490895)
-and [macOS](https://github.com/CathedralOS/Omega/actions/runs/41576493746) reports
-each record 14 checked positives, 14 intended corpus refusals and 14
-native/Terminal exit-zero agreements. Both jobs failed the ordinary sample leg:
-14 programs passed, 13 source controls matched, and `uncalled_target/invalid`
-passed a source-only check instead of matching its target-qualification refusal.
-Its corpus diagnostic came from native execution inputs. It did not execute.
-
-The strengthened local program then exposed a separate defect with the same
-verified baseline compiler: both writes to byte 1 refused despite the member's
-width-16-or-32 contract. The new boundary bridge also failed to account for its
-reference-free generic byte array. Those sources and diagnostics were frozen
-before compiler edits.
-
-At `b35c9948bf17346df96893fee2b79606a7206f65`,
-[Linux](https://github.com/CathedralOS/Omega/actions/runs/41672705417) and
-[macOS](https://github.com/CathedralOS/Omega/actions/runs/41672714587) ran all 14
-fact positives with exit 0 in both engines. Missing supply still wrongly checked
-and built. The runs also found a bounds-loop regression, a premature refusal in
-a reference control, and three stale negative expectations, so neither reached
-ordinary sample qualification. Those failures remain historical observations.
-
-The corrections keep a specialized array's checked literal length instead of
-replacing it with a template parameter. They also require authored target supply;
-an implementation merely being in scope cannot fill an omitted Build row.
-The full f46 runs remained red only on five reads in the guard-floor program,
-which also failed with the fixed-base compiler. The current private-call repair
-makes that unchanged program check and execute successfully.
-
-Two negative expectations needed separate attribution. A negative index already
-refuses when -1 cannot form an unsigned index, before bounds checking. In the
-combined symbolic-call control, one function fails during loan formation and
-prevents a later pass from reporting the other function. Each unchanged function
-independently rejects with the fixed-base compiler. The combined program stays;
-[symbolic-first](../../../../tests/omega/fail/borrows/symbolic_call_before_concrete_output_obligation/main.omg)
-and [concrete-first](../../../../tests/omega/fail/borrows/concrete_call_before_symbolic_output_obligation/main.omg)
-controls preserve both source orders. No duplicate errors are invented to match
-a former count.
-
-Earlier documentation reports Linux executions after fixes to family identity,
-argument substitution and row-specific call shapes, plus a macOS x86-64 target
-migration at `11bdd2fe41f`. Those observations belong to their original source
-and do not qualify these changed programs.
-
-</details>
-
-Raw reports, frozen input hashes, published source archives and current
-qualification records remain under `build/finite-inline-selected-20261103/`.
-This row does not close either parent task. Other hosted runtimes,
-product-compiler parity, automatic cleanup and other finite-family requirements
-remain open. No owner design decision is needed for this migration.
+The new local program already checked and ran with native/Terminal exit-zero
+agreement before the checking repair. Its malformed output case instead reached
+a late unlowerable-body refusal. A focused repaired-compiler check now reports
+that the payload cannot retain a different captured index. This is a missing
+source check, not evidence that the old compiler executed the invalid program.
+That focused constructor source is now pinned separately from the nine width-mismatch twins. The current programs and compiler still require final execution validation.

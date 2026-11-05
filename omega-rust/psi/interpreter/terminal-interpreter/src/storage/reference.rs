@@ -1542,6 +1542,36 @@ impl TerminalExecution<'_> {
         argument: &StructuralArgument,
         expected: StructuralTypeId,
     ) -> Result<(TerminalStructuralValue, Option<AggregateBacking>), TerminalInterpretError> {
+        // Presentation cannot turn a reserved home into a completed value.
+        // Check the exact owned region before crossing into borrowed backing.
+        // An unresolved selector conservatively requires the containing array,
+        // rather than treating a dynamic coordinate as a missing claim.
+        let owned_prefix = &argument.path[..argument
+            .path
+            .iter()
+            .position(|step| {
+                !matches!(
+                    step,
+                    StructuralPathSegment::Field(_)
+                        | StructuralPathSegment::FixedIndex(_)
+                        | StructuralPathSegment::Case(_)
+                )
+            })
+            .unwrap_or(argument.path.len())];
+        let machine = self.program.verified_machine(self.current_machine)?;
+        let caller_owned_borrow = argument.access != StructuralAccess::Owned
+            && terminal_semantics::arrival_parameter(machine, argument.place)
+                .is_some_and(|parameter| parameter.access != StructuralAccess::Owned);
+        if !caller_owned_borrow {
+            self.validate_complete_owned_value_claims(
+                argument.place,
+                self.live_structural_type(argument.place)?,
+                owned_prefix,
+            )?;
+        }
+        // Borrowed ingress may lend the caller's resident value without
+        // acquiring its claims in this frame. This exemption applies only to
+        // a borrowed presentation, never to owned transport or return.
         let projected = self.resolve_live_projection_with_leaf_type(
             argument.place,
             &argument.path,

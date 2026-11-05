@@ -200,17 +200,15 @@ pub enum AtomicCoherenceViolation {
     ModificationAfter(AtomicEdgeViolation),
 }
 
-/// The exact atomic location one event accesses: a scalar field of the
-/// record a static carrier path selects beneath a root place. Atomic cells
-/// are record fields, so this is the same (root, path, field) triple a scalar
-/// field store names. Roots are local storage names: control edges can rename
+/// The exact atomic location one event accesses. The complete path includes
+/// a real final field when present; an empty projection names a whole cell.
+/// Roots are local storage names: control edges can rename
 /// the same storage. Coherence follows those exact bindings before comparing
 /// locations; distinct fields or elements remain distinct locations.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AbstractAtomicLocation {
     pub root: PlaceId,
     pub path: Vec<PathSegment>,
-    pub field: StructuralFieldId,
 }
 
 /// Distinct simultaneous exclusive arrivals have disjoint live storage after
@@ -577,6 +575,7 @@ pub fn happens_before_atomic_coherence_violation(
     entry: BlockId,
     projection_before_edge: impl Fn(BlockId, BlockId, PlaceId) -> Option<(PlaceId, Vec<PathSegment>)>,
     projections_may_alias: impl Fn(PlaceId, &[PathSegment], PlaceId, &[PathSegment]) -> bool,
+    field_projection: impl Fn(PlaceId, &[PathSegment], StructuralFieldId) -> Option<Vec<PathSegment>>,
 ) -> Option<(BlockId, usize, AtomicCoherenceViolation)> {
     // Atomic events claimable by a retained edge, keyed by the operation
     // identity they stand under across the whole activation. Duplicate
@@ -621,6 +620,7 @@ pub fn happens_before_atomic_coherence_violation(
                         location,
                         &projection_before_edge,
                         &projections_may_alias,
+                        &field_projection,
                     )
                 })
                 .unwrap_or_default();
@@ -682,6 +682,7 @@ fn reaching_writes(
     location: &AbstractAtomicLocation,
     projection_before_edge: &impl Fn(BlockId, BlockId, PlaceId) -> Option<(PlaceId, Vec<PathSegment>)>,
     projections_may_alias: &impl Fn(PlaceId, &[PathSegment], PlaceId, &[PathSegment]) -> bool,
+    field_projection: &impl Fn(PlaceId, &[PathSegment], StructuralFieldId) -> Option<Vec<PathSegment>>,
 ) -> BTreeSet<ReachingWrite> {
     let mut reached = BTreeSet::new();
     let mut visited = BTreeSet::new();
@@ -710,7 +711,12 @@ fn reaching_writes(
                 stopped = true;
                 break;
             }
-            if invalidates_location(operation, &location, projections_may_alias) {
+            if invalidates_location(
+                operation,
+                &location,
+                projections_may_alias,
+                field_projection,
+            ) {
                 reached.insert(
                     operation
                         .psi_operation()
@@ -744,11 +750,7 @@ fn reaching_writes(
             pending.push((
                 *predecessor,
                 operations.len(),
-                AbstractAtomicLocation {
-                    root,
-                    path,
-                    field: location.field,
-                },
+                AbstractAtomicLocation { root, path },
                 ancestry.clone(),
             ));
         }
@@ -764,6 +766,7 @@ fn invalidates_location(
     operation: &AbstractOperation,
     location: &AbstractAtomicLocation,
     projections_may_alias: &impl Fn(PlaceId, &[PathSegment], PlaceId, &[PathSegment]) -> bool,
+    field_projection: &impl Fn(PlaceId, &[PathSegment], StructuralFieldId) -> Option<Vec<PathSegment>>,
 ) -> bool {
     // Establishing a local home begins its residency. A descriptor may capture
     // existing backing, so retain the exact establishment without inventing an
@@ -801,10 +804,19 @@ fn invalidates_location(
         match operation {
             AbstractOperation::StructuralScalarFieldStore { .. }
             | AbstractOperation::AtomicEvent { .. } => {
-                mutation.path.contains(&PathSegment::Referent)
+                let complete;
+                let path = if let Some(field) = mutation.field {
+                    let Some(path) = field_projection(mutation.place, mutation.path, field) else {
+                        return true;
+                    };
+                    complete = path;
+                    complete.as_slice()
+                } else {
+                    mutation.path
+                };
+                path.contains(&PathSegment::Referent)
                     || location.path.contains(&PathSegment::Referent)
-                    || mutation.field == Some(location.field)
-                        && carrier_paths_may_overlap(mutation.path, &location.path)
+                    || carrier_paths_may_overlap(path, &location.path)
             }
             _ => true,
         }

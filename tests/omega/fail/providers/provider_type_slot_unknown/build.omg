@@ -1,12 +1,11 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "provider_type_slot_unknown");
-    Build::select_provider<Pick, MissingProvider>(builder, linux_arm64);
-    Build::select_provider<Pick, MissingProvider>(builder, linux_x86_64);
-    Build::select_provider<Pick, MissingProvider>(builder, macos_arm64);
-    Build::select_provider<Pick, MissingProvider>(builder, macos_x86_64);
-    Build::select_provider<Pick, MissingProvider>(builder, windows_x86_64);
-    Build::select_provider<Pick, MissingProvider>(builder, uefi_x86_64);
-    Build::select_provider<Pick, MissingProvider>(builder, cross_platform_cli);
-    Build::select_provider<Pick, MissingProvider>(builder, local_unchecked);
-    Build::select_provider<Pick, MissingProvider>(builder, alpha_bootstrap);
+    Build::select_provider<ExactRead, ReadRoute>(builder, macos_arm64);
+    Build::select_provider<SecondRead, ReadRoute>(builder, macos_arm64);
+    Build::select_provider<ExactRead, ReadRoute>(builder, linux_arm64);
+    Build::select_provider<SecondRead, ReadRoute>(builder, linux_arm64);
+    Build::select_provider<ExactRead, ReadRoute>(builder, linux_x86_64);
+    Build::select_provider<SecondRead, ReadRoute>(builder, linux_x86_64);
+    Build::select_provider<ExactRead, ReadRoute>(builder, windows_x86_64);
+    Build::select_provider<SecondRead, ReadRoute>(builder, windows_x86_64);
 }

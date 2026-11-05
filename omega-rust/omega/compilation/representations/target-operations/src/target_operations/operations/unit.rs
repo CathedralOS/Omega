@@ -172,7 +172,6 @@ pub enum TargetUnitOperation {
     AtomicAccess {
         psi_operation: OperationId,
         location: StructuralArgument,
-        field: StructuralFieldId,
         scalar_type: IntegerType,
         field_byte_offset: u32,
         event: terminal_psi::AtomicAccessEvent,

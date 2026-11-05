@@ -171,12 +171,9 @@ pub(crate) fn provider_type_symbol(
     typed: &TypedTrees,
     machine: &checked_trees::typed_trees::machine::Machine,
 ) -> Option<symbols::SymbolHandle> {
-    let attached_data = machine.attached_data.as_ref()?;
-    let mut owners = typed.data_definitions().iter().filter(|definition| {
-        definition.symbol == machine.attached_data_symbol && definition.name == *attached_data
-    });
-    let owner = owners.next()?;
-    owners.next().is_none().then_some(owner.symbol)
+    checked_trees::typed_trees::provider_declarations::satisfaction_provider_declaration(
+        typed, machine,
+    )
 }
 
 /// Project the exact demand's already checked bodies into source-free choice.
@@ -192,4 +189,13 @@ pub fn selected_checked_operator_body<'checked>(
         .project_body_candidates(application, |body| body)
         .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
     provider_selection::select_checked_body(plan, candidates)
+}
+
+/// Read the declaration that owns the recorded provider relation. Ordinary
+/// map members have no attached data and do not infer ownership from a path.
+pub(crate) fn provider_type_path(
+    typed: &TypedTrees,
+    machine: &checked_trees::typed_trees::machine::Machine,
+) -> Option<String> {
+    provider_type_symbol(typed, machine).map(|symbol| typed.symbols.display_path(symbol, "::"))
 }

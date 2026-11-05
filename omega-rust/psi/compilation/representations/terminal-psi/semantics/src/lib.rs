@@ -28,6 +28,7 @@ pub use storage::calling_storage::{
 pub use storage::storage_dependencies::{
     inline_storage_extent_dependencies, storage_operand_dependencies,
 };
+pub use storage::structural_locals::validate_vacant_structural_local;
 pub mod control_graph;
 pub use access::access_lifecycles::{
     AccessResultContract, access_result_contract, access_view_reference_slot,
@@ -195,6 +196,7 @@ pub use storage::storage_regions::{
     projected_storage_region,
 };
 pub use storage::zero_valid_storage::{scalar_declaration_accepts_zero, zero_valid_record_storage};
+pub use structural::atomic_cell::atomic_cell_type;
 pub use structural::partial_affine::partial_affine_residuals;
 pub use structural::primitive_place::{
     Position, StructuralStorageSelection, borrowed_primitive_projection_declaration,

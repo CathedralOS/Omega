@@ -32,21 +32,22 @@ def relative_project(root, selector):
     project = root.resolve() / relative
     if project.resolve() != project or not (project / "build.omg").is_file():
         raise ValueError(f"ordinary CLI project lacks its own tracked directory/build: {selector}")
-    if path.parts[0] == "samples":
-        declared = project_at(project, root)
-        if declared.role not in ("program", "example", "library-consumer") or declared.entry != project / "main.omg":
-            raise ValueError("ordinary CLI samples require a normal program with main.omg entry")
     return relative
 
 
 def expected_exit(root, fixture, target):
     relative = relative_project(root, fixture)
-    project = root / relative
+    project = root.resolve() / relative
+    if relative.parts[:2] == ("samples", "cli"):
+        declared = project_at(project, root)
+        if declared.role not in ("program", "example", "library-consumer") or declared.entry != project / "main.omg":
+            raise ValueError("ordinary CLI samples require a normal program with main.omg entry")
     if not (project / "build.omg").is_file():
         raise ValueError(f"ordinary CLI fixture has no build.omg: {fixture}")
     oracles = fixture_oracles(project, target)
     extra = [path.name for path in project.glob("expected_*")
-             if not (path.name in ("expected_native_exit.txt", "expected_terminal_inspections.txt")
+             if not (path.name in ("expected_native_exit.txt", "expected_interpreter_exit.txt",
+                                  "expected_terminal_inspections.txt")
                      or (path.name.startswith("expected_native_exit.") and path.suffix == ".txt"))]
     if extra or any(project.glob("entry_ram*")) or oracle(project)[1] is not None:
         raise ValueError("ordinary CLI exit fixtures cannot omit authored stream/inspection oracles")
@@ -54,13 +55,22 @@ def expected_exit(root, fixture, target):
     if not oracles["exit"] and relative.parts[:2] == ("samples", "cli"):
         declared_exit, _ = oracle(project)
         if declared_exit is not None:
-            return declared_exit
+            return require_interpreter_exit(project, declared_exit)
     if not oracles["exit"]:
         raise ValueError(f"ordinary CLI fixture has no {target} numeric exit oracle: {fixture}")
     text = Path(oracles["exit"]).read_text(encoding="utf-8").strip()
     if not re.fullmatch(r"-?\d+", text):
         raise ValueError("ordinary CLI fixture requires an authored numeric exit oracle")
-    return int(text)
+    return require_interpreter_exit(project, int(text))
+
+
+def require_interpreter_exit(project, expected):
+    path = project / "expected_interpreter_exit.txt"
+    if path.is_file():
+        text = path.read_text(encoding="utf-8").strip()
+        if not re.fullmatch(r"-?\d+", text) or int(text) != expected:
+            raise ValueError("ordinary CLI requires the authored native and interpreter exits to agree")
+    return expected
 
 
 def inspection_machines(project):
@@ -93,16 +103,24 @@ def validate_exits(code, stderr, expected):
             f"wrapper {code}, native {native}, Terminal {[line[:1500] for line in terminal[:3]]}")
 
 
-def observe(root, producer, fixture, output):
+def observe(root, producer, fixture, output, *, dependency_projects=()):
     expected = expected_exit(root, fixture, producer.target)
     output.mkdir(parents=True, exist_ok=False)
     workspace = output / "workspace"
     project_relative = relative_project(root, fixture)
+    if isinstance(dependency_projects, str):
+        raise ValueError("dependency_projects requires a sequence of exact project selectors")
+    projects = list(dict.fromkeys([
+        project_relative, *(relative_project(root, selector) for selector in dependency_projects),
+    ]))
+    # Preserve authored local dependency paths in the copied workspace. Every
+    # dependency file receives the same pre/post digest checks as the entry.
     paths = subprocess.check_output(
-        ["git", "ls-files", "source/library", project_relative.as_posix()],
+        ["git", "ls-files", "source/library", *(project.as_posix() for project in projects)],
         cwd=root, text=True).splitlines()
-    if not {(project_relative / "main.omg").as_posix(), (project_relative / "build.omg").as_posix()}.issubset(paths):
-        raise ValueError("ordinary CLI project entry and build must retain tracked source custody")
+    for project in projects:
+        if not {(project / "main.omg").as_posix(), (project / "build.omg").as_posix()}.issubset(paths):
+            raise ValueError("ordinary CLI project entry and build must retain tracked source custody")
     inputs = {}
     for relative in paths:
         source, copied = root / relative, workspace / relative
@@ -112,6 +130,7 @@ def observe(root, producer, fixture, output):
         shutil.copyfile(source, copied)
         inputs[relative] = hashlib.sha256(source.read_bytes()).hexdigest()
     record = dict(fixture=fixture, target=producer.target, producer=producer.record(),
+                  dependency_projects=[project.as_posix() for project in projects[1:]],
                   expected_exit=expected, passed=False, inputs=inputs, stages=[])
     env = dict(os.environ, OMEGA_LIBRARY_ROOT=str(workspace / "source/library"))
     project = workspace / project_relative

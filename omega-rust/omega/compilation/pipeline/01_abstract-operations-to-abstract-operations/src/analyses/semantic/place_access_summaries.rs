@@ -836,8 +836,7 @@ fn scan_operation(
         }
         O::AtomicEvent { event, .. } => {
             if let Some(location) = event.location() {
-                let mut view = runtime_prefix(&location.path);
-                with_field(&mut view, location.field);
+                let view = runtime_prefix(&location.path);
                 let accesses: &[AccessKind] = match event {
                     AbstractAtomicEvent::Load { .. } => &[AccessKind::Read],
                     AbstractAtomicEvent::Store { .. } => &[AccessKind::Write],

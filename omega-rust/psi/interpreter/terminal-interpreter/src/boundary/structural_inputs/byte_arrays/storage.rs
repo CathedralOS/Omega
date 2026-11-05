@@ -352,21 +352,26 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
-        let array = self.frame_array(depth, place).ok_or_else(malformed)?;
+        let array = self
+            .frame_array(depth, place)
+            .ok_or_else(|| malformed().in_reference_formation("frame byte array home"))?;
         let types = self.structural_types();
         let (scalar, count) =
             terminal_semantics::scalar_array_leaf_shape(types.values(), structural_type)
-                .ok_or_else(malformed)?;
+                .ok_or_else(|| {
+                    malformed().in_reference_formation("frame byte array scalar shape")
+                })?;
         if array.structural_type != structural_type
             || u64::try_from(array.len()).ok() != Some(count)
             || !matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer) if integer.bits() == 8 && !integer.is_address() && integer.sign() == IntegerSign::Unsigned)
         {
-            return Err(malformed());
+            return Err(malformed().in_reference_formation("frame byte array type or extent"));
         }
         let mut selected = structural_type;
         let mut offset = 0usize;
         for segment in &storage.referent.path {
-            let (element, index, _) = fixed_index_step(&types, selected, segment)?;
+            let (element, index, _) = fixed_index_step(&types, selected, segment)
+                .map_err(|error| error.in_reference_formation("frame byte array projection"))?;
             let child_count = match types.declaration(&element)?.shape {
                 terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => 1,
                 _ => {
@@ -384,8 +389,10 @@ impl TerminalExecution<'_> {
             selected = element;
         }
         let length =
-            usize::try_from(super::byte_array_length(&types, selected).ok_or_else(malformed)?)
-                .map_err(|_| malformed())?;
+            usize::try_from(super::byte_array_length(&types, selected).ok_or_else(|| {
+                malformed().in_reference_formation("frame byte array selected shape")
+            })?)
+            .map_err(|_| malformed())?;
         let end = offset
             .checked_add(length)
             .filter(|end| *end <= array.len())
@@ -404,7 +411,7 @@ impl TerminalExecution<'_> {
                 } else if self.initialized_empty_byte_array(&storage.referent)? {
                     Ok(0)
                 } else {
-                    Err(malformed())
+                    Err(malformed().in_reference_formation("missing runtime byte array storage"))
                 }
             }
             ArrayStorageHome::Frame { .. } => self

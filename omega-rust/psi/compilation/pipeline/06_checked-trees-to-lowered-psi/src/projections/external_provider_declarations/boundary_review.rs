@@ -141,6 +141,7 @@ fn numeric_requirement(
     if declarations.next().is_some() {
         return Err("numeric requirement has competing nominal declarations");
     }
+    let declaration = declaration.as_ref().map_err(|reason| *reason)?;
     external
         .identities
         .text(declaration.identity())

@@ -108,8 +108,10 @@ agreements, and nine sample execution pairs with nine intended twins.
 
 This completes target-ineligible bridge qualification on all four matching
 hosts. It establishes that every declared family body retains its required
-target call, including an uncalled wider row. The broader parent acceptance,
-including nominal cleanup of returned exclusive carriers, remains open.
+target call, including an uncalled wider row. The broader parent acceptance remains open.
+[Returned Linear tokens](../finite_family_exclusive_result/README.md#linear-result)
+retain their cleanup in a separately qualified row; other result representations
+and product-compiler support still need their own acceptance.
 [PR #1869](https://github.com/CathedralOS/Omega/pull/1869) retains exact source,
 original producer identities and raw qualification. No execution of a final
 metadata commit or a later main revision is inferred.

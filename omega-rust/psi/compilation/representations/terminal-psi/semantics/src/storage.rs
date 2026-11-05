@@ -11,4 +11,5 @@ pub(crate) mod element_representation;
 pub(crate) mod representation_regions;
 pub(crate) mod storage_dependencies;
 pub(crate) mod storage_regions;
+pub(crate) mod structural_locals;
 pub(crate) mod zero_valid_storage;

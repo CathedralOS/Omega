@@ -320,15 +320,10 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     {
         return malformed("structural field store value must be a whole owned place");
     }
-    let Some(root_type) = window_root_type(
-        module,
-        machine,
-        *destination,
-        path,
-        *field,
-        disposition.required_access(),
-    ) else {
-        return malformed("structural field store requires a mutable-borrowed parameter");
+    let Some(root_type) =
+        store_root_type(module, machine, *destination, path, *field, *disposition)
+    else {
+        return malformed("structural field store has no matching writable storage declaration");
     };
     let field_type = window_field_type(module, root_type, path, *field)?;
     if structural_place_type(machine, value.place) != Some(field_type) {
@@ -347,6 +342,39 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         return malformed("structural field store does not restore the selected memberships");
     }
     Ok(())
+}
+
+fn store_root_type(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    field: Option<StructuralFieldId>,
+    disposition: terminal_psi::StructuralStoreDisposition,
+) -> Option<StructuralTypeId> {
+    if path.is_empty()
+        && field.is_none()
+        && let Some((producer, declared_type)) = machine.producing_operation(place)
+        && matches!(producer.kind, OperationKind::EstablishStructuralLocal {})
+    {
+        // Installing an owned value in a declared local home is construction,
+        // not extraction through a borrowed root. Authenticate that exact home
+        // here; ordered custody must still establish vacancy and transfer the
+        // incoming value. MoveStructuralField keeps its borrowed-root rule.
+        let result = producer.result.structural()?;
+        return (disposition == terminal_psi::StructuralStoreDisposition::Vacant
+            && result.place == place
+            && result.structural_type == declared_type)
+            .then_some(declared_type);
+    }
+    window_root_type(
+        module,
+        machine,
+        place,
+        path,
+        field,
+        disposition.required_access(),
+    )
 }
 
 /// The declared root type a window operation may name. A field window may

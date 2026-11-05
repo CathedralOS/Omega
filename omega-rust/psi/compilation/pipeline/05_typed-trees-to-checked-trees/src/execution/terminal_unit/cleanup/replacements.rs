@@ -328,7 +328,7 @@ pub(super) fn actions(
                     CheckedNormalCleanupAction::Discard(action) => &action.path,
                     CheckedNormalCleanupAction::InvokeNominal(action) => &action.path,
                     CheckedNormalCleanupAction::RetireHome { .. } => {
-                        return Err("replacement cannot retire a home at its destination")
+                        return Err("replacement cannot retire a home at its destination");
                     }
                 };
                 if !action_path.starts_with(&destination.path) {
@@ -377,7 +377,7 @@ pub(super) fn actions(
                             (&mut action.source, &mut action.path)
                         }
                         CheckedNormalCleanupAction::RetireHome { .. } => {
-                            return Err("displaced replacement cannot retire a home")
+                            return Err("displaced replacement cannot retire a home");
                         }
                     };
                     *path = path

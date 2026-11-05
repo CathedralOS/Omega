@@ -488,24 +488,37 @@ pub(crate) struct PrimitiveAccessGeometry {
 /// Atomic fields retain their declared identity while their address crosses
 /// captured reference descriptors. This query reconstructs static geometry;
 /// access ordering and current custody remain the atomic consumers' checks.
-pub(crate) fn atomic_field_geometry(
+pub(crate) fn atomic_cell_geometry(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
-    field: StructuralFieldId,
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<PrimitiveAccessGeometry> {
+    terminal_semantics::atomic_cell_type(declarations.iter(), root, path)
+        .filter(|cell| cell.scalar_type() == scalar)?;
     let regions = storage_projection_regions(root, path, declarations)?;
     if !regions.readable || !regions.elements.is_empty() {
         return None;
     }
-    let (byte_offset, byte_size, elements) = store(
-        regions.root,
-        &path[regions.segment_start..],
-        field,
-        scalar,
-        declarations,
-    )?;
+    let suffix = &path[regions.segment_start..];
+    let (byte_offset, byte_size, elements) =
+        if let Some((StructuralPathSegment::Field(_), prefix)) = suffix.split_last() {
+            let field = terminal_semantics::runtime_structural_field(
+                declarations.iter(),
+                regions.root,
+                suffix,
+            )?;
+            store(regions.root, prefix, field.id, scalar, declarations)?
+        } else {
+            let (selected, offset, elements) =
+                runtime_projection(regions.root, suffix, declarations)?;
+            if !matches!(find_structural_type(declarations, selected)?.shape,
+            StructuralTypeShape::AtomicCell(cell) if cell.scalar_type() == scalar)
+            {
+                return None;
+            }
+            (offset, shape(selected, declarations)?.byte_size, elements)
+        };
     if !elements.is_empty() {
         return None;
     }
@@ -1189,6 +1202,7 @@ fn shape_inner(
     let declaration = find_structural_type(declarations, root)?;
     let result = match &declaration.shape {
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
+        StructuralTypeShape::AtomicCell(cell) => scalar_shape(cell.scalar_type()),
         StructuralTypeShape::ByteSequence(carrier) => field_shape(
             &StructuralFieldType::ByteSequence(*carrier),
             declarations,

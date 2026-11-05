@@ -33,9 +33,11 @@ pub(super) struct CompletedResolutions<'program> {
     clock: u64,
 }
 
+/// Read lists retain the complete immutable question. Copying a completed
+/// list shares that payload rather than recursively cloning its term.
 #[derive(Clone)]
 struct ApplicationRead {
-    application: StructuralTerm,
+    application: Arc<StructuralTerm>,
     fingerprint: u64,
     was_active: bool,
     specification_terms: bool,
@@ -442,6 +444,9 @@ impl<'program> StructuralJudge<'program> {
         was_active: bool,
         specification_terms: bool,
     ) {
+        // Enclosing queries observe the same complete payload. Allocate it
+        // only for the first new read, then share it with later observers.
+        let mut retained_application = None;
         let mut observation = self.resolution_observations.as_deref();
         while let Some(current) = observation {
             let local = self.locally_active_application(
@@ -459,7 +464,8 @@ impl<'program> StructuralJudge<'program> {
                     if let Some(previous) = reads.iter().find(|read| {
                         read.fingerprint == fingerprint
                             && read.specification_terms == specification_terms
-                            && read.application.same_resolution_payload(application)
+                            && (std::ptr::eq(read.application.as_ref(), application)
+                                || read.application.same_resolution_payload(application))
                     }) {
                         if previous.was_active != was_active {
                             *recorded = None;
@@ -468,7 +474,10 @@ impl<'program> StructuralJudge<'program> {
                         *recorded = None;
                     } else {
                         reads.push(ApplicationRead {
-                            application: application.clone(),
+                            application: Arc::clone(
+                                retained_application
+                                    .get_or_insert_with(|| Arc::new(application.clone())),
+                            ),
                             fingerprint,
                             was_active,
                             specification_terms,
@@ -623,6 +632,7 @@ impl<'program> StructuralJudge<'program> {
             address(&*self.stored_values),
             address(&*self.normal_guarantees),
             address(&*self.captured_result_equations),
+            address(&*self.conditional_guarantees),
             address(&*self.substitutions),
             address(&*self.rewrites),
             address(&*self.disequalities),
@@ -679,6 +689,7 @@ impl<'program> StructuralJudge<'program> {
             && self.capture_sequence == other.capture_sequence
             && self.storage_write_sequence == other.storage_write_sequence
             && Arc::ptr_eq(&self.normal_guarantees, &other.normal_guarantees)
+            && Arc::ptr_eq(&self.conditional_guarantees, &other.conditional_guarantees)
             && Arc::ptr_eq(
                 &self.captured_result_equations,
                 &other.captured_result_equations,

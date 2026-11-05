@@ -248,6 +248,7 @@ impl StateGraphEmission<'_, '_> {
                 .collect(),
             erased_scalar_formals: self.state_erased[position].clone(),
             erased_proof_formals: state.erased_proof_parameters.clone(),
+            completion_proof_formals: Vec::new(),
             entry: self.state_ids[position],
             block_structural_parameters: Vec::new(),
             current: self.state_ids[position],

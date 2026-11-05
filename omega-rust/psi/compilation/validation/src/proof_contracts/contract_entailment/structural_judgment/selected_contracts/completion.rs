@@ -186,6 +186,7 @@ impl StructuralJudge<'_> {
                         callable,
                         parameters,
                         entry_bindings,
+                        type_bindings,
                     ),
                     ProofFact::Proposition(_) => StructuralJudgment::Unknown,
                 };
@@ -225,9 +226,16 @@ impl StructuralJudge<'_> {
                     equations: vec![(result?.clone(), literal.clone())],
                     data_identities: Vec::new(),
                     content: Vec::new(),
+                    conditional: Vec::new(),
                 },
             };
             if let Some(common) = &mut common {
+                common.conditional.retain(|guarantee| {
+                    guarantees
+                        .conditional
+                        .iter()
+                        .any(|other| guarantee.same_guarantee(other))
+                });
                 common.equations.retain(|(left, right)| {
                     guarantees
                         .equations
@@ -321,6 +329,7 @@ impl StructuralJudge<'_> {
         }
         let mut equations = Vec::new();
         let mut data_identities = Vec::new();
+        let mut conditional = Vec::new();
         for contract in owner_contracts(program, owner)
             .filter(|contract| contract.kind == SignatureContractKind::Ensures)
         {
@@ -337,6 +346,7 @@ impl StructuralJudge<'_> {
                         result,
                         &mut equations,
                         &mut data_identities,
+                        &mut conditional,
                         depth + 1,
                     );
                 }
@@ -379,6 +389,7 @@ impl StructuralJudge<'_> {
             equations,
             data_identities,
             content,
+            conditional,
         })
     }
 }

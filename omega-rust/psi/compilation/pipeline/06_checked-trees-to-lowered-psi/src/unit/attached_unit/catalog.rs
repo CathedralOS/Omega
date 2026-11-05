@@ -729,7 +729,8 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
                 active,
                 selected,
             )?,
-            CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
+            CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+            | CheckedUnitStructuralTypeShape::AtomicCell(_) => {}
             // A borrowed `&[T]` view is the runtime-length descriptor over an
             // element type that must itself reach the catalog.
             CheckedUnitStructuralTypeShape::BorrowedSliceView {
@@ -891,6 +892,11 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
             }
             CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive) => {
                 StructuralTypeShape::PrimitiveScalar(terminal_scalar_type(*primitive)?)
+            }
+            CheckedUnitStructuralTypeShape::AtomicCell(cell) => {
+                // ShapeCollector admits the exact resident carrier before
+                // publishing this checked shape; lowering preserves it.
+                StructuralTypeShape::AtomicCell(*cell)
             }
             CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
                 StructuralTypeShape::ByteSequence(terminal_byte_sequence_carrier(*carrier))
