@@ -974,8 +974,8 @@ pub(crate) use argument_correspondence::{
 };
 mod occurrences;
 pub use argument_correspondence::{
-    SelectedCallArgument, SelectedCallArgumentError, selected_call_arguments,
-    selected_call_result_domain_matches,
+    SelectedCallArgument, SelectedCallArgumentError, authored_call_parameters,
+    selected_call_arguments, selected_call_result_domain_matches,
 };
 pub use occurrences::{
     CallSite, call_is_unconditional, call_site_argument_expressions, call_site_evidence_arguments,

@@ -664,6 +664,31 @@ pub(crate) fn call_binding_correspondence(
     })
 }
 
+/// Recover the ordinary source parameters after checking this occurrence's
+/// complete executable argument correspondence. Runtime Value arguments belong
+/// to the trailing executable parameters, not to the authored source signature.
+pub fn authored_call_parameters<'program>(
+    program: &'program dyn crate::CheckingInput,
+    caller: SymbolHandle,
+    site: &CallSite<'_>,
+) -> Result<(SymbolHandle, &'program [StateParameter]), &'static str> {
+    if site.static_requirement_dispatch().is_some() {
+        return Err("a selected requirement has a separate public parameter signature");
+    }
+    let correspondence = call_binding_correspondence(program, caller, site)?;
+    let (machine, state) = crate::find_state(program, site.target_symbol(program))
+        .ok_or("the application has no exact executable entry")?;
+    let lineage = application_lineage(program, machine.symbol, correspondence.declaration)?;
+    let source_symbol = application_parameter_origin(program, &lineage, state.symbol)?;
+    let source_state = program
+        .state_by_symbol(source_symbol)
+        .ok_or("the executable entry lost its exact source state")?;
+    Ok((
+        correspondence.declaration,
+        program.state_parameters(source_state),
+    ))
+}
+
 /// A requirement keeps its public header after executable selection. Its exact
 /// open or closed view still transports the authored arguments; the selected
 /// argument owner separately authenticates any executable Value suffix.
