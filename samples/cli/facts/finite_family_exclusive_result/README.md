@@ -77,10 +77,16 @@ extra projected-return call rejected during formation, hiding the intended
 active-child mutation check. The original refusal is retained, and the revised
 control reaches the unchanged child-borrow diagnostic.
 
-Nineteen existing Rust reference tests passed at `e625011af644`; compiler code,
-library and configuration are unchanged in the later source-only inputs. Local
-compiler preparation then exhausted disk space. Those failed attempts are
-retained as environment failures; they provide no repaired engine observation.
-Fresh compiler qualification is pending. Earlier explicit-settler results in
-source history do not establish the current nominal-cleanup requirement, and
-the broader parent task remains open.
+Nineteen existing Rust reference tests passed at `e625011af644`. Their compiler
+code, library and configuration remain identical through `6a48b27b468b`.
+Local compiler preparation then exhausted disk space twice; both failures are
+retained. The first hosted Linux run at `6a48b27b468b` checks ten positives,
+executes all ten with native/Terminal exits 0, and passes nine sample pairs and
+nine reject twins. One older ownership control rejects during unrelated result
+formation; its corrected source reaches the intended active-child diagnostic.
+
+Independent review also required retaining real loans of pointer-field storage.
+That correction is in `ed656648a42a`; its fresh compiler qualification is
+pending. The revised match example and ownership control require their own
+current-input observations. Earlier explicit-settler results do not establish
+nominal cleanup, and the broader parent task remains open.
