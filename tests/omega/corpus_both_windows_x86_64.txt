@@ -1218,7 +1218,8 @@ pass/contracts/guard_conjunct_survives_disjoint_state_write_exit built 7419ms ex
 pass/contracts/indexed_crash_dense_scalar_namespace built 1920ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/contracts/indexed_crash_entry_subfield_arrival built 2892ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/contracts/invariant_identifier checked 2675ms @5f668826adf3+wt
-pass/contracts/match_payload_contract built 3888ms exit:0 interpreter-exit:0 interpreter:agrees @19d39dfb4472
+pass/contracts/match_contract_composition_exit built 4105ms exit:0 interpreter-exit:0 interpreter:agrees @ee44157f6632
+pass/contracts/match_payload_contract built 4172ms exit:0 interpreter-exit:0 interpreter:agrees @ee44157f6632
 pass/contracts/named_tail_return_contract built 6188ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/contracts/nested_call_later_operand_preserves_storage_fact built 3954ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/contracts/nested_call_outer_preserves_storage_fact built 2904ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
