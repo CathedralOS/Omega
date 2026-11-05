@@ -65,6 +65,68 @@ pub(crate) fn signature_ceiling_regions(
     borrow_call: &BorrowCallFact,
     call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
+    selected_signature_ceiling_regions(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow,
+        borrow_call,
+        call_frames,
+        |_| true,
+    )
+}
+
+/// Claim restoration concerns replaced caller values, not claims transferred
+/// with an owned argument. A writable target certified as plain unrestricted
+/// storage has no owned claim or descriptor to restore. This is a sufficient
+/// certificate, not an inference from an empty or unresolved claim frontier.
+/// Ordinary mutation invalidation still uses the full signature ceiling.
+pub(crate) fn linear_restoration_ceiling_regions(
+    program: &dyn ::validation::CheckingInput,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow: Option<&BorrowFacts>,
+    borrow_call: &BorrowCallFact,
+    call_frames: Option<&CallFrameResolver<'_>>,
+) -> Option<Vec<StorageRegion>> {
+    selected_signature_ceiling_regions(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow,
+        borrow_call,
+        call_frames,
+        |reference| {
+            let Some(paths) =
+                validation::borrow_contracts::carried_reference_paths(program, reference)
+            else {
+                return true;
+            };
+            paths.into_iter().any(|(path, access)| {
+                if !access.is_exclusive() {
+                    return false;
+                }
+                let path = crate::borrow::owner_place_segments(&path);
+                let Some(leaf) = project_type_reference_from_segments(program, reference, &path)
+                    .and_then(|leaf| reference_shell(program, leaf))
+                else {
+                    return true;
+                };
+                !validation::has_no_owned_cleanup_obligations(program, leaf.referee)
+            })
+        },
+    )
+}
+
+fn selected_signature_ceiling_regions(
+    program: &dyn ::validation::CheckingInput,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow: Option<&BorrowFacts>,
+    borrow_call: &BorrowCallFact,
+    call_frames: Option<&CallFrameResolver<'_>>,
+    include_parameter: impl Fn(TypeReferenceHandle) -> bool,
+) -> Option<Vec<StorageRegion>> {
     let machine = program.machine_by_symbol(caller_machine_symbol)?;
     let state = program.state_by_symbol(caller_state_symbol)?;
     // A builtin function (`min`, `max`, `sqrt`, the float classifiers, the
@@ -97,6 +159,9 @@ pub(crate) fn signature_ceiling_regions(
         let actual = {
             let argument = arguments[argument_index];
             argument_index += 1;
+            if !include_parameter(parameter.type_reference) {
+                continue;
+            }
             let residents = resident_parameter_regions(
                 program,
                 machine,
@@ -199,6 +264,8 @@ pub(crate) fn signature_ceiling_regions(
         // or the owner descriptor anchoring the content loan.
     }
     if let Some(borrow) = borrow {
+        // Ending a retained loan can expose storage independently of the
+        // final callee's parameters. Every ceiling query keeps this lane.
         for region in retained_loan_write_regions(
             program,
             caller_machine_symbol,
