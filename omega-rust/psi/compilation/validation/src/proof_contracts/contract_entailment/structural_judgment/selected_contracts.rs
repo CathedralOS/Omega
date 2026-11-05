@@ -169,6 +169,7 @@ pub(super) struct SelectedGuarantees {
     pub(super) equations: Vec<(StructuralTerm, StructuralTerm)>,
     pub(super) data_identities: Vec<(StructuralTerm, StructuralTerm)>,
     pub(super) content: Vec<super::super::content_conservation::ObservedContentEquation>,
+    pub(super) conditional: Vec<super::conditional_guarantees::ConditionalGuarantees>,
 }
 
 /// Exact selected carrier and denotational owner, without importing conclusions.
@@ -1052,10 +1053,28 @@ pub(super) fn capture_guarantees(
     result: Option<&StructuralTerm>,
     equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
     data_identities: &mut Vec<(StructuralTerm, StructuralTerm)>,
+    conditional: &mut Vec<super::conditional_guarantees::ConditionalGuarantees>,
     depth: usize,
 ) {
     let program = judge.program;
     if depth >= 64 {
+        return;
+    }
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+        judge.capture_match_guarantees(
+            expression,
+            dispatch,
+            scope,
+            parameters,
+            callable,
+            bindings,
+            type_bindings,
+            result,
+            equations,
+            data_identities,
+            conditional,
+            depth + 1,
+        );
         return;
     }
     let binary = program.expression_table.binary_node(expression);
@@ -1076,6 +1095,7 @@ pub(super) fn capture_guarantees(
             result,
             equations,
             data_identities,
+            conditional,
             depth + 1,
         );
         capture_guarantees(
@@ -1089,6 +1109,7 @@ pub(super) fn capture_guarantees(
             result,
             equations,
             data_identities,
+            conditional,
             depth + 1,
         );
         return;
@@ -1130,6 +1151,7 @@ pub(super) fn capture_guarantees(
                     result,
                     equations,
                     data_identities,
+                    conditional,
                     depth + 1,
                 );
                 selected = true;

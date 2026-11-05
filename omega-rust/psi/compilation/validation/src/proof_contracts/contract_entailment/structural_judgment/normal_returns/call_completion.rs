@@ -193,6 +193,7 @@ impl<'program> StructuralJudge<'program> {
         }
         let guarantees =
             self.complete_selected_guarantees(prepared_guarantees, captured.as_ref(), 0)?;
+        self.retain_conditional_guarantees(guarantees.conditional);
         let mut equations = guarantees
             .equations
             .into_iter()
