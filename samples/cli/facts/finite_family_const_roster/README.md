@@ -98,10 +98,18 @@ with nine rejecting twins. The compiler code, bundled
 library, tools and build configuration match. The twenty changed checking
 records retain their actual `64d08af188aa` stamp.
 
-The same target-call scope is pending on
+The same target-call scope also passes on
 [Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41937582905),
 [Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/41937586127) and
 [Windows x86-64](https://github.com/CathedralOS/Omega/actions/runs/41937589239).
-[PR #1869](https://github.com/CathedralOS/Omega/pull/1869) retains its exact source
-archive and final qualification. The target-ineligible bridge requirement and
-broader parent acceptance remain open until their respective evidence is complete.
+Those runs use optimized compilers and program inputs `64d08af188aa`; each has
+11 valid checking cases, 12 intended refusals, 11 actual native/Terminal zero
+agreements, and nine sample execution pairs with nine intended twins.
+
+This completes target-ineligible bridge qualification on all four matching
+hosts. It establishes that every declared family body retains its required
+target call, including an uncalled wider row. The broader parent acceptance,
+including nominal cleanup of returned exclusive carriers, remains open.
+[PR #1869](https://github.com/CathedralOS/Omega/pull/1869) retains exact source,
+original producer identities and raw qualification. No execution of a final
+metadata commit or a later main revision is inferred.
