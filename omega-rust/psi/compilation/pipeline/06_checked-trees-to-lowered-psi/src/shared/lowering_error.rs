@@ -47,6 +47,11 @@ pub enum LoweringError {
     AmbiguousMachineName(String),
     /// A closure names storage absent from its retained type catalog.
     MissingUnitStructuralType(String),
+    /// A checked loan cannot publish the supplying value's required contract.
+    InvalidReferenceContract {
+        supplying_type: typed_trees::types::TypeReferenceHandle,
+        reason: &'static str,
+    },
     /// A selected value needs its established home before it can be consumed.
     MissingValueStorageLocal {
         machine: Option<semantic_vocabulary::MachineId>,

@@ -349,9 +349,10 @@ pub(crate) fn emit_carrier(
                 // Carry those obligations into the loan, not predicates inferred
                 // from its current bytes or the receiving reference annotation.
                 if !formation.backing_type.is_valid() {
-                    return Err(LoweringError::Unsupported(
-                        "reference formation lost its supplying type",
-                    ));
+                    return Err(LoweringError::InvalidReferenceContract {
+                        supplying_type: formation.backing_type,
+                        reason: "reference formation lost its supplying type",
+                    });
                 }
                 let supplying = structural_declaration_by_identity(
                     declarations,
@@ -363,22 +364,27 @@ pub(crate) fn emit_carrier(
                 let terminal_psi::StructuralTypeShape::Reference { referent, .. } =
                     declaration.shape
                 else {
-                    return Err(LoweringError::Unsupported(
-                        "reference formation lost its reference carrier",
-                    ));
+                    return Err(LoweringError::InvalidReferenceContract {
+                        supplying_type: formation.backing_type,
+                        reason: "reference formation lost its reference carrier",
+                    });
                 };
                 if matches!(storage, PublishedReferenceStorage::Declared)
                     && supplying.id != referent
                 {
-                    return Err(LoweringError::Unsupported(
-                        "reference formation source differs from its exact referent",
-                    ));
+                    return Err(LoweringError::InvalidReferenceContract {
+                        supplying_type: formation.backing_type,
+                        reason: "reference formation source differs from its exact referent",
+                    });
                 }
                 let contract = validation::structural_result_qualification_contract(
                     &formation.checked.typed,
                     formation.backing_type,
                 )
-                .map_err(LoweringError::Unsupported)?;
+                .map_err(|reason| LoweringError::InvalidReferenceContract {
+                    supplying_type: formation.backing_type,
+                    reason,
+                })?;
                 let projected = super::parameters::lower_projected_qualifications(
                     identities,
                     &contract.projected_qualifications,
@@ -407,7 +413,12 @@ pub(crate) fn emit_carrier(
                             _ => None,
                         },
                     )
-                    .map_err(LoweringError::Unsupported)?,
+                    .map_err(|reason| {
+                        LoweringError::InvalidReferenceContract {
+                            supplying_type: formation.backing_type,
+                            reason,
+                        }
+                    })?,
                 );
             }
             if let Some(field) =

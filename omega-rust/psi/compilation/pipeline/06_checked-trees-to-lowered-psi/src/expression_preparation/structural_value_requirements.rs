@@ -54,6 +54,7 @@ impl ReferenceContractCatalog {
     fn is_pointer(
         &self,
         identity: typed_trees::type_identity::TypeIdentityId,
+        supplying_type: TypeReferenceHandle,
     ) -> Result<bool, LoweringError> {
         match identity
             .storage_index()
@@ -61,11 +62,15 @@ impl ReferenceContractCatalog {
         {
             Some(ReferenceCarrierRole::Pointer) => Ok(true),
             Some(ReferenceCarrierRole::Other) => Ok(false),
-            Some(ReferenceCarrierRole::Ambiguous) => {
-                unsupported("reference domain catalog has ambiguous result carriers")
-            }
+            Some(ReferenceCarrierRole::Ambiguous) => Err(LoweringError::InvalidReferenceContract {
+                supplying_type,
+                reason: "reference domain catalog has ambiguous result carriers",
+            }),
             Some(ReferenceCarrierRole::Absent) | None => {
-                unsupported("reference domain catalog lost its result carrier")
+                Err(LoweringError::InvalidReferenceContract {
+                    supplying_type,
+                    reason: "reference domain catalog lost its result carrier",
+                })
             }
         }
     }
@@ -216,7 +221,10 @@ fn collect_domains(
                 }
                 if source_value.is_valid() {
                     if !plans.nodes.is_valid(*source_value) {
-                        return unsupported("reference domain catalog has stale source value");
+                        return Err(LoweringError::InvalidReferenceContract {
+                            supplying_type: *backing_type,
+                            reason: "reference domain catalog has stale source value",
+                        });
                     }
                     let child = plans.nodes.get(*source_value);
                     pending.push((*source_value, child.type_reference));
@@ -342,15 +350,21 @@ fn collect_reference_contract(
     // The emitted pointer consumes this contract. Collection views use their
     // own element/byte membership producers, even for Declared storage. Read
     // that distinction from the retained result shape, not the source syntax.
-    if !reference_contracts.is_pointer(result_type)? {
+    if !reference_contracts.is_pointer(result_type, backing_type)? {
         return Ok(());
     }
     if !backing_type.is_valid() {
-        return unsupported("reference domain catalog lost its supplying type");
+        return Err(LoweringError::InvalidReferenceContract {
+            supplying_type: backing_type,
+            reason: "reference domain catalog lost its supplying type",
+        });
     }
     let contract =
         validation::structural_result_qualification_contract(&checked.typed, backing_type)
-            .map_err(LoweringError::Unsupported)?;
+            .map_err(|reason| LoweringError::InvalidReferenceContract {
+                supplying_type: backing_type,
+                reason,
+            })?;
     for (domain, _) in contract.domains {
         if !domains.contains(&domain) {
             domains.push(domain);
