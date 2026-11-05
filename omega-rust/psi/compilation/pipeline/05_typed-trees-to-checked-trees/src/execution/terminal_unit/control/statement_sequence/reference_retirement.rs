@@ -266,6 +266,40 @@ pub(super) fn transferred_paths(
     )
 }
 
+/// State-local membership only. Holder readiness is evaluated against each
+/// statement's current operations and pending releases, never cached here.
+pub(super) struct StorageBorrowers {
+    rows: Option<Vec<(PlaceRoot, Handle<BorrowLoanFact>)>>,
+}
+
+impl StorageBorrowers {
+    fn new(facts: &CheckFacts, machine: SymbolHandle, state: SymbolHandle) -> Self {
+        let rows = (|| {
+            let borrowing = unique_borrow_state(facts, machine, state)?;
+            let mut rows = if let Some(borrowing) = borrowing {
+                facts
+                    .borrow
+                    .statement_resource_loans(borrowing)?
+                    .map(|(handle, loan)| (loan.root, handle))
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
+            rows.sort_by_key(|(root, _)| root.group_key());
+            Some(rows)
+        })();
+        Self { rows }
+    }
+
+    fn for_owner(&self, owner: PlaceRoot) -> Option<&[(PlaceRoot, Handle<BorrowLoanFact>)]> {
+        let rows = self.rows.as_ref()?;
+        let key = owner.group_key();
+        let first = rows.partition_point(|(root, _)| root.group_key() < key);
+        let count = rows[first..].partition_point(|(root, _)| root.group_key() == key);
+        Some(&rows[first..first + count])
+    }
+}
+
 /// One statement's retirement view. Every query over the same statement
 /// shares these fields; a `Copy` value lets a caller rebind only the prefix,
 /// pending set, exit flag and returned holder it distinguishes.
@@ -300,6 +334,7 @@ pub(super) struct Retirement<'a> {
     pub(super) completion:
         Option<&'a crate::execution::terminal_unit::storage_transfers::PreparedCompletion<'a>>,
     pub(super) transported_loans: &'a transport::TransportedLoans,
+    pub(super) storage_borrowers: &'a StorageBorrowers,
 }
 
 /// One retirement query follows both logical loan occurrences and physical
@@ -318,6 +353,35 @@ impl Retirement<'_> {
     ) -> Option<impl Iterator<Item = (Handle<BorrowLoanFact>, &BorrowLoanFact)>> {
         let state = unique_borrow_state(self.facts, self.machine, self.state.symbol)??;
         self.facts.borrow.statement_resource_loans(state)
+    }
+
+    /// Releasing a stored descriptor changes the bytes of its home. A view of
+    /// that home must end first, even when it is not a child of the reference
+    /// stored there. Disjoint fields keep their independent release schedules.
+    fn storage_borrowers_retired(
+        &self,
+        owner: PlaceRoot,
+        selection: &[PlaceSegment],
+    ) -> Option<bool> {
+        for (root, handle) in self.storage_borrowers.for_owner(owner)? {
+            let loan = self.facts.borrow.loans.get(*handle);
+            // Group keys narrow the candidates; complete root identity remains
+            // necessary for namespaces whose keys can legitimately collide.
+            if *root == owner
+                && self
+                    .order
+                    .precedes(loan.statement_index, self.statement_index as usize)
+                && crate::flow::canonical_place_segments_may_overlap(
+                    self.program,
+                    self.facts.borrow.access_segments.span(loan.segments)?,
+                    selection,
+                )
+                && !self.holder_retired(*handle)
+            {
+                return Some(false);
+            }
+        }
+        Some(true)
     }
 
     /// Computed homes have no independent statement-result binding. Their
@@ -350,18 +414,7 @@ impl Retirement<'_> {
         }
         let mut releases = Vec::new();
         for (owner, formation) in owners.into_iter().rev() {
-            if self
-                .facts
-                .borrow
-                .statement_resource_loans(state)?
-                .any(|(handle, loan)| {
-                    loan.root == owner
-                        && self
-                            .order
-                            .precedes(loan.statement_index, self.statement_index as usize)
-                        && !self.holder_retired(handle)
-                })
-            {
+            if !self.storage_borrowers_retired(owner, &[])? {
                 continue;
             }
             let reference = canonical_place_type_reference(
