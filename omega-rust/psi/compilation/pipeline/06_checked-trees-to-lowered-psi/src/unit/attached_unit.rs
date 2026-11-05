@@ -288,6 +288,68 @@ pub(crate) fn lower_unit_closure(
                 &request.program_roots.boundaries[..request.program_roots.boundaries.len().min(64)],
                 request.program_roots.boundaries.len().saturating_sub(64),
             );
+            // A recorded caller may use the wrong target or belong to another context.
+            // Report its retained declaration and source context before choosing the repair owner.
+            let mut headers = checked
+                .facts
+                .declaration_descriptions
+                .headers
+                .iter()
+                .map(|(_, header)| header)
+                .collect::<Vec<_>>();
+            headers.sort_unstable_by_key(|header| {
+                (header.machine.arena_index(), header.machine.generation())
+            });
+            let report_source = |machine: symbols::SymbolHandle, role: &str| {
+                let provenance = checked.symbols.symbol_provenance_source_span(machine);
+                let source = provenance
+                    .and_then(|span| checked.symbols.source_file(span))
+                    .map(|file| {
+                        (
+                            file.source_id,
+                            &file.path,
+                            &file.package_root,
+                            file.origin,
+                            file.dependency_scope,
+                            file.resolution_stratum,
+                            &file.package_identity,
+                        )
+                    });
+                eprintln!(
+                    "STRUCT duplicate-boundary source-provenance role={role} machine={machine:?} provenance={provenance:?} source={source:?}"
+                );
+
+                let key = (machine.arena_index(), machine.generation());
+                let first = headers.partition_point(|header| {
+                    (header.machine.arena_index(), header.machine.generation()) < key
+                });
+                let last = headers.partition_point(|header| {
+                    (header.machine.arena_index(), header.machine.generation()) <= key
+                });
+                for header in headers[first..last].iter().take(4) {
+                    let declaration = header.compiler_evaluation.as_ref().map(|declaration| {
+                        (
+                            &declaration.name,
+                            declaration.custody,
+                            &declaration.static_application,
+                        )
+                    });
+                    eprintln!(
+                        "STRUCT duplicate-boundary source-header role={role} machine={machine:?} product_eligible={} supplies_checked_body={} type_parameters={} source_target={:?} package={:?} declaration={declaration:?}",
+                        header.product_eligible,
+                        header.supplies_checked_body,
+                        header.type_parameter_count,
+                        header.source_target,
+                        header.package
+                    );
+                }
+                eprintln!(
+                    "STRUCT duplicate-boundary source-headers role={role} machine={machine:?} count={} omitted={}",
+                    last - first,
+                    (last - first).saturating_sub(4)
+                );
+            };
+            report_source(entry, "requested entry");
             let evaluation_roots = scalar_applications.evaluation_roots().collect::<Vec<_>>();
             eprintln!(
                 "STRUCT duplicate-boundary scalar-evaluation-roots count={} first_roots={:?} omitted={}",
@@ -295,6 +357,9 @@ pub(crate) fn lower_unit_closure(
                 &evaluation_roots[..evaluation_roots.len().min(64)],
                 evaluation_roots.len().saturating_sub(64)
             );
+            for &root in evaluation_roots.iter().take(64) {
+                report_source(root, "scalar evaluation entry");
+            }
             let mut root_membership = unit_roots
                 .iter()
                 .map(|&root| (root, "Unit entry"))
@@ -383,6 +448,7 @@ pub(crate) fn lower_unit_closure(
                 causes.dedup();
                 for category in causes.chunk_by(|left, right| left.1 == right.1) {
                     for &(source, cause) in category.iter().take(128) {
+                        report_source(source, cause);
                         let source_key = (source.arena_index(), source.generation());
                         let first = root_membership.partition_point(|(root, _)| {
                             (root.arena_index(), root.generation()) < source_key
