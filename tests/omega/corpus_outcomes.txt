@@ -8381,31 +8381,31 @@ fail/facts/finite_family_returned_descriptor/target_body rejected 5335ms expecte
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_static_inline_result/call_result rejected 956ms expected @51ea1c54b2cf
+fail/facts/finite_family_static_inline_result/call_result rejected 981ms expected @ddc17fff6a3c
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/const_name rejected 960ms expected @51ea1c54b2cf
+fail/facts/finite_family_static_inline_result/const_name rejected 982ms expected @ddc17fff6a3c
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/field rejected 971ms expected @51ea1c54b2cf
+fail/facts/finite_family_static_inline_result/field rejected 984ms expected @ddc17fff6a3c
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/local rejected 967ms expected @51ea1c54b2cf
+fail/facts/finite_family_static_inline_result/local rejected 992ms expected @ddc17fff6a3c
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/match_join rejected 945ms expected @51ea1c54b2cf
+fail/facts/finite_family_static_inline_result/match_join rejected 988ms expected @ddc17fff6a3c
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/other_machine rejected 931ms expected @51ea1c54b2cf
+fail/facts/finite_family_static_inline_result/other_machine rejected 975ms expected @ddc17fff6a3c
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/other_state rejected 954ms expected @51ea1c54b2cf
+fail/facts/finite_family_static_inline_result/other_state rejected 984ms expected @ddc17fff6a3c
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/parameter rejected 941ms expected @51ea1c54b2cf
+fail/facts/finite_family_static_inline_result/parameter rejected 976ms expected @ddc17fff6a3c
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/target_body rejected 930ms expected @51ea1c54b2cf
+fail/facts/finite_family_static_inline_result/target_body rejected 992ms expected @ddc17fff6a3c
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
 fail/facts/five_variant_enum_payload_bound_through_call_result_rejected rejected 2789ms expected @ccdb99ca2214
@@ -22798,15 +22798,15 @@ pass/facts/finite_family_returned_descriptor/other_machine checked 6964ms check-
 pass/facts/finite_family_returned_descriptor/other_state checked 6979ms check-target:macos_arm64 @9ad31e5e8715
 pass/facts/finite_family_returned_descriptor/parameter checked 6993ms check-target:macos_arm64 @9ad31e5e8715
 pass/facts/finite_family_returned_descriptor/target_body checked 7080ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_static_inline_result/call_result checked 4902ms check-target:macos_arm64 @51ea1c54b2cf
-pass/facts/finite_family_static_inline_result/const_name checked 4757ms check-target:macos_arm64 @51ea1c54b2cf
-pass/facts/finite_family_static_inline_result/field checked 4690ms check-target:macos_arm64 @51ea1c54b2cf
-pass/facts/finite_family_static_inline_result/local checked 4661ms check-target:macos_arm64 @51ea1c54b2cf
-pass/facts/finite_family_static_inline_result/match_join checked 4677ms check-target:macos_arm64 @51ea1c54b2cf
-pass/facts/finite_family_static_inline_result/other_machine checked 4656ms check-target:macos_arm64 @51ea1c54b2cf
-pass/facts/finite_family_static_inline_result/other_state checked 4678ms check-target:macos_arm64 @51ea1c54b2cf
-pass/facts/finite_family_static_inline_result/parameter checked 4780ms check-target:macos_arm64 @51ea1c54b2cf
-pass/facts/finite_family_static_inline_result/target_body checked 4805ms check-target:macos_arm64 @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/call_result checked 5117ms check-target:macos_arm64 @ddc17fff6a3c
+pass/facts/finite_family_static_inline_result/const_name checked 4947ms check-target:macos_arm64 @ddc17fff6a3c
+pass/facts/finite_family_static_inline_result/field checked 4957ms check-target:macos_arm64 @ddc17fff6a3c
+pass/facts/finite_family_static_inline_result/local checked 5914ms check-target:macos_arm64 @b31668d9a31f
+pass/facts/finite_family_static_inline_result/match_join checked 4964ms check-target:macos_arm64 @ddc17fff6a3c
+pass/facts/finite_family_static_inline_result/other_machine checked 4884ms check-target:macos_arm64 @ddc17fff6a3c
+pass/facts/finite_family_static_inline_result/other_state checked 4952ms check-target:macos_arm64 @ddc17fff6a3c
+pass/facts/finite_family_static_inline_result/parameter checked 4895ms check-target:macos_arm64 @ddc17fff6a3c
+pass/facts/finite_family_static_inline_result/target_body checked 4998ms check-target:macos_arm64 @ddc17fff6a3c
 pass/facts/five_variant_enum_payload_bound_through_call_result_exit checked 3392ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/five_variant_enum_payload_bound_through_const_name_exit checked 3321ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/five_variant_enum_payload_bound_through_field_exit checked 3647ms check-target:macos_arm64 @ccdb99ca2214
