@@ -551,24 +551,25 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 )
             },
         );
-        let mut call =
-            phase_profile::scope("psi.05.build_check_facts.flow.invoke.build_call", || {
-                build_call_flow_fact(
-                    self.program,
-                    self.borrow,
-                    self.proof,
-                    self.semantic,
-                    self.domains,
-                    self.context,
-                    self.machine,
-                    self.state,
-                    contexts,
-                    constraints,
-                    borrowed_call,
-                    captured_operands,
-                    writes.as_deref(),
-                )
-            });
+        let built = phase_profile::scope("psi.05.build_check_facts.flow.invoke.build_call", || {
+            build_call_flow_fact(
+                self.program,
+                self.borrow,
+                self.proof,
+                self.semantic,
+                self.domains,
+                self.context,
+                self.machine,
+                self.state,
+                contexts,
+                constraints,
+                borrowed_call,
+                captured_operands,
+                writes.as_deref(),
+            )
+        });
+        let mut call = built.call;
+        let writes = built.storage_writes;
         // Evaluation consumers need this occurrence before the later package
         // source-custody binding pass. The authored ordinal identifies a call;
         // this coordinate places it after its evaluated operands.
@@ -600,7 +601,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         let argument_operands = call.argument_operands();
 
         let binding_writes = writes
-            .as_deref()
+            .as_ref()
             .and_then(|writes| writes.descriptor_stores());
         let stores = phase_profile::scope(
             "psi.05.build_check_facts.flow.invoke.capture_stores",
@@ -659,7 +660,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             );
         }
         self.record_operand_writes(OperandMutation {
-            bindings: binding_writes,
+            bindings: binding_writes.map(<[_]>::to_vec),
             observations,
         });
         // Call publication filters only guarantees substituted through stale

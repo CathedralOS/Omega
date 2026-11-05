@@ -306,7 +306,8 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 matches!(
                     contribution.write.region,
                     crate::flow::mutation::StorageRegion::Declared(_)
-                ) && write_stays_in_captured_storage(program, parameters, source)
+                ) && super::copied_guarantees::confined_write_parameter(program, parameters, source)
+                    .is_some()
             })
             .collect();
         if trace {
@@ -532,43 +533,6 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         contexts.push((place, fact));
     }
     batches::append_place_contexts(semantic, build, exit, point, contexts);
-}
-
-/// A callee-relative inline write stays within this captured occurrence.
-/// A stored reference crosses to another home, so its formal root alone is
-/// insufficient provenance for restoring the containing owner's promises.
-fn write_stays_in_captured_storage(
-    program: &dyn ::validation::CheckingInput,
-    parameters: &[typed_trees::signature::StateParameter],
-    source: &validation::CanonicalPlace,
-) -> bool {
-    let Some(parameter) = parameters
-        .iter()
-        .find(|parameter| source.root.as_symbol() == Some(parameter.symbol))
-    else {
-        return false;
-    };
-    let Some(shell) = validation::reference_shell(program, parameter.type_reference) else {
-        return false;
-    };
-    let mut reference = shell.referee;
-    for segment in &source.segments {
-        if validation::reference_shell(program, reference).is_some() {
-            return false;
-        }
-        let Some(projected) = validation::project_type_reference_from_segments(
-            program,
-            reference,
-            std::slice::from_ref(segment),
-        ) else {
-            return false;
-        };
-        reference = projected;
-    }
-    // A write summary ending at a stored pointer can denote its referent,
-    // not only replacement of the descriptor slot. Without that distinction
-    // in the summary, it cannot establish confinement to the inline owner.
-    validation::reference_shell(program, reference).is_none()
 }
 
 /// An indexed store keeps a per-byte class when every state that writes an
