@@ -6,7 +6,7 @@ description: Coordinate a requested local swarm using one isolated worktree per 
 # Local Swarm (Platform Adapter)
 
 This skill defines **only** the local shared-machine transport for running concurrent agents on one host.
-- **Division of labor (Coordinator vs. Worker):** Each worker gets its own isolated worktree and clean context window specifically to own compiler source reading, root-cause tracing, and implementation ([advance](../advance/SKILL.md) Steps 2–5). Keep the coordinator's shared context light for triage and review: select distinct board items or diagnostic clusters from `TASKS.md` and `tests/omega/corpus_outcomes.txt` without reading `omega-rust/` source files in the coordinator, create the worktrees and claims, and launch the workers immediately. Do not duplicate `/advance` rules in worker prompts; point the worker to `.agents/skills/advance/SKILL.md`.
+- **Worker workflow:** Every worker follows [advance](../advance/SKILL.md) (`/advance`) and [AGENTS.md](../../../AGENTS.md#law-of-completion) for capability selection, validation, and board updates. Do not duplicate `/advance` rules in worker prompts; point the worker to `.agents/skills/advance/SKILL.md`.
 - **Coordinator review & landing:** Workers push a **draft** PR (`gh pr create --draft`) and stop (`candidate_ready`). The coordinator audits every diff using [coordinator-review](../coordinator-review/SKILL.md) before running `python3 tools/landing.py land <pr> --expected-head <sha>`.
 
 ## 1. Local Host Setup & Worktrees
@@ -26,9 +26,9 @@ Local subagents share one physical machine (CPU, RAM, disk, and process table):
 ## 2. Launching & Communicating with Local Subagents
 
 1. **Use native in-session subagent tools** (`invoke_subagent` / `send_message` / `manage_subagents`), never detached shell loops.
-2. **Symptom-level dispatch prompt:** Give each worker:
+2. **Self-contained dispatch prompt:** Give each worker:
    - Its isolated worktree path (`.agents/worktree/<short-name>`) and fixed base SHA.
-   - Its assigned `TASKS.md` capability outcome, failing witness or `corpus_outcomes.txt` diagnostic cluster, and requirement to discharge (leaving `omega-rust/` code reading and root-cause tracing to the worker).
+   - Its assigned `TASKS.md` capability outcome, witness path, and requirement to discharge.
    - Instruction to follow [advance](../advance/SKILL.md) (`/advance`), stop at a **draft PR** (`gh pr create --draft`), and message the coordinator with `candidate_ready` for [coordinator-review](../coordinator-review/SKILL.md).
 3. **Reactive wakeup only (no timers or polling):** After spawning or messaging subagents or starting a background task, end the turn and wait for subagent messages or task-completion notifications to wake the coordinator. Never call `schedule`, cron, or status-polling loops.
 4. **Warm workbench continuation:** When a worker's PR passes [coordinator-review](../coordinator-review/SKILL.md) and lands, message the same worker (`send_message`) on its warm worktree with the next requirement of its parent outcome. At the user's stopping condition, stop refilling, drain active workers, release owned claims, and report observed outcomes per [Explain the change](../../../AGENTS.md#explain-the-change).
