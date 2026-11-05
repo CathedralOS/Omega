@@ -13,8 +13,6 @@
 //! its signature types: inference instantiates the callee's binders to the
 //! regions of the arguments, which `region_operand` reads back from them.
 
-use std::collections::HashSet;
-
 use super::current_scalar_values::CurrentScalarValues;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
@@ -1925,17 +1923,17 @@ impl Scope<'_> {
         required: Application<'_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        // This set lives only for one receiving obligation in this immutable
+        // This sorted roster lives only for one receiving obligation in this immutable
         // scope. Exact expression handles identify cast-owned target checks;
         // caller substitutions and receiving applications are never cached.
-        self.check_received_value(expression, required, &mut HashSet::new(), diagnostics);
+        self.check_received_value(expression, required, &mut Vec::new(), diagnostics);
     }
 
     fn check_received_value(
         &self,
         expression: ExpressionHandle,
         required: Application<'_>,
-        checked_cast_targets: &mut HashSet<ExpressionHandle>,
+        checked_cast_targets: &mut Vec<ExpressionHandle>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let has_value_indices = !self
@@ -2009,7 +2007,11 @@ impl Scope<'_> {
                 // this walk; every receiving application still checks its own
                 // nested fields and captured indices below. Otherwise each cast
                 // doubles the traversal of all casts inside its operand.
-                if checked_cast_targets.insert(expression) {
+                if let Err(position) = checked_cast_targets.binary_search_by_key(
+                    &(expression.arena_index(), expression.generation()),
+                    |handle| (handle.arena_index(), handle.generation()),
+                ) {
+                    checked_cast_targets.insert(position, expression);
                     self.check_received_value(
                         cast.value,
                         Application::bare(cast.target_type, self.statement),
