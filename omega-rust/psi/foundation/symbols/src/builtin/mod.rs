@@ -963,9 +963,11 @@ mod builtin_ordinal_tests {
             .collect();
         assert_eq!(
             roster.len(),
-            50,
+            52,
             "the unnameable instruction roster is closed"
         );
+        assert!(roster.contains(&BuiltinFunction::AsmStoreGdtr));
+        assert!(roster.contains(&BuiltinFunction::AsmLoadGdtr));
         for function in roster {
             assert!(
                 function.name().contains('#'),
