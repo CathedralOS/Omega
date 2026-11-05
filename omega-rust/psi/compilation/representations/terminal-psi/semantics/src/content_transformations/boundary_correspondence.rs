@@ -380,6 +380,9 @@ fn owned_addresses(
             .ok_or("boundary backing storage declaration is absent")?;
         ancestors.push(root);
         match &carrier.shape {
+            // Admitted atomic residents are fixed integers or Boolean, never
+            // addresses. Their storage contributes no address occurrence.
+            StructuralTypeShape::AtomicCell(_) => {}
             StructuralTypeShape::PrimitiveScalar(scalar) => {
                 if matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer) if integer.is_address())
                 {

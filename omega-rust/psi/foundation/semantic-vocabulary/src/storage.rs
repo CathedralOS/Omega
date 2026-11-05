@@ -4,6 +4,7 @@
 //! coordinates, `content` the content projections over those places, and
 //! `reference_origins` a returned borrow's extent over supplied storage.
 
+pub(crate) mod atomic_cell;
 pub(crate) mod authored_storage;
 pub(crate) mod content;
 pub(crate) mod reference_origins;

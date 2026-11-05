@@ -804,8 +804,6 @@ pub fn aarch64_register_constraint_catalog(
     for (key, inputs, outputs, writes_flags) in [
         (crate::AARCH64_ATOMIC_LOAD, 1, 1, false),
         (crate::AARCH64_ATOMIC_STORE, 2, 0, false),
-        (crate::AARCH64_ATOMIC_UPDATE, 2, 1, false),
-        (crate::AARCH64_ATOMIC_COMPARE_EXCHANGE, 3, 1, false),
         (crate::AARCH64_ATOMIC_COMPARE_EXCHANGE_ONCE, 3, 2, true),
     ] {
         let mut operands = (0..inputs)
@@ -825,25 +823,48 @@ pub fn aarch64_register_constraint_catalog(
             },
         });
     }
-    // The exclusive loop must preserve address and mask across every failed
-    // store. Fixed caller-volatile homes keep both inputs and the observed
-    // result separate from the declared replacement/status scratch registers.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: crate::AARCH64_ATOMIC_BITWISE_UPDATE,
-        operands: vec![
-            fixed(0, RegisterOperandAccess::Use, "x9"),
-            fixed(1, RegisterOperandAccess::Use, "x10"),
-            fixed(2, RegisterOperandAccess::Def, "x11"),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: sorted_units(
-            ["x16", "x17"]
-                .into_iter()
-                .flat_map(|name| view(name).units.iter().copied()),
+    // Retry inputs, observation and scratch stay distinct across failures.
+    // Strong compare-exchange also clobbers NZCV; Once keeps its fixed inputs and outputs.
+    for (key, names, comparison) in [
+        (
+            crate::AARCH64_ATOMIC_UPDATE,
+            &["x9", "x10", "x11"][..],
+            false,
         ),
-    });
+        (
+            crate::AARCH64_ATOMIC_COMPARE_EXCHANGE,
+            &["x9", "x10", "x11", "x12"][..],
+            true,
+        ),
+    ] {
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: names
+                .iter()
+                .enumerate()
+                .map(|(ordinal, name)| {
+                    fixed(
+                        ordinal as u16,
+                        if ordinal + 1 == names.len() {
+                            RegisterOperandAccess::Def
+                        } else {
+                            RegisterOperandAccess::Use
+                        },
+                        name,
+                    )
+                })
+                .collect(),
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: sorted_units(
+                ["x16", "x17"]
+                    .into_iter()
+                    .chain(comparison.then_some("nzcv"))
+                    .flat_map(|name| view(name).units.iter().copied()),
+            ),
+        });
+    }
     mixed_calls::append_normalized_foreign_constraints(&mut constraints, model);
     super::system_calls::append_constraints(&mut constraints, model);
     float_scalar_calls::append_constraints(&mut constraints, model);

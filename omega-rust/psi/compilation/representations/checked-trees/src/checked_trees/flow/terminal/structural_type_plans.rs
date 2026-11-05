@@ -185,6 +185,9 @@ pub enum CheckedUnitStructuralTypeShape {
         fields: Vec<CheckedUnitStructuralFieldPlan>,
         cases: Vec<CheckedUnitStructuralCasePlan>,
     },
+    /// One dedicated atomic cell is a storage root in its own right. Its
+    /// resident carrier does not turn it into ordinary primitive storage.
+    AtomicCell(semantic_vocabulary::AtomicCellType),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -626,6 +629,7 @@ pub fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape)
         }),
         CheckedUnitStructuralTypeShape::Reference { .. }
         | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+        | CheckedUnitStructuralTypeShape::AtomicCell(_)
         | CheckedUnitStructuralTypeShape::ByteSequence(_)
         | CheckedUnitStructuralTypeShape::FixedArray { .. }
         | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. }

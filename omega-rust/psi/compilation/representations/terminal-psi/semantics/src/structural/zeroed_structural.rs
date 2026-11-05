@@ -188,6 +188,12 @@ fn zeroed_declaration_graph(
         let shape = &declarations[position].shape;
         let (fields, cases) = match shape {
             StructuralTypeShape::PrimitiveScalar(_) => (&[][..], None),
+            StructuralTypeShape::AtomicCell(cell) => {
+                if !cell.is_supported() || !crate::scalar_field_accepts_zero(&(*cell).into()) {
+                    return false;
+                }
+                (&[][..], None)
+            }
             StructuralTypeShape::FixedArray { element, length } => {
                 active[position] = true;
                 pending.push((current, true));
@@ -427,6 +433,12 @@ fn zeroed_structural_leaves_impl<'types>(
             }
         }
         match &declaration.shape {
+            StructuralTypeShape::AtomicCell(cell) => {
+                leaves.push(ZeroedStructuralLeaf::ArrayScalar {
+                    path,
+                    scalar_type: cell.scalar_type(),
+                });
+            }
             StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                 leaves.push(ZeroedStructuralLeaf::ArrayScalar {
                     path,

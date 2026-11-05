@@ -51,6 +51,15 @@ pub(crate) fn encode_structural_type(
                 encode_structural_field_type(writer, restriction)?;
             }
         }
+        StructuralTypeShape::AtomicCell(cell) => {
+            if !cell.is_supported() || declaration.scalar_restriction.is_some() {
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "atomic storage has an invalid resident contract",
+                ));
+            }
+            writer.u8(16);
+            encode_structural_field_type(writer, &(*cell).into())?;
+        }
         StructuralTypeShape::ByteSequence(carrier) => {
             writer.u8(4);
             encode_byte_sequence_carrier(writer, *carrier);
@@ -157,6 +166,14 @@ pub(crate) fn decode_structural_type(
             access: decode_structural_access(reader)?,
         },
         6 => StructuralTypeShape::PrimitiveScalar(decode_scalar_type(reader)?),
+        16 => {
+            let cell = decode_structural_field_type(reader)?
+                .atomic_cell_type()
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "atomic storage has an invalid resident contract",
+                ))?;
+            StructuralTypeShape::AtomicCell(cell)
+        }
         12 => {
             let carrier = decode_scalar_type(reader)?;
             scalar_restriction = Some(decode_structural_field_type(reader)?);

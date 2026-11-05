@@ -494,6 +494,10 @@ pub(super) fn encode_structural_type(
                 encode_scalar_restriction(bytes, restriction);
             }
         }
+        StructuralTypeShape::AtomicCell(cell) => {
+            bytes.u8(16);
+            encode_scalar_restriction(bytes, &(*cell).into());
+        }
         StructuralTypeShape::ByteSequence(carrier) => {
             bytes.u8(1);
             encode_byte_carrier(bytes, *carrier);

@@ -554,14 +554,12 @@ operation_wire! {
         OperationKind::AtomicAccess {
             place,
             path,
-            field,
             event,
             resident_obligation,
         } => atomic_operations::encode_atomic_access(
             writer,
             place,
             &path,
-            field,
             event,
             resident_obligation,
         )?,

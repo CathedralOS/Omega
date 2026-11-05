@@ -6,7 +6,11 @@ Fact: **A shared atomic store preserves its resident bound and ordering, and a l
 
 Every place preserves bound 100, stores 41 through a shared helper, and consumes
 the observation in `100 - observed` before checking runtime result 59. Each twin
-changes only the store helper's `requires value <= 100` to `<= 101`.
+permits 101 in the store helper and actually supplies 101, violating the same
+Cell bound of 100 at the store. The former twins weakened only the private
+helper contract while still supplying 41. Checked private-arrival inference now
+proves those safe calls, so their old refusals are retained as historical
+observations rather than invalidity evidence.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
