@@ -37,13 +37,13 @@
     "cache_key": "compiler-regression-Linux-X64-930ad300ab5b66029346c7ae14a6d49284f61cbeba994e9d242c180ccf948756-0403f8fc267849553b104ab448c344765e137cef"
   },
   "fixtures": [
-    "fail/contracts/assignment_destination_cannot_use_rhs_call_guarantee"
+    "fail/contracts/assignment_destination_cannot_use_rhs_call_guarantee",
+    "pass/borrows/resident_view_borrowed_helper_exit"
   ],
   "source_only": true,
   "samples": [],
   "cli_fixtures": [
     "run/domains/qualified_fixed_byte_array_captured_destination_exit",
-    "pass/borrows/runtime_assignment_rhs_carrier_replacement_exit",
-    "pass/borrows/resident_view_borrowed_helper_exit"
+    "pass/borrows/runtime_assignment_rhs_carrier_replacement_exit"
   ]
 }
