@@ -6818,36 +6818,25 @@ fail/facts/checked_asm_nominal_predicate_through_target_body_rejected rejected 4
 	cannot prove asm `requires` fact at block entry in move_selected state `entry` (statement 5): output == 9
 	cannot prove asm `requires` fact at block entry in move_selected state `entry` (statement 5): output == 9
 	cannot prove asm `requires` fact at block entry in move_selected state `entry` (statement 5): output == 9
-fail/facts/checked_asm_rank_decrease_through_call_result_rejected rejected 2929ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#31#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#31#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-fail/facts/checked_asm_rank_decrease_through_const_name_rejected rejected 3401ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from main$assembly$portable$4$entry: ((asm#scratch#26#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#26#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$4$entry
-fail/facts/checked_asm_rank_decrease_through_field_rejected rejected 3389ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#27#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#27#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-fail/facts/checked_asm_rank_decrease_through_local_rejected rejected 3117ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#26#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#26#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-fail/facts/checked_asm_rank_decrease_through_match_join_rejected rejected 3278ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from countdown$assembly$portable$5$entry: ((asm#scratch#56#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#56#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$5$entry
-fail/facts/checked_asm_rank_decrease_through_other_machine_rejected rejected 2661ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#37#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#37#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$4$entry
-fail/facts/checked_asm_rank_decrease_through_other_state_rejected rejected 2795ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from next$assembly$portable$4$entry: ((asm#scratch#31#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#31#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_rank_decrease_through_parameter_rejected rejected 2813ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#31#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#31#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$4$entry
-fail/facts/checked_asm_rank_decrease_through_target_body_rejected rejected 2857ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#31#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#31#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#72#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#72#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#113#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#113#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine countdown$assembly$linux_x86_64$4$entry
-	cannot prove the `terminates by` ranking for machine countdown$assembly$windows_x86_64$4$entry
-	cannot prove the `terminates by` ranking for machine countdown$assembly$macos_x86_64$4$entry
+fail/facts/checked_asm_rank_decrease_through_call_result_rejected rejected 4260ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#8#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#8#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_const_name_rejected rejected 4206ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from main$assembly$portable$4$entry: ((asm#scratch#3#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#3#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_field_rejected rejected 5095ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#4#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#4#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_local_rejected rejected 3959ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#3#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#3#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_match_join_rejected rejected 3886ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from countdown$assembly$portable$5$entry: ((asm#scratch#33#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#33#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_other_machine_rejected rejected 4062ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#14#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#14#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_other_state_rejected rejected 4292ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from next$assembly$portable$4$entry: ((asm#scratch#8#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#8#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_parameter_rejected rejected 4122ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#8#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#8#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_target_body_rejected rejected 4244ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from X86Countdown::countdown$assembly$portable$5$countdown: ((asm#scratch#40#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#40#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove requires contract for call done from ArmCountdown::countdown$assembly$portable$5$countdown: ((asm#scratch#85#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#85#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_register_contract_bound_through_call_result_rejected rejected 1143ms expected @ccdb99ca2214
 	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `forward(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/facts/checked_asm_register_contract_bound_through_const_name_rejected rejected 1584ms expected @ccdb99ca2214
@@ -22181,25 +22170,15 @@ pass/facts/checked_asm_nominal_predicate_through_other_machine_exit checked 6085
 pass/facts/checked_asm_nominal_predicate_through_other_state_exit checked 5996ms check-target:macos_arm64 @ceec2d4e7d8b
 pass/facts/checked_asm_nominal_predicate_through_parameter_exit checked 5897ms check-target:macos_arm64 @ceec2d4e7d8b
 pass/facts/checked_asm_nominal_predicate_through_target_body_exit checked 14464ms check-target:macos_arm64 @ceec2d4e7d8b
-pass/facts/checked_asm_rank_decrease_through_call_result_exit rejected 2366ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-pass/facts/checked_asm_rank_decrease_through_const_name_exit rejected 2428ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$4$entry
-pass/facts/checked_asm_rank_decrease_through_field_exit rejected 2712ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-pass/facts/checked_asm_rank_decrease_through_local_exit rejected 3009ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-pass/facts/checked_asm_rank_decrease_through_match_join_exit rejected 2967ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$5$entry
-pass/facts/checked_asm_rank_decrease_through_other_machine_exit rejected 2729ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$4$entry
-pass/facts/checked_asm_rank_decrease_through_other_state_exit checked 3190ms check-target:linux_x86_64 @ccdb99ca2214
-pass/facts/checked_asm_rank_decrease_through_parameter_exit rejected 2631ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$4$entry
-pass/facts/checked_asm_rank_decrease_through_target_body_exit rejected 3017ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine countdown$assembly$linux_x86_64$4$entry
-	cannot prove the `terminates by` ranking for machine countdown$assembly$windows_x86_64$4$entry
-	cannot prove the `terminates by` ranking for machine countdown$assembly$macos_x86_64$4$entry
+pass/facts/checked_asm_rank_decrease_through_call_result_exit checked 5866ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_const_name_exit checked 6600ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_field_exit checked 6728ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_local_exit checked 6553ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_match_join_exit checked 5909ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_other_machine_exit checked 6668ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_other_state_exit checked 5908ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_parameter_exit checked 6827ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_target_body_exit checked 5824ms check-target:linux_x86_64 @d3e0d00aad47
 pass/facts/checked_asm_register_contract_bound_through_call_result_exit checked 3484ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/checked_asm_register_contract_bound_through_const_name_exit checked 3337ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/checked_asm_register_contract_bound_through_field_exit checked 4439ms check-target:macos_arm64 @ccdb99ca2214
