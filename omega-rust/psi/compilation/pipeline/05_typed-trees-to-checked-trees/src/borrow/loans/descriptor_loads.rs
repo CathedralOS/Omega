@@ -96,8 +96,7 @@ pub(in crate::borrow) fn prepare(
                             &supplier.owner_path,
                             &source.source_place.segments,
                         )
-                        && (supplier.handle == source.parent_loan
-                            || !supplier.handle.is_valid())
+                        && (supplier.handle == source.parent_loan || !supplier.handle.is_valid())
                 })
             };
             if !rebased.is_empty() && rebased.iter().all(|source| cover(source).is_some()) {
@@ -114,51 +113,9 @@ pub(in crate::borrow) fn prepare(
                 }) {
                     return;
                 }
-                if rebased.len() == 1 {
-                    let source = &rebased[0];
-                    // The ingress leaf grants this descriptor already, but an
-                    // entry tracker is invisible to the retained-occurrence
-                    // resolver. Carry the resolved slot on the prepared row:
-                    // same-slot loads then share one carrier generation, and
-                    // the referent family names the real incoming leaf. The
-                    // expression still owns the storage marker — descriptor
-                    // binding and the per-evaluation lifecycle key on it —
-                    // while the resolved leaf path is the slot identity.
-                    let owner_path = super::owner_path_from_place_segments(
-                        program,
-                        &source.source_place.segments,
-                    );
-                    pending.push(StatementBorrowLoan {
-                        incoming_origin: Some(PendingIncomingReference {
-                            identity: IncomingReferenceIdentity {
-                                machine_symbol: machine.symbol,
-                                state_symbol: state.symbol,
-                                origin: IncomingReferenceOrigin::DescriptorLoad { expression },
-                                carrier_type,
-                                owner_path: Default::default(),
-                            },
-                            owner_path: owner_path.clone(),
-                        }),
-                        formation_expression: expression,
-                        formation_owner_path: Some(Vec::new()),
-                        owner_symbol: state.symbol,
-                        storage_owner: facts::PlaceRoot::Expression(expression),
-                        owner_name: state.name.clone(),
-                        owner_path,
-                        place: CapturedPlace {
-                            root: source.source_place.root,
-                            ..Default::default()
-                        },
-                        representation_address: None,
-                        retained_operand: None,
-                        source_owner_symbol: source.source_owner_symbol,
-                        supplying_loans: Vec::new(),
-                        lineage: BorrowLoanLineage::DirectRoot,
-                        kind,
-                        formation: super::BorrowFormation::Ordinary,
-                    });
-                    return;
-                }
+                // A deeper read still owns a new temporary descriptor. Its
+                // original source slot is retained by the completed read;
+                // that slot is not a path inside the temporary pointer.
             }
             pending.push(StatementBorrowLoan {
                 incoming_origin: Some(PendingIncomingReference {

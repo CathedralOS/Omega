@@ -255,7 +255,7 @@ pub(super) fn retain_captured_lineage(
         // its current-descriptor alternative correspondence was retained.
         let available_at_call = loan.established_by_call.is_valid();
         if let Some(mut lineage) =
-            aliases::retained_lineage(&facts.borrow, borrow_state, candidate.local_loan)
+            aliases::retained_lineage(program, facts, borrow_state, candidate.local_loan)
         {
             for alternative in alternatives {
                 crate::shared::collections::push_unique(&mut lineage, alternative);

@@ -219,7 +219,7 @@ fn validate_source(
                 {
                     return refusal("returned projection source was not available at capture");
                 }
-                nearest_parents(&facts.borrow, state, loan)?
+                nearest_parents(program, facts, state, loan)?
             }
             checked_trees::CheckedCallBorrowLoanSource::CallAccess {
                 access: argument,
@@ -233,7 +233,7 @@ fn validate_source(
                 }
                 let mut roots = Vec::new();
                 for parent in parent_rows.span_or_empty(parents) {
-                    for parent in nearest_parents(&facts.borrow, state, *parent)? {
+                    for parent in nearest_parents(program, facts, state, *parent)? {
                         crate::shared::collections::push_unique(&mut roots, parent);
                     }
                 }
@@ -246,9 +246,7 @@ fn validate_source(
                         .filter(|other| *other != candidate)
                         .any(|other| {
                             crate::checks::borrows::aliases::retained_lineage(
-                                &facts.borrow,
-                                state,
-                                *other,
+                                program, facts, state, *other,
                             )
                             .is_some_and(|lineage| lineage.contains(candidate))
                         });

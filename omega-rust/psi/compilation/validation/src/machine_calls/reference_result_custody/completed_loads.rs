@@ -7,6 +7,72 @@ use checked_trees::{
 };
 use facts::PlaceRoot;
 
+/// Repeated reads can share a descriptor only when their completed captures
+/// identify the same unchanged input slot. The pointer's temporary home and
+/// opaque referent are different coordinates and cannot stand in for that slot.
+pub fn completed_descriptor_load_slot(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    loan: &checked_trees::BorrowLoanFact,
+) -> Result<crate::CanonicalPlace, &'static str> {
+    if !facts
+        .borrow
+        .incoming_references
+        .is_valid(loan.incoming_reference)
+    {
+        return Err("the descriptor has no incoming load identity");
+    }
+    let incoming = facts
+        .borrow
+        .incoming_references
+        .get(loan.incoming_reference);
+    let IncomingReferenceOrigin::DescriptorLoad { expression } = incoming.origin else {
+        return Err("the descriptor does not originate at a completed load");
+    };
+    if loan.storage_owner != PlaceRoot::Expression(expression)
+        || loan.formation_expression != expression
+    {
+        return Err("the loan does not own the completed load's descriptor home");
+    }
+    let state = facts
+        .flow
+        .control
+        .unique_state(incoming.machine_symbol, incoming.state_symbol)
+        .ok_or("the descriptor load has no unique completed state")?;
+    let loaded = completed_descriptor_load(program, facts, state, loan.incoming_reference)?;
+    let capture = facts.flow.control.operands.get(loaded.capture);
+    if capture.statement_index != loan.statement_index {
+        return Err("the descriptor loan differs from its completed read statement");
+    }
+    let mut pending = vec![loaded.sources];
+    let mut selected = None;
+    while let Some(source) = pending.pop() {
+        match source {
+            crate::completed_storage::StoredOperand::Incoming(slot) => {
+                if !slot.root.is_valid()
+                    || !slot
+                        .segments
+                        .iter()
+                        .all(crate::storage_path_relations::place_segment_has_static_identity)
+                {
+                    return Err("the input slot has an unresolved captured selector");
+                }
+                if selected.as_ref().is_some_and(|previous| *previous != slot) {
+                    return Err("the completed load can read different input slots");
+                }
+                selected = Some(slot);
+            }
+            crate::completed_storage::StoredOperand::Alternatives(alternatives)
+                if !alternatives.is_empty() =>
+            {
+                pending.extend(alternatives);
+            }
+            _ => return Err("the completed load has no unchanged input-slot source"),
+        }
+    }
+    selected.ok_or("the completed load has no source slot")
+}
+
 pub struct CompletedDescriptorLoad {
     pub capture: Handle<FlowOperandFact>,
     pub sources: crate::completed_storage::StoredOperand,

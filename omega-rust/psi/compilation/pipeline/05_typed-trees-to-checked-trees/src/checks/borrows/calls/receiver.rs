@@ -56,7 +56,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
     {
         if place_access::access_interferes(
             program,
-            &facts.borrow,
+            facts,
             std::slice::from_ref(&receiver),
             &BorrowAccessKind::Mutable,
             loan_handle,

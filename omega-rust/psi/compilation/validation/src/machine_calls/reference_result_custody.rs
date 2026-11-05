@@ -43,7 +43,9 @@ mod call_reception;
 pub use call_reception::{RecordCallReception, record_call_reception};
 mod captured_returns;
 mod completed_loads;
-pub use completed_loads::{CompletedDescriptorLoad, completed_descriptor_load};
+pub use completed_loads::{
+    CompletedDescriptorLoad, completed_descriptor_load, completed_descriptor_load_slot,
+};
 #[cfg(test)]
 mod declared_frontier_tests;
 mod declared_returns;

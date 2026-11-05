@@ -27,12 +27,13 @@ impl ResolvedAlias {
     /// replacement, another leaf or a child descriptor is a different occurrence.
     pub(in crate::checks::borrows) fn retains_loan(
         &self,
-        borrow: &BorrowFacts,
+        program: &dyn validation::CheckingInput,
+        facts: &CheckFacts,
         handle: Handle<BorrowLoanFact>,
     ) -> bool {
         self.lineage.iter().any(|ancestor| {
-            same_descriptor(borrow, *ancestor, handle)
-                || retains_lifetime_dependency(borrow, *ancestor, handle)
+            same_descriptor(program, facts, *ancestor, handle)
+                || retains_lifetime_dependency(program, facts, *ancestor, handle)
         })
     }
 }
@@ -40,10 +41,12 @@ impl ResolvedAlias {
 /// Alternatives belong to an exact descriptor occurrence, never merely to
 /// equal backing geometry. Wildcard paths may describe coexisting slots.
 pub(in crate::checks::borrows) fn same_descriptor(
-    borrow: &BorrowFacts,
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
     left: Handle<BorrowLoanFact>,
     right: Handle<BorrowLoanFact>,
 ) -> bool {
+    let borrow = &facts.borrow;
     if left == right {
         return left.is_valid();
     }
@@ -59,7 +62,7 @@ pub(in crate::checks::borrows) fn same_descriptor(
     {
         return false;
     }
-    same_carrier_occurrence(borrow, left, right)
+    same_carrier_occurrence(program, facts, left, right)
 }
 
 /// One spatial descriptor retains its own lifetime cohort independently of
@@ -67,10 +70,12 @@ pub(in crate::checks::borrows) fn same_descriptor(
 /// requiring this exact historical occurrence cannot revive a replaced slot or
 /// turn an unselected input's address into a descriptor alternative.
 fn retains_lifetime_dependency(
-    borrow: &BorrowFacts,
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
     descriptor: Handle<BorrowLoanFact>,
     debt: Handle<BorrowLoanFact>,
 ) -> bool {
+    let borrow = &facts.borrow;
     if !borrow.loans.is_valid(descriptor) || !borrow.loans.is_valid(debt) {
         return false;
     }
@@ -86,44 +91,53 @@ fn retains_lifetime_dependency(
         && (!matches!(descriptor.root, facts::PlaceRoot::InvocationOutput(_))
             || descriptor.incoming_reference.is_valid())
         && debt.lineage == BorrowLoanLineage::LifetimeDependency
-        && same_carrier_occurrence(borrow, descriptor, debt)
+        && same_carrier_occurrence(program, facts, descriptor, debt)
 }
 
 fn same_carrier_occurrence(
-    borrow: &BorrowFacts,
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
     left: &BorrowLoanFact,
     right: &BorrowLoanFact,
 ) -> bool {
+    let borrow = &facts.borrow;
     let path = borrow.loan_owner_path(right);
-    (same_carrier_generation(left, right) || same_resolved_descriptor_load(borrow, left, right))
+    (same_carrier_generation(left, right)
+        || same_resolved_descriptor_load(program, facts, left, right))
         && borrow.loan_owner_path(left) == path
         && !path.contains(&checked_trees::BorrowLoanOwnerSegment::DynamicIndex)
 }
 
-/// Each evaluation of one stored descriptor mints its own load row keyed by
-/// the load expression itself. When both rows resolved their carrier to the
-/// same stored slot, the slot's root and owner path carry the occurrence
-/// identity the expression-keyed storage marker cannot. Loads that left the
-/// slot unresolved keep their opaque marker and do not join here.
+/// Repeated reads of one unchanged input slot retain that descriptor's
+/// occurrence. The completed source identifies the slot; expression-owned
+/// temporary homes remain independent of the input's field path.
 fn same_resolved_descriptor_load(
-    borrow: &BorrowFacts,
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
     left: &BorrowLoanFact,
     right: &BorrowLoanFact,
 ) -> bool {
-    is_descriptor_load(borrow, left)
-        && is_descriptor_load(borrow, right)
-        && left.owner_symbol == right.owner_symbol
-        && left.root.is_valid()
-        && left.root == right.root
-        && !borrow.loan_owner_path(left).is_empty()
-        && left.statement_index == right.statement_index
-        && left.established_by_call == right.established_by_call
+    if !is_descriptor_load(&facts.borrow, left)
+        || !is_descriptor_load(&facts.borrow, right)
+        || left.owner_symbol != right.owner_symbol
+        || left.statement_index != right.statement_index
+        || left.established_by_call != right.established_by_call
+    {
+        return false;
+    }
+    let slot = |loan| {
+        validation::reference_result_custody::completed_descriptor_load_slot(program, facts, loan)
+    };
+    matches!((slot(left), slot(right)), (Ok(left), Ok(right)) if left == right)
 }
 
 fn is_descriptor_load(borrow: &BorrowFacts, loan: &BorrowLoanFact) -> bool {
     borrow.incoming_references.is_valid(loan.incoming_reference)
         && matches!(
-            borrow.incoming_references.get(loan.incoming_reference).origin,
+            borrow
+                .incoming_references
+                .get(loan.incoming_reference)
+                .origin,
             checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. }
         )
 }
@@ -142,16 +156,16 @@ fn same_carrier_generation(left: &BorrowLoanFact, right: &BorrowLoanFact) -> boo
 /// together. Neither judgment supplies an address or permits a later read.
 pub(in crate::checks::borrows) fn formation_preserves_loan(
     program: &dyn validation::CheckingInput,
-    borrow: &BorrowFacts,
+    facts: &CheckFacts,
     state: &StateBorrowFact,
     lineage: &[Handle<BorrowLoanFact>],
     active: Handle<BorrowLoanFact>,
 ) -> bool {
     lineage.iter().any(|ancestor| {
-        same_descriptor(borrow, *ancestor, active)
-            || retains_lifetime_dependency(borrow, *ancestor, active)
-            || retains_lifetime_dependency(borrow, active, *ancestor)
-            || exclusive_carrier_cases(program, borrow, state, *ancestor, active)
+        same_descriptor(program, facts, *ancestor, active)
+            || retains_lifetime_dependency(program, facts, *ancestor, active)
+            || retains_lifetime_dependency(program, facts, active, *ancestor)
+            || exclusive_carrier_cases(program, &facts.borrow, state, *ancestor, active)
     })
 }
 
@@ -209,6 +223,9 @@ fn exclusive_carrier_cases(
 pub(in crate::checks::borrows) struct ResolvedPlace {
     pub(in crate::checks::borrows) place: CapturedPlace,
     pub(in crate::checks::borrows) local_loan: Handle<BorrowLoanFact>,
+    /// Prefix consumed at the descriptor's source slot. A loaded pointer's
+    /// own home may be empty even when that slot lies inside an input record.
+    pub(in crate::checks::borrows) consumed_segments: usize,
 }
 
 pub(in crate::checks::borrows) fn resolve_place(
@@ -260,6 +277,7 @@ pub(in crate::checks::borrows) fn resolve_places_with_loans(
         return Some(vec![ResolvedPlace {
             place,
             local_loan: Handle::invalid(),
+            consumed_segments: 0,
         }]);
     }
     resolve_descriptor_places_with_loans(
@@ -336,21 +354,38 @@ fn resolve_descriptor_places_with_loans(
     // leaf inside a completed carrier. The live loan's exact owner path names
     // that descriptor; an access to its enclosing owned record is independent.
     let mut candidates = loans
-        .filter(|handle| {
-            let loan = borrow.loans.get(*handle);
-            let owner = borrow.loan_owner_path(loan);
-            borrow.state_owns_loan(state_borrow, *handle)
+        .filter_map(|handle| {
+            let loan = borrow.loans.get(handle);
+            if !borrow.state_owns_loan(state_borrow, handle)
                 // The dependency remains active for lifetime/interference
                 // checking, but supplies no descriptor address or ancestry.
-                && loan.lineage != BorrowLoanLineage::LifetimeDependency
-                // An opaque load row keys its storage marker on the load
-                // expression itself; a row prepared with its resolved slot
-                // instead names that slot's stored root.
-                && (loan.storage_owner == place.root
-                    || (is_descriptor_load(borrow, loan)
-                        && loan.root.is_valid()
-                        && loan.root == place.root))
-                && matches_owner(owner)
+                || loan.lineage == BorrowLoanLineage::LifetimeDependency
+            {
+                return None;
+            }
+            if loan.storage_owner == place.root {
+                let owner = borrow.loan_owner_path(loan);
+                return matches_owner(owner).then_some((handle, owner.len()));
+            }
+            // The captured read names the original input slot even after
+            // replacement. Never project that slot's path through the loaded
+            // pointer's temporary home or use it as the pointee namespace.
+            let slot = validation::reference_result_custody::completed_descriptor_load_slot(
+                program, facts, loan,
+            )
+            .ok()?;
+            (slot.root == place.root
+                && slot.segments.len() <= place.segments.len()
+                && slot
+                    .segments
+                    .iter()
+                    .zip(&place.segments)
+                    .all(|(left, right)| {
+                        validation::storage_path_relations::canonical_place_segments_equal(
+                            program, *left, *right,
+                        )
+                    }))
+            .then_some((handle, slot.segments.len()))
         })
         .collect::<Vec<_>>();
     let incoming = incoming.collect::<Vec<_>>();
@@ -375,7 +410,7 @@ fn resolve_descriptor_places_with_loans(
     let depth =
         candidates
             .iter()
-            .map(|handle| borrow.loan_owner_path(borrow.loans.get(*handle)).len())
+            .map(|(_, depth)| *depth)
             .chain(incoming.iter().map(|identity| {
                 borrow.incoming_references.get(*identity).owner_path.count() as usize
             }))
@@ -405,12 +440,13 @@ fn resolve_descriptor_places_with_loans(
         return root_parameter.then_some(vec![ResolvedPlace {
             place,
             local_loan: Handle::invalid(),
+            consumed_segments: 0,
         }]);
     };
-    candidates.retain(|handle| borrow.loan_owner_path(borrow.loans.get(*handle)).len() == depth);
+    candidates.retain(|(_, candidate_depth)| *candidate_depth == depth);
     let mut places: Vec<_> = candidates
         .into_iter()
-        .map(|handle| {
+        .map(|(handle, _)| {
             let loan = borrow.loans.get(handle);
             if !loan.root.is_valid() {
                 return None;
@@ -429,6 +465,7 @@ fn resolve_descriptor_places_with_loans(
                     segments,
                 },
                 local_loan: handle,
+                consumed_segments: depth,
             })
         })
         .collect::<Option<_>>()?;
@@ -443,6 +480,7 @@ fn resolve_descriptor_places_with_loans(
                     segments: place.segments[depth..].to_vec(),
                 },
                 local_loan: Handle::invalid(),
+                consumed_segments: depth,
             });
         }
     }

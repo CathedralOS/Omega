@@ -1037,6 +1037,7 @@ impl Resolver<'_> {
                     segments: self.facts.borrow.loan_segments(loan).to_vec(),
                 },
                 local_loan: handle,
+                consumed_segments: slot.segments.len(),
             });
         }
         if candidates.is_empty() {

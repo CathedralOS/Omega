@@ -14,11 +14,12 @@ use checked_trees::{
 /// formation alongside a common ancestor. This query is only for formation:
 /// ordinary descriptor access still rejects LifetimeDependency as a source.
 pub(in crate::checks::borrows) fn formation_lineage(
-    borrow: &BorrowFacts,
+    program: &dyn validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
     state: &StateBorrowFact,
     handle: Handle<BorrowLoanFact>,
 ) -> Option<Vec<Handle<BorrowLoanFact>>> {
-    descriptor_lineage(borrow, state, handle, LineagePurpose::Formation)
+    descriptor_lineage(program, facts, state, handle, LineagePurpose::Formation)
 }
 
 /// The exact occurrences a descriptor transfer transports. Each supplier is
@@ -86,11 +87,12 @@ fn retained_input_terminal(
 }
 
 pub(in crate::checks::borrows) fn retained_lineage(
-    borrow: &BorrowFacts,
+    program: &dyn validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
     state: &StateBorrowFact,
     handle: Handle<BorrowLoanFact>,
 ) -> Option<Vec<Handle<BorrowLoanFact>>> {
-    descriptor_lineage(borrow, state, handle, LineagePurpose::Access)
+    descriptor_lineage(program, facts, state, handle, LineagePurpose::Access)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -100,7 +102,8 @@ enum LineagePurpose {
 }
 
 fn descriptor_lineage(
-    borrow: &BorrowFacts,
+    program: &dyn validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
     state: &StateBorrowFact,
     handle: Handle<BorrowLoanFact>,
     purpose: LineagePurpose,
@@ -111,6 +114,7 @@ fn descriptor_lineage(
     // Every alternative must be complete; a partial supplier graph is unknown.
     // Equal-place alternatives may have different histories. Only ancestors
     // common to every supplier justify an access exemption after their join.
+    let borrow = &facts.borrow;
     let mut completed: Vec<(Handle<BorrowLoanFact>, Vec<Handle<BorrowLoanFact>>)> = Vec::new();
     let mut active = Vec::new();
     let mut pending = vec![(handle, false)];
@@ -150,7 +154,7 @@ fn descriptor_lineage(
                     common.retain(|ancestor| {
                         ancestors
                             .iter()
-                            .any(|candidate| same_descriptor(borrow, *ancestor, *candidate))
+                            .any(|candidate| same_descriptor(program, facts, *ancestor, *candidate))
                     });
                 }
             }
@@ -169,9 +173,9 @@ fn descriptor_lineage(
                         forwarded.clone_from(ancestors);
                     } else {
                         forwarded.retain(|ancestor| {
-                            ancestors
-                                .iter()
-                                .any(|candidate| same_descriptor(borrow, *ancestor, *candidate))
+                            ancestors.iter().any(|candidate| {
+                                same_descriptor(program, facts, *ancestor, *candidate)
+                            })
                         });
                     }
                 }

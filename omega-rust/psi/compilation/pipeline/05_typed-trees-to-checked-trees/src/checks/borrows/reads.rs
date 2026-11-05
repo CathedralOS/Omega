@@ -469,7 +469,7 @@ pub(super) fn check_storage_read<'p>(
             .filter(|loan| {
                 place_access::access_interferes(
                     program,
-                    &facts.borrow,
+                    facts,
                     backings,
                     &kind,
                     *loan,
