@@ -791,11 +791,11 @@ impl Evaluation {
         Ok(())
     }
 
-    /// Publish one completed structural result into the state's existing value
-    /// and local namespaces. Calls and constructors share the original home;
-    /// registration neither copies payload fields nor changes cleanup custody.
-    /// The plan's binding names the local it initializes: nested operands
-    /// share its statement coordinate but own no source local.
+    /// Bind an emitted value without copying its fields or creating claims.
+    /// Linear call results must retain their exact completed-call custody.
+    /// Constructors admit their own value claims; vacant homes use storage
+    /// registration before their stores establish any value. The plan names
+    /// the initialized local; nested operands own no source local.
     pub(crate) fn establish_structural_result(
         &mut self,
         state: symbols::SymbolHandle,
