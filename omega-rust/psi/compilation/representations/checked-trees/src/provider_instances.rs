@@ -30,7 +30,7 @@ pub fn inherited_instances(
         // Named selection owns its applications; a direct satisfaction is
         // owned by the concrete instance, not the selected template. Preserve
         // the checked receiving application's complete region substitution.
-        let candidates = facts.provider_closed_requirements.iter().filter(|fact| {
+        let candidates: Vec<_> = facts.provider_closed_requirements.iter().filter(|fact| {
             fact.template == application.template
                 && fact.closed_requirement == application.signature.symbol
                 && fact.receiving_application == application.trait_application_identity
@@ -55,6 +55,17 @@ pub fn inherited_instances(
             }
             Ok(ClosedProviderInstance { requirement, realization })
         }).collect();
+        if candidates.is_empty() && std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some() {
+            let rows = facts.provider_closed_requirements.iter().filter(|fact| fact.template == application.template).collect::<Vec<_>>();
+            eprintln!("[instances] empty checked association: provider={:?} selecting={:?} template={:?} closed={:?}; template_rows={} closed_rows={} receiver_rows={} selecting_rows={} realization_rows={}",
+                provider.symbol, selecting_declaration, application.template, application.signature.symbol,
+                rows.len(),
+                rows.iter().filter(|fact| fact.closed_requirement == application.signature.symbol).count(),
+                rows.iter().filter(|fact| fact.receiving_application == application.trait_application_identity).count(),
+                rows.iter().filter(|fact| fact.selecting_declaration == selecting_declaration.unwrap_or(fact.provider)).count(),
+                rows.iter().filter(|fact| typed.requirement_realization_matches(fact.closed_requirement, provider.symbol, fact.provider)).count(),
+            );
+        }
         ProviderInstanceApplication {
             receiving_application: typed
                 .type_identity_text(application.portable_trait_application_identity)
