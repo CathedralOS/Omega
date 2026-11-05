@@ -1170,10 +1170,7 @@ pub(super) fn emit(
         },
     };
     for block in &mut machine.blocks {
-        crate::scalar_lowering::contracts::bind_invocation_proof_references(
-            block,
-            machine.contract.erased_proof_formals.len(),
-        )?;
+        crate::scalar_lowering::contracts::bind_invocation_proof_references(block);
     }
     crate::emission::continuation_specialization::complete(
         &mut machine,

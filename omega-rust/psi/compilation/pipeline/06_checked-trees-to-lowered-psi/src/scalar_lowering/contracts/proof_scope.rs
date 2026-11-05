@@ -1,14 +1,12 @@
 //! Bind references to the source invocation when a block's proof inputs live
 //! on its machine contract. Authored state blocks keep their own references.
 
-use crate::shared::lowering_error::LoweringError;
-use semantic_vocabulary::{MathematicalArgument, ProofFormalScope, ProofTerm};
+use semantic_vocabulary::{ProofFormalScope, ProofTerm};
 use terminal_psi::{Block, OperationKind, Terminator};
 
-pub(crate) fn bind_invocation_proof_references(
-    block: &mut Block,
-    invocation_formal_count: usize,
-) -> Result<(), LoweringError> {
+/// Positions were assigned from the checked caller's proof-parameter list.
+/// This conversion changes only whether they refer to block or invocation inputs.
+pub(crate) fn bind_invocation_proof_references(block: &mut Block) {
     for operation in &mut block.operations {
         match &mut operation.kind {
             OperationKind::Call {
@@ -31,7 +29,7 @@ pub(crate) fn bind_invocation_proof_references(
                 erased_proof_arguments,
                 ..
             } => {
-                bind_terms(erased_proof_arguments, invocation_formal_count)?;
+                bind_terms(erased_proof_arguments);
             }
             _ => {}
         }
@@ -44,56 +42,29 @@ pub(crate) fn bind_invocation_proof_references(
         | Terminator::InvokeNoNormal {
             erased_proof_arguments,
             ..
-        } => bind_terms(erased_proof_arguments, invocation_formal_count)?,
+        } => bind_terms(erased_proof_arguments),
         Terminator::Conditional {
             when_true,
             when_false,
             ..
         } => {
-            bind_terms(
-                &mut when_true.erased_proof_arguments,
-                invocation_formal_count,
-            )?;
-            bind_terms(
-                &mut when_false.erased_proof_arguments,
-                invocation_formal_count,
-            )?;
+            bind_terms(&mut when_true.erased_proof_arguments);
+            bind_terms(&mut when_false.erased_proof_arguments);
         }
         _ => {}
     }
-    Ok(())
 }
 
-fn bind_terms(
-    terms: &mut [ProofTerm],
-    invocation_formal_count: usize,
-) -> Result<(), LoweringError> {
+fn bind_terms(terms: &mut [ProofTerm]) {
     let mut pending = terms.iter_mut().collect::<Vec<_>>();
     while let Some(term) = pending.pop() {
         match term {
             ProofTerm::Formal { position } => {
-                if *position as usize >= invocation_formal_count {
-                    return Err(LoweringError::Unsupported(
-                        "proof reference is outside its source invocation parameters",
-                    ));
-                }
                 *term = ProofTerm::InvocationFormal {
                     position: *position,
                 };
             }
-            ProofTerm::MathematicalApplication {
-                arguments,
-                formal_scope,
-                ..
-            } => {
-                if arguments.iter().any(|argument| {
-                    matches!(argument,
-                    MathematicalArgument::Formal { position } if *position as usize >= invocation_formal_count)
-                }) {
-                    return Err(LoweringError::Unsupported(
-                        "mathematical function argument is outside its source invocation parameters",
-                    ));
-                }
+            ProofTerm::MathematicalApplication { formal_scope, .. } => {
                 *formal_scope = ProofFormalScope::Invocation;
             }
             ProofTerm::Array { elements, .. } => pending.extend(elements.iter_mut()),
@@ -103,5 +74,4 @@ fn bind_terms(
             _ => {}
         }
     }
-    Ok(())
 }
