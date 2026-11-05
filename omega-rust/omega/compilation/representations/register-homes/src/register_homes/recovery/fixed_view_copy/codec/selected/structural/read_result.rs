@@ -144,7 +144,10 @@ mod tests {
                 path: Vec::new(),
                 domain: StructuralDomainId::new(4).unwrap(),
             }],
-            additional_input_qualifications: Vec::new(),
+            additional_input_qualifications: vec![terminal_psi::StructuralPathQualification {
+                path: Vec::new(),
+                domain: StructuralDomainId::new(3).unwrap(),
+            }],
             claims: vec![StructuralResultClaimBinding {
                 claim: ClaimId::new(5).unwrap(),
                 path: Vec::new(),
