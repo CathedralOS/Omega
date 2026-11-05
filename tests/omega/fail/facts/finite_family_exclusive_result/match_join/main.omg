@@ -45,8 +45,18 @@ machine check(drops: &mut [u64; 1]) crashes Trap {
     machine bad() { crash Trap; }
 }
 
+data JoinedCounter { counter: [u64; 1]; tag: u32; }
 machine choose(first: bool) crashes Trap {
-    let mut counter: [u64; 1] = match first { true -> [0], false -> [0] };
-    check(&mut counter);
+    let mut joined: JoinedCounter = match first {
+        true -> JoinedCounter { counter: [0], tag: 17 },
+        _ -> JoinedCounter { counter: [0], tag: 29 }
+    };
+    check(&mut joined.counter);
+    transition (first && joined.tag == 17) || (!first && joined.tag == 29) {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap { choose(true); choose(false); }

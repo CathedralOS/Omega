@@ -28,8 +28,11 @@ Each twin changes only the produced token's backing to an invocation-local
 array. Returning it must reject with `does not outlive the call`. Main and Build
 sources match their copies under
 `tests/omega/{pass,fail}/facts/finite_family_exclusive_result/`. All positives
-bind the four hosted targets. The selected target example also checks tags 17
-for x86-64 and 29 for ARM64, so choosing the wrong helper traps.
+bind the four hosted targets. The match example constructs tags 17 and 29 on
+distinct arms and checks the selected tag against its boolean input after cleanup. It executes both arms;
+inverting the selection or always taking the fallback traps. The selected
+target example also checks tags 17 for x86-64 and 29 for ARM64, so choosing the
+wrong helper traps.
 
 ## Requirements
 
