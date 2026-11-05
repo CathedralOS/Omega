@@ -686,7 +686,7 @@ fn is_boolean_owned_fact_expression(
             let Some(state) = program.machine_states(machine).first() else {
                 return false;
             };
-            boolean_record_match_shape(program, expression, |expression| {
+            boolean_match_shape(program, expression, |expression| {
                 crate::parameter_expression_result_type_reference(
                     program,
                     machine.symbol,
@@ -696,7 +696,7 @@ fn is_boolean_owned_fact_expression(
             })
         }
         ProofFactOwner::StatementContract { machine, state, .. } => {
-            boolean_record_match_shape(program, expression, |expression| {
+            boolean_match_shape(program, expression, |expression| {
                 crate::expression_result_type_reference(program, machine, state, expression)
             })
         }
@@ -704,19 +704,17 @@ fn is_boolean_owned_fact_expression(
     }
 }
 
-fn boolean_record_match_shape(
+fn boolean_match_shape(
     program: &dyn CheckingInput,
     expression: ExpressionHandle,
     type_of: impl Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
 ) -> bool {
-    let ExpressionNode::Match(dispatch) = expression_table(program).expression(expression) else {
+    let ExpressionNode::Match(_) = expression_table(program).expression(expression) else {
         return false;
     };
     type_of(expression).and_then(|reference| program.primitive_type_reference(reference))
         == Some(typed_trees::types::PrimitiveType::Bool)
-        && type_of(dispatch.subject).is_some_and(|subject_type| {
-            crate::logical_record_match_capture(program, expression, subject_type).is_some()
-        })
+        && crate::expression_has_closed_value_captures(program, expression)
 }
 
 fn is_boolean_fact_expression(program: &dyn CheckingInput, expression: ExpressionHandle) -> bool {
@@ -779,7 +777,7 @@ pub(crate) fn is_boolean_asm_fact_expression(
             let Some(state) = state.or_else(|| program.machine_states(machine).first()) else {
                 return false;
             };
-            boolean_record_match_shape(program, expression, |expression| {
+            boolean_match_shape(program, expression, |expression| {
                 crate::expression_result_type_reference(program, machine, state, expression)
             })
         }
