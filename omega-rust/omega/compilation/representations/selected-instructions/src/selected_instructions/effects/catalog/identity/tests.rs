@@ -768,10 +768,17 @@ macro_rules! row {
 /// [`MachineSemanticKind::ALL`]. These bytes are the identity of an
 /// alternative in every catalog, program, physical-instruction and
 /// machine-code artifact, so this table changing is always a defect.
-const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 137] = [
+const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 144] = [
     (MachineAlternativeFamily::InterruptControl, 256),
     (MachineAlternativeFamily::MemoryFence, 257),
     (MachineAlternativeFamily::InvokeNoNormal, 258),
+    (MachineAlternativeFamily::GlobalDescriptorTableLoad, 259),
+    (MachineAlternativeFamily::GlobalDescriptorTableStore, 260),
+    (MachineAlternativeFamily::TaskRegisterActivate, 261),
+    (MachineAlternativeFamily::TaskRegisterRead, 262),
+    (MachineAlternativeFamily::CodeSegmentReload, 263),
+    (MachineAlternativeFamily::DataSegmentReload, 264),
+    (MachineAlternativeFamily::SegmentSelectorRead, 265),
     (MachineAlternativeFamily::PortWrite, 239),
     (MachineAlternativeFamily::SystemRegisterRead, 247),
     (MachineAlternativeFamily::SystemRegisterWrite, 248),
@@ -989,12 +996,27 @@ fn trapping_family_tags_are_dense_distinct_and_pinned() {
 #[test]
 fn atomic_family_tags_and_encoded_widths_are_pinned() {
     for (ordinal, form) in crate::AtomicForm::ALL.into_iter().enumerate() {
-        let tag = 194 + u8::try_from(ordinal).unwrap();
+        assert_eq!(usize::from(form.ordinal()), ordinal);
+        // Dense atomics stay in 194..229. A single-attempt compare-exchange
+        // cannot take 230: that tag is the shared IEEE float family. It is
+        // appended at 240 and carries its width as the payload.
+        let once = matches!(form.operation, crate::AtomicOperation::CompareExchangeOnce);
+        let tag = if once {
+            u16::from(crate::AtomicForm::ONCE_FAMILY_TAG)
+        } else {
+            194 + u16::from(form.ordinal())
+        };
+        assert!(tag < 230 || tag == 240, "{form:?} {tag}");
         assert_eq!(
             alternative_family_tag(MachineAlternativeFamily::AtomicAccess(form)),
-            u16::from(tag)
+            tag,
+            "{form:?}"
         );
-        eq!(semantic_kind_tag(MachineSemanticKind::AtomicAccess(form)) => u16::from(tag));
+        eq!(semantic_kind_tag(MachineSemanticKind::AtomicAccess(form)) => tag);
+        assert_eq!(
+            super::semantic_kind_payload(MachineSemanticKind::AtomicAccess(form)),
+            once.then(|| form.width.ordinal())
+        );
         let encoded = pinned_effects(
             MachineEncodedMemoryEffect::AtomicPointerV1 {
                 pointer_operand: 0x0201,
@@ -1434,19 +1456,33 @@ fn float_forms_share_one_tag_and_pin_their_payload_ordinals() {
         assert_eq!(super::alternative_family_payload(family), Some(payload));
         assert_eq!(super::semantic_kind_payload(semantic), Some(payload));
     }
-    let atomic = crate::AtomicForm::ALL
+    let dense_atomic = crate::AtomicForm::ALL
         .iter()
+        .filter(|form| !matches!(form.operation, crate::AtomicOperation::CompareExchangeOnce))
         .map(|form| form.machine_tag())
         .max()
         .unwrap();
-    assert!(IeeeFloatArithmeticForm::FAMILY_TAG > atomic);
+    // 230 stays the float family, directly above the dense atomic block
+    // (194..229). Single-attempt compare-exchange is 240, not a reuse of 230.
+    assert_eq!(dense_atomic, 229);
+    assert_eq!(IeeeFloatArithmeticForm::FAMILY_TAG, 230);
+    assert!(IeeeFloatArithmeticForm::FAMILY_TAG > dense_atomic);
+    assert_eq!(crate::AtomicForm::ONCE_FAMILY_TAG, 240);
     // Access scalar and the two closed IEEE families retain their payloads.
     for semantic in MachineSemanticKind::ALL {
         let float = matches!(semantic, MachineSemanticKind::NearestIeeeFloatArithmetic(_));
         let policy = matches!(semantic, MachineSemanticKind::FloatResultPolicy(_));
+        let once = matches!(
+            semantic,
+            MachineSemanticKind::AtomicAccess(form)
+                if matches!(form.operation, crate::AtomicOperation::CompareExchangeOnce)
+        );
         assert_eq!(
             super::semantic_kind_payload(semantic).is_some(),
-            float || policy || matches!(semantic, MachineSemanticKind::AccessorScalarAccess(_))
+            float
+                || policy
+                || once
+                || matches!(semantic, MachineSemanticKind::AccessorScalarAccess(_))
         );
         assert_eq!(semantic_kind_tag(semantic) == 230, float, "{semantic:?}");
     }
