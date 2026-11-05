@@ -966,6 +966,9 @@ fn terminal_build_filesystem() {
     };
     let mut session = CompilationSession::default();
     let before = counters::build_execution_count();
+    let sources_before = counters::source_build_execution_count();
+    let suppliers_before = counters::provider_defaults_execution_count();
+    build_sequence::print_execution_counts("before captured generator admission");
     let guard_dropped = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let mut first_request = request();
     first_request.build.restricted_grants = Some(Box::new(RefusingGrantGuard {
@@ -1045,7 +1048,13 @@ fn terminal_build_filesystem() {
             .filesystem_operation_attempts,
         6
     );
-    assert_eq!(counters::build_execution_count() - before, 1);
+    build_sequence::print_execution_counts("captured generator settled its output");
+    assert_eq!(counters::build_execution_count() - before, 2);
+    assert_eq!(counters::source_build_execution_count() - sources_before, 1);
+    assert_eq!(
+        counters::provider_defaults_execution_count() - suppliers_before,
+        1
+    );
 
     let temporary = exclusive_workspace("terminal-filesystem-budget");
     let staging = build_time_evaluation::BuildMachineFilesystemSponsor::create_private(
