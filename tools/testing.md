@@ -187,6 +187,8 @@ For a failure that needs the complete ownership or state plan, set
 Select one fixture: these full traces can be large. This setting is off by
 default. It can also be enabled during an authenticated retained-compiler
 replay without rebuilding the compiler or changing its acceptance rules.
+A requested full trace is printed even if the runner exits normally after
+reporting a fixture failure; trace text remains separate from fixture records.
 
 For an ordinary run:
 
@@ -283,7 +285,10 @@ compiler phase profiler during consumers. It is off by default and changes no
 compiler acceptance rule or fixture timeout. Completed scopes remain in the job
 log if a corpus fixture reaches its existing time cap: the corpus gate forwards
 the profiler's existing checkpoint, timing and counter rows when requested.
-Unrelated compiler stderr keeps its ordinary buffering. Use one selected fixture
+Requested `CHECKSITE` diagnostics also remain visible when
+`OMEGA_COMPILER_CHECK_SITES` is enabled, even if the runner exits normally after
+recording a rejected fixture. Other compiler stderr keeps its ordinary
+buffering. Use one selected fixture
 to keep concurrent work out of that measurement.
 
 The plan records the original producer commit, tree, target, toolchain,
