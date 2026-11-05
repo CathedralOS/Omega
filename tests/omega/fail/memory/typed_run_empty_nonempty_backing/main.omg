@@ -1,0 +1,11 @@
+use omega::language::core::extent;
+use omega::language::core::run;
+
+// Empty-cell establishment cannot silently discard spare backing.
+machine counterfeit<P, T>(storage: Extent in Granted & Vacant) -> Run<P, T> in Live<P, T>
+requires storage.length == 8
+{
+    Run::empty<P, T>(storage)
+}
+
+machine main() {}

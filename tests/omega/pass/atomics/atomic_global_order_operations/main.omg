@@ -1,23 +1,8 @@
-// PASS canary (checked only): the complete proof-static ordering surface of
-// the normalized atomic operations is admitted. Every operation kind carries
-// its ordering as checked source data — GlobalOrder on load, store, fetch,
-// swap, and compare-exchange success; ReceivePublish on a read-modify-write;
-// and a read-only Receive failure ordering beneath GlobalOrder success.
-//
-// The same ordering legality is width-generic: AtomicU64 admits the whole
-// operation family under the same orderings, and AtomicBool admits the
-// non-arithmetic load/store pair — arithmetic fetches and exchanges have no
-// two-resident-cell meaning and stay unadmitted. The remaining legal
-// single-ordering pairings are pinned as well: Publish store observed by a
-// Receive load, a ReceivePublish swap, and compare-exchange under
-// ReceivePublish/NoOrdering and NoOrdering/NoOrdering.
-//
-// This fixture deliberately does not enter native lowering: the normalized
-// atomic abstract event retains this ordering evidence as checkable
-// operation data, and the canary pins checked-level admission of exactly the
-// surface that evidence must cover.
+// Expected exit: 0.
+// Execute the complete admitted ordering canary and check each actual snapshot.
+// This serial witness does not prove concurrent global-order or publication laws.
 
-machine main() -> u32 {
+machine main() -> u32 crashes Trap {
     let mut counter: AtomicU32;
     let mut wide: AtomicU64;
     let mut flag: AtomicBool;
@@ -55,5 +40,22 @@ machine main() -> u32 {
         counter.compare_exchange(55, 1, ReceivePublish, NoOrdering);
     let cas_relaxed: u32 in Wrapping =
         counter.compare_exchange(1, 2, NoOrdering, NoOrdering);
-    transition { _ -> ((observed + prior + displaced + cas_prior + received + republished + cas_relaxed_failure + cas_relaxed) as u32) }
+    // These are runtime oracles after the events, not static admission premises.
+    transition observed == 10 && prior == 10 && displaced == 15 && cas_prior == 20
+        && wide_observed == 7 && wide_prior == 7 && wide_displaced == 4 && wide_cas == 20
+        && flag_seen && received == 77 && republished == 77
+        && cas_relaxed_failure == 55 && cas_relaxed == 1
+        && counter.load(NoOrdering) == 2 && wide.load(NoOrdering) == 30 {
+        true -> ((observed + prior + displaced + cas_prior + received + republished + cas_relaxed_failure + cas_relaxed) as u32)
+        _ -> bad()
+    }
+    machine bad() -> u32 crashes Trap { crash Trap; }
+}
+
+// The entry also checks the original returned sum.
+machine global_order_entry() crashes Trap {
+    let total: u32 = main();
+    transition total == 265 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

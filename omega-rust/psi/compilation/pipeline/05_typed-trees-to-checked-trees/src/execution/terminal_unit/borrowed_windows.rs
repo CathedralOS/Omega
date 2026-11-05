@@ -26,8 +26,8 @@
 //! agreement with an earlier captured selection.
 
 use super::calls::projected_evaluated_path;
-use super::cleanup;
 use super::calls::value_index_segment;
+use super::cleanup;
 use super::control::LocalConstructionTrace;
 use super::control::statement_sequence::consume_result;
 use super::structural_scalar_store::scalar_capture_destination;

@@ -104,8 +104,8 @@ pub(in crate::flow) fn record<'plans>(
             .and_then(|capture| {
                 super::completed_argument_facts(program, build, capture, invocation)
             });
-        // Scalar agreement and its fallback bounds read the same completed
-        // operand. Prepare only each queried root, once at this operand's cut.
+        // Scalar agreement and fallback bounds read the same completed
+        // operand. Prepare each queried root once for those readings.
         let mut assignments = completed.as_ref().map(|completed| {
             crate::values::RootAssignmentObservations::new(program, semantic, &completed.contexts)
         });

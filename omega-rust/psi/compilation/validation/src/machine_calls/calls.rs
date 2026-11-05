@@ -67,7 +67,7 @@ use argument_bounds::report_argument_bounds;
 use expression_scanning::receiver_member_chain;
 pub(crate) use expression_scanning::{
     declared_receiver_type_reference, report_nested_call_in_local_initializer,
-    validate_value_position_calls,
+    report_unresolved_name_use, validate_value_position_calls,
 };
 pub use expression_scanning::{
     nested_boundary_applications_compose, result_initializer_call_is_admitted,
@@ -835,6 +835,7 @@ fn validate_value_call_arguments(
     callee_machine: &Machine,
     callee_state: &State,
     executes: bool,
+    terminal_transfer: bool,
     diagnostics: &mut Vec<Diagnostic>,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
@@ -923,6 +924,7 @@ fn validate_value_call_arguments(
             callee_machine,
             callee_state,
             arguments,
+            terminal_transfer,
             diagnostics,
         );
     }

@@ -114,6 +114,7 @@ pub(crate) fn plan(planner: &mut StatementPlanner<'_, '_>, transition: &TableTra
                 {
                     if let Some(term) = crate::values::scalar::call_lowering::lower_proof_term(
                         planner.program,
+                        planner.state.symbol,
                         planner.operators,
                         *argument,
                         target_parameter.type_reference,

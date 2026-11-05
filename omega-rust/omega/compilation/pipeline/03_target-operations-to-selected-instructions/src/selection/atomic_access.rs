@@ -3,7 +3,7 @@
 //! stream or register state; producer and replay bind their own operands,
 //! observed result, memory access records and native constraint below it.
 use crate::structural_inputs::structural_reference_input::{
-    PrimitiveAccessGeometry, atomic_field_geometry,
+    PrimitiveAccessGeometry, atomic_cell_geometry,
 };
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
@@ -18,7 +18,6 @@ pub(super) fn form(
 ) -> Option<(AtomicForm, PrimitiveAccessGeometry, ScalarType)> {
     let LegalizedScalarInstructionKind::AtomicAccess {
         location,
-        field,
         scalar_type,
         field_byte_offset,
         event,
@@ -64,13 +63,12 @@ pub(super) fn form(
                     == Some(layout) => {}
         _ => return None,
     }
-    let declaration = terminal_semantics::projected_field_declaration(
+    let cell = terminal_semantics::atomic_cell_type(
         signature.structural_types.iter(),
         root,
         &location.path,
-        *field,
     )?;
-    let logical_type = declaration.field_type.atomic_scalar_type()?;
+    let logical_type = cell.scalar_type();
     if target_operations::operations::atomic_storage_integer_type(*event, logical_type)?
         != *scalar_type
         || row
@@ -79,10 +77,9 @@ pub(super) fn form(
     {
         return None;
     }
-    let geometry = atomic_field_geometry(
+    let geometry = atomic_cell_geometry(
         root,
         &location.path,
-        *field,
         logical_type,
         &signature.structural_types,
     )?;

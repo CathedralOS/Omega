@@ -98,28 +98,15 @@ fn validate_atomic_access(
     let signature = function
         .arrival_parameter(location.root)
         .ok_or_else(invalid)?;
-    let carrier = crate::unit_validation::structural_catalog::resolve_structural_path(
-        structural_types,
+    terminal_semantics::atomic_cell_type(
+        structural_types.values().copied(),
         signature.structural_type,
         &location.path,
     )
     .ok_or_else(invalid)?;
-    let terminal_psi::StructuralTypeShape::Record { fields, .. } =
-        &structural_types.get(&carrier).ok_or_else(invalid)?.shape
-    else {
-        return Err(invalid());
-    };
     // Shared access grants atomic operations only on a declared atomic cell,
     // never an ordinary same-width scalar. Observation still needs read access.
-    if !fields.iter().any(|field| {
-        field.id == location.field
-            && !field.relevance.is_erased()
-            && matches!(
-                field.field_type,
-                terminal_psi::StructuralFieldType::Atomic(_)
-                    | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
-            )
-    }) || !signature.qualifications.is_empty()
+    if !signature.qualifications.is_empty()
         || !signature.projected_qualifications.is_empty()
         || (event.observes_resident() && signature.access == StructuralAccess::WriteOnlyBorrow)
     {
@@ -1262,6 +1249,33 @@ pub(super) fn validate_current_ownership_cfg(
                             *source,
                         ));
                     }
+                    let root = structural_source_contract(function, *source).ok_or(
+                        OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
+                            OperationSite::new(function.machine, block_id, node_index),
+                            *source,
+                        ),
+                    )?;
+                    // An allocated home is not a completed value. Arrays and
+                    // records retain their declared projected claims; a nominal
+                    // owner's own claim transports its children unchanged.
+                    terminal_semantics::owned_structure::validate_complete_claim_frontier(
+                        |identity| structural_types.get(&identity).copied(),
+                        root.structural_type,
+                        &[],
+                        frontier.claims.values().filter_map(|claim| {
+                            (claim.input == Some(*source)
+                                && claim.multiplicity == Some(StructuralMultiplicity::Linear))
+                            .then_some(claim.path.as_slice())
+                        }),
+                        &|path, case| membership_at(node_index as usize, *source, path, case, true),
+                    )
+                    .map_err(|reason| {
+                        OptimizationUnitValidationError::IncompleteValueClaimFrontier {
+                            site: OperationSite::new(function.machine, block_id, node_index),
+                            place: *source,
+                            reason,
+                        }
+                    })?;
                     let expected = frontier
                         .claims
                         .iter()

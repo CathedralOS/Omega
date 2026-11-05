@@ -404,13 +404,9 @@ pub(super) fn adapt(
                     }
                 }
                 OperationKind::AtomicAccess {
-                    place,
-                    path,
-                    field,
-                    event,
-                    ..
+                    place, path, event, ..
                 } if event.modifies_resident() => {
-                    payload_writes.push(payload_query(*place, path, Some(*field)));
+                    payload_writes.push(payload_query(*place, path, None));
                 }
                 _ => {}
             }

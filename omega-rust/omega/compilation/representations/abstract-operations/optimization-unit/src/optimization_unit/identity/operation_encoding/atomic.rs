@@ -1,5 +1,5 @@
 //! Atomic memory events retain their normalized event kind, exact location
-//! (root place, static carrier path, scalar field),
+//! (root place and complete static cell path),
 //! operand identity, observed results, and proof-static ordering. Ordering
 //! and single-attempt custody are encoded as data so identity changes when
 //! either changes; legality remains the event's own recheck.
@@ -13,6 +13,7 @@ use super::{AbstractOperation, CanonicalBytes};
 use abstract_operations::atomic::AbstractAtomicLocation;
 use abstract_operations::{
     AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite, AtomicResidencyEdge,
+    AtomicResidencySource,
 };
 use language_core::atomic::{
     AtomicCompareExchangeAttemptAxis, AtomicCompareExchangeObservationAxis,
@@ -167,6 +168,23 @@ fn encode_residency_edge(bytes: &mut CanonicalBytes, edge: &Option<AtomicResiden
             bytes.u8(4);
             bytes.id(*operation);
         }
+        Some(AtomicResidencyEdge::PathAlternatives { sources }) => {
+            bytes.u8(5);
+            bytes.len(sources.len());
+            for source in sources {
+                match source {
+                    AtomicResidencySource::Initial => bytes.u8(1),
+                    AtomicResidencySource::Write { operation } => {
+                        bytes.u8(2);
+                        bytes.id(*operation);
+                    }
+                    AtomicResidencySource::AfterEffect { operation } => {
+                        bytes.u8(3);
+                        bytes.id(*operation);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -180,10 +198,9 @@ fn encode_memory_ordering(bytes: &mut CanonicalBytes, ordering: MemoryOrdering) 
     });
 }
 
-/// The exact location: root place, every carrier path segment, and the
-/// scalar field, so a substituted field or element changes identity.
+/// The exact location includes every carrier and final field segment, so a
+/// substituted field, whole cell or array element changes identity.
 fn encode_location(bytes: &mut CanonicalBytes, location: &AbstractAtomicLocation) {
     bytes.id(location.root);
     bytes.slice(&location.path, encode_structural_path_segment);
-    bytes.id(location.field);
 }

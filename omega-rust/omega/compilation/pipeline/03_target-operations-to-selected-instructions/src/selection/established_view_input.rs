@@ -32,6 +32,13 @@ pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: Place
                         if semantic.place == place)),
                 LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
                     .structural_arguments.iter().any(|argument| argument.place == place),
+                // Borrowing the descriptor needs its own addressable home.
+                // Element borrows keep their captured backing pointer path.
+                LegalizedScalarInstructionKind::EstablishReference { source: argument, .. }
+                | LegalizedScalarInstructionKind::EstablishAccessReference { source: argument, .. } =>
+                    argument.place == place
+                        && super::reference_input::establishment(source, row).is_some_and(|address|
+                            address.place == place && address.pointer_slots.is_empty()),
                 // A selected descendant needs its descriptor in the original
                 // home; only whole observations can use retained SSA coordinates.
                 LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }

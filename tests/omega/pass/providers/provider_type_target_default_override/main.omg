@@ -1,3 +1,4 @@
+// Expected exit: 0.
 // The build root owns the final slot choice and may replace a target package's
 // ordinary default without reconstructing any provider rows.
 boundary trait Pick {
@@ -28,4 +29,9 @@ macos_arm64 machine CanaryTargetProviders::provider_defaults(defaults: &mut Cana
     CanaryTargetProviders::select_provider<Pick, FirstProvider>(defaults);
 }
 
-machine main() { }
+machine main() reaches Pick crashes Trap {
+    let selected: i32 = Pick::choose();
+    transition selected == 2 { true -> done() false -> failed() }
+    machine done() { }
+    machine failed() { crash Trap; }
+}

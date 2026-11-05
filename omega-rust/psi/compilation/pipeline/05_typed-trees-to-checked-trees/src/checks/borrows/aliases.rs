@@ -95,9 +95,37 @@ fn same_carrier_occurrence(
     right: &BorrowLoanFact,
 ) -> bool {
     let path = borrow.loan_owner_path(right);
-    same_carrier_generation(left, right)
+    (same_carrier_generation(left, right) || same_resolved_descriptor_load(borrow, left, right))
         && borrow.loan_owner_path(left) == path
         && !path.contains(&checked_trees::BorrowLoanOwnerSegment::DynamicIndex)
+}
+
+/// Each evaluation of one stored descriptor mints its own load row keyed by
+/// the load expression itself. When both rows resolved their carrier to the
+/// same stored slot, the slot's root and owner path carry the occurrence
+/// identity the expression-keyed storage marker cannot. Loads that left the
+/// slot unresolved keep their opaque marker and do not join here.
+fn same_resolved_descriptor_load(
+    borrow: &BorrowFacts,
+    left: &BorrowLoanFact,
+    right: &BorrowLoanFact,
+) -> bool {
+    is_descriptor_load(borrow, left)
+        && is_descriptor_load(borrow, right)
+        && left.owner_symbol == right.owner_symbol
+        && left.root.is_valid()
+        && left.root == right.root
+        && !borrow.loan_owner_path(left).is_empty()
+        && left.statement_index == right.statement_index
+        && left.established_by_call == right.established_by_call
+}
+
+fn is_descriptor_load(borrow: &BorrowFacts, loan: &BorrowLoanFact) -> bool {
+    borrow.incoming_references.is_valid(loan.incoming_reference)
+        && matches!(
+            borrow.incoming_references.get(loan.incoming_reference).origin,
+            checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. }
+        )
 }
 
 fn same_carrier_generation(left: &BorrowLoanFact, right: &BorrowLoanFact) -> bool {
@@ -315,7 +343,13 @@ fn resolve_descriptor_places_with_loans(
                 // The dependency remains active for lifetime/interference
                 // checking, but supplies no descriptor address or ancestry.
                 && loan.lineage != BorrowLoanLineage::LifetimeDependency
-                && loan.storage_owner == place.root
+                // An opaque load row keys its storage marker on the load
+                // expression itself; a row prepared with its resolved slot
+                // instead names that slot's stored root.
+                && (loan.storage_owner == place.root
+                    || (is_descriptor_load(borrow, loan)
+                        && loan.root.is_valid()
+                        && loan.root == place.root))
                 && matches_owner(owner)
         })
         .collect::<Vec<_>>();

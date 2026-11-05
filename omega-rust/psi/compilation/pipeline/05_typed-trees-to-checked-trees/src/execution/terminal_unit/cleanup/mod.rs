@@ -65,9 +65,7 @@ pub(in crate::execution::terminal_unit) fn owning_cleanup_machine(
     let mut scope = state;
     while scope.is_valid() {
         let parent = program.symbols.get(scope).parent;
-        if parent.is_valid()
-            && program.symbols.get(parent).kind == symbols::SymbolKind::Machine
-        {
+        if parent.is_valid() && program.symbols.get(parent).kind == symbols::SymbolKind::Machine {
             return parent;
         }
         scope = parent;

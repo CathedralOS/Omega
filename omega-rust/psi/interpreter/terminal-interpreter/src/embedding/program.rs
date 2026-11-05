@@ -468,10 +468,10 @@ impl<'artifact> TerminalProgram<'artifact> {
         &self,
         request: crate::boundary::effects::TerminalRuntimeSupplyRequest<'_>,
     ) -> Result<crate::boundary::effects::TerminalRuntimeSupplies, TerminalInterpretError> {
-        if request.installation.is_some_and(|installation| {
-            terminal_codec::TerminalExecutionIdentity::portable(installation.terminal_psi())
-                != self.program.identity
-        }) {
+        if request
+            .installation
+            .is_some_and(|installation| installation.execution_identity() != &self.program.identity)
+        {
             return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
         }
         if request

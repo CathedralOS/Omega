@@ -328,6 +328,7 @@ fn predicate_holds_on_current_storage(
         &[],
         &type_bindings,
         Some((machine, state)),
+        false,
     );
     matches!(judgment, StructuralJudgment::Proven)
 }

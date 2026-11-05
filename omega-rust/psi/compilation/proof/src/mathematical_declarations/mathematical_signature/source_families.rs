@@ -347,6 +347,18 @@ impl Elaborator<'_> {
         symbol: SymbolHandle,
         arguments: &[TypeReferenceHandle],
     ) -> Result<TermHandle, Vec<Diagnostic>> {
+        // Constraint elaboration asks for the domain of `self` and other
+        // operands while this family's declaration is still being built.
+        // That preparation discards the term; re-entering `source_family`
+        // would demand the W carrier before its description exists. A direct
+        // occurrence denotes a type here. Constructor and induction checks
+        // run only after the finished family is installed, and they use that
+        // declaration rather than this placeholder.
+        if self.indexed_family_stack.contains(&symbol) {
+            return Ok(self
+                .arena
+                .insert(Term::Sort(Sort::Type(Level::Constant(0)))));
+        }
         let family = self.source_family(symbol)?;
         if family.parameters.len() != arguments.len() {
             return Err(self.refuse("source indexed application changed its index arity".into()));
@@ -453,6 +465,9 @@ impl Elaborator<'_> {
             .data_value_parameter_fields(data)
             .map(|(parameter, field)| (parameter.symbol, field.symbol))
             .collect::<Vec<_>>();
+        // `embed(Nodes)` names the value parameter. The case telescope binds
+        // the descriptor field of the same index. Keep that one position.
+        self.source_index_aliases.clone_from(&index_fields);
         if index_fields.len()
             != parameters
                 .iter()
@@ -505,29 +520,43 @@ impl Elaborator<'_> {
                 ));
                 payload.push(field);
             }
-            let mut predicates = self
-                .program
-                .proof_facts
-                .span_or_empty(data.where_facts)
-                .to_vec();
-            if case_symbol.is_valid() {
-                predicates.extend_from_slice(self.program.proof_facts.span_or_empty(case_facts));
+            // A data `requires` disjunction guards each case with
+            // `self in Data::Case`. That atom selects the case; the scalar
+            // conjuncts beside it are the case predicate. Elaborating the
+            // whole disjunction would compare the family carrier to a
+            // constructor while the carrier is still being defined.
+            let mut predicate_expressions = if case_symbol.is_valid() {
+                validation::case_predicate_expressions(self.program, data, case_symbol)
+            } else {
+                Vec::new()
+            };
+            if !case_symbol.is_valid() {
+                for fact in self.program.proof_facts.span_or_empty(data.where_facts) {
+                    let Some(expression) = fact.as_expression().copied() else {
+                        return Err(self.refuse(
+                            "source indexed constraint has no relevant proposition denotation yet"
+                                .into(),
+                        ));
+                    };
+                    predicate_expressions.push(expression);
+                }
             }
-            let mut propositions = Vec::new();
-            let mut predicate_expressions = Vec::new();
-            for fact in predicates {
+            for fact in self.program.proof_facts.span_or_empty(case_facts) {
                 let Some(expression) = fact.as_expression().copied() else {
                     return Err(self.refuse(
                         "source indexed constraint has no relevant proposition denotation yet"
                             .into(),
                     ));
                 };
+                predicate_expressions.push(expression);
+            }
+            let mut propositions = Vec::new();
+            for expression in predicate_expressions.iter().copied() {
                 let proposition = self.elaborate_proposition(expression)?.ok_or_else(|| {
                     self.refuse(
                         "source indexed constraint has no checked proposition denotation".into(),
                     )
                 })?;
-                predicate_expressions.push(expression);
                 propositions.push(proposition);
             }
             let proposition = if let Some(mut body) = propositions.pop() {
@@ -649,6 +678,7 @@ impl Elaborator<'_> {
             ty,
             body: Some(body),
         });
+        self.source_index_aliases.clear();
         Ok(SourceFamily {
             declaration,
             symbol: data.symbol,

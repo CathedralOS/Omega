@@ -524,9 +524,11 @@ fn retire_replaced_carrier_loans(
     replacement: Option<&super::loans::CarrierReplacement>,
     current: &mut Vec<StateLoanTracker>,
 ) {
-    if let Some(effects) = call_frames
-        .and_then(|frames| frames.stored_reference_fallthrough_effects(machine, statement))
-    {
+    if let Some(effects) = call_frames.and_then(|frames| {
+        frames
+            .stored_reference_fallthrough_effects(machine, statement)
+            .ok()
+    }) {
         // Exact effects install a complete post-call descriptor, including
         // preservation alternatives. Retire the former occurrence even when
         // one route kept its value; keeping both would turn alternatives into
@@ -562,13 +564,17 @@ fn append_incoming_reference_trackers(
     for parameter in program
         .state_parameters(state)
         .iter()
-        .filter(|parameter| !parameter.is_const && !parameter.relevance.is_erased())
+        .filter(|parameter| !parameter.is_const)
     {
         // A retained token's ingress identity carries a region, not a pointer.
         // Generic incomplete frontiers keep their ordinary deferred admission;
         // each closed execution body establishes its complete loan frontier.
+        // Erased bindings keep their referent-grant namespace below but cannot
+        // carry storage custody: interior leaf trackers and identities would
+        // claim a descriptor home the runtime-erased binding does not own.
         let carrier = input_carrier_type(program, parameter.type_reference);
-        if let Some(carrier) = carrier
+        if !parameter.relevance.is_erased()
+            && let Some(carrier) = carrier
             && let Some(paths) = retained_lifetime_owner_paths(program, carrier)
         {
             for owner_path in paths {
@@ -625,6 +631,9 @@ fn append_incoming_reference_trackers(
             );
         }
         // Readable referents may contain independently carried leaves.
+        if parameter.relevance.is_erased() {
+            continue;
+        }
         let Some(carrier) = carrier else {
             continue;
         };

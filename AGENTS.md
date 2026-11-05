@@ -24,14 +24,27 @@ hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`).
 
 ## Explain the change
 
-Leave the reasoning a next reader needs on the common reading path:
-1. **Inline comments at the decision site:** State why the mechanism fits and
-   what invariant holds so the next reader does not have to reconstruct it.
-2. **Pull request and commit body:** After a blank line, state:
-   - **Why:** What behavior or invariant was missing or broken.
-   - **How:** How the general mechanism resolves it across the pipeline.
-   - **Rejected alternatives:** Only when non-obvious.
-   - **Validation:** The exact focused commands and gates that ran.
+Use an inverted pyramid in PR descriptions, commit bodies, progress/final
+reports, explanatory documentation and comments. Write for a reader who knows
+the project but not this subsystem: the first one or two sentences must explain
+in ordinary language the specific problem, what changes and why it matters to
+the person using or maintaining the software. Apply that clarity to titles too,
+within the commit-lane rules.
+
+Then supply the context or concrete example needed to understand the cause and
+repair. Explain what an example demonstrates before its test values or syntax;
+introduce technical terms as they become useful. A plain opening followed by
+internal jargon still fails. Each paragraph should build on the last, so a
+reader can stop at any level with a useful understanding. Comments start with
+the local reason and constraint, using the surrounding code's context. Keep
+small changes short rather than filling a template.
+
+Check claims against the actual submitted or landed diff and observed behavior;
+inspect unclear code or examples instead of inventing a plausible benefit.
+Rewrite the explanation when scope changes. Keep material limits beside the
+result they qualify. Put validation and detailed provenance afterward, retaining
+exact commands, source/host identities, failures and unverified cases. Historical
+results remain tied to their recorded sources, not promoted to fresh validation.
 
 ## Law of completion
 
@@ -45,6 +58,12 @@ compiler, library, and prerequisite repair in your isolated worktree. Do not
 divide work into stage-only tasks or wait for another session to finish missing
 functionality. Checkpoints, archives, or JSON reports preserve evidence; none
 completes the work.
+
+Ownership of open PRs survives session changes. At startup or resumption, check
+PRs you opened in earlier sessions against retained worktree and claim records;
+keep each URL, submitted head, remaining failure/acceptance and next action in
+its claim note. Carry authorized work through verified merge using the landing
+roles below. Close a PR only for a recorded withdrawal or supersession, not age.
 
 ### Decision-making framing for compiler completion
 
@@ -103,8 +122,13 @@ with at most a single focused positive/negative fixture pair under
    - Third, remaining `TASKS.md` items and failing `samples/` programs.
 2. **Execute `/advance` and chain on the warm worktree:** Follow the 5-step
    workflow in [.agents/skills/advance/SKILL.md](.agents/skills/advance/SKILL.md).
-   After landing or handing off a slice, continue the next requirement of the
-   same capability on the warm worktree.
+   When running with subagents, the coordinator runs Step 1 (triage from
+   `TASKS.md` and `tests/omega/corpus_outcomes.txt`, worktree creation, and
+   claim registration) and dispatches workers immediately so each worker owns
+   Steps 2–5 (all `omega-rust/` source reading, root-cause tracing, repair,
+   validation, and draft PR) in its own context window. After landing or
+   handing off a slice, continue the next requirement of the same capability on
+   the warm worktree.
 
 ### Requirements and evidence
 
@@ -181,15 +205,23 @@ locally (`corpus_gate.py` enforces a 200-fixture local selection budget).
 
 ## Sessions and subagents
 
-- **Coordinator vs. Standalone landing boundary:**
-  - **Under a coordinator session (local or cloud swarm):** Workers push their
+- **Division of labor (Coordinator vs. Worker):**
+  - **Coordinator owns triage and review; workers own investigation and implementation:**
+    Subagents exist so each capability outcome or diagnostic cluster gets its
+    own isolated worktree and clean context window for compiler reading and
+    root-cause tracing. When running with subagents, the coordinator selects
+    outcomes from `TASKS.md` and `tests/omega/corpus_outcomes.txt` (by board
+    item and diagnostic cluster, without reading `omega-rust/` source files to
+    pre-diagnose the bug), creates the worktrees and claims, and dispatches
+    workers immediately. Workers execute Steps 2–5 of `/advance`, push their
     branch, open a **draft** PR (`gh pr create --draft`), and stop
     (`candidate_ready`). Workers never mark a PR ready or run `tools/landing.py`
     themselves. The coordinator audits `gh pr diff <pr>` with
     [.agents/skills/coordinator-review/SKILL.md](.agents/skills/coordinator-review/SKILL.md)
     before running `python3 tools/landing.py land <pr> --expected-head <sha>`.
-  - **Standalone single-agent session:** Self-review against
-    `coordinator-review`, then run `python3 tools/landing.py land <pr> --expected-head <sha>`.
+  - **Standalone single-agent session:** One agent executes Steps 1–5 of
+    `/advance`, self-reviews against `coordinator-review`, and runs
+    `python3 tools/landing.py land <pr> --expected-head <sha>`.
 - **Reactive wakeup only:** Never poll in loops, `sleep`, or schedule periodic
   timers waiting on subagents or background tasks; end the turn and let completion
   notifications wake the session.

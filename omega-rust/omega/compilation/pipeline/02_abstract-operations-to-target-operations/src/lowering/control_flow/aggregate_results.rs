@@ -8,7 +8,6 @@ use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use calling_conventions::terminal_layout::StructuralLayouts;
 use semantic_vocabulary::{OperationId, StructuralTypeId};
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
-use terminal_psi::StructuralTypeShape;
 use terminal_semantics::{canonical_static_projection, view_descriptor_parameter};
 
 /// Resolve a consumed value from its live storage, independent of whether a
@@ -165,29 +164,23 @@ pub(super) fn value_home_layout(
     structural_type: StructuralTypeId,
     types: &StructuralLayouts<'_>,
 ) -> Result<TargetStructuralHomeLayout, LoweringError> {
+    let declaration = types
+        .get(structural_type)
+        .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
     if matches!(
-        types
-            .get(structural_type)
-            .map(|declaration| &declaration.shape),
-        Some(
-            terminal_psi::record_or_fixed_array_shape_pattern!()
-                | StructuralTypeShape::Reference { .. }
-                | StructuralTypeShape::PrimitiveScalar(_)
-                | StructuralTypeShape::ByteSequence(_)
-                | StructuralTypeShape::ElementView { .. },
-        )
+        declaration.shape,
+        terminal_psi::sum_or_mixed_shape_pattern!()
     ) {
-        // Whole aggregate transport needs recursive size/alignment, not scalar
-        // leaves. Array construction still checks its element operations, while
-        // parameter and call-result homes retain existing owned record arrays.
-        return Ok(TargetStructuralHomeLayout::Aggregate(
-            crate::lowering::structural_layout::structural_shape(structural_type, types)?,
-        ));
+        return Ok(TargetStructuralHomeLayout::Sum(sum_layout(
+            structural_type,
+            types,
+        )?));
     }
-    Ok(TargetStructuralHomeLayout::Sum(sum_layout(
-        structural_type,
-        types,
-    )?))
+    // Only a real sum has case-tag storage. All other declared carriers use
+    // their complete contiguous layout, independently of ownership admission.
+    Ok(TargetStructuralHomeLayout::Aggregate(
+        crate::lowering::structural_layout::structural_shape(structural_type, types)?,
+    ))
 }
 
 pub(in crate::lowering) fn home(

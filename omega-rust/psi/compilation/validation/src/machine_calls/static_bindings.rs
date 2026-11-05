@@ -115,6 +115,7 @@ fn is_declared_source_tuple(
     application: &StaticMachineApplication,
     bindings: &[StaticMachineBinding],
     call: &RetainedCallTarget<'_>,
+    application_handle: StaticMachineApplicationHandle,
 ) -> bool {
     let target = call.contract;
     let Some((declaring_trait, signature)) =
@@ -180,7 +181,12 @@ fn is_declared_source_tuple(
     {
         Some(typed_trees::trait_definition::AppliedTraitScope::abstract_scope(declaring_trait))
     } else {
-        None
+        // `Trait::member(selector, ...)` keeps the source requirement as its
+        // target when the tuple is a runtime family. The selector type is the
+        // applied trait; there is no single closed executable to rejoin.
+        dynamic_selector_scope(program, application, application_handle).inspect(|_| {
+            open = true;
+        })
     };
     let Some(scope) = scope else {
         return false;
@@ -211,7 +217,10 @@ fn is_declared_source_tuple(
         .require_declared_application_operands(&operands, owner)
         .is_err()
     {
-        return false;
+        // The call already denotes this declaration. An operand that cannot
+        // be a static binder is argument admission's diagnostic, not evidence
+        // that the authored tuple was attached to a different call.
+        return true;
     }
     open |= program
         .require_owned_application_operands(&operands, owner)
@@ -272,7 +281,113 @@ fn is_declared_source_tuple(
             _ => {}
         }
     }
+    if !open && authored_tuple_is_refuted(program, signature, application_handle, owner) {
+        // A closed false tuple never receives an executable instance. It still
+        // belongs to this declaration; predicate admission reports the refusal.
+        return true;
+    }
     open
+}
+
+/// The `dyn Trait` selector call that still carries this authored tuple.
+///
+/// Family calls keep the source requirement as their target. The selector's
+/// trait application is the scope the tuple was written against.
+fn dynamic_selector_scope<'program>(
+    program: &'program dyn crate::CheckingInput,
+    application: &StaticMachineApplication,
+    application_handle: StaticMachineApplicationHandle,
+) -> Option<typed_trees::trait_definition::AppliedTraitScope<'program>> {
+    let machine = program.machine_by_symbol(application.lexical_owner)?;
+    for state in program.machine_states(machine) {
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            if let StatementNode::Call(call) = statement
+                && call.authored_machine_application == application_handle
+                && let Some(scope) = selector_scope(
+                    program,
+                    machine,
+                    Some(state),
+                    call.receiver_symbol,
+                    call.target_symbol,
+                    program.statement_table.expression_handles(call.arguments),
+                    application.binding_declaration,
+                )
+            {
+                return Some(scope);
+            }
+            for (_, root) in program.tables.expression_roots(statement) {
+                let mut expressions = Vec::new();
+                crate::queries::expression_traversal::collect_expression_tree(
+                    program,
+                    root,
+                    &mut expressions,
+                );
+                for expression in expressions {
+                    let ExpressionNode::Call(call) =
+                        expression_table(program).expression(expression)
+                    else {
+                        continue;
+                    };
+                    if call.authored_machine_application != application_handle {
+                        continue;
+                    }
+                    let arguments = expression_table(program).expression_handles(call.arguments);
+                    if let Some(scope) = selector_scope(
+                        program,
+                        machine,
+                        Some(state),
+                        super::calls::dynamic_requirement::expression_trait_receiver(
+                            program,
+                            call.receiver,
+                        ),
+                        call.target_symbol,
+                        arguments,
+                        application.binding_declaration,
+                    ) {
+                        return Some(scope);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn selector_scope<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &'program typed_trees::machine::Machine,
+    state: Option<&'program typed_trees::state::State>,
+    receiver: SymbolHandle,
+    target: SymbolHandle,
+    arguments: &[typed_trees::expression::ExpressionHandle],
+    binding_declaration: SymbolHandle,
+) -> Option<typed_trees::trait_definition::AppliedTraitScope<'program>> {
+    let dynamic = super::calls::dynamic_requirement::dynamic_selector_call(
+        program, machine, state, receiver, target, arguments,
+    )
+    .ok()
+    .flatten()?;
+    (dynamic.signature.symbol == binding_declaration).then_some(dynamic.application)
+}
+
+/// A structurally false tuple is this declaration's call with no executable
+/// instance. Predicate admission already refuses it.
+fn authored_tuple_is_refuted(
+    program: &dyn crate::CheckingInput,
+    signature: &typed_trees::signature::StateSignature,
+    application_handle: StaticMachineApplicationHandle,
+    lexical_owner: SymbolHandle,
+) -> bool {
+    let arguments =
+        expression_table(program).static_machine_application_arguments(application_handle);
+    crate::proof_contracts::contract_entailment::static_applications::static_application_requirement_judgment(
+        program,
+        signature,
+        arguments,
+        lexical_owner,
+        None,
+        &[],
+    ) == crate::StrictArithmeticImplicationJudgment::Refuted
 }
 
 pub fn validate_static_machine_bindings(
@@ -446,7 +561,7 @@ pub fn validate_static_machine_bindings(
                     // The checks below must still prove its lifetime, constant,
                     // bound and caller-supplied proof requirements.
                     if !selected.is_some_and(|previous| previous != application.binding_declaration)
-                        && is_declared_source_tuple(program, application, bindings, call)
+                        && is_declared_source_tuple(program, application, bindings, call, handle)
                     {
                         selected = Some(application.binding_declaration);
                         continue;

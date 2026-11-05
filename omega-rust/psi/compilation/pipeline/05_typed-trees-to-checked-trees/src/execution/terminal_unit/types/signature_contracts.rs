@@ -677,8 +677,8 @@ fn cast_is_borrowed_in_statement(
     let Some(state_node) = program.state_by_symbol(state) else {
         return false;
     };
-    let Some(statement) = crate::flow::state_statements(program, state_node.statement_nodes)
-        .get(statement_index)
+    let Some(statement) =
+        crate::flow::state_statements(program, state_node.statement_nodes).get(statement_index)
     else {
         return false;
     };

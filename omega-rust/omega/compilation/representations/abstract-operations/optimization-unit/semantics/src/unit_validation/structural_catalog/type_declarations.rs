@@ -158,7 +158,8 @@ pub(crate) fn validate_structural_type_graph(
             terminal_psi::StructuralTypeShape::Reference { referent, .. } => {
                 visit(*referent, types, active, complete)?;
             }
-            terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => {}
+            terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+            | terminal_psi::StructuralTypeShape::AtomicCell(_) => {}
             terminal_psi::StructuralTypeShape::ByteSequence(_) => {}
             terminal_psi::StructuralTypeShape::Record { fields, .. } => {
                 for field in fields {
@@ -239,6 +240,7 @@ pub(super) fn attachment_storage_types(
             }
             StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
             StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::AtomicCell(_)
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ElementView { .. } => {}

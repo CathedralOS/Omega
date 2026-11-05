@@ -33,16 +33,22 @@ plans one `CheckedAtomicAccessPlan` per operation (typed-trees-to-checked-trees
 `execution/terminal_unit/atomic_operations.rs`): a writing carrier's result
 placeholder reserves the dense binding the event binds to the observed prior,
 and each operand keeps its own `AtomicOperand` scalar row. Lowering emits
-the plan as one Terminal `AtomicAccess` on a record's scalar field, the
-location a scalar field store names (terminal-psi `control_flow/atomic.rs`).
-The codec, independent verifier (`validation/atomic_access.rs`) and
-interpreter consume that event; the verifier refuses illegal orderings,
+the plan as one Terminal `AtomicAccess` at a complete rooted storage path.
+An empty projection names a whole dedicated cell; an inline record cell keeps
+its actual final field identity (terminal-psi `control_flow/atomic.rs`).
+The codec's independent operation verifier
+(`terminal-psi/codec/src/sections/semantic_module/module_foundation_validation.rs`)
+and interpreter consume that event; the verifier refuses illegal orderings,
 runtime-selected locations, bounded writes without their checked resident
 establishment obligation, mistyped operands or results, and events on ordinary
 scalar storage.
-`StructuralFieldType::Atomic` retains dedicated-cell identity separately from
-its scalar carrier. Shared loans authorize these events, not ordinary stores
-or non-atomic snapshots. Atomic fields do not expose a plain scalar reference.
+`StructuralTypeShape::AtomicCell` retains a whole cell's resident contract;
+`StructuralFieldType::Atomic` and `AtomicBoundedInteger` retain the same contract
+for inline fields. The common endpoint query supplies resident type and bounds
+without inventing a containing field. Shared loans authorize atomic events,
+not ordinary stores or non-atomic snapshots. An exact typed atomic loan keeps
+that contract and never becomes a plain scalar reference. Interpreter backing
+selection and native geometry consume the same complete endpoint.
 Single-attempt compare-exchange binds one structural local directly. Its retained
 receiver and two operands are an evaluation roster, not an ordinary call. The
 source checker requires the sealed canonical outcome with the exact resident
@@ -68,19 +74,21 @@ and prior does not substitute for the native commitment tag.
 
 Omega's terminal-to-abstract lowering (`machine/operation/atomic_events.rs`)
 keeps each Terminal event as one `AbstractOperation::AtomicEvent` at the same
-`AbstractAtomicLocation` (root place, carrier path, field). It adds the
+`AbstractAtomicLocation` (root place and complete cell path). It adds the
 `reads_from` and `modification_after` edges that the optimization unit's
-happens-before replay rechecks. A backward latest-write analysis follows the actual whole-storage edge
-bindings, so a state parameter keeps the same modification history under its
+happens-before replay rechecks. A backward latest-write analysis follows the
+actual whole-storage edge bindings, so a state parameter keeps the same modification history under its
 own place identity. The independent unit checker reconstructs that relation
 from its current edges and rejects substituted backing, stale initial-residency
-claims and ambiguous writes. An intervening non-atomic write or call lending
-the atomic backing, including a shared call, expires knowledge of its writer.
+claims and unknown storage. Different known paths retain a canonical list of
+all latest residencies, including initial residency and a prior iteration of the
+same event. Independent replay requires the exact complete list; it grants no
+observed-value equality or cross-activation synchronization. An intervening
+non-atomic write or call lending the atomic backing, including a shared call, expires knowledge of its writer.
 The next event may retain an `AfterEffect` boundary naming that exact latest
 operation on every path; independent replay reconstructs the boundary, without
 claiming which internal write supplied the resident or recovering an old value.
-Shared access does not prove an
-unchanged atomic resident. Source and Terminal proof composition independently
+Shared access does not prove an unchanged atomic resident. Source and Terminal proof composition independently
 expire observations that shared calls may mutate; copied SSA values survive.
 The event retains its block-local root and the ordinary shared receiver path,
 including stored-reference crossings. Arrival and local declarations supply

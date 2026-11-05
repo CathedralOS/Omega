@@ -11,27 +11,24 @@ use legalized_operations::{
 pub(super) fn storage<'a>(
     source: &LegalizedScalarFunction,
     row: &'a LegalizedScalarInstruction,
-) -> Option<(&'a terminal_psi::StructuralOperationResult, ValueShape)> {
+) -> Result<(&'a terminal_psi::StructuralOperationResult, ValueShape), &'static str> {
     let LegalizedScalarInstructionKind::EstablishStructuralLocal { result, shape } = &row.kind
     else {
-        return None;
+        return Err("structural local input has another operation kind");
     };
-    let declarations = &source.structural.as_ref()?.structural_types;
-    if row.result.is_some()
-        || !matches!(
-            result.multiplicity,terminal_psi::nonlinear_multiplicity_pair_pattern!())
-        || !result.claims.is_empty()
-        // Only a descriptor home declares qualifications: byte predicates of
-        // its contents, which leave its storage shape unchanged.
-        || (!result.qualifications.is_empty()
-            && !terminal_semantics::descriptor_results::is_descriptor(
-                declarations.iter(),
-                result.structural_type,
-            ))
-        || !result.projected_qualifications.is_empty()
-        || crate::structural_inputs::shape(result.structural_type, declarations)? != *shape
-    {
-        return None;
+    let declarations = &source
+        .structural
+        .as_ref()
+        .ok_or("structural local has no structural catalog")?
+        .structural_types;
+    terminal_semantics::validate_vacant_structural_local(declarations.iter(), result)?;
+    if row.result.is_some() {
+        return Err("structural local unexpectedly publishes a scalar result");
     }
-    Some((result, *shape))
+    let declared_shape = crate::structural_inputs::shape(result.structural_type, declarations)
+        .ok_or("structural local has no closed storage shape")?;
+    if declared_shape != *shape {
+        return Err("structural local differs from its declared storage shape");
+    }
+    Ok((result, *shape))
 }

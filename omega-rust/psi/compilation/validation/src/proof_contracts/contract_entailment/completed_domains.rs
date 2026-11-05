@@ -203,6 +203,7 @@ fn completed_bound_domain_judgment(
                     &[],
                     &[],
                     Some((machine, state)),
+                    false,
                 );
                 judgment.proven &= matches!(predicate_judgment, StructuralJudgment::Proven);
                 judgment.refuted |= matches!(predicate_judgment, StructuralJudgment::Refuted);

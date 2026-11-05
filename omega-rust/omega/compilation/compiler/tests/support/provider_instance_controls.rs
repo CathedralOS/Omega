@@ -211,6 +211,7 @@ pub(super) fn inspect(
                 && Some(&candidate.provider_declaration) == row.selecting_declaration.as_ref()
                 && candidate.source_requirement_identity == row.template
                 && candidate.source_candidate_identity == row.source_candidate_identity
+                && candidate.declaration_application == required.declaration_application
                 && candidate.receiving_application == required.receiving_application
                 && candidate.receiving_region_arguments == required.receiving_region_arguments
                 && selection.checked_candidates.iter().any(|selected| {

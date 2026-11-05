@@ -49,7 +49,7 @@ ArmObserve satisfies SelectedObserve {
 
 machine main() crashes Trap {
     let cell: Cell;
-    publish(&cell, 41);
+    publish(&cell, 101);
     Atomic::fence(FenceOrdering::Receive);
     let observed: u32 = SelectedObserve::observe(&cell);
     let remaining: u32 = 100 - observed;

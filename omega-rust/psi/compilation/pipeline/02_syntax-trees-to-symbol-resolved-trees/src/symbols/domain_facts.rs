@@ -526,6 +526,15 @@ impl ProofExpressionContext<'_> {
                     {
                         self.assign(pattern);
                     }
+                    if let symbol_resolved_trees::expression::MatchPattern::Destructure(pattern) =
+                        arm.pattern
+                    {
+                        super::expression_paths::assign_pattern_field_symbols(
+                            self.symbols,
+                            self.expression_table,
+                            pattern,
+                        );
+                    }
                     self.assign(arm.value);
                 }
             }

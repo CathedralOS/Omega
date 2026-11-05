@@ -17,9 +17,9 @@ pub(crate) struct AssignmentObservationBatch<'input> {
     observations: Vec<AssignmentObservation>,
 }
 
-/// Queries at one immutable read cut share each root's retained assignments.
-/// The context selection belongs to this reader, so a later operand cannot
-/// reuse an earlier operand's observations even when their places agree.
+/// Read each root's assignments once for the current operand.
+/// The selected contexts belong to this reader, so the next operand prepares
+/// its own observations even when it uses the same place.
 pub(crate) struct RootAssignmentObservations<'input> {
     program: &'input dyn ::validation::CheckingInput,
     semantic: &'input FactPlan,

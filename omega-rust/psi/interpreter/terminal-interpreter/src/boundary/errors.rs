@@ -206,10 +206,14 @@ pub enum TerminalInterpretError {
     VerifiedBoundaryMachineMissing(BoundaryMachineId),
     VerifiedBlockMissing,
     VerifiedOperationMalformed,
+    VerifiedOperationContractInvalid {
+        reason: &'static str,
+    },
     ExecutionSite {
         machine: MachineId,
         block: BlockId,
         operation: Option<OperationId>,
+        operation_tag: Option<terminal_semantics::OperationSemanticTag>,
         cause: Box<TerminalInterpretError>,
     },
     StructuralReplacement {
@@ -292,12 +296,17 @@ impl std::fmt::Display for TerminalInterpretError {
                 machine,
                 block,
                 operation,
+                operation_tag,
                 cause,
             } => {
                 write!(
                     formatter,
                     "{cause} in {machine:?}/{block:?} at {operation:?}"
-                )
+                )?;
+                if let Some(tag) = operation_tag {
+                    write!(formatter, " ({tag:?})")?;
+                }
+                Ok(())
             }
             Self::StructuralReplacement {
                 operation,

@@ -2,19 +2,20 @@
 
 Owning task: **FINITE-GENERIC-DISPATCH** in [TASKS.md](../../../../TASKS.md).
 
-Fact: A runtime-selected family calls its const-only method through the declared width list and returns the selected row's value.
+Fact: A runtime-selected family calls its const-only method through the declared width list, retains its required target call, and returns the selected row's value.
 
-`RuntimeFamily` accepts a runtime width of 16 or 32. Its `BridgeToConst`
-implementation calls the const-only `Family` method. The compiler must generate
-and check the closed bodies before that call; proving that an ordinary runtime
-argument belongs to the list does not itself make it constant.
+`RuntimeFamily` accepts width 16 or 32 at runtime. Its `BridgeToConst`
+implementation forwards that width to the const-only `Family` method. The
+interfaces declare the complete width list; the compiler checks a closed body
+for each declared width before runtime selection. An ordinary argument does not
+become constant merely because a caller proves it belongs to that list.
 
-Every positive transports both `Selected` and `Other` through its named place.
-It calls each at both widths. Their results are 16/17 at width 16 and 32/33 at
-width 32. Choosing the wrong implementation or width fails the runtime check.
-The field case also checks its surrounding values, and the match case exercises
-both arms. Result comparisons observe execution; they do not establish the
-static obligations needed to form the calls.
+Every positive carries both `Selected` and `Other` through its named place and
+calls each at both widths. The results are 16/17 at width 16 and 32/33 at width
+32. The wider row calls `WideRowTarget::preserve`; explicit Build choices supply
+`HostedWideRow` on all four hosted targets. The field example also checks its
+surrounding values, and the match example executes both arms. Result comparisons
+observe execution; they do not establish the calls' static obligations.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -28,95 +29,89 @@ static obligations needed to form the calls.
 | Other machine | [other_machine/main.omg](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | Selected target code | [target_body/main.omg](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
-Each reject twin changes only the call in `selected_width`: it sends the
-ordinary runtime argument directly to the const-only method. The width's
-membership premise, implementations, transport and result checks remain the
-same.
+Each twin changes only `selected_width`: it sends the ordinary runtime argument
+directly to the const-only method. The membership premise, implementations,
+transport and result checks remain. All nine pairs have identical Main and Build
+copies under `tests/omega/{pass,fail}/facts/finite_family_const_roster/`.
 
-The target case passes the selector and width to `FamilyForward`. Four explicit
-Build rows choose the checked `HostedFamily` implementation. Its requirement
-has empty service reach; main records the direct boundary call with `invokes`.
-Every positive binds the four hosted targets and expects exit 0.
+The target example forwards through `FamilyForward`. Four explicit Build
+choices select `HostedFamily`. Every positive binds all four hosted entries and
+expects exit 0.
+
+## Focused controls
+
+- The [forwarding program](../../../../tests/omega/pass/traits/finite_family_const_forwarding/main.omg)
+  uses computed const arguments, correlated parameter pairs and a public
+  forwarding machine. Its [twin](../../../../tests/omega/fail/traits/finite_family_const_forwarding/main.omg)
+  removes only that machine's width requirement. The ordinary call-precondition
+  proof must fail.
+- The [missing-row control](../../../../tests/omega/fail/traits/finite_family_const_missing_row/main.omg)
+  declares both runtime widths but removes width 32 from the const-only family.
+  Main calls only width 16. The complete declared family still requires the
+  missing row.
+- The [uncalled-row program](../../../../tests/omega/pass/traits/finite_family_uncalled_target/main.omg)
+  calls only width 16 while retaining both declared rows. Its
+  [missing-provider control](../../../../tests/omega/fail/traits/finite_family_uncalled_target_missing_supply/main.omg)
+  has identical Main source and removes only the four provider choices.
+  Unconfigured source is valid; target checking must report missing
+  `WideRowTarget::preserve` before either engine runs. The target call graph
+  follows actual calls in every retained family body, including the uncalled
+  wider row. Advertising an invocation ceiling alone does not create this edge.
 
 ## Requirements
 
-- The declaring interfaces own the complete width list. The compiler must keep
-  their identities when a closed call's parameters and predicates disappear.
-- The provider's own complete finite declaration permits its generic inputs in
-  const positions. Current callers or an unrelated finite predicate cannot
-  supply that permission. Original declared carriers remain exact.
-- Each required closed body must check, including width 32 when main only calls
-  width 16. Correlated parameters keep their authored pairs; the compiler must
-  not invent additional combinations.
-- Ordinary parameters, unrestricted generic values and runtime expressions
-  remain runtime inputs. A direct call to a const-only method still rejects.
-- Each transport preserves the implementation selector and width. Terminal
-  interpretation and native execution must both produce the authored results.
-- Provider selection, argument placement, register/stack storage and final
-  encoding must preserve these inputs. Successful source checking alone does
-  not establish execution.
+The interfaces own the finite width list and its declaration identities.
+Only a provider's own complete finite declaration permits its generic input in
+const positions. Callers and unrelated predicates cannot grant that permission;
+ordinary inputs remain runtime values. Correlated parameters retain their
+actual pairs without generating other combinations.
 
-The governing rules are [finite specialization](../../../../wiki/spec/language/generics.md#finite-specialization-boundary),
+Each required body must check and retain its target calls, including rows that
+main never selects. Each transported value retains the selected implementation,
+width and original carrier. Terminal Psi and native execution must both produce
+the authored results. Build selection, argument placement, storage and encoding
+must preserve those values through execution.
+
+These obligations follow [finite specialization](../../../../wiki/spec/language/generics.md#finite-specialization-boundary),
 [dynamic method families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
 and [Build-owned selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection).
 
 ## Evidence and remaining work
 
-The earlier literal-only row passed all nine places and intended controls on
-Linux x86-64 at `74bbe3c7f0f173fe5063b15d085e810758a215be`:
-[run 41560780946](https://github.com/CathedralOS/Omega/actions/runs/41560780946).
-That result establishes existing literal-call behavior.
+The valid const-forwarding program originally failed with optimized compiler
+`17be13e1a9ff`. A second failure discarded an identical complete disjunction at
+an ordinary forwarding call. The repair retains the provider's declared list and
+compares whole predicates with their selected operations and substituted
+arguments. It does not derive individual pairs from unrelated conditions.
 
-The [original local bridge](https://github.com/CathedralOS/Omega/blob/738740fe657619248c4085b47b376e3788e9f175/samples/cli/facts/finite_family_const_roster/bridge/local/main.omg) exposed a current compiler defect:
-optimized compiler `17be13e1a9ff` refused its valid generic provider's const call.
-At `d023d9db7fb8`, that frozen program, a computed const expression, correlated
-parameter pairs, and an explicit nested const call execute with native and
-Terminal exits 0 on macOS ARM64. Runtime-to-const, unrestricted-value,
-wrong-carrier, unsupported-row and crossed-pair controls still reject for their
-intended causes. The claim retains the exact producer, sources and raw outputs.
+The const-only bridge passed all nine places and twins on all four hosts with
+compiler `c7a12e81bd2a`: ten valid checking cases, eleven intended refusals, ten
+native/Terminal exit-zero agreements and nine sample execution pairs per host.
+A later macOS compiler at `538cc2df6785` passed the same scope. Exact source and
+raw observations are retained in [PR #1861](https://github.com/CathedralOS/Omega/pull/1861).
+These earlier programs did not contain the current target-call additions.
 
-At `a50253a693d8`, a fresh optimized compiler and corpus runner pass the complete
-local selection on macOS ARM64: ten positives check, eleven controls reject for
-the intended reasons, and all ten corpus positives execute with native and
-Terminal exits 0. All nine sample positives also execute with both exits 0;
-their nine twins reject as intended. The claim retains the producer profiles,
-316 input hashes, reports and raw outputs. The source-only corpus records
-retain the actual `a50253a693d8` stamp. Its replay source archive is preserved
-in [PR #1861](https://github.com/CathedralOS/Omega/pull/1861).
+The target-call programs at `64d08af188aa` pass on macOS ARM64 with that verified
+`538cc2df6785` compiler: eleven valid checking cases, twelve intended refusals,
+eleven native/Terminal exit-zero agreements, and nine sample execution pairs
+with nine rejecting twins. The compiler code, bundled
+library, tools and build configuration match. The twenty changed checking
+records retain their actual `64d08af188aa` stamp.
 
-The ordinary forwarding case first exposed a second defect: the arithmetic
-checker discarded a complete disjunction that was identical to the called
-machine's requirement after argument substitution. The repair compares complete
-predicates, preserving their selected operations and parameter pairs. It does
-not infer individual pairs from unrelated conditions.
+The same target-call scope also passes on
+[Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41937582905),
+[Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/41937586127) and
+[Windows x86-64](https://github.com/CathedralOS/Omega/actions/runs/41937589239).
+Those runs use optimized compilers and program inputs `64d08af188aa`; each has
+11 valid checking cases, 12 intended refusals, 11 actual native/Terminal zero
+agreements, and nine sample execution pairs with nine intended twins.
 
-The merged compiler at `c7a12e81bd2a` passes the same complete selection on all
-four matching hosts. Each checks ten positives, rejects eleven controls for
-their intended causes, executes all ten corpus positives with native and
-Terminal exits 0, and passes the nine sample positives and nine intended twins.
-The raw reports, optimized compiler profiles and all 316 input hashes have been
-audited independently.
-
-- [Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41922981066)
-- [Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/41922985742)
-- [macOS ARM64](https://github.com/CathedralOS/Omega/actions/runs/41922995281)
-- [Windows x86-64](https://github.com/CathedralOS/Omega/actions/runs/41922990615)
-
-A fresh macOS ARM64 compiler at `538cc2df6785`, after the next main merge,
-also passes that selection. The nine existing ARM runtime records now contain
-the actual `c7a12e81bd2a` successes. Source records retain their measured
-`a50253a693d8` revision. Replay archives for all three compiler revisions are
-preserved in [PR #1861](https://github.com/CathedralOS/Omega/pull/1861).
-
-The remaining parent-task requirement is target-ineligible bridge qualification.
-The const-only bridge results do not close that requirement.
-
-
-The focused [forwarding program](../../../../tests/omega/pass/traits/finite_family_const_forwarding/main.omg)
-combines computed const arguments, the original correlated pairs, and a public
-const-forwarding machine. Its twin removes only that machine's width requirement
-and must fail the ordinary call-precondition proof. A separate
-[missing-row control](../../../../tests/omega/fail/traits/finite_family_const_missing_row/main.omg)
-keeps the runtime family's two rows while removing the kernel's second row;
-main requests only the first. The repository keeps these focused controls beside
-the existing transport fixtures instead of adding another fact folder.
+This completes target-ineligible bridge qualification on all four matching
+hosts. It establishes that every declared family body retains its required
+target call, including an uncalled wider row. The broader parent acceptance remains open.
+[Returned Linear tokens](../finite_family_exclusive_result/README.md#linear-result)
+retain their cleanup in a separately qualified row; other result representations
+and product-compiler support still need their own acceptance.
+[PR #1869](https://github.com/CathedralOS/Omega/pull/1869) retains exact source,
+original producer identities and raw qualification. No execution of a final
+metadata commit or a later main revision is inferred.

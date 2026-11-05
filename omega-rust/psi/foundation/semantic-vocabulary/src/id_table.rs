@@ -138,6 +138,12 @@ impl<Id: PsiSemanticId> IdSet<Id> {
         )
     }
 
+    /// Read membership without growing the bitset for an absent coordinate.
+    pub fn contains(&self, identity: Id) -> bool {
+        let (word, mask) = Self::coordinate(identity);
+        self.words.get(word).is_some_and(|bits| bits & mask != 0)
+    }
+
     /// Returns whether the identity was absent.
     pub fn insert(&mut self, identity: Id) -> bool {
         let (word, mask) = Self::coordinate(identity);

@@ -83,14 +83,18 @@ pub(crate) fn prepare_typed_program<'program>(
     })
 }
 
-/// A program that fails after validation never reaches flow construction, so
-/// contract entailment judges it here. Its diagnostics come first, as they did
-/// when entailment ran inside validation; otherwise `errors` stand.
+/// Report the failure that prevented storage tracking from completing. Rechecking
+/// contracts without that history can blame valid code for losing facts after
+/// unrelated writes and hide the original error. Once storage history exists,
+/// contract diagnostics can still explain a later failure more directly.
 pub(crate) fn entailment_errors_first(
     program: &dyn ::validation::CheckingInput,
     deferred: validation::DeferredEntailment,
     errors: Vec<Diagnostic>,
 ) -> Vec<Diagnostic> {
+    if program.storage_graph().is_none() {
+        return errors;
+    }
     match validation::judge_contract_entailment(program, deferred) {
         Ok(_) => errors,
         Err(entailment) => entailment,

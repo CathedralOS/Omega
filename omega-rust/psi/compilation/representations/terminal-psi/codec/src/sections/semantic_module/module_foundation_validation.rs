@@ -64,12 +64,12 @@ use terminal_semantics::{
     borrowed_referent_matches, boundary_buffer_capacity, bounded_byte_owner_capacity,
     byte_owned_result_predicates, byte_parameter_predicates, byte_sequence_source_predicates,
     contains_access_carrier, fixed_byte_array_loan, fixed_element_array_extent,
-    primitive_projection_declaration, projected_field_declaration, pure_byte_qualifications,
-    qualification_path_carrier, reference_origin_type, representation_view_declaration,
-    runtime_structural_path_tip, scalar_array_leaf_shape, shared_boundary_buffer_capacity,
-    stored_view_field_presentation, structural_memberships_disjoint_from_write,
-    validate_access_lifecycle_plans, validate_access_view_plans,
-    validate_dynamic_reference_regions, validate_runtime_evidence_inputs,
+    primitive_projection_declaration, pure_byte_qualifications, qualification_path_carrier,
+    reference_origin_type, representation_view_declaration, runtime_structural_path_tip,
+    scalar_array_leaf_shape, shared_boundary_buffer_capacity, stored_view_field_presentation,
+    structural_memberships_disjoint_from_write, validate_access_lifecycle_plans,
+    validate_access_view_plans, validate_dynamic_reference_regions,
+    validate_runtime_evidence_inputs,
 };
 
 /// The declared scalar type of a value anywhere it may be declared on the
@@ -336,16 +336,21 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 );
             }
             if (!instance.receiving_application.is_absent()
-                && module
+                && (module
                     .identities
-                    .text(instance.receiving_application)
-                    .is_none_or(str::is_empty))
+                    .text(instance.declaration_application)
+                    .is_none_or(str::is_empty)
+                    || module
+                        .identities
+                        .text(instance.receiving_application)
+                        .is_none_or(str::is_empty)))
                 || instance
                     .receiving_region_arguments
                     .iter()
                     .any(|identity| module.identities.text(*identity).is_none_or(str::is_empty))
                 || (instance.receiving_application.is_absent()
-                    && !instance.receiving_region_arguments.is_empty())
+                    && (!instance.declaration_application.is_absent()
+                        || !instance.receiving_region_arguments.is_empty()))
             {
                 return malformed(
                     "provider instance obligation has an invalid receiving application or region tuple",
@@ -603,9 +608,12 @@ fn validate_reference_origin_path(
                 },
                 shape,
             ) => {
-                if matches!(shape, StructuralTypeShape::Reference { .. }) {
+                if matches!(
+                    shape,
+                    StructuralTypeShape::Reference { .. } | StructuralTypeShape::AtomicCell(_)
+                ) {
                     return malformed(
-                        "storage interpretation cannot replace a descriptor crossing",
+                        "storage interpretation cannot replace descriptor or atomic storage authority",
                     );
                 }
                 let Some(view) = representation_view_declaration(
@@ -705,6 +713,9 @@ fn validate_reference_origin_path(
             }
             (_, StructuralTypeShape::PrimitiveScalar(_)) => {
                 return malformed("primitive-scalar structural type has no projected children");
+            }
+            (_, StructuralTypeShape::AtomicCell(_)) => {
+                return malformed("atomic-cell structural type has no projected children");
             }
             (_, StructuralTypeShape::ByteSequence(_)) => {
                 return malformed("byte-sequence structural type has no projected children");
@@ -1078,7 +1089,6 @@ fn validate_operation_foundation(
         OperationKind::AtomicAccess {
             place,
             path,
-            field,
             event,
             resident_obligation,
         } => {
@@ -1088,20 +1098,15 @@ fn validate_operation_foundation(
             let root = structural_place_type(machine, *place).ok_or({
                 CodecError::MalformedStructuralFoundation("atomic location has no declared root")
             })?;
-            let declaration =
-                projected_field_declaration(module.structural_types.iter(), root, path, *field)
+            let cell =
+                terminal_semantics::atomic_cell_type(module.structural_types.iter(), root, path)
                     .ok_or({
                         CodecError::MalformedStructuralFoundation(
                             "atomic location is not an atomic cell",
                         )
                     })?;
-            let resident = declaration.field_type.atomic_scalar_type().ok_or({
-                CodecError::MalformedStructuralFoundation("atomic location is not an atomic cell")
-            })?;
-            let bounded = matches!(
-                declaration.field_type,
-                StructuralFieldType::AtomicBoundedInteger(_)
-            );
+            let resident = cell.scalar_type();
+            let bounded = cell.bounds().is_some();
             if resident_obligation.is_some() != (bounded && event.modifies_resident()) {
                 return malformed(
                     "atomic resident establishment obligation disagrees with its declaration and event",
@@ -1739,6 +1744,7 @@ fn validate_structural_type_graph(
             // existence was checked above; following it here invents a by-value cycle.
             StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::AtomicCell(_)
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::ElementView { .. } => {}
             StructuralTypeShape::Record { fields, .. } => {

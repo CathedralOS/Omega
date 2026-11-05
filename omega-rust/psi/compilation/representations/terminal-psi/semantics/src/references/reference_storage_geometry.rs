@@ -519,6 +519,9 @@ fn geometry<'types>(
             )
             .map(Some)
         }
+        StructuralTypeShape::AtomicCell(cell) => scalar_geometry(cell.scalar_type())
+            .map(Some)
+            .ok_or(StorageGeometryError::UnsupportedScalar(cell.scalar_type())),
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_geometry(*scalar)
             .map(Some)
             .ok_or(StorageGeometryError::UnsupportedScalar(*scalar)),

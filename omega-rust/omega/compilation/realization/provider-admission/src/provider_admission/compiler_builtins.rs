@@ -20,6 +20,8 @@ mod access_schema;
 mod catalog;
 mod proposals;
 mod retained;
+mod terminal_execution;
+pub use terminal_execution::{AdmittedTerminalIntrinsics, admit_terminal_intrinsics};
 
 pub use catalog::SettledCompilerBuiltin;
 
@@ -403,6 +405,16 @@ fn float_arithmetic_realization(
             "has no local target catalog realization on {target:?}"
         ));
     }
+    float_arithmetic_signature(realization, boundary, structural_types)
+}
+
+/// The operation's semantic signature is shared by native admission and
+/// reference execution. ISA support remains a separate native obligation.
+fn float_arithmetic_signature(
+    realization: NearestIeeeFloatArithmeticRealization,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<NearestIeeeFloatArithmeticRealization, String> {
     if realization.operation == target_operations::IeeeFloatArithmeticOperation::Classify {
         let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result else {
             return Err("does not match its structural classification result".to_owned());

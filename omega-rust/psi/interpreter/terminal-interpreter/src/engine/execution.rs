@@ -1058,12 +1058,14 @@ impl<'artifact> TerminalExecution<'artifact> {
                     .machines()
                     .get(&self.current_machine)
                     .and_then(|machine| machine.block(&self.current))
-                    .and_then(|block| block.operations.get(self.next_operation))
-                    .map(|operation| operation.id);
+                    .and_then(|block| block.operations.get(self.next_operation));
                 TerminalInterpretError::ExecutionSite {
                     machine: self.current_machine,
                     block: self.current,
-                    operation,
+                    operation: operation.map(|operation| operation.id),
+                    operation_tag: operation.map(|operation| {
+                        terminal_semantics::OperationSemanticTag::for_operation(&operation.kind)
+                    }),
                     cause: Box::new(error),
                 }
             });
@@ -1309,11 +1311,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                                     OperationKind::AtomicAccess {
                                         place,
                                         ref path,
-                                        field,
                                         event,
                                         ..
                                     } => {
-                                        self.execute_atomic_access(operation, place, path, field, event)?;
+                                        self.execute_atomic_access(operation, place, path, event)?;
                                         OperationFlow::Advance
                                     }
                                         }

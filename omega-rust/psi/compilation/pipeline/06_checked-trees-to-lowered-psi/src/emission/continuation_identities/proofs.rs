@@ -65,7 +65,8 @@ impl super::IdentityMap {
                 }
                 ProofTerm::Formal { .. }
                 | ProofTerm::InvocationFormal { .. }
-                | ProofTerm::Mathematical { .. } => {}
+                | ProofTerm::Mathematical { .. }
+                | ProofTerm::Projection { .. } => {}
             }
         }
     }

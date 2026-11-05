@@ -81,7 +81,9 @@ impl MembershipReachability {
                         cases,
                     } => fields(rows) || cases.iter().any(|case| fields(&case.fields)),
                     StructuralTypeShape::PrimitiveScalar(_) => scalar_domains,
-                    StructuralTypeShape::ByteSequence(_) => true,
+                    StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::AtomicCell(_) => {
+                        true
+                    }
                 };
                 if reachable {
                     result.rows[index].1 = true;

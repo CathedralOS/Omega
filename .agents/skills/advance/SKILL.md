@@ -14,7 +14,14 @@ compiler capability. Common repository knowledge, the [law of completion](../../
 the nine-place sample loop, requirements and evidence, and decision-making
 framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
 (`#decision-making-framing-for-compiler-completion`, `#the-sample-loop`,
-`#requirements-and-evidence`).
+`#requirements-and-evidence`, `#sessions-and-subagents`).
+
+- **Standalone session:** One agent executes Steps 1–5 end to end.
+- **Coordinator + subagents:** The coordinator runs Step 1 from `TASKS.md` and
+  `tests/omega/corpus_outcomes.txt` (without reading `omega-rust/` source files
+  to pre-diagnose the bug) and dispatches each worker immediately; the worker
+  executes Steps 2–5 in its own context window and stops at a draft PR for
+  `coordinator-review`.
 
 ## Step 1: Preflight, Worktree & Claim
 
@@ -40,9 +47,11 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
    python3 tools/claims.py claim --board TASKS.md --item <ID> --owner "<label>" --path <paths>
    ```
    Keep the claim note concise: parent task, remaining acceptance, current
-   witness, observed failure, and next action.
+   witness, observed failure, and next action. At initial dispatch, `--path`
+   can name the witness/board paths or subsystem directory from the recorded
+   diagnostic; workers refine paths if needed after tracing.
 
-## Step 2: Reproduce & Trace Before Editing
+## Step 2: Reproduce & Trace Before Editing (Worker-Owned Under Swarm)
 
 1. **Build or reuse the warm optimized producer** in the worktree's `target/`
    (`CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=<dir> mbx build -p omega`;

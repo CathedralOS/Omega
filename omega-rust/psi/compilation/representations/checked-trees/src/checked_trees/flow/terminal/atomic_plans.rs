@@ -119,7 +119,9 @@ pub struct CheckedAtomicAccessPlan {
     pub receiver_root_type_identity: typed_trees::type_identity::TypeIdentityId,
     /// A selected payload namespace within the receiver, not a separate record.
     pub field_case: Option<CheckedMemberIdentity>,
-    /// The atomic field's Terminal identity within that record.
+    /// The actual atomic member, or zero-member absence when the receiver's
+    /// declared shape is itself a whole atomic cell. Absence is not a field
+    /// identity and grants no substitute storage authority.
     pub field_identity: CheckedMemberIdentity,
     /// The field's carrier, which every operand and the result share.
     pub primitive_type: PrimitiveType,
