@@ -114,13 +114,15 @@ fn timeout_terminates_the_owned_process_group() {
     let root = std::env::temp_dir().join(format!("omega-bounded-timeout-{}", std::process::id()));
     std::fs::create_dir_all(&root).expect("create timeout test root");
     let marker = root.join("survived");
-    let mut prepared = shell("(sleep 0.25; printf survived > \"$MARKER\") & exec sleep 10");
+    let mut prepared = shell("(sleep 0.75; printf survived > \"$MARKER\") & exec sleep 10");
     prepared.env("MARKER", &marker);
+    // The total deadline includes process setup and cleanup. Leave a real
+    // cleanup interval before checking the timeout and descendant shutdown.
     let started = Instant::now();
     let error = run_bounded_process(
         prepared,
         BoundedProcessInput::Null,
-        capture_limits(16, 16, Duration::from_millis(50)),
+        capture_limits(16, 16, Duration::from_millis(500)),
         BoundedCaptureBudget::new(32),
     )
     .expect_err("deadline must reject");
@@ -129,7 +131,7 @@ fn timeout_terminates_the_owned_process_group() {
         "unexpected timeout failure: {error:?}"
     );
     assert!(started.elapsed() < Duration::from_secs(2));
-    std::thread::sleep(Duration::from_millis(400));
+    std::thread::sleep(Duration::from_millis(750));
     assert!(
         !marker.exists(),
         "descendant survived process-group cleanup"
