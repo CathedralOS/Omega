@@ -754,6 +754,88 @@ pub(super) fn abstract_parameters<K: Copy>(
     Ok((body, statement))
 }
 
+// Repeated case applications need the same dependent payload and tail types.
+// Give each type one ordinary declaration, so applying an adapter checks its
+// declared domain instead of forming the complete case sum again at every use.
+struct LabelTypes {
+    payloads: Vec<TermHandle>,
+    tails: Vec<TermHandle>,
+}
+
+impl LabelTypes {
+    fn application<K: Copy + Eq + Into<Key>>(builder: &Builder<'_, K>, function: TermHandle) -> S {
+        builder
+            .common
+            .iter()
+            .fold(S::Closed(function), |body, (symbol, _)| {
+                app(body, S::Var((*symbol).into()))
+            })
+    }
+
+    fn prepare<K: Copy + Eq + Into<Key>>(
+        arena: &mut TermArena,
+        declarations: &mut Vec<Declaration>,
+        builder: &mut Builder<'_, K>,
+    ) -> Result<Self, String> {
+        fn close<K: Copy + Eq + Into<Key>>(
+            builder: &Builder<'_, K>,
+            mut body: S,
+            binder: impl Fn(Key, S, S) -> S,
+        ) -> S {
+            for (symbol, ty) in builder.common.iter().rev() {
+                let domain = builder.domain(*symbol, *ty);
+                body = binder((*symbol).into(), domain, body);
+            }
+            body
+        }
+        fn retain(
+            arena: &mut TermArena,
+            declarations: &mut Vec<Declaration>,
+            ty: TermHandle,
+            body: TermHandle,
+        ) -> TermHandle {
+            let position = declarations.len() as u32;
+            declarations.push(Declaration::definition(0, ty, body));
+            arena.insert(term!(Constant => position => vec![]))
+        }
+        // Payload bodies use only the original source prefix. Share that
+        // immutable context across their exact sort queries; none can refer
+        // to a newly retained payload or a later tail declaration.
+        let context = proof_admission::Context::empty().with_signature(
+            proof_admission::Signature::from_declarations(declarations.clone()),
+        );
+        let mut payloads = Vec::with_capacity(builder.cases.len());
+        for case in 0..builder.cases.len() {
+            let body =
+                close(builder, builder.payload_type(case), lam).term(arena, &mut Vec::new())?;
+            let ty = proof_admission::infer_type(
+                arena,
+                &context,
+                body,
+                &mut proof_admission::Budget::new(proof_admission::DEFAULT_CONVERSION_STEPS),
+            )
+            .map_err(|error| {
+                format!("source induction payload type {case} cannot be formed: {error:?}")
+            })?;
+            payloads.push(retain(arena, declarations, ty, body));
+        }
+        let mut tails = payloads.clone();
+        for start in (0..builder.cases.len().saturating_sub(1)).rev() {
+            let tag = builder.terms.fresh();
+            let motive = builder.terms.type_motive();
+            let first = Self::application(builder, payloads[start]);
+            let rest = Self::application(builder, tails[start + 1]);
+            let body = sigma(tag, S::Two, choose(motive, first, rest, S::Var(tag)));
+            let body = close(builder, body, lam).term(arena, &mut Vec::new())?;
+            // The original sum uses this same Type0 case motive. The whole
+            // signature still checks both branches and this declared sort.
+            let ty = close(builder, S::Type, pi).term(arena, &mut Vec::new())?;
+            tails[start] = retain(arena, declarations, ty, body);
+        }
+        Ok(Self { payloads, tails })
+    }
+}
+
 struct InductionBuilder<'a, 'b, K> {
     b: Builder<'a, K>,
     family: &'b IndexedFamily,
@@ -764,8 +846,15 @@ struct InductionBuilder<'a, 'b, K> {
     invariant: TermHandle,
     lemmas: &'b [TermHandle],
     case_adapters: Vec<TermHandle>,
+    label_types: LabelTypes,
 }
 impl<K: Copy + Eq + Into<Key>> InductionBuilder<'_, '_, K> {
+    fn payload_type(&self, case: usize) -> S {
+        LabelTypes::application(&self.b, self.label_types.payloads[case])
+    }
+    fn sum_type(&self, start: usize) -> S {
+        LabelTypes::application(&self.b, self.label_types.tails[start])
+    }
     fn reconstructed_label(&mut self, label: S) -> S {
         let mut function = S::Closed(self.label_pack);
         let mut tail = label;
@@ -872,8 +961,8 @@ impl<K: Copy + Eq + Into<Key>> InductionBuilder<'_, '_, K> {
         let tag = self.b.terms.fresh();
         let payload = self.b.terms.fresh();
         let tm = self.b.terms.type_motive();
-        let zero_type = self.b.payload_type(start);
-        let one_type = self.b.sum_type(start + 1);
+        let zero_type = self.payload_type(start);
+        let one_type = self.sum_type(start + 1);
         let payload_type = choose(tm, zero_type.clone(), one_type.clone(), S::Var(tag));
         let result = self.result_type(start, pair(S::Var(tag), S::Var(payload)));
         let motive = lam(tag, S::Two, pi(payload, payload_type, result));
@@ -891,7 +980,7 @@ impl<K: Copy + Eq + Into<Key>> InductionBuilder<'_, '_, K> {
     fn step(&mut self) -> Result<S, &'static str> {
         let a = self.b.terms.fresh();
         let tail = self.b.terms.fresh();
-        let sum_type = self.b.sum_type(0);
+        let sum_type = self.sum_type(0);
         let body = self.eliminate(0, S::Var(tail))?;
         let mut function = lam(tail, sum_type, body);
         for (symbol, ty) in self.b.common.iter().rev() {
@@ -995,6 +1084,9 @@ pub(super) fn induction<K: Copy + Eq + Into<Key>>(
     if cases.len() != lemmas.len() {
         return Err("source induction lemma roster differs from its exact cases".into());
     }
+    if cases.is_empty() {
+        return Err("source induction cannot eliminate an empty constructor roster".into());
+    }
     fn retain(
         arena: &mut TermArena,
         declarations: &mut Vec<Declaration>,
@@ -1026,8 +1118,9 @@ pub(super) fn induction<K: Copy + Eq + Into<Key>>(
         cases,
         type_parameters,
     };
+    let label_types = LabelTypes::prepare(arena, declarations, &mut builder)?;
     let tail = builder.terms.fresh();
-    let sum_type = builder.sum_type(0);
+    let sum_type = LabelTypes::application(&builder, label_types.tails[0]);
     let mut raw_label = S::Var(tail);
     for (symbol, _) in common.iter().rev() {
         raw_label = pair(S::Var((*symbol).into()), raw_label);
@@ -1077,6 +1170,7 @@ pub(super) fn induction<K: Copy + Eq + Into<Key>>(
         invariant,
         lemmas,
         case_adapters: Vec::with_capacity(cases.len()),
+        label_types,
     };
     // Each source case applies the same predicate and child hypotheses in
     // several dependent motives. Check that application once at its exact
@@ -1084,7 +1178,7 @@ pub(super) fn induction<K: Copy + Eq + Into<Key>>(
     // without repeatedly rebuilding the whole case application.
     for case in 0..cases.len() {
         let payload = producer.b.terms.fresh();
-        let domain = producer.b.payload_type(case);
+        let domain = producer.payload_type(case);
         let value = S::Var(payload);
         let body = producer.case_body(case, value.clone());
         let sum_value = if case + 1 == cases.len() {
