@@ -1357,7 +1357,7 @@ fn backing_intersects_storage(
             ) && descriptor_backing::origin_overlaps_storage(
                 origin,
                 place,
-                activation_local,
+                independent_carrier,
                 &origin_overlaps,
             )
         });
@@ -1367,7 +1367,7 @@ fn backing_intersects_storage(
         function.machine,
         place,
         path,
-        activation_local,
+        independent_carrier,
         &origin_overlaps,
     )
 }
