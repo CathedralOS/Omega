@@ -2,11 +2,11 @@
 
 use super::{
     AsmAuthorityRequirement, AsmCacheOperationKind, AsmCatalogEntry, AsmControlRegister,
-    AsmFenceKind, AsmFlagsDataFlow, AsmInstructionAvailability, AsmInstructionRefusal,
-    AsmInstructionSerializationKind, AsmInstructionShape, AsmInterruptControlKind,
-    AsmInterruptFlagEffect, AsmMemoryOrdering, AsmMemoryTransferKind, AsmOperandAccess,
-    AsmSchedulingHintKind, AsmSystemRegister, AsmTargetApplicability, X86FlagsEnvironment,
-    asm_catalog_entry, asm_intrinsic_mnemonic, scratch_register,
+    AsmFenceKind, AsmFlagsDataFlow, AsmGlobalDescriptorTableOperation, AsmInstructionAvailability,
+    AsmInstructionRefusal, AsmInstructionSerializationKind, AsmInstructionShape,
+    AsmInterruptControlKind, AsmInterruptFlagEffect, AsmMemoryOrdering, AsmMemoryTransferKind,
+    AsmOperandAccess, AsmSchedulingHintKind, AsmSystemRegister, AsmTargetApplicability,
+    X86FlagsEnvironment, asm_catalog_entry, asm_intrinsic_mnemonic, scratch_register,
 };
 
 #[test]
@@ -648,9 +648,7 @@ fn catalog_names_semantic_refusal_classes() {
         "lss",
         "lfs",
         "lgs",
-        "sgdt",
         "sidt",
-        "lgdt",
         "movnti",
         "movntq",
         "movntdq",
@@ -703,6 +701,26 @@ fn catalog_names_semantic_refusal_classes() {
             )),
             "{mnemonic} stays an unmodeled-memory refusal"
         );
+    }
+    for (mnemonic, operation) in [
+        ("sgdt", AsmGlobalDescriptorTableOperation::Store),
+        ("lgdt", AsmGlobalDescriptorTableOperation::Load),
+    ] {
+        let AsmCatalogEntry::Contract(contract) =
+            asm_catalog_entry(mnemonic).expect("descriptor-table contract")
+        else {
+            panic!("{mnemonic} must be contracted");
+        };
+        assert_eq!(
+            contract.shape,
+            AsmInstructionShape::GlobalDescriptorTable(operation),
+            "{mnemonic}"
+        );
+        assert_eq!(
+            contract.availability,
+            AsmInstructionAvailability::UserChecked
+        );
+        assert_eq!(contract.target, AsmTargetApplicability::X86_64);
     }
     // Supervisor traps are service-admission candidates, not hidden exits;
     // address arithmetic and ordering barriers access no memory. Each keeps
