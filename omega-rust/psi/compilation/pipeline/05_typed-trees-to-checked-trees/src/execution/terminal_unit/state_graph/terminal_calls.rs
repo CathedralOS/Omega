@@ -297,6 +297,9 @@ pub(super) fn arm_call(
     }
     trace.phase("state graph: terminator: terminal call arm: operand occurrences");
     trace.statement(Some(statement_ordinal));
+    // Operand preparation is part of this arm. The shared preamble does not
+    // include the calls nested in this arm's arguments, and a sibling arm's
+    // calls are not occurrences this arm must own.
     control::call_owns_statement_computations(
         program,
         facts,
@@ -304,7 +307,7 @@ pub(super) fn arm_call(
         state.symbol,
         call,
         calls,
-        preamble,
+        &preparation,
     )?;
     trace.phase("state graph: terminator: terminal call arm: call operation");
     trace.statement(Some(statement_ordinal));

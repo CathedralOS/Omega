@@ -80,6 +80,10 @@ impl Execution<'_, '_, '_> {
                     .expression_table
                     .expression_handles(call.arguments),
             )?;
+        // Selector expressions belong to the callee. Erase them the same way
+        // the returned loan does, keeping element versus window shape, so the
+        // descriptor and the loan name one captured place.
+        let sources = erase_callee_selectors(self.program, sources);
         let reference =
             validation::project_type_reference_from_segments(self.program, returned, path)?;
         let expected = validation::reference_shell(self.program, reference)?;
@@ -101,11 +105,17 @@ impl Execution<'_, '_, '_> {
             // even after its loaded value resolves to an exact supplier. The
             // structural source below owns descriptor identity; the footprint
             // cannot veto it or stand in for its path/type/access checks.
+            // A runtime index is the erased selector the returned loan stores.
+            // It is not an unresolved field, so it must not abandon the
+            // lending descriptor.
             if !source.source.recasts.is_empty()
                 || source.source.representation.is_some()
-                || !source.source.segments.iter().all(|segment| {
-                    super::super::place_segment_has_static_identity(segment)
-                        || matches!(segment, PlaceSegment::OpaqueRange)
+                || source.source.segments.iter().any(|segment| {
+                    !super::super::place_segment_has_static_identity(segment)
+                        && !matches!(
+                            segment,
+                            PlaceSegment::OpaqueRange | PlaceSegment::Index { .. }
+                        )
                 })
             {
                 return None;
@@ -379,4 +389,26 @@ impl Execution<'_, '_, '_> {
         }
         Some(paths)
     }
+}
+
+fn erase_callee_selectors(
+    program: &dyn validation::CheckingInput,
+    sources: Vec<validation::ReferenceResultLeafOrigin>,
+) -> Vec<validation::ReferenceResultLeafOrigin> {
+    sources
+        .into_iter()
+        .map(|mut source| {
+            source.source.segments = source
+                .source
+                .segments
+                .into_iter()
+                .map(|segment| {
+                    segment.erase_runtime_selector(|expression| {
+                        program.expression_table.range_node(expression).is_some()
+                    })
+                })
+                .collect();
+            source
+        })
+        .collect()
 }
