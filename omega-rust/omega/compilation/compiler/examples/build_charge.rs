@@ -2400,12 +2400,24 @@ fn source_native_roundtrip() {
         vec![Some(target::TargetProfile::host_if_supported().unwrap())],
     )
     .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
-    let before = counters::build_execution_count();
+    let before = (
+        counters::build_execution_count(),
+        counters::source_build_execution_count(),
+        counters::provider_defaults_execution_count(),
+    );
     let report = orchestration::compile_sources(&mut CompilationSession::default(), request)
         .expect("source admission")
         .into_single_report()
         .expect("source native product");
-    assert_eq!(counters::build_execution_count(), before + 1);
+    build_sequence::print_execution_counts("source native roundtrip admitted");
+    assert_eq!(
+        (
+            counters::build_execution_count() - before.0,
+            counters::source_build_execution_count() - before.1,
+            counters::provider_defaults_execution_count() - before.2
+        ),
+        (2, 1, 1)
+    );
     execute_report(report, &directory);
     println!("source_native_and_reloaded_terminal_exit_zero_after_one_build");
 }
