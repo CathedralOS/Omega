@@ -97,9 +97,9 @@ described above. Their Build declarations and expected exit remain unchanged.
 | Host | Compiler source | Checking | Corpus execution | Sample execution |
 | --- | --- | --- | --- | --- |
 | Linux x86-64 | `6d20220933d71e8aad836e69687751c92ebcd2bc` | 9 valid, 9 intended rejects | 9 native/Terminal exit-zero agreements | 9 agreements, 9 intended rejects |
-| Linux ARM64 | `64376af6ae978b4ddb2d2d50874724226ccb0646` | Pending | Pending | Pending |
-| macOS ARM64 | `64376af6ae978b4ddb2d2d50874724226ccb0646` | Pending | Pending | Pending |
-| Windows x86-64 | `64376af6ae978b4ddb2d2d50874724226ccb0646` | Pending | Pending | Pending |
+| Linux ARM64 | `64376af6ae978b4ddb2d2d50874724226ccb0646` | 9 valid, 9 intended rejects | 9 native/Terminal exit-zero agreements | 9 agreements, 9 intended rejects |
+| macOS ARM64 | `64376af6ae978b4ddb2d2d50874724226ccb0646` | 9 valid, 9 intended rejects | 9 native/Terminal exit-zero agreements | 9 agreements, 9 intended rejects |
+| Windows x86-64 | `64376af6ae978b4ddb2d2d50874724226ccb0646` | 9 valid, 9 intended rejects | 9 native/Terminal exit-zero agreements | 9 agreements, 9 intended rejects |
 
 The [Linux run](https://github.com/CathedralOS/Omega/actions/runs/42106651463)
 also checked the focused malformed-output and stale-index controls. In total,
@@ -112,13 +112,21 @@ with that path corrected passed package admission and returned zero in both
 engines, using the same authenticated optimized compiler. It did not repeat or
 relabel the completed checks.
 
-The remaining host runs are [Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/42115153222),
+The [Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/42115153222),
 [macOS ARM64](https://github.com/CathedralOS/Omega/actions/runs/42115149060) and
-[Windows x86-64](https://github.com/CathedralOS/Omega/actions/runs/42115157698).
-Their results are pending. Each checks the same nine programs and nine twins,
-runs the nine positives in both engines, and exercises ordinary package admission.
-The compiler and program inputs match the completed Linux work; each run retains
-its actual producer identity and host.
+[Windows x86-64](https://github.com/CathedralOS/Omega/actions/runs/42115157698)
+runs also passed checking, both execution engines, all sample projects and
+ordinary package admission. Their full reports and actual products are retained.
+Each checks the same nine programs and nine twins, executes the nine positives
+in both engines, and exercises ordinary package admission. Their compiler and
+program inputs match the completed Linux work. Results keep the actual producer
+and host; Source checking uses the existing macOS ARM64 check target, while
+execution uses each host's actual target.
+
+Independent source review confirmed that the final lowering cleanup in
+[PR #1919](https://github.com/CathedralOS/Omega/pull/1919) leaves the proof references
+in these programs unchanged. Results stay stamped with the compiler revisions
+actually used.
 
 Earlier [Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/41961822390)
 and [Windows](https://github.com/CathedralOS/Omega/actions/runs/41961828697)
@@ -140,4 +148,3 @@ Both parent tasks remain open. This row covers copyable arrays and this case
 return. Exclusive ownership and cleanup, escaping runtime-sized results,
 complete family supply, remaining source migrations and product-compiler support
 remain separate requirements.
-The remaining hosts, final review and landing are still required.
