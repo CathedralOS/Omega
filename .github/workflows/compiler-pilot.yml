@@ -1,202 +1,475 @@
-name: Compiler queue pilot
-
+name: Validate integrated core defaults and original customers
 on:
-  pull_request:
-    branches: [integration-pilot]
-  merge_group:
-    branches: [integration-pilot]
-    types: [checks_requested]
   workflow_dispatch:
-    inputs:
-      smoke:
-        description: Also build executables and run the native/Terminal smoke (not admission)
-        type: boolean
-        default: false
-      fixtures:
-        description: Optional comma-separated exact pass/group/name and fail/group/name IDs; replaces smoke
-        type: string
-        default: ''
-      checking_only:
-        description: Check only the exact fixtures and rejection controls, without repeating runtime observations
-        type: boolean
-        default: false
-      phase_profile:
-        description: Record compiler phase timings for a focused attribution run
-        type: boolean
-        default: false
-      samples:
-        description: Optional comma-separated exact samples/cli/facts project paths (with descendants); replaces smoke
-        type: string
-        default: ''
-      cli_fixtures:
-        description: Optional exact pass/... or samples/cli/... normal-exit projects through ordinary CLI package review and both engines
-        type: string
-        default: ''
-      build_consent:
-        description: Run public source-produced Build consent and filesystem isolation controls
-        type: boolean
-        default: false
-      native_host:
-        description: Matching native host for manual executable observations
-        type: choice
-        options:
-          - linux_x86_64
-          - linux_arm64
-          - windows_x86_64
-          - macos_arm64
-        default: linux_x86_64
-
 permissions:
   contents: read
-
-# A new PR revision supersedes its old check; never cancel a merge-group check
-# merely because another PR entered the queue. Manual revisions use isolated
-# runners and may proceed while an earlier revision finishes its consumers.
-concurrency:
-  group: compiler-pilot-${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
+  actions: read
+env:
+  CARGO_BUILD_JOBS: '2'
+  CARGO_INCREMENTAL: '0'
+  CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
+  CARGO_BUILD_FINGERPRINT: content
+  CARGO_TARGET_DIR: /tmp/ot
+  RUST_MIN_STACK: '67108864'
+  OMEGA_CORPUS_FIXTURE_SECS: '120'
 jobs:
-  compiler-pilot:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","linux_arm64":"ubuntu-24.04-arm","windows_x86_64":"windows-2022","macos_arm64":"macos-15"}')[inputs.native_host] || 'ubuntu-24.04' }}
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
-    env:
-      CARGO_BUILD_JOBS: '2'
-      CARGO_INCREMENTAL: '0'
-      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
-      CARGO_BUILD_FINGERPRINT: content
-      # Large calling-policy checks use about 2.8 GiB each. Run one fixture
-      # at a time to reduce concurrent memory pressure.
-      OMEGA_CORPUS_JOBS: '1'
-      RUST_MIN_STACK: '67108864'
-      # Match Linux/macOS post-merge storage; Windows keeps its short target path.
-      CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    outputs:
+      compiler_status: ${{ steps.compiler.outcome }}
+      sdk_status: ${{ steps.sdk.outcome }}
+      artifact_id: ${{ steps.retained.outputs.artifact-id }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: 6b1c338126fafa80671d06878a8f9746254eddc9
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Test the gate's refusal paths
-        run: python tools/tests/test_compiler_pilot.py -v
-      - name: Test Build control evidence refusal paths
-        run: python tools/tests/test_build_consent_controls.py -v
-      - name: Validate exact fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_fixtures; import os; print(select_fixtures(os.environ['OMEGA_COMPILER_PILOT_FIXTURES']))"
-      - name: Validate exact fact sample selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.samples != ''
-        env:
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-        run: python -c "from tools.ci.compiler_pilot import select_samples; import os; print(select_samples(os.environ['OMEGA_COMPILER_PILOT_SAMPLES']))"
-      - name: Validate exact ordinary CLI fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.cli_fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_cli_fixtures; import os; print(select_cli_fixtures(os.environ['OMEGA_COMPILER_PILOT_CLI_FIXTURES']))"
-      - name: Provision Windows rooted temporary directory for hosted applications
-        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
-      - name: Select the retained compiler cache from its validated plan
-        id: replay-cache
-        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "import os; from tools.ci import compiler_pilot; compiler_pilot.write_replay_cache_key(os.environ['OMEGA_COMPILER_PILOT_FIXTURES'], os.environ['GITHUB_OUTPUT'])"
-      - name: Restore the exact retained compiler cache
-        id: replay-build-cache
-        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.replay-cache.outputs.key }}
-          fail-on-cache-miss: true
-      - name: Refuse an absent or partial retained compiler cache
-        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@') && steps.replay-build-cache.outputs.cache-hit != 'true'
-        run: python -c "raise SystemExit('The exact retained compiler cache was not restored; no rebuild was attempted')"
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         id: build-cache
-        if: github.event_name != 'workflow_dispatch' || !startsWith(inputs.fixtures, '@')
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
+            /tmp/ot
+          key: compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
-      - name: Check the exact integration candidate
-        id: compiler-check
-        run: cargo check --locked -p omega
-      - name: Prepare and retain the optimized producer
-        id: producer-preparation
-        if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py --phase prepare
-      - name: Upload the prepared producer and build receipts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
+            compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+            compiler-regression-${{ runner.os }}-${{ runner.arch }}-
+      - name: Prepare the compiler and retain its source
+        id: compiler
+        run: |
+          python3 - <<'OBSERVE'
+          from pathlib import Path
+          import hashlib,json,os,sys
+          root=Path.cwd()
+          sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          import compiler_pilot
+          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA']
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
+          os.environ['GITHUB_SHA']=source
+          assert compiler_pilot.corpus_gate.host_target()=='linux_x86_64'
+          assert os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
+          output=root/'build/compiler-pilot/integrated'
+          positive=('pass/traits/named_contract_arithmetic_refinement', 'pass/traits/float_contract_refinement_boundaries_exit', 'pass/providers/inline_member_generic_requirement_exit', 'pass/providers/generic_required_instance_roster_exit', 'pass/providers/canonical_inherited_provider_instances_exit', 'pass/providers/occurrence_region_binding_forwarding_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/build/provider_applied_static_capture_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit', 'pass/traits/public_method_callback_prefix_inference_exit');negative=('fail/proofs/quotient_representative_admitted_closure_rejected', 'fail/traits/inline_requirement_inherited_false_ensures', 'fail/traits/member_omits_requirement_ensures', 'fail/providers/provider_type_slot_unknown', 'fail/traits/exact_application_keeps_parameter_types', 'fail/providers/inline_member_sibling_requirement_rejected', 'fail/providers/occurrence_region_binding_conflicting_inputs', 'fail/build/float_default_wrong_value', 'fail/packages/rootless_numeric_provider_missing_satisfaction', 'fail/traits/conformance_reference_row_retired', 'fail/contracts/mutable_owned_call_ensures_keeps_poststate', 'fail/references/rebound_parameter_reference_drops_referent_bound', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/borrows/whole_referent_store_through_shared_loan', 'fail/traits/ordinary_selection_name_missing_conformance_region', 'fail/traits/explicit_implementation_missing_const_argument', 'fail/build/provider_structural_type_application_conflict', 'fail/providers/inherited_provider_phantom_arguments', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner', 'fail/traits/public_method_callback_prefix_wrong_contract');checking_only=('pass/packages/rootless_numeric_provider_review', 'pass/packages/rootless_numeric_provider_consumer', 'pass/float/runtime_classification_result_categories_exit')
+          output.mkdir(parents=True,exist_ok=False)
+          (output/'driver.json').write_text(json.dumps({'source':source,'driver':driver},indent=2)+'\n')
+          raise SystemExit(compiler_pilot.run_suite('compiler-pilot/integrated',positive,negative,checking_only=checking_only,phase='prepare'))
+          OBSERVE
+      - name: Prepare the two existing SDK examples
+        id: sdk
+        run: |
+          python3 - <<'OBSERVE'
+          from pathlib import Path
+          import hashlib,json,os,sys
+          root=Path.cwd()
+          sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          import compiler_pilot
+          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA']
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
+          os.environ['GITHUB_SHA']=source
+          assert compiler_pilot.corpus_gate.host_target()=='linux_x86_64'
+          assert os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
+          output=root/'build/compiler-pilot/integrated'
+          positive=('pass/traits/named_contract_arithmetic_refinement', 'pass/traits/float_contract_refinement_boundaries_exit', 'pass/providers/inline_member_generic_requirement_exit', 'pass/providers/generic_required_instance_roster_exit', 'pass/providers/canonical_inherited_provider_instances_exit', 'pass/providers/occurrence_region_binding_forwarding_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/build/provider_applied_static_capture_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit', 'pass/traits/public_method_callback_prefix_inference_exit');negative=('fail/proofs/quotient_representative_admitted_closure_rejected', 'fail/traits/inline_requirement_inherited_false_ensures', 'fail/traits/member_omits_requirement_ensures', 'fail/providers/provider_type_slot_unknown', 'fail/traits/exact_application_keeps_parameter_types', 'fail/providers/inline_member_sibling_requirement_rejected', 'fail/providers/occurrence_region_binding_conflicting_inputs', 'fail/build/float_default_wrong_value', 'fail/packages/rootless_numeric_provider_missing_satisfaction', 'fail/traits/conformance_reference_row_retired', 'fail/contracts/mutable_owned_call_ensures_keeps_poststate', 'fail/references/rebound_parameter_reference_drops_referent_bound', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/borrows/whole_referent_store_through_shared_loan', 'fail/traits/ordinary_selection_name_missing_conformance_region', 'fail/traits/explicit_implementation_missing_const_argument', 'fail/build/provider_structural_type_application_conflict', 'fail/providers/inherited_provider_phantom_arguments', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner', 'fail/traits/public_method_callback_prefix_wrong_contract');checking_only=('pass/packages/rootless_numeric_provider_review', 'pass/packages/rootless_numeric_provider_consumer', 'pass/float/runtime_classification_result_categories_exit')
+          import build_consent_controls as controls
+          import build_slot,compiler_profile,subprocess,time
+          assert json.loads((output/'preparation.json').read_text())['passed']
+          sdk=output/'sdk';sdk.mkdir(exist_ok=False)
+          files=subprocess.check_output(['git','ls-files','source/library','omega-rust/omega/compilation/compiler/examples','omega-rust/omega/compilation/compiler/tests/support'],text=True).splitlines()
+          inputs={p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in files}
+          objects={p:controls.git('rev-parse',source+':'+p) for p in ['omega-rust','source/library','tools','.github','Cargo.toml','Cargo.lock','rust-toolchain.toml','tests/omega']}
+          report={'source':source,'tree':controls.git('rev-parse','HEAD^{tree}'),'driver':driver,'target':controls.host_target(),'toolchain':subprocess.check_output(['rustc','-Vv'],text=True).strip(),'passed':False,'inputs':inputs,'source_objects':objects,'profiles':{},'binaries':{},'builds':[]}
+          try:
+           with build_slot.hold(root):
+            for name in ['default_build','build_charge']:
+             started=time.monotonic();binary,cargo_profile=controls.build(sdk,name,['build','--locked','-p','compiler','--example',name])
+             profile=compiler_profile.require_optimized(binary);assert str(cargo_profile['opt_level'])==profile['profile']['opt_level']
+             report['profiles'][name]=profile;report['binaries'][name]=str(binary);report['builds'].append({'example':name,'seconds':round(time.monotonic()-started,3)})
+           for p,h in inputs.items():assert hashlib.sha256(Path(p).read_bytes()).hexdigest()==h
+           report['passed']=True
+          finally:(sdk/'preparation.json').write_text(json.dumps(report,indent=2)+'\n')
+          raise SystemExit(0 if report['passed'] else 1)
+          OBSERVE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        id: retained
+        if: always()
         with:
-          name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/
-          if-no-files-found: warn
-          compression-level: 0
-          retention-days: 7
-      # Save compiled objects before any program consumer can use the job budget.
-      # A failed preparation still retains useful objects and keeps the job red.
-      - name: Save build cache before fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+          name: core-float-integrated-preparation-${{ github.run_id }}
+          path: build/compiler-pilot/integrated/
+          include-hidden-files: true
+          retention-days: 30
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        if: always() && !cancelled() && steps.build-cache.outputs.cache-hit != 'true'
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
-      - name: Observe public Build consent and filesystem isolation
-        if: github.event_name == 'workflow_dispatch' && inputs.build_consent
-        run: python tools/ci/build_consent_controls.py
-      - name: Enable requested compiler phase timings
-        if: github.event_name == 'workflow_dispatch' && inputs.phase_profile
-        run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_PHASE_PROFILE=1\n')"
-      - name: Optional executable observations
-        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py --phase consume
-      - name: Report actual producer and fixture observations
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('preparation.json', 'summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
+            /tmp/ot
+          key: compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
+  corpus:
+    needs: prepare
+    if: ${{ always() && !cancelled() && needs.prepare.outputs.compiler_status == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 140
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          name: compiler-pilot-observations-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          ref: 6b1c338126fafa80671d06878a8f9746254eddc9
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact_id }}
+          merge-multiple: true
+          path: build/compiler-pilot/integrated/
+      - name: Authenticate prepared executable bytes and restore their execute permission
+        run: |
+          python3 - <<'OBSERVE'
+          from pathlib import Path
+          import hashlib,json,os,sys
+          root=Path.cwd()
+          sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          import compiler_pilot
+          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA']
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
+          os.environ['GITHUB_SHA']=source
+          assert compiler_pilot.corpus_gate.host_target()=='linux_x86_64'
+          assert os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
+          output=root/'build/compiler-pilot/integrated'
+          positive=('pass/traits/named_contract_arithmetic_refinement', 'pass/traits/float_contract_refinement_boundaries_exit', 'pass/providers/inline_member_generic_requirement_exit', 'pass/providers/generic_required_instance_roster_exit', 'pass/providers/canonical_inherited_provider_instances_exit', 'pass/providers/occurrence_region_binding_forwarding_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/build/provider_applied_static_capture_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit', 'pass/traits/public_method_callback_prefix_inference_exit');negative=('fail/proofs/quotient_representative_admitted_closure_rejected', 'fail/traits/inline_requirement_inherited_false_ensures', 'fail/traits/member_omits_requirement_ensures', 'fail/providers/provider_type_slot_unknown', 'fail/traits/exact_application_keeps_parameter_types', 'fail/providers/inline_member_sibling_requirement_rejected', 'fail/providers/occurrence_region_binding_conflicting_inputs', 'fail/build/float_default_wrong_value', 'fail/packages/rootless_numeric_provider_missing_satisfaction', 'fail/traits/conformance_reference_row_retired', 'fail/contracts/mutable_owned_call_ensures_keeps_poststate', 'fail/references/rebound_parameter_reference_drops_referent_bound', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/borrows/whole_referent_store_through_shared_loan', 'fail/traits/ordinary_selection_name_missing_conformance_region', 'fail/traits/explicit_implementation_missing_const_argument', 'fail/build/provider_structural_type_application_conflict', 'fail/providers/inherited_provider_phantom_arguments', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner', 'fail/traits/public_method_callback_prefix_wrong_contract');checking_only=('pass/packages/rootless_numeric_provider_review', 'pass/packages/rootless_numeric_provider_consumer', 'pass/float/runtime_classification_result_categories_exit')
+          import stat
+          manifest=json.loads((output/'producer.json').read_text())['producer']
+          assert manifest['revision']==source and manifest['tree']==compiler_pilot.command(['git','rev-parse','HEAD^{tree}'])
+          rows=[]
+          entries=[(Path(manifest[name]),manifest[name+'_profile']) for name in ['cli','runner']]
+          sdk_prepared=output/'sdk/preparation.json'
+          if sdk_prepared.exists():
+           sdk_record=json.loads(sdk_prepared.read_text())
+           for name,value in sdk_record.get('binaries',{}).items():entries.append((Path(value),sdk_record['profiles'][name]))
+          for binary,profile in entries:
+           assert binary.is_file() and not binary.is_symlink() and binary.resolve().is_relative_to(output.resolve())
+           assert hashlib.sha256(binary.read_bytes()).hexdigest()==profile['sha256']
+           old_mode=stat.S_IMODE(binary.stat().st_mode);binary.chmod(old_mode|stat.S_IXUSR|stat.S_IXGRP|stat.S_IXOTH)
+           assert hashlib.sha256(binary.read_bytes()).hexdigest()==profile['sha256']
+           rows.append({'binary':str(binary),'sha256':profile['sha256'],'mode_before':oct(old_mode),'mode_after':oct(stat.S_IMODE(binary.stat().st_mode))})
+          (output/'restored-executable-modes.json').write_text(json.dumps({'source':source,'driver':driver,'executables':rows,'meaning':'Artifact download does not retain executable bits. Only exact recorded digests under the prepared directory regain that bit; bytes are unchanged.'},indent=2)+'\n')
+          OBSERVE
+      - name: Run only the prepared corpus scope
+        run: |
+          python3 - <<'OBSERVE'
+          from pathlib import Path
+          import hashlib,json,os,sys
+          root=Path.cwd()
+          sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          import compiler_pilot
+          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA']
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
+          os.environ['GITHUB_SHA']=source
+          assert compiler_pilot.corpus_gate.host_target()=='linux_x86_64'
+          assert os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
+          output=root/'build/compiler-pilot/integrated'
+          positive=('pass/traits/named_contract_arithmetic_refinement', 'pass/traits/float_contract_refinement_boundaries_exit', 'pass/providers/inline_member_generic_requirement_exit', 'pass/providers/generic_required_instance_roster_exit', 'pass/providers/canonical_inherited_provider_instances_exit', 'pass/providers/occurrence_region_binding_forwarding_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/build/provider_applied_static_capture_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit', 'pass/traits/public_method_callback_prefix_inference_exit');negative=('fail/proofs/quotient_representative_admitted_closure_rejected', 'fail/traits/inline_requirement_inherited_false_ensures', 'fail/traits/member_omits_requirement_ensures', 'fail/providers/provider_type_slot_unknown', 'fail/traits/exact_application_keeps_parameter_types', 'fail/providers/inline_member_sibling_requirement_rejected', 'fail/providers/occurrence_region_binding_conflicting_inputs', 'fail/build/float_default_wrong_value', 'fail/packages/rootless_numeric_provider_missing_satisfaction', 'fail/traits/conformance_reference_row_retired', 'fail/contracts/mutable_owned_call_ensures_keeps_poststate', 'fail/references/rebound_parameter_reference_drops_referent_bound', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/borrows/whole_referent_store_through_shared_loan', 'fail/traits/ordinary_selection_name_missing_conformance_region', 'fail/traits/explicit_implementation_missing_const_argument', 'fail/build/provider_structural_type_application_conflict', 'fail/providers/inherited_provider_phantom_arguments', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner', 'fail/traits/public_method_callback_prefix_wrong_contract');checking_only=('pass/packages/rootless_numeric_provider_review', 'pass/packages/rootless_numeric_provider_consumer', 'pass/float/runtime_classification_result_categories_exit')
+          preparation=json.loads((output/'preparation.json').read_text());assert preparation['passed'] and preparation['candidate']==source
+          assert json.loads((output/'driver.json').read_text())=={'source':source,'driver':driver}
+          producer=compiler_pilot.load_producer(output/'producer.json');producer.verify()
+          import base64,signal,subprocess,time
+          core=Path('build/compiler-pilot/core');core.mkdir(exist_ok=False)
+          payloads={'build.omg': 'bWFjaGluZSBidWlsZChidWlsZGVyOiAmbXV0IEJ1aWxkKSB7CiAgICBCdWlsZDo6YXBwbGljYXRpb24oYnVpbGRlciwgIndob2xlX2JvcnJvd2VkX2NvcmVfcHJvYmUiKTsKICAgIEJ1aWxkOjpiaW5kKGJ1aWxkZXIsIHdpbmRvd3NfeDg2XzY0OjpQcm9ncmFtRW50cnksIGVudHJ5X3N0YXJ0KTsKICAgIEJ1aWxkOjpiaW5kKGJ1aWxkZXIsIGxpbnV4X3g4Nl82NDo6UHJvZ3JhbUVudHJ5LCBlbnRyeV9zdGFydCk7CiAgICBCdWlsZDo6YmluZChidWlsZGVyLCBsaW51eF9hcm02NDo6UHJvZ3JhbUVudHJ5LCBlbnRyeV9zdGFydCk7CiAgICBCdWlsZDo6YmluZChidWlsZGVyLCBtYWNvc19hcm02NDo6UHJvZ3JhbUVudHJ5LCBlbnRyeV9zdGFydCk7Cn0K', 'main.omg': 'Ly8gRXhwZWN0ZWQgZXhpdDogMAp1c2Ugb21lZ2E6Omxhbmd1YWdlOjpjb3JlOjpkcm9wOwoKZGF0YSBJbnZlbnRvcnkgW2xpbmVhcl0gZHJvcHBlZCBieSBkcm9wX2ludmVudG9yeSB7IHNsb3RzOiBpMzI7IH0KbWFjaGluZSBkcm9wX2ludmVudG9yeShpbnZlbnRvcnk6ICZtdXQgSW52ZW50b3J5KSB7fQpkYXRhIE1haW4geyB9CgptYWNoaW5lIHRyYW5zZm9ybShpbnZlbnRvcnk6IEludmVudG9yeSkgLT4gSW52ZW50b3J5IHsKICAgIHRyYW5zaXRpb24gaW52ZW50b3J5LnNsb3RzID09IDQxIHsKICAgICAgICB0cnVlIC0+IGluY3JlbWVudChpbnZlbnRvcnkpCiAgICAgICAgZmFsc2UgLT4gcHJlc2VydmUoaW52ZW50b3J5KQogICAgfQogICAgbWFjaGluZSBpbmNyZW1lbnQoaW52ZW50b3J5OiBJbnZlbnRvcnkpIC0+IEludmVudG9yeSB7CiAgICAgICAgbGV0IHNsb3RzOiBpMzIgPSBpbnZlbnRvcnkuc2xvdHM7CiAgICAgICAgZHJvcChpbnZlbnRvcnkpOwogICAgICAgIEludmVudG9yeSB7IHNsb3RzOiAoKHNsb3RzIGFzIGkzMiBpbiBXcmFwcGluZykgKyAxKSBhcyBpMzIgfQogICAgfQogICAgbWFjaGluZSBwcmVzZXJ2ZShpbnZlbnRvcnk6IEludmVudG9yeSkgLT4gSW52ZW50b3J5IHsgaW52ZW50b3J5IH0KfQoKbWFjaGluZSByZXBhaXIoaW52ZW50b3J5OiAmbXV0IEludmVudG9yeSkgLT4gaTMyIHsKICAgIGxldCByZW1vdmVkOiBJbnZlbnRvcnkgPSBpbnZlbnRvcnk7CiAgICBpbnZlbnRvcnkgPSB0cmFuc2Zvcm0ocmVtb3ZlZCk7CiAgICBpbnZlbnRvcnkuc2xvdHMKfQoKbWFjaGluZSBNYWluOjptYWluKG1haW46ICZtdXQgTWFpbikgY3Jhc2hlcyBUcmFwIHsKICAgIGxldCBtdXQgaW52ZW50b3J5OiBJbnZlbnRvcnkgPSBJbnZlbnRvcnkgeyBzbG90czogNDEgfTsKICAgIGxldCB0cmFuc2Zvcm1lZDogaTMyID0gcmVwYWlyKCZtdXQgaW52ZW50b3J5KTsKICAgIGludmVudG9yeS5zbG90cyA9IDc7CiAgICBsZXQgcHJlc2VydmVkOiBpMzIgPSByZXBhaXIoJm11dCBpbnZlbnRvcnkpOwogICAgbGV0IGZpbmFsX3ZhbHVlOiBpMzIgPSBpbnZlbnRvcnkuc2xvdHM7CiAgICBkcm9wKGludmVudG9yeSk7CiAgICB0cmFuc2l0aW9uIHRyYW5zZm9ybWVkID09IDQyICYmIHByZXNlcnZlZCA9PSA3ICYmIGZpbmFsX3ZhbHVlID09IDcgewogICAgICAgIHRydWUgLT4gZmluaXNoKG1haW4sIDQyKQogICAgICAgIGZhbHNlIC0+IGZpbmlzaChtYWluLCAxKQogICAgfQogICAgbWFjaGluZSBmaW5pc2gobWFpbjogJm11dCBNYWluLCBjb2RlOiBpMzIpIHsKICAgICAgICB0cmFuc2l0aW9uIGNvZGUgPT0gNDIgewogICAgICAgICAgICB0cnVlIC0+IGRvbmUoKQogICAgICAgICAgICBmYWxzZSAtPiBiYWQoKQogICAgICAgIH0KICAgICAgICBtYWNoaW5lIGRvbmUoKSB7fQogICAgICAgIG1hY2hpbmUgYmFkKCkgeyBjcmFzaCBUcmFwOyB9CiAgICB9Cn0KCi8vIFRoZSBlbnRyeSBvd25zIG9yZGluYXJ5IGxvY2FsIHN0YXRlOyBzZWxlY3Rpb24gc3VwcGxpZXMgbm8gY29udGV4dC4KbWFjaGluZSBlbnRyeV9zdGFydCgpIGNyYXNoZXMgVHJhcCB7CiAgICBsZXQgbXV0IGVudHJ5X3N0b3JhZ2U6IE1haW47CiAgICBNYWluOjptYWluKCZtdXQgZW50cnlfc3RvcmFnZSk7Cn0K'};hashes={'build.omg': '966cfcf6d6172db22cff4dad6d0ba4e5f814d149c515dbc30c9159bba6d2ddcf', 'main.omg': 'f5a41a2e939dc08726225562eabc939f7667a470f8a1c2b4a8de093db0a30854'}
+          for name,payload in payloads.items():
+           data=base64.b64decode(payload,validate=True);assert hashlib.sha256(data).hexdigest()==hashes[name];(core/name).write_bytes(data)
+          row={'command':[str(producer.cli),'run','--both','--keep',str((core/'main.omg').resolve())],'budget_seconds':120,'oracle_exit':0,'producer':producer.record(),'inputs':hashes,'passed':False}
+          start=time.monotonic()
+          with (core/'both.stdout').open('wb') as stdout,(core/'both.stderr').open('wb') as stderr:
+           process=subprocess.Popen(row['command'],stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr,start_new_session=True)
+           try:row['exit']=process.wait(timeout=120)
+           except subprocess.TimeoutExpired:
+            os.killpg(process.pid,signal.SIGKILL);process.wait();row.update(exit=None,error='Timed out; no passing engine observation.')
+          row['seconds']=round(time.monotonic()-start,3)
+          try:compiler_pilot.ordinary_cli_fixture.validate_exits(row['exit'],(core/'both.stderr').read_text(errors='replace'),0);row['passed']=True
+          except ValueError as error:row['oracle_error']=str(error)
+          row['channels']={suffix:{'path':'both.'+suffix,'sha256':hashlib.sha256((core/('both.'+suffix)).read_bytes()).hexdigest()} for suffix in ('stdout','stderr')}
+          (core/'observation.json').write_text(json.dumps(row,indent=2)+'\n')
+          producer.verify()
+          for name,digest in hashes.items():assert hashlib.sha256((core/name).read_bytes()).hexdigest()==digest
+          status=compiler_pilot.run_suite('compiler-pilot/integrated',positive,negative,checking_only=checking_only,phase='consume')
+          producer.verify()
+          latency=all(item['millis']<=120000 for report in ['checking.json','both.json'] for item in json.loads((output/report).read_text())['observations'])
+          (output/'consumer-scope.json').write_text(json.dumps({'source':source,'driver':driver,'producer':producer.record(),'suite_exit':status,'core':row,'passed':status==0 and row['passed'] and latency,'latency_within_original_limit':latency,'known_supplemental_control':'fail/borrows/whole_referent_store_through_shared_loan remains included with its unchanged oracle; earlier acceptance is not passing enforcement.'},indent=2)+'\n')
+          raise SystemExit(0 if status==0 and row['passed'] and latency else 1)
+          OBSERVE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: core-float-integrated-corpus-${{ github.run_id }}
           path: |
-            build/compiler-pilot/
-            !build/compiler-pilot/producer-*/**
-          if-no-files-found: warn
-          compression-level: 0
-          retention-days: 7
-      # The corpus reports alone, so `corpus_gate.py --compare --remote` reads
-      # rows without downloading the retained producer (350-520 MB).
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
+            build/compiler-pilot/integrated/
+            build/compiler-pilot/core/
+            !build/compiler-pilot/integrated/producer-*/**
+            !build/compiler-pilot/integrated/sdk/**
+          include-hidden-files: true
+          retention-days: 30
+  ordinary:
+    needs: prepare
+    if: ${{ always() && !cancelled() && needs.prepare.outputs.compiler_status == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/*.json
-          if-no-files-found: warn
-          retention-days: 7
+          ref: 6b1c338126fafa80671d06878a8f9746254eddc9
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact_id }}
+          merge-multiple: true
+          path: build/compiler-pilot/integrated/
+      - name: Authenticate prepared executable bytes and restore their execute permission
+        run: |
+          python3 - <<'OBSERVE'
+          from pathlib import Path
+          import hashlib,json,os,sys
+          root=Path.cwd()
+          sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          import compiler_pilot
+          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA']
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
+          os.environ['GITHUB_SHA']=source
+          assert compiler_pilot.corpus_gate.host_target()=='linux_x86_64'
+          assert os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
+          output=root/'build/compiler-pilot/integrated'
+          positive=('pass/traits/named_contract_arithmetic_refinement', 'pass/traits/float_contract_refinement_boundaries_exit', 'pass/providers/inline_member_generic_requirement_exit', 'pass/providers/generic_required_instance_roster_exit', 'pass/providers/canonical_inherited_provider_instances_exit', 'pass/providers/occurrence_region_binding_forwarding_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/build/provider_applied_static_capture_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit', 'pass/traits/public_method_callback_prefix_inference_exit');negative=('fail/proofs/quotient_representative_admitted_closure_rejected', 'fail/traits/inline_requirement_inherited_false_ensures', 'fail/traits/member_omits_requirement_ensures', 'fail/providers/provider_type_slot_unknown', 'fail/traits/exact_application_keeps_parameter_types', 'fail/providers/inline_member_sibling_requirement_rejected', 'fail/providers/occurrence_region_binding_conflicting_inputs', 'fail/build/float_default_wrong_value', 'fail/packages/rootless_numeric_provider_missing_satisfaction', 'fail/traits/conformance_reference_row_retired', 'fail/contracts/mutable_owned_call_ensures_keeps_poststate', 'fail/references/rebound_parameter_reference_drops_referent_bound', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/borrows/whole_referent_store_through_shared_loan', 'fail/traits/ordinary_selection_name_missing_conformance_region', 'fail/traits/explicit_implementation_missing_const_argument', 'fail/build/provider_structural_type_application_conflict', 'fail/providers/inherited_provider_phantom_arguments', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner', 'fail/traits/public_method_callback_prefix_wrong_contract');checking_only=('pass/packages/rootless_numeric_provider_review', 'pass/packages/rootless_numeric_provider_consumer', 'pass/float/runtime_classification_result_categories_exit')
+          import stat
+          manifest=json.loads((output/'producer.json').read_text())['producer']
+          assert manifest['revision']==source and manifest['tree']==compiler_pilot.command(['git','rev-parse','HEAD^{tree}'])
+          rows=[]
+          entries=[(Path(manifest[name]),manifest[name+'_profile']) for name in ['cli','runner']]
+          sdk_prepared=output/'sdk/preparation.json'
+          if sdk_prepared.exists():
+           sdk_record=json.loads(sdk_prepared.read_text())
+           for name,value in sdk_record.get('binaries',{}).items():entries.append((Path(value),sdk_record['profiles'][name]))
+          for binary,profile in entries:
+           assert binary.is_file() and not binary.is_symlink() and binary.resolve().is_relative_to(output.resolve())
+           assert hashlib.sha256(binary.read_bytes()).hexdigest()==profile['sha256']
+           old_mode=stat.S_IMODE(binary.stat().st_mode);binary.chmod(old_mode|stat.S_IXUSR|stat.S_IXGRP|stat.S_IXOTH)
+           assert hashlib.sha256(binary.read_bytes()).hexdigest()==profile['sha256']
+           rows.append({'binary':str(binary),'sha256':profile['sha256'],'mode_before':oct(old_mode),'mode_after':oct(stat.S_IMODE(binary.stat().st_mode))})
+          (output/'restored-executable-modes.json').write_text(json.dumps({'source':source,'driver':driver,'executables':rows,'meaning':'Artifact download does not retain executable bits. Only exact recorded digests under the prepared directory regain that bit; bytes are unchanged.'},indent=2)+'\n')
+          OBSERVE
+      - name: Run only the prepared ordinary scope
+        run: |
+          python3 - <<'OBSERVE'
+          from pathlib import Path
+          import hashlib,json,os,sys
+          root=Path.cwd()
+          sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          import compiler_pilot
+          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA']
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
+          os.environ['GITHUB_SHA']=source
+          assert compiler_pilot.corpus_gate.host_target()=='linux_x86_64'
+          assert os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
+          output=root/'build/compiler-pilot/integrated'
+          positive=('pass/traits/named_contract_arithmetic_refinement', 'pass/traits/float_contract_refinement_boundaries_exit', 'pass/providers/inline_member_generic_requirement_exit', 'pass/providers/generic_required_instance_roster_exit', 'pass/providers/canonical_inherited_provider_instances_exit', 'pass/providers/occurrence_region_binding_forwarding_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/build/provider_applied_static_capture_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit', 'pass/traits/public_method_callback_prefix_inference_exit');negative=('fail/proofs/quotient_representative_admitted_closure_rejected', 'fail/traits/inline_requirement_inherited_false_ensures', 'fail/traits/member_omits_requirement_ensures', 'fail/providers/provider_type_slot_unknown', 'fail/traits/exact_application_keeps_parameter_types', 'fail/providers/inline_member_sibling_requirement_rejected', 'fail/providers/occurrence_region_binding_conflicting_inputs', 'fail/build/float_default_wrong_value', 'fail/packages/rootless_numeric_provider_missing_satisfaction', 'fail/traits/conformance_reference_row_retired', 'fail/contracts/mutable_owned_call_ensures_keeps_poststate', 'fail/references/rebound_parameter_reference_drops_referent_bound', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/borrows/whole_referent_store_through_shared_loan', 'fail/traits/ordinary_selection_name_missing_conformance_region', 'fail/traits/explicit_implementation_missing_const_argument', 'fail/build/provider_structural_type_application_conflict', 'fail/providers/inherited_provider_phantom_arguments', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner', 'fail/traits/public_method_callback_prefix_wrong_contract');checking_only=('pass/packages/rootless_numeric_provider_review', 'pass/packages/rootless_numeric_provider_consumer', 'pass/float/runtime_classification_result_categories_exit')
+          preparation=json.loads((output/'preparation.json').read_text());assert preparation['passed'] and preparation['candidate']==source
+          assert json.loads((output/'driver.json').read_text())=={'source':source,'driver':driver}
+          producer=compiler_pilot.load_producer(output/'producer.json');producer.verify()
+          rows=[]
+          ordinary=('pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/borrows/runtime_reference_aggregate_alias_replacement_exit', 'pass/packages/rootless_numeric_provider_consumer');dependencies={'pass/packages/rootless_numeric_provider_consumer': ['pass/packages/rootless_numeric_provider_review']}
+          for index,fixture in enumerate(ordinary):
+           producer.verify()
+           row=compiler_pilot.ordinary_cli_fixture.observe(root,producer,fixture,root/'build/compiler-pilot/ordinary'/str(index),dependency_projects=dependencies.get(fixture,()))
+           rows.append(row);producer.verify()
+           (root/'build/compiler-pilot/ordinary/summary.json').write_text(json.dumps({'source':source,'driver':driver,'producer':producer.record(),'observations':rows,'passed':all(row['passed'] for row in rows)},indent=2)+'\n')
+          raise SystemExit(0 if all(row['passed'] for row in rows) else 1)
+          OBSERVE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: core-float-integrated-ordinary-${{ github.run_id }}
+          path: build/compiler-pilot/ordinary/
+          include-hidden-files: true
+          retention-days: 30
+  sdk:
+    needs: prepare
+    if: ${{ always() && !cancelled() && needs.prepare.outputs.sdk_status == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 6b1c338126fafa80671d06878a8f9746254eddc9
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact_id }}
+          merge-multiple: true
+          path: build/compiler-pilot/integrated/
+      - name: Authenticate prepared executable bytes and restore their execute permission
+        run: |
+          python3 - <<'OBSERVE'
+          from pathlib import Path
+          import hashlib,json,os,sys
+          root=Path.cwd()
+          sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          import compiler_pilot
+          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA']
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
+          os.environ['GITHUB_SHA']=source
+          assert compiler_pilot.corpus_gate.host_target()=='linux_x86_64'
+          assert os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
+          output=root/'build/compiler-pilot/integrated'
+          positive=('pass/traits/named_contract_arithmetic_refinement', 'pass/traits/float_contract_refinement_boundaries_exit', 'pass/providers/inline_member_generic_requirement_exit', 'pass/providers/generic_required_instance_roster_exit', 'pass/providers/canonical_inherited_provider_instances_exit', 'pass/providers/occurrence_region_binding_forwarding_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/build/provider_applied_static_capture_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit', 'pass/traits/public_method_callback_prefix_inference_exit');negative=('fail/proofs/quotient_representative_admitted_closure_rejected', 'fail/traits/inline_requirement_inherited_false_ensures', 'fail/traits/member_omits_requirement_ensures', 'fail/providers/provider_type_slot_unknown', 'fail/traits/exact_application_keeps_parameter_types', 'fail/providers/inline_member_sibling_requirement_rejected', 'fail/providers/occurrence_region_binding_conflicting_inputs', 'fail/build/float_default_wrong_value', 'fail/packages/rootless_numeric_provider_missing_satisfaction', 'fail/traits/conformance_reference_row_retired', 'fail/contracts/mutable_owned_call_ensures_keeps_poststate', 'fail/references/rebound_parameter_reference_drops_referent_bound', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/borrows/whole_referent_store_through_shared_loan', 'fail/traits/ordinary_selection_name_missing_conformance_region', 'fail/traits/explicit_implementation_missing_const_argument', 'fail/build/provider_structural_type_application_conflict', 'fail/providers/inherited_provider_phantom_arguments', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner', 'fail/traits/public_method_callback_prefix_wrong_contract');checking_only=('pass/packages/rootless_numeric_provider_review', 'pass/packages/rootless_numeric_provider_consumer', 'pass/float/runtime_classification_result_categories_exit')
+          import stat
+          manifest=json.loads((output/'producer.json').read_text())['producer']
+          assert manifest['revision']==source and manifest['tree']==compiler_pilot.command(['git','rev-parse','HEAD^{tree}'])
+          rows=[]
+          entries=[(Path(manifest[name]),manifest[name+'_profile']) for name in ['cli','runner']]
+          sdk_prepared=output/'sdk/preparation.json'
+          if sdk_prepared.exists():
+           sdk_record=json.loads(sdk_prepared.read_text())
+           for name,value in sdk_record.get('binaries',{}).items():entries.append((Path(value),sdk_record['profiles'][name]))
+          for binary,profile in entries:
+           assert binary.is_file() and not binary.is_symlink() and binary.resolve().is_relative_to(output.resolve())
+           assert hashlib.sha256(binary.read_bytes()).hexdigest()==profile['sha256']
+           old_mode=stat.S_IMODE(binary.stat().st_mode);binary.chmod(old_mode|stat.S_IXUSR|stat.S_IXGRP|stat.S_IXOTH)
+           assert hashlib.sha256(binary.read_bytes()).hexdigest()==profile['sha256']
+           rows.append({'binary':str(binary),'sha256':profile['sha256'],'mode_before':oct(old_mode),'mode_after':oct(stat.S_IMODE(binary.stat().st_mode))})
+          (output/'restored-executable-modes.json').write_text(json.dumps({'source':source,'driver':driver,'executables':rows,'meaning':'Artifact download does not retain executable bits. Only exact recorded digests under the prepared directory regain that bit; bytes are unchanged.'},indent=2)+'\n')
+          OBSERVE
+      - name: Run only the prepared sdk scope
+        run: |
+          python3 - <<'OBSERVE'
+          from pathlib import Path
+          import hashlib,json,os,sys
+          root=Path.cwd()
+          sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          import compiler_pilot
+          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA']
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
+          os.environ['GITHUB_SHA']=source
+          assert compiler_pilot.corpus_gate.host_target()=='linux_x86_64'
+          assert os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
+          output=root/'build/compiler-pilot/integrated'
+          positive=('pass/traits/named_contract_arithmetic_refinement', 'pass/traits/float_contract_refinement_boundaries_exit', 'pass/providers/inline_member_generic_requirement_exit', 'pass/providers/generic_required_instance_roster_exit', 'pass/providers/canonical_inherited_provider_instances_exit', 'pass/providers/occurrence_region_binding_forwarding_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/build/provider_applied_static_capture_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit', 'pass/traits/public_method_callback_prefix_inference_exit');negative=('fail/proofs/quotient_representative_admitted_closure_rejected', 'fail/traits/inline_requirement_inherited_false_ensures', 'fail/traits/member_omits_requirement_ensures', 'fail/providers/provider_type_slot_unknown', 'fail/traits/exact_application_keeps_parameter_types', 'fail/providers/inline_member_sibling_requirement_rejected', 'fail/providers/occurrence_region_binding_conflicting_inputs', 'fail/build/float_default_wrong_value', 'fail/packages/rootless_numeric_provider_missing_satisfaction', 'fail/traits/conformance_reference_row_retired', 'fail/contracts/mutable_owned_call_ensures_keeps_poststate', 'fail/references/rebound_parameter_reference_drops_referent_bound', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/borrows/whole_referent_store_through_shared_loan', 'fail/traits/ordinary_selection_name_missing_conformance_region', 'fail/traits/explicit_implementation_missing_const_argument', 'fail/build/provider_structural_type_application_conflict', 'fail/providers/inherited_provider_phantom_arguments', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner', 'fail/traits/public_method_callback_prefix_wrong_contract');checking_only=('pass/packages/rootless_numeric_provider_review', 'pass/packages/rootless_numeric_provider_consumer', 'pass/float/runtime_classification_result_categories_exit')
+          import build_consent_controls as controls
+          import compiler_profile,subprocess,time
+          sdk=output/'sdk';prepared=json.loads((sdk/'preparation.json').read_text())
+          assert prepared['passed'] and prepared['source']==source and prepared['driver']==driver
+          profiles=prepared['profiles'];binaries={k:Path(v) for k,v in prepared['binaries'].items()}
+          inputs=prepared['inputs'];objects=prepared['source_objects']
+          output=root/'build/compiler-pilot/sdk-workflows';output.mkdir(exist_ok=False)
+          report={'source':source,'tree':prepared['tree'],'driver':driver,'target':controls.host_target(),'toolchain':prepared['toolchain'],'passed':False,'observations':[],'trace_flags':{},'inputs':inputs,'source_objects':objects,'builds':prepared['builds'],'builds_in_consumer':False,'producer':{'revision':source,'tree':prepared['tree'],'executables':profiles}}
+          (output/'producer.json').write_text(json.dumps(report['producer'],indent=2)+'\n')
+          def verify():
+           assert controls.git('rev-parse','HEAD')==source and not controls.git('status','--porcelain')
+           for p,h in inputs.items():assert hashlib.sha256(Path(p).read_bytes()).hexdigest()==h,p
+           for p,obj in objects.items():assert controls.git('rev-parse',source+':'+p)==obj,p
+           for name,binary in binaries.items():assert compiler_profile.require_optimized(binary)==profiles[name],name
+          try:
+           scopes=[('default_build',[]),('build_charge',['--owned-activations']),('build_charge',['--restricted-consent']),('build_charge',['--one-shot']),('build_charge',['--accounting'])]
+           for index,(name,args) in enumerate(scopes):
+               verify()
+               label=str(index)+'-'+name+('-'+args[0][2:] if args else '')
+               command=[str(binaries[name]),*args]
+               started=time.monotonic()
+               observation={'command':command,'label':label,'source':source,'producer_profile':profiles[name]}
+               try:
+                   controls.execute(binaries[name],args,output,label)
+                   observation.update(exit=0)
+               except subprocess.CalledProcessError as error:
+                   observation.update(exit=error.returncode,error='The existing SDK workflow failed; its raw channels are retained.')
+               except subprocess.TimeoutExpired as error:
+                   for suffix,data in [('stdout',error.stdout),('stderr',error.stderr)]:
+                       (output/(label+'.'+suffix)).write_bytes(data if isinstance(data,bytes) else (data or '').encode())
+                   observation.update(exit=None,error='The existing SDK workflow timed out; no passing result is inferred.')
+               observation['seconds']=round(time.monotonic()-started,3)
+               observation['channels']={suffix:{'path':label+'.'+suffix,'sha256':hashlib.sha256((output/(label+'.'+suffix)).read_bytes()).hexdigest()} for suffix in ['stdout','stderr']}
+               report['observations'].append(observation)
+               verify()
+           report['passed']=all(row['exit']==0 for row in report['observations'])
+          finally:(output/'summary.json').write_text(json.dumps(report,indent=2)+'\n')
+          raise SystemExit(0 if report['passed'] else 1)
+          OBSERVE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: core-float-integrated-sdk-${{ github.run_id }}
+          path: build/compiler-pilot/sdk-workflows/
+          include-hidden-files: true
+          retention-days: 30
+  tests:
+    needs: prepare
+    if: ${{ always() && !cancelled() && needs.prepare.outputs.compiler_status == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 6b1c338126fafa80671d06878a8f9746254eddc9
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        id: build-cache
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            /tmp/ot
+          key: compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
+          restore-keys: |
+            compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+            compiler-regression-${{ runner.os }}-${{ runner.arch }}-
+      - name: Run only the prepared tests scope
+        run: |
+          python3 - <<'OBSERVE'
+          from pathlib import Path
+          import hashlib,json,os,sys
+          root=Path.cwd()
+          sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          import compiler_pilot
+          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA']
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
+          os.environ['GITHUB_SHA']=source
+          assert compiler_pilot.corpus_gate.host_target()=='linux_x86_64'
+          assert os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
+          output=root/'build/compiler-pilot/integrated'
+          positive=('pass/traits/named_contract_arithmetic_refinement', 'pass/traits/float_contract_refinement_boundaries_exit', 'pass/providers/inline_member_generic_requirement_exit', 'pass/providers/generic_required_instance_roster_exit', 'pass/providers/canonical_inherited_provider_instances_exit', 'pass/providers/occurrence_region_binding_forwarding_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/build/provider_applied_static_capture_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit', 'pass/traits/public_method_callback_prefix_inference_exit');negative=('fail/proofs/quotient_representative_admitted_closure_rejected', 'fail/traits/inline_requirement_inherited_false_ensures', 'fail/traits/member_omits_requirement_ensures', 'fail/providers/provider_type_slot_unknown', 'fail/traits/exact_application_keeps_parameter_types', 'fail/providers/inline_member_sibling_requirement_rejected', 'fail/providers/occurrence_region_binding_conflicting_inputs', 'fail/build/float_default_wrong_value', 'fail/packages/rootless_numeric_provider_missing_satisfaction', 'fail/traits/conformance_reference_row_retired', 'fail/contracts/mutable_owned_call_ensures_keeps_poststate', 'fail/references/rebound_parameter_reference_drops_referent_bound', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/borrows/whole_referent_store_through_shared_loan', 'fail/traits/ordinary_selection_name_missing_conformance_region', 'fail/traits/explicit_implementation_missing_const_argument', 'fail/build/provider_structural_type_application_conflict', 'fail/providers/inherited_provider_phantom_arguments', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner', 'fail/traits/public_method_callback_prefix_wrong_contract');checking_only=('pass/packages/rootless_numeric_provider_review', 'pass/packages/rootless_numeric_provider_consumer', 'pass/float/runtime_classification_result_categories_exit')
+          import build_slot,compiler_profile,shutil,subprocess,time
+          out=root/'build/compiler-pilot/existing-tests';out.mkdir(exist_ok=False)
+          requests=[('backend-plan','target_providers::tests'),('terminal-codec','numeric_intrinsic_tests'),('register-homes','normal_qualification_tests'),('register-homes','codec::tests::golden'),('terminal-codec','proof_term_wire::tests')]
+          rows=[]
+          with build_slot.hold(root):
+           for index,(package,selected) in enumerate(requests):
+            arguments=(['mbx','nextest','run'] if shutil.which('mbx') else ['cargo','test'])+['--locked','-p',package,'--lib',selected]
+            row={'source':source,'package':package,'filter':selected,'command':arguments,'timeout_seconds':600};started=time.monotonic()
+            try:
+             with (out/(str(index)+'.stdout')).open('wb') as stdout,(out/(str(index)+'.stderr')).open('wb') as stderr:
+              result=subprocess.run(arguments,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr,env=compiler_profile.optimized_environment(),timeout=600)
+             row['exit']=result.returncode
+            except subprocess.TimeoutExpired:row.update(exit=None,error='The existing filtered test request timed out; no pass inferred.')
+            row['seconds']=round(time.monotonic()-started,3);row['passed']=row['exit']==0
+            row['channels']={suffix:{'path':str(index)+'.'+suffix,'sha256':hashlib.sha256((out/(str(index)+'.'+suffix)).read_bytes()).hexdigest()} for suffix in ['stdout','stderr']}
+            rows.append(row);(out/'summary.json').write_text(json.dumps({'source':source,'driver':driver,'observations':rows,'passed':all(row['passed'] for row in rows)},indent=2)+'\n')
+          raise SystemExit(0 if all(row['passed'] for row in rows) else 1)
+          OBSERVE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: core-float-integrated-tests-${{ github.run_id }}
+          path: build/compiler-pilot/existing-tests/
+          include-hidden-files: true
+          retention-days: 30
