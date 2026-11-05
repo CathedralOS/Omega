@@ -15,6 +15,10 @@ use typed_trees::type_identity::TypeIdentityId;
 pub struct CheckedErasedProofParameterPlan {
     /// The parameter's dense authored position in the signature.
     pub source_position: u32,
+    /// Dense position in this state's erased-proof roster. An edge that
+    /// names no separate proof actuals forwards `Formal` at this position.
+    /// The lane is recorded here so lowering does not remeasure it.
+    pub proof_position: u32,
     /// The parameter's symbol; callers resolve `Formal{parameter_symbol}`
     /// occurrences into this roster's dense proof-lane position.
     pub parameter_symbol: SymbolHandle,

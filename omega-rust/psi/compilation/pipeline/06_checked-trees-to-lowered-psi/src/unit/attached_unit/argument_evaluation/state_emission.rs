@@ -387,8 +387,8 @@ pub(super) fn emit_state(
                 lowered_erased_scalar_terms(qualify_erased_arguments, &values, &erased_formals)?;
             *proof_actuals = completion_roster(
                 proof_terms!(qualify_erased_proof_arguments, &values)?,
-                &block_erased_proof_formals,
-            )?;
+                source_erased_proof_formals,
+            );
             terminator
         }
         LoweredScalarBranchTerminator::Capture {
@@ -432,8 +432,8 @@ pub(super) fn emit_state(
                 lowered_erased_scalar_terms(erased_arguments, &values, &erased_formals)?;
             let erased_proof_arguments = completion_roster(
                 lowered_proof_terms(checked, erased_proof_arguments, &values, &erased_formals)?,
-                &block_erased_proof_formals,
-            )?;
+                source_erased_proof_formals,
+            );
             let regions =
                 crate::unit::unit_cleanup::emit_prepared_cleanup_regions(cleanup_actions, calls)?;
             let cleanup_actions = if regions
@@ -580,12 +580,12 @@ pub(super) fn emit_state(
                 lowered_erased_scalar_terms(when_false_erased_arguments, &values, &erased_formals)?;
             let when_true_erased_proof_arguments = completion_roster(
                 proof_terms!(when_true_erased_proof_arguments, &values)?,
-                &block_erased_proof_formals,
-            )?;
+                source_erased_proof_formals,
+            );
             let when_false_erased_proof_arguments = completion_roster(
                 proof_terms!(when_false_erased_proof_arguments, &values)?,
-                &block_erased_proof_formals,
-            )?;
+                source_erased_proof_formals,
+            );
             let condition = emit_boolean_expression(condition, &values, next_value, operations);
             Terminator::Conditional {
                 condition,
@@ -898,24 +898,20 @@ fn dispatch_arguments(
 }
 
 /// An expansion edge that names no separate proof actuals still forwards the
-/// enclosing roster. The completion and every expansion state declare that
-/// same roster, which is the closed instantiation already recorded on the
-/// enclosing signature. A const-name formal is a different carrier and is
-/// not substituted here.
+/// enclosing roster. Psi 05 recorded each formal's dense lane position on
+/// the checked plan. A const-name formal is a different carrier and is not
+/// substituted here.
 fn completion_roster(
     actuals: Vec<semantic_vocabulary::ProofTerm>,
-    formals: &[terminal_psi::ErasedProofFormal],
-) -> Result<Vec<semantic_vocabulary::ProofTerm>, LoweringError> {
-    if !actuals.is_empty() || formals.is_empty() {
-        return Ok(actuals);
+    roster: &[checked_trees::CheckedErasedProofParameterPlan],
+) -> Vec<semantic_vocabulary::ProofTerm> {
+    if !actuals.is_empty() || roster.is_empty() {
+        return actuals;
     }
-    (0..formals.len())
-        .map(|position| {
-            Ok(semantic_vocabulary::ProofTerm::Formal {
-                position: u32::try_from(position).map_err(|_| {
-                    LoweringError::Unsupported("scalar completion proof position exceeds u32")
-                })?,
-            })
+    roster
+        .iter()
+        .map(|parameter| semantic_vocabulary::ProofTerm::Formal {
+            position: parameter.proof_position,
         })
         .collect()
 }
