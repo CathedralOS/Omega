@@ -327,7 +327,11 @@ impl TerminalExecution<'_> {
             return;
         }
         let mut retained = RetainedStorage::default();
-        for value in self.structural_values.values() {
+        for value in self
+            .structural_values
+            .values()
+            .chain(self.linear_homes.values())
+        {
             retained.value(value);
         }
         for (place, backing) in &self.aggregate_argument_backings {
@@ -357,7 +361,11 @@ impl TerminalExecution<'_> {
             retained.value(&original.allocation);
         }
         for frame in &self.call_stack {
-            for value in frame.structural_values.values() {
+            for value in frame
+                .structural_values
+                .values()
+                .chain(frame.linear_homes.values())
+            {
                 retained.value(value);
             }
             for (place, backing) in &frame.aggregate_argument_backings {

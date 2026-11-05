@@ -177,6 +177,13 @@ pub enum TerminalInterpretError {
         domain: StructuralDomainId,
     },
     ClaimTransferMismatch,
+    OwnedValueCustodyMismatch {
+        source: PlaceId,
+        structural_type: StructuralTypeId,
+        path_length: usize,
+        path_prefix: Vec<terminal_psi::StructuralPathSegment>,
+        reason: &'static str,
+    },
     ContentTransformationMismatch(&'static str),
     ResourceProfile {
         boundary: BoundaryMachineId,

@@ -39,6 +39,7 @@ mod residuals;
 mod storage_regions;
 pub(crate) use storage_regions::storage_cannot_retain_loan;
 mod structural;
+mod value_custody;
 pub(crate) use structural::{
     constructor_arguments, partial_affine_root_is_drained, partial_affine_root_type,
     projected_paths_are_fully_consumed,
