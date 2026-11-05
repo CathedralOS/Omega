@@ -46,7 +46,8 @@ def expected_exit(root, fixture, target):
         raise ValueError(f"ordinary CLI fixture has no build.omg: {fixture}")
     oracles = fixture_oracles(project, target)
     extra = [path.name for path in project.glob("expected_*")
-             if not (path.name in ("expected_native_exit.txt", "expected_terminal_inspections.txt")
+             if not (path.name in ("expected_native_exit.txt", "expected_interpreter_exit.txt",
+                                  "expected_terminal_inspections.txt")
                      or (path.name.startswith("expected_native_exit.") and path.suffix == ".txt"))]
     if extra or any(project.glob("entry_ram*")) or oracle(project)[1] is not None:
         raise ValueError("ordinary CLI exit fixtures cannot omit authored stream/inspection oracles")
@@ -54,13 +55,22 @@ def expected_exit(root, fixture, target):
     if not oracles["exit"] and relative.parts[:2] == ("samples", "cli"):
         declared_exit, _ = oracle(project)
         if declared_exit is not None:
-            return declared_exit
+            return require_interpreter_exit(project, declared_exit)
     if not oracles["exit"]:
         raise ValueError(f"ordinary CLI fixture has no {target} numeric exit oracle: {fixture}")
     text = Path(oracles["exit"]).read_text(encoding="utf-8").strip()
     if not re.fullmatch(r"-?\d+", text):
         raise ValueError("ordinary CLI fixture requires an authored numeric exit oracle")
-    return int(text)
+    return require_interpreter_exit(project, int(text))
+
+
+def require_interpreter_exit(project, expected):
+    path = project / "expected_interpreter_exit.txt"
+    if path.is_file():
+        text = path.read_text(encoding="utf-8").strip()
+        if not re.fullmatch(r"-?\d+", text) or int(text) != expected:
+            raise ValueError("ordinary CLI requires the authored native and interpreter exits to agree")
+    return expected
 
 
 def inspection_machines(project):
