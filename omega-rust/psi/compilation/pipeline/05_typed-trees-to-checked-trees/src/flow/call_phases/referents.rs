@@ -108,9 +108,9 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             .clone()
             .unwrap_or_default();
         let mut paths = paths.as_ref().clone();
-        let observation_survives = argument_sources
-            .is_some_and(|sources| sources.observation_survives(argument_position, &[]));
-        if observation_survives {
+        if argument_sources
+            .is_some_and(|sources| sources.observation_survives(argument_position, &[]))
+        {
             // An explicit postcondition restores the captured referent whether
             // the domain needs provenance or only a predicate. Include it in
             // the same all-writers judgment as declared child obligations;
@@ -123,27 +123,6 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                     crate::shared::collections::push_unique(&mut paths, row);
                 }
             }
-        }
-        if phase_profile::enabled()
-            && (!paths.is_empty()
-                || !validation::field_domains::domain_constraint_identities(
-                    program,
-                    parameter.type_reference,
-                )
-                .is_empty())
-        {
-            eprintln!(
-                "reference handback: caller={} state={} target={} formal={} claims={:?} survives={} paths={:?} targets={:?} writes={:?}",
-                program.symbols.name(machine.symbol),
-                program.symbols.name(state.symbol),
-                program.symbols.name(borrow_call.target_symbol),
-                parameter.name,
-                parameter_claims,
-                observation_survives,
-                paths,
-                argument_sources.and_then(|sources| sources.referent_places(argument_position)),
-                writes.map(|writes| writes.iter().map(|write| &write.write).collect::<Vec<_>>()),
-            );
         }
         let Some(targets) =
             argument_sources.and_then(|sources| sources.referent_places(argument_position))
@@ -319,6 +298,21 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 ) && write_stays_in_captured_storage(program, parameters, source)
             })
             .collect();
+        let captured_writes: Vec<_> = writes
+            .iter()
+            .zip(&confined_writes)
+            .map(|(write, confined)| {
+                if !*confined {
+                    return None;
+                }
+                let crate::flow::mutation::StorageRegion::Declared(source) =
+                    write.write.source.as_ref()?
+                else {
+                    return None;
+                };
+                argument_sources?.inline_write_places(source)
+            })
+            .collect();
         if confined_writes.iter().any(|&confined| confined) {
             let guarantees = guarantees::PreparedGuarantees::prepare(guarantees);
             let contexts = build
@@ -351,11 +345,6 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 let is_subslice_byte_domain =
                     validation::field_domains::domain_byte_predicate(program, domain_symbol)
                         .is_some_and(|restriction| restriction.is_subslice_preserving());
-                if !is_subslice_byte_domain
-                    && !guarantees.has_domain(domain_symbol, semantic_domain)
-                {
-                    continue;
-                }
                 let semantic_place = semantic.places.get(handle);
                 if !semantic
                     .place_segments
@@ -389,22 +378,9 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 {
                     continue;
                 }
-                let can_restore_place =
-                    guarantees.can_restore_place(program, &place, domain_symbol, semantic_domain);
-                if phase_profile::enabled() {
-                    eprintln!(
-                        "reference handback candidate: caller={} target={} place={place:?} domain={} can_restore={can_restore_place} confined={confined_writes:?}",
-                        program.symbols.name(machine.symbol),
-                        program.symbols.name(borrow_call.target_symbol),
-                        program.symbols.name(domain_symbol)
-                    );
-                }
-                if !is_subslice_byte_domain && !can_restore_place {
-                    continue;
-                }
                 let mut affected = false;
-                let mut prepared_writes = writes.iter().zip(&confined_writes);
-                let restored = prepared_writes.all(|(contribution, confined)| {
+                let mut prepared_writes = writes.iter().zip(&confined_writes).zip(&captured_writes);
+                let restored = prepared_writes.all(|((contribution, confined), captured)| {
                     if contribution
                         .write
                         .region
@@ -435,6 +411,23 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                         // there. Its own observation frontier must be proved.
                         return false;
                     }
+                    // Invalidation may keep an unknown source selector even
+                    // after evaluation captured one exact element. A disjoint
+                    // captured write leaves this fact unchanged. Other alias
+                    // namespaces keep the original conservative judgment.
+                    let mutated = if let Some(captured) = captured
+                        .as_ref()
+                        .filter(|places| places.iter().all(|place| place.root == mutated.root))
+                    {
+                        match crate::flow::domain::matching_mutation_for_fact_place(
+                            program, semantic, domains, fact, handle, captured,
+                        ) {
+                            Some((mutated, _)) => mutated,
+                            None => return true,
+                        }
+                    } else {
+                        mutated
+                    };
                     // A per-byte class is a property of every element. An indexed
                     // store does not retire it when the callee's normal exits
                     // still prove that class on the formal that was written.
@@ -465,14 +458,6 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                         write.checked_write_type,
                     )
                 });
-                if phase_profile::enabled() {
-                    eprintln!(
-                        "reference handback result: caller={} target={} place={place:?} domain={} affected={affected} restored={restored}",
-                        program.symbols.name(machine.symbol),
-                        program.symbols.name(borrow_call.target_symbol),
-                        program.symbols.name(domain_symbol)
-                    );
-                }
                 if affected && restored {
                     // This is a frame judgment about a pre-existing fact,
                     // not a new claim issued on this exact path by the call.

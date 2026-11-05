@@ -27,12 +27,12 @@ pub fn state_reference_parameter_binding_is_stable(
     }) else {
         return false;
     };
-    // A scalar reborrow exposes the referent, not the descriptor slot.
+    // Reborrowing the selected referent does not expose the descriptor slot.
     // Writes through it retire value facts but cannot change this invocation's
     // storage identity. Nested reference storage retains the independent
     // operand-exposure fence below.
-    let scalar_referent = crate::reference_shell(program, declaration.type_reference)
-        .and_then(|shell| program.primitive_type_reference(shell.referee));
+    let source_referee =
+        crate::reference_shell(program, declaration.type_reference).map(|shell| shell.referee);
     let is_binding = |expression| {
         let source = super::FrameSourcePlace::from_expression(program, expression);
         (source.root == parameter
@@ -80,7 +80,7 @@ pub fn state_reference_parameter_binding_is_stable(
                             program,
                             *argument,
                             expected,
-                            scalar_referent,
+                            source_referee,
                             &is_binding,
                         )
                     });
@@ -92,22 +92,22 @@ pub fn state_reference_parameter_binding_is_stable(
                         program,
                         expression,
                         None,
-                        scalar_referent,
+                        source_referee,
                         &is_binding,
                     )
                 })
         })
 }
 
-/// Distinguish lending a scalar referent from lending the reference slot that
-/// points at it. Only a selected scalar-reference formal establishes the former;
+/// Distinguish lending a referent from lending the reference slot that
+/// points at it. The selected formal must name that same referent;
 /// an unknown consumer or a reference-to-reference formal keeps the exposure
 /// fence. Nested operands are checked under their own receiving declarations.
 fn expression_exposes_reference_slot(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     expected: Option<typed_trees::types::TypeReferenceHandle>,
-    scalar_referent: Option<typed_trees::types::PrimitiveType>,
+    source_referee: Option<typed_trees::types::TypeReferenceHandle>,
     is_binding: &impl Fn(ExpressionHandle) -> bool,
 ) -> bool {
     if !expression_table(program).expression_is_valid(expression) {
@@ -117,17 +117,22 @@ fn expression_exposes_reference_slot(
         ExpressionNode::Borrow(borrow)
             if borrow.access.is_exclusive() && is_binding(borrow.target) =>
         {
-            let receiving_scalar = expected
+            let receiving = expected
                 .and_then(|expected| crate::reference_shell(program, expected))
-                .and_then(|shell| program.primitive_type_reference(shell.referee));
-            scalar_referent.is_none() || scalar_referent != receiving_scalar
+                .map(|shell| shell.referee);
+            !source_referee
+                .zip(receiving)
+                .is_some_and(|(source, receiving)| {
+                    let source = program.normalized_type_identity(source);
+                    source.is_valid() && source == program.normalized_type_identity(receiving)
+                })
         }
         ExpressionNode::Call(call) => {
             if expression_exposes_reference_slot(
                 program,
                 call.receiver,
                 None,
-                scalar_referent,
+                source_referee,
                 is_binding,
             ) {
                 return true;
@@ -146,7 +151,7 @@ fn expression_exposes_reference_slot(
                         program,
                         *argument,
                         expected,
-                        scalar_referent,
+                        source_referee,
                         is_binding,
                     )
                 })
@@ -158,7 +163,7 @@ fn expression_exposes_reference_slot(
                     program,
                     child,
                     None,
-                    scalar_referent,
+                    source_referee,
                     is_binding,
                 );
             });
