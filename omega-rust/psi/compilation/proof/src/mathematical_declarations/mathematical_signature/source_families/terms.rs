@@ -867,7 +867,13 @@ impl<K: Copy + Eq + Into<Key>> InductionBuilder<'_, '_, K> {
         S::Closed(self.label_types.tails[start])
     }
     fn label(&mut self, start: usize, value: S) -> S {
-        app(S::Closed(self.label_packs[start]), value)
+        // The root adds no tags. Keep its original value visible in every
+        // dependent result instead of wrapping it in an identity function.
+        if start == 0 {
+            value
+        } else {
+            app(S::Closed(self.label_packs[start - 1]), value)
+        }
     }
     fn result_type(&mut self, start: usize, value: S) -> S {
         let label = self.label(start, value);
@@ -1084,8 +1090,8 @@ pub(super) fn induction<K: Copy + Eq + Into<Key>>(
         type_parameters,
     };
     let label_types = LabelTypes::prepare(arena, declarations, &mut builder)?;
-    let mut label_packs = Vec::with_capacity(cases.len());
-    for start in 0..cases.len() {
+    let mut label_packs = Vec::with_capacity(cases.len() - 1);
+    for start in 1..cases.len() {
         let tail = builder.terms.fresh();
         let domain = S::Closed(label_types.tails[start]);
         let mut body = S::Var(tail);
