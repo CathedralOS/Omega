@@ -304,6 +304,7 @@ fn validate<'program>(
         diagnostics.push(Diagnostic::error(message));
     }
     literals::validate_anonymous_numeric_formation(program, &mut diagnostics);
+    crate::declarations::traits::validate_member_formations(program, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }

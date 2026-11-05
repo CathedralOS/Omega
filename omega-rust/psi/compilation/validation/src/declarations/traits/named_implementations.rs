@@ -21,6 +21,57 @@ use diagnostics::Diagnostic;
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::trait_definition::{AppliedTraitScope, ConformanceRowSource};
 
+/// Body formation is independent of effects and contract entailment. Reject
+/// an inline declaration with no realization before ownership or calls consume
+/// it; the complete map still owes its ordinary post-ownership judgment.
+pub(crate) fn validate_member_formations(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let realizations = arena::unique_handles_in_order(
+        program
+            .conformances()
+            .iter()
+            .flat_map(|conformance| conformance.rows.iter().map(|row| row.realization_machine)),
+    );
+    for realization in realizations {
+        let Some(machine) = program.machine(realization) else {
+            // The complete map judgment reports missing or malformed rows.
+            continue;
+        };
+        if !machine.target_family_interface {
+            validate_member_formation(machine, diagnostics);
+        } else if let Some(members) =
+            crate::machine_calls::calls::target_family_members(program, machine)
+        {
+            for member in members {
+                if let Some(body) = program.machine(member.machine) {
+                    validate_member_formation(body, diagnostics);
+                }
+            }
+        }
+    }
+}
+
+fn validate_member_formation(
+    machine: &typed_trees::machine::Machine,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    if !machine.body_is_present
+        && !matches!(
+            machine.supply_mode,
+            language_semantics::MachineSupplyMode::ExternalRealization { .. }
+        )
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "inline member `{}` requires a checked body or an admitted external realization; a boundary claim does not supply an implementation",
+            machine.name,
+        )));
+        return false;
+    }
+    true
+}
+
 pub(crate) fn validate_conformances(
     program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -229,16 +280,7 @@ fn validate_closed_rows(
         let validate_member = |machine: &typed_trees::machine::Machine,
                                state: &typed_trees::state::State,
                                diagnostics: &mut Vec<Diagnostic>| {
-            if !machine.body_is_present
-                && !matches!(
-                    machine.supply_mode,
-                    language_semantics::MachineSupplyMode::ExternalRealization { .. }
-                )
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "inline member `{}` requires a checked body or an admitted external realization; a boundary claim does not supply an implementation",
-                    machine.name,
-                )));
+            if !validate_member_formation(machine, diagnostics) {
                 return;
             }
             super::conformance::validate_applied_trait_signature(
