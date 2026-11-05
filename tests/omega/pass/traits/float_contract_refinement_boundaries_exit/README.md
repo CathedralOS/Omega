@@ -2,4 +2,6 @@ The existing Product program and runtime oracles are unchanged. Its Build now ex
 
 `fail/build/float_default_wrong_value` copies the Product program and Build exactly except for changing the numeric input from 7 to 8. It must stop with `Build did not return normally: Crashed` and `cause: Trap`, before configuration. This is the surviving ordinary fixture for the Build-use counterexample; the retired float fact row is not restored.
 
-The previous 8dc producer refused during selected external-provider admission. Current-source success, the wrong-value cause and all four hosted targets remain unverified. Source history and ignored qualification records retain the original programs and actual observations.
+At producer `13c6c6688a7a` on Linux, the positive Build completed configuration, while Product publication later refused a missing numeric declaration identity. The wrong-value input reached `Crashed` with `cause: Trap` before configuration. Those observations establish the Build operation at that producer; the Product program has no engine result from that failed publication.
+
+The later declaration and storage repairs are awaiting fresh execution. All four hosted targets, final acceptance and parent-task completion remain open. The earlier `8dc` admission refusal retains its original source and inputs.
