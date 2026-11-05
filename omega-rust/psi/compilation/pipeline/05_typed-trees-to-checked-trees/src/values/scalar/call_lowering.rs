@@ -207,6 +207,7 @@ pub(crate) fn lower_call_arguments(
                 {
                     if let Some(term) = lower_proof_term(
                         program,
+                        state.symbol,
                         operators,
                         argument,
                         target.type_reference,
@@ -493,6 +494,7 @@ pub(crate) fn lower_erased_scalar_argument(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_proof_term(
     program: &dyn ::validation::CheckingInput,
+    caller_state: symbols::SymbolHandle,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     expected_type: typed_trees::types::TypeReferenceHandle,
@@ -512,6 +514,7 @@ pub(crate) fn lower_proof_term(
             if constructor.constructor != expression {
                 return lower_proof_term(
                     program,
+                    caller_state,
                     operators,
                     constructor.constructor,
                     expected_type,
@@ -629,6 +632,7 @@ pub(crate) fn lower_proof_term(
                     .map(|element| {
                         lower_proof_term(
                             program,
+                            caller_state,
                             operators,
                             *element,
                             *element_type,
@@ -654,6 +658,7 @@ pub(crate) fn lower_proof_term(
                     .type_reference;
                 let term = lower_proof_term(
                     program,
+                    caller_state,
                     operators,
                     field.value,
                     declared,
@@ -679,6 +684,7 @@ pub(crate) fn lower_proof_term(
         }
         ExpressionNode::Borrow(borrow) => lower_proof_term(
             program,
+            caller_state,
             operators,
             borrow.target,
             expected_type,
@@ -690,17 +696,46 @@ pub(crate) fn lower_proof_term(
             proof_only,
         ),
         ExpressionNode::Name(path) => {
-            let position = parameter_position(program, path, authored_parameters)?;
-            let parameter = authored_parameters.get(position)?;
-            (parameter.relevance.is_erased()
-                && (proof_only.contract_term_carrier(program, parameter.type_reference)
-                    || validation::mathematical_applications::is_source_evidence_carrier(
-                        program,
-                        parameter.type_reference,
-                    )))
-            .then_some(CheckedProofTerm::Formal {
-                parameter_symbol: parameter.symbol,
-            })
+            if let Some(position) = parameter_position(program, path, authored_parameters) {
+                let parameter = authored_parameters.get(position)?;
+                return (parameter.relevance.is_erased()
+                    && parameter_is_erased_proof(program, proof_only, parameter.type_reference))
+                .then_some(CheckedProofTerm::Formal {
+                    parameter_symbol: parameter.symbol,
+                });
+            }
+            // A saved erased local is the proof value its initializer
+            // established. The call keeps that value; dropping the name
+            // would drop the callee body.
+            let symbol = if path.symbol.is_valid() {
+                path.symbol
+            } else {
+                path.head_symbol
+            };
+            if !symbol.is_valid() {
+                return None;
+            }
+            let state = program.state_by_symbol(caller_state)?;
+            let (_, local) = program.state_local_declaration(state, symbol)?;
+            if !local.relevance.is_erased()
+                || !local.initial_value.is_valid()
+                || !parameter_is_erased_proof(program, proof_only, local.type_reference)
+            {
+                return None;
+            }
+            lower_proof_term(
+                program,
+                caller_state,
+                operators,
+                local.initial_value,
+                expected_type,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                exact_integer_casts,
+                proof_only,
+            )
         }
         ExpressionNode::Member(_) | ExpressionNode::SavedSubject(_) => erased_payload_projection(
             program,
@@ -711,6 +746,18 @@ pub(crate) fn lower_proof_term(
         ),
         _ => None,
     }
+}
+
+fn parameter_is_erased_proof(
+    program: &dyn ::validation::CheckingInput,
+    proof_only: &typed_trees::proof_only::ProofOnlyClassification,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    proof_only.contract_term_carrier(program, type_reference)
+        || validation::mathematical_applications::is_source_evidence_carrier(
+            program,
+            type_reference,
+        )
 }
 
 /// An erased payload read (`evidence.left`) is the enclosing formal plus the
@@ -1196,6 +1243,7 @@ pub(crate) fn lower_direct_call_binding_arguments(
                 expression: *argument,
                 term: lower_proof_term(
                     program,
+                    state,
                     operators,
                     *argument,
                     target_parameter.type_reference,
