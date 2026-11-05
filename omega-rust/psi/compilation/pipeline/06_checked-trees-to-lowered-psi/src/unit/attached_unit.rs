@@ -273,6 +273,88 @@ pub(crate) fn lower_unit_closure(
         })?;
     boundaries.sort_by_key(|(_, identity)| identity.order_key());
     if let Some(pair) = boundaries.windows(2).find(|pair| pair[0].1 == pair[1].1) {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            // Equal overloads can come from different declarations or applications.
+            // Report each source and checked application before refusing.
+            for (plan, identity) in pair {
+                let provenance = checked.symbols.symbol_provenance_source_span(plan.machine);
+                let source = provenance
+                    .and_then(|span| checked.symbols.source_file(span))
+                    .map(|file| {
+                        (
+                            file.source_id,
+                            &file.path,
+                            &file.package_root,
+                            file.origin,
+                            file.dependency_scope,
+                            file.resolution_stratum,
+                            &file.package_identity,
+                        )
+                    });
+                eprintln!(
+                    "STRUCT duplicate-boundary identity={identity:?} machine={:?} state={:?} kind={:?} contract_owner={:?} commitment={:?} generated_from={:?} provenance={provenance:?} source={source:?}",
+                    plan.machine,
+                    plan.state,
+                    plan.kind,
+                    plan.contract_owner,
+                    plan.contract_commitment,
+                    checked.symbols.get(plan.machine).generated_from,
+                );
+                let specialization = checked
+                    .facts
+                    .specialization_identities
+                    .for_instance(plan.machine)
+                    .map(|row| {
+                        (
+                            row.instance,
+                            row.template_contract_commitment,
+                            row.commitment,
+                            row.machine_argument_contract_commitments.len(),
+                        )
+                    });
+                eprintln!(
+                    "STRUCT duplicate-boundary checked-specialization machine={:?} row={specialization:?}",
+                    plan.machine,
+                );
+                for capture in checked
+                    .facts
+                    .executable_bindings
+                    .captures
+                    .iter()
+                    .filter(|capture| capture.instance == plan.machine)
+                    .take(4)
+                {
+                    eprintln!(
+                        "STRUCT duplicate-boundary checked-capture instance={:?} arguments={} first_arguments={:?} machines={} first_machines={:?}",
+                        capture.instance,
+                        capture.arguments.len(),
+                        &capture.arguments[..capture.arguments.len().min(8)],
+                        capture.machines.len(),
+                        &capture.machines[..capture.machines.len().min(8)],
+                    );
+                }
+                for requirement in checked
+                    .facts
+                    .executable_bindings
+                    .requirements
+                    .iter()
+                    .filter(|row| row.requirement == plan.machine)
+                    .take(4)
+                {
+                    let machines = requirement
+                        .machines
+                        .iter()
+                        .take(8)
+                        .map(|machine| machine.symbol)
+                        .collect::<Vec<_>>();
+                    eprintln!(
+                        "STRUCT duplicate-boundary checked-requirement requirement={:?} machines={} first_machines={machines:?}",
+                        requirement.requirement,
+                        requirement.machines.len(),
+                    );
+                }
+            }
+        }
         return Err(LoweringError::InvalidUnitMachinePlan {
             machine: format!(
                 "{} and {} ({:?}: {})",
