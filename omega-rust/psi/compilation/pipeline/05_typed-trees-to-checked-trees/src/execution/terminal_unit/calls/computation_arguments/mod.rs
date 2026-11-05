@@ -56,237 +56,301 @@ use crate::execution::terminal_unit::calls::argument_paths::projected_evaluated_
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_borrow_access;
 use crate::execution::terminal_unit::calls::view_subslice::{ViewKind, view_identity};
 
-pub(crate) fn structural_computation_argument(
-    program: &dyn ::validation::CheckingInput,
-    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
-    facts: crate::flow::CapturedSubjectFacts<'_>,
+/// Argument plans borrow one immutable call occurrence. The complete ordered
+/// access roster is authenticated only when an argument needs that route,
+/// then shared by its other arguments and fallbacks. Graph/shape publication
+/// cannot change these source facts. Retained-only and literal routes keep
+/// their existing admission; this preparation grants no argument authority.
+pub(crate) struct ComputationCallArguments<'input> {
+    program: &'input dyn ::validation::CheckingInput,
+    facts: crate::flow::CapturedSubjectFacts<'input>,
     machine: SymbolHandle,
-    state: &State,
-    call: &FlowCallFact,
-    expression: ExpressionHandle,
-    target: &StateParameter,
-    selectors: Option<&dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>>,
-) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let borrow = facts.borrow;
-    if target.is_const {
-        return None;
-    }
-    let target_access = structural_access_for_type_reference(program, target.type_reference)?;
-    let named = match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(argument) => {
-            let shell = reference_shell(program, target.type_reference)?;
-            if argument.access != shell.access {
-                return None;
-            }
-            argument.target
-        }
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            expression
-        }
-        _ => return None,
-    };
-    let place = place_at(program, state.symbol, call.statement_index, expression)?;
+    state: &'input State,
+    call: &'input FlowCallFact,
+    preparation: CallAccessPreparation<'input>,
+}
 
-    rejoin_computation_accesses(program, facts, machine, state.symbol, call)?;
-    exact_actual(program, call, expression, target)?;
-    // Primitive loans retain the declaration's original home. Binding
-    // replacement mutability selects its existing value/storage carrier,
-    // never the access that the exact borrow occurrence may lend.
-    if let Some(symbol) = place.root.as_symbol()
-        && primitive_local_before(program, state, call.statement_index, symbol).is_some()
-    {
-        return primitive_local_argument(
+enum CallAccessPreparation<'input> {
+    Pending,
+    Unavailable,
+    Ready(CallSite<'input>),
+}
+
+impl<'input> ComputationCallArguments<'input> {
+    pub(crate) fn new(
+        program: &'input dyn ::validation::CheckingInput,
+        facts: crate::flow::CapturedSubjectFacts<'input>,
+        machine: SymbolHandle,
+        state: &'input State,
+        call: &'input FlowCallFact,
+    ) -> Self {
+        Self {
+            program,
+            facts,
+            machine,
+            state,
+            call,
+            preparation: CallAccessPreparation::Pending,
+        }
+    }
+
+    fn rejoined_call(&mut self) -> Option<&CallSite<'input>> {
+        if matches!(self.preparation, CallAccessPreparation::Pending) {
+            self.preparation = match crate::borrow::accesses::rejoin_expression_call_accesses(
+                self.program,
+                self.facts,
+                self.machine,
+                self.state.symbol,
+                self.call,
+            ) {
+                Some(site @ CallSite::Expression { .. }) => CallAccessPreparation::Ready(site),
+                _ => CallAccessPreparation::Unavailable,
+            };
+        }
+        match &self.preparation {
+            CallAccessPreparation::Ready(site) => Some(site),
+            CallAccessPreparation::Pending | CallAccessPreparation::Unavailable => None,
+        }
+    }
+}
+
+impl ComputationCallArguments<'_> {
+    pub(crate) fn structural_argument(
+        &mut self,
+        shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
+        expression: ExpressionHandle,
+        target: &StateParameter,
+        selectors: Option<&dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>>,
+    ) -> Option<CheckedUnitStructuralArgumentPlan> {
+        let program = self.program;
+        let facts = self.facts;
+        let machine = self.machine;
+        let state = self.state;
+        let call = self.call;
+        let borrow = facts.borrow;
+        if target.is_const {
+            return None;
+        }
+        let target_access = structural_access_for_type_reference(program, target.type_reference)?;
+        let named = match program.expression_table.expression(expression) {
+            ExpressionNode::Borrow(argument) => {
+                let shell = reference_shell(program, target.type_reference)?;
+                if argument.access != shell.access {
+                    return None;
+                }
+                argument.target
+            }
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                expression
+            }
+            _ => return None,
+        };
+        let place = place_at(program, state.symbol, call.statement_index, expression)?;
+
+        self.rejoined_call()?;
+        exact_actual(program, call, expression, target)?;
+        // Primitive loans retain the declaration's original home. Binding
+        // replacement mutability selects its existing value/storage carrier,
+        // never the access that the exact borrow occurrence may lend.
+        if let Some(symbol) = place.root.as_symbol()
+            && primitive_local_before(program, state, call.statement_index, symbol).is_some()
+        {
+            return primitive_local_argument(
+                program,
+                borrow,
+                machine,
+                state,
+                call,
+                &place,
+                &place,
+                target.type_reference,
+            );
+        }
+        if matches!(
+            target_access,
+            CheckedStructuralAccess::SharedBorrow
+                | CheckedStructuralAccess::MutableBorrow
+                | CheckedStructuralAccess::WriteOnlyBorrow
+        ) && let Some(argument) = borrowed_storage_argument(
+            program,
+            shapes,
+            borrow,
+            machine,
+            state,
+            call,
+            &place,
+            target.type_reference,
+            selectors,
+        ) {
+            return Some(argument);
+        }
+        if let Some(argument) = borrowed_view_argument(
             program,
             borrow,
             machine,
             state,
             call,
             &place,
-            &place,
             target.type_reference,
-        );
-    }
-    if matches!(
-        target_access,
-        CheckedStructuralAccess::SharedBorrow
-            | CheckedStructuralAccess::MutableBorrow
-            | CheckedStructuralAccess::WriteOnlyBorrow
-    ) && let Some(argument) = borrowed_storage_argument(
-        program,
-        shapes,
-        borrow,
-        machine,
-        state,
-        call,
-        &place,
-        target.type_reference,
-        selectors,
-    ) {
-        return Some(argument);
-    }
-    if let Some(argument) = borrowed_view_argument(
-        program,
-        borrow,
-        machine,
-        state,
-        call,
-        &place,
-        target.type_reference,
-        selectors,
-    ) {
-        return Some(argument);
-    }
-    if target_access == CheckedStructuralAccess::Owned {
-        if named != expression {
+            selectors,
+        ) {
+            return Some(argument);
+        }
+        if target_access == CheckedStructuralAccess::Owned {
+            if named != expression {
+                return None;
+            }
+            // Whole and projected operands name the same established home. The
+            // typed path, not name-expression syntax, selects the transferred
+            // subtree; ownership events separately supply its live claims.
+            return storage_argument(
+                program,
+                shapes,
+                machine,
+                state,
+                call.statement_index,
+                &place,
+                target,
+                CheckedStructuralAccess::Owned,
+                selectors,
+            );
+        }
+        let name = program.expression_table.name_path_node(named)?;
+        if !program.expression_table.name_path_is_single_member(name)
+            || place.root != PlaceRoot::Symbol(name.symbol)
+            || !place.segments.is_empty()
+        {
             return None;
         }
-        // Whole and projected operands name the same established home. The
-        // typed path, not name-expression syntax, selects the transferred
-        // subtree; ownership events separately supply its live claims.
-        return storage_argument(
+        let target_type = plain_primitive_referent(program, target.type_reference)?;
+        let parameters = program.state_parameters(state);
+        let source_position = parameters
+            .iter()
+            .position(|source| source.symbol == name.symbol)?;
+        let source = &parameters[source_position];
+        if (source.is_const)
+            || plain_primitive_referent(program, source.type_reference)? != target_type
+        {
+            return None;
+        }
+        let source_access = structural_access_for_type_reference(program, source.type_reference)?;
+        if !matches!(
+            (source_access, target_access),
+            (
+                CheckedStructuralAccess::SharedBorrow,
+                CheckedStructuralAccess::SharedBorrow
+            ) | (
+                CheckedStructuralAccess::MutableBorrow,
+                CheckedStructuralAccess::SharedBorrow
+                    | CheckedStructuralAccess::MutableBorrow
+                    | CheckedStructuralAccess::WriteOnlyBorrow
+            ) | (
+                CheckedStructuralAccess::WriteOnlyBorrow,
+                CheckedStructuralAccess::WriteOnlyBorrow
+            )
+        ) {
+            return None;
+        }
+        let access = exact_structural_borrow_access(
             program,
-            shapes,
+            borrow,
             machine,
-            state,
-            call.statement_index,
+            state.symbol,
+            call,
             &place,
-            target,
-            CheckedStructuralAccess::Owned,
-            selectors,
-        );
+            target_access,
+            &[],
+        )?;
+        if access != target_access {
+            return None;
+        }
+        let parameter_index =
+            dense_structural_parameter_index(program, parameters, source_position)?;
+        Some(CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
+            source: CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
+            path: Vec::new(),
+            type_identity: base_type_identity(program, target.type_reference, &[], &[])?,
+            access,
+        })
     }
-    let name = program.expression_table.name_path_node(named)?;
-    if !program.expression_table.name_path_is_single_member(name)
-        || place.root != PlaceRoot::Symbol(name.symbol)
-        || !place.segments.is_empty()
-    {
-        return None;
-    }
-    let target_type = plain_primitive_referent(program, target.type_reference)?;
-    let parameters = program.state_parameters(state);
-    let source_position = parameters
-        .iter()
-        .position(|source| source.symbol == name.symbol)?;
-    let source = &parameters[source_position];
-    if (source.is_const) || plain_primitive_referent(program, source.type_reference)? != target_type
-    {
-        return None;
-    }
-    let source_access = structural_access_for_type_reference(program, source.type_reference)?;
-    if !matches!(
-        (source_access, target_access),
-        (
-            CheckedStructuralAccess::SharedBorrow,
-            CheckedStructuralAccess::SharedBorrow
-        ) | (
-            CheckedStructuralAccess::MutableBorrow,
-            CheckedStructuralAccess::SharedBorrow
-                | CheckedStructuralAccess::MutableBorrow
-                | CheckedStructuralAccess::WriteOnlyBorrow
-        ) | (
-            CheckedStructuralAccess::WriteOnlyBorrow,
-            CheckedStructuralAccess::WriteOnlyBorrow
-        )
-    ) {
-        return None;
-    }
-    let access = exact_structural_borrow_access(
-        program,
-        borrow,
-        machine,
-        state.symbol,
-        call,
-        &place,
-        target_access,
-        &[],
-    )?;
-    if access != target_access {
-        return None;
-    }
-    let parameter_index = dense_structural_parameter_index(program, parameters, source_position)?;
-    Some(CheckedUnitStructuralArgumentPlan {
-        projection_evaluations: Default::default(),
-        source: CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
-        path: Vec::new(),
-        type_identity: base_type_identity(program, target.type_reference, &[], &[])?,
-        access,
-    })
-}
 
-/// The range is still an actual of this exact checked call, not merely an
-/// equal-typed view expression. Its bounds use dense explicit structural
-/// ordinals, which exclude the implicit receiver.
-pub(crate) fn subslice_computation_argument(
-    program: &dyn ::validation::CheckingInput,
-    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
-    operators: &CheckedOperatorFacts,
-    expressions: &CheckedScalarExpressionPlans,
-    computations: &CheckedScalarComputationPlans,
-    facts: crate::flow::CapturedSubjectFacts<'_>,
-    machine: SymbolHandle,
-    state: &State,
-    call: &FlowCallFact,
-    expression: ExpressionHandle,
-    target: &StateParameter,
-    argument_ordinal: u32,
-) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let borrow = facts.borrow;
-    if target.is_const {
-        return None;
-    }
-    exact_actual(program, call, expression, target)?;
-    rejoin_computation_accesses(program, facts, machine, state.symbol, call)?;
-    let owner = program.machine(machine)?;
-    let place = place_at(program, state.symbol, call.statement_index, expression)?;
+    /// The range is still an actual of this exact checked call, not merely an
+    /// equal-typed view expression. Its bounds use dense explicit structural
+    /// ordinals, which exclude the implicit receiver.
+    pub(crate) fn subslice_argument(
+        &mut self,
+        shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
+        operators: &CheckedOperatorFacts,
+        expressions: &CheckedScalarExpressionPlans,
+        computations: &CheckedScalarComputationPlans,
+        expression: ExpressionHandle,
+        target: &StateParameter,
+        argument_ordinal: u32,
+    ) -> Option<CheckedUnitStructuralArgumentPlan> {
+        let program = self.program;
+        let facts = self.facts;
+        let machine = self.machine;
+        let state = self.state;
+        let call = self.call;
+        let borrow = facts.borrow;
+        if target.is_const {
+            return None;
+        }
+        exact_actual(program, call, expression, target)?;
+        self.rejoined_call()?;
+        let owner = program.machine(machine)?;
+        let place = place_at(program, state.symbol, call.statement_index, expression)?;
 
-    // Local storage already owns its identity. Only a parameter
-    // root needs the caller's structural signature namespace; rebuilding the
-    // enclosing attachment for a local would unnecessarily require every
-    // unrelated field (including service bindings) to be scalar-graph storage.
-    // The signature is needed only for a range operand; `admit_resolved`
-    // declines anything else before reading it.
-    subslice_expression(program, expression)?;
-    let parameters = if !program
-        .state_parameters(state)
-        .iter()
-        .any(|parameter| place.root == PlaceRoot::Symbol(parameter.symbol))
-    {
-        Vec::new()
-    } else {
-        super::free_structural_scalar_signature(program, shapes, state, &[])?.0
-    };
-    let subslice = admit_resolved(
-        program,
-        operators,
-        expressions,
-        computations,
-        borrow,
-        owner,
-        state,
-        &parameters,
-        target.type_reference,
-        expression,
-        call.statement_index,
-        CheckedSubsliceSite::CallArgument {
-            call_ordinal: u32::try_from(call.call_ordinal).ok()?,
-            argument_ordinal,
-        },
-    )?;
-    let argument = subslice.argument();
-    // The ordinary range admission already rejoins the explicit actual with
-    // its formal. A scalar expression changes no loan: retain that exact
-    // access and require the borrow ledger to agree, as a statement call does.
-    (exact_structural_borrow_access(
-        program,
-        borrow,
-        machine,
-        state.symbol,
-        call,
-        &place,
-        argument.access,
-        &[],
-    )? == argument.access)
-        .then_some(argument)
+        // Local storage already owns its identity. Only a parameter
+        // root needs the caller's structural signature namespace; rebuilding the
+        // enclosing attachment for a local would unnecessarily require every
+        // unrelated field (including service bindings) to be scalar-graph storage.
+        // The signature is needed only for a range operand; `admit_resolved`
+        // declines anything else before reading it.
+        subslice_expression(program, expression)?;
+        let parameters = if !program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| place.root == PlaceRoot::Symbol(parameter.symbol))
+        {
+            Vec::new()
+        } else {
+            super::free_structural_scalar_signature(program, shapes, state, &[])?.0
+        };
+        let subslice = admit_resolved(
+            program,
+            operators,
+            expressions,
+            computations,
+            borrow,
+            owner,
+            state,
+            &parameters,
+            target.type_reference,
+            expression,
+            call.statement_index,
+            CheckedSubsliceSite::CallArgument {
+                call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+                argument_ordinal,
+            },
+        )?;
+        let argument = subslice.argument();
+        // The ordinary range admission already rejoins the explicit actual with
+        // its formal. A scalar expression changes no loan: retain that exact
+        // access and require the borrow ledger to agree, as a statement call does.
+        (exact_structural_borrow_access(
+            program,
+            borrow,
+            machine,
+            state.symbol,
+            call,
+            &place,
+            argument.access,
+            &[],
+        )? == argument.access)
+            .then_some(argument)
+    }
 }
 
 fn exact_actual(
@@ -844,30 +908,6 @@ pub(crate) fn storage_argument(
         type_identity,
         access,
     })
-}
-
-/// Borrow rows are an ordered observation roster, not a set of roots. Rebuild
-/// with the existing collector so scalar reads occupy their actual positions.
-fn rejoin_computation_accesses(
-    program: &dyn ::validation::CheckingInput,
-    facts: crate::flow::CapturedSubjectFacts<'_>,
-    machine: SymbolHandle,
-    state: SymbolHandle,
-    source: &FlowCallFact,
-) -> Option<()> {
-    if !matches!(
-        crate::borrow::accesses::rejoin_expression_call_accesses(
-            program, facts, machine, state, source,
-        )?,
-        CallSite::Expression { .. }
-    ) {
-        return None;
-    }
-    // Replay the exact ordered access roster here. Spatial compatibility is
-    // owned by checks::borrows for every call, including computation calls.
-    // Counting a root's simultaneous accesses loses their captured paths and
-    // rejects valid disjoint field loans; do not re-decide that judgment here.
-    Some(())
 }
 
 fn plain_primitive_referent(
