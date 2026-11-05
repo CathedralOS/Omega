@@ -4,7 +4,8 @@
 //! identity before it can prove a comparison implies structural descent. These
 //! rows are source associations only; constructing them proves no inequality.
 
-use super::structural_terms::selected_application_machine;
+use super::structural_judgment::StructuralTerm;
+use super::structural_terms::{identity_equality_terms, selected_application_machine};
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -231,7 +232,6 @@ pub(super) fn authored_order_requests(
     state: &typed_trees::state::State,
     carrier: &OrdinalCarrier,
 ) -> Option<Vec<OrderDemand>> {
-    use typed_trees::expression::BinaryOperator;
     use typed_trees::statement::StatementNode;
     let mut owners = vec![machine];
     for statement in program.statement_table.statements(state.statement_nodes) {
@@ -273,6 +273,8 @@ pub(super) fn authored_order_requests(
     let mut requests = Vec::new();
     let mut conjuncts = Vec::new();
     for owner in owners {
+        let entry = program.machine_states(owner).first()?;
+        let parameters = program.state_parameters(entry);
         for contract in program.machine_contracts(owner) {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
                 let Some(expression) = fact.as_expression() else {
@@ -285,41 +287,26 @@ pub(super) fn authored_order_requests(
                     &mut conjuncts,
                 );
                 for &expression in &conjuncts {
-                    let Some(equality) = program.expression_table.binary_node(expression) else {
+                    // Source calls and constructors can retain qualifiers or
+                    // elaborated operands. Read their selected meaning through
+                    // the same declaring telescope used by equation judgment.
+                    let Some((left, right)) =
+                        identity_equality_terms(program, owner.symbol, parameters, expression)
+                    else {
                         continue;
                     };
-                    if equality.operator != BinaryOperator::Equal {
-                        continue;
-                    }
-                    for (operand, result) in [
-                        (equality.left, equality.right),
-                        (equality.right, equality.left),
-                    ] {
-                        let Some(call) = program.expression_table.call_node(operand) else {
-                            continue;
-                        };
-                        let Some((result_owner, result_case)) =
-                            super::structural_terms::case_classifier(program, result)
+                    for (operand, result) in [(&left, &right), (&right, &left)] {
+                        let Some((target, result_type)) =
+                            comparison_application(operand, result, carrier)
                         else {
                             continue;
                         };
-                        if result_owner.symbol != carrier.declaration
-                            || result_case.symbol != carrier.base
-                        {
-                            continue;
-                        }
-                        let Some(relation) =
-                            selected_application_machine(program, call.target_symbol)
-                        else {
+                        let Some(relation) = selected_application_machine(program, target) else {
                             continue;
                         };
                         let entry = program.machine_states(relation).first()?;
                         let parameters = program.state_parameters(entry);
-                        if call.receiver.is_valid()
-                            || call.static_machine_parameter.is_valid()
-                            || call.static_requirement_dispatch.is_some()
-                            || !call.machine_arguments.is_empty()
-                            || !call.evidence_arguments.is_empty()
+                        if program.package_qualified_type_identity(result_type) != carrier.identity
                             || parameters.len() != 2
                             || parameters.iter().any(|parameter| {
                                 program.package_qualified_type_identity(parameter.type_reference)
@@ -332,10 +319,10 @@ pub(super) fn authored_order_requests(
                         }
                         if !requests
                             .iter()
-                            .any(|request: &OrderDemand| request.target == call.target_symbol)
+                            .any(|request: &OrderDemand| request.target == target)
                         {
                             requests.push(OrderDemand {
-                                target: call.target_symbol,
+                                target,
                                 carrier: carrier.clone(),
                             });
                         }
@@ -345,4 +332,128 @@ pub(super) fn authored_order_requests(
         }
     }
     Some(requests)
+}
+
+fn comparison_application(
+    operand: &StructuralTerm,
+    result: &StructuralTerm,
+    carrier: &OrdinalCarrier,
+) -> Option<(SymbolHandle, TypeReferenceHandle)> {
+    let (
+        StructuralTerm::Application {
+            target,
+            result_type,
+            selections,
+            arguments,
+            ..
+        },
+        StructuralTerm::Constructor {
+            declaration: Some(declaration),
+            fields,
+            ..
+        },
+    ) = (operand, result)
+    else {
+        return None;
+    };
+    (target.is_valid()
+        && result_type.is_valid()
+        && selections.is_empty()
+        && arguments.len() == 2
+        && declaration.data == carrier.declaration
+        && declaration.case == Some(carrier.base)
+        && fields.is_empty())
+    .then_some((*target, *result_type))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::proof_contracts::contract_entailment::structural_judgment::ConstructorDeclaration;
+
+    fn comparison() -> (OrdinalCarrier, StructuralTerm, StructuralTerm) {
+        let carrier = OrdinalCarrier {
+            declaration: SymbolHandle::from_arena_index(1),
+            base: SymbolHandle::from_arena_index(2),
+            ..Default::default()
+        };
+        let application = StructuralTerm::Application {
+            result_type: TypeReferenceHandle::from_arena_index(3),
+            target: SymbolHandle::from_arena_index(4),
+            selections: Vec::new(),
+            machine: "saturating_sub".into(),
+            arguments: vec![
+                StructuralTerm::Variable("left".into()),
+                StructuralTerm::Variable("right".into()),
+            ],
+        };
+        let zero = StructuralTerm::Constructor {
+            declaration: Some(ConstructorDeclaration {
+                data: carrier.declaration,
+                case: Some(carrier.base),
+            }),
+            data: "Nat".into(),
+            case: "Zero".into(),
+            fields: Vec::new(),
+        };
+        (carrier, application, zero)
+    }
+
+    #[test]
+    fn computed_order_request_keeps_the_selected_target() {
+        let (carrier, mut application, zero) = comparison();
+        assert_eq!(
+            comparison_application(&application, &zero, &carrier),
+            Some((
+                SymbolHandle::from_arena_index(4),
+                TypeReferenceHandle::from_arena_index(3)
+            ))
+        );
+        let StructuralTerm::Application { target, .. } = &mut application else {
+            unreachable!()
+        };
+        *target = SymbolHandle::from_arena_index(7);
+        assert_eq!(
+            comparison_application(&application, &zero, &carrier),
+            Some((
+                SymbolHandle::from_arena_index(7),
+                TypeReferenceHandle::from_arena_index(3)
+            ))
+        );
+        let StructuralTerm::Application { target, .. } = &mut application else {
+            unreachable!()
+        };
+        *target = SymbolHandle::invalid();
+        // The familiar display name cannot request evidence for an absent
+        // selected declaration. A valid request still owes its body theorem.
+        assert!(comparison_application(&application, &zero, &carrier).is_none());
+    }
+
+    #[test]
+    fn computed_order_request_rejects_an_unowned_constructor() {
+        let (carrier, application, zero) = comparison();
+        for declaration in [
+            None,
+            Some(ConstructorDeclaration {
+                data: SymbolHandle::from_arena_index(5),
+                case: Some(carrier.base),
+            }),
+            Some(ConstructorDeclaration {
+                data: carrier.declaration,
+                case: Some(SymbolHandle::from_arena_index(6)),
+            }),
+        ] {
+            let mut foreign = zero.clone();
+            let StructuralTerm::Constructor {
+                declaration: selected,
+                ..
+            } = &mut foreign
+            else {
+                unreachable!()
+            };
+            *selected = declaration;
+            // All variants retain identical printed Nat/Zero names.
+            assert!(comparison_application(&application, &foreign, &carrier).is_none());
+        }
+    }
 }
