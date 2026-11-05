@@ -1,8 +1,8 @@
-//! Internal arrival follows argument capture and the selected residual cleanup.
-//! A lexical last-use row cannot close a reference stored inside a nominal
-//! receiver: the hook runs before structural field cleanup. Join the loan home
-//! to that exact edge's disposition, excluding transferred or inactive leaves.
-//! The caller separately rules out carrying local loans into the successor.
+//! Cleanup before an internal block transfer can end a stored loan.
+//! A named cleanup hook runs before its fields are released, so a last-use
+//! marker alone cannot prove that release. Use the selected edge's checked
+//! cleanup and exclude fields that move or belong to inactive cases.
+//! Machine-entry calls keep the caller's loans until completion.
 use checked_trees::{BorrowCallFact, BorrowLoanFact, CheckFacts, FlowStateFact};
 use language_semantics::PermissionEventSource;
 
@@ -30,9 +30,9 @@ pub(super) fn disposes_loan(
         .into_iter()
         .filter(|target| target.is_valid())
         .any(|target| {
-            // Match the invocation that completes this exact arm, including
-            // nested-machine calls represented as expressions. Calls in its
-            // arguments run before cleanup and cannot borrow its disposition.
+            // Match the invocation that completes this block-transfer arm.
+            // Argument calls finish before cleanup and keep their ordinary
+            // call lifetimes.
             jump.site.completes_transition(program, target)
                 && disposes_loan_on_target(program, facts, flow, call.statement_index, target, loan)
         })

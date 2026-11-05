@@ -3238,6 +3238,17 @@ pub(in crate::legalization) fn apply_terminator(
         if custody.edge_is_impossible(edge) {
             continue;
         }
+        // A rejected leaf alone cannot show which holder should have ended
+        // first. Keep the selected cleanup order with the existing refusal.
+        let cleanup_failure = |error| {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE custody-cleanup-context machine={:?} edge={edge:?} actions={actions:?}",
+                    function.machine,
+                );
+            }
+            error
+        };
         let owned_transfer = operation.owned_transfer(edge);
         let target = operation.successor_target(edge);
         if let Some(target) = target {
@@ -3282,7 +3293,8 @@ pub(in crate::legalization) fn apply_terminator(
                 function,
                 types,
                 retirements::DisposalEvent::Edge(edge),
-            )?;
+            )
+            .map_err(cleanup_failure)?;
             borrowed_arrivals::complete_cleanup(
                 function,
                 &mut exit,
@@ -3306,7 +3318,8 @@ pub(in crate::legalization) fn apply_terminator(
                 function,
                 types,
                 retirements::DisposalEvent::Edge(edge),
-            )?;
+            )
+            .map_err(cleanup_failure)?;
             // There is no successor activation coordinate after completion.
             // Result transfer authenticated its full leaf ancestry above and
             // selected cleanup has executed. Captured borrowed-block address
