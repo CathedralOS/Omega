@@ -586,50 +586,6 @@ pub fn selected_provider_candidate_rows<'plan>(
         };
         let requirement = plan.identity_text(row.requirement_identity);
         let realization = plan.identity_text(*machine_identity);
-        if std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some() {
-            let same_template = module.provider_candidates.iter().filter(|candidate| {
-                module
-                    .identities
-                    .text(candidate.source_requirement_identity)
-                    == Some(requirement)
-            });
-            let mut count = 0;
-            for candidate in same_template {
-                count += 1;
-                eprintln!(
-                    "[canonical instances] owner={} package={} provider={} source_machine={} actual_receiver={} declaration_receiver={} applied={} region_arguments={} closed={}",
-                    module
-                        .identities
-                        .text(candidate.provider_declaration.identity())
-                        == Some(owner),
-                    candidate.source_candidate_package_identity == *machine_package_identity,
-                    module.identities.text(candidate.provider_identity)
-                        == Some(plan.provider_type.as_str()),
-                    module.identities.text(candidate.source_candidate_identity)
-                        == Some(realization),
-                    receiving_application_matches(
-                        plan,
-                        row,
-                        module,
-                        candidate.receiving_application
-                    ),
-                    receiving_application_matches(
-                        plan,
-                        row,
-                        module,
-                        candidate.declaration_application
-                    ),
-                    !candidate.receiving_application.is_absent(),
-                    candidate.receiving_region_arguments.len(),
-                    candidate.requirement_identity != candidate.source_requirement_identity,
-                );
-            }
-            eprintln!(
-                "[canonical instances] template_candidates={count} schema_receivers={} canonical_requirements={}",
-                plan.schema.declaration.receiver_applications.len(),
-                module.provider_instance_requirements.len(),
-            );
-        }
         let matching = module
             .provider_candidates
             .iter()

@@ -124,10 +124,7 @@ fn timeout_terminates_the_owned_process_group() {
         BoundedCaptureBudget::new(32),
     )
     .expect_err("deadline must reject");
-    assert!(
-        matches!(&error, BoundedProcessRunError::TimedOut { .. }),
-        "unexpected timeout error: {error:?}"
-    );
+    assert!(matches!(error, BoundedProcessRunError::TimedOut { .. }));
     assert!(started.elapsed() < Duration::from_secs(2));
     std::thread::sleep(Duration::from_millis(400));
     assert!(

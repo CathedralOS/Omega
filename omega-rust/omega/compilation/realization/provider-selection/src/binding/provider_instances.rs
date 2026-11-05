@@ -74,16 +74,6 @@ pub fn project_provider_instances(
                 }
                 _ => continue,
             };
-            if std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some()
-                && matches!(row.binding, ProviderBinding::CheckedAdapter { .. })
-            {
-                eprintln!(
-                    "[instances] selected plan {:?}: applications={} receiver_views={}",
-                    plan.name,
-                    applications.len(),
-                    plan.schema.declaration.receiver_applications.len()
-                );
-            }
             for application in applications {
                 let _receiving = match &application.receiving_application {
                     Ok(receiving) => receiving,
@@ -106,15 +96,6 @@ pub fn project_provider_instances(
                     plan.identity_text(row.requirement_identity),
                     Some(declaration),
                 );
-                if std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some()
-                    && matches!(row.binding, ProviderBinding::CheckedAdapter { .. })
-                {
-                    eprintln!(
-                        "[instances] receiving application: matches={} candidates={}",
-                        receiving_matches,
-                        application.candidates.len()
-                    );
-                }
                 if !receiving_matches {
                     continue;
                 }

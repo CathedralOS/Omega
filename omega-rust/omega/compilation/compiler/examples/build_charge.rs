@@ -2709,68 +2709,6 @@ fn anonymous_build_completes_before_product() {
                 .is_none()
         );
         let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes());
-        if let Err(terminal_codec::CanonicalTerminalArtifactError::Semantic(
-            terminal_codec::CodecError::MalformedOperationFoundation {
-                machine: name,
-                block,
-                operation,
-                ..
-            },
-        )) = &reloaded
-        {
-            let module = artifact.semantic_module();
-            for machine in &module.machines {
-                if machine
-                    .declaration
-                    .as_ref()
-                    .and_then(|declaration| module.identities.text(declaration.machine.identity()))
-                    != Some(name.as_str())
-                {
-                    continue;
-                }
-                eprintln!(
-                    "Product reload context: machine {:?}, machine parameters {:?}",
-                    machine.id, machine.structural_parameters,
-                );
-                for candidate in &machine.blocks {
-                    if candidate.id == *block {
-                        eprintln!(
-                            "Product reload block parameters: {:?}",
-                            candidate.structural_parameters
-                        );
-                        for actual in &candidate.operations {
-                            if actual.id == *operation {
-                                eprintln!("Product reload refused operation: {actual:?}");
-                                if let terminal_psi::OperationKind::StoreStructuralField {
-                                    destination,
-                                    ..
-                                } = &actual.kind
-                                {
-                                    for producer in machine.operations().filter(|producer| {
-                                        producer
-                                            .result
-                                            .structural()
-                                            .is_some_and(|result| result.place == *destination)
-                                    }) {
-                                        eprintln!(
-                                            "Product reload destination producer: {producer:?}"
-                                        );
-                                    }
-                                    for parameter in machine
-                                        .block_structural_parameters()
-                                        .filter(|parameter| parameter.place == *destination)
-                                    {
-                                        eprintln!(
-                                            "Product reload destination parameter: {parameter:?}"
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
         let reloaded = reloaded.expect("anonymous Product reload");
         assert_eq!(artifact.view().identity(), reloaded.view().identity());
         match identity {

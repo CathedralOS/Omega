@@ -63,92 +63,12 @@ enum PreparedBuildMachineBody {
 /// Immutable checked execution content, including all CheckFacts. Equality
 /// compares the complete checked value, not typed trees or arena token identity.
 /// It contains no executable prepared entry and no host authority.
-#[derive(Clone, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct CheckedBuildProgram {
     checked: Arc<checked_trees::CheckedTrees>,
     /// Descriptor queries are observable Build inputs, even when their bodies
     /// are absent from the checked executable closure.
     product_declarations: Arc<TypedTrees>,
-}
-
-impl PartialEq for CheckedBuildProgram {
-    fn eq(&self, other: &Self) -> bool {
-        let equal = self.checked == other.checked
-            && self.product_declarations == other.product_declarations;
-        if !equal {
-            eprintln!(
-                "Pure checked content mismatch: typed={} facts={} product_declarations={}",
-                self.checked.typed == other.checked.typed,
-                self.checked.facts == other.checked.facts,
-                self.product_declarations == other.product_declarations,
-            );
-            if self.checked.typed == other.checked.typed {
-                let mut differing = Vec::new();
-                macro_rules! compare_fact_fields {
-                    ($($field:ident),* $(,)?) => {
-                        $(if self.checked.facts.$field != other.checked.facts.$field {
-                            differing.push(stringify!($field));
-                        })*
-                    };
-                }
-                compare_fact_fields!(
-                    declaration_descriptions,
-                    proof_applications,
-                    deferred_layout_applications,
-                    quotient_formations,
-                    quotient_operations,
-                    specialization_identities,
-                    accepted_template_identities,
-                    finalized_selections,
-                    finalized_selection_occurrences,
-                    resolved_types,
-                    executable_bindings,
-                    stored_integer_writes,
-                    proven_scalar_indexes,
-                    scalar_index_coordinates,
-                    scalar_selector_coordinates,
-                    proven_byte_writes,
-                    proven_assignment_indexes,
-                    decided_call_requires,
-                    operational,
-                    semantic,
-                    borrow,
-                    reference_custody,
-                    state_locals,
-                    provider_closed_requirements,
-                    provider_instance_publication,
-                    content_classes,
-                    contextual_cleanup,
-                    proof,
-                    values,
-                    domains,
-                    dynamic_conformances,
-                    nominal_machine_uses,
-                    requirement_call_specializations,
-                    operators,
-                    capabilities,
-                    flow,
-                    index_compatibility,
-                    mutation,
-                    service_reaches,
-                    synchronous_invocations,
-                    suspensions,
-                    blocking,
-                    termination,
-                    qualifications,
-                    contract_plans,
-                    carry,
-                    fact_call_projections,
-                    access_view_inputs,
-                    constant_recipe_obligations,
-                    constant_predicate_obligations,
-                    integer_range_obligations,
-                );
-                eprintln!("Pure checked fact differences: {}", differing.join(", "));
-            }
-        }
-        equal
-    }
 }
 
 /// Exact build-machine entry owned by one prepared program.
