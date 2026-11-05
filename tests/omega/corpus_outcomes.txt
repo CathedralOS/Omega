@@ -1569,6 +1569,8 @@ fail/borrows/opaque_static_stored_writeonly_input rejected 858ms expected @ccdb9
 	bodyless boundary symbol `entry` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 fail/borrows/opaque_stored_writeonly_input rejected 934ms expected @ccdb99ca2214
 	machine `consume` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
+fail/borrows/ordinary_select_provider_reference_live_write rejected 1691ms expected @bd7aab375c7a
+	statement 4 mutates `after` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/borrows/owned_address_after_operand_move rejected 2486ms expected @ccdb99ca2214
 	cannot use `cell` in machine `main` state `entry` (statement 1) after `cell` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `cell` first
 fail/borrows/owned_capture_replaced_reference_qualification rejected 1704ms expected @ccdb99ca2214
@@ -19433,6 +19435,7 @@ pass/borrows/opaque_incoming_stored_byte_view_exit checked 3856ms check-target:m
 pass/borrows/opaque_reference_identity checked 2988ms @ccdb99ca2214
 pass/borrows/opaque_region_known_calls checked 2217ms @ccdb99ca2214
 pass/borrows/opaque_shared_writeonly_carrier checked 2840ms @ccdb99ca2214
+pass/borrows/ordinary_select_provider_reference_exit checked 2594ms check-target:macos_arm64 @bd7aab375c7a
 pass/borrows/overwritten_intermediate_descriptor_releases_backing_exit rejected 3869ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	statement 3 borrows `first` while local borrow `view` is still active (borrowed at statement 3)
 pass/borrows/owned_byte_value_call_exit checked 74400ms check-target:macos_arm64 @911f6617ba9e
@@ -27093,7 +27096,7 @@ pass/providers/portable_contract checked 4462ms @ccdb99ca2214
 pass/providers/provider_const_endpoint checked 12686ms @ccdb99ca2214
 pass/providers/provider_type_slot_missing_selection rejected 4684ms expected check-target:macos_arm64 native-rejection:match @ddc17fff6a3c
 	no provider is selected for boundary requirement `Pick::choose`, which the program entry reaches on target `macos_arm64`
-pass/providers/provider_type_target_default_override checked 3297ms check-target:macos_arm64 @ccdb99ca2214
+pass/providers/provider_type_target_default_override checked 2588ms check-target:macos_arm64 @bd7aab375c7a
 pass/providers/qualified_foreign_result_forwarding rejected 2865ms regressed-from:checked @ccdb99ca2214
 	cannot prove ensures contract for exit from state_forward at statement 0: result.code == 0
 pass/providers/qualified_foreign_structural_arguments checked 11436ms check-target:macos_arm64 @ccdb99ca2214
