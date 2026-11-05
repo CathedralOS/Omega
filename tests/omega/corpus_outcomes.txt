@@ -6818,36 +6818,25 @@ fail/facts/checked_asm_nominal_predicate_through_target_body_rejected rejected 4
 	cannot prove asm `requires` fact at block entry in move_selected state `entry` (statement 5): output == 9
 	cannot prove asm `requires` fact at block entry in move_selected state `entry` (statement 5): output == 9
 	cannot prove asm `requires` fact at block entry in move_selected state `entry` (statement 5): output == 9
-fail/facts/checked_asm_rank_decrease_through_call_result_rejected rejected 2929ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#31#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#31#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-fail/facts/checked_asm_rank_decrease_through_const_name_rejected rejected 3401ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from main$assembly$portable$4$entry: ((asm#scratch#26#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#26#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$4$entry
-fail/facts/checked_asm_rank_decrease_through_field_rejected rejected 3389ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#27#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#27#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-fail/facts/checked_asm_rank_decrease_through_local_rejected rejected 3117ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#26#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#26#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-fail/facts/checked_asm_rank_decrease_through_match_join_rejected rejected 3278ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from countdown$assembly$portable$5$entry: ((asm#scratch#56#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#56#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$5$entry
-fail/facts/checked_asm_rank_decrease_through_other_machine_rejected rejected 2661ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#37#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#37#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$4$entry
-fail/facts/checked_asm_rank_decrease_through_other_state_rejected rejected 2795ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from next$assembly$portable$4$entry: ((asm#scratch#31#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#31#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_rank_decrease_through_parameter_rejected rejected 2813ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#31#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#31#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$4$entry
-fail/facts/checked_asm_rank_decrease_through_target_body_rejected rejected 2857ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#31#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#31#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#72#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#72#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#113#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#113#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine countdown$assembly$linux_x86_64$4$entry
-	cannot prove the `terminates by` ranking for machine countdown$assembly$windows_x86_64$4$entry
-	cannot prove the `terminates by` ranking for machine countdown$assembly$macos_x86_64$4$entry
+fail/facts/checked_asm_rank_decrease_through_call_result_rejected rejected 4260ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#8#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#8#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_const_name_rejected rejected 4206ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from main$assembly$portable$4$entry: ((asm#scratch#3#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#3#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_field_rejected rejected 5095ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#4#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#4#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_local_rejected rejected 3959ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#3#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#3#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_match_join_rejected rejected 3886ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from countdown$assembly$portable$5$entry: ((asm#scratch#33#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#33#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_other_machine_rejected rejected 4062ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#14#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#14#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_other_state_rejected rejected 4292ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from next$assembly$portable$4$entry: ((asm#scratch#8#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#8#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_parameter_rejected rejected 4122ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#8#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#8#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_target_body_rejected rejected 4244ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from X86Countdown::countdown$assembly$portable$5$countdown: ((asm#scratch#40#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#40#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove requires contract for call done from ArmCountdown::countdown$assembly$portable$5$countdown: ((asm#scratch#85#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#85#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_register_contract_bound_through_call_result_rejected rejected 1143ms expected @ccdb99ca2214
 	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `forward(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/facts/checked_asm_register_contract_bound_through_const_name_rejected rejected 1584ms expected @ccdb99ca2214
@@ -14142,8 +14131,8 @@ fail/float/exact_integer_to_float_all_policies_requires_denotation rejected 1843
 	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
 fail/float/exclusive_float_range_endpoint_rejected rejected 4538ms expected @ccdb99ca2214
 	cannot prove requires contract for call accept from Main::main: 1.5 >= 0.0 && 1.5 < 1.5 (needs fact `value >= 0.0 && value < 1.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-fail/float/false_ieee_ordered_guards_admit_nan rejected 2261ms unexpected @ccdb99ca2214
-	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/false_ieee_ordered_guards_admit_nan rejected 2093ms expected @b12da1b03c39
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/field_range_conversion_after_invalid_write rejected 4985ms expected @f78c2623a68c
 	cannot complete a call at statement 2 in machine `convert` state `entry`: this write left the `requires` facts of `sample` (data `Sample`) unproved; restore them first
 fail/float/finite_constructor_requires_operand_proof rejected 1976ms expected @ccdb99ca2214
@@ -14205,10 +14194,10 @@ fail/float/ieee_collection_other_element_write_retires_guard rejected 2367ms exp
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/ieee_collection_write_retires_guard rejected 2246ms expected @085f035b8b6e+wt
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-fail/float/indexed_ieee_i64_upper_ceiling_rejected rejected 2275ms unexpected @ccdb99ca2214
-	machine `convert` state `entry`: value call `I64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-fail/float/indexed_ieee_u64_upper_ceiling_rejected rejected 2162ms unexpected @ccdb99ca2214
-	machine `convert` state `entry`: value call `U64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/indexed_ieee_i64_upper_ceiling_rejected rejected 2093ms expected @b12da1b03c39
+	machine `convert` state `entry` cannot prove unqualified `I64::from_f64` operand `values[index]` is finite and truncates into `i64`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i64 in Trapping` or `i64 in Saturating`
+fail/float/indexed_ieee_u64_upper_ceiling_rejected rejected 1966ms expected @b12da1b03c39
+	machine `convert` state `entry` cannot prove unqualified `U64::from_f64` operand `values[index]` is finite and truncates into `u64`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `u64 in Trapping` or `u64 in Saturating`
 fail/float/inequality_premise_allows_nan rejected 4467ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from keep at statement 0: result == value
 fail/float/integer_conversion_lookalike rejected 4353ms expected @ccdb99ca2214
@@ -14348,8 +14337,8 @@ fail/float/result_predicate_stale_or_wrong_value rejected 5259ms expected @0d0c1
 	cannot prove requires contract for call accept from wrong_value: 0.1 == 3.75 (needs fact `value == 3.75` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/same_carrier_cast_cannot_mint_finite rejected 1908ms expected @ccdb99ca2214
 	cannot prove initializer `identity(value) as f64` satisfies `finite` for the bounded value of machine `invalid` state `entry` local `finite`
-fail/float/saved_ieee_conversion_guard_after_write rejected 2028ms unexpected @ccdb99ca2214
-	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/saved_ieee_conversion_guard_after_write rejected 1965ms expected @b12da1b03c39
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `current` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/saved_ieee_guard_copy_after_write rejected 6035ms expected @95f6bd2b4430
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `copied` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/specification_index_reference_selector_unbounded rejected 4743ms expected @e8827ad1dd64+wt
@@ -15783,6 +15772,12 @@ fail/memory/resident_result_requires_execution_contract rejected 1333ms expected
 fail/memory/resident_transfer_cast_forgery rejected 2632ms expected @ccdb99ca2214
 	`as ... in Resident` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove default-domain field requirement for return from forge, state entry, at statement 0: storage requires Resident
+fail/memory/typed_run_backing_geometry rejected 6920ms expected @c35d90e77142
+	cannot prove requires contract for call extract from allocated: (__transition_subject#183.view as Run<WordPlacement, Word> ).storage.length != backing_length (needs fact `run.storage.length != backing_length` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/memory/typed_run_empty_forgery rejected 5035ms expected @2b6f0be25ff2
+	cannot prove default-domain field requirement for return from counterfeit, state entry, at statement 1: result requires Live
+fail/memory/typed_run_empty_nonempty_backing rejected 5009ms expected @2b6f0be25ff2
+	cannot prove requires contract for call empty from counterfeit: storage.length == 0 (needs fact `storage.length == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/memory/vacant_transfer_checked_adapter_forgery rejected 2567ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Vacant
 	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Granted
@@ -17685,8 +17680,7 @@ fail/relevance/erased_mutable_parameter rejected 838ms expected @ccdb99ca2214
 	machine `Main::record::record` erased parameter `x` cannot be `mut`; an erased binding owns no runtime storage or custody
 fail/relevance/erased_parameter_runtime_read rejected 903ms expected @ccdb99ca2214
 	erased parameter `bound` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
-fail/relevance/erased_reference_distinct_subject rejected 1937ms expected regressed-from:checked @ccdb99ca2214
-	state `keep` receives `right` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+fail/relevance/erased_reference_distinct_subject rejected 2745ms expected regressed-from:checked @4710c3c8595b
 	cannot prove requires contract for call keep from forward: right == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/relevance/erased_reference_mutable_formal rejected 748ms expected @ccdb99ca2214
 	machine `keep::entry` erased parameter `witness` cannot be `mut`; an erased binding owns no runtime storage or custody
@@ -22184,25 +22178,15 @@ pass/facts/checked_asm_nominal_predicate_through_other_machine_exit checked 6085
 pass/facts/checked_asm_nominal_predicate_through_other_state_exit checked 5996ms check-target:macos_arm64 @ceec2d4e7d8b
 pass/facts/checked_asm_nominal_predicate_through_parameter_exit checked 5897ms check-target:macos_arm64 @ceec2d4e7d8b
 pass/facts/checked_asm_nominal_predicate_through_target_body_exit checked 14464ms check-target:macos_arm64 @ceec2d4e7d8b
-pass/facts/checked_asm_rank_decrease_through_call_result_exit rejected 2366ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-pass/facts/checked_asm_rank_decrease_through_const_name_exit rejected 2428ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$4$entry
-pass/facts/checked_asm_rank_decrease_through_field_exit rejected 2712ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-pass/facts/checked_asm_rank_decrease_through_local_exit rejected 3009ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-pass/facts/checked_asm_rank_decrease_through_match_join_exit rejected 2967ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$5$entry
-pass/facts/checked_asm_rank_decrease_through_other_machine_exit rejected 2729ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$4$entry
-pass/facts/checked_asm_rank_decrease_through_other_state_exit checked 3190ms check-target:linux_x86_64 @ccdb99ca2214
-pass/facts/checked_asm_rank_decrease_through_parameter_exit rejected 2631ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$4$entry
-pass/facts/checked_asm_rank_decrease_through_target_body_exit rejected 3017ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine countdown$assembly$linux_x86_64$4$entry
-	cannot prove the `terminates by` ranking for machine countdown$assembly$windows_x86_64$4$entry
-	cannot prove the `terminates by` ranking for machine countdown$assembly$macos_x86_64$4$entry
+pass/facts/checked_asm_rank_decrease_through_call_result_exit checked 5866ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_const_name_exit checked 6600ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_field_exit checked 6728ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_local_exit checked 6553ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_match_join_exit checked 5909ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_other_machine_exit checked 6668ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_other_state_exit checked 5908ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_parameter_exit checked 6827ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_target_body_exit checked 5824ms check-target:linux_x86_64 @d3e0d00aad47
 pass/facts/checked_asm_register_contract_bound_through_call_result_exit checked 3484ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/checked_asm_register_contract_bound_through_const_name_exit checked 3337ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/checked_asm_register_contract_bound_through_field_exit checked 4439ms check-target:macos_arm64 @ccdb99ca2214
@@ -25187,8 +25171,8 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit checked 359
 pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit checked 4669ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/typed_run_nested_owned checked 6936ms @9a26074461a7
-pass/facts/typed_run_singleton checked 16389ms check-target:macos_arm64 @9a26074461a7
-pass/facts/typed_run_singleton_rejection checked 15738ms check-target:macos_arm64 @9a26074461a7
+pass/facts/typed_run_singleton checked 16584ms check-target:macos_arm64 @2b6f0be25ff2
+pass/facts/typed_run_singleton_rejection checked 15499ms check-target:macos_arm64 @2b6f0be25ff2
 pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 6521ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 6552ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_direct_boundary_call_through_field_exit checked 6444ms check-target:macos_arm64 @d68d95fa82f8
@@ -27337,8 +27321,7 @@ pass/relevance/erased_record_param checked 6857ms @ccdb99ca2214
 pass/relevance/erased_record_parameter_exit checked 12422ms check-target:macos_arm64 @ccdb99ca2214
 pass/relevance/erased_reference_parameter_exit checked 3140ms check-target:linux_x86_64 @ccdb99ca2214
 pass/relevance/erased_reference_qualified_observation_exit checked 3296ms check-target:linux_x86_64 @ccdb99ca2214
-pass/relevance/erased_reference_receiver_field_exit rejected 2840ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "boot", reason: "nested argument schedule has no exact positional signature", gap: None })
+pass/relevance/erased_reference_receiver_field_exit checked 3777ms check-target:linux_x86_64 @817abb3772c3
 pass/relevance/erased_signature_param checked 3361ms @ccdb99ca2214
 pass/relevance/erased_state_param checked 3470ms @ccdb99ca2214
 pass/relevance/erased_subject_call checked 3583ms @ccdb99ca2214
