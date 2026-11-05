@@ -267,13 +267,68 @@ pub(crate) fn lower_unit_closure(
     for symbol in call_catalog.boundaries {
         retain_unit_boundary(checked, plans, &mut boundaries, symbol)?;
     }
-    let admitted_bodies =
-        phase_profile::scope("psi.06.lower_selected_machine.admit_bodies", || {
-            admission::admit(checked, plans, &closure, &mut boundaries)
-        })?;
+    let admitted = phase_profile::scope("psi.06.lower_selected_machine.admit_bodies", || {
+        admission::admit(checked, plans, &closure, &mut boundaries)
+    })?;
+    let admitted_bodies = admitted.bodies;
     boundaries.sort_by_key(|(_, identity)| identity.order_key());
     if let Some(pair) = boundaries.windows(2).find(|pair| pair[0].1 == pair[1].1) {
         if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            // The request and recorded discoveries explain why both instances were retained.
+            // Reading these rows does not discover another root or change the refusal.
+            eprintln!(
+                "STRUCT duplicate-boundary request entry={entry:?} scalar_entry={scalar_entry} unit_roots={} first_unit_roots={:?} omitted_unit_roots={} program_roots={} first_program_roots={:?} omitted_program_roots={} interfaces={} first_interfaces={:?} omitted_interfaces={}",
+                unit_roots.len(),
+                &unit_roots[..unit_roots.len().min(64)],
+                unit_roots.len().saturating_sub(64),
+                request.program_roots.machines.len(),
+                &request.program_roots.machines[..request.program_roots.machines.len().min(64)],
+                request.program_roots.machines.len().saturating_sub(64),
+                request.program_roots.boundaries.len(),
+                &request.program_roots.boundaries[..request.program_roots.boundaries.len().min(64)],
+                request.program_roots.boundaries.len().saturating_sub(64),
+            );
+            let evaluation_roots = scalar_applications.evaluation_roots().collect::<Vec<_>>();
+            eprintln!(
+                "STRUCT duplicate-boundary scalar-evaluation-roots count={} first_roots={:?} omitted={}",
+                evaluation_roots.len(),
+                &evaluation_roots[..evaluation_roots.len().min(64)],
+                evaluation_roots.len().saturating_sub(64)
+            );
+            let mut root_membership = unit_roots
+                .iter()
+                .map(|&root| (root, "Unit entry"))
+                .chain(
+                    request
+                        .program_roots
+                        .machines
+                        .iter()
+                        .map(|&root| (root, "requested callable")),
+                )
+                .chain(
+                    request
+                        .program_roots
+                        .boundaries
+                        .iter()
+                        .map(|&root| (root, "requested interface")),
+                )
+                .chain(
+                    evaluation_roots
+                        .iter()
+                        .map(|&root| (root, "scalar evaluation")),
+                )
+                .chain(
+                    call_catalog
+                        .discovery
+                        .native_roots
+                        .iter()
+                        .map(|row| (row.machine, "native layout")),
+                )
+                .collect::<Vec<_>>();
+            root_membership.sort_unstable_by_key(|(root, kind)| {
+                (root.arena_index(), root.generation(), *kind)
+            });
+            root_membership.dedup();
             // Equal overloads can come from different declarations or applications.
             // Report each source and checked application before refusing.
             for (plan, identity) in pair {
@@ -300,6 +355,104 @@ pub(crate) fn lower_unit_closure(
                     plan.contract_commitment,
                     checked.symbols.get(plan.machine).generated_from,
                 );
+                let mut causes = call_catalog
+                    .discovery
+                    .interfaces
+                    .iter()
+                    .map(|&(source, target)| (source, target, "requested interface"))
+                    .chain(
+                        call_catalog
+                            .discovery
+                            .origins
+                            .iter()
+                            .map(|row| (row.source, row.target, row.cause)),
+                    )
+                    .chain(
+                        admitted
+                            .boundary_sources
+                            .iter()
+                            .map(|&(source, target)| (source, target, "admitted body call")),
+                    )
+                    .filter(|(_, target, _)| *target == plan.machine)
+                    .map(|(source, _, cause)| (source, cause))
+                    .collect::<Vec<_>>();
+                let recorded_count = causes.len();
+                causes.sort_unstable_by_key(|(source, cause)| {
+                    (*cause, source.arena_index(), source.generation())
+                });
+                causes.dedup();
+                for category in causes.chunk_by(|left, right| left.1 == right.1) {
+                    for &(source, cause) in category.iter().take(128) {
+                        let source_key = (source.arena_index(), source.generation());
+                        let first = root_membership.partition_point(|(root, _)| {
+                            (root.arena_index(), root.generation()) < source_key
+                        });
+                        let last = root_membership.partition_point(|(root, _)| {
+                            (root.arena_index(), root.generation()) <= source_key
+                        });
+                        eprintln!(
+                            "STRUCT duplicate-boundary origin machine={:?} source={source:?} cause={cause} source_roots={:?}",
+                            plan.machine,
+                            &root_membership[first..last]
+                        );
+                    }
+                    eprintln!(
+                        "STRUCT duplicate-boundary origin-category machine={:?} cause={} count={} omitted={}",
+                        plan.machine,
+                        category[0].1,
+                        category.len(),
+                        category.len().saturating_sub(128)
+                    );
+                }
+                eprintln!(
+                    "STRUCT duplicate-boundary origins machine={:?} recorded={recorded_count} distinct={} duplicate_records={}",
+                    plan.machine,
+                    causes.len(),
+                    recorded_count - causes.len()
+                );
+                let mut cause_sources =
+                    causes.iter().map(|(source, _)| *source).collect::<Vec<_>>();
+                cause_sources
+                    .sort_unstable_by_key(|source| (source.arena_index(), source.generation()));
+                cause_sources.dedup();
+                let native_categories = ["selected boundary", "boundary owner", "cause source"];
+                let mut native_counts = [0usize; 3];
+                for row in &call_catalog.discovery.native_roots {
+                    let category = if row.machine == plan.machine {
+                        0
+                    } else if row.owner == plan.machine {
+                        1
+                    } else if cause_sources
+                        .binary_search_by_key(
+                            &(row.machine.arena_index(), row.machine.generation()),
+                            |source| (source.arena_index(), source.generation()),
+                        )
+                        .is_ok()
+                    {
+                        2
+                    } else {
+                        continue;
+                    };
+                    if native_counts[category] < 64 {
+                        eprintln!(
+                            "STRUCT duplicate-boundary native-layout-origin boundary={:?} cause={} value={:?} owner={:?} selected_state={:?} machine={:?}",
+                            plan.machine,
+                            native_categories[category],
+                            row.value,
+                            row.owner,
+                            row.selected_state,
+                            row.machine
+                        );
+                    }
+                    native_counts[category] += 1;
+                }
+                for (category, count) in native_categories.iter().zip(native_counts) {
+                    eprintln!(
+                        "STRUCT duplicate-boundary native-layout-origins boundary={:?} cause={category} count={count} omitted={}",
+                        plan.machine,
+                        count.saturating_sub(64)
+                    );
+                }
                 let specialization = checked
                     .facts
                     .specialization_identities
@@ -316,14 +469,18 @@ pub(crate) fn lower_unit_closure(
                     "STRUCT duplicate-boundary checked-specialization machine={:?} row={specialization:?}",
                     plan.machine,
                 );
+                let mut capture_count = 0usize;
                 for capture in checked
                     .facts
                     .executable_bindings
                     .captures
                     .iter()
                     .filter(|capture| capture.instance == plan.machine)
-                    .take(4)
                 {
+                    capture_count += 1;
+                    if capture_count > 4 {
+                        continue;
+                    }
                     eprintln!(
                         "STRUCT duplicate-boundary checked-capture instance={:?} arguments={} first_arguments={:?} machines={} first_machines={:?}",
                         capture.instance,
@@ -333,14 +490,23 @@ pub(crate) fn lower_unit_closure(
                         &capture.machines[..capture.machines.len().min(8)],
                     );
                 }
+                eprintln!(
+                    "STRUCT duplicate-boundary checked-captures machine={:?} count={capture_count} omitted={}",
+                    plan.machine,
+                    capture_count.saturating_sub(4)
+                );
+                let mut requirement_count = 0usize;
                 for requirement in checked
                     .facts
                     .executable_bindings
                     .requirements
                     .iter()
                     .filter(|row| row.requirement == plan.machine)
-                    .take(4)
                 {
+                    requirement_count += 1;
+                    if requirement_count > 4 {
+                        continue;
+                    }
                     let machines = requirement
                         .machines
                         .iter()
@@ -353,6 +519,11 @@ pub(crate) fn lower_unit_closure(
                         requirement.machines.len(),
                     );
                 }
+                eprintln!(
+                    "STRUCT duplicate-boundary checked-requirements machine={:?} count={requirement_count} omitted={}",
+                    plan.machine,
+                    requirement_count.saturating_sub(4)
+                );
             }
         }
         return Err(LoweringError::InvalidUnitMachinePlan {

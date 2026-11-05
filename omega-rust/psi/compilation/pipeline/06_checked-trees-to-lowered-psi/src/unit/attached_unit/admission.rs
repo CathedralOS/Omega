@@ -26,6 +26,11 @@ pub(super) enum AdmittedBody<'a> {
     },
 }
 
+pub(super) struct AdmittedClosure<'a> {
+    pub(super) bodies: Vec<AdmittedBody<'a>>,
+    pub(super) boundary_sources: Vec<(SymbolHandle, SymbolHandle)>,
+}
+
 impl<'a> AdmittedBody<'a> {
     pub(super) fn source(&self) -> UnitBody<'a> {
         match self {
@@ -40,25 +45,37 @@ pub(super) fn admit<'a>(
     plans: UnitPlans<'a>,
     closure: &[SymbolHandle],
     boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)>,
-) -> Result<Vec<AdmittedBody<'a>>, LoweringError> {
+) -> Result<AdmittedClosure<'a>, LoweringError> {
+    let trace = std::env::var_os("OMEGA_STRUCT_TRACE").is_some();
     let mut bodies = Vec::with_capacity(closure.len());
+    let mut boundary_sources = Vec::new();
     for source in closure {
         let admitted = match UnitBody::find(plans, *source)? {
             UnitBody::Composed(plan) => {
                 let body = composed_control::admit_callable(checked, plan)?;
                 for (boundary, _) in body.boundaries() {
+                    if trace {
+                        boundary_sources.push((*source, boundary.machine));
+                    }
                     retain_unit_boundary(checked, plans, boundaries, boundary.machine)?;
                 }
                 AdmittedBody::Composed { source: plan, body }
             }
             UnitBody::Ordinary(plan) => {
-                retain_call_boundaries(checked, plans, &plan.operations, boundaries)?;
+                retain_call_boundaries(checked, plans, &plan.operations, boundaries, |target| {
+                    if trace {
+                        boundary_sources.push((*source, target));
+                    }
+                })?;
                 AdmittedBody::Ordinary(plan)
             }
         };
         bodies.push(admitted);
     }
-    Ok(bodies)
+    Ok(AdmittedClosure {
+        bodies,
+        boundary_sources,
+    })
 }
 
 /// Add every boundary the calls of `operations` name, member and operand
@@ -68,6 +85,7 @@ pub(super) fn retain_call_boundaries<'a, 'o>(
     plans: UnitPlans<'a>,
     operations: impl IntoIterator<Item = &'o CheckedUnitEffectOperationPlan>,
     boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)>,
+    mut observe: impl FnMut(SymbolHandle),
 ) -> Result<(), LoweringError> {
     for operation in operations {
         for call in operation
@@ -75,6 +93,7 @@ pub(super) fn retain_call_boundaries<'a, 'o>(
             .filter_map(CheckedUnitEffectOperationPlan::call)
             .filter(|call| call.is_boundary())
         {
+            observe(call.target.machine);
             retain_unit_boundary(checked, plans, boundaries, call.target.machine)?;
         }
     }

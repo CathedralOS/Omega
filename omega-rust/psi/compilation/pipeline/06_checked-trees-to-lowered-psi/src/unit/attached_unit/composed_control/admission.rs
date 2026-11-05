@@ -18,7 +18,13 @@ pub(super) fn admit_calls<'a>(
     let mut boundaries = Vec::new();
     for state in call_states {
         for operation in state.operation_dependencies() {
-            retain_call_boundaries(checked, plans, std::iter::once(operation), &mut boundaries)?;
+            retain_call_boundaries(
+                checked,
+                plans,
+                std::iter::once(operation),
+                &mut boundaries,
+                |_| {},
+            )?;
             // A call state retains its invocation and the effects that
             // prepare it: the ones the frame emits (`OperationFrame::lowers`),
             // plus the frame-local storage mints a statement establishes

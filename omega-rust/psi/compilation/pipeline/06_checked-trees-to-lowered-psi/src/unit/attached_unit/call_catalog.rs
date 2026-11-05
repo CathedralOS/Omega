@@ -23,6 +23,31 @@ pub(super) struct CheckedCallCatalog {
     pub(super) source_machines: Vec<symbols::SymbolHandle>,
     pub(super) providers: Vec<CheckedUnitProviderCandidate>,
     pub(super) boundaries: Vec<symbols::SymbolHandle>,
+    pub(super) discovery: BoundaryDiscovery,
+}
+
+/// Retain how discovery introduced a boundary so a later refusal can explain it.
+/// These rows are diagnostic data, never another source of roots or authority.
+#[derive(Default)]
+pub(super) struct BoundaryDiscovery {
+    pub(super) interfaces: Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>,
+    pub(super) native_roots: Vec<NativeLayoutRoot>,
+    pub(super) origins: Vec<BoundaryOrigin>,
+}
+
+#[derive(Debug)]
+pub(super) struct BoundaryOrigin {
+    pub(super) source: symbols::SymbolHandle,
+    pub(super) target: symbols::SymbolHandle,
+    pub(super) cause: &'static str,
+}
+
+#[derive(Debug)]
+pub(super) struct NativeLayoutRoot {
+    pub(super) value: checked_trees::CheckedStructuralValueHandle,
+    pub(super) owner: symbols::SymbolHandle,
+    pub(super) selected_state: symbols::SymbolHandle,
+    pub(super) machine: symbols::SymbolHandle,
 }
 
 pub(super) fn discover(
@@ -33,6 +58,8 @@ pub(super) fn discover(
     program_roots: crate::TerminalProgramRoots<'_>,
     scalar_entry: bool,
 ) -> Result<CheckedCallCatalog, LoweringError> {
+    let trace = std::env::var_os("OMEGA_STRUCT_TRACE").is_some();
+    let mut discovery = BoundaryDiscovery::default();
     let mut retained_roots = unit_roots.to_vec();
     let mut family_scalar_roots = Vec::new();
     // Authored selection subjects are interface roots, not runtime calls.
@@ -40,6 +67,7 @@ pub(super) fn discover(
     // missing checked plan rejects rather than narrowing a whole-trait default.
     let mut retained_boundary_roots = Vec::new();
     for boundary in program_roots.boundaries {
+        let previous = retained_boundary_roots.len();
         if let Some((_, signature)) = checked.trait_machine_signature(*boundary) {
             retained_boundary_roots.extend(
                 checked
@@ -48,6 +76,13 @@ pub(super) fn discover(
             );
         } else {
             retained_boundary_roots.push(*boundary);
+        }
+        if trace {
+            discovery.interfaces.extend(
+                retained_boundary_roots[previous..]
+                    .iter()
+                    .map(|&target| (*boundary, target)),
+            );
         }
     }
     for boundary in &retained_boundary_roots {
@@ -66,7 +101,7 @@ pub(super) fn discover(
         .structural_values
         .nodes
         .iter()
-        .filter_map(|(_, node)| {
+        .filter_map(|(value, node)| {
             let owner = checked.typed.machine_by_symbol(node.machine)?;
             if checked.typed.callable_body_has_open_parameters(owner) {
                 return None;
@@ -76,8 +111,17 @@ pub(super) fn discover(
             else {
                 return None;
             };
-            validation::find_machine_by_entry_state(&checked.typed, selected_state)
-                .map(|(machine, _)| machine.symbol)
+            let target = validation::find_machine_by_entry_state(&checked.typed, selected_state)
+                .map(|(machine, _)| machine.symbol);
+            if trace && let Some(machine) = target {
+                discovery.native_roots.push(NativeLayoutRoot {
+                    value,
+                    owner: node.machine,
+                    selected_state,
+                    machine,
+                });
+            }
+            target
         });
     for callable in program_roots
         .machines
@@ -119,6 +163,13 @@ pub(super) fn discover(
             })
         {
             for requirement in &usage.callback_requirements {
+                if trace {
+                    discovery.origins.push(BoundaryOrigin {
+                        source: callable,
+                        target: *requirement,
+                        cause: "callback requirement",
+                    });
+                }
                 if !retained_boundary_roots.contains(requirement) {
                     retained_boundary_roots.push(*requirement);
                 }
@@ -138,12 +189,27 @@ pub(super) fn discover(
                 boundary.machine == conformance.requirement_symbol
                     && (boundary.kind != semantic_vocabulary::BoundaryRequirementKind::Trait
                         || boundary.owning_service.is_some())
-            }) && !retained_boundary_roots.contains(&conformance.requirement_symbol)
-            {
-                retained_boundary_roots.push(conformance.requirement_symbol);
+            }) {
+                if trace {
+                    discovery.origins.push(BoundaryOrigin {
+                        source: callable,
+                        target: conformance.requirement_symbol,
+                        cause: "service satisfaction",
+                    });
+                }
+                if !retained_boundary_roots.contains(&conformance.requirement_symbol) {
+                    retained_boundary_roots.push(conformance.requirement_symbol);
+                }
             }
         }
         if !machine.supplies_checked_body() {
+            if trace {
+                discovery.origins.push(BoundaryOrigin {
+                    source: callable,
+                    target: callable,
+                    cause: "bodyless callable root",
+                });
+            }
             super::unique_unit_boundary(plans, callable).map_err(unit_machine_plan_error(
                 checked,
                 machine.name.as_str(),
@@ -182,6 +248,13 @@ pub(super) fn discover(
         let source_machines = plans.source_machines(checked, &closure)?;
         for source in &source_machines {
             for boundary in boundary_targets(checked, *source)? {
+                if trace {
+                    discovery.origins.push(BoundaryOrigin {
+                        source: *source,
+                        target: boundary,
+                        cause: "retained computation",
+                    });
+                }
                 if !retained_boundary_roots.contains(&boundary) {
                     retained_boundary_roots.push(boundary);
                 }
@@ -193,6 +266,7 @@ pub(super) fn discover(
             &closure,
             &mut retained_boundary_roots,
             &mut known_candidates,
+            trace.then_some(&mut discovery.origins),
         )?;
         // This catalog contains checked Omega bodies, not opaque realizations.
         // Their stores and atomic operations keep the same checked access and
@@ -359,6 +433,7 @@ pub(super) fn discover(
             source_machines,
             providers: candidates,
             boundaries: retained_boundary_roots,
+            discovery,
         });
     }
 }

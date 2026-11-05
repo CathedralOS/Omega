@@ -238,24 +238,45 @@ pub(super) fn checked_unit_provider_candidates(
     closure: &[symbols::SymbolHandle],
     retained_requirements: &mut Vec<symbols::SymbolHandle>,
     known: &mut Vec<(symbols::SymbolHandle, Vec<CheckedUnitProviderCandidate>)>,
+    mut origins: Option<&mut Vec<super::call_catalog::BoundaryOrigin>>,
 ) -> Result<Vec<CheckedUnitProviderCandidate>, LoweringError> {
     let bodies = closure
         .iter()
         .map(|symbol| UnitBody::find(plans, *symbol))
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let mut boundary_symbols = bodies
-        .into_iter()
-        .flat_map(UnitBody::operations)
-        .filter_map(|operation| {
+    let mut boundary_symbols = Vec::new();
+    for (source, body) in closure.iter().zip(bodies) {
+        for boundary in body.operations().filter_map(|operation| {
             operation
                 .call()
                 .filter(|call| call.is_boundary())
                 .map(|call| call.target.machine)
-        })
-        .chain(retained_requirements.iter().copied())
-        .collect::<Vec<_>>();
+        }) {
+            if let Some(origins) = origins.as_deref_mut() {
+                origins.push(super::call_catalog::BoundaryOrigin {
+                    source: *source,
+                    target: boundary,
+                    cause: "provider operation call",
+                });
+            }
+            boundary_symbols.push(boundary);
+        }
+    }
+    boundary_symbols.extend(retained_requirements.iter().copied());
     for machine in closure {
-        boundary_symbols.extend(boundary_targets(checked, *machine)?);
+        let targets = boundary_targets(checked, *machine)?;
+        if let Some(origins) = origins.as_deref_mut() {
+            origins.extend(
+                targets
+                    .iter()
+                    .map(|&target| super::call_catalog::BoundaryOrigin {
+                        source: *machine,
+                        target,
+                        cause: "provider computation",
+                    }),
+            );
+        }
+        boundary_symbols.extend(targets);
     }
     // A runtime call demands its complete boundary-trait interface. Retain
     // unused coordinates before candidate/body discovery so automatic unique
@@ -278,12 +299,19 @@ pub(super) fn checked_unit_provider_candidates(
         typed_trees::trait_definition::AppliedTraitScope::abstract_scope(definition).visit(
             &checked.typed,
             &mut |scope| {
-                boundary_symbols.extend(
-                    checked
-                        .typed
-                        .executable_trait_machine_instances(scope.declaration)
-                        .map(|signature| signature.symbol),
-                );
+                for signature in checked
+                    .typed
+                    .executable_trait_machine_instances(scope.declaration)
+                {
+                    if let Some(origins) = origins.as_deref_mut() {
+                        origins.push(super::call_catalog::BoundaryOrigin {
+                            source: definition.symbol,
+                            target: signature.symbol,
+                            cause: "complete boundary trait",
+                        });
+                    }
+                    boundary_symbols.push(signature.symbol);
+                }
             },
         );
     }
