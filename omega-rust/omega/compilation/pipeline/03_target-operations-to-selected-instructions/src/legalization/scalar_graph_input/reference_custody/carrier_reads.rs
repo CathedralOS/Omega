@@ -4,7 +4,7 @@
 
 use super::{
     Custody, Leaf, PlaceId, PsiOptimizationFunction, ReferenceOriginProjection, StructuralAccess,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, access_covers,
+    StructuralPathSegment, StructuralTypeDeclaration, access_covers,
     backing_storage_access_conflicts, borrowed_arrivals, descriptor_backing, find_structural_type,
     leaf_reference_access, source_contract,
 };
@@ -85,7 +85,7 @@ impl<'a> CarrierStorageRead<'a> {
             });
         }
         let origin_overlaps = |origin_path: &[ReferenceOriginProjection]| {
-            let Some(origin) = source_contract(self.function, self.custody, self.place)
+            if source_contract(self.function, self.custody, self.place)
                 .and_then(|root| {
                     terminal_semantics::captured_reference_origin_type(
                         self.types.iter(),
@@ -94,14 +94,14 @@ impl<'a> CarrierStorageRead<'a> {
                     )
                 })
                 .and_then(|identity| find_structural_type(self.types, identity))
-            else {
+                .is_none()
+            {
                 return true;
-            };
-            !matches!(origin.shape, StructuralTypeShape::Reference { .. })
-                && terminal_semantics::reference_origin_paths_may_overlap(
-                    &self.storage_path,
-                    origin_path,
-                )
+            }
+            // A concrete loan of the pointer field protects its bytes even
+            // though the selected storage type is itself a reference. Only
+            // incoming pointees, handled separately below, are independent.
+            terminal_semantics::reference_origin_paths_may_overlap(&self.storage_path, origin_path)
         };
         reference.backing.iter().any(|backing| {
             descriptor_backing::overlaps_inline_carrier_read(
