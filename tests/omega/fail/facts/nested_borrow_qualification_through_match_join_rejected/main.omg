@@ -10,18 +10,18 @@ public machine consume<'scope>(attributes: &Attributes<'scope>) -> u16 {
 }
 
 // Nonzero neighbors make an incorrect nested pointer or element offset observable.
-machine neighbors_valid<'scope>(attributes: &Attributes<'scope>) -> bool {
-    attributes.name.words[0] == 11
+machine neighbors_valid<'scope>(attributes: &Attributes<'scope>, expected_first: u16) -> bool {
+    attributes.name.words[0] == expected_first
         && attributes.name.words[1] == 23
         && attributes.name.words[2] == 37
 }
-machine consume_with_neighbor_checks<'scope>(attributes: &Attributes<'scope>) -> u16 {
+machine consume_with_neighbor_checks<'scope>(attributes: &Attributes<'scope>, expected_first: u16) -> u16 {
     let result: u16 = consume(attributes);
-    transition neighbors_valid(attributes) { true -> result false -> 1 }
+    transition neighbors_valid(attributes, expected_first) { true -> result false -> 1 }
 }
 
-machine choose<'scope>(first: bool, attributes: &'scope Attributes<'scope>) -> &'scope Attributes<'scope> {
-    transition first { true -> attributes false -> attributes }
+machine choose<'scope>(first: bool, left: &'scope Attributes<'scope>, right: &'scope Attributes<'scope>) -> &'scope Attributes<'scope> {
+    transition first { true -> left false -> right }
 }
 
 data Main {}
@@ -33,9 +33,18 @@ machine Main::main(main: &mut Main) crashes Trap {
     words[3] = 0;
     let name: Name = Name { words: &words };
     let attributes: Attributes = Attributes { name: &name };
-    let view: &Attributes = choose(true, &attributes);
-    let result: u16 = consume_with_neighbor_checks(view);
-    transition result == 0 { true -> done() false -> failed() }
+    let mut other_words: [u16; 4];
+    other_words[0] = 41;
+    other_words[1] = 23;
+    other_words[2] = 37;
+    other_words[3] = 0;
+    let other_name: Name = Name { words: &other_words };
+    let other_attributes: Attributes = Attributes { name: &other_name };
+    let view: &Attributes = choose(true, &attributes, &other_attributes);
+    let result: u16 = consume_with_neighbor_checks(view, 11);
+    let other_view: &Attributes = choose(false, &attributes, &other_attributes);
+    let other_result: u16 = consume_with_neighbor_checks(other_view, 41);
+    transition result == 0 && other_result == 0 { true -> done() false -> failed() }
     machine done() {}
     machine failed() { crash Trap; }
 }

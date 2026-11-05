@@ -21,6 +21,8 @@ Each positive also reads three distinct nonzero neighboring words through the
 same nested reference. The runtime check fails if the consuming call returns a
 nonzero result or a neighbor changes. This makes a wrong pointer or element
 offset observable without adding a caller guard that proves the zero-tail fact.
+The match join selects between two arrays with different first neighbors and
+checks both selector values, so choosing the same arm twice fails at runtime.
 
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
