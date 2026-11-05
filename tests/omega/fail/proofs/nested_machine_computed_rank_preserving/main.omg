@@ -1,9 +1,16 @@
-// Subtracting zero through a helper leaves the rank unchanged. An unrelated
+// An identity helper leaves the recursive rank unchanged. An unrelated
 // constant-zero relation cannot establish that this recursion decreases.
-use omega::language::core::nat::Nat;
+data Nat {
+    case Zero;
+    case Succ(prev: Nat);
+}
 
 machine saturating_sub(left: Nat, right: Nat) -> Nat {
     transition { _ -> Nat::Zero }
+}
+
+machine unchanged(value: Nat) -> Nat {
+    transition { _ -> value }
 }
 
 machine descend(value: Nat) -> Nat
@@ -13,7 +20,7 @@ requires saturating_sub(value, value) == Nat::Zero
     transition { _ -> forward(value) }
 
     machine forward(value: Nat) -> Nat {
-        let next: Nat = omega::language::core::nat::saturating_sub(value, Nat::Zero);
+        let next: Nat = unchanged(value);
         transition { _ -> descend(next) }
     }
 }
