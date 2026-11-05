@@ -764,6 +764,8 @@ struct InductionBuilder<'a, 'b, K> {
     invariant: TermHandle,
     lemmas: &'b [TermHandle],
     case_adapters: Vec<TermHandle>,
+    case_dispatch: TermHandle,
+    label_transport: TermHandle,
 }
 impl<K: Copy + Eq + Into<Key>> InductionBuilder<'_, '_, K> {
     fn reconstructed_label(&mut self, label: S) -> S {
@@ -888,31 +890,31 @@ impl<K: Copy + Eq + Into<Key>> InductionBuilder<'_, '_, K> {
             snd(value),
         ))
     }
-    fn step(&mut self) -> Result<S, &'static str> {
-        let a = self.b.terms.fresh();
+    fn case_dispatch(&mut self) -> Result<(S, S), &'static str> {
         let tail = self.b.terms.fresh();
-        let sum_type = self.b.sum_type(0);
+        let domain = self.b.sum_type(0);
         let body = self.eliminate(0, S::Var(tail))?;
-        let mut function = lam(tail, sum_type, body);
-        for (symbol, ty) in self.b.common.iter().rev() {
-            function = lam((*symbol).into(), self.b.domain(*symbol, *ty), function);
+        let mut label = S::Closed(self.label_pack);
+        for (symbol, _) in self.b.common {
+            label = app(label, S::Var((*symbol).into()));
         }
-        let mut value = S::Var(a);
-        for _ in self.b.common {
-            function = app(function, fst(value.clone()));
-            value = snd(value);
+        let label = app(label, S::Var(tail));
+        let mut body = lam(tail, domain.clone(), body);
+        let mut ty = pi(tail, domain, app(S::Closed(self.logical_result), label));
+        for (symbol, reference) in self.b.common.iter().rev() {
+            body = lam((*symbol).into(), self.b.domain(*symbol, *reference), body);
+            ty = pi((*symbol).into(), self.b.domain(*symbol, *reference), ty);
         }
-        // The motive is index-only, so g does not occur in the hypothesis
-        // or conclusion. Keep its exact iindW domain once outside the case
-        // eliminator instead of duplicating an IW formation in every motive.
-        let p = self.b.terms.fresh();
-        let positions = app(S::Closed(self.family.children), S::Var(a));
-        let next = app(app(S::Closed(self.family.next), S::Var(a)), S::Var(p));
-        let children = pi(p, positions, app(S::Closed(self.iw), next));
-        let g = self.b.terms.fresh();
+        Ok((body, ty))
+    }
+
+    fn label_transport(&mut self) -> (S, S) {
+        let label = self.b.terms.fresh();
+        let evidence = self.b.terms.fresh();
+        let reconstructed = self.reconstructed_label(S::Var(label));
+        let domain = app(S::Closed(self.logical_result), reconstructed.clone());
         let endpoint = self.b.terms.fresh();
         let equality = self.b.terms.fresh();
-        let reconstructed = self.reconstructed_label(S::Var(a));
         let equality_domain = S::Identity(
             Box::new(S::Closed(self.family.carrier)),
             Box::new(reconstructed),
@@ -927,17 +929,52 @@ impl<K: Copy + Eq + Into<Key>> InductionBuilder<'_, '_, K> {
                 app(S::Closed(self.logical_result), S::Var(endpoint)),
             ),
         );
-        let transported = S::IdentityElimination(
+        let body = S::IdentityElimination(
             Box::new(motive),
-            Box::new(app(function, value)),
-            Box::new(S::Var(a)),
-            Box::new(app(S::Closed(self.reconstruction_equality), S::Var(a))),
+            Box::new(S::Var(evidence)),
+            Box::new(S::Var(label)),
+            Box::new(app(S::Closed(self.reconstruction_equality), S::Var(label))),
         );
-        Ok(lam(
-            a,
+        let result = app(S::Closed(self.logical_result), S::Var(label));
+        (
+            lam(
+                label,
+                S::Closed(self.family.carrier),
+                lam(evidence, domain.clone(), body),
+            ),
+            pi(
+                label,
+                S::Closed(self.family.carrier),
+                pi(evidence, domain, result),
+            ),
+        )
+    }
+
+    fn step(&mut self) -> S {
+        let label = self.b.terms.fresh();
+        let mut body = S::Closed(self.case_dispatch);
+        let mut tail = S::Var(label);
+        for _ in self.b.common {
+            body = app(body, fst(tail.clone()));
+            tail = snd(tail);
+        }
+        let body = app(body, tail);
+        let body = app(app(S::Closed(self.label_transport), S::Var(label)), body);
+        // The source result is index-only, so the actual recursive trees are
+        // unused here. Their exact IW domain still belongs to the step.
+        let position = self.b.terms.fresh();
+        let positions = app(S::Closed(self.family.children), S::Var(label));
+        let next = app(
+            app(S::Closed(self.family.next), S::Var(label)),
+            S::Var(position),
+        );
+        let children = pi(position, positions, app(S::Closed(self.iw), next));
+        let trees = self.b.terms.fresh();
+        lam(
+            label,
             S::Closed(self.family.carrier),
-            lam(g, children, transported),
-        ))
+            lam(trees, children, body),
+        )
     }
 }
 
@@ -1004,6 +1041,26 @@ pub(super) fn induction<K: Copy + Eq + Into<Key>>(
         let declaration = declarations.len() as u32;
         declarations.push(Declaration::definition(0, ty, body));
         arena.insert(term!(Constant => declaration => vec![]))
+    }
+    fn retain_checked(
+        arena: &mut TermArena,
+        declarations: &mut Vec<Declaration>,
+        ty: TermHandle,
+        body: TermHandle,
+        role: &str,
+    ) -> Result<TermHandle, String> {
+        let context = proof_admission::Context::empty().with_signature(
+            proof_admission::Signature::from_declarations(declarations.clone()),
+        );
+        proof_admission::check_type(
+            arena,
+            &context,
+            body,
+            ty,
+            &mut proof_admission::Budget::new(proof_admission::DEFAULT_CONVERSION_STEPS),
+        )
+        .map_err(|error| format!("source induction {role} fails kernel checking: {error:?}"))?;
+        Ok(retain(arena, declarations, ty, body))
     }
     let w_sort = arena.insert(Term::Sort(Sort::Type(
         family
@@ -1077,6 +1134,8 @@ pub(super) fn induction<K: Copy + Eq + Into<Key>>(
         invariant,
         lemmas,
         case_adapters: Vec::with_capacity(cases.len()),
+        case_dispatch: TermHandle::default(),
+        label_transport: TermHandle::default(),
     };
     // Each source case applies the same predicate and child hypotheses in
     // several dependent motives. Check that application once at its exact
@@ -1105,22 +1164,13 @@ pub(super) fn induction<K: Copy + Eq + Into<Key>>(
         }
         let body = body.term(arena, &mut Vec::new())?;
         let ty = ty.term(arena, &mut Vec::new())?;
-        let context = proof_admission::Context::empty().with_signature(
-            proof_admission::Signature::from_declarations(declarations.clone()),
-        );
-        proof_admission::check_type(
+        producer.case_adapters.push(retain_checked(
             arena,
-            &context,
-            body,
+            declarations,
             ty,
-            &mut proof_admission::Budget::new(proof_admission::DEFAULT_CONVERSION_STEPS),
-        )
-        .map_err(|error| {
-            format!("source induction case {case} adapter fails kernel checking: {error:?}")
-        })?;
-        producer
-            .case_adapters
-            .push(retain(arena, declarations, ty, body));
+            body,
+            &format!("case {case} adapter"),
+        )?);
     }
     // Check typed dependent-pair eta once at the actual label carrier. The
     // case adapter then transports its already proved result along this
@@ -1147,7 +1197,18 @@ pub(super) fn induction<K: Copy + Eq + Into<Key>>(
     )
     .term(arena, &mut Vec::new())?;
     producer.reconstruction_equality = retain(arena, declarations, equality_type, equality_body);
-    let step_body = producer.step()?.term(arena, &mut Vec::new())?;
+    // Keep dispatch and equality transport as separately checked definitions.
+    // The final step applies their exact dependent types instead of unfolding
+    // every case and its reconstruction proof in one checking query.
+    let (body, ty) = producer.case_dispatch()?;
+    let body = body.term(arena, &mut Vec::new())?;
+    let ty = ty.term(arena, &mut Vec::new())?;
+    producer.case_dispatch = retain_checked(arena, declarations, ty, body, "case dispatch")?;
+    let (body, ty) = producer.label_transport();
+    let body = body.term(arena, &mut Vec::new())?;
+    let ty = ty.term(arena, &mut Vec::new())?;
+    producer.label_transport = retain_checked(arena, declarations, ty, body, "label transport")?;
+    let step_body = producer.step().term(arena, &mut Vec::new())?;
     let a = producer.b.terms.fresh();
     let result_type = producer.type_at_label(S::Var(a));
     let step_type = pi(a, S::Closed(family.carrier), result_type).term(arena, &mut Vec::new())?;
