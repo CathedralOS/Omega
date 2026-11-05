@@ -289,12 +289,16 @@ impl StructuralJudge<'_> {
             SelectedCallContract::Concrete(machine, _) => machine.symbol,
             _ => owner_symbol(owner),
         };
-        let mut completion = self.clone();
-        if parameters.iter().all(|parameter| {
-            bindings
-                .iter()
-                .any(|(symbol, _)| *symbol == parameter.symbol)
-        }) {
+        let mut completion = Cow::Borrowed(self);
+        // The case reader returns before consuming bindings in this mode.
+        // Avoid cloning complete arguments for a query that cannot use them.
+        if completion.has_exact_case_subjects()
+            && parameters.iter().all(|parameter| {
+                bindings
+                    .iter()
+                    .any(|(symbol, _)| *symbol == parameter.symbol)
+            })
+        {
             let map =
                 parameters
                     .iter()
@@ -324,7 +328,7 @@ impl StructuralJudge<'_> {
                 }
             }
             for case in &cases {
-                completion.intake_case_guarantee(case);
+                completion.to_mut().intake_case_guarantee(case);
             }
         }
         let mut equations = Vec::new();

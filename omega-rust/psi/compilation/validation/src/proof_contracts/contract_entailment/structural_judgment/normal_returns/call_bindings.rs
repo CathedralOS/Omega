@@ -329,11 +329,14 @@ impl StructuralJudge<'_> {
         bindings: &[(SymbolHandle, StructuralTerm)],
         result: Option<&StructuralTerm>,
     ) -> Vec<super::super::CaseGuarantee> {
-        if !parameters.iter().all(|parameter| {
-            bindings
-                .iter()
-                .any(|(symbol, _)| *symbol == parameter.symbol)
-        }) {
+        // The case reader cannot consume this map without exact subjects.
+        if !self.has_exact_case_subjects()
+            || !parameters.iter().all(|parameter| {
+                bindings
+                    .iter()
+                    .any(|(symbol, _)| *symbol == parameter.symbol)
+            })
+        {
             return Vec::new();
         }
         let map = parameters
