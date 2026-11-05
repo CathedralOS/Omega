@@ -232,14 +232,37 @@ impl Producer<'_> {
     fn check(&mut self, term: TermHandle, ty: TermHandle, role: &str) -> Result<(), GraphFailure> {
         let context = Context::empty()
             .with_signature(Signature::from_declarations(self.declarations.clone()));
-        proof_admission::check_type(
-            self.arena,
-            &context,
-            term,
-            ty,
-            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
-        )
-        .map_err(|error| {
+        let budget = Budget::new(DEFAULT_CONVERSION_STEPS);
+        #[cfg(test)]
+        let budget = budget.with_normalization_counts(self.declarations.len());
+        let mut budget = budget;
+        proof_admission::check_type(self.arena, &context, term, ty, &mut budget).map_err(|error| {
+            #[cfg(test)]
+            if let Some(counts) = budget.normalization_counts() {
+                let mut unfoldings = counts
+                    .unfoldings
+                    .iter()
+                    .copied()
+                    .enumerate()
+                    .filter(|(_, count)| *count != 0)
+                    .collect::<Vec<_>>();
+                unfoldings.sort_unstable_by_key(|&(declaration, count)| {
+                    (std::cmp::Reverse(count), declaration)
+                });
+                eprintln!(
+                    "order kernel work role={role} remaining={} beta={} projection={} case={} identity={} induction={} squash={} boxed={} unlisted_unfoldings={}",
+                    budget.remaining(), counts.beta, counts.projection, counts.case,
+                    counts.identity, counts.induction, counts.squash, counts.boxed, counts.unlisted_unfoldings
+                );
+                for (declaration, count) in unfoldings.into_iter().take(16) {
+                    let row = &self.declarations[declaration];
+                    eprintln!(
+                        "order kernel unfolding declaration={declaration} count={count} type={} body={}",
+                        self.describe_goal(row.ty, &mut 48),
+                        row.body.map(|body| self.describe_goal(body, &mut 48)).unwrap_or_default()
+                    );
+                }
+            }
             GraphFailure::Kernel(format!(
                 "generated order {role} fails kernel checking: {error:?}"
             ))

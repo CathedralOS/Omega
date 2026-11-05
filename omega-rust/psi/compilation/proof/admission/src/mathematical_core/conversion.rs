@@ -33,11 +33,48 @@ pub const DEFAULT_CONVERSION_STEPS: u32 = 65_536;
 /// `CoreError::StepCeiling`, never a false judgment and never a hang.
 pub struct Budget {
     remaining_steps: u32,
+    normalization_counts: Option<NormalizationCounts>,
+}
+
+/// Counts successful budget spends; enabling diagnostics does not spend steps.
+#[derive(Debug, Default)]
+pub struct NormalizationCounts {
+    pub unfoldings: Vec<u32>,
+    pub unlisted_unfoldings: u32,
+    pub beta: u32,
+    pub projection: u32,
+    pub case: u32,
+    pub identity: u32,
+    pub induction: u32,
+    pub squash: u32,
+    pub boxed: u32,
 }
 
 impl Budget {
     pub fn new(remaining_steps: u32) -> Self {
-        Self { remaining_steps }
+        Self {
+            remaining_steps,
+            normalization_counts: None,
+        }
+    }
+
+    /// Record work for this question against its immutable declaration roster.
+    pub fn with_normalization_counts(mut self, declarations: usize) -> Self {
+        self.normalization_counts = Some(NormalizationCounts {
+            unfoldings: vec![0; declarations],
+            ..NormalizationCounts::default()
+        });
+        self
+    }
+
+    pub fn normalization_counts(&self) -> Option<&NormalizationCounts> {
+        self.normalization_counts.as_ref()
+    }
+
+    fn record_normalization(&mut self, record: impl FnOnce(&mut NormalizationCounts)) {
+        if let Some(counts) = &mut self.normalization_counts {
+            record(counts);
+        }
     }
 
     pub fn remaining(&self) -> u32 {
@@ -114,6 +151,13 @@ pub fn weak_head_normalize_retaining(
                         break;
                     };
                     budget.consume()?;
+                    budget.record_normalization(|counts| {
+                        if let Some(count) = counts.unfoldings.get_mut(index as usize) {
+                            *count += 1;
+                        } else {
+                            counts.unlisted_unfoldings += 1;
+                        }
+                    });
                     current = instantiate_levels(arena, body, &levels).map_err(|index| {
                         CoreError::UnboundLevelParameter {
                             index,
@@ -134,26 +178,31 @@ pub fn weak_head_normalize_retaining(
             match (arena.get(parent), arena.get(current)) {
                 (Term::Apply { argument, .. }, Term::Lambda { body, .. }) => {
                     budget.consume()?;
+                    budget.record_normalization(|counts| counts.beta += 1);
                     current = substitute(arena, body, argument);
                     continue 'normalize;
                 }
                 (Term::Fst { .. }, Term::Pair { first, .. }) => {
                     budget.consume()?;
+                    budget.record_normalization(|counts| counts.projection += 1);
                     current = first;
                     continue 'normalize;
                 }
                 (Term::Snd { .. }, Term::Pair { second, .. }) => {
                     budget.consume()?;
+                    budget.record_normalization(|counts| counts.projection += 1);
                     current = second;
                     continue 'normalize;
                 }
                 (Term::CaseTwo { zero_branch, .. }, Term::TwoZero) => {
                     budget.consume()?;
+                    budget.record_normalization(|counts| counts.case += 1);
                     current = zero_branch;
                     continue 'normalize;
                 }
                 (Term::CaseTwo { one_branch, .. }, Term::TwoOne) => {
                     budget.consume()?;
+                    budget.record_normalization(|counts| counts.case += 1);
                     current = one_branch;
                     continue 'normalize;
                 }
@@ -161,6 +210,7 @@ pub fn weak_head_normalize_retaining(
                     // Typing equates the endpoint and reflexivity annotation.
                     // A neutral proof stays stuck; there is no identity eta.
                     budget.consume()?;
+                    budget.record_normalization(|counts| counts.identity += 1);
                     current = base;
                     continue 'normalize;
                 }
@@ -177,6 +227,7 @@ pub fn weak_head_normalize_retaining(
                     // exact dependent induction hypothesis. A neutral child
                     // function never blocks the constructor reduction.
                     budget.consume()?;
+                    budget.record_normalization(|counts| counts.induction += 1);
                     let bound_domain = arena.insert(row!(Apply => children => label));
                     let shifted_motive = shift(arena, motive, 0, 1);
                     let shifted_step = shift(arena, step, 0, 1);
@@ -199,11 +250,13 @@ pub fn weak_head_normalize_retaining(
                 }
                 (Term::SquashElim { function, .. }, Term::SquashIntro { value, .. }) => {
                     budget.consume()?;
+                    budget.record_normalization(|counts| counts.squash += 1);
                     current = arena.insert(row!(Apply => function => value));
                     continue 'normalize;
                 }
                 (Term::BoxElim { body, .. }, Term::BoxIntro { value, .. }) => {
                     budget.consume()?;
+                    budget.record_normalization(|counts| counts.boxed += 1);
                     current = arena.insert(row!(Apply => body => value));
                     continue 'normalize;
                 }

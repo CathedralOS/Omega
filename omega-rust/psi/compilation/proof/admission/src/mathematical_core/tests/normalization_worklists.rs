@@ -100,16 +100,26 @@ fn normalization_frames_preserve_reduction_budgets_and_refusals() {
     });
     let first = arena.insert(Term::Fst { pair: applied });
     let signature = crate::mathematical_core::Signature::new();
-    assert_eq!(
-        weak_head_normalize(&mut arena, &signature, first, &mut Budget::new(1)),
-        Err(CoreError::StepCeiling)
-    );
-    let mut budget = Budget::new(2);
-    assert_eq!(
-        weak_head_normalize(&mut arena, &signature, first, &mut budget),
-        Ok(zero)
-    );
-    assert_eq!(budget.remaining(), 0);
+    // Diagnostics must preserve both the exact ceiling and successful result.
+    for diagnostics in [false, true] {
+        for (allowance, expected) in [(1, Err(CoreError::StepCeiling)), (2, Ok(zero))] {
+            let budget = Budget::new(allowance);
+            let mut budget = if diagnostics {
+                budget.with_normalization_counts(signature.len())
+            } else {
+                budget
+            };
+            assert_eq!(
+                weak_head_normalize(&mut arena, &signature, first, &mut budget),
+                expected
+            );
+            assert_eq!(budget.remaining(), 0);
+            if let Some(counts) = budget.normalization_counts() {
+                assert_eq!(counts.beta, 1);
+                assert_eq!(counts.projection, allowance - 1);
+            }
+        }
+    }
     let unknown = constant(&mut arena, 9, vec![]);
     let nested = arena.insert(Term::Snd { pair: unknown });
     assert_eq!(
