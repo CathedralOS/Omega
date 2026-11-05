@@ -193,14 +193,14 @@ pub use values::{
     CheckedScalarComputationTemporaryCleanup, CheckedScalarDispatchArm,
     CheckedScalarDispatchPattern, CheckedScalarEvaluationOperand, CheckedScalarExpression,
     CheckedScalarExpressionBindings, CheckedScalarExpressionPlans, CheckedScalarExpressionRole,
-    CheckedScalarReadProjection, CheckedScalarSelector, CheckedStorageRoot,
-    CheckedStructuralCaseRoot, CheckedStructuralCaseSubject, CheckedStructuralDispatchArm,
-    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
-    CheckedStructuralQualificationContract, CheckedStructuralRecordField,
-    CheckedStructuralRecordFieldValue, CheckedStructuralValue, CheckedStructuralValueHandle,
-    CheckedStructuralValueKind, CheckedStructuralValuePlans, CheckedStructuralValueRoot,
-    CheckedSubsliceSite, CheckedValueCompletion, CheckedValueFact, CheckedValueFacts,
-    CheckedValueHandle, CheckedValueOrigin, CheckedValueStatementRole,
+    CheckedScalarReadProjection, CheckedScalarSelector, CheckedSourceQualification,
+    CheckedStorageRoot, CheckedStructuralCaseRoot, CheckedStructuralCaseSubject,
+    CheckedStructuralDispatchArm, CheckedStructuralParameterField,
+    CheckedStructuralPredicatePathSegment, CheckedStructuralQualificationContract,
+    CheckedStructuralRecordField, CheckedStructuralRecordFieldValue, CheckedStructuralValue,
+    CheckedStructuralValueHandle, CheckedStructuralValueKind, CheckedStructuralValuePlans,
+    CheckedStructuralValueRoot, CheckedSubsliceSite, CheckedValueCompletion, CheckedValueFact,
+    CheckedValueFacts, CheckedValueHandle, CheckedValueOrigin, CheckedValueStatementRole,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]

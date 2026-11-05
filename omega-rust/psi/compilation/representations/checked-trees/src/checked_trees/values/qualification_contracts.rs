@@ -21,6 +21,18 @@ pub struct CheckedStructuralQualificationContract {
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedReferenceSourceContract {
     SeparateStorage,
-    Standing(CheckedStructuralQualificationContract),
+    Standing {
+        contract: CheckedStructuralQualificationContract,
+        source_requirements: Vec<CheckedSourceQualification>,
+    },
     Unavailable(String),
+}
+
+/// One standing requirement in the supplying storage's checked place namespace.
+/// A universal element path can specialize to a selected element; a selected
+/// element never supplies a requirement for its siblings or enclosing owner.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedSourceQualification {
+    pub path: Vec<facts::PlaceSegment>,
+    pub semantic_domain: SemanticDomainId,
 }

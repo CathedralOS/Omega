@@ -180,6 +180,9 @@ pub struct LoweredSourceLoanCapture {
     pub formation: OperationId,
     pub carrier: semantic_vocabulary::PlaceId,
     pub source: terminal_psi::StructuralArgument,
+    /// Standing storage debts published below this descriptor's referent.
+    /// Additional input observations are deliberately absent.
+    pub source_requirements: Vec<checked_trees::CheckedSourceQualification>,
 }
 
 /// The call emitter's source-to-Terminal namespaces at a checked crossing.

@@ -646,5 +646,6 @@ mod index_tests {
 
 mod qualification_contracts;
 pub use qualification_contracts::{
-    CheckedReferenceSourceContract, CheckedStructuralQualificationContract,
+    CheckedReferenceSourceContract, CheckedSourceQualification,
+    CheckedStructuralQualificationContract,
 };

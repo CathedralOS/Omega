@@ -245,7 +245,7 @@ pub(crate) fn collect_reference_contract(
     contract: &checked_trees::CheckedReferenceSourceContract,
     domains: &mut Vec<SemanticDomainId>,
 ) {
-    if let checked_trees::CheckedReferenceSourceContract::Standing(contract) = contract {
+    if let checked_trees::CheckedReferenceSourceContract::Standing { contract, .. } = contract {
         for (domain, _) in &contract.domains {
             if !domains.contains(domain) {
                 domains.push(*domain);

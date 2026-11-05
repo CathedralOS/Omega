@@ -615,7 +615,8 @@ impl<'program> ShapeCollector<'program> {
         contract: &checked_trees::CheckedReferenceSourceContract,
         roots: &mut impl Extend<TypeIdentityId>,
     ) {
-        let checked_trees::CheckedReferenceSourceContract::Standing(contract) = contract else {
+        let checked_trees::CheckedReferenceSourceContract::Standing { contract, .. } = contract
+        else {
             return;
         };
         for (domain, reference) in &contract.domains {

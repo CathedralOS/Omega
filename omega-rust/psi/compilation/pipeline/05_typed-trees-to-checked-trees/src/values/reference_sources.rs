@@ -438,10 +438,29 @@ pub(crate) fn qualification_contract(
     {
         return CheckedReferenceSourceContract::SeparateStorage;
     }
-    match validation::structural_result_qualification_contract(program, backing_type) {
-        Ok(contract) => CheckedReferenceSourceContract::Standing(contract),
-        Err(reason) => CheckedReferenceSourceContract::Unavailable(reason.to_owned()),
-    }
+    let inventory = || {
+        let contract = validation::structural_result_qualification_contract(program, backing_type)?;
+        let mut source_requirements = contract
+            .qualifications
+            .iter()
+            .map(|domain| checked_trees::CheckedSourceQualification {
+                path: Vec::new(),
+                semantic_domain: *domain,
+            })
+            .collect::<Vec<_>>();
+        for row in &contract.projected_qualifications {
+            source_requirements.push(checked_trees::CheckedSourceQualification {
+                path: validation::canonical_qualification_path(program, backing_type, &row.path)?,
+                semantic_domain: row.domain,
+            });
+        }
+        Ok::<_, &'static str>(CheckedReferenceSourceContract::Standing {
+            contract,
+            source_requirements,
+        })
+    };
+    inventory()
+        .unwrap_or_else(|reason| CheckedReferenceSourceContract::Unavailable(reason.to_owned()))
 }
 
 /// State arrivals may materialize a pointer after their operand frame completes.

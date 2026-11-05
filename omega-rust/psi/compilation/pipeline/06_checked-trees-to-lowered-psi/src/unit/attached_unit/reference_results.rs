@@ -263,31 +263,7 @@ pub(crate) fn emit_carrier(
             ));
         }
     };
-    // The ordinary and constructed-reference routes share this capture. The
-    // lowered source is already evaluated, including every selector snapshot.
-    // These rows associate checked occurrences with emitted coordinates; they
-    // neither replay the borrow judgment nor grant preservation permission.
-    let borrow = &formation.checked.facts.borrow;
-    if let Some(state) = borrow
-        .states
-        .iter()
-        .find_map(|(_, state)| (state.state_symbol == formation.state).then_some(state))
-    {
-        for loan in state.loans.handles().filter(|loan| {
-            let row = borrow.loans.get(*loan);
-            row.statement_index == formation.statement_index
-                && row.formation_expression == formation.expression
-        }) {
-            operations
-                .loan_captures
-                .push(lowered_psi::LoweredSourceLoanCapture {
-                    loan,
-                    formation: id,
-                    carrier: place,
-                    source: source.clone(),
-                });
-        }
-    }
+    let mut source_requirements = Vec::new();
     let mut result = structural_result_declaration(place, structural_type, multiplicity);
     if resident_source.is_none()
         && matches!(
@@ -394,9 +370,42 @@ pub(crate) fn emit_carrier(
                     storage,
                     declarations,
                 )?);
+            if let checked_trees::CheckedReferenceSourceContract::Standing {
+                source_requirements: requirements,
+                ..
+            } = formation.source_contract
+            {
+                source_requirements.clone_from(requirements);
+            }
         }
         result.projected_qualifications.sort();
         result.projected_qualifications.dedup();
+    }
+    // The ordinary and constructed-reference routes share this capture. The
+    // lowered source is already evaluated, including every selector snapshot.
+    // These rows associate checked occurrences with emitted coordinates; they
+    // neither replay the borrow judgment nor grant preservation permission.
+    let borrow = &formation.checked.facts.borrow;
+    if let Some(state) = borrow
+        .states
+        .iter()
+        .find_map(|(_, state)| (state.state_symbol == formation.state).then_some(state))
+    {
+        for loan in state.loans.handles().filter(|loan| {
+            let row = borrow.loans.get(*loan);
+            row.statement_index == formation.statement_index
+                && row.formation_expression == formation.expression
+        }) {
+            operations
+                .loan_captures
+                .push(lowered_psi::LoweredSourceLoanCapture {
+                    loan,
+                    formation: id,
+                    carrier: place,
+                    source: source.clone(),
+                    source_requirements: source_requirements.clone(),
+                });
+        }
     }
     operations.push(Operation::unsuspended(id, result, kind));
     Ok(operation_result_place(place, id, structural_type))
@@ -417,7 +426,7 @@ fn source_contract_memberships(
         reason: reason.to_owned(),
     };
     let contract = match formation.source_contract {
-        checked_trees::CheckedReferenceSourceContract::Standing(contract) => contract,
+        checked_trees::CheckedReferenceSourceContract::Standing { contract, .. } => contract,
         checked_trees::CheckedReferenceSourceContract::Unavailable(reason) => {
             return Err(refuse(reason));
         }

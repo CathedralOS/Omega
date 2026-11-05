@@ -54,7 +54,7 @@ pub(super) fn collect_reference_contract_types(
     contract: &checked_trees::CheckedReferenceSourceContract,
     roots: &mut Vec<typed_trees::type_identity::TypeIdentityId>,
 ) {
-    if let checked_trees::CheckedReferenceSourceContract::Standing(contract) = contract {
+    if let checked_trees::CheckedReferenceSourceContract::Standing { contract, .. } = contract {
         roots.extend(
             contract
                 .domains
