@@ -1,5 +1,8 @@
 //! A default has no authored named declaration. Its role and owner come only
 //! from the admitted context; Product code and its same-spelled names stay inert.
+#[path = "../../tests/support/build_execution_counts.rs"]
+mod build_execution_counts;
+
 #[path = "../../tests/support/build_sequence.rs"]
 mod build_sequence;
 
@@ -70,7 +73,7 @@ fn inherited(role: BuildDeclarationKind, marker: u8) {
             .unwrap();
     let host = target::TargetProfile::host_if_supported().unwrap();
     let mut session = CompilationSession::default();
-    let before = counters::build_execution_count();
+    let before_source_counts = build_execution_counts::BuildExecutionCounts::capture();
     let mut invocation = session
         .begin_package_build(CheckedCompileRequest {
             package_inputs: Some(inputs.clone()),
@@ -94,6 +97,7 @@ fn inherited(role: BuildDeclarationKind, marker: u8) {
         "default source stays in memory"
     );
     std::fs::remove_file(&root).unwrap();
+    let builds_before_products = counters::build_execution_count();
     for purpose in [DependencyPurpose::Build, DependencyPurpose::Product] {
         let selected = inputs.clone().with_compilation_purpose(purpose).unwrap();
         let product = session
@@ -101,9 +105,11 @@ fn inherited(role: BuildDeclarationKind, marker: u8) {
             .unwrap();
         session.check_package_build(product).unwrap();
     }
+    assert_eq!(counters::build_execution_count(), builds_before_products);
+    assert_eq!(before_source_counts.provider_defaults_delta(), 1);
     build_sequence::print_execution_counts("default Build after both Product contexts");
     assert_eq!(
-        counters::build_execution_count() - before,
+        before_source_counts.source_build_delta(),
         1,
         "ordinary default Build must execute once without replay at Product join"
     );
@@ -136,7 +142,7 @@ fn anonymous() {
     .unwrap();
     let host = target::TargetProfile::host_if_supported().unwrap();
     let mut session = CompilationSession::default();
-    let before = counters::build_execution_count();
+    let before_source_counts = build_execution_counts::BuildExecutionCounts::capture();
     let mut invocation = session
         .begin_source_compilation(CheckedCompileRequest::new(&root, Some(host.target_name())))
         .unwrap();
@@ -148,12 +154,15 @@ fn anonymous() {
             .unwrap_err()
             .contains("unbound default Build")
     );
+    let builds_before_product = counters::build_execution_count();
     session
         .complete_source_check(invocation, Ok(Some(returned)))
         .result
         .unwrap();
+    assert_eq!(counters::build_execution_count(), builds_before_product);
     build_sequence::print_execution_counts("anonymous default Build completed");
-    assert_eq!(counters::build_execution_count() - before, 1);
+    assert_eq!(before_source_counts.source_build_delta(), 1);
+    assert_eq!(before_source_counts.provider_defaults_delta(), 1);
     assert!(!temporary.path().join("build.omg").exists());
     println!(
         "anonymous_default executions=1 late_package_graft=refused product_build_trap=not_executed"

@@ -1,4 +1,6 @@
 //! Real Build execution must carry restrictions into selected product admission.
+#[path = "support/build_execution_counts.rs"]
+mod build_execution_counts;
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 #[path = "support/joined_product_execution.rs"]
@@ -74,7 +76,7 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
     };
     let source_checks = counters::product_source_check_count();
     let publications = counters::terminal_production_count();
-    let builds = counters::build_execution_count();
+    let builds_source_counts = build_execution_counts::BuildExecutionCounts::capture();
     let reports = compile(&profiles)
         .into_iter()
         .map(|(profile, result)| (profile, result.expect("calling policy admits the target")))
@@ -90,9 +92,14 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
         "policy activation must not compile a second code catalog"
     );
     assert_eq!(
-        counters::build_execution_count() - builds,
+        builds_source_counts.source_build_delta(),
         1,
-        "target selection must not replay Build effects"
+        "target selection must not replay the source Build"
+    );
+    assert_eq!(
+        builds_source_counts.provider_defaults_delta(),
+        1,
+        "targets share one completed core supplier"
     );
     assert_eq!(reports.len(), 2);
     let first = reports[0]
@@ -116,7 +123,7 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
     let refused = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
     let source_checks = counters::product_source_check_count();
     let publications = counters::terminal_production_count();
-    let builds = counters::build_execution_count();
+    let builds_source_counts = build_execution_counts::BuildExecutionCounts::capture();
     let mut mixed = compile(&[refused, profiles[0]]).into_iter();
     assert_eq!(
         counters::product_source_check_count() - source_checks,
@@ -129,9 +136,14 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
         "the surviving target publishes code once"
     );
     assert_eq!(
-        counters::build_execution_count() - builds,
+        builds_source_counts.source_build_delta(),
         1,
-        "a refused target cannot replay Build effects"
+        "a refused target cannot replay the source Build"
+    );
+    assert_eq!(
+        builds_source_counts.provider_defaults_delta(),
+        1,
+        "a refused target cannot restart the completed core supplier"
     );
     let (profile, failed) = mixed.next().expect("first target outcome");
     assert_eq!(profile, refused);
