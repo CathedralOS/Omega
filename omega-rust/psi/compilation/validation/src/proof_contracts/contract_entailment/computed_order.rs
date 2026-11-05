@@ -161,7 +161,15 @@ pub struct OrderDemand {
 
 pub fn order_demands(program: &dyn crate::CheckingInput) -> Vec<OrderDemand> {
     let mut demands = Vec::new();
-    for site in crate::computed_order_demand_sites(program) {
+    let sites = crate::computed_order_demand_sites(program);
+    let trace = std::env::var_os("OMEGA_STRUCT_TRACE").is_some();
+    if trace {
+        eprintln!(
+            "STRUCT computed-order demand discovery sites={}",
+            sites.len()
+        );
+    }
+    for site in sites {
         let Some(machine) = program.machine_by_symbol(site.machine) else {
             continue;
         };
@@ -170,12 +178,39 @@ pub fn order_demands(program: &dyn crate::CheckingInput) -> Vec<OrderDemand> {
         else {
             continue;
         };
-        let Ok(carrier) = ordinal_carrier(program, site.carrier) else {
-            continue;
+        let carrier = match ordinal_carrier(program, site.carrier) {
+            Ok(carrier) => carrier,
+            Err(reason) => {
+                if trace {
+                    eprintln!(
+                        "STRUCT computed-order demand refused machine={} state={:?} carrier={:?}: {reason}",
+                        machine.name.as_str(),
+                        site.state,
+                        site.carrier
+                    );
+                }
+                continue;
+            }
         };
         let Some(requests) = authored_order_requests(program, machine, state, &carrier) else {
+            if trace {
+                eprintln!(
+                    "STRUCT computed-order demand refused machine={} state={:?}: authored comparison requests unavailable",
+                    machine.name.as_str(),
+                    site.state
+                );
+            }
             continue;
         };
+        if trace {
+            eprintln!(
+                "STRUCT computed-order demand requests machine={} state={:?} carrier={:?} requests={}",
+                machine.name.as_str(),
+                site.state,
+                carrier.identity,
+                requests.len()
+            );
+        }
         for request in requests {
             if !demands.iter().any(|previous: &OrderDemand| {
                 previous.target == request.target

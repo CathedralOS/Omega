@@ -68,6 +68,12 @@ pub(crate) fn proof_interval_strict_decrease_judged(
     if !crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
         program, machine, entry,
     ) {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT computed-order edge refused machine={}: recurrent state arrivals",
+                machine.name.as_str()
+            );
+        }
         return None;
     }
     let relation = selected_decrease_relation(program, machine, state, measure)?;
@@ -78,6 +84,13 @@ pub(crate) fn proof_interval_strict_decrease_judged(
         .iter()
         .any(|dependency| *dependency == machine.symbol || ranked_entries.contains(dependency))
     {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT computed-order edge refused machine={} relation={:?}: comparison depends on the ranked component",
+                machine.name.as_str(),
+                relation.symbol
+            );
+        }
         return None;
     }
     let relation_symbol = relation.symbol;
@@ -111,8 +124,19 @@ pub(crate) fn proof_interval_strict_decrease_judged(
         &mut diagnostics,
         Some(&mut edge),
     );
-    (recognized.is_some() && diagnostics.is_empty() && edge.seen && edge.proven)
-        .then_some((relation_symbol, order))
+    let proven = recognized.is_some() && diagnostics.is_empty() && edge.seen && edge.proven;
+    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        eprintln!(
+            "STRUCT computed-order edge machine={} state={:?} statement={statement_index} relation={relation_symbol:?} recognized={} diagnostics={} seen={} proven={}",
+            machine.name.as_str(),
+            state.symbol,
+            recognized.is_some(),
+            diagnostics.len(),
+            edge.seen,
+            edge.proven
+        );
+    }
+    proven.then_some((relation_symbol, order))
 }
 
 struct StrictDecrease<'a> {
@@ -151,6 +175,14 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
             self.argument,
             None,
         ) else {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT computed-order comparison refused machine={} state={:?} argument={:?}: no formed argument term",
+                    machine.name.as_str(),
+                    state.symbol,
+                    self.argument
+                );
+            }
             self.proven = false;
             return;
         };
@@ -173,10 +205,17 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
             ],
         };
         let right = constructed_term(self.relation.carrier, Some(self.relation.zero), Vec::new());
-        self.proven &= matches!(
-            judge.judge_equation(judge.resolve(left), judge.resolve(right), 0),
-            StructuralJudgment::Proven
-        );
+        let judgment = judge.judge_equation(judge.resolve(left), judge.resolve(right), 0);
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT computed-order comparison machine={} state={:?} argument={:?} relation={:?} judgment={judgment:?}",
+                machine.name.as_str(),
+                state.symbol,
+                self.argument,
+                self.relation.symbol
+            );
+        }
+        self.proven &= matches!(judgment, StructuralJudgment::Proven);
     }
 }
 
@@ -199,17 +238,64 @@ fn selected_decrease_relation<'program>(
     state: &typed_trees::state::State,
     measure: &typed_trees::signature::StateParameter,
 ) -> Option<SelectedDecreaseRelation<'program>> {
-    let ordinal = super::computed_order::ordinal_carrier(program, measure.type_reference).ok()?;
+    let trace = std::env::var_os("OMEGA_STRUCT_TRACE").is_some();
+    let ordinal = match super::computed_order::ordinal_carrier(program, measure.type_reference) {
+        Ok(ordinal) => ordinal,
+        Err(reason) => {
+            if trace {
+                eprintln!(
+                    "STRUCT computed-order selection refused machine={} state={:?} carrier={:?}: {reason}",
+                    machine.name.as_str(),
+                    state.symbol,
+                    measure.type_reference
+                );
+            }
+            return None;
+        }
+    };
     let definition = program.data_definition_by_symbol(ordinal.declaration)?;
-    let view = program.prepared_mathematics()?;
+    let Some(view) = program.prepared_mathematics() else {
+        if trace {
+            eprintln!(
+                "STRUCT computed-order selection refused machine={} state={:?}: no prepared mathematics",
+                machine.name.as_str(),
+                state.symbol
+            );
+        }
+        return None;
+    };
     let mut selected = None;
-    for request in
-        super::computed_order::authored_order_requests(program, machine, state, &ordinal)?
-    {
+    let requests =
+        super::computed_order::authored_order_requests(program, machine, state, &ordinal)?;
+    if trace {
+        eprintln!(
+            "STRUCT computed-order selection requests machine={} state={:?} carrier={:?} requests={} prepared={}",
+            machine.name.as_str(),
+            state.symbol,
+            ordinal.identity,
+            requests.len(),
+            view.applications.computed_orders.len()
+        );
+    }
+    for request in requests {
         let Some((order, row)) = view.computed_order(request.target, ordinal.identity) else {
+            if trace {
+                eprintln!(
+                    "STRUCT computed-order selection refused target={:?} carrier={:?}: no retained comparison proof",
+                    request.target, ordinal.identity
+                );
+            }
             continue;
         };
         let Ok(evidence) = &row.judgment else {
+            if trace {
+                eprintln!(
+                    "STRUCT computed-order selection refused target={:?} carrier={:?}: {:?}",
+                    request.target,
+                    ordinal.identity,
+                    row.judgment.as_ref().err()
+                );
+            }
             continue;
         };
         if selected
