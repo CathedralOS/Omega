@@ -597,7 +597,7 @@ pub fn selected_provider_candidate_rows<'plan>(
             for candidate in same_template {
                 count += 1;
                 eprintln!(
-                    "[canonical instances] owner={} package={} provider={} source_machine={} receiver={} applied={} region_arguments={} closed={}",
+                    "[canonical instances] owner={} package={} provider={} source_machine={} actual_receiver={} declaration_receiver={} applied={} region_arguments={} closed={}",
                     module
                         .identities
                         .text(candidate.provider_declaration.identity())
@@ -612,6 +612,12 @@ pub fn selected_provider_candidate_rows<'plan>(
                         row,
                         module,
                         candidate.receiving_application
+                    ),
+                    receiving_application_matches(
+                        plan,
+                        row,
+                        module,
+                        candidate.declaration_application
                     ),
                     !candidate.receiving_application.is_absent(),
                     candidate.receiving_region_arguments.len(),
@@ -642,7 +648,9 @@ pub fn selected_provider_candidate_rows<'plan>(
                             == Some(requirement)
                         && module.identities.text(candidate.source_candidate_identity)
                             == Some(realization)
-                        && receiving_application_matches(plan, row, module, candidate.receiving_application)
+                        // Checked correspondence keeps the declaration's public
+                        // binders separate from each actual caller region tuple.
+                        && receiving_application_matches(plan, row, module, candidate.declaration_application)
                         // The portable catalog retains every member of the
                         // remaining legacy families. A target-keyed plan joins
                         // only its exact member before checking uniqueness;
@@ -735,7 +743,7 @@ pub fn selected_provider_candidate_rows<'plan>(
                     plan,
                     selected.row,
                     module,
-                    required.receiving_application,
+                    required.declaration_application,
                 ) {
                     continue;
                 }
@@ -747,6 +755,7 @@ pub fn selected_provider_candidate_rows<'plan>(
                         candidate.requirement_identity == required.requirement_identity
                             && (required.candidate_identity.is_absent()
                                 || candidate.candidate_identity == required.candidate_identity)
+                            && candidate.declaration_application == required.declaration_application
                             && candidate.receiving_application == required.receiving_application
                             && candidate.receiving_region_arguments
                                 == required.receiving_region_arguments

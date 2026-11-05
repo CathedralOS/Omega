@@ -336,16 +336,21 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 );
             }
             if (!instance.receiving_application.is_absent()
-                && module
+                && (module
                     .identities
-                    .text(instance.receiving_application)
-                    .is_none_or(str::is_empty))
+                    .text(instance.declaration_application)
+                    .is_none_or(str::is_empty)
+                    || module
+                        .identities
+                        .text(instance.receiving_application)
+                        .is_none_or(str::is_empty)))
                 || instance
                     .receiving_region_arguments
                     .iter()
                     .any(|identity| module.identities.text(*identity).is_none_or(str::is_empty))
                 || (instance.receiving_application.is_absent()
-                    && !instance.receiving_region_arguments.is_empty())
+                    && (!instance.declaration_application.is_absent()
+                        || !instance.receiving_region_arguments.is_empty()))
             {
                 return malformed(
                     "provider instance obligation has an invalid receiving application or region tuple",

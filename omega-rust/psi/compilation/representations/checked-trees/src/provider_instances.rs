@@ -30,7 +30,7 @@ pub fn inherited_instances(
         // Named selection owns its applications; a direct satisfaction is
         // owned by the concrete instance, not the selected template. Preserve
         // the checked receiving application's complete region substitution.
-        let candidates: Vec<_> = facts.provider_closed_requirements.iter().filter(|fact| {
+        let associations: Vec<_> = facts.provider_closed_requirements.iter().filter(|fact| {
             fact.template == application.template
                 && fact.closed_requirement == application.signature.symbol
                 && fact.receiving_application == application.trait_application_identity
@@ -38,7 +38,8 @@ pub fn inherited_instances(
                 && typed.requirement_realization_matches(
                     fact.closed_requirement, provider.symbol, fact.provider,
                 )
-        }).map(|fact| {
+        }).collect();
+        let candidates = associations.iter().map(|fact| {
             let instance = typed.machine(fact.provider)
                 .ok_or("closed provider fact lost its realization body")?;
             if !typed.machine_type_parameters(instance).is_empty()
@@ -55,18 +56,20 @@ pub fn inherited_instances(
             }
             Ok(ClosedProviderInstance { requirement, realization })
         }).collect();
-        if candidates.is_empty() && std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some() {
-            let rows = facts.provider_closed_requirements.iter().filter(|fact| fact.template == application.template).collect::<Vec<_>>();
-            eprintln!("[instances] empty checked association: provider={:?} selecting={:?} template={:?} closed={:?}; template_rows={} closed_rows={} receiver_rows={} selecting_rows={} realization_rows={}",
-                provider.symbol, selecting_declaration, application.template, application.signature.symbol,
-                rows.len(),
-                rows.iter().filter(|fact| fact.closed_requirement == application.signature.symbol).count(),
-                rows.iter().filter(|fact| fact.receiving_application == application.trait_application_identity).count(),
-                rows.iter().filter(|fact| fact.selecting_declaration == selecting_declaration.unwrap_or(fact.provider)).count(),
-                rows.iter().filter(|fact| typed.requirement_realization_matches(fact.closed_requirement, provider.symbol, fact.provider)).count(),
-            );
-        }
+        // This one exact provider/requirement group must have a single
+        // declaration view. Competing views are not resolved by row order.
+        let declaration_application = associations.first()
+            .ok_or_else(|| "provider group has no checked declaration application".to_owned())
+            .and_then(|first| {
+                if associations.iter().any(|fact| fact.declaration_application != first.declaration_application) {
+                    return Err("provider group has competing declaration applications".into());
+                }
+                typed.type_identity_text(first.declaration_application)
+                    .filter(|text| !text.is_empty())
+                    .ok_or_else(|| "provider declaration application has no portable identity".into())
+            });
         ProviderInstanceApplication {
+            declaration_application,
             receiving_application: typed
                 .type_identity_text(application.portable_trait_application_identity)
                 .filter(|text| !text.is_empty())

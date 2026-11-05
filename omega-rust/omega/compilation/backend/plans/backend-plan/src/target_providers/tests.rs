@@ -91,6 +91,7 @@ fn fixture() -> (TerminalTargetProviderPlan, TerminalModule) {
                     .unwrap(),
                 requirement_identity: identities.intern(&format!("Parent::read<{tuple}>")),
                 source_requirement_identity: identities.intern("Parent::read"),
+                declaration_application: identities.intern("Parent<u64>"),
                 receiving_application: identities.intern("Parent<u64>"),
                 receiving_region_arguments: Vec::new(),
                 provider_identity: identities.intern("First"),
@@ -122,6 +123,7 @@ fn invocation_fixture() -> (TerminalTargetProviderPlan, TerminalModule) {
                 .map(|candidate| terminal_psi::RequiredProviderInstance {
                     requirement_identity: candidate.requirement_identity,
                     candidate_identity: candidate.candidate_identity,
+                    declaration_application: candidate.declaration_application,
                     receiving_application: candidate.receiving_application,
                     receiving_region_arguments: candidate.receiving_region_arguments.clone(),
                 })

@@ -85,12 +85,11 @@ pub(super) fn instance_requirements(
         };
         let source_candidate_identity =
             intern_callable(identities, checked, declaration.source_candidate_identity);
-        let (receiving_application, receiving_region_arguments) =
-            selection_coordinates::intern_prepared_receiving_application(
-                identities,
-                publication,
-                declaration.receiving,
-            )?;
+        let receiving = selection_coordinates::intern_prepared_receiving_application(
+            identities,
+            publication,
+            declaration.receiving,
+        )?;
         let required = terminal_psi::RequiredProviderInstance {
             requirement_identity: intern_callable(
                 identities,
@@ -102,8 +101,9 @@ pub(super) fn instance_requirements(
                 checked,
                 declaration.candidate_identity,
             ),
-            receiving_application,
-            receiving_region_arguments,
+            declaration_application: receiving.declaration_application,
+            receiving_application: receiving.application,
+            receiving_region_arguments: receiving.regions,
         };
         match requirements.iter_mut().find(|row| {
             row.template == template
@@ -495,15 +495,15 @@ pub(super) fn conformances(
                 source_candidate_identity,
                 source_candidate_package_identity,
             ) = selection_coordinates::intern(identities, checked, candidate)?;
-            let (receiving_application, receiving_region_arguments) =
-                selection_coordinates::intern_receiving_application(
-                    identities, checked, candidate,
-                )?;
+            let receiving = selection_coordinates::intern_receiving_application(
+                identities, checked, candidate,
+            )?;
             Ok(ProviderCandidateConformance {
                 boundary: *boundary,
                 source_requirement_identity,
-                receiving_application,
-                receiving_region_arguments,
+                declaration_application: receiving.declaration_application,
+                receiving_application: receiving.application,
+                receiving_region_arguments: receiving.regions,
                 source_candidate_identity,
                 source_candidate_package_identity,
                 requirement_identity: intern_callable(

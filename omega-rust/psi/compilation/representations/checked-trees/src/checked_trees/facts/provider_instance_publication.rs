@@ -84,6 +84,7 @@ impl Default for CheckedProviderReceivingApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedProviderReceivingDescription {
+    pub declaration_application: String,
     pub application: String,
     pub regions: HandleSpan<String>,
 }

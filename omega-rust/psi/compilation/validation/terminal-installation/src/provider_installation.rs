@@ -88,6 +88,7 @@ pub struct AdmittedProviderSelections {
 struct AdmittedProviderSelection {
     candidate: MachineId,
     provider_declaration: terminal_psi::NominalDeclarationIdentity,
+    declaration_application: terminal_psi::TerminalIdentityIndex,
     receiving_application: terminal_psi::TerminalIdentityIndex,
     receiving_region_arguments: Vec<terminal_psi::TerminalIdentityIndex>,
 }
@@ -211,6 +212,7 @@ impl AdmittedProviderSelections {
             .is_some_and(|installed| {
                 installed.candidate == candidate.candidate
                     && installed.provider_declaration == candidate.provider_declaration
+                    && installed.declaration_application == candidate.declaration_application
                     && installed.receiving_application == candidate.receiving_application
                     && installed.receiving_region_arguments == candidate.receiving_region_arguments
             })
@@ -444,6 +446,7 @@ fn admit_provider_selections(
                 AdmittedProviderSelection {
                     candidate: candidate.candidate,
                     provider_declaration: candidate.provider_declaration.clone(),
+                    declaration_application: candidate.declaration_application,
                     receiving_application: candidate.receiving_application,
                     receiving_region_arguments: candidate.receiving_region_arguments.clone(),
                 },

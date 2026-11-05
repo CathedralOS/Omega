@@ -10,6 +10,12 @@
 use super::{CheckedTrees, CheckedUnitProviderCandidate, LoweringError};
 use terminal_psi::{TerminalIdentityIndex, TerminalIdentityTableBuilder};
 
+pub(super) struct ReceivingApplication {
+    pub(super) declaration_application: TerminalIdentityIndex,
+    pub(super) application: TerminalIdentityIndex,
+    pub(super) regions: Vec<TerminalIdentityIndex>,
+}
+
 /// Publish the already checked receiving association, never recompute provider
 /// eligibility from an erased signature. The original requirement application
 /// supplies the portable key; the selecting declaration owns region-slot order.
@@ -17,7 +23,7 @@ pub(super) fn intern_receiving_application(
     identities: &mut TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     candidate: &CheckedUnitProviderCandidate,
-) -> Result<(TerminalIdentityIndex, Vec<TerminalIdentityIndex>), LoweringError> {
+) -> Result<ReceivingApplication, LoweringError> {
     intern_prepared_receiving_application(
         identities,
         &checked.facts.provider_instance_publication,
@@ -31,9 +37,13 @@ pub(super) fn intern_prepared_receiving_application(
     identities: &mut TerminalIdentityTableBuilder,
     publication: &checked_trees::CheckedProviderInstancePublication,
     receiving: arena::Handle<checked_trees::CheckedProviderReceivingApplication>,
-) -> Result<(TerminalIdentityIndex, Vec<TerminalIdentityIndex>), LoweringError> {
+) -> Result<ReceivingApplication, LoweringError> {
     if !receiving.is_valid() {
-        return Ok((TerminalIdentityIndex::default(), Vec::new()));
+        return Ok(ReceivingApplication {
+            declaration_application: TerminalIdentityIndex::default(),
+            application: TerminalIdentityIndex::default(),
+            regions: Vec::new(),
+        });
     }
     let receiving = publication.receivers.get(receiving);
     let receiving = receiving
@@ -47,19 +57,20 @@ fn intern_receiving_description(
     identities: &mut TerminalIdentityTableBuilder,
     publication: &checked_trees::CheckedProviderInstancePublication,
     receiving: &checked_trees::CheckedProviderReceivingDescription,
-) -> Result<(TerminalIdentityIndex, Vec<TerminalIdentityIndex>), LoweringError> {
+) -> Result<ReceivingApplication, LoweringError> {
     let regions = publication.regions.span(receiving.regions).ok_or_else(|| {
         LoweringError::InvalidBoundaryApplication(
             "provider lost its checked receiving region publication".into(),
         )
     })?;
-    Ok((
-        identities.intern(&receiving.application),
-        regions
+    Ok(ReceivingApplication {
+        declaration_application: identities.intern(&receiving.declaration_application),
+        application: identities.intern(&receiving.application),
+        regions: regions
             .iter()
             .map(|region| identities.intern(region))
             .collect(),
-    ))
+    })
 }
 
 pub(super) fn intern(

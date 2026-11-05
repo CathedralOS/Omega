@@ -15,6 +15,7 @@ pub struct ProviderApplicationIdentity {
     pub selecting_declaration: SymbolHandle,
     pub template: SymbolHandle,
     pub closed_requirement: SymbolHandle,
+    pub declaration_application: NormalizedTypeIdentity,
     pub receiving_application: NormalizedTypeIdentity,
 }
 
@@ -216,6 +217,8 @@ fn derive_provider_application_associations(
                             provider_template(program, provider.symbol),
                             provider.symbol,
                         )
+                        && let Some(declaration_application) =
+                            scope.portable_application_identity(program.typed_program())
                     {
                         rows.push((
                             ProviderApplicationIdentity {
@@ -223,6 +226,7 @@ fn derive_provider_application_associations(
                                 selecting_declaration: provider.symbol,
                                 template: application.template,
                                 closed_requirement: application.signature.symbol,
+                                declaration_application,
                                 receiving_application: application.trait_application_identity,
                             },
                             Vec::new(),
@@ -249,6 +253,7 @@ fn derive_provider_application_associations(
                         selecting_declaration: provider.symbol,
                         template: template.symbol,
                         closed_requirement: closed.symbol,
+                        declaration_application: Default::default(),
                         receiving_application: Default::default(),
                     },
                     Vec::new(),
@@ -314,6 +319,7 @@ fn derive_provider_application_associations(
                         selecting_declaration: implementation.symbol,
                         template: application.template,
                         closed_requirement: application.signature.symbol,
+                        declaration_application: correspondence.declaration_application,
                         receiving_application: application.trait_application_identity,
                     },
                     correspondence.receiving_regions,
@@ -331,6 +337,7 @@ fn derive_provider_application_associations(
             row.template.generation(),
             row.closed_requirement.arena_index(),
             row.closed_requirement.generation(),
+            row.declaration_application,
             row.receiving_application,
         )
     });

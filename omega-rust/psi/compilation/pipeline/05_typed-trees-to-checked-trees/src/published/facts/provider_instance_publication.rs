@@ -160,6 +160,7 @@ fn receiving(
     let Some(application) = typed.closed_requirement_application(association.closed_requirement)
     else {
         return Ok(CheckedProviderReceivingDescription {
+            declaration_application: String::new(),
             application: String::new(),
             regions: arena::HandleSpan::empty(),
         });
@@ -193,7 +194,12 @@ fn receiving(
                 })
         })
         .collect::<Result<Vec<_>, String>>()?;
+    let declaration_application = typed
+        .type_identity_text(association.declaration_application)
+        .filter(|text| !text.is_empty())
+        .ok_or("provider declaration application has no portable identity")?;
     Ok(CheckedProviderReceivingDescription {
+        declaration_application,
         application,
         regions: publication.regions.insert_many(regions),
     })
