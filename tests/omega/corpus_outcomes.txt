@@ -14131,8 +14131,8 @@ fail/float/exact_integer_to_float_all_policies_requires_denotation rejected 1843
 	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
 fail/float/exclusive_float_range_endpoint_rejected rejected 4538ms expected @ccdb99ca2214
 	cannot prove requires contract for call accept from Main::main: 1.5 >= 0.0 && 1.5 < 1.5 (needs fact `value >= 0.0 && value < 1.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-fail/float/false_ieee_ordered_guards_admit_nan rejected 2261ms unexpected @ccdb99ca2214
-	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/false_ieee_ordered_guards_admit_nan rejected 2093ms expected @b12da1b03c39
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/field_range_conversion_after_invalid_write rejected 4985ms expected @f78c2623a68c
 	cannot complete a call at statement 2 in machine `convert` state `entry`: this write left the `requires` facts of `sample` (data `Sample`) unproved; restore them first
 fail/float/finite_constructor_requires_operand_proof rejected 1976ms expected @ccdb99ca2214
@@ -14194,10 +14194,10 @@ fail/float/ieee_collection_other_element_write_retires_guard rejected 2367ms exp
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/ieee_collection_write_retires_guard rejected 2246ms expected @085f035b8b6e+wt
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-fail/float/indexed_ieee_i64_upper_ceiling_rejected rejected 2275ms unexpected @ccdb99ca2214
-	machine `convert` state `entry`: value call `I64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-fail/float/indexed_ieee_u64_upper_ceiling_rejected rejected 2162ms unexpected @ccdb99ca2214
-	machine `convert` state `entry`: value call `U64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/indexed_ieee_i64_upper_ceiling_rejected rejected 2093ms expected @b12da1b03c39
+	machine `convert` state `entry` cannot prove unqualified `I64::from_f64` operand `values[index]` is finite and truncates into `i64`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i64 in Trapping` or `i64 in Saturating`
+fail/float/indexed_ieee_u64_upper_ceiling_rejected rejected 1966ms expected @b12da1b03c39
+	machine `convert` state `entry` cannot prove unqualified `U64::from_f64` operand `values[index]` is finite and truncates into `u64`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `u64 in Trapping` or `u64 in Saturating`
 fail/float/inequality_premise_allows_nan rejected 4467ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from keep at statement 0: result == value
 fail/float/integer_conversion_lookalike rejected 4353ms expected @ccdb99ca2214
@@ -14337,8 +14337,8 @@ fail/float/result_predicate_stale_or_wrong_value rejected 5259ms expected @0d0c1
 	cannot prove requires contract for call accept from wrong_value: 0.1 == 3.75 (needs fact `value == 3.75` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/same_carrier_cast_cannot_mint_finite rejected 1908ms expected @ccdb99ca2214
 	cannot prove initializer `identity(value) as f64` satisfies `finite` for the bounded value of machine `invalid` state `entry` local `finite`
-fail/float/saved_ieee_conversion_guard_after_write rejected 2028ms unexpected @ccdb99ca2214
-	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/saved_ieee_conversion_guard_after_write rejected 1965ms expected @b12da1b03c39
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `current` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/saved_ieee_guard_copy_after_write rejected 6035ms expected @95f6bd2b4430
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `copied` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/specification_index_reference_selector_unbounded rejected 4743ms expected @e8827ad1dd64+wt
