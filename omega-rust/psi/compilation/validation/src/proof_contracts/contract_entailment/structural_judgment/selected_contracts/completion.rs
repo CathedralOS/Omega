@@ -290,11 +290,15 @@ impl StructuralJudge<'_> {
             _ => owner_symbol(owner),
         };
         let mut completion = self.clone();
-        if parameters.iter().all(|parameter| {
-            bindings
-                .iter()
-                .any(|(symbol, _)| *symbol == parameter.symbol)
-        }) {
+        // The case reader returns before consuming bindings in this mode.
+        // Avoid cloning complete arguments for a query that cannot use them.
+        if completion.has_exact_case_subjects()
+            && parameters.iter().all(|parameter| {
+                bindings
+                    .iter()
+                    .any(|(symbol, _)| *symbol == parameter.symbol)
+            })
+        {
             let map =
                 parameters
                     .iter()
