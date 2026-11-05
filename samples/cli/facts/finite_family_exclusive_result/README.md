@@ -12,6 +12,10 @@ counter; `finish` has no explicit increment or disposal call. The program checks
 one increment after the first result and two after the second. Missing,
 repeated or misdirected cleanup fails the exit-zero check.
 
+The place names describe how each program receives its input counter. Every
+returned ticket follows the common store, forward and cleanup path. The constant
+example copies a zero-filled array into runtime storage before borrowing it.
+
 | Place | Positive | Reject twin |
 | --- | --- | --- |
 | Local | [program](local/main.omg) | [invalid](local/invalid/main.omg) |
