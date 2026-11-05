@@ -109,7 +109,7 @@ impl CompletedPureBuildInputs {
     }
 
     fn matches(&self, other: &Self) -> bool {
-        self.checked == other.checked
+        let matches = self.checked == other.checked
             && self.providers == other.providers
             && self.measurement_identity == other.measurement_identity
             && self.sponsor_policy == other.sponsor_policy
@@ -121,7 +121,28 @@ impl CompletedPureBuildInputs {
             && self.activation == other.activation
             && self.captured_inventory == other.captured_inventory
             && self.artifact_only == other.artifact_only
-            && self.default_source == other.default_source
+            && self.default_source == other.default_source;
+        if !matches {
+            eprintln!(
+                "Pure Build input mismatch: retained entry {:?}, current entry {:?}; checked={} providers={} measurement={} sponsor={} entry={} initial={} source={} dependencies={} snapshot={} activation={} capture={} artifact_only={} default_source={}",
+                self.selected_entry,
+                other.selected_entry,
+                self.checked == other.checked,
+                self.providers == other.providers,
+                self.measurement_identity == other.measurement_identity,
+                self.sponsor_policy == other.sponsor_policy,
+                self.selected_entry == other.selected_entry,
+                same_initial_value(&self.initial_build, &other.initial_build),
+                self.source == other.source,
+                self.dependencies == other.dependencies,
+                self.snapshot == other.snapshot,
+                self.activation == other.activation,
+                self.captured_inventory == other.captured_inventory,
+                self.artifact_only == other.artifact_only,
+                self.default_source == other.default_source,
+            );
+        }
+        matches
     }
 }
 

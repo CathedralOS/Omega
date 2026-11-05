@@ -455,7 +455,36 @@ impl TerminalBuildActivation {
         let status = self
             .instance
             .invoke(&mut self.fuel)
-            .map_err(|error| error.to_string())?;
+            .map_err(|error| {
+                if let terminal_interpreter::TerminalInstanceError::Execution(
+                    terminal_interpreter::TerminalInterpretError::ExecutionSite {
+                        machine,
+                        block,
+                        operation,
+                        ..
+                    },
+                ) = &error
+                    && let Some(machine) = self
+                        .instance
+                        .program()
+                        .module()
+                        .machines
+                        .iter()
+                        .find(|candidate| candidate.id == *machine)
+                    && let Some(block) = machine.blocks.iter().find(|candidate| candidate.id == *block)
+                {
+                    eprintln!(
+                        "Build refusal context: machine {:?}, machine parameters {:?}, block {:?}, block parameters {:?}",
+                        machine.id, machine.structural_parameters, block.id, block.structural_parameters,
+                    );
+                    for candidate in &block.operations {
+                        if Some(candidate.id) == *operation {
+                            eprintln!("Build refused operation: {candidate:?}");
+                        }
+                    }
+                }
+                error.to_string()
+            })?;
         let first_request = self.requests.len();
         self.requests.extend(self.host.requests.drain_requests()?);
         let returned = match status {
