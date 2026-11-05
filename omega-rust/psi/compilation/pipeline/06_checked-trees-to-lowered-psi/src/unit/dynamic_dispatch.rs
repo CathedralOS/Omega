@@ -327,21 +327,11 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
                     && plan.requirement_identity == *requirement_identity
                     && plan.family_tuple == *family_tuple
             });
-            let mut checked_contract = None;
-            let mut published_slot = None;
+            let mut published_contract: Option<(&CheckedDynamicSlotPlan, TerminalDynamicSlot)> =
+                None;
             for plan in matching {
-                // Each source call can have its own slot symbol. Calls for the
-                // same interface row must agree on every checked obligation,
-                // including fields the Terminal slot does not represent.
-                if checked_contract
-                    .is_some_and(|previous| !same_checked_slot_contract(previous, plan))
-                {
-                    return unsupported(
-                        "dynamic family tuple has conflicting checked call contracts",
-                    );
-                }
                 // Scalar qualifications still use each plan's own symbol.
-                // Lower every plan before publishing their common contract.
+                // Lower every plan before sharing the row's public contract.
                 let lowered = lower_slot(
                     identities,
                     checked,
@@ -354,20 +344,22 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
                     &domain_ids,
                     &module.scalar_qualifications,
                 )?;
-                if let Some(previous) = &published_slot {
-                    if previous != &lowered {
+                if let Some((previous_plan, previous_slot)) = &published_contract {
+                    // Private call symbols may differ. Everything published by
+                    // checking and lowering must agree before rows can share.
+                    if !same_checked_slot_contract(previous_plan, plan) || previous_slot != &lowered
+                    {
                         return unsupported(
-                            "dynamic family tuple has conflicting lowered call contracts",
+                            "dynamic family tuple has conflicting public call contracts",
                         );
                     }
                 } else {
-                    checked_contract = Some(plan);
-                    published_slot = Some(lowered);
+                    published_contract = Some((plan, lowered));
                 }
             }
-            slots.push(published_slot.ok_or(LoweringError::Unsupported(
-                "dynamic family tuple has no checked public call shape",
-            ))?);
+            slots.push(published_contract.map(|(_, slot)| slot).ok_or(
+                LoweringError::Unsupported("dynamic family tuple has no checked public call shape"),
+            )?);
         }
         catalog.interfaces.push(TerminalDynamicInterface {
             id: interface_id,
