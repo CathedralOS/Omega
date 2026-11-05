@@ -63,12 +63,28 @@ enum PreparedBuildMachineBody {
 /// Immutable checked execution content, including all CheckFacts. Equality
 /// compares the complete checked value, not typed trees or arena token identity.
 /// It contains no executable prepared entry and no host authority.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Eq)]
 pub struct CheckedBuildProgram {
     checked: Arc<checked_trees::CheckedTrees>,
     /// Descriptor queries are observable Build inputs, even when their bodies
     /// are absent from the checked executable closure.
     product_declarations: Arc<TypedTrees>,
+}
+
+impl PartialEq for CheckedBuildProgram {
+    fn eq(&self, other: &Self) -> bool {
+        let equal = self.checked == other.checked
+            && self.product_declarations == other.product_declarations;
+        if !equal {
+            eprintln!(
+                "Pure checked content mismatch: typed={} facts={} product_declarations={}",
+                self.checked.typed == other.checked.typed,
+                self.checked.facts == other.checked.facts,
+                self.product_declarations == other.product_declarations,
+            );
+        }
+        equal
+    }
 }
 
 /// Exact build-machine entry owned by one prepared program.
