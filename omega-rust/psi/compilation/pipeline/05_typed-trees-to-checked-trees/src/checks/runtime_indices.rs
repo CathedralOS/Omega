@@ -13,6 +13,8 @@
 //! its signature types: inference instantiates the callee's binders to the
 //! regions of the arguments, which `region_operand` reads back from them.
 
+use std::collections::HashSet;
+
 use super::current_scalar_values::CurrentScalarValues;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
@@ -1923,6 +1925,19 @@ impl Scope<'_> {
         required: Application<'_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
+        // This set lives only for one receiving obligation in this immutable
+        // scope. Exact expression handles identify cast-owned target checks;
+        // caller substitutions and receiving applications are never cached.
+        self.check_received_value(expression, required, &mut HashSet::new(), diagnostics);
+    }
+
+    fn check_received_value(
+        &self,
+        expression: ExpressionHandle,
+        required: Application<'_>,
+        checked_cast_targets: &mut HashSet<ExpressionHandle>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
         let has_value_indices = !self
             .program
             .type_application_value_indices(required.reference)
@@ -1957,12 +1972,22 @@ impl Scope<'_> {
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Atomic(atomic) => {
-                self.check(atomic.value, required, diagnostics);
+                self.check_received_value(
+                    atomic.value,
+                    required,
+                    checked_cast_targets,
+                    diagnostics,
+                );
                 return;
             }
             ExpressionNode::Match(dispatch) => {
                 for arm in self.program.expression_table.match_arms(dispatch.arms) {
-                    self.check(arm.value, required.clone(), diagnostics);
+                    self.check_received_value(
+                        arm.value,
+                        required.clone(),
+                        checked_cast_targets,
+                        diagnostics,
+                    );
                 }
                 return;
             }
@@ -1979,12 +2004,20 @@ impl Scope<'_> {
                 return;
             }
             ExpressionNode::Cast(cast) => {
-                self.check(
-                    cast.value,
-                    Application::bare(cast.target_type, self.statement),
-                    diagnostics,
-                );
-                self.check(cast.value, required, diagnostics);
+                // Target formation belongs to the cast expression, independent
+                // of the enclosing receiving application. Check it once during
+                // this walk; every receiving application still checks its own
+                // nested fields and captured indices below. Otherwise each cast
+                // doubles the traversal of all casts inside its operand.
+                if checked_cast_targets.insert(expression) {
+                    self.check_received_value(
+                        cast.value,
+                        Application::bare(cast.target_type, self.statement),
+                        checked_cast_targets,
+                        diagnostics,
+                    );
+                }
+                self.check_received_value(cast.value, required, checked_cast_targets, diagnostics);
                 return;
             }
             ExpressionNode::ArrayLiteral(elements) => {
@@ -1996,12 +2029,13 @@ impl Scope<'_> {
                     self.program.type_reference_table.type_reference(reference)
                 {
                     for element in self.program.expression_table.expression_handles(*elements) {
-                        self.check(
+                        self.check_received_value(
                             *element,
                             Application {
                                 reference: *element_type,
                                 ..required.clone()
                             },
+                            checked_cast_targets,
                             diagnostics,
                         );
                     }
@@ -2092,12 +2126,13 @@ impl Scope<'_> {
                     }
                     for (field, selected) in fields.iter().zip(selected_fields) {
                         if let Some(selected) = selected {
-                            self.check(
+                            self.check_received_value(
                                 field.value,
                                 Application {
                                     reference: selected.type_reference,
                                     ..required.clone()
                                 },
+                                checked_cast_targets,
                                 diagnostics,
                             );
                         } else {
