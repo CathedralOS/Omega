@@ -35,7 +35,16 @@ The original consumer at source `69ec9f80599b` first failed package setup becaus
 the old fixture copier omitted its sibling. With the sibling present, the same
 compiler correctly refused the competing `NativeFloats` and
 `UnusedNumericProvider` defaults. The first explicit-root-choice replay at input source `ae987fcc85a9`
-then refused its unexposed numeric subject before execution. The consumer now
-imports `float_operations` explicitly and names the visible `F32::negate` slot
-in its four root rows. That authoring correction still needs a fresh replay;
-none of the earlier refusals is relabeled as success.
+then refused its unexposed numeric subject before execution. The migrated consumer imports `float_operations` explicitly and names the visible
+`F32::negate` slot and library package root in its four root rows. It subsequently
+produced native/Terminal exit 0 on all four hosts at the producers recorded in
+the consumer README; the earlier refusals remain historical observations.
+
+The [integrated Linux run](https://github.com/CathedralOS/Omega/actions/runs/42026360839)
+at `6b1c338126fa` again completes normal package review and executes the consumer
+with native/Terminal exit 0. Its generated review and accepted lock include the
+unused private external `UnusedNumericProvider::native_negate`, its exact
+`F32::negate` coordinate and signature, and its compiler-intrinsic binding. Reading
+those two accepted review rows does not establish an invocation of the unused
+member. No additional `audit packages` or `inspect-terminal` command ran in that
+scope.
