@@ -136,6 +136,7 @@ def main():
         cached_runner, pdb = paired[0]
         assert not cached_runner.is_symlink() and not pdb.is_symlink()
         pdb_before = sha(pdb)
+        assert pdb_before == recipe['runner_pdb_sha256'], 'cached original runner PDB changed'
         runner = Path(recipe['producer']['runner'])
         assert root == runner.parents[3], 'the original runner command requires its original checkout root'
         runner.parent.mkdir(parents=True, exist_ok=False)
@@ -190,10 +191,8 @@ def main():
         assert console_members() == {os.getpid()}
         debugger = Path(recipe['debugger']['path'])
         assert sha(debugger) == recipe['debugger']['sha256']
-        initial = ('.reload /f corpus_runner.exe; .echo RUNNER_LMI_BEGIN; !lmi corpus_runner; '
-                   '.echo RUNNER_LMI_END; .echo RUNNER_LMVM_BEGIN; lmvm corpus_runner; '
-                   '.echo RUNNER_LMVM_END; .echo OWNED_PROCESS_BEGIN; |; .echo OWNED_PROCESS_END; '
-                   '.echo INITIAL_READY')
+        initial = ('.echo RUNNER_MODULES_BEGIN; lm; .echo RUNNER_MODULES_END; '
+                   '.echo OWNED_PROCESS_BEGIN; |; .echo OWNED_PROCESS_END; .echo INITIAL_READY')
         init_file = output / 'empty-init.cdb'
         init_file.write_bytes(b'')
         report['init_file_sha256'] = sha(init_file)
@@ -208,14 +207,21 @@ def main():
         report['debugger_pid'] = process.pid
         reader.await_marker('INITIAL_READY', time.monotonic() + 20)
         text = reader.text()
-        lmi, lmvm = section(text, 'RUNNER_LMI'), section(text, 'RUNNER_LMVM')
-        assert re.findall(r'^\s*Module:\s+(\S+)\s*$', lmi, re.M | re.I) == ['corpus_runner']
-        assert re.search(r'^\s*Symbol Type:\s+PDB\b', lmi, re.M | re.I)
-        assert re.search(r'^\s*[0-9a-f`]+\s+[0-9a-f`]+\s+corpus_runner\s+[^\r\n]*\((?:private )?pdb symbols\)', lmvm, re.M | re.I)
-        normalized = lmvm.lower().replace('\\', '/')
-        assert str(runner).lower().replace('\\', '/') in normalized
-        assert str(pdb).lower().replace('\\', '/') in normalized
-        owned = re.findall(r'^\s*[.# ]*\s*0\s+id:\s*([0-9a-f]+)\s+.*corpus_runner\.exe\s*$',
+        # CDB retains the original linked image name after the executable is
+        # copied to the original producer argv path. Resolve its live module
+        # token through this stopped process's exact image/base correspondence.
+        assert cached_runner.name == recipe['runner_debug_image']
+        loads = re.findall(r'^ModLoad:\s+([0-9a-f`]+)\s+([0-9a-f`]+)\s+'
+                           + re.escape(cached_runner.name) + r'\s*$', text, re.M | re.I)
+        assert len(loads) == 1, 'one actual main-image load is required'
+        main_base, main_end = loads[0]
+        modules = re.findall(r'^\s*' + re.escape(main_base) + r'\s+' + re.escape(main_end)
+                             + r'\s+(\S+)\s+[^\r\n]+$', section(text, 'RUNNER_MODULES'), re.M | re.I)
+        assert len(modules) == 1
+        module = modules[0]
+        assert re.fullmatch(r'[A-Za-z0-9_-]+', module)
+        owned = re.findall(r'^\s*[.# ]*\s*0\s+id:\s*([0-9a-f]+)\s+.*'
+                           + re.escape(cached_runner.name) + r'\s*$',
                            section(text, 'OWNED_PROCESS'), re.M | re.I)
         assert len(owned) == 1
         pid = int(owned[0], 16)
@@ -244,8 +250,35 @@ def main():
             return {'pid': pid, 'image': image.value, 'created_100ns': created.value,
                     'kernel_100ns': kernel.value, 'user_100ns': user.value}
 
+        k32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        k32.WaitForSingleObject.restype = wintypes.DWORD
+        k32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+        k32.TerminateProcess.restype = wintypes.BOOL
         baseline = cpu()
         runner_identity_verified = True
+        def send(command):
+            process.stdin.write((command + '\n').encode('ascii'))
+            process.stdin.flush()
+
+        pdb_commands = ('.reload /f ' + cached_runner.name + '; .echo RUNNER_LMI_BEGIN; !lmi '
+                        + main_base + '; .echo RUNNER_LMI_END; .echo RUNNER_LMVM_BEGIN; lmv a '
+                        + main_base + '; .echo RUNNER_LMVM_END; .echo RUNNER_PDB_READY')
+        send(pdb_commands)
+        reader.await_marker('RUNNER_PDB_READY', time.monotonic() + 20)
+        lmi, lmvm = section(reader.text(), 'RUNNER_LMI'), section(reader.text(), 'RUNNER_LMVM')
+        assert [name.lower() for name in re.findall(r'^\s*Module:\s+(\S+)\s*$', lmi, re.M | re.I)] == [module.lower()]
+        assert re.search(r'^\s*Symbol Type:\s+PDB\b', lmi, re.M | re.I)
+        assert re.search(r'^\s*' + re.escape(main_base) + r'\s+' + re.escape(main_end)
+                         + r'\s+' + re.escape(module) + r'\s+[^\r\n]*\((?:private )?pdb symbols\)', lmvm, re.M | re.I)
+        normalized = lmvm.lower().replace('\\', '/')
+        assert str(pdb).lower().replace('\\', '/') in normalized
+        # The debugger image label may be the original linker name. The
+        # authoritative full launched path is independently pinned by the held
+        # OS process handle, its creation time and the complete runner digest.
+        assert cpu()['created_100ns'] == baseline['created_100ns']
+        report.update(runner_debug_image=cached_runner.name, runner_debug_module=module,
+                      runner_module_base=main_base, runner_module_end=main_end,
+                      pdb_commands=pdb_commands, matching_runner_pdb=True)
         # Strictly establish both memberships: CDB may have created its child
         # before a parent-only job assignment. Failure never silently yields.
         class BasicLimits(ctypes.Structure):
@@ -274,10 +307,6 @@ def main():
         k32.AssignProcessToJobObject.restype = wintypes.BOOL
         k32.IsProcessInJob.argtypes = [wintypes.HANDLE, wintypes.HANDLE, ctypes.POINTER(wintypes.BOOL)]
         k32.IsProcessInJob.restype = wintypes.BOOL
-        k32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
-        k32.WaitForSingleObject.restype = wintypes.DWORD
-        k32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
-        k32.TerminateProcess.restype = wintypes.BOOL
         job = k32.CreateJobObjectW(None, None)
         assert job, ctypes.get_last_error()
         limits = ExtendedLimits()
@@ -292,10 +321,6 @@ def main():
                                              'kill_on_close': True, 'memory_bytes': limits.JobMemoryLimit}
         report.update(runner_pid=pid, initial_cpu=baseline, matching_runner_pdb=True,
                       private_console_members=sorted(expected_console))
-        def send(command):
-            process.stdin.write((command + '\n').encode('ascii'))
-            process.stdin.flush()
-
         def channels():
             return {'stdout': reader.text(),
                     'stderr': (output / 'debugger.stderr').read_text(errors='replace')}
@@ -359,7 +384,7 @@ def main():
             # Resume only our expected debugger interrupt. Never swallow an
             # unexpected application exception or a natural process exit.
             assert re.search(r'exception[^\r\n]*code\s+(?:80000003|40010005|40010008)\b', sample, re.I), 'unrecognized stop reason'
-            assert re.search(r'\bcorpus_runner!', sample), 'no symbolized runner caller frames'
+            assert re.search(r'\b' + re.escape(module) + '!', sample), 'no symbolized exact runner caller frames'
             assert re.search(r'User Mode Time', sample, re.I), 'missing per-thread CPU report'
             assert not re.search(r'(?:exited|exit code|access violation|c0000005)', sample, re.I)
             after = cpu()

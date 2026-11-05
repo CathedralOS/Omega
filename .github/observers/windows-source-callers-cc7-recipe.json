@@ -294,5 +294,7 @@
     "path": "D:\\ot\\debug\\build\\compiler\\3423d6321f96b4f3\\fingerprint\\test-integration-test-corpus_runner.json",
     "sha256": "a90b7d83b2da0f3e73f127b159abdb268b3a37cad151aad653dcf4fd9294fd4f"
   },
-  "runner_output_directory": "D:\\ot\\debug\\build\\compiler\\3423d6321f96b4f3\\out"
+  "runner_output_directory": "D:\\ot\\debug\\build\\compiler\\3423d6321f96b4f3\\out",
+  "runner_debug_image": "corpus_runner-3423d6321f96b4f3.exe",
+  "runner_pdb_sha256": "0b5b69c0dca99889c28dbd7f429bf025891fd26bffc21f80545d7a2bc1b5203a"
 }
