@@ -52,6 +52,20 @@ pub(super) fn require_reached_providers(
                 .is_none()
                 && !selected.assumed_bindings().iter().any(|row| row.required == requirement)
             ).then(|| {
+                    if std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some() {
+                        eprintln!("[supply] unmet requirement identity={requirement:?}; selected plans={}", selected.plans().len());
+                        // Compare presentation only for diagnostics. Supply still
+                        // requires the exact recorded identity above.
+                        for selected_plan in selected.plans() {
+                            for row in &selected_plan.rows {
+                                if let Some(identity) = selected_plan.identities.text(row.requirement_identity)
+                                    && requirement_path(identity) == requirement_path(requirement)
+                                {
+                                    eprintln!("[supply] same displayed requirement row identity={identity:?}; plan={:?}", selected_plan.name);
+                                }
+                            }
+                        }
+                    }
                     Diagnostic::error(format!(
                         "no provider is selected for boundary requirement `{}`, which the program entry reaches on target `{}`",
                         requirement_path(requirement),
