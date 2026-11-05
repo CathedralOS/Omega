@@ -172,6 +172,7 @@ fn project_address(
                 for backing in super::resolve_captured_all(
                     program,
                     facts,
+                    loan_occurrences,
                     state,
                     operand.statement_index,
                     operand.constraints,

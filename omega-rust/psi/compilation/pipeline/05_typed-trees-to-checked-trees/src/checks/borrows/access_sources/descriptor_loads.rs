@@ -323,6 +323,7 @@ fn resolve_loads(
         let alternatives = super::retain_captured_lineage(
             program,
             facts,
+            loan_occurrences,
             state,
             statement_index,
             lookup,
