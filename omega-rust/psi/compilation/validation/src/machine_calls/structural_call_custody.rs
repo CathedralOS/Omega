@@ -552,17 +552,7 @@ pub fn structural_result_projected_qualifications(
         .map(|contract| contract.projected_qualifications)
 }
 
-/// One finite qualification inventory retains both its obligations and the
-/// concrete source declarations those paths cross. Pointer targets without a
-/// qualification demand remain identity-only; this is not graph expansion.
-pub struct StructuralQualificationContract {
-    /// Whole-value obligations stay separate from descendant paths. The
-    /// inventory describes the source type; it does not initialize storage.
-    pub qualifications: Vec<SemanticDomainId>,
-    pub projected_qualifications: Vec<CheckedStructuralPathQualification>,
-    pub domains: Vec<(SemanticDomainId, TypeReferenceHandle)>,
-    pub projection_types: Vec<TypeReferenceHandle>,
-}
+pub use checked_trees::CheckedStructuralQualificationContract as StructuralQualificationContract;
 
 /// A returned reference publishes its pointer carrier, unlike borrowed ingress
 /// which publishes the referent. Keep every stored pointer crossing explicit.

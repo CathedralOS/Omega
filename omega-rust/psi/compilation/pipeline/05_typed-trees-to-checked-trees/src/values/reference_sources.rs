@@ -420,3 +420,84 @@ pub(crate) fn access_can_supply(source: StructuralAccess, result: StructuralAcce
             StructuralAccess::Owned | StructuralAccess::MutableBorrow
         )
 }
+
+/// Record every standing requirement on the exact supplying endpoint. This
+/// runs when publishing a formation, not during repeated geometry queries.
+/// Unavailable inventory remains a refusal for the consuming lowerer.
+pub(crate) fn qualification_contract(
+    program: &dyn validation::CheckingInput,
+    result_type: TypeReferenceHandle,
+    backing_type: TypeReferenceHandle,
+    storage: CheckedReferenceStorage,
+) -> checked_trees::CheckedReferenceSourceContract {
+    use checked_trees::CheckedReferenceSourceContract;
+    if !matches!(
+        storage,
+        CheckedReferenceStorage::Declared | CheckedReferenceStorage::View { .. }
+    ) || !validation::stores_reference_shape(program, result_type, &[])
+    {
+        return CheckedReferenceSourceContract::SeparateStorage;
+    }
+    match validation::structural_result_qualification_contract(program, backing_type) {
+        Ok(contract) => CheckedReferenceSourceContract::Standing(contract),
+        Err(reason) => CheckedReferenceSourceContract::Unavailable(reason.to_owned()),
+    }
+}
+
+/// State arrivals may materialize a pointer after their operand frame completes.
+/// Retain its supplying type now; lowering must not reopen the source expression.
+pub(crate) fn qualification_contract_at_site(
+    program: &dyn validation::CheckingInput,
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+    result_type: TypeReferenceHandle,
+    endpoint_identity: typed_trees::type_identity::TypeIdentityId,
+) -> (
+    TypeReferenceHandle,
+    checked_trees::CheckedReferenceSourceContract,
+) {
+    let source = validation::reference_formation_source(program, expression)
+        .map_or(expression, |formation| formation.source);
+    let Some(mut backing_type) =
+        validation::expression_type_reference_in_state(program, state, statement_index, source)
+    else {
+        return (
+            TypeReferenceHandle::invalid(),
+            checked_trees::CheckedReferenceSourceContract::Unavailable(
+                "state loan lost its supplying type".to_owned(),
+            ),
+        );
+    };
+    // Geometry already chose the storage endpoint and admitted its access.
+    // An ingress reference can lend its referent, while an owned pointer slot
+    // lends the pointer itself. Stop at that recorded identity, preserving
+    // the source's qualifications rather than substituting the target's type.
+    let mut remaining = program.type_reference_table.type_reference_count();
+    while validation::stored_structural_type_identity(program, backing_type, &[], &[])
+        != endpoint_identity
+    {
+        let next = remaining.checked_sub(1).and_then(|left| {
+            validation::reference_shell(program, backing_type).map(|shell| (left, shell.referee))
+        });
+        let Some((left, referee)) = next else {
+            return (
+                backing_type,
+                checked_trees::CheckedReferenceSourceContract::Unavailable(
+                    "state loan supplying type differs from its checked endpoint".to_owned(),
+                ),
+            );
+        };
+        remaining = left;
+        backing_type = referee;
+    }
+    (
+        backing_type,
+        qualification_contract(
+            program,
+            result_type,
+            backing_type,
+            CheckedReferenceStorage::Declared,
+        ),
+    )
+}

@@ -50,7 +50,7 @@ pub enum LoweringError {
     /// A checked loan cannot publish the supplying value's required contract.
     InvalidReferenceContract {
         supplying_type: typed_trees::types::TypeReferenceHandle,
-        reason: &'static str,
+        reason: String,
     },
     /// A selected value needs its established home before it can be consumed.
     MissingValueStorageLocal {

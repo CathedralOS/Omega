@@ -24,7 +24,6 @@ use crate::emission::structural_byte_sequence_store::literal_view_type;
 use crate::expression_preparation::bindings::structural_paths::terminal_access;
 use crate::expression_preparation::computation_graph::reachable_structural_values;
 use crate::expression_preparation::computation_graph::value_call_operations;
-use crate::expression_preparation::structural_value_requirements::ReferenceContractCatalog;
 use crate::expression_preparation::structural_value_requirements::collect_operation_requirements;
 use crate::expression_preparation::structural_value_requirements::collect_value_requirements;
 use crate::machine_lowering::declarations::semantic_identity;
@@ -48,6 +47,25 @@ mod scalar_fields;
 pub(super) use operation_types::collect_operation_type_roots;
 pub(super) use scalar_fields::scalar_field_types;
 
+/// Source requirements can name carriers absent from the receiving reference.
+/// Keep their declarations alongside the domains the checked producer records.
+pub(super) fn collect_reference_contract_types(
+    checked: &CheckedTrees,
+    contract: &checked_trees::CheckedReferenceSourceContract,
+    roots: &mut Vec<typed_trees::type_identity::TypeIdentityId>,
+) {
+    if let checked_trees::CheckedReferenceSourceContract::Standing(contract) = contract {
+        roots.extend(
+            contract
+                .domains
+                .iter()
+                .map(|(_, reference)| reference)
+                .chain(&contract.projection_types)
+                .map(|reference| stored_structural_identity(checked, *reference)),
+        );
+    }
+}
+
 /// Retain the declarations used while evaluating a structural value tree.
 /// A selected leaf and its completed source own distinct storage: the source
 /// declaration survives even when only the copied leaf occurs in a signature.
@@ -68,9 +86,11 @@ pub(crate) fn collect_value_roots(
         checked_trees::CheckedStructuralValueKind::Reference {
             source,
             source_value,
+            source_contract,
             ..
         } => {
             roots.push(source.type_identity);
+            collect_reference_contract_types(checked, source_contract, roots);
             if source_value.is_valid() {
                 roots.push(validation::stored_structural_type_identity(
                     &checked.typed,
@@ -380,22 +400,18 @@ pub(super) fn lower_unit_structural_types<'checked>(
         if let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()? {
             roots.push(result.type_identity);
         }
-        if let UnitBody::Composed(machine) = body {
-            roots.extend(
-                machine
-                    .states
-                    .iter()
-                    .flat_map(|state| state.successors())
-                    .flat_map(|edge| &edge.transfers)
-                    .filter_map(|transfer| {
-                        match &transfer.source {
-                    checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
-                        carrier_type_identity, ..
-                    } if carrier_type_identity.is_valid() => Some(*carrier_type_identity),
-                    _ => None,
+        for loan in body.projected_loans() {
+            if let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                carrier_type_identity,
+                source_contract,
+                ..
+            } = loan
+            {
+                if carrier_type_identity.is_valid() {
+                    roots.push(*carrier_type_identity);
                 }
-                    }),
-            );
+                collect_reference_contract_types(checked, source_contract, &mut roots);
+            }
         }
         for parameter in body.structural_parameters() {
             projection_types::collect_parameter(plans, parameter, &mut roots)?;
@@ -1058,7 +1074,6 @@ pub(super) fn lower_unit_structural_domains(
     ),
     LoweringError,
 > {
-    let reference_contracts = ReferenceContractCatalog::new(checked);
     let mut selected = Vec::new();
     let sources = plans.source_machines(checked, closure)?;
     for (_, region) in checked.facts.flow.ownership.loan_completions.iter() {
@@ -1078,6 +1093,18 @@ pub(super) fn lower_unit_structural_domains(
     }
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
+        for loan in body.projected_loans() {
+            if let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                source_contract,
+                ..
+            } = loan
+            {
+                crate::expression_preparation::structural_value_requirements::collect_reference_contract(
+                    source_contract, &mut selected,
+                );
+            }
+        }
+
         // Statement-call publications and returned custody consume the same
         // exact occurrence inventory. A declaration-represented scalar duty
         // is discharged there, while every nominal row roots its theory here.
@@ -1130,13 +1157,7 @@ pub(super) fn lower_unit_structural_domains(
         }
         for (state, operation) in body.operations_with_states() {
             let (owner, _) = state_declaration(checked, state)?;
-            collect_operation_requirements(
-                checked,
-                owner.symbol,
-                operation,
-                &mut selected,
-                Some(&reference_contracts),
-            )?;
+            collect_operation_requirements(checked, owner.symbol, operation, &mut selected)?;
         }
         for domain in body
             .structural_parameters()
@@ -1199,13 +1220,7 @@ pub(super) fn lower_unit_structural_domains(
     // including the complete membership roster checked on each produced value.
     for source in sources {
         for value in reachable_structural_values(checked, source)? {
-            collect_value_requirements(
-                checked,
-                source,
-                value,
-                &mut selected,
-                Some(&reference_contracts),
-            )?;
+            collect_value_requirements(checked, source, value, &mut selected)?;
         }
     }
     for (boundary, _) in boundaries {

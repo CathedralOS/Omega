@@ -188,6 +188,29 @@ impl<'a> UnitBody<'a> {
 
     /// Source states remain attached to the same complete operation inventory,
     /// so call-local dependencies cannot borrow another state's facts.
+    /// Loans carried on state edges can publish their own pointer descriptor.
+    /// Their source contracts remain distinct from statement-owned results.
+    pub(crate) fn projected_loans(
+        self,
+    ) -> impl Iterator<Item = &'a checked_trees::CheckedStructuralControlTransferSourcePlan> {
+        let composed = match self {
+            Self::Composed(machine) => Some(machine),
+            Self::Ordinary(_) => None,
+        };
+        composed
+            .into_iter()
+            .flat_map(|machine| &machine.states)
+            .flat_map(|state| state.successors())
+            .flat_map(|edge| &edge.transfers)
+            .map(|transfer| &transfer.source)
+            .filter(|source| {
+                matches!(
+                    source,
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { .. }
+                )
+            })
+    }
+
     pub(crate) fn operations_with_states(
         self,
     ) -> impl Iterator<Item = (symbols::SymbolHandle, &'a CheckedUnitEffectOperationPlan)> {

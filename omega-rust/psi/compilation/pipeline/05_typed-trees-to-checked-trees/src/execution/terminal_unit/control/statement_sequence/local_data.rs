@@ -430,6 +430,12 @@ fn plan_inner(
         operations.push(CheckedUnitEffectOperationPlan::EstablishReference {
             formation_expression: local.initial_value,
             backing_type: capture.backing_type,
+            source_contract: crate::values::reference_sources::qualification_contract(
+                program,
+                local.type_reference,
+                capture.backing_type,
+                capture.storage,
+            ),
             result,
             source: capture.source,
             storage: capture.storage,

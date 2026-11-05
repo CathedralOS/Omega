@@ -5,76 +5,9 @@
 
 use crate::shared::checked_facts::value_facts;
 use crate::shared::lowering_error::{LoweringError, unsupported};
-use crate::shared::terminal_identities::stored_structural_identity;
 use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use checked_trees::{CheckedTrees, CheckedUnitStructuralArgumentSourcePlan};
 use language_semantics::SemanticDomainId;
-
-/// Pointer formations consume the completed source's standing contract.
-/// Prepare carrier roles once for domain publication. Literal-view discovery
-/// uses the same value walk without computing contracts it will not publish.
-pub(crate) struct ReferenceContractCatalog {
-    carrier_roles: Vec<ReferenceCarrierRole>,
-}
-
-#[derive(Clone, Copy, Default)]
-enum ReferenceCarrierRole {
-    #[default]
-    Absent,
-    Pointer,
-    Other,
-    Ambiguous,
-}
-
-impl ReferenceContractCatalog {
-    pub(crate) fn new(checked: &CheckedTrees) -> Self {
-        let mut carrier_roles = Vec::new();
-        for carrier in &checked.facts.flow.terminal_unit_effects.structural_types {
-            let Some(index) = carrier.identity.storage_index() else {
-                continue;
-            };
-            if carrier_roles.len() <= index {
-                carrier_roles.resize(index + 1, ReferenceCarrierRole::Absent);
-            }
-            let role = &mut carrier_roles[index];
-            *role = if !matches!(role, ReferenceCarrierRole::Absent) {
-                ReferenceCarrierRole::Ambiguous
-            } else if matches!(
-                carrier.shape,
-                checked_trees::CheckedUnitStructuralTypeShape::Reference { .. }
-            ) {
-                ReferenceCarrierRole::Pointer
-            } else {
-                ReferenceCarrierRole::Other
-            };
-        }
-        Self { carrier_roles }
-    }
-
-    fn is_pointer(
-        &self,
-        identity: typed_trees::type_identity::TypeIdentityId,
-        supplying_type: TypeReferenceHandle,
-    ) -> Result<bool, LoweringError> {
-        match identity
-            .storage_index()
-            .and_then(|index| self.carrier_roles.get(index))
-        {
-            Some(ReferenceCarrierRole::Pointer) => Ok(true),
-            Some(ReferenceCarrierRole::Other) => Ok(false),
-            Some(ReferenceCarrierRole::Ambiguous) => Err(LoweringError::InvalidReferenceContract {
-                supplying_type,
-                reason: "reference domain catalog has ambiguous result carriers",
-            }),
-            Some(ReferenceCarrierRole::Absent) | None => {
-                Err(LoweringError::InvalidReferenceContract {
-                    supplying_type,
-                    reason: "reference domain catalog lost its result carrier",
-                })
-            }
-        }
-    }
-}
 
 /// Catalog qualifications and report whether construction needs a literal view.
 /// Record children carry their declaration's type; selection arms keep the same
@@ -85,24 +18,13 @@ pub(crate) fn collect_operation_requirements(
     machine: symbols::SymbolHandle,
     operation: &checked_trees::CheckedUnitEffectOperationPlan,
     domains: &mut Vec<SemanticDomainId>,
-    reference_contracts: Option<&ReferenceContractCatalog>,
 ) -> Result<bool, LoweringError> {
-    if let Some(reference_contracts) = reference_contracts
-        && let checked_trees::CheckedUnitEffectOperationPlan::EstablishReference {
-            backing_type,
-            storage,
-            result,
-            ..
-        } = operation
+    if let checked_trees::CheckedUnitEffectOperationPlan::EstablishReference {
+        source_contract,
+        ..
+    } = operation
     {
-        collect_reference_contract(
-            checked,
-            result.type_identity,
-            *backing_type,
-            *storage,
-            domains,
-            reference_contracts,
-        )?;
+        collect_reference_contract(source_contract, domains);
     }
     let Some((value, _)) = operation.structural_value_evaluation() else {
         return Ok(false);
@@ -123,7 +45,7 @@ pub(crate) fn collect_operation_requirements(
     if roots.next().is_some() {
         return unsupported("structural domain catalog has ambiguous value roots");
     }
-    collect_domains(checked, value, reference, domains, reference_contracts)
+    collect_domains(checked, value, reference, domains)
 }
 
 /// Catalog the memberships a structural value tree establishes when a
@@ -135,7 +57,6 @@ pub(crate) fn collect_value_requirements(
     machine: symbols::SymbolHandle,
     value: checked_trees::CheckedStructuralValueHandle,
     domains: &mut Vec<SemanticDomainId>,
-    reference_contracts: Option<&ReferenceContractCatalog>,
 ) -> Result<bool, LoweringError> {
     let reference = value_facts(checked)
         .structural_values
@@ -145,7 +66,7 @@ pub(crate) fn collect_value_requirements(
         .find(|root| root.machine == machine && root.root == value)
         .map(|root| root.type_reference)
         .unwrap_or_default();
-    collect_domains(checked, value, reference, domains, reference_contracts)
+    collect_domains(checked, value, reference, domains)
 }
 
 fn collect_domains(
@@ -153,7 +74,6 @@ fn collect_domains(
     value: checked_trees::CheckedStructuralValueHandle,
     expected: TypeReferenceHandle,
     domains: &mut Vec<SemanticDomainId>,
-    reference_contracts: Option<&ReferenceContractCatalog>,
 ) -> Result<bool, LoweringError> {
     use checked_trees::{CheckedStructuralRecordFieldValue, CheckedStructuralValueKind};
     let plans = &checked.facts.values.structural_values;
@@ -205,31 +125,23 @@ fn collect_domains(
         match &node.kind {
             CheckedStructuralValueKind::Reference {
                 backing_type,
+                source_contract,
                 source_value,
-                storage,
                 ..
             } => {
-                if let Some(reference_contracts) = reference_contracts {
-                    collect_reference_contract(
-                        checked,
-                        stored_structural_identity(checked, node.type_reference),
-                        *backing_type,
-                        *storage,
-                        domains,
-                        reference_contracts,
-                    )?;
-                }
+                collect_reference_contract(source_contract, domains);
                 if source_value.is_valid() {
                     if !plans.nodes.is_valid(*source_value) {
                         return Err(LoweringError::InvalidReferenceContract {
                             supplying_type: *backing_type,
-                            reason: "reference domain catalog has stale source value",
+                            reason: "reference domain catalog has stale source value".to_owned(),
                         });
                     }
                     let child = plans.nodes.get(*source_value);
                     pending.push((*source_value, child.type_reference));
                 }
             }
+
             CheckedStructuralValueKind::ZeroedStructural {
                 projected_qualifications,
             } => {
@@ -326,49 +238,18 @@ fn collect_domains(
     Ok(requires_literal_view)
 }
 
-/// Reference formation consumes the completed source's standing contract,
-/// even when no signature names its domains. Register those same theories;
-/// this dependency walk establishes no membership on the source or its home.
-fn collect_reference_contract(
-    checked: &CheckedTrees,
-    result_type: typed_trees::type_identity::TypeIdentityId,
-    backing_type: TypeReferenceHandle,
-    storage: checked_trees::CheckedReferenceStorage,
+/// Register theories from a recorded source contract. An unavailable
+/// inventory supplies none; the pointer emitter retains that refusal if this
+/// operation or projected state loan actually materializes a pointer.
+pub(crate) fn collect_reference_contract(
+    contract: &checked_trees::CheckedReferenceSourceContract,
     domains: &mut Vec<SemanticDomainId>,
-    reference_contracts: &ReferenceContractCatalog,
-) -> Result<(), LoweringError> {
-    // Access views retain their separate profile/owner interpretation. Only
-    // the ordinary and explicit representation-view formations below consume
-    // this declared payload inventory.
-    if !matches!(
-        storage,
-        checked_trees::CheckedReferenceStorage::Declared
-            | checked_trees::CheckedReferenceStorage::View { .. }
-    ) {
-        return Ok(());
-    }
-    // The emitted pointer consumes this contract. Collection views use their
-    // own element/byte membership producers, even for Declared storage. Read
-    // that distinction from the retained result shape, not the source syntax.
-    if !reference_contracts.is_pointer(result_type, backing_type)? {
-        return Ok(());
-    }
-    if !backing_type.is_valid() {
-        return Err(LoweringError::InvalidReferenceContract {
-            supplying_type: backing_type,
-            reason: "reference domain catalog lost its supplying type",
-        });
-    }
-    let contract =
-        validation::structural_result_qualification_contract(&checked.typed, backing_type)
-            .map_err(|reason| LoweringError::InvalidReferenceContract {
-                supplying_type: backing_type,
-                reason,
-            })?;
-    for (domain, _) in contract.domains {
-        if !domains.contains(&domain) {
-            domains.push(domain);
+) {
+    if let checked_trees::CheckedReferenceSourceContract::Standing(contract) = contract {
+        for (domain, _) in &contract.domains {
+            if !domains.contains(domain) {
+                domains.push(*domain);
+            }
         }
     }
-    Ok(())
 }

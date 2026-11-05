@@ -1969,6 +1969,7 @@ impl Emission<'_, '_, '_> {
                 source_value,
                 storage,
                 backing_type,
+                source_contract,
             } => match self.reference_value(
                 identities,
                 super::super::reference_results::Formation {
@@ -1977,6 +1978,7 @@ impl Emission<'_, '_, '_> {
                     statement_index: node.statement_index as usize,
                     expression: node.expression,
                     backing_type,
+                    source_contract: &source_contract,
                     qualification_decisions: node.qualification_decisions,
                     domain_ids: self.domain_ids,
                 },

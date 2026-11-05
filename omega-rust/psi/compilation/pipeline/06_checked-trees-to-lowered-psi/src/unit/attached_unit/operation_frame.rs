@@ -691,6 +691,7 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::EstablishReference {
                 formation_expression,
                 backing_type,
+                source_contract,
                 result,
                 source,
                 storage,
@@ -698,6 +699,7 @@ impl OperationFrame<'_, '_> {
                 identities,
                 *formation_expression,
                 *backing_type,
+                source_contract,
                 result,
                 source,
                 *storage,
@@ -726,6 +728,7 @@ impl OperationFrame<'_, '_> {
 
         formation_expression: checked_trees::expression::ExpressionHandle,
         backing_type: typed_trees::types::TypeReferenceHandle,
+        source_contract: &checked_trees::CheckedReferenceSourceContract,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         source: &CheckedUnitStructuralArgumentPlan,
         storage: checked_trees::CheckedReferenceStorage,
@@ -798,6 +801,7 @@ impl OperationFrame<'_, '_> {
                 statement_index: result.statement_index as usize,
                 expression: formation_expression,
                 backing_type,
+                source_contract,
                 qualification_decisions: Default::default(),
                 domain_ids: self.calls.domain_ids,
             },

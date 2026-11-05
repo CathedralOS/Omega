@@ -416,6 +416,8 @@ impl StateGraphEmission<'_, '_> {
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
                             ref subject,
+                            backing_type,
+                            ref source_contract,
                             formation_expression,
                             carrier_type_identity,
                             ..
@@ -549,13 +551,8 @@ impl StateGraphEmission<'_, '_> {
                                         checked, state: state.state,
                                         statement_index: edge.statement_ordinal as usize,
                                         expression: formation_expression,
-                                        backing_type: validation::expression_type_reference_in_state(
-                                            &checked.typed,
-                                            state.state,
-                                            edge.statement_ordinal as usize,
-                                            validation::reference_formation_source(&checked.typed, formation_expression)
-                                                .map_or(formation_expression, |formation| formation.source),
-                                        ).ok_or(LoweringError::Unsupported("state loan lost its supplying type"))?,
+                                        backing_type,
+                                        source_contract,
                                         qualification_decisions: Default::default(),
                                         domain_ids: &self.catalogs.domain_ids,
                                     },

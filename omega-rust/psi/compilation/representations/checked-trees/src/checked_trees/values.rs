@@ -643,3 +643,8 @@ mod index_tests {
         assert!(plans.expression_at(original, 0, role).is_none());
     }
 }
+
+mod qualification_contracts;
+pub use qualification_contracts::{
+    CheckedReferenceSourceContract, CheckedStructuralQualificationContract,
+};

@@ -27,6 +27,7 @@ pub(crate) struct Formation<'checked> {
     pub(crate) expression: checked_trees::expression::ExpressionHandle,
     /// The supplying endpoint, never the receiving reference annotation.
     pub(crate) backing_type: typed_trees::types::TypeReferenceHandle,
+    pub(crate) source_contract: &'checked checked_trees::CheckedReferenceSourceContract,
     pub(crate) qualification_decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
     pub(crate) domain_ids:
         &'checked [crate::shared::terminal_identities::StructuralDomainBinding],
@@ -351,7 +352,7 @@ pub(crate) fn emit_carrier(
                 if !formation.backing_type.is_valid() {
                     return Err(LoweringError::InvalidReferenceContract {
                         supplying_type: formation.backing_type,
-                        reason: "reference formation lost its supplying type",
+                        reason: "reference formation lost its supplying type".to_owned(),
                     });
                 }
                 let supplying = structural_declaration_by_identity(
@@ -366,7 +367,7 @@ pub(crate) fn emit_carrier(
                 else {
                     return Err(LoweringError::InvalidReferenceContract {
                         supplying_type: formation.backing_type,
-                        reason: "reference formation lost its reference carrier",
+                        reason: "reference formation lost its reference carrier".to_owned(),
                     });
                 };
                 if matches!(storage, PublishedReferenceStorage::Declared)
@@ -374,17 +375,25 @@ pub(crate) fn emit_carrier(
                 {
                     return Err(LoweringError::InvalidReferenceContract {
                         supplying_type: formation.backing_type,
-                        reason: "reference formation source differs from its exact referent",
+                        reason: "reference formation source differs from its exact referent"
+                            .to_owned(),
                     });
                 }
-                let contract = validation::structural_result_qualification_contract(
-                    &formation.checked.typed,
-                    formation.backing_type,
-                )
-                .map_err(|reason| LoweringError::InvalidReferenceContract {
-                    supplying_type: formation.backing_type,
-                    reason,
-                })?;
+                let contract = match formation.source_contract {
+                    checked_trees::CheckedReferenceSourceContract::Standing(contract) => contract,
+                    checked_trees::CheckedReferenceSourceContract::Unavailable(reason) => {
+                        return Err(LoweringError::InvalidReferenceContract {
+                            supplying_type: formation.backing_type,
+                            reason: reason.clone(),
+                        });
+                    }
+                    checked_trees::CheckedReferenceSourceContract::SeparateStorage => {
+                        return Err(LoweringError::InvalidReferenceContract {
+                            supplying_type: formation.backing_type,
+                            reason: "pointer formation has no supplying contract".to_owned(),
+                        });
+                    }
+                };
                 let projected = super::parameters::lower_projected_qualifications(
                     identities,
                     &contract.projected_qualifications,
@@ -394,7 +403,8 @@ pub(crate) fn emit_carrier(
                 )?;
                 let whole = contract
                     .qualifications
-                    .into_iter()
+                    .iter()
+                    .copied()
                     .map(|domain| {
                         lookup_domain_id_for_carrier(formation.domain_ids, domain, supplying.id)
                     })
@@ -416,7 +426,7 @@ pub(crate) fn emit_carrier(
                     .map_err(|reason| {
                         LoweringError::InvalidReferenceContract {
                             supplying_type: formation.backing_type,
-                            reason,
+                            reason: reason.to_owned(),
                         }
                     })?,
                 );
