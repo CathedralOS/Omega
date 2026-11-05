@@ -1,4 +1,4 @@
-name: Qualify the remaining assignment-read customers
+name: Qualify the remaining customers after main integration
 on:
   workflow_dispatch:
 permissions:
@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: 5dbac0d8ba4459ae7cfe44c3dd403af05ffff356
+          ref: f00661dbe2a16882c56756b15549d1316477ae46
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
@@ -56,22 +56,22 @@ jobs:
           import json,os,sys
           root=Path.cwd();sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
           import compiler_pilot
-          source='5dbac0d8ba4459ae7cfe44c3dd403af05ffff356';driver=os.environ['GITHUB_SHA'];target=os.environ['NATIVE_HOST']
+          source='f00661dbe2a16882c56756b15549d1316477ae46';driver=os.environ['GITHUB_SHA'];target=os.environ['NATIVE_HOST']
           assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
           assert compiler_pilot.corpus_gate.host_target()==target
           assert os.environ['OMEGA_CORPUS_JOBS']=='1' and os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
           os.environ['GITHUB_SHA']=source
           positive={'macos_arm64': ('pass/generics/runtime_generic_carrier_equation_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/arithmetic/runtime_composite_bound_arrivals_exit', 'pass/core/aggregate_snapshot_copy_exit'), 'linux_arm64': ('pass/generics/runtime_generic_carrier_equation_exit', 'pass/arithmetic/runtime_composite_bound_arrivals_exit', 'pass/core/aggregate_snapshot_copy_exit')}[target];negative=('fail/arithmetic/composite_bound_arrival_unbounded_predecessor', 'fail/borrows/private_arrival_default_domain_weak_bound', 'fail/references/rebound_parameter_reference_drops_referent_bound', 'fail/contracts/mutable_owned_call_ensures_keeps_poststate', 'fail/ownership/whole_borrowed_missing_repair', 'fail/generics/generic_carrier_equation_mismatch', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority')
-          output=root/'build/compiler-pilot/lexical-host'
+          output=root/'build/compiler-pilot/coherent-lexical-host'
           output.mkdir(parents=True,exist_ok=False)
           (output/'driver.json').write_text(json.dumps({'source':source,'driver':driver,'target':target},indent=2)+'\n')
-          raise SystemExit(compiler_pilot.run_suite('compiler-pilot/lexical-host',positive,negative,phase='prepare'))
+          raise SystemExit(compiler_pilot.run_suite('compiler-pilot/coherent-lexical-host',positive,negative,phase='prepare'))
           OBSERVE
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: core-float-lexical-preparation-${{ matrix.host }}-${{ github.run_id }}
-          path: build/compiler-pilot/lexical-host/
+          name: core-float-coherent-lexical-preparation-${{ matrix.host }}-${{ github.run_id }}
+          path: build/compiler-pilot/coherent-lexical-host/
           include-hidden-files: true
           compression-level: 0
           retention-days: 30
@@ -92,19 +92,19 @@ jobs:
           import json,os,sys
           root=Path.cwd();sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
           import compiler_pilot
-          source='5dbac0d8ba4459ae7cfe44c3dd403af05ffff356';driver=os.environ['GITHUB_SHA'];target=os.environ['NATIVE_HOST']
+          source='f00661dbe2a16882c56756b15549d1316477ae46';driver=os.environ['GITHUB_SHA'];target=os.environ['NATIVE_HOST']
           assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
           assert compiler_pilot.corpus_gate.host_target()==target
           assert os.environ['OMEGA_CORPUS_JOBS']=='1' and os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
           os.environ['GITHUB_SHA']=source
           positive={'macos_arm64': ('pass/generics/runtime_generic_carrier_equation_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/arithmetic/runtime_composite_bound_arrivals_exit', 'pass/core/aggregate_snapshot_copy_exit'), 'linux_arm64': ('pass/generics/runtime_generic_carrier_equation_exit', 'pass/arithmetic/runtime_composite_bound_arrivals_exit', 'pass/core/aggregate_snapshot_copy_exit')}[target];negative=('fail/arithmetic/composite_bound_arrival_unbounded_predecessor', 'fail/borrows/private_arrival_default_domain_weak_bound', 'fail/references/rebound_parameter_reference_drops_referent_bound', 'fail/contracts/mutable_owned_call_ensures_keeps_poststate', 'fail/ownership/whole_borrowed_missing_repair', 'fail/generics/generic_carrier_equation_mismatch', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority')
-          output=root/'build/compiler-pilot/lexical-host'
+          output=root/'build/compiler-pilot/coherent-lexical-host'
           prepared=json.loads((output/'preparation.json').read_text())
           assert prepared['passed'] and prepared['candidate']==source and prepared['target']==target
           assert json.loads((output/'driver.json').read_text())=={'source':source,'driver':driver,'target':target}
           producer=compiler_pilot.load_producer(output/'producer.json');producer.verify()
-          status=compiler_pilot.run_suite('compiler-pilot/lexical-observations',positive,negative,producer=producer)
-          producer.verify();observed=root/'build/compiler-pilot/lexical-observations'
+          status=compiler_pilot.run_suite('compiler-pilot/coherent-lexical-observations',positive,negative,producer=producer)
+          producer.verify();observed=root/'build/compiler-pilot/coherent-lexical-observations'
           latency=all(row['millis']<=120000 for name in ['checking.json','both.json'] for row in json.loads((observed/name).read_text())['observations']) if all((observed/name).exists() for name in ['checking.json','both.json']) else False
           (observed/'scope.json').write_text(json.dumps({'source':source,'driver':driver,'target':target,'producer':producer.record(),'positive':positive,'negative':negative,'suite_exit':status,'latency_within_original_limit':latency,'passed':status==0 and latency,'limits':'Original 120-second Source/BOTH limits; one worker; profiling off. Prior 6b passing physical, ordinary and SDK results retain their own identities.'},indent=2)+'\n')
           raise SystemExit(0 if status==0 and latency else 1)
@@ -112,8 +112,8 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: core-float-lexical-observations-${{ matrix.host }}-${{ github.run_id }}
-          path: build/compiler-pilot/lexical-observations/
+          name: core-float-coherent-lexical-observations-${{ matrix.host }}-${{ github.run_id }}
+          path: build/compiler-pilot/coherent-lexical-observations/
           include-hidden-files: true
           compression-level: 0
           retention-days: 30
