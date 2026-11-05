@@ -925,10 +925,9 @@ fn loans_live_at_call(
         .collect()
 }
 
-/// A jump to a sibling state: the transition's own target invocation enters a
-/// state of the caller's own machine or a machine nested directly inside it,
-/// with no receiver operand. Calls in the transition's guard or arguments are
-/// ordinary calls, not the jump.
+/// A transfer to a non-entry block retained by the caller's own machine.
+/// Machine-entry calls keep their caller's live loans through completion;
+/// nesting and recursive graph fusion do not change that lifetime boundary.
 pub(super) use crate::flow::LocalJump;
 
 pub(super) fn local_jump<'program>(
