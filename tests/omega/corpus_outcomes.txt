@@ -15663,6 +15663,8 @@ fail/layouts/unused_generic_concrete_integer_at_requires_fit rejected 2574ms exp
 fail/machines/cyclic_private_arrival_maximum_rejected rejected 383ms expected @f58fe154c6f3
 	exact arithmetic in machine `pair` state `entry` terminal call operands may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `right` state `entry` terminal call operands may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/machines/nested_state_declaration_retired rejected 1774ms expected @f14d22bedf7b+wt
+	tests/omega/fail/machines/nested_state_declaration_retired/main.omg:2:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract
 fail/machines/private_division_changed_storage_control rejected 1128ms expected @ccdb99ca2214
 	division by zero in machine `divided` state `entry` terminal expression: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 fail/machines/private_division_mixed_arrival_control rejected 1375ms expected @b31668d9a31f

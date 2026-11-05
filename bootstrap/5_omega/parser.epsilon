@@ -2527,6 +2527,9 @@ machine OmegaParser::parse_view(
             OmegaKeywordKind::If -> incomplete_root()
             OmegaKeywordKind::Transition -> begin_transition()
             OmegaKeywordKind::Match -> incomplete_root()
+            // Nested `machine` is the only declaration form; `state` remains a
+            // temporary spelling alias until every customer migrates.
+            OmegaKeywordKind::Machine -> begin_nested_state()
             OmegaKeywordKind::State -> begin_nested_state()
             _ -> begin_named_statement_path()
         }
@@ -2785,6 +2788,7 @@ machine OmegaParser::parse_view(
 
     state machine_member_keyword() {
         transition self.scan.keyword {
+            OmegaKeywordKind::Machine -> begin_explicit_state()
             OmegaKeywordKind::State -> begin_explicit_state()
             _ -> incomplete_root()
         }

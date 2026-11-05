@@ -50,8 +50,8 @@ MEMBER_RECORDS = [
      "a36fabd20ccecd3c15ba8dc10044567a11c0f60e92661277c11728121be65a4e"),
 ]
 
-PACKED_RECORD = (571866,
-                 "ad9a78c953bd3ec67c9e0ccc5283cb36f63a8ce1a491f9a97293cce51b836d29")
+PACKED_RECORD = (572143,
+                 "99535101fac4473527467d354a4f93db50f1fb8802fd69c1886eee283555b867")
 
 CUSTOMER_RECORDS = {
     "omega_lexical": (1486,
