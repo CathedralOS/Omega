@@ -359,6 +359,15 @@ fn assign_contract_call_symbols(
                 {
                     assign_calls!(pattern);
                 }
+                if let symbol_resolved_trees::expression::MatchPattern::Destructure(pattern) =
+                    arm.pattern
+                {
+                    super::expression_paths::assign_pattern_field_symbols(
+                        symbols,
+                        expression_table,
+                        pattern,
+                    );
+                }
                 assign_calls!(arm.value);
             }
         }

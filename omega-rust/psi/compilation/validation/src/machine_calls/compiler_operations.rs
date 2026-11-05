@@ -305,6 +305,18 @@ pub fn storage_address_operand(
     .map(|arguments| arguments[0])
 }
 
+/// Provider selection records a build choice without replacing references in
+/// its value arguments. Its operands still execute first, and their effects
+/// remain visible. This is only the descriptor effect of the exact retained
+/// intrinsic; declaration compatibility and Build activation remain separate.
+pub(crate) fn call_preserves_reference_slots(
+    program: &dyn crate::CheckingInput,
+    call: StaticArgumentCall<'_>,
+) -> bool {
+    authored_call_intrinsic(program, call)
+        == Some(AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection)
+}
+
 /// These resolved observations neither write caller storage nor install
 /// reference slots. Their runtime operands still execute with their ordinary
 /// effects; an ordinary same-spelled declaration does not select this rule.
@@ -317,27 +329,14 @@ pub(crate) fn expression_call_only_observes_operands(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
-    // Provider selection records a build fact. The provider home is an empty
-    // carrier, so the call does not install a caller reference slot.
-    // `Owner::select_provider<Slot, Product>(defaults)` inside a provider
-    // default is that same fact with one carrier argument, not a machine call.
     call.layout_query.is_some()
         || matches!(
             classify_expression_call_intrinsic(program, call),
             Some(
                 AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_)
                     | AuthoredDeclarationSelectionIntrinsic::StorageAddress
-                    | AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection
             )
         )
-        || (BuildOperation::from_call_target(call.target.as_str())
-            == Some(BuildOperation::ProviderSelection)
-            && !call.target_symbol.is_valid()
-            && call.machine_arguments.len() == 2
-            && expression_table(program)
-                .expression_handles(call.arguments)
-                .len()
-                == 1)
 }
 
 /// A descriptor instruction borrows exactly ten bytes. Hardware-written bytes

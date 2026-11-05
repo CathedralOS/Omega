@@ -232,116 +232,240 @@ impl TerminalExecution<'_> {
         byte_offset: usize,
         width: usize,
     ) -> Result<(), TerminalInterpretError> {
-        if loan.storage.encoding.is_some() {
-            return Err(malformed());
-        }
-        match &mut loan.storage.endpoint {
-            PrimitiveStorageEndpoint::Projection {
-                fragments,
-                logical,
-                stored,
-            } => {
-                let available =
-                    usize::from(reference_storage_byte_width(*stored).ok_or_else(malformed)?);
-                let end = byte_offset.checked_add(width).ok_or_else(malformed)?;
-                if end > available {
-                    return Err(malformed());
-                }
-                let mut selected = Vec::new();
-                let selected_start = byte_offset.checked_mul(8).ok_or_else(malformed)?;
-                let selected_end = end.checked_mul(8).ok_or_else(malformed)?;
-                for fragment in fragments.iter() {
-                    let start = usize::from(fragment.destination_bit_offset);
-                    let fragment_end = start + usize::from(fragment.bit_length);
-                    let first = start.max(selected_start);
-                    let last = fragment_end.min(selected_end);
-                    if first >= last {
-                        continue;
+        let endpoint = match &loan.storage.endpoint {
+            PrimitiveStorageEndpoint::Projection { .. } => "Projection",
+            PrimitiveStorageEndpoint::ArrayElement { .. } => "ArrayElement",
+            PrimitiveStorageEndpoint::OwnedArrayElement { .. } => "OwnedArrayElement",
+            PrimitiveStorageEndpoint::RepresentationByte(_) => "RepresentationByte",
+            PrimitiveStorageEndpoint::ViewByte { .. } => "ViewByte",
+            PrimitiveStorageEndpoint::Scalar(_) => "Scalar",
+            PrimitiveStorageEndpoint::ScalarField(_) => "ScalarField",
+        };
+        let scalar = loan.scalar_type;
+        let codec = loan.storage.encoding;
+        let referent = (
+            loan.referent.opaque_identity,
+            loan.referent.structural_type,
+            loan.referent.path.len(),
+        );
+        // Retain metadata from the actual failed walk. No bytes are read for
+        // the diagnostic, and successful positioning formats no context.
+        let mut phase = "endpoint already has a retained codec";
+        let mut available = None;
+        let mut span_start = None;
+        let mut span_end = None;
+        let mut requested_frame = None;
+        let mut actual_machine = None;
+        let mut actual_type = None;
+        let mut fragment_index = None;
+        let mut fragment_count = None;
+        let mut projection_types = None;
+        let mut first_fragment = None;
+        let mut first_mismatched_scalar = None;
+        let outcome = (|| {
+            if loan.storage.encoding.is_some() {
+                return Err(malformed());
+            }
+            match &mut loan.storage.endpoint {
+                PrimitiveStorageEndpoint::Projection {
+                    fragments,
+                    logical,
+                    stored,
+                } => {
+                    projection_types = Some((*logical, *stored));
+                    first_fragment = fragments.first().map(|fragment| {
+                        (
+                            fragment.logical,
+                            fragment.stored,
+                            fragment.source_bit_offset,
+                            fragment.destination_bit_offset,
+                            fragment.bit_length,
+                            fragment.addressable_cell,
+                            fragment.storage.encoding,
+                        )
+                    });
+                    phase = "projection has no stored byte width";
+                    let stored_width =
+                        usize::from(reference_storage_byte_width(*stored).ok_or_else(malformed)?);
+                    available = Some(stored_width);
+                    fragment_count = Some(fragments.len());
+                    phase = "projection end overflows";
+                    let end = byte_offset.checked_add(width).ok_or_else(malformed)?;
+                    span_end = Some(end);
+                    phase = "region exceeds the stored projection";
+                    if end > stored_width {
+                        return Err(malformed());
                     }
-                    let mut fragment = fragment.clone();
-                    fragment.source_bit_offset = fragment
-                        .source_bit_offset
-                        .checked_add(u8::try_from(first - start).map_err(|_| malformed())?)
-                        .ok_or_else(malformed)?;
-                    fragment.destination_bit_offset =
-                        u8::try_from(first - selected_start).map_err(|_| malformed())?;
-                    fragment.bit_length = u8::try_from(last - first).map_err(|_| malformed())?;
-                    selected.push(fragment);
+                    let mut selected = Vec::new();
+                    phase = "projection bit offset overflows";
+                    let selected_start = byte_offset.checked_mul(8).ok_or_else(malformed)?;
+                    phase = "projection bit end overflows";
+                    let selected_end = end.checked_mul(8).ok_or_else(malformed)?;
+                    for (position, fragment) in fragments.iter().enumerate() {
+                        fragment_index = Some(position);
+                        let start = usize::from(fragment.destination_bit_offset);
+                        let fragment_end = start + usize::from(fragment.bit_length);
+                        let first = start.max(selected_start);
+                        let last = fragment_end.min(selected_end);
+                        if first >= last {
+                            continue;
+                        }
+                        let mut fragment = fragment.clone();
+                        phase = "fragment source bit adjustment overflows";
+                        fragment.source_bit_offset = fragment
+                            .source_bit_offset
+                            .checked_add(u8::try_from(first - start).map_err(|_| malformed())?)
+                            .ok_or_else(malformed)?;
+                        phase = "fragment destination bit offset is too large";
+                        fragment.destination_bit_offset =
+                            u8::try_from(first - selected_start).map_err(|_| malformed())?;
+                        phase = "fragment bit length is too large";
+                        fragment.bit_length =
+                            u8::try_from(last - first).map_err(|_| malformed())?;
+                        selected.push(fragment);
+                    }
+                    *fragments = selected;
+                    // The caller installs its exact observed codec after positioning.
+                    let _ = logical;
                 }
-                *fragments = selected;
-                // The caller installs its exact observed codec after positioning.
-                let _ = logical;
+                PrimitiveStorageEndpoint::ArrayElement { array, index } => {
+                    phase = "array endpoint is not a byte carrier";
+                    if loan.scalar_type != byte_type()? {
+                        return Err(malformed());
+                    }
+                    phase = "array start overflows";
+                    let start = index.checked_add(byte_offset).ok_or_else(malformed)?;
+                    span_start = Some(start);
+                    phase = "array end overflows";
+                    let end = start.checked_add(width).ok_or_else(malformed)?;
+                    span_end = Some(end);
+                    use crate::boundary::structural_inputs::byte_arrays::storage::ArrayStorageHome;
+                    requested_frame = match array.home {
+                        ArrayStorageHome::Runtime => None,
+                        ArrayStorageHome::Frame {
+                            depth,
+                            place,
+                            structural_type,
+                        } => Some((depth, place, structural_type)),
+                    };
+                    phase = "array extent is unavailable";
+                    let length = self.stored_byte_array_length(array)?;
+                    available = Some(length);
+                    phase = "region exceeds the captured array";
+                    if end > length {
+                        return Err(malformed());
+                    }
+                    *index = start;
+                }
+                PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
+                    phase = "owned array endpoint is not a byte carrier";
+                    if loan.scalar_type != byte_type()? {
+                        return Err(malformed());
+                    }
+                    requested_frame = Some((home.depth, home.place, home.structural_type));
+                    phase = "owned array start overflows";
+                    let start = index.checked_add(byte_offset).ok_or_else(malformed)?;
+                    span_start = Some(start);
+                    phase = "owned array end overflows";
+                    let end = start.checked_add(width).ok_or_else(malformed)?;
+                    span_end = Some(end);
+                    phase = "owned array activation is unavailable";
+                    let (machine, arrays) = if home.depth == self.call_stack.len() {
+                        (self.current_machine, &self.scalar_array_values)
+                    } else {
+                        let frame = self.call_stack.get(home.depth).ok_or_else(malformed)?;
+                        (frame.current_machine, &frame.scalar_array_values)
+                    };
+                    actual_machine = Some((home.machine, machine));
+                    phase = "owned array backing is unavailable";
+                    let array = arrays.backing(&home.place).ok_or_else(malformed)?;
+                    actual_type = Some(array.structural_type);
+                    available = Some(array.len());
+                    if machine != home.machine
+                        || array.structural_type != home.structural_type
+                        || array.cells().get(start..end).is_none_or(|bytes| {
+                            bytes.iter().any(|byte| {
+                                let observed = byte.scalar_type();
+                                let mismatched = observed != loan.scalar_type;
+                                if mismatched {
+                                    first_mismatched_scalar = Some(observed);
+                                }
+                                mismatched
+                            })
+                        })
+                    {
+                        phase = if machine != home.machine {
+                            "owned array machine differs"
+                        } else if array.structural_type != home.structural_type {
+                            "owned array type differs"
+                        } else if first_mismatched_scalar.is_some() {
+                            "owned array cell carrier differs"
+                        } else {
+                            "region exceeds the owned array"
+                        };
+                        return Err(malformed());
+                    }
+                    *index = start;
+                }
+                PrimitiveStorageEndpoint::RepresentationByte(byte) => {
+                    phase = "representation endpoint is not a byte carrier";
+                    if loan.scalar_type != byte_type()? {
+                        return Err(malformed());
+                    }
+                    phase = "representation start overflows";
+                    let start = byte.index.checked_add(byte_offset).ok_or_else(malformed)?;
+                    span_start = Some(start);
+                    phase = "region exceeds the representation or its end overflows";
+                    if start.checked_add(width).is_none_or(|end| {
+                        span_end = Some(end);
+                        let length = byte.view.len();
+                        available = Some(length);
+                        end > length
+                    }) {
+                        return Err(malformed());
+                    }
+                    byte.index = start;
+                }
+                PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
+                    phase = "view endpoint is not a byte carrier";
+                    if loan.scalar_type != byte_type()? {
+                        return Err(malformed());
+                    }
+                    phase = "view start overflows";
+                    let start = index.checked_add(byte_offset).ok_or_else(malformed)?;
+                    span_start = Some(start);
+                    phase = "view end overflows";
+                    let end = start.checked_add(width).ok_or_else(malformed)?;
+                    span_end = Some(end);
+                    let length = bytes.len();
+                    available = Some(length);
+                    phase = "region exceeds the captured view";
+                    if end > length {
+                        return Err(malformed());
+                    }
+                    *index = start;
+                }
+                PrimitiveStorageEndpoint::Scalar(_) | PrimitiveStorageEndpoint::ScalarField(_) => {
+                    phase = "scalar endpoint has no stored byte width";
+                    let source_width = usize::from(
+                        reference_storage_byte_width(loan.scalar_type).ok_or_else(malformed)?,
+                    );
+                    available = Some(source_width);
+                    phase = "region exceeds a single scalar cell";
+                    if byte_offset != 0 || width > source_width {
+                        return Err(malformed());
+                    }
+                }
             }
-            PrimitiveStorageEndpoint::ArrayElement { array, index } => {
-                if loan.scalar_type != byte_type()? {
-                    return Err(malformed());
-                }
-                let start = index.checked_add(byte_offset).ok_or_else(malformed)?;
-                let end = start.checked_add(width).ok_or_else(malformed)?;
-                if end > self.stored_byte_array_length(array)? {
-                    return Err(malformed());
-                }
-                *index = start;
-            }
-            PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
-                if loan.scalar_type != byte_type()? {
-                    return Err(malformed());
-                }
-                let start = index.checked_add(byte_offset).ok_or_else(malformed)?;
-                let end = start.checked_add(width).ok_or_else(malformed)?;
-                let (machine, arrays) = if home.depth == self.call_stack.len() {
-                    (self.current_machine, &self.scalar_array_values)
-                } else {
-                    let frame = self.call_stack.get(home.depth).ok_or_else(malformed)?;
-                    (frame.current_machine, &frame.scalar_array_values)
-                };
-                let array = arrays.backing(&home.place).ok_or_else(malformed)?;
-                if machine != home.machine
-                    || array.structural_type != home.structural_type
-                    || array.cells().get(start..end).is_none_or(|bytes| {
-                        bytes
-                            .iter()
-                            .any(|byte| byte.scalar_type() != loan.scalar_type)
-                    })
-                {
-                    return Err(malformed());
-                }
-                *index = start;
-            }
-            PrimitiveStorageEndpoint::RepresentationByte(byte) => {
-                if loan.scalar_type != byte_type()? {
-                    return Err(malformed());
-                }
-                let start = byte.index.checked_add(byte_offset).ok_or_else(malformed)?;
-                if start
-                    .checked_add(width)
-                    .is_none_or(|end| end > byte.view.len())
-                {
-                    return Err(malformed());
-                }
-                byte.index = start;
-            }
-            PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
-                if loan.scalar_type != byte_type()? {
-                    return Err(malformed());
-                }
-                let start = index.checked_add(byte_offset).ok_or_else(malformed)?;
-                let end = start.checked_add(width).ok_or_else(malformed)?;
-                if end > bytes.len() {
-                    return Err(malformed());
-                }
-                *index = start;
-            }
-            PrimitiveStorageEndpoint::Scalar(_) | PrimitiveStorageEndpoint::ScalarField(_) => {
-                let source_width = usize::from(
-                    reference_storage_byte_width(loan.scalar_type).ok_or_else(malformed)?,
-                );
-                if byte_offset != 0 || width > source_width {
-                    return Err(malformed());
-                }
-            }
-        }
-        Ok(())
+            Ok(())
+        })();
+        outcome.map_err(|error| TerminalInterpretError::ReferenceFormation {
+            stage: "position reference storage",
+            detail: format!(
+                "{phase}; endpoint={endpoint}, byte_offset={byte_offset}, width={width}, scalar={scalar:?}, codec={codec:?}, referent_identity_type_path_length={referent:?}, span_start={span_start:?}, span_end={span_end:?}, available={available:?}, requested_depth_place_type={requested_frame:?}, requested_actual_machine={actual_machine:?}, actual_type={actual_type:?}, current_depth={}, projection_logical_stored={projection_types:?}, fragment_count={fragment_count:?}, fragment_index={fragment_index:?}, first_fragment_logical_stored_offsets_length_addressable_codec={first_fragment:?}, first_mismatched_scalar={first_mismatched_scalar:?}: {error:?}",
+                self.call_stack.len()
+            ),
+        })
     }
 
     pub(super) fn read_encoded_primitive(
