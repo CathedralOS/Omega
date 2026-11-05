@@ -84,6 +84,10 @@ impl<'input> AssignmentObservationBatch<'input> {
     pub(crate) fn scalar_value(&self, subject: &CanonicalPlace) -> Option<ScalarValue> {
         scalar_value_from_payloads(self.program, self.semantic, self.payloads(subject))
     }
+
+    pub(crate) fn integer_bounds(&self, subject: &CanonicalPlace) -> Option<facts::IntegerRange> {
+        integer_bounds_from_payloads(self.program, self.semantic, self.payloads(subject))
+    }
 }
 
 /// Read scalar bindings and structural fields from the same live storage facts.
