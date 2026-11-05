@@ -113,6 +113,25 @@ reads. The repair added no cleanup-specific source exception.
 Those older runs used `ed656648a42a` on Linux and `46cad3817d2f` on macOS and
 Windows. They remain evidence for their original plain-ticket programs, with
 raw reports, baseline failures and independent reviews preserved on that PR.
-The new results above establish the active-payload extension. The parent task
-remains open. Its older controls for an incomplete provider and a width outside
-the family still time out before their intended contract errors.
+The new results above establish the active-payload extension. The parent task remains open.
+
+## Restored contract checks
+
+The two older controls now reach their expected errors with optimized compiler
+`7ae329e5c101`, [run 42005565919](https://github.com/CathedralOS/Omega/actions/runs/42005565919).
+The implementation that accepts fewer widths than its public requirement rejects
+in 111343 ms; the call using a width outside the family rejects in 134342 ms.
+Both finish within their unchanged adaptive limits of 167289 and 199035 ms.
+The existing write-only-array observation and stale copied-argument controls
+also reject for their expected reasons. Profiling is off.
+
+The checker now prepares stored-field observations once within each immutable
+read and compares expression children directly. It preserves storage identity,
+observation order, conflicting-value rejection and access checks.
+[Run 42009429411](https://github.com/CathedralOS/Omega/actions/runs/42009429411)
+reuses that exact compiler without rebuilding: all nine positives check, all
+nine twins reject for their lifetime error, all nine corpus executions and nine
+sample executions agree at exit 0, and all nine invalid samples reject. The
+local ordinary CLI also updates and runs with both engines at 0/0. These are
+Linux x86-64 observations; the earlier three-host results retain their original
+compiler identities. The failed baseline runs above remain failed.
