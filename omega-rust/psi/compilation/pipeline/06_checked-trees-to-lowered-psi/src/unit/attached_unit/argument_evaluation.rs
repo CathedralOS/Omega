@@ -492,7 +492,6 @@ impl Evaluation {
         mut result: impl FnMut(u32) -> Result<StructuralValueStorage, LoweringError>,
     ) -> Result<StructuralValueStorage, LoweringError> {
         use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
-        let caller = std::panic::Location::caller();
         let storage = match *source {
             CheckedUnitStructuralArgumentSourcePlan::CapturedStorage {
                 selection,
@@ -538,19 +537,8 @@ impl Evaluation {
                     } => facts::PlaceRoot::Expression(expression),
                     _ => return unsupported("value storage source has no storage identity"),
                 };
-                let local = structural_local_by_root(&self.structural_locals, root).ok_or_else(
-                    || {
-                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                            eprintln!(
-                                "CHECKSITE value-storage-missing source={source:?} caller={} local_count={} local_roots={:?}",
-                                caller,
-                                self.structural_locals.len(),
-                                self.structural_locals.iter().take(16).map(|local| local.root).collect::<Vec<_>>(),
-                            );
-                        }
-                        LoweringError::Unsupported("value storage local is not established")
-                    },
-                )?;
+                let local = structural_local_by_root(&self.structural_locals, root)
+                    .ok_or_else(|| self.missing_value_storage_local(source, root))?;
                 StructuralValueStorage {
                     place: local.argument.place,
                     path: local.argument.path.clone(),
@@ -563,6 +551,47 @@ impl Evaluation {
             _ => return unsupported("value storage source has no owned structural storage"),
         };
         Ok(storage)
+    }
+
+    fn missing_value_storage_local(
+        &self,
+        source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+        root: facts::PlaceRoot,
+    ) -> LoweringError {
+        let mut retired_binding_count = 0;
+        let mut retired_bindings = Vec::new();
+        for binding in self
+            .retired_structural_bindings
+            .iter()
+            .filter(|binding| binding.root == root)
+        {
+            retired_binding_count += 1;
+            if retired_bindings.len() < 4 {
+                retired_bindings.push((
+                    binding.place,
+                    binding.statement,
+                    match binding.end {
+                        StructuralBindingEnd::ConsumedSource => "consumed source",
+                        StructuralBindingEnd::RetiredHome => "retired home",
+                    },
+                ));
+            }
+        }
+        LoweringError::MissingValueStorageLocal {
+            machine: self.machine,
+            source: source.clone(),
+            current_local_count: self.structural_locals.len(),
+            current_locals: self
+                .structural_locals
+                .iter()
+                .take(8)
+                .map(|local| (local.root, local.argument.place))
+                .collect(),
+            completed_cleanup_home: structural_local_by_root(&self.completed_cleanup_homes, root)
+                .map(|local| local.argument.place),
+            retired_binding_count,
+            retired_bindings,
+        }
     }
 
     /// Checked cleanup can outlive the source frontier that established an

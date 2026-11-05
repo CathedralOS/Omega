@@ -49,8 +49,8 @@ fn completed_observation_of_incoming_storage_survives_only_preserved_cuts() {
         previous: Handle::invalid(),
         operation: FlowStorageOperation::Join { predecessors },
     });
-    let context = crate::frozen_program::CheckingContext::new(&program);
-    context.attach_storage_graph(Arc::new(flow));
+    let context = crate::frozen_program::CheckingContext::new(&program)
+        .clone_with_storage_graph(Arc::new(flow));
     let mut judge = StructuralJudge::from_declaration_requires(
         &context,
         SymbolHandle::invalid(),

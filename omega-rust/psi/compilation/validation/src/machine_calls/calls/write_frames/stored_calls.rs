@@ -145,46 +145,6 @@ fn invocation_effects(
     Some(transfer)
 }
 
-fn declaration_intrinsic_has_no_signature(
-    program: &dyn crate::CheckingInput,
-    call_site: super::caller_aliases::CallerWriteSite<'_>,
-) -> bool {
-    match call_site {
-        super::caller_aliases::CallerWriteSite::Call(call) => {
-            crate::compiler_operations::classify_statement_call_intrinsic(program, call).is_some()
-        }
-        super::caller_aliases::CallerWriteSite::Expression(expression) => program
-            .expression_table
-            .call_node(expression)
-            .is_some_and(|call| {
-                crate::compiler_operations::classify_expression_call_intrinsic(program, call)
-                    .is_some()
-                    || crate::compiler_operations::authored_call_intrinsic(
-                        program,
-                        typed_trees::references::StaticArgumentCall::Expression(expression, call),
-                    )
-                    .is_some()
-            }),
-        _ => false,
-    }
-}
-
-/// A declaration intrinsic with no parameter list does not replace a caller
-/// reference descriptor. A signature, including a public-contract fallback,
-/// still classifies slots. An unknown call with no signature stays incomplete.
-fn declaration_intrinsic_without_parameters(
-    program: &dyn crate::CheckingInput,
-    call_site: super::caller_aliases::CallerWriteSite<'_>,
-    trace_refusal: &impl Fn(&str),
-    phase: &str,
-) -> Option<SlotRelationTransfer> {
-    if declaration_intrinsic_has_no_signature(program, call_site) {
-        return Some(SlotRelationTransfer::complete(Vec::new()));
-    }
-    trace_refusal(phase);
-    None
-}
-
 fn invocation_reference_effects(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -294,8 +254,8 @@ fn invocation_reference_effects(
             crate::CallSite::Expression { expression, call }
                 .parameters(program, machine.symbol)
                 .or_else(|| {
-                    // An open requirement keeps its public parameter contract.
-                    // A private implementation cannot replace that caller view.
+                    // Caller slots follow the selected public requirement even
+                    // when its applied logical signature is not materialized.
                     let dispatch = call.static_requirement_dispatch.as_ref()?;
                     let (_, signature) =
                         program.trait_machine_signature(dispatch.contract_symbol())?;
@@ -303,13 +263,20 @@ fn invocation_reference_effects(
                 })
         }
     };
-    let Some(parameters) = parameters else {
-        return declaration_intrinsic_without_parameters(
-            program,
-            call_site,
-            &trace_refusal,
-            "call-parameters",
-        );
+    let parameters = match parameters {
+        Some(parameters) => parameters,
+        None if crate::compiler_operations::static_call_intrinsic(program, selected_call)
+            .is_some() =>
+        {
+            // Some compiler operations have no executable parameter list.
+            // A real public signature above takes priority and still owns
+            // its slots; absence alone never classifies an ordinary call.
+            return Some(SlotRelationTransfer::complete(Vec::new()));
+        }
+        None => {
+            trace_refusal("call-parameters");
+            return None;
+        }
     };
     if parameters.len() != captures.len() {
         trace_refusal("parameter-capture-correspondence");

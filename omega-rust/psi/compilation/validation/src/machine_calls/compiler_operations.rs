@@ -72,7 +72,7 @@ pub fn static_argument_role(
     }
 }
 
-fn static_call_intrinsic(
+pub(crate) fn static_call_intrinsic(
     program: &dyn crate::CheckingInput,
     call: StaticArgumentCall<'_>,
 ) -> Option<AuthoredDeclarationSelectionIntrinsic> {
@@ -341,7 +341,6 @@ pub(crate) fn expression_call_only_observes_operands(
             Some(
                 AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_)
                     | AuthoredDeclarationSelectionIntrinsic::StorageAddress
-                    | AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection
             )
         )
 }

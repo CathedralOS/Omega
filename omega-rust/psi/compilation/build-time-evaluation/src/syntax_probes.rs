@@ -11,11 +11,11 @@ pub(crate) use evaluation::{
     prepare_call_free_probe_typing, prepare_evaluation, prepare_owned_probe_evaluation,
 };
 
-/// A provisional index supplies a carrier, not membership in the indexed domain.
-/// Remove only affected constant qualifications in this private probe forest.
-/// The authoritative declarations keep every constraint and are checked after
-/// their real indices materialize; no probe qualification is exported as proof.
-pub(crate) fn defer_pending_const_qualifications(
+/// Retain unfinished arguments on their exact uses in a private probe.
+/// Their carriers can be checked, but their values and dependent qualifications
+/// still need evaluation. The original declarations keep every constraint for
+/// final checking; this temporary preparation establishes no qualification.
+pub(crate) fn retain_pending_const_inputs(
     probe: &mut syntax_trees::SyntaxTrees,
     arguments: &[syntax_trees::types::TypeReferenceHandle],
 ) {
@@ -24,6 +24,11 @@ pub(crate) fn defer_pending_const_qualifications(
 
     if arguments.is_empty() {
         return;
+    }
+    for &argument in arguments {
+        probe
+            .type_references
+            .retain_pending_const_argument_uses(argument);
     }
     for item in probe.root_item_handles().to_vec() {
         let Item::Const(mut definition) = probe.root_item(item).clone() else {
@@ -65,6 +70,37 @@ pub(crate) fn defer_pending_const_qualifications(
         };
         probe.items.replace_item(item, Item::Const(definition));
     }
+}
+
+/// Original declarations and the private forest used to select their inputs.
+/// Discovery can append type handles, so both forests must retain that same
+/// argument inventory before resolution assigns any declaration identity.
+pub(crate) struct InitializerSelectionInputs {
+    pub(crate) authored: syntax_trees::SyntaxTrees,
+    pub(crate) probe: syntax_trees::SyntaxTrees,
+}
+
+pub(crate) fn initializer_selection_inputs(
+    mut authored: syntax_trees::SyntaxTrees,
+    context: &crate::BuildTimeSources<'_>,
+) -> Result<InitializerSelectionInputs, Vec<Diagnostic>> {
+    let arguments = syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
+        &mut authored,
+        context.sources.clone(),
+        context.source_scoped_top_level_bindings.to_vec(),
+        context.retained_base(),
+        context.declaration_syntax,
+    )?;
+    let mut probe = authored.clone();
+    crate::const_evaluation::const_qualifications::defer_unproved(&mut probe);
+    retain_pending_const_inputs(
+        &mut probe,
+        &arguments
+            .iter()
+            .map(|(argument, _, _)| *argument)
+            .collect::<Vec<_>>(),
+    );
+    Ok(InitializerSelectionInputs { authored, probe })
 }
 
 pub(crate) fn normalize_type_aliases(

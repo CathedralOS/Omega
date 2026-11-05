@@ -240,6 +240,18 @@ pub(crate) struct CollectedStatementPrefix {
     pub(crate) aliases: Vec<(String, FramePlaceOrigin)>,
     pub(crate) divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
     pub(crate) stored: Vec<StoredLocalOrigins>,
+    /// Earlier unresolved calls may have changed these descriptors. Continue
+    /// checking later calls, but do not use this prefix to prove their backing
+    /// until those earlier calls have complete checked effects.
+    pub(crate) template_dependent: bool,
+    /// Keep known call failures so later queries cannot treat the prefix as valid.
+    pub(crate) incomplete_calls: Vec<super::stored_calls::StoredReferenceCallFailure>,
+}
+
+impl CollectedStatementPrefix {
+    pub(crate) fn is_complete(&self) -> bool {
+        !self.template_dependent && self.incomplete_calls.is_empty()
+    }
 }
 
 struct StatementPrefixCollection<'request> {
@@ -340,6 +352,31 @@ pub(crate) fn collect_state_write_prefixes(
 /// O(statements) walk and every later boundary index reads its collected
 /// entry instead of paying a fresh O(index) prefix walk.
 pub(crate) fn collected_prefix_at(
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    symbols: &TopLevelSymbols<'_>,
+    index: usize,
+    include_shared: bool,
+) -> Option<CollectedStatementPrefix> {
+    collected_prefix_with_readiness_at(
+        collections,
+        program,
+        machine,
+        state,
+        symbols,
+        index,
+        include_shared,
+    )
+    .filter(CollectedStatementPrefix::is_complete)
+}
+
+/// Effect composition still examines later suppliers after an unresolved call.
+/// The retained status prevents this scratch prefix from becoming source evidence.
+pub(crate) fn collected_prefix_with_readiness_at(
     collections: &Mutex<
         HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
     >,
@@ -476,6 +513,8 @@ fn walk_state_write_prefix_body(
         super::stored_calls::seed_incoming_slots(program, state, &mut stored);
     }
     let mut written = Vec::new();
+    let mut template_dependent = false;
+    let mut incomplete_calls = Vec::new();
 
     let machine_symbols = super::demand::machine_symbols(program, machine)?;
 
@@ -503,6 +542,8 @@ fn walk_state_write_prefix_body(
                     aliases: local_alias_origins.clone(),
                     divergent: divergent_alias_origins.clone(),
                     stored: stored.clone(),
+                    template_dependent,
+                    incomplete_calls: incomplete_calls.clone(),
                 });
         }
         if matches!(query, Some(StateWriteQuery::StatementPrefixes { .. }))
@@ -626,6 +667,8 @@ fn walk_state_write_prefix_body(
                 aliases: local_alias_origins.clone(),
                 divergent: divergent_alias_origins.clone(),
                 stored: stored.clone(),
+                template_dependent,
+                incomplete_calls: incomplete_calls.clone(),
             },
             symbols,
             inference,
@@ -637,12 +680,22 @@ fn walk_state_write_prefix_body(
         let relation_complete = stored_call_transfer
             .as_ref()
             .is_some_and(|transfer| transfer.is_complete());
+        let pending_prefix = matches!(query, Some(StateWriteQuery::StatementPrefixes { .. }))
+            && stored_call_transfer.as_ref().is_some_and(|transfer| {
+                transfer.template_dependent && transfer.incomplete_calls.is_empty()
+            });
+        if let Some(transfer) = &stored_call_transfer {
+            template_dependent = transfer.template_dependent;
+            incomplete_calls = transfer.incomplete_calls.clone();
+        }
         // Origin consumers need descriptor/slot transfer, not a representable
         // footprint for unrelated content stores. The complete relation and
         // exposure fences below own that transfer. Demanding a physical frame
         // as well made an opaque scalar accessor erase its unchanged view.
-        // Complete/assignment queries still retain every physical write; wire
-        let origin_transfer_only = relation_complete
+        // Pending statement-prefix contexts retain obligations instead of
+        // reconstructing a physical frame they cannot yet provide. Complete
+        // state and assignment queries still require every physical write.
+        let origin_transfer_only = (relation_complete || pending_prefix)
             && matches!(
                 query,
                 Some(
@@ -673,17 +726,22 @@ fn walk_state_write_prefix_body(
         // A complete relation can preserve every reference slot while producing
         // no new loans. Its absence, not its effect count, marks unknown calls.
         // Cases and non-call exposures still need the frozen-binding fence.
-        if stored_origins::statement_exposes_frozen_binding(
-            program,
-            machine,
-            state,
-            statement,
-            frozen_stored.as_deref().unwrap_or(&stored),
-            &local_alias_origins,
-            symbols,
-            inference,
-            relation_complete,
-        ) {
+        // A pending prefix only retains scratch bookkeeping for later supplier
+        // checks. The strict prefix entrance withholds all of its frozen evidence;
+        // the ordinary transfer below still installs every unknown-source overlay.
+        if !pending_prefix
+            && stored_origins::statement_exposes_frozen_binding(
+                program,
+                machine,
+                state,
+                statement,
+                frozen_stored.as_deref().unwrap_or(&stored),
+                &local_alias_origins,
+                symbols,
+                inference,
+                relation_complete,
+            )
+        {
             return None;
         }
         if !replaces_local_binding && !divergent_alias_origins.is_empty() {
@@ -1215,11 +1273,16 @@ fn walk_state_write_prefix_body(
         }
     }
 
-    (query.is_none()
-        || matches!(
-            query,
-            Some(StateWriteQuery::Complete | StateWriteQuery::OriginTransfer { .. })
-        ))
+    // A full origin relation supplies positive backing/retention evidence.
+    // Only statement-prefix collection may retain unresolved scratch contexts.
+    let origins_complete = !matches!(query, Some(StateWriteQuery::OriginTransfer { .. }))
+        || (!template_dependent && incomplete_calls.is_empty());
+    (origins_complete
+        && (query.is_none()
+            || matches!(
+                query,
+                Some(StateWriteQuery::Complete | StateWriteQuery::OriginTransfer { .. })
+            )))
     .then_some(StateWritePrefix { written, stored })
 }
 

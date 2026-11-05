@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "where equation binds `Capacity` to 2 but its explicit argument is 3"
+    "requires equation binds `Capacity` to 2 but its explicit argument is 3"
   ]
 }
