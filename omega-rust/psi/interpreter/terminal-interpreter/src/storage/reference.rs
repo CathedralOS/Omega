@@ -494,6 +494,7 @@ impl TerminalExecution<'_> {
                 access,
                 qualifications,
                 projected_qualifications,
+                additional_input_qualifications: Vec::new(),
             };
             Some(
                 self.prepare_byte_sequence_loan(
@@ -551,6 +552,7 @@ impl TerminalExecution<'_> {
                 access: source.access,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
             };
             let mut loan = self
                 .capture_primitive_loan(&parameter, source, identity_cursor)
@@ -720,6 +722,7 @@ impl TerminalExecution<'_> {
                         access: source.access,
                         qualifications: Vec::new(),
                         projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
                     };
                     Some(
                         self.capture_primitive_loan(&parameter, source, identity_cursor)

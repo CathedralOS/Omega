@@ -1172,13 +1172,15 @@ impl TerminalExecution<'_> {
         let preserves =
             |root,
              whole: &[semantic_vocabulary::StructuralDomainId],
-             projected: &[terminal_psi::StructuralPathQualification]| {
+             projected: &[terminal_psi::StructuralPathQualification],
+             additional_input: &[terminal_psi::StructuralPathQualification]| {
                 terminal_semantics::primitive_store_restriction(
                     self.structural_types().values(),
                     self.program.catalogs.structural_domains.iter(),
                     root,
                     whole,
                     projected,
+                    additional_input,
                     path,
                 )
                 .is_some()
@@ -1224,7 +1226,7 @@ impl TerminalExecution<'_> {
                             // not a restriction on observing another field.
                             && (!writing || ((parameter.multiplicity == StructuralMultiplicity::Unrestricted
                                 || (!path.is_empty() && parameter.multiplicity == StructuralMultiplicity::Affine))
-                                && preserves(parameter.structural_type, &parameter.qualifications, &parameter.projected_qualifications)))
+                                && preserves(parameter.structural_type, &parameter.qualifications, &parameter.projected_qualifications, &parameter.additional_input_qualifications)))
                     })
                     .map(|parameter| {
                         (
@@ -1246,7 +1248,7 @@ impl TerminalExecution<'_> {
                         result.place == place
                             && (!writing
                                 || (result.claims.is_empty()
-                                    && preserves(result.structural_type, &result.qualifications, &result.projected_qualifications)))
+                                    && preserves(result.structural_type, &result.qualifications, &result.projected_qualifications, &result.additional_input_qualifications)))
                     })
                     .map(|result| (result.structural_type, false))
             })
@@ -2455,13 +2457,14 @@ impl TerminalExecution<'_> {
         }
         let scalar = self.scalar_value(value)?;
         let machine = self.program.machine(self.current_machine)?;
-        let (root, whole, projected) = machine
+        let (root, whole, projected, additional_input) = machine
             .structural_parameter(destination)
             .map(|parameter| {
                 (
                     parameter.structural_type,
                     parameter.qualifications.as_slice(),
                     parameter.projected_qualifications.as_slice(),
+                    parameter.additional_input_qualifications.as_slice(),
                 )
             })
             .or_else(|| {
@@ -2474,6 +2477,7 @@ impl TerminalExecution<'_> {
                             result.structural_type,
                             result.qualifications.as_slice(),
                             result.projected_qualifications.as_slice(),
+                            result.additional_input_qualifications.as_slice(),
                         )
                     })
             })
@@ -2484,6 +2488,7 @@ impl TerminalExecution<'_> {
             root,
             whole,
             projected,
+            additional_input,
             path,
         )
         .ok_or_else(malformed)?;
@@ -2493,6 +2498,7 @@ impl TerminalExecution<'_> {
             root,
             whole,
             projected,
+            additional_input,
             path,
         )
         .ok_or_else(malformed)?;

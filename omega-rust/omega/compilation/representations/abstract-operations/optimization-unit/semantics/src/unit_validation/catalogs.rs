@@ -833,6 +833,7 @@ fn validate_structural_field_range_authority(
                     destination.structural_type(),
                     whole,
                     projected,
+                    destination.additional_input_qualifications(),
                     path,
                 )
                 .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;

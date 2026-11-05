@@ -460,6 +460,7 @@ pub(super) fn encode_semantic_parameter(
         &parameter.projected_qualifications,
         retain_projected_qualifications,
     );
+    encode_projected(bytes, &parameter.additional_input_qualifications, true);
 }
 
 pub(super) fn decode_semantic_parameter(
@@ -474,6 +475,7 @@ pub(super) fn decode_semantic_parameter(
         access: decode_access(cursor)?,
         qualifications: decode_ids(cursor, semantic_vocabulary::StructuralDomainId::new)?,
         projected_qualifications: decode_projected(cursor, retain_projected_qualifications)?,
+        additional_input_qualifications: decode_projected(cursor, true)?,
     })
 }
 

@@ -27,11 +27,11 @@ impl Emission<'_, '_, '_> {
         structural_type: semantic_vocabulary::StructuralTypeId,
         multiplicity: StructuralMultiplicity,
     ) -> Result<StructuralParameterDeclaration, LoweringError> {
-        let (qualifications, projected_qualifications) = self
+        let (qualifications, projected_qualifications, additional) = self
             .completed_memberships(source.place)
             .ok_or(LoweringError::Unsupported(
-            "owned transport has no source membership declaration",
-        ))?;
+                "owned transport has no source membership declaration",
+            ))?;
         let (mut qualifications, mut projected_qualifications) =
             terminal_psi::StructuralPathQualification::select(
                 qualifications,
@@ -46,6 +46,16 @@ impl Emission<'_, '_, '_> {
             &mut projected_qualifications,
         )
         .map_err(LoweringError::Unsupported)?;
+        let mut additional_input_qualifications =
+            terminal_psi::StructuralPathQualification::select_rows(additional, &source.path);
+        terminal_semantics::present_structural_memberships(
+            self.structural_types.iter(),
+            self.domain_declarations.iter(),
+            structural_type,
+            &mut Vec::new(),
+            &mut additional_input_qualifications,
+        )
+        .map_err(LoweringError::Unsupported)?;
         Ok(StructuralParameterDeclaration {
             place,
             position,
@@ -54,6 +64,7 @@ impl Emission<'_, '_, '_> {
             access: StructuralAccess::Owned,
             qualifications,
             projected_qualifications,
+            additional_input_qualifications,
         })
     }
 
@@ -114,6 +125,7 @@ impl Emission<'_, '_, '_> {
     ) -> Option<(
         &[semantic_vocabulary::StructuralDomainId],
         &[terminal_psi::StructuralPathQualification],
+        &[terminal_psi::StructuralPathQualification],
     )> {
         self.operations
             .structural_result_contract(place)
@@ -121,6 +133,7 @@ impl Emission<'_, '_, '_> {
                 (
                     result.qualifications.as_slice(),
                     result.projected_qualifications.as_slice(),
+                    result.additional_input_qualifications.as_slice(),
                 )
             })
             .or_else(|| {
@@ -133,7 +146,9 @@ impl Emission<'_, '_, '_> {
                             destination,
                             qualifications,
                             ..
-                        } if *destination == place => Some((qualifications.as_slice(), &[][..])),
+                        } if *destination == place => {
+                            Some((qualifications.as_slice(), &[][..], &[][..]))
+                        }
                         _ => None,
                     })
             })
@@ -145,9 +160,41 @@ impl Emission<'_, '_, '_> {
                         (
                             parameter.qualifications.as_slice(),
                             parameter.projected_qualifications.as_slice(),
+                            parameter.additional_input_qualifications.as_slice(),
                         )
                     })
             })
+    }
+
+    pub(super) fn selected_input_qualifications(
+        &self,
+        source: &StructuralArgument,
+        whole: &[semantic_vocabulary::StructuralDomainId],
+        projected: &[terminal_psi::StructuralPathQualification],
+    ) -> Result<Vec<terminal_psi::StructuralPathQualification>, LoweringError> {
+        let (_, _, additional) =
+            self.completed_memberships(source.place)
+                .ok_or(LoweringError::Unsupported(
+                    "input fact source contract is missing",
+                ))?;
+        let mut selected =
+            terminal_psi::StructuralPathQualification::select_rows(additional, &source.path);
+        terminal_semantics::present_structural_memberships(
+            self.structural_types.iter(),
+            self.domain_declarations.iter(),
+            self.structural_type,
+            &mut Vec::new(),
+            &mut selected,
+        )
+        .map_err(LoweringError::Unsupported)?;
+        selected.retain(|row| {
+            if row.path.is_empty() {
+                whole.contains(&row.domain)
+            } else {
+                projected.contains(row)
+            }
+        });
+        Ok(selected)
     }
 
     /// The exact subject of source-value qualification on the emitted carrier.
@@ -309,11 +356,11 @@ impl Emission<'_, '_, '_> {
         let (membership_carrier, relative) = self.checked_membership_subject()?;
         let mut membership_path = source.path.clone();
         membership_path.extend_from_slice(relative);
-        let (qualifications, projected_qualifications) = self
+        let (qualifications, projected_qualifications, _) = self
             .completed_memberships(source.place)
             .ok_or(LoweringError::Unsupported(
-            "completed operand membership source is missing",
-        ))?;
+                "completed operand membership source is missing",
+            ))?;
         let (mut qualifications, _) = terminal_psi::StructuralPathQualification::select(
             qualifications,
             projected_qualifications,
@@ -372,7 +419,7 @@ impl Emission<'_, '_, '_> {
             let completed =
                 self.capture_operand(identities, source, expression, first_new_place)?;
             let source = &completed.argument;
-            let (whole, projected) =
+            let (whole, projected, _) =
                 self.completed_memberships(source.place)
                     .ok_or(LoweringError::Unsupported(
                         "owned membership source disappeared",
@@ -419,6 +466,11 @@ impl Emission<'_, '_, '_> {
         if source.access != StructuralAccess::Owned {
             return unsupported("owned subtree move requires exact source custody");
         }
+        let additional_input_qualifications = self.selected_input_qualifications(
+            &source,
+            &qualifications,
+            &projected_qualifications,
+        )?;
         let source_place = source.place;
         let source_path = source.path.clone();
         let transported_claims = completed.claims;
@@ -432,6 +484,7 @@ impl Emission<'_, '_, '_> {
                 multiplicity: self.multiplicity,
                 qualifications,
                 projected_qualifications,
+                additional_input_qualifications,
                 qualification_establishments: Vec::new(),
                 claims: transported_claims.clone(),
             }),
@@ -521,6 +574,7 @@ pub(super) fn completed_result<'a>(
         multiplicity: parameter.multiplicity,
         qualifications: parameter.qualifications.clone(),
         projected_qualifications: parameter.projected_qualifications.clone(),
+        additional_input_qualifications: parameter.additional_input_qualifications.to_vec(),
         qualification_establishments: Vec::new(),
         claims: arrival_claims.to_vec(),
     })

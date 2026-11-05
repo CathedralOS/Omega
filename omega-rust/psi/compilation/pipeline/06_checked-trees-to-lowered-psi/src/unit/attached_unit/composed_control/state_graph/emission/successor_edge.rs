@@ -986,6 +986,7 @@ impl StateGraphEmission<'_, '_> {
                     access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
                 };
                 // Private cleanup transport retains the same owner as the
                 // authored arrival, including a hidden affine readonly home.

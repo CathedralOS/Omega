@@ -189,6 +189,7 @@ pub(crate) fn structural_result_declaration(
         multiplicity,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
         claims: Vec::new(),
     })
 }

@@ -1039,6 +1039,7 @@ pub(crate) fn bounded_byte_view(
         access: terminal_psi::StructuralAccess::SharedBorrow,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
     };
     let capacity = terminal_semantics::shared_boundary_buffer_capacity(
         declarations.iter(),

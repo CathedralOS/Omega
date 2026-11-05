@@ -177,6 +177,26 @@ pub(crate) fn parameter_signatures(
                     .cloned(),
             );
         }
+        // Only a complete predicate theory can be treated as an expiring
+        // observation. Issuer, content, policy and unknown prerequisite duties
+        // keep the original receiving contract.
+        additional_input_qualifications.retain(|row| {
+            let mut matching = shapes
+                .domains
+                .iter()
+                .filter(|domain| domain.domain == row.domain);
+            let Some(first) = matching.next() else {
+                return false;
+            };
+            std::iter::once(first).chain(matching).all(|domain| {
+                domain.complete_predicate_theory
+                    && domain.establishment_routes.is_empty()
+                    && domain
+                        .required_memberships
+                        .as_ref()
+                        .is_some_and(|required| required.is_empty())
+            })
+        });
         structural_parameters.push(CheckedUnitStructuralParameterPlan {
             position: source_position,
             primitive_referent: shapes.primitive_scalar(type_identity),

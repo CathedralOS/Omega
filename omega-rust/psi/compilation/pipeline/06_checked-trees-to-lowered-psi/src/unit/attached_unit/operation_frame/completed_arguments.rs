@@ -211,13 +211,13 @@ impl OperationFrame<'_, '_> {
                         }
                         access => access,
                     };
-                    let (qualifications, projected) = selected_memberships(
+                    let (qualifications, projected, additional) = selected_memberships(
                         &source,
                         &self.parameters,
                         self.evaluation,
                         self.operations,
                     )?;
-                    let (structural_type, qualifications, projected) =
+                    let (structural_type, qualifications, projected, additional) =
                         crate::emission::completed_place::present_capture(
                             &capture,
                             source.access,
@@ -225,6 +225,7 @@ impl OperationFrame<'_, '_> {
                             self.calls.domain_declarations,
                             qualifications,
                             projected,
+                            additional,
                         )?;
                     let place = super::place_id(super::allocate_dense(self.next_place)?);
                     crate::emission::completed_address::capture_into(
@@ -234,6 +235,7 @@ impl OperationFrame<'_, '_> {
                         source.access,
                         qualifications,
                         projected,
+                        additional,
                         place,
                         self.evaluation,
                         self.values,
@@ -311,6 +313,7 @@ pub(crate) fn selected_memberships(
     (
         Vec<semantic_vocabulary::StructuralDomainId>,
         Vec<terminal_psi::StructuralPathQualification>,
+        Vec<terminal_psi::StructuralPathQualification>,
     ),
     LoweringError,
 > {
@@ -329,10 +332,15 @@ pub(crate) fn selected_memberships(
     .ok_or(LoweringError::Unsupported(
         "completed operand lost its supplying memberships",
     ))?;
-    Ok(terminal_psi::StructuralPathQualification::select(
+    let (whole, projected) = terminal_psi::StructuralPathQualification::select(
         memberships.1,
         memberships.2,
         &source.path,
+    );
+    Ok((
+        whole,
+        projected,
+        terminal_psi::StructuralPathQualification::select_rows(memberships.3, &source.path),
     ))
 }
 
@@ -350,7 +358,7 @@ pub(crate) fn emit_snapshot(
     types: &[terminal_psi::StructuralTypeDeclaration],
     domains: &[terminal_psi::StructuralDomainDeclaration],
 ) -> Result<terminal_psi::StructuralPlaceDeclaration, LoweringError> {
-    let (mut qualifications, mut projected_qualifications) =
+    let (mut qualifications, mut projected_qualifications, mut additional_input_qualifications) =
         selected_memberships(source, parameters, evaluation, operations)?;
     terminal_semantics::present_structural_memberships(
         types.iter(),
@@ -358,6 +366,14 @@ pub(crate) fn emit_snapshot(
         structural_type,
         &mut qualifications,
         &mut projected_qualifications,
+    )
+    .map_err(LoweringError::Unsupported)?;
+    terminal_semantics::present_structural_memberships(
+        types.iter(),
+        domains.iter(),
+        structural_type,
+        &mut Vec::new(),
+        &mut additional_input_qualifications,
     )
     .map_err(LoweringError::Unsupported)?;
     let producer = operations.allocate();
@@ -370,6 +386,7 @@ pub(crate) fn emit_snapshot(
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             qualifications,
             projected_qualifications,
+            additional_input_qualifications,
             claims: Vec::new(),
         }),
         terminal_psi::OperationKind::StructuralLeafCopy {

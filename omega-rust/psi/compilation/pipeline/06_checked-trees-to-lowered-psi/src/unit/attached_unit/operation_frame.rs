@@ -1144,6 +1144,7 @@ pub(super) fn allocate_structural_result(
             multiplicity,
             qualifications,
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
         kind,
@@ -1194,5 +1195,6 @@ pub(super) fn structural_parameter_declaration(
         access,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
     }
 }

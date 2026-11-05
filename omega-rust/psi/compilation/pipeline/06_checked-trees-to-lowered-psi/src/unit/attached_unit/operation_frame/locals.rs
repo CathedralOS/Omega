@@ -889,6 +889,7 @@ impl OperationFrame<'_, '_> {
                         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                         qualifications,
                         projected_qualifications,
+                        additional_input_qualifications: Vec::new(),
                         qualification_establishments: Vec::new(),
                         claims: Vec::new(),
                     }),
@@ -912,6 +913,7 @@ impl OperationFrame<'_, '_> {
                     access: StructuralAccess::Owned,
                     qualifications,
                     projected_qualifications,
+                    additional_input_qualifications: Vec::new(),
                 };
                 let mut arguments = vec![terminal_psi::StructuralArgument {
                     place: repair.place,

@@ -23,6 +23,7 @@ pub(crate) fn capture(
     access: StructuralAccess,
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
+    additional_input_qualifications: Vec<terminal_psi::StructuralPathQualification>,
     evaluation: &mut Evaluation,
     values: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
@@ -40,6 +41,7 @@ pub(crate) fn capture(
         access,
         qualifications,
         projected_qualifications,
+        additional_input_qualifications,
         place,
         evaluation,
         values,
@@ -59,6 +61,7 @@ pub(crate) fn capture_into(
     access: StructuralAccess,
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
+    additional_input_qualifications: Vec<terminal_psi::StructuralPathQualification>,
     place: PlaceId,
     evaluation: &mut Evaluation,
     values: &mut Vec<ValueDeclaration>,
@@ -120,6 +123,7 @@ pub(crate) fn capture_into(
         access,
         qualifications,
         projected_qualifications,
+        additional_input_qualifications,
     }];
     Ok(())
 }

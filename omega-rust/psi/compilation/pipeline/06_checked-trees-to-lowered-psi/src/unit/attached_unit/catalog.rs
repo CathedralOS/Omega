@@ -1413,6 +1413,7 @@ pub(super) fn lower_unit_structural_domains(
                         access: terminal_psi::StructuralAccess::SharedBorrow,
                         qualifications: Vec::new(),
                         projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
                     };
                     // Checked scalar subjects and structural subjects occupy
                     // separate formal namespaces. Bind both at this declaration

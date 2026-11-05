@@ -325,6 +325,7 @@ where
             access: formal.access,
             qualifications: formal.qualifications.to_vec(),
             projected_qualifications: formal.projected_qualifications.to_vec(),
+            additional_input_qualifications: formal.additional_input_qualifications.to_vec(),
         };
         // Case selection is a call-scoped loan over existing backing. It does
         // not permit an owned extraction, boundary escape, or a new reference
@@ -418,6 +419,7 @@ where
                     access: source.access,
                     qualifications: source.qualifications.to_vec(),
                     projected_qualifications: source.projected_qualifications.to_vec(),
+                    additional_input_qualifications: source.additional_input_qualifications.to_vec(),
                 },
                 argument,
                 parameter,
@@ -693,6 +695,7 @@ where
                 access: source.access,
                 qualifications: source.qualifications.to_vec(),
                 projected_qualifications: source.projected_qualifications.to_vec(),
+                additional_input_qualifications: source.additional_input_qualifications.to_vec(),
             })
             && !caller.entry_claim_declared(argument.place)
             && !caller.content_entry_claim_declared(argument.place);

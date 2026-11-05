@@ -242,6 +242,17 @@ impl StructuralPathQualification {
         }
     }
 
+    /// Select path-qualified facts while retaining empty paths for whole-value
+    /// facts. This preserves each fact's origin when a subtree becomes a root.
+    pub fn select_rows(rows: &[Self], path: &[StructuralPathSegment]) -> Vec<Self> {
+        let (whole, projected) = Self::select(&[], rows, path);
+        let mut selected = Vec::with_capacity(whole.len() + projected.len());
+        Self::append_under(&whole, &projected, &[], &mut selected);
+        selected.sort();
+        selected.dedup();
+        selected
+    }
+
     /// Select the exact subtree's memberships. A descendant's domain becomes
     /// whole-value membership only when the selected path ends at that row;
     /// disjoint siblings and ancestor domains do not qualify the selection.

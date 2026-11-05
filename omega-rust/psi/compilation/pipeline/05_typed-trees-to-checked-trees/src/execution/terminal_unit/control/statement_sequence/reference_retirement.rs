@@ -364,6 +364,14 @@ impl Retirement<'_> {
             {
                 continue;
             }
+            self.trace
+                .phase("statement sequence: completion backing source type");
+            if std::env::var_os("OMEGA_PHASE_PROFILE").is_some() {
+                eprintln!(
+                    "reference retirement backing: state={:?} formation={formation} owner={owner:?}",
+                    self.state.symbol
+                );
+            }
             let reference = canonical_place_type_reference(
                 self.program,
                 self.state.symbol,
@@ -384,6 +392,8 @@ impl Retirement<'_> {
             ) {
                 continue;
             }
+            self.trace
+                .phase("statement sequence: completion backing descriptor loans");
             for (source, loans) in storage_place_loans(
                 self.program,
                 self.facts,
@@ -394,6 +404,8 @@ impl Retirement<'_> {
                 u32::try_from(formation).ok()?,
                 &[],
             )? {
+                self.trace
+                    .phase("statement sequence: completion backing descriptor transfers");
                 let transfers = transfers::from_storage(
                     self.program,
                     self.facts,
@@ -414,6 +426,8 @@ impl Retirement<'_> {
                     continue;
                 }
                 let mut ready = true;
+                self.trace
+                    .phase("statement sequence: completion backing descriptor group");
                 for (handle, _) in self.facts.borrow.loan_group(loans)? {
                     if self.disposed(handle)
                         || !self.children_retired(handle)

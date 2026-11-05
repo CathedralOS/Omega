@@ -481,6 +481,7 @@ pub(crate) fn validate_structural_root_operations(
                             destination.structural_type(),
                             destination.qualifications(),
                             destination.projected_qualifications(),
+                            destination.additional_input_qualifications(),
                             path,
                         )
                         .is_some()

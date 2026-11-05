@@ -101,6 +101,7 @@ pub(super) fn emit(
             multiplicity: StructuralMultiplicity::Unrestricted,
             qualifications,
             projected_qualifications,
+            additional_input_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
         OperationKind::StructuralCaseLeafCopy {

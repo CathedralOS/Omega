@@ -448,6 +448,7 @@ pub(super) fn encode_provider_candidate(
                 bytes.id(qualification.domain);
             },
         );
+        encode_projected_qualification_roster(bytes, &parameter.additional_input_qualifications);
     });
     bytes.slice(
         &candidate.refinement.positional_parameters,
@@ -708,6 +709,7 @@ pub(super) fn encode_structural_operation_result(
     encode_multiplicity(bytes, result.multiplicity);
     encode_ids(bytes, &result.qualifications);
     encode_projected_qualification_roster(bytes, &result.projected_qualifications);
+    encode_projected_qualification_roster(bytes, &result.additional_input_qualifications);
     bytes.len(result.claims.len());
     for claim in &result.claims {
         bytes.id(claim.claim);

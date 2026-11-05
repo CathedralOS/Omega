@@ -71,6 +71,7 @@ pub(super) fn decode_result(
         multiplicity,
         qualifications,
         projected_qualifications,
+        additional_input_qualifications: Vec::new(),
         claims,
     })
 }
@@ -143,6 +144,7 @@ mod tests {
                 path: Vec::new(),
                 domain: StructuralDomainId::new(4).unwrap(),
             }],
+            additional_input_qualifications: Vec::new(),
             claims: vec![StructuralResultClaimBinding {
                 claim: ClaimId::new(5).unwrap(),
                 path: Vec::new(),

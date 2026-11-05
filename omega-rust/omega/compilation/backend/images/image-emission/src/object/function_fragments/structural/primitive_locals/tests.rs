@@ -37,6 +37,7 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
         multiplicity: StructuralMultiplicity::Unrestricted,
         qualifications: vec![],
         projected_qualifications: vec![],
+        additional_input_qualifications: Vec::new(),
         claims: vec![],
     };
     let function = AbstractFunction {
