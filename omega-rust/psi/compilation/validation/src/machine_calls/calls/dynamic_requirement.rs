@@ -204,7 +204,7 @@ pub(super) fn validate_dynamic_selector_arguments(
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
-    validate_family_tuple(program, call, machine_arguments, diagnostics);
+    validate_family_tuple(program, machine, call, machine_arguments, diagnostics);
     let requirement = crate::declarations::traits::GenericBoundRequirement {
         signature: call.closed_signature.unwrap_or(call.signature),
         application: call.application.clone(),
@@ -233,6 +233,7 @@ pub(super) fn validate_dynamic_selector_arguments(
 /// through a selector.
 fn validate_family_tuple(
     program: &dyn crate::CheckingInput,
+    machine: &Machine,
     call: &DynamicSelectorCall<'_>,
     machine_arguments: &[typed_trees::expression::StaticMachineArgument],
     diagnostics: &mut Vec<Diagnostic>,
@@ -259,6 +260,68 @@ fn validate_family_tuple(
                         .any(|tuple| tuple.identities.as_ref() == identities)
             });
             if selects_exact_tuple {
+                return;
+            }
+            // A source-static argument may still name a const binder or a
+            // recipe over the enclosing finite family's binders. The generic
+            // call proves membership from its entry contract below; its
+            // generated closed bodies are checked independently. A concrete
+            // tuple outside the roster still takes the normal refusal path.
+            let parameters = program.state_signature_type_parameters(call.signature);
+            let conditional =
+                |(index, argument): (usize, &typed_trees::expression::StaticMachineArgument)| {
+                    if program
+                        .data_type_parameter_by_symbol(argument.symbol)
+                        .is_some_and(|parameter| {
+                            matches!(
+                                parameter.kind,
+                                typed_trees::data::TypeParameterKind::Const { .. }
+                            )
+                        })
+                        || program
+                            .typed_program()
+                            .finite_value_binder_in_scope(machine.symbol, argument.symbol)
+                    {
+                        return true;
+                    }
+                    let Some(parameter) = parameters.get(index) else {
+                        return false;
+                    };
+                    let (typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | typed_trees::data::TypeParameterKind::Value { type_reference }) =
+                        parameter.kind
+                    else {
+                        return false;
+                    };
+                    if !argument.type_reference.is_valid() {
+                        return false;
+                    }
+                    let typed_trees::types::TypeReferenceNode::ConstExpression(expression) =
+                        program
+                            .type_reference_table
+                            .type_reference(argument.type_reference)
+                    else {
+                        return false;
+                    };
+                    crate::value_custody::const_expressions::has_carrier(
+                        program,
+                        *expression,
+                        &typed_trees::data::TypeParameterKind::Const { type_reference },
+                        machine.symbol,
+                    )
+                };
+            if machine_arguments.len() == arity
+                && machine_arguments
+                    .iter()
+                    .any(|argument| program.static_const_argument_identity(argument).is_none())
+                && machine_arguments
+                    .iter()
+                    .enumerate()
+                    .all(|(index, argument)| {
+                        program.static_const_argument_identity(argument).is_some()
+                            || conditional((index, argument))
+                    })
+            {
                 return;
             }
             // One runtime subject (or several) makes the call runtime-capable:

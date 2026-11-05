@@ -67,27 +67,37 @@ machine posix_byte_view_parameters(signature: &BoundarySignature, plan: &mut Bou
         true -> result(signature, plan, &signature.shapes[signature.result])
         _ -> false
     }
-    machine result(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, shape: &ValueShape) -> bool {
+    machine result(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, shape: &ValueShape) -> bool
+    requires signature.parameter_count <= 32
+    {
         transition shape.class {
             ValueClass::Integer -> result_size(signature, plan, shape)
             _ -> false
         }
     }
-    machine result_size(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, shape: &ValueShape) -> bool {
+    machine result_size(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, shape: &ValueShape) -> bool
+    requires signature.parameter_count <= 32
+    {
         transition (shape.byte_size == 4 && shape.alignment == 4)
             || (shape.byte_size == 8 && shape.alignment == 8) {
             true -> result_place(signature, plan, shape)
             _ -> false
         }
     }
-    machine result_place(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, shape: &ValueShape) -> bool {
+    machine result_place(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, shape: &ValueShape) -> bool
+    requires signature.parameter_count <= 32
+    {
+        // Restate both CallPlan bounds before any other field write. The
+        // parameter count is the signature's proved count, and this policy
+        // materializes no callbacks. Later writes then keep that domain.
+        plan.call.parameter_count = signature.parameter_count;
+        plan.call.callback_materialization_count = 0;
         plan.call.has_result = true;
         plan.call.result.shape = AbiValueShape { class: AbiValueClass::Integer, byte_size: shape.byte_size, alignment: shape.alignment };
         plan.call.result.location_count = 1;
         plan.call.result.locations[0] = ValueLocation::Register {
             register: posix_byte_view_result_register(&plan.call.convention), value_byte_offset: 0, byte_size: shape.byte_size
         };
-        plan.call.parameter_count = signature.parameter_count;
         posix_byte_view_parameters_from(signature, plan, 0, 0, 6)
     }
 }

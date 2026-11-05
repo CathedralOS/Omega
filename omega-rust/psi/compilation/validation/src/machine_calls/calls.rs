@@ -88,6 +88,7 @@ pub use write_frames::CallFrameTables;
 pub(crate) use write_frames::CapturedStorageReadBacking;
 use write_frames::boundary_trait_call_signature;
 pub(crate) use write_frames::machine_state_by_symbol;
+pub(crate) use write_frames::single_exclusive_reference_storage;
 pub use write_frames::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
     InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource,

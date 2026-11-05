@@ -12,7 +12,7 @@ requires index <= limit && 0 <= limit && limit <= 10
 terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1) {
     limit = limit;
     transition index < limit && limit <= 10 {
-        true -> walk(main, index + 1, limit, count)
+        true -> Main::walk(main, index + 1, limit, count)
         false -> count
     }
 }

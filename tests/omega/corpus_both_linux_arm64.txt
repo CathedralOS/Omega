@@ -4097,24 +4097,15 @@ pass/facts/field_where_index_through_other_machine_exit built 2074ms exit:0 inte
 pass/facts/field_where_index_through_other_state_exit built 2082ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/field_where_index_through_parameter_exit built 2050ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/field_where_index_through_target_body_exit built 2032ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/finite_family_const_roster/call_result rejected 654ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/const_name rejected 877ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/field rejected 673ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/local rejected 842ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/match_join rejected 794ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/other_machine rejected 751ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/other_state rejected 699ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/parameter rejected 821ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/target_body rejected 770ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+pass/facts/finite_family_const_roster/call_result built 5752ms exit:0 interpreter-exit:0 interpreter:agrees @c7a12e81bd2a
+pass/facts/finite_family_const_roster/const_name built 5896ms exit:0 interpreter-exit:0 interpreter:agrees @c7a12e81bd2a
+pass/facts/finite_family_const_roster/field built 5933ms exit:0 interpreter-exit:0 interpreter:agrees @c7a12e81bd2a
+pass/facts/finite_family_const_roster/local built 5996ms exit:0 interpreter-exit:0 interpreter:agrees @c7a12e81bd2a
+pass/facts/finite_family_const_roster/match_join built 5951ms exit:0 interpreter-exit:0 interpreter:agrees @c7a12e81bd2a
+pass/facts/finite_family_const_roster/other_machine built 6009ms exit:0 interpreter-exit:0 interpreter:agrees @c7a12e81bd2a
+pass/facts/finite_family_const_roster/other_state built 5976ms exit:0 interpreter-exit:0 interpreter:agrees @c7a12e81bd2a
+pass/facts/finite_family_const_roster/parameter built 6039ms exit:0 interpreter-exit:0 interpreter:agrees @c7a12e81bd2a
+pass/facts/finite_family_const_roster/target_body built 5981ms exit:0 interpreter-exit:0 interpreter:agrees @c7a12e81bd2a
 pass/facts/finite_family_exclusive_result/call_result rejected 823ms interpreter:unchecked @6e42425cd720
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_exclusive_result/const_name rejected 823ms interpreter:unchecked @6e42425cd720
