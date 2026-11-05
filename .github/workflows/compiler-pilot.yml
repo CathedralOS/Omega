@@ -1,173 +1,160 @@
-name: Compiler queue pilot
-
+name: Check corrected local storage and complete supplier reuse
 on:
-  pull_request:
-    branches: [integration-pilot]
-  merge_group:
-    branches: [integration-pilot]
-    types: [checks_requested]
   workflow_dispatch:
-    inputs:
-      smoke:
-        description: Also build executables and run the native/Terminal smoke (not admission)
-        type: boolean
-        default: false
-      fixtures:
-        description: Optional comma-separated exact pass/group/name and fail/group/name IDs; replaces smoke
-        type: string
-        default: ''
-      checking_only:
-        description: Check only the exact fixtures and rejection controls, without repeating runtime observations
-        type: boolean
-        default: false
-      samples:
-        description: Optional comma-separated exact samples/cli/facts project paths (with descendants); replaces smoke
-        type: string
-        default: ''
-      cli_fixtures:
-        description: Optional exact pass/... or samples/cli/... normal-exit projects through ordinary CLI package review and both engines
-        type: string
-        default: ''
-      build_consent:
-        description: Run public source-produced Build consent and filesystem isolation controls
-        type: boolean
-        default: false
-      native_host:
-        description: Matching native host for manual executable observations
-        type: choice
-        options:
-          - linux_x86_64
-          - linux_arm64
-          - windows_x86_64
-          - macos_arm64
-        default: linux_x86_64
-
 permissions:
   contents: read
-
-# A new PR revision supersedes its old check; never cancel a merge-group check
-# merely because another PR entered the queue.
-concurrency:
-  group: compiler-pilot-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
-  compiler-pilot:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","linux_arm64":"ubuntu-24.04-arm","windows_x86_64":"windows-2022","macos_arm64":"macos-15"}')[inputs.native_host] || 'ubuntu-24.04' }}
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
+  sdk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     env:
       CARGO_BUILD_JOBS: '2'
       CARGO_INCREMENTAL: '0'
       CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
       CARGO_BUILD_FINGERPRINT: content
-      # Large calling-policy checks use about 2.8 GiB each. Run one fixture
-      # at a time to reduce concurrent memory pressure.
-      OMEGA_CORPUS_JOBS: '1'
+      CARGO_TARGET_DIR: /tmp/ot
       RUST_MIN_STACK: '67108864'
-      # Match Linux/macOS post-merge storage; Windows keeps its short target path.
-      CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
+      OMEGA_SDK_SOURCE: 9177e43f172b571fdca3956542dbd5a7a5c3350d
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: 9177e43f172b571fdca3956542dbd5a7a5c3350d
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Test the gate's refusal paths
-        run: python tools/tests/test_compiler_pilot.py -v
-      - name: Test Build control evidence refusal paths
-        run: python tools/tests/test_build_consent_controls.py -v
-      - name: Validate exact fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_fixtures; import os; print(select_fixtures(os.environ['OMEGA_COMPILER_PILOT_FIXTURES']))"
-      - name: Validate exact fact sample selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.samples != ''
-        env:
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-        run: python -c "from tools.ci.compiler_pilot import select_samples; import os; print(select_samples(os.environ['OMEGA_COMPILER_PILOT_SAMPLES']))"
-      - name: Validate exact ordinary CLI fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.cli_fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_cli_fixtures; import os; print(select_cli_fixtures(os.environ['OMEGA_COMPILER_PILOT_CLI_FIXTURES']))"
-      - name: Provision Windows rooted temporary directory for hosted applications
-        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         id: build-cache
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
+            /tmp/ot
+          key: compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
-      - name: Check the exact integration candidate
-        id: compiler-check
-        run: cargo check --locked -p omega
-      - name: Prepare and retain the optimized producer
-        id: producer-preparation
-        if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py --phase prepare
-      - name: Upload the prepared producer and build receipts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
+            compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+            compiler-regression-${{ runner.os }}-${{ runner.arch }}-
+      - name: Build and observe the existing SDK workflows
+        run: |
+          python3 - <<'SDK'
+          """Observe all five public SDK workflows and retain every actual result."""
+          from pathlib import Path
+          import hashlib,json,os,subprocess,sys,time
+          
+          root=Path.cwd()
+          sys.path.insert(0,str(root/'tools'))
+          sys.path.insert(0,str(root/'tools/ci'))
+          import build_consent_controls as controls
+          import build_slot,compiler_profile
+          
+          output=root/'build/compiler-pilot/sdk-workflows'
+          output.mkdir(parents=True,exist_ok=False)
+          revision=controls.git('rev-parse','HEAD')
+          assert revision==os.environ['OMEGA_SDK_SOURCE']
+          assert not controls.git('status','--porcelain')
+          report={'source':revision,'tree':controls.git('rev-parse','HEAD^{tree}'),'driver':os.environ['GITHUB_SHA'],'target':controls.host_target(),'toolchain':subprocess.check_output(['rustc','-Vv'],text=True).strip(),'passed':False,'observations':[],'trace_flags':{}}
+          files=subprocess.check_output(['git','ls-files','source/library','omega-rust/omega/compilation/compiler/examples','omega-rust/omega/compilation/compiler/tests/support'],text=True).splitlines()
+          inputs={p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in files}
+          objects={p:controls.git('rev-parse',revision+':'+p) for p in ['omega-rust','source/library','tools','.github','Cargo.toml','Cargo.lock','rust-toolchain.toml','tests/omega']}
+          report['source_objects']=objects
+          profiles={}
+          binaries={}
+          def verify():
+              assert controls.git('rev-parse','HEAD')==revision and not controls.git('status','--porcelain')
+              for p,h in inputs.items():assert hashlib.sha256(Path(p).read_bytes()).hexdigest()==h,p
+              for p,obj in objects.items():assert controls.git('rev-parse',revision+':'+p)==obj,p
+              for name,binary in binaries.items():assert compiler_profile.require_optimized(binary)==profiles[name],name
+          
+          try:
+              with build_slot.hold(root):
+                  for name in ['default_build','build_charge']:
+                      build_started=time.monotonic()
+                      binary,cargo_profile=controls.build(output,name,['build','--locked','-p','compiler','--example',name])
+                      binaries[name]=binary
+                      profiles[name]=compiler_profile.require_optimized(binary)
+                      report.setdefault('builds',[]).append({'example':name,'seconds':round(time.monotonic()-build_started,3)})
+                      assert str(cargo_profile['opt_level'])==profiles[name]['profile']['opt_level']
+              report['producer']={'revision':revision,'tree':report['tree'],'executables':profiles}
+              report['inputs']=inputs
+              (output/'producer.json').write_text(json.dumps(report['producer'],indent=2)+'\n')
+              scopes=[('default_build',[]),('build_charge',['--owned-activations']),('build_charge',['--restricted-consent']),('build_charge',['--one-shot']),('build_charge',['--accounting'])]
+              for index,(name,args) in enumerate(scopes):
+                  verify()
+                  label=str(index)+'-'+name+('-'+args[0][2:] if args else '')
+                  command=[str(binaries[name]),*args]
+                  started=time.monotonic()
+                  observation={'command':command,'label':label,'source':revision,'producer_profile':profiles[name]}
+                  try:
+                      controls.execute(binaries[name],args,output,label)
+                      observation.update(exit=0)
+                  except subprocess.CalledProcessError as error:
+                      observation.update(exit=error.returncode,error='The existing SDK workflow failed; its raw channels are retained.')
+                  except subprocess.TimeoutExpired as error:
+                      for suffix,data in [('stdout',error.stdout),('stderr',error.stderr)]:
+                          (output/(label+'.'+suffix)).write_bytes(data if isinstance(data,bytes) else (data or '').encode())
+                      observation.update(exit=None,error='The existing SDK workflow timed out; no passing result is inferred.')
+                  observation['seconds']=round(time.monotonic()-started,3)
+                  observation['channels']={suffix:{'path':label+'.'+suffix,'sha256':hashlib.sha256((output/(label+'.'+suffix)).read_bytes()).hexdigest()} for suffix in ['stdout','stderr']}
+                  report['observations'].append(observation)
+                  verify()
+              report['passed']=all(row['exit']==0 for row in report['observations'])
+          finally:
+              (output/'summary.json').write_text(json.dumps(report,indent=2)+'\n')
+              print(json.dumps({'source':revision,'passed':report['passed'],'observations':[{k:r[k] for k in ['label','exit','seconds']} for r in report['observations']]},indent=2))
+          raise SystemExit(0 if report['passed'] else 1)
+          SDK
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
-          name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/
-          if-no-files-found: warn
-          compression-level: 0
-          retention-days: 7
-      # Save compiled objects before any program consumer can use the job budget.
-      # A failed preparation still retains useful objects and keeps the job red.
-      - name: Save build cache before fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+          name: core-float-sdk-workflows-${{ github.run_id }}
+          path: build/compiler-pilot/sdk-workflows/
+          retention-days: 30
+      - name: Observe the exact integrated controls, both engines and ordinary CLI
+        if: always()
+        env:
+          OMEGA_CORPUS_JOBS: '1'
+        run: |
+          python3 - <<'FEATURE'
+          from pathlib import Path
+          import json,os,sys,time
+          sys.path.insert(0,str(Path.cwd()/'tools/ci'))
+          import compiler_pilot
+          source='9177e43f172b571fdca3956542dbd5a7a5c3350d'
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source
+          assert not compiler_pilot.command(['git','status','--porcelain'])
+          output=Path('build/compiler-pilot/selected-execution');output.mkdir(parents=True,exist_ok=False)
+          (output/'driver.json').write_text(json.dumps({'source':source,'driver':os.environ['GITHUB_SHA']},indent=2)+'\n')
+          os.environ['GITHUB_SHA']=source
+          producer=compiler_pilot.prepare_producer(output)
+          producer.verify()
+          status=compiler_pilot.run_suite('compiler-pilot/integrated-controls',('pass/traits/named_contract_arithmetic_refinement', 'pass/traits/float_contract_refinement_boundaries_exit', 'pass/providers/inline_member_generic_requirement_exit', 'pass/providers/generic_required_instance_roster_exit', 'pass/providers/canonical_inherited_provider_instances_exit', 'pass/providers/occurrence_region_binding_forwarding_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/build/provider_applied_static_capture_exit'),('fail/proofs/quotient_representative_admitted_closure_rejected', 'fail/traits/inline_requirement_inherited_false_ensures', 'fail/traits/member_omits_requirement_ensures', 'fail/providers/provider_type_slot_unknown', 'fail/traits/exact_application_keeps_parameter_types', 'fail/providers/inline_member_sibling_requirement_rejected', 'fail/providers/occurrence_region_binding_conflicting_inputs', 'fail/build/float_default_wrong_value', 'fail/packages/rootless_numeric_provider_missing_satisfaction', 'fail/traits/conformance_reference_row_retired', 'fail/contracts/mutable_owned_call_ensures_keeps_poststate', 'fail/references/rebound_parameter_reference_drops_referent_bound', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/borrows/whole_referent_store_through_shared_loan', 'fail/traits/ordinary_selection_name_missing_conformance_region', 'fail/traits/explicit_implementation_missing_const_argument', 'fail/build/provider_structural_type_application_conflict', 'fail/providers/inherited_provider_phantom_arguments'),checking_only=('pass/packages/rootless_numeric_provider_review',),producer=producer)
+          summary=json.loads(Path('build/compiler-pilot/integrated-controls/summary.json').read_text())
+          if not summary.get('source_exports') or not any(stage['name']=='retain measured source' and stage['passed'] for stage in summary['stages']):
+              raise ValueError('Current-source export is incomplete; later observations cannot claim its custody')
+          rows=[]
+          for index,fixture in enumerate(['pass/traits/named_contract_arithmetic_refinement', 'pass/traits/float_contract_refinement_boundaries_exit', 'pass/providers/inline_member_generic_requirement_exit', 'pass/providers/occurrence_region_binding_forwarding_exit']):
+              producer.verify()
+              row=compiler_pilot.ordinary_cli_fixture.observe(Path.cwd(),producer,fixture,(Path.cwd()/'build/compiler-pilot/ordinary'/str(index)).resolve())
+              rows.append(row)
+              (output/'ordinary.json').write_text(json.dumps(rows,indent=2)+'\n')
+          producer.verify()
+          report={'source':source,'producer':producer.record(),'source_exports':summary['source_exports'],'source_suite_exit':status,'ordinary':[{k:r.get(k) for k in ['fixture','passed','error','native_exit','terminal_exit']} for r in rows],'passed':status==0 and all(r['passed'] for r in rows)}
+          (output/'scope.json').write_text(json.dumps(report,indent=2)+'\n')
+          raise SystemExit(0 if report['passed'] else 1)
+          FEATURE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: compiler-pilot-integrated-${{ github.run_id }}
+          path: |
+            build/compiler-pilot/
+            !build/compiler-pilot/sdk-workflows/
+          retention-days: 30
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        if: always() && steps.build-cache.outputs.cache-hit != 'true'
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
-      - name: Observe public Build consent and filesystem isolation
-        if: github.event_name == 'workflow_dispatch' && inputs.build_consent
-        run: python tools/ci/build_consent_controls.py
-      - name: Optional executable observations
-        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py --phase consume
-      - name: Report actual producer and fixture observations
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('preparation.json', 'summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        with:
-          name: compiler-pilot-observations-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: |
-            build/compiler-pilot/
-            !build/compiler-pilot/producer-*/**
-          if-no-files-found: warn
-          compression-level: 0
-          retention-days: 7
-      # The corpus reports alone, so `corpus_gate.py --compare --remote` reads
-      # rows without downloading the retained producer (350-520 MB).
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        with:
-          name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/*.json
-          if-no-files-found: warn
-          retention-days: 7
+            /tmp/ot
+          key: compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
