@@ -47,6 +47,9 @@ use validation::{
     declared_case_projection_field, expression_result_type_reference, find_call_site,
 };
 
+mod receiving_queries;
+use receiving_queries::{AliasMembership, CastTargetChecks, CastTargets, StateLocalDeclarations};
+
 #[derive(Clone)]
 struct Application<'program> {
     reference: TypeReferenceHandle,
@@ -97,6 +100,8 @@ struct Scope<'a> {
     statement: usize,
     target: TransitionTargetHandle,
     frames: Option<&'a CallFrameResolver<'a>>,
+    locals: &'a StateLocalDeclarations<'a>,
+    cast_targets: &'a CastTargets,
 }
 
 type ErasedProofIdentity = Result<NormalizedTypeIdentity, std::borrow::Cow<'static, str>>;
@@ -664,8 +669,8 @@ impl Scope<'_> {
             }
             ExpressionNode::Name(path) => {
                 let formation = self
-                    .program
-                    .state_local_declaration(self.state, path.head_symbol)
+                    .locals
+                    .declaration(path.head_symbol)
                     .map(|(position, _)| position)
                     .unwrap_or(0);
                 Some(Application::bare(reference, formation))
@@ -1245,8 +1250,8 @@ impl Scope<'_> {
                 }
                 let reference = declaration_type_reference(self.program, path.head_symbol)?;
                 let formation = self
-                    .program
-                    .state_local_declaration(self.state, path.head_symbol)
+                    .locals
+                    .declaration(path.head_symbol)
                     .map(|(position, _)| position)
                     .unwrap_or(0);
                 let mut receiver = Application::bare(reference, formation);
@@ -1415,7 +1420,7 @@ impl Scope<'_> {
     }
 
     fn proof_alias_initializer(&self, symbol: SymbolHandle) -> Option<(usize, ExpressionHandle)> {
-        let (ordinal, local) = self.program.state_local_declaration(self.state, symbol)?;
+        let (ordinal, local) = self.locals.declaration(symbol)?;
         if ordinal >= self.statement || local.is_mutable {
             return None;
         }
@@ -1874,8 +1879,9 @@ impl Scope<'_> {
             symbol: SymbolHandle,
             depth: usize,
             aliases: &mut Vec<(SymbolHandle, ExpressionHandle)>,
+            membership: &mut AliasMembership<'_>,
         ) {
-            if depth > 128 || aliases.iter().any(|(known, _)| *known == symbol) {
+            if depth > 128 || membership.contains(symbol) {
                 return;
             }
             let Some((ordinal, initializer)) = scope.proof_alias_initializer(symbol) else {
@@ -1887,8 +1893,9 @@ impl Scope<'_> {
                 ..*scope
             };
             if prior.stable_proof_argument(initializer, depth + 1) {
-                collect_expression(&prior, initializer, depth + 1, aliases);
+                collect_expression(&prior, initializer, depth + 1, aliases, membership);
                 aliases.push((symbol, initializer));
+                membership.insert(symbol);
             }
         }
         fn collect_expression(
@@ -1896,30 +1903,32 @@ impl Scope<'_> {
             expression: ExpressionHandle,
             depth: usize,
             aliases: &mut Vec<(SymbolHandle, ExpressionHandle)>,
+            membership: &mut AliasMembership<'_>,
         ) {
             if depth > 128 || !expression.is_valid() {
                 return;
             }
             match scope.program.expression_table.expression(expression) {
                 ExpressionNode::Name(path) if path.symbol == path.head_symbol => {
-                    collect_symbol(scope, path.symbol, depth + 1, aliases);
+                    collect_symbol(scope, path.symbol, depth + 1, aliases, membership);
                 }
                 ExpressionNode::Member(member) => {
-                    collect_expression(scope, member.receiver, depth + 1, aliases);
+                    collect_expression(scope, member.receiver, depth + 1, aliases, membership);
                 }
                 _ => {}
             }
         }
         let mut aliases = Vec::new();
+        let mut membership = self.locals.alias_membership();
         for argument in arguments {
-            collect_expression(self, *argument, 0, &mut aliases);
+            collect_expression(self, *argument, 0, &mut aliases, &mut membership);
         }
         if let Some(reference) = reference {
             for symbol in typed_trees::references::collect_type_symbol_dependencies(
                 self.program.typed_program(),
                 reference,
             ) {
-                collect_symbol(self, symbol, 0, &mut aliases);
+                collect_symbol(self, symbol, 0, &mut aliases, &mut membership);
             }
         }
         aliases
@@ -2138,17 +2147,17 @@ impl Scope<'_> {
         required: Application<'_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        // This sorted roster lives only for one receiving obligation in this immutable
-        // scope. Exact expression handles identify cast-owned target checks;
-        // caller substitutions and receiving applications are never cached.
-        self.check_received_value(expression, required, &mut Vec::new(), diagnostics);
+        // A fresh walk marks only independent cast-target formation. Caller
+        // substitutions and receiving applications are never cached.
+        let mut checked_cast_targets = self.cast_targets.receiving_walk(self.program);
+        self.check_received_value(expression, required, &mut checked_cast_targets, diagnostics);
     }
 
     fn check_received_value(
         &self,
         expression: ExpressionHandle,
         required: Application<'_>,
-        checked_cast_targets: &mut Vec<ExpressionHandle>,
+        checked_cast_targets: &mut CastTargetChecks<'_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let has_value_indices = !self
@@ -2222,11 +2231,7 @@ impl Scope<'_> {
                 // this walk; every receiving application still checks its own
                 // nested fields and captured indices below. Otherwise each cast
                 // doubles the traversal of all casts inside its operand.
-                if let Err(position) = checked_cast_targets.binary_search_by_key(
-                    &(expression.arena_index(), expression.generation()),
-                    |handle| (handle.arena_index(), handle.generation()),
-                ) {
-                    checked_cast_targets.insert(position, expression);
+                if checked_cast_targets.needs_check(expression) {
                     self.check_received_value(
                         cast.value,
                         Application::bare(cast.target_type, self.statement),
@@ -2411,6 +2416,7 @@ pub(super) fn check(
     if !has_const_indices && !has_runtime_indices {
         return;
     }
+    let cast_targets = CastTargets::default();
     for (_, flow) in facts.flow.control.states.iter() {
         let Some(machine) = program.machine_by_symbol(flow.machine_symbol) else {
             continue;
@@ -2418,6 +2424,7 @@ pub(super) fn check(
         let Some(state) = program.state_by_symbol(flow.state_symbol) else {
             continue;
         };
+        let locals = StateLocalDeclarations::new(program, state);
         for (statement, node) in crate::flow::state_statements(program, state.statement_nodes)
             .iter()
             .enumerate()
@@ -2429,6 +2436,8 @@ pub(super) fn check(
                 statement,
                 target: TransitionTargetHandle::invalid(),
                 frames,
+                locals: &locals,
+                cast_targets: &cast_targets,
             };
             // A scalar loan would discard the descriptor/index relationship.
             // Whole indexed loans retain that relationship in their referee type.
@@ -2516,6 +2525,8 @@ pub(super) fn check(
                 statement: call.statement_index,
                 target: TransitionTargetHandle::invalid(),
                 frames,
+                locals: &locals,
+                cast_targets: &cast_targets,
             };
             let (substitutions, captured_arguments) =
                 scope.call_substitutions(site, parameters, arguments);
