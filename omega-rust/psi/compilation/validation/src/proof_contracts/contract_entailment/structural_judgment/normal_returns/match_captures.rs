@@ -69,8 +69,16 @@ impl StructuralJudge<'_> {
             let owned = crate::reference_shell(judge.program, reference).is_none()
                 && crate::field_domains::readable_nominal_definition(judge.program, reference)
                     .is_some();
+            // A returned case keeps the exact value bound by its call contract.
+            // Resolve that case before copying it; arbitrary scalar equations
+            // cannot supply admission of an owned value.
+            let value = if owned {
+                judge.resolve_case_subject(value.clone(), 0)?
+            } else {
+                value.clone()
+            };
             let admitted =
-                owned && judge.has_admitted_nominal_subject(dispatch.subject, value, reference);
+                owned && judge.has_admitted_nominal_subject(dispatch.subject, &value, reference);
             let completed = if owned {
                 let snapshot = judge.capture_unknown_value(dispatch.subject, scope)?;
                 judge.intake_equation(snapshot.clone(), value.clone(), 0);
@@ -78,7 +86,7 @@ impl StructuralJudge<'_> {
             } else {
                 value.clone()
             };
-            Some((completed, admitted.then_some(reference)))
+            Some((completed, admitted.then_some((reference, value))))
         })
     }
 
@@ -104,7 +112,10 @@ impl StructuralJudge<'_> {
         complete: impl FnOnce(
             &mut Self,
             &StructuralTerm,
-        ) -> Option<(StructuralTerm, Option<TypeReferenceHandle>)>,
+        ) -> Option<(
+            StructuralTerm,
+            Option<(TypeReferenceHandle, StructuralTerm)>,
+        )>,
     ) -> Option<StructuralTerm> {
         let table = expression_table(self.program);
         if !dispatch.capture.is_valid() {
@@ -135,13 +146,13 @@ impl StructuralJudge<'_> {
         let (completed, admitted) = complete(self, &value)?;
         std::sync::Arc::make_mut(&mut self.normal_results)
             .push((capture.value_anchor, completed.clone()));
-        if let Some(reference) = admitted {
+        if let Some((reference, observed_value)) = admitted {
             std::sync::Arc::make_mut(&mut self.completed_nominal_values).push(
                 super::super::CompletedNominalValue {
                     anchor: capture.value_anchor,
                     reference,
                     value: completed.clone(),
-                    observed_value: value,
+                    observed_value,
                 },
             );
         }

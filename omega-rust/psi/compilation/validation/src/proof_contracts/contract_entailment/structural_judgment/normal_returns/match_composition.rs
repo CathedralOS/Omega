@@ -461,6 +461,37 @@ impl<'program> StructuralJudge<'program> {
         if depth >= 32 {
             return None;
         }
+        // Pattern elaboration can combine a case test with payload conditions.
+        // Observe the right side only in the branch selected by the left, just
+        // as executable Boolean expressions do. Case facts stay on that path.
+        if let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+            && matches!(
+                binary.operator,
+                typed_trees::expression::BinaryOperator::And
+                    | typed_trees::expression::BinaryOperator::Or
+            )
+            && crate::has_builtin_binary_expression_meaning(
+                self.program,
+                scope.0,
+                Some(scope.1),
+                expression,
+            )
+        {
+            return self.evaluate_logical_paths(
+                expression,
+                binary,
+                NormalValueDemand::Value,
+                |judge, operand, _| {
+                    judge.specification_value_paths(
+                        operand,
+                        environment,
+                        static_observations,
+                        scope,
+                        depth + 1,
+                    )
+                },
+            );
+        }
         if let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
             && let Some((definition, variant)) =
                 super::super::super::structural_terms::case_guard_classifier(
@@ -496,6 +527,10 @@ impl<'program> StructuralJudge<'program> {
             Some(scope),
             depth + 1,
         )?;
+        // Materialize the specification value while its selecting arm still
+        // owns the capture and conditional facts. The match retires its aliases
+        // at the join; resolving afterward must not need to reopen that scope.
+        let value = self.resolve(value);
         Some(vec![NormalReturnPath::observed(value, self)])
     }
 }

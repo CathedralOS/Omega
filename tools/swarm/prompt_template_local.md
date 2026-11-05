@@ -64,7 +64,7 @@ compiler work; never edit the coordinator's main checkout.
 commands (`{build_tool} check`, `{build_tool} nextest run`); `cargo fmt` and
 `cargo clean` stay direct Cargo invocations.
 
-Read `.agents/skills/local-swarm/host-setup.md`. All slots share this machine's
+Read `.agents/skills/swarm/references/host-setup.md`. All slots share this machine's
 CPU, memory, disks and MBX storage; your worktree is source isolation, not an
 independent resource budget. Follow the coordinator's expensive-build admission
 plan before starting builds. Report a changed resource limit or missing native

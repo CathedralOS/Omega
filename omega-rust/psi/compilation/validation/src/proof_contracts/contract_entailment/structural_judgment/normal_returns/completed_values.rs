@@ -375,7 +375,8 @@ impl<'program> StructuralJudge<'program> {
             };
             if judge.runtime_body_values
                 && let Some(reference) = judge.normal_value_type_reference(expression, scope)
-                && crate::field_domains::owned_nominal_data_definition(program, reference).is_some()
+                && crate::reference_shell(program, reference).is_none()
+                && crate::field_domains::readable_nominal_definition(program, reference).is_some()
             {
                 // This operation has completed: its children and the complete
                 // construction obligation precede this cut. Retain validity
@@ -522,7 +523,7 @@ impl<'program> StructuralJudge<'program> {
         {
             if !receiver_changed
                 && judge.runtime_body_values
-                && crate::field_domains::owned_nominal_data_definition(program, reference).is_some()
+                && crate::field_domains::readable_nominal_definition(program, reference).is_some()
                 && judge.has_admitted_nominal_subject(expression, &value, reference)
             {
                 // The actual read acquired this admitted value before any
