@@ -595,7 +595,8 @@ impl<'program> StructuralJudge<'program> {
                 stored.current_anchors,
             );
         }
-        let valid = match reaching {
+
+        match reaching {
             None => reached(&crate::completed_storage::StoredOperand::Incoming(
                 place.clone(),
             )),
@@ -607,8 +608,7 @@ impl<'program> StructuralJudge<'program> {
                 .iter()
                 .any(|anchor| matches!(anchor, StorageAnchor::After(cut) if preserved(*cut))),
             Some(reaching) => reached(&reaching),
-        };
-        valid
+        }
     }
 }
 
