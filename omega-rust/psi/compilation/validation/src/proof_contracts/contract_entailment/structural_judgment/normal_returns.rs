@@ -2034,14 +2034,24 @@ impl<'program> StructuralJudge<'program> {
                 }
                 let receiver_changed = (scalar_storage_read || scalar_reference_read)
                     && judge.storage_write_sequence != receiver_write_sequence;
-                // A runtime selector chooses one value, while the complete
-                // supplier frontier contributes every proof alternative. These
-                // paths never narrow its physical origin/permission inventory.
+                // Keep an already observed shared binding's selected contents.
+                // Otherwise every possible supplier contributes a proof path.
+                // Neither route narrows physical origins or grants permission.
                 let alternatives = if !receiver_changed && scalar_reference_read {
                     let read_version = judge
                         .read_storage_version(scope.1, expression)
                         .or(judge.storage_version);
-                    judge.current_backing_values(scope.0, scope.1, expression, read_version)
+                    judge
+                        .current_shared_reference_contents(
+                            scope.0,
+                            scope.1,
+                            expression,
+                            read_version,
+                        )
+                        .map(|value| vec![value])
+                        .or_else(|| {
+                            judge.current_backing_values(scope.0, scope.1, expression, read_version)
+                        })
                 } else {
                     None
                 };
