@@ -143,7 +143,9 @@ single GitHub push destination. `--repository PATH` selects another worktree.
 ## Admission is not release qualification
 
 The only required status is `compiler-check` from GitHub Actions. It executes
-`cargo check --locked -p omega` on Linux for PR and `merge_group` candidates.
+`python tools/fmt.py --check` and `cargo clippy --locked -p omega -- -D warnings`
+on Linux for PR and `merge_group` candidates, so formatting drift and warnings
+in the `omega` crate graph are refused. Run both before pushing.
 There are no path skips and no required full suite, customer boot, platform
 matrix or reviewer approval count. Focused author validation remains necessary
 to establish the change's behavior, including independent-workspace checks when

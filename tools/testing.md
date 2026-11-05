@@ -487,7 +487,8 @@ reruns, artifact integrity or review required for the submitted change.
 
 Record evidence against the source actually tested. A new integration SHA alone
 does not require author rebase, tests or review. GitHub's [merge queue](landing.md)
-checks the integrated candidate with `cargo check --locked -p omega`; local
+checks the integrated candidate with `python tools/fmt.py --check` and
+`cargo clippy --locked -p omega -- -D warnings`; local
 exact-SHA build receipts are retired. Review and rerun affected checks when the
 author edits source, resolves a conflict or discovers a changed semantic premise.
 Independent-workspace checks remain part of focused author validation, not a
