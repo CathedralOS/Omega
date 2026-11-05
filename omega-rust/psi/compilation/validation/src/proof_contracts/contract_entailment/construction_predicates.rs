@@ -283,9 +283,12 @@ impl ConstructionPredicates<'_> {
                 None,
             )
         });
+        // A closed literal's operands are the whole observation. A refuted
+        // comparison stays false under any later prefix; only an unknown
+        // operand still needs the enclosing statement's facts.
         judgments
             .iter()
-            .all(|judgment| matches!(judgment, StructuralJudgment::Proven))
+            .all(|judgment| !matches!(judgment, StructuralJudgment::Unknown))
             .then_some(judgments)
     }
 
