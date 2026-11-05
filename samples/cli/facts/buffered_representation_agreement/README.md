@@ -76,6 +76,15 @@ log are retained with [PR 1819](https://github.com/CathedralOS/Omega/pull/1819).
 These observations keep their exact producer identity when prose or regression
 records change.
 
+[Integrated run 41955214793](https://github.com/CathedralOS/Omega/actions/runs/41955214793)
+on source `923ef974b33cfdd86565a5a24aef4efc90b6a4bb` also passes after merging
+the newer call and cleanup checks from main. It checks the 21 surviving source
+controls, executes eleven regression programs at native 0 / Terminal 0, and
+passes all nine CLI projects and eighteen sample checks. Every corrupt-decoder
+twin still matches its intended refusal. The nominal cleanup hook again prints
+exactly `OD` in both engines. Programs, Build files and expected results are
+unchanged; main's removal of duplicate test folders and runtime dumps is retained.
+
 The direct named constant call and positional implementation through a constant
 also execute at native 0 and Terminal 0 in this run. Their precondition and
 runtime-service refusal controls reject. Four hosted Build entries are authored;
@@ -89,9 +98,9 @@ other programs check case retirement, retained operand cleanup and replacement
 with an untouched sibling. These are focused regression controls, not a new
 fact-row closure.
 
-Four additional storage controls remain separate repairs. The qualified-array
-and byte-view element programs return native 0 but decline in Terminal Psi;
-reference rebinding fails during lowering, and nominal cleanup fails native
+Four additional storage controls failed in earlier focused runs. The qualified-array
+and byte-view element programs returned native 0 but declined in Terminal Psi;
+reference rebinding failed during lowering, and nominal cleanup failed native
 legalization. [Fixed-base comparison 41922376454](https://github.com/CathedralOS/Omega/actions/runs/41922376454)
 reproduces all four on exact base
 `b750758f9e4f2981abf643595b2f099752172e56`, at the same stages and operations.
