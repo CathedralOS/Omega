@@ -47,12 +47,16 @@ stores and forwards both results, then checks the independently expected case,
 array endpoints and implementation marker. A snapshot after the first call
 must be one; the final producer count must be two.
 
-Every twin changes only the wide result's output case from `Wide` to `Narrow`.
-Its input and selected 32-byte call stay valid. The 32-byte result cannot inhabit
-the case declared to contain 16 bytes. Both versions retain the same member
-bodies and runtime checks. Each valid
-program binds the four required hosted targets and expects exit 0; the existing
-target place also retains its optional macOS x86-64 binding.
+Every twin changes only the narrow branch's selected width from 16 to 32.
+The input still contains 16 bytes, so it cannot satisfy that call's 32-byte
+parameter. Both versions retain the same member bodies and runtime checks.
+The existing rejection pins remain unchanged. A [focused constructor
+control](../../../../tests/omega/fail/generics/runtime_index_carrier_constructor_wrong_payload/main.omg)
+keeps both selected calls valid and changes only the wide output case to
+`Narrow`; its 32-byte result cannot inhabit a case declared to contain 16 bytes.
+The [local positive](local/main.omg) is that control's valid counterpart.
+Each valid program binds the four required hosted targets and expects exit 0;
+the existing target place also retains its optional macOS x86-64 binding.
 
 ## Requirements proved here
 
@@ -129,4 +133,4 @@ agreement before the checking repair. Its malformed output case instead reached
 a late unlowerable-body refusal. A focused repaired-compiler check now reports
 that the payload cannot retain a different captured index. This is a missing
 source check, not evidence that the old compiler executed the invalid program.
-The complete row and current cast traversal still require execution validation.
+That focused constructor source is now pinned separately from the nine width-mismatch twins. The current programs and compiler still require final execution validation.

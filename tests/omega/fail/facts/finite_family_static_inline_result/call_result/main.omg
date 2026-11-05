@@ -37,8 +37,8 @@ machine input32(value: Prepared<32>, calls: &mut [u64; 1]) -> Prepared<32> {
 }
 machine escape(input: InlineInput, calls: &mut [u64; 1]) -> Escaped {
     transition input {
-        InlineInput::Narrow { value } -> Escaped::Narrow { value: Family::row<16>(Selected as dyn Family, input16(value, calls)) }
-        InlineInput::Wide { value } -> Escaped::Narrow { value: Family::row<32>(Other as dyn Family, input32(value, calls)) }
+        InlineInput::Narrow { value } -> Escaped::Narrow { value: Family::row<32>(Selected as dyn Family, input16(value, calls)) }
+        InlineInput::Wide { value } -> Escaped::Wide { value: Family::row<32>(Other as dyn Family, input32(value, calls)) }
     }
 }
 machine forward_returned(returned: Escaped) -> Escaped { returned }
