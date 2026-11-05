@@ -94,10 +94,25 @@ both optimized executables and both retained source bundles. The programs are
 at `555bdbb56368426ed961fd76f613a32315ab44f1`; the authenticated compiler remains
 `44f1471e7e5f9e96599b8d0f68dd8b11d053f687`.
 
-Fresh Windows, macOS and Linux ARM qualification remains pending. No focused
-result is promoted to the changed row, another host or a newer main. Goldens
-retain the old timing when the recorded behavior is unchanged; fresh raw
-elapsed times remain in their reports.
+The final contract-join code at `f37c9cfc83e25c784206b0b60fb5d829f5295499`
+passes [fresh Linux validation](https://github.com/CathedralOS/Omega/actions/runs/41975158564):
+all nine places and the focused program check and run at native/Terminal exit 0,
+all twelve controls reject correctly, and the eighteen sample outcomes pass.
+The focused program also passes ordinary package review and both engines.
+
+[Linux ARM](https://github.com/CathedralOS/Omega/actions/runs/41973539242)
+passes the same scope with compiler and programs at
+`555bdbb56368426ed961fd76f613a32315ab44f1`. Independent review verified both hosts'
+raw results and frozen inputs. It also found that the final join change keeps
+the same lowering operations and emitted contracts for every admitted row;
+only already-refusing contract disagreements can report a different first error.
+The ARM observations keep their original source identity.
+
+Windows and macOS remain pending. The two unchanged Std-based controls also
+[time out with the published pre-repair compiler](https://github.com/CathedralOS/Omega/actions/runs/41974279825);
+their enforcement remains unresolved. No result is promoted to a newer main.
+Goldens retain the old timing when the recorded behavior is unchanged; fresh
+raw elapsed times remain in their reports.
 
 Earlier complete plain-record results remain historical in the
 [Linux report](https://github.com/CathedralOS/Omega/actions/runs/41829998724)
