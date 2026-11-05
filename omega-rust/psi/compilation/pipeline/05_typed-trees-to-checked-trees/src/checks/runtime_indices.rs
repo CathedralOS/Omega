@@ -581,9 +581,54 @@ impl Scope<'_> {
         (substitutions, captured_arguments)
     }
 
+    /// The subject a transparent mathematical definition returns. The body
+    /// names one of its parameters, and that parameter's argument is the
+    /// indexed value the call was built from.
+    fn mathematical_definition_subject(
+        &self,
+        target: SymbolHandle,
+        arguments: arena::HandleSpan<ExpressionHandle>,
+    ) -> Option<Application<'_>> {
+        let definition = self
+            .program
+            .mathematical_definitions()
+            .iter()
+            .find(|definition| definition.symbol == target)?;
+        let typed_trees::mathematical::MathematicalBody::Definition(body) = definition.body else {
+            return None;
+        };
+        let ExpressionNode::Name(path) = self.program.expression_table.expression(body) else {
+            return None;
+        };
+        let parameters = self.program.mathematical_parameters(definition.parameters);
+        let index = parameters.iter().position(|parameter| {
+            parameter.symbol == path.symbol
+                || self.program.symbols.get(path.symbol).generated_from == parameter.symbol
+        })?;
+        let argument = self
+            .program
+            .expression_table
+            .expression_handles(arguments)
+            .get(index)
+            .copied()?;
+        self.actual(argument)
+    }
+
     fn actual(&self, expression: ExpressionHandle) -> Option<Application<'_>> {
         if !expression.is_valid() {
             return None;
+        }
+        // A mathematical definition is not an executable call. Read the
+        // subject its body names before demanding a machine result type,
+        // which this declaration does not have.
+        if let ExpressionNode::Call(call) = self.program.expression_table.expression(expression) {
+            let target_symbol = call.target_symbol;
+            let argument_span = call.arguments;
+            if let Some(subject) =
+                self.mathematical_definition_subject(target_symbol, argument_span)
+            {
+                return Some(subject);
+            }
         }
         let reference =
             expression_result_type_reference(self.program, self.machine, self.state, expression)?;
@@ -617,7 +662,8 @@ impl Scope<'_> {
                 Some(Application::bare(reference, formation))
             }
             ExpressionNode::Call(call) => {
-                let parameters = call_target_parameters(self.program, call.target_symbol)?;
+                let target_symbol = call.target_symbol;
+                let parameters = call_target_parameters(self.program, target_symbol)?;
                 let arguments = self
                     .program
                     .expression_table
@@ -630,7 +676,7 @@ impl Scope<'_> {
                     // Interpret the declaration under captured formal bindings.
                     // A caller-applied index could otherwise bypass the prefix
                     // guard by ceasing to name any of those formal binders.
-                    reference: call_target_return_type(self.program, call.target_symbol)?,
+                    reference: call_target_return_type(self.program, target_symbol)?,
                     formation: self.statement,
                     substitutions,
                     arguments: captured_arguments,

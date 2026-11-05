@@ -744,6 +744,45 @@ pub(crate) fn lower_proof_term(
             authored_parameters,
             proof_only,
         ),
+        ExpressionNode::Call(call) => {
+            // A transparent definition returns the subject its body names.
+            // The call keeps that argument's proof term; it is not a second
+            // construction.
+            let definition = program
+                .mathematical_definitions()
+                .iter()
+                .find(|definition| definition.symbol == call.target_symbol)?;
+            let typed_trees::mathematical::MathematicalBody::Definition(body) = definition.body
+            else {
+                return None;
+            };
+            let ExpressionNode::Name(path) = program.expression_table.expression(body) else {
+                return None;
+            };
+            let definition_parameters = program.mathematical_parameters(definition.parameters);
+            let index = definition_parameters.iter().position(|parameter| {
+                parameter.symbol == path.symbol
+                    || program.symbols.get(path.symbol).generated_from == parameter.symbol
+            })?;
+            let argument = program
+                .expression_table
+                .expression_handles(call.arguments)
+                .get(index)
+                .copied()?;
+            lower_proof_term(
+                program,
+                caller_state,
+                operators,
+                argument,
+                expected_type,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                exact_integer_casts,
+                proof_only,
+            )
+        }
         _ => None,
     }
 }
