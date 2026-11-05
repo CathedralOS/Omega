@@ -548,7 +548,7 @@ impl StateGraphEmission<'_, '_> {
                                 let carrier = crate::unit::attached_unit::reference_results::emit_carrier(
                                     identities,
                                     crate::unit::attached_unit::reference_results::Formation {
-                                        checked, state: state.state,
+                                        checked,
                                         statement_index: edge.statement_ordinal as usize,
                                         expression: formation_expression,
                                         backing_type,

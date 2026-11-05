@@ -720,3 +720,17 @@ fn assignment_borrow_loans(
     }
     Ok(installed)
 }
+
+/// Reading an input descriptor creates a permission observation, not an owned
+/// storage home. A copied or constructed carrier has a different storage owner
+/// and keeps its normal cleanup even when it retains this incoming identity.
+pub(crate) fn is_descriptor_load_observation(
+    borrow: &checked_trees::BorrowFacts,
+    loan: &checked_trees::BorrowLoanFact,
+) -> bool {
+    borrow.incoming_references.is_valid(loan.incoming_reference)
+        && matches!(borrow.incoming_references.get(loan.incoming_reference).origin,
+            checked_trees::IncomingReferenceOrigin::DescriptorLoad { expression }
+                if loan.storage_owner == facts::PlaceRoot::Expression(expression)
+                    && loan.formation_expression == expression)
+}

@@ -322,8 +322,8 @@ pub(crate) struct OperationBuffer {
     /// Source-only associations created by the actual reference emitter.
     /// The source operand belongs to its formation epoch, not current storage.
     pub(crate) loan_captures: Vec<lowered_psi::LoweredSourceLoanCapture>,
-    pub(crate) reference_requirements:
-        std::sync::Arc<crate::emission::call_qualifications::SourceReferenceRequirements>,
+    pub(crate) reference_formations:
+        std::sync::Arc<crate::emission::reference_formations::ReferenceFormations>,
     pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
     /// The module's selector interfaces and tables, by identity.
     pub(crate) dynamic_dispatch:
@@ -629,8 +629,8 @@ impl OperationBuffer {
 
     pub(crate) fn new(
         identity_base: u64,
-        reference_requirements: std::sync::Arc<
-            crate::emission::call_qualifications::SourceReferenceRequirements,
+        reference_formations: std::sync::Arc<
+            crate::emission::reference_formations::ReferenceFormations,
         >,
         dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
     ) -> Self {
@@ -657,7 +657,7 @@ impl OperationBuffer {
             quotient_adaptations: Vec::new(),
             quotient_calls: Vec::new(),
             loan_captures: Vec::new(),
-            reference_requirements,
+            reference_formations,
             loan_completions: Vec::new(),
             selected_comparisons: Vec::new(),
             source_checked_obligations: Vec::new(),

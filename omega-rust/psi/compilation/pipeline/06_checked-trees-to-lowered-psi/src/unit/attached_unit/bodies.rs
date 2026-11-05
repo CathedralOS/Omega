@@ -186,53 +186,6 @@ impl<'a> UnitBody<'a> {
             .map(|(_, operation)| operation)
     }
 
-    /// Keep checked source duties in the state's occurrence namespace. This
-    /// includes references nested in values and those formed on state edges.
-    pub(crate) fn reference_requirements(
-        self,
-        checked: &checked_trees::CheckedTrees,
-        state: symbols::SymbolHandle,
-    ) -> Result<
-        std::sync::Arc<crate::emission::call_qualifications::SourceReferenceRequirements>,
-        LoweringError,
-    > {
-        let mut formations = self
-            .operations_with_states()
-            .filter(|(owner, _)| *owner == state)
-            .filter_map(|(_, operation)| match operation {
-                checked_trees::CheckedUnitEffectOperationPlan::EstablishReference {
-                    formation_expression,
-                    source_contract,
-                    result,
-                    ..
-                } => Some((
-                    result.statement_index,
-                    *formation_expression,
-                    source_contract,
-                )),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        if let Self::Composed(machine) = self {
-            for source in machine.states.iter().filter(|row| row.state == state) {
-                for edge in source.successors() {
-                    for transfer in &edge.transfers {
-                        if let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { formation_expression, source_contract, .. } = &transfer.source {
-                            formations.push((edge.statement_ordinal, *formation_expression, source_contract));
-                        }
-                    }
-                }
-            }
-        }
-        Ok(std::sync::Arc::new(
-            crate::emission::call_qualifications::SourceReferenceRequirements::prepare(
-                checked,
-                state,
-                formations.into_iter(),
-            )?,
-        ))
-    }
-
     /// Loans carried on state edges can publish their own pointer descriptor.
     /// Their source contracts remain distinct from statement-owned results.
     pub(crate) fn projected_loans(

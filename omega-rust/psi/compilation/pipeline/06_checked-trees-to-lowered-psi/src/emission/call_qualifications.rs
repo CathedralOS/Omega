@@ -2,6 +2,7 @@
 //! byte-field invariants belong to their exact receiving declaration; additional
 //! nominal memberships require a catalog entry and an occurrence publication.
 
+use crate::emission::reference_formations::ReferenceFormations;
 use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
 
@@ -172,112 +173,6 @@ pub(crate) fn declaration_represents(
 
 /// The storage duties of this call's actual references. Select the exact
 /// formation records once per invocation, before examining its returned facts.
-/// Source checking records these duties before emission starts. One sorted
-/// inventory lets calls select their actual operands without searching every
-/// reference formed earlier in the body.
-#[derive(Debug, Clone)]
-pub(crate) struct SourceReferenceRequirements {
-    rows: Vec<SourceReferenceRequirement>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct SourceReferenceRequirement {
-    statement_index: usize,
-    expression: checked_trees::expression::ExpressionHandle,
-    requirements: Vec<checked_trees::CheckedSourceQualification>,
-}
-
-impl SourceReferenceRequirements {
-    pub(crate) fn prepare<'a>(
-        checked: &CheckedTrees,
-        state: SymbolHandle,
-        formations: impl Iterator<
-            Item = (
-                u32,
-                checked_trees::expression::ExpressionHandle,
-                &'a checked_trees::CheckedReferenceSourceContract,
-            ),
-        >,
-    ) -> Result<Self, LoweringError> {
-        let mut rows = Vec::new();
-        let mut record =
-            |statement_index: u32,
-             expression,
-             contract: &checked_trees::CheckedReferenceSourceContract| {
-                if let checked_trees::CheckedReferenceSourceContract::Standing {
-                    source_requirements,
-                    ..
-                } = contract
-                {
-                    rows.push(SourceReferenceRequirement {
-                        statement_index: statement_index as usize,
-                        expression,
-                        requirements: source_requirements.clone(),
-                    });
-                }
-            };
-        for (statement, expression, contract) in formations {
-            record(statement, expression, contract);
-        }
-        let values = &checked.facts.values.structural_values;
-        values.with_state_nodes(state, |handles| {
-            for handle in handles {
-                let value = values.nodes.get(*handle);
-                if let checked_trees::CheckedStructuralValueKind::Reference {
-                    source_contract,
-                    ..
-                } = &value.kind
-                {
-                    record(value.statement_index, value.expression, source_contract);
-                }
-            }
-        });
-        rows.sort_by_key(|row| {
-            (
-                row.statement_index,
-                row.expression.arena_index(),
-                row.expression.generation(),
-            )
-        });
-        for pair in rows.windows(2) {
-            if (pair[0].statement_index, pair[0].expression)
-                == (pair[1].statement_index, pair[1].expression)
-                && pair[0].requirements != pair[1].requirements
-            {
-                let (machine, _) = crate::shared::declarations::state_declaration(checked, state)?;
-                return Err(LoweringError::at_statement(
-                    checked,
-                    machine.symbol,
-                    state,
-                    pair[0].statement_index as u32,
-                    "reference occurrence has conflicting source requirements",
-                ));
-            }
-        }
-        rows.dedup();
-        Ok(Self { rows })
-    }
-
-    fn find(
-        &self,
-        statement: usize,
-        expression: checked_trees::expression::ExpressionHandle,
-    ) -> Option<usize> {
-        self.rows
-            .binary_search_by_key(
-                &(statement, expression.arena_index(), expression.generation()),
-                |row| {
-                    (
-                        row.statement_index,
-                        row.expression.arena_index(),
-                        row.expression.generation(),
-                    )
-                },
-            )
-            .ok()
-    }
-}
-
 pub(crate) struct CallSourceRequirements<'checked> {
     sources: Vec<(facts::PlaceRoot, &'checked [facts::PlaceSegment], usize)>,
 }
@@ -287,7 +182,7 @@ impl<'checked> CallSourceRequirements<'checked> {
         checked: &'checked CheckedTrees,
         machine: SymbolHandle,
         coordinate: SourceCallCoordinate,
-        formations: &SourceReferenceRequirements,
+        formations: &ReferenceFormations,
     ) -> Self {
         let borrow = &checked.facts.borrow;
         let mut sources = Vec::new();
@@ -333,7 +228,7 @@ impl<'checked> CallSourceRequirements<'checked> {
     pub(crate) fn represents(
         &self,
         checked: &CheckedTrees,
-        formations: &SourceReferenceRequirements,
+        formations: &ReferenceFormations,
         fact: &facts::Fact,
     ) -> bool {
         let Some((_, _, _, domain)) = fact.payload.domain_membership() else {
@@ -353,8 +248,8 @@ impl<'checked> CallSourceRequirements<'checked> {
                 return false;
             }
             let selected = &segments[prefix.len()..];
-            formations.rows[*formation]
-                .requirements
+            formations
+                .requirements(*formation)
                 .iter()
                 .any(|requirement| {
                     requirement.semantic_domain == domain

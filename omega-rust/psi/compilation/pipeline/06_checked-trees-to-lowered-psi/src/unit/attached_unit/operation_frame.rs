@@ -797,7 +797,6 @@ impl OperationFrame<'_, '_> {
             identities,
             reference_results::Formation {
                 checked: self.checked,
-                state: self.state,
                 statement_index: result.statement_index as usize,
                 expression: formation_expression,
                 backing_type,

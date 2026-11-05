@@ -22,7 +22,6 @@ use checked_trees::CheckedUnitStructuralResultBindingPlan;
 /// Source coordinates stay in this producer companion, never in Terminal.
 pub(crate) struct Formation<'checked> {
     pub(crate) checked: &'checked checked_trees::CheckedTrees,
-    pub(crate) state: symbols::SymbolHandle,
     pub(crate) statement_index: usize,
     pub(crate) expression: checked_trees::expression::ExpressionHandle,
     /// The supplying endpoint, never the receiving reference annotation.
@@ -387,26 +386,18 @@ pub(crate) fn emit_carrier(
     // lowered source is already evaluated, including every selector snapshot.
     // These rows associate checked occurrences with emitted coordinates; they
     // neither replay the borrow judgment nor grant preservation permission.
-    let borrow = &formation.checked.facts.borrow;
-    if let Some(state) = borrow
-        .states
-        .iter()
-        .find_map(|(_, state)| (state.state_symbol == formation.state).then_some(state))
+    for loan in operations
+        .reference_formations
+        .loans_for(formation.statement_index, formation.expression)
     {
-        for loan in state.loans.handles().filter(|loan| {
-            let row = borrow.loans.get(*loan);
-            row.statement_index == formation.statement_index
-                && row.formation_expression == formation.expression
-        }) {
-            operations
-                .loan_captures
-                .push(lowered_psi::LoweredSourceLoanCapture {
-                    loan,
-                    formation: id,
-                    carrier: place,
-                    source: source.clone(),
-                });
-        }
+        operations
+            .loan_captures
+            .push(lowered_psi::LoweredSourceLoanCapture {
+                loan,
+                formation: id,
+                carrier: place,
+                source: source.clone(),
+            });
     }
     operations.push(Operation::unsuspended(id, result, kind));
     Ok(operation_result_place(place, id, structural_type))

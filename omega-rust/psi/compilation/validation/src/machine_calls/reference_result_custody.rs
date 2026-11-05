@@ -1478,10 +1478,7 @@ pub fn storage_place_loans(
         if !crate::corresponding_loan_owner_path(
             program,
             reference,
-            homes
-                .storage_path(program, loan)
-                .ok_or("storage descriptor has no recorded carrier path")?
-                .as_ref(),
+            homes.owner_path(program, loan).as_ref(),
         )
         .ok_or("storage descriptor loan has no corresponding owner projection")?
         .starts_with(&selected_owner_path)
@@ -1644,8 +1641,7 @@ fn replaced_stored_reference_carrier(
             continue;
         }
         let loan = facts.borrow.loans.get(weakening.loan);
-        if loan.storage_owner != owner || homes.storage_path(program, loan)?.as_ref() != owner_path
-        {
+        if loan.storage_owner != owner || homes.owner_path(program, loan).as_ref() != owner_path {
             continue;
         }
         if !order.precedes(loan.statement_index, statement_index as usize)
@@ -1743,7 +1739,7 @@ fn record_leaf_loan_groups(
             if crate::corresponding_loan_owner_path(
                 program,
                 reference,
-                homes.storage_path(program, loan)?.as_ref(),
+                homes.owner_path(program, loan).as_ref(),
             )? != owner_path
             {
                 continue;

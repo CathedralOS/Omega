@@ -384,16 +384,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         for loan_index in loan_ranges[statement_index].clone() {
             let loan = &borrow_loans[loan_index];
             if loan.established_by_call.is_valid()
-                || (borrow.incoming_references.is_valid(loan.incoming_reference)
-                    && matches!(
-                        borrow
-                            .incoming_references
-                            .get(loan.incoming_reference)
-                            .origin,
-                        checked_trees::IncomingReferenceOrigin::DescriptorLoad { expression }
-                            if loan.storage_owner == facts::PlaceRoot::Expression(expression)
-                                && loan.formation_expression == expression
-                    ))
+                || crate::borrow::is_descriptor_load_observation(borrow, loan)
             {
                 // Descriptor loads activate at operand completion, before a
                 // later call in this same statement can consume the pointer.

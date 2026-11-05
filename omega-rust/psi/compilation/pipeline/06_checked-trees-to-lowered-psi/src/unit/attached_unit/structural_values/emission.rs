@@ -1976,7 +1976,6 @@ impl Emission<'_, '_, '_> {
                 identities,
                 super::super::reference_results::Formation {
                     checked: self.checked,
-                    state: node.state,
                     statement_index: node.statement_index as usize,
                     expression: node.expression,
                     backing_type,

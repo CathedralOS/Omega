@@ -102,7 +102,7 @@ impl OperationFrame<'_, '_> {
                 self.checked,
                 self.machine,
                 coordinate,
-                &self.operations.reference_requirements,
+                &self.operations.reference_formations,
             );
         for fact in for_call(self.checked, self.machine, coordinate, |root| {
             homes.contains(&root)
@@ -147,7 +147,7 @@ impl OperationFrame<'_, '_> {
             };
             if source_requirements.represents(
                 self.checked,
-                &self.operations.reference_requirements,
+                &self.operations.reference_formations,
                 fact,
             ) || declaration_represents(identities, self.checked, fact)?
             {

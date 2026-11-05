@@ -67,15 +67,8 @@ impl Execution<'_, '_, '_> {
         };
         let mut resources = self.borrow.state_loans(state).filter(|(_, loan)| {
             loan.statement_index == self.statement_index
-                && loan.storage_owner == PlaceRoot::Expression(capture.expression)
                 && loan.formation_expression == capture.expression
-                && self
-                    .borrow
-                    .incoming_references
-                    .is_valid(loan.incoming_reference)
-                && matches!(self.borrow.incoming_references.get(loan.incoming_reference).origin,
-                    checked_trees::IncomingReferenceOrigin::DescriptorLoad { expression }
-                        if expression == capture.expression)
+                && crate::borrow::is_descriptor_load_observation(self.borrow, loan)
         });
         let Some((handle, loan)) = resources.next() else {
             return;
