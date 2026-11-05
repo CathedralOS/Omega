@@ -1387,6 +1387,16 @@ impl Scope<'_> {
         self.check(expression, required, diagnostics);
     }
 
+    fn proof_alias_initializer(&self, symbol: SymbolHandle) -> Option<(usize, ExpressionHandle)> {
+        let (ordinal, local) = self.program.state_local_declaration(self.state, symbol)?;
+        if ordinal >= self.statement || local.is_mutable {
+            return None;
+        }
+        local
+            .ordinary_value_initializer()
+            .map(|value| (ordinal, value))
+    }
+
     /// An open mathematical value is supplied by an exact erased formal,
     /// including an exact erased payload projection. Its checked source
     /// carrier, rather than a fabricated closed term, owns the type.
@@ -1418,6 +1428,14 @@ impl Scope<'_> {
                         != 1
                 {
                     return None;
+                }
+                if let Some((ordinal, initializer)) = self.proof_alias_initializer(path.symbol) {
+                    return Scope {
+                        statement: ordinal,
+                        target: TransitionTargetHandle::invalid(),
+                        ..*self
+                    }
+                    .erased_evidence_reference(initializer, depth + 1);
                 }
                 let formal = self
                     .program
@@ -1609,6 +1627,16 @@ impl Scope<'_> {
                     || self
                         .erased_evidence_reference(expression, depth + 1)
                         .is_some()
+                    || self.proof_alias_initializer(path.symbol).is_some_and(
+                        |(ordinal, initializer)| {
+                            Scope {
+                                statement: ordinal,
+                                target: TransitionTargetHandle::invalid(),
+                                ..*self
+                            }
+                            .stable_proof_argument(initializer, depth + 1)
+                        },
+                    )
             }
             ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
             ExpressionNode::Member(member) => {
@@ -1654,7 +1682,30 @@ impl Scope<'_> {
         expression: ExpressionHandle,
         reference: TypeReferenceHandle,
     ) -> Option<NormalizedTypeIdentity> {
+        self.actual_erased_identity_at(expression, reference, 0)
+    }
+
+    fn actual_erased_identity_at(
+        &self,
+        expression: ExpressionHandle,
+        reference: TypeReferenceHandle,
+        depth: usize,
+    ) -> Option<NormalizedTypeIdentity> {
         use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
+        if depth > 128 {
+            return None;
+        }
+        if let ExpressionNode::Name(path) = self.program.expression_table.expression(expression)
+            && let Some((ordinal, initializer)) = self.proof_alias_initializer(path.symbol)
+        {
+            let prior = Scope {
+                statement: ordinal,
+                target: TransitionTargetHandle::invalid(),
+                ..*self
+            };
+            let reference = prior.erased_evidence_reference(initializer, 0)?;
+            return prior.actual_erased_identity_at(initializer, reference, depth + 1);
+        }
         let ExpressionNode::Member(member) = self.program.expression_table.expression(expression)
         else {
             return applied_type_identity(self.program, reference, self.machine.symbol, &[]);
@@ -1729,25 +1780,95 @@ impl Scope<'_> {
                 )
             })
             .collect::<Vec<_>>();
+        let aliases = self.proof_argument_aliases(&[member.receiver]);
+        let mut scopes = aliases
+            .iter()
+            .map(|binding| AppliedTypeIdentityScope {
+                declaration: self.machine.symbol,
+                arguments: std::slice::from_ref(binding),
+                lifetimes: &[],
+            })
+            .collect::<Vec<_>>();
+        scopes.extend([
+            AppliedTypeIdentityScope {
+                declaration: data.symbol,
+                arguments: &indices,
+                lifetimes: &[],
+            },
+            AppliedTypeIdentityScope {
+                declaration: case.symbol,
+                arguments: &fields,
+                lifetimes: &[],
+            },
+        ]);
         applied_type_identity_in_scope(
             self.program,
             reference,
             data.symbol,
             self.machine.symbol,
-            &[
-                AppliedTypeIdentityScope {
-                    declaration: data.symbol,
-                    arguments: &indices,
-                    lifetimes: &[],
-                },
-                AppliedTypeIdentityScope {
-                    declaration: case.symbol,
-                    arguments: &fields,
-                    lifetimes: &[],
-                },
-            ],
+            &scopes,
         )
         .filter(|identity| identity.is_valid())
+    }
+
+    /// Pattern bindings copy projections from an immutable proof input. Keep
+    /// that correspondence in the caller's scope, before substituting callee
+    /// formals. An immutable copy of mutable storage is deliberately excluded:
+    /// its captured value belongs to the ordinary completed-operand check.
+    fn proof_argument_aliases(
+        &self,
+        arguments: &[ExpressionHandle],
+    ) -> Vec<(
+        SymbolHandle,
+        typed_trees::type_identity::IndexIdentityArgument<'_>,
+    )> {
+        fn collect(
+            scope: &Scope<'_>,
+            expression: ExpressionHandle,
+            depth: usize,
+            aliases: &mut Vec<(SymbolHandle, ExpressionHandle)>,
+        ) {
+            if depth > 128 || !expression.is_valid() {
+                return;
+            }
+            match scope.program.expression_table.expression(expression) {
+                ExpressionNode::Name(path) => {
+                    if aliases.iter().any(|(symbol, _)| *symbol == path.symbol) {
+                        return;
+                    }
+                    let Some((ordinal, initializer)) = scope.proof_alias_initializer(path.symbol)
+                    else {
+                        return;
+                    };
+                    let prior = Scope {
+                        statement: ordinal,
+                        target: TransitionTargetHandle::invalid(),
+                        ..*scope
+                    };
+                    if prior.stable_proof_argument(initializer, depth + 1) {
+                        collect(&prior, initializer, depth + 1, aliases);
+                        aliases.push((path.symbol, initializer));
+                    }
+                }
+                ExpressionNode::Member(member) => {
+                    collect(scope, member.receiver, depth + 1, aliases);
+                }
+                _ => {}
+            }
+        }
+        let mut aliases = Vec::new();
+        for argument in arguments {
+            collect(self, *argument, 0, &mut aliases);
+        }
+        aliases
+            .into_iter()
+            .map(|(symbol, value)| {
+                (
+                    symbol,
+                    typed_trees::type_identity::IndexIdentityArgument::Expression(value),
+                )
+            })
+            .collect()
     }
 
     fn expected_erased_identity(
@@ -1849,18 +1970,22 @@ impl Scope<'_> {
             };
             substitutions.push((formal.symbol, argument));
         }
-        applied_type_identity_in_scope(
-            self.program,
-            reference,
-            owner,
-            self.machine.symbol,
-            &[AppliedTypeIdentityScope {
-                declaration: owner,
-                arguments: &substitutions,
+        let aliases = self.proof_argument_aliases(arguments);
+        let mut scopes = aliases
+            .iter()
+            .map(|binding| AppliedTypeIdentityScope {
+                declaration: self.machine.symbol,
+                arguments: std::slice::from_ref(binding),
                 lifetimes: &[],
-            }],
-        )
-        .filter(|identity| identity.is_valid())
+            })
+            .collect::<Vec<_>>();
+        scopes.push(AppliedTypeIdentityScope {
+            declaration: owner,
+            arguments: &substitutions,
+            lifetimes: &[],
+        });
+        applied_type_identity_in_scope(self.program, reference, owner, self.machine.symbol, &scopes)
+            .filter(|identity| identity.is_valid())
     }
 
     /// An equal unspecialized spelling does not prove a dependent call's
