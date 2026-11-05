@@ -111,12 +111,14 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         if argument_sources
             .is_some_and(|sources| sources.observation_survives(argument_position, &[]))
         {
+            // An explicit postcondition restores the captured referent whether
+            // the domain needs provenance or only a predicate. Include it in
+            // the same all-writers judgment as declared child obligations;
+            // an entry qualification alone still supplies no return promise.
             for (position, domain, identity) in
                 parameter_claims.iter().flat_map(|claims| claims.iter())
             {
-                if *position == argument_position
-                    && validation::field_domains::domain_requires_provenance(program, *domain)
-                {
+                if *position == argument_position {
                     let row = (Vec::new(), *domain, *identity);
                     crate::shared::collections::push_unique(&mut paths, row);
                 }
