@@ -2191,8 +2191,8 @@ fail/build/generated_resolution_source_location rejected 629ms expected @ccdb99c
 	machine `selected` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
 fail/build/generated_scalar_constant_range_refused rejected 1248ms expected published:none @ccdb99ca2214
 	scalar constant `VALUE` is invalid: const value `256` does not fit `u8`
-fail/build/generated_source_base_reference_refused rejected 23045ms unexpected published:none @ccdb99ca2214
-	cannot determine the dispatch subject storage type in `Main::main::main`
+fail/build/generated_source_base_reference_refused rejected 126276ms expected published:none @e9460cb64926
+	machine `Main::main` state `main` uses `ANSWER`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/build/generated_source_undeclared_call_refused rejected 1180ms unexpected published:none @ccdb99ca2214
 	tests/omega/fail/build/generated_source_undeclared_call_refused/.omega/generated/generated.omg:16:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract
 fail/build/generated_source_unsealed_handoff_refused rejected 1402ms expected published:none @ccdb99ca2214
@@ -5326,8 +5326,8 @@ fail/expressions/cast_struct_to_number_rejected rejected 13425ms expected @ccdb9
 	machine `Main::main` state `main` casts a `P` value to `i32`, but `as` converts between scalar types only
 fail/expressions/comparison_result_integer_store_rejected rejected 856ms expected @ccdb99ca2214
 	machine `Main::record` state `record` assignment stores a boolean into a `i32` place, which holds a numeric value
-fail/expressions/cross_enum_case_membership_rejected rejected 13155ms unexpected @ccdb99ca2214
-	cannot determine the dispatch subject storage type in `Main::main::main`
+fail/expressions/cross_enum_case_membership_rejected rejected 66780ms expected @e9460cb64926
+	case membership must test a value of the exact declaring data type (machine `Main::main`, state `main`)
 fail/expressions/cross_type_equality_rejected rejected 7639ms expected @ccdb99ca2214
 	cannot compare `P` and `Q` with `==`/`!=`: the operands are different data types (equality requires both operands to be the same type)
 fail/expressions/declared_operator_private_helper_selected_rejected rejected 3679ms expected @630d0f945fc2
@@ -14055,8 +14055,8 @@ fail/float/authored_heterogeneous_float_operator_requires rejected 1882ms unexpe
 	implicit domain weakening in argument `right` for state `Float::subtract::subtract` drops `Measured`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/float/boundary_call_guard_wrong_argument rejected 9628ms expected @ccdb99ca2214
 	argument `value` for state `from_i32` expects `i32`, got `float literal`
-fail/float/boundary_call_guard_wrong_format rejected 8745ms unexpected @ccdb99ca2214
-	cannot determine the dispatch subject storage type in `Main::main::main`
+fail/float/boundary_call_guard_wrong_format rejected 59539ms expected @e9460cb64926
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
 fail/float/builtin_operand_borrow_conflict_rejected rejected 41596ms expected @1e29a538216e
 	state `abs_f64` receives `main.values` as both mutable and read-only
 	state `pair` receives `main.values` as both mutable and read-only
