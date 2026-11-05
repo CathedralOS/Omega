@@ -351,6 +351,29 @@ class RunnerInputSelection(unittest.TestCase):
             self.assertEqual(measured[0]["diagnostics"], diagnostics)
             self.assertEqual(output.getvalue(), sites if setting is not None else "")
 
+    def test_requested_structural_trace_survives_an_incomplete_record_and_runner_exit_zero(self):
+        diagnostics = ["structural result has duplicate dispositions"]
+        rows = corpus_records.render([record(
+            "fail/core/formation", "incomplete", expected=False, diagnostics=diagnostics)])
+        trace = ("result custody: stored=true calls=1\n"
+                 + "operation detail\n" * 2001
+                 + "pass/not_a_result checked 1ms\n")
+        for setting in (None, "0", "", "1"):
+            environment = {} if setting is None else {"OMEGA_STRUCT_TRACE": setting}
+            output = io.StringIO()
+            with self.subTest(structural_trace=setting), \
+                    patch.dict(os.environ, environment, clear=True), \
+                    patch.object(corpus_gate.subprocess, "Popen", side_effect=
+                                 fake_runner(rows, stderr=trace)), \
+                    contextlib.redirect_stderr(output):
+                measured = corpus_gate.run_runner(Path("corpus_runner"))
+            self.assertEqual(len(measured), 1)
+            self.assertEqual(measured[0]["fixture"], "fail/core/formation")
+            self.assertEqual(measured[0]["status"], "incomplete")
+            self.assertFalse(measured[0]["expected_satisfied"])
+            self.assertEqual(measured[0]["diagnostics"], diagnostics)
+            self.assertEqual(output.getvalue(), trace if setting is not None else "")
+
     def test_fixture_root_follows_the_measured_checkout_over_a_stale_environment(self):
         measured = Path(tempfile.gettempdir()) / "measured-omega-checkout"
         environment = self.runner_environment(

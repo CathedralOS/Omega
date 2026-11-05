@@ -177,6 +177,8 @@ For a failure that needs the complete ownership or state plan, set
 Select one fixture: these full traces can be large. This setting is off by
 default. It can also be enabled during an authenticated retained-compiler
 replay without rebuilding the compiler or changing its acceptance rules.
+A requested full trace is printed even if the runner exits normally after
+reporting a fixture failure; trace text remains separate from fixture records.
 
 For an ordinary run:
 

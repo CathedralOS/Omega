@@ -725,6 +725,10 @@ def run_runner(binary: Path, root: Path = ROOT, *, freshly_built=False) -> list[
     root_prefix = "corpus_runner: fixture-root-v1 "
     phase_profile = env.get("OMEGA_PHASE_PROFILE") not in (None, "0")
     check_sites = "OMEGA_COMPILER_CHECK_SITES" in env
+    # A requested full trace can outgrow the diagnostic buffer even when the
+    # runner exits normally after reporting a fixture failure. Its lines stay
+    # separate from the actual records file.
+    structural_trace = "OMEGA_STRUCT_TRACE" in env
     # These are the existing profiler's checkpoint, timing and counter rows.
     # A timeout is an ordinary runner record with exit 0, so its requested
     # completed timings must not disappear with buffered compiler chatter.
@@ -738,6 +742,7 @@ def run_runner(binary: Path, root: Path = ROOT, *, freshly_built=False) -> list[
             if line.startswith(root_prefix):
                 root_reports.append(line[len(root_prefix):].strip())
             elif (line.startswith("corpus_runner:")
+                  or structural_trace
                   or phase_profile and profile_output.fullmatch(line)
                   or check_sites and line.startswith("CHECKSITE ")):
                 sys.stderr.write(line)
