@@ -93,11 +93,29 @@ undisposed Linear ownership and observing write-only storage.
 reuses that prepared compiler on program source `9df129e92410`, without rebuilding.
 All nine positives check, all nine twins report the six expected lifetime errors,
 all nine corpus and nine sample executions agree at exit 0, and all nine invalid
-samples reject. The local ordinary CLI also updates and runs at 0/0. The other
-three matching-host runs are still pending. These are nine ways to receive the
-input counter, with the common returned-case path described above; they do not
-establish nine different storage forms for the returned case. The parent task
-remains open.
+samples reject. The local ordinary CLI also updates and runs at 0/0.
+
+The same complete scope passes on every matching hosted target:
+
+| Host | Run | Actual compiler | Program source |
+| --- | --- | --- | --- |
+| Linux x86-64 | [42025261656](https://github.com/CathedralOS/Omega/actions/runs/42025261656) | `2cf8f750ade0` | `9df129e92410` |
+| Linux ARM64 | [42026333825](https://github.com/CathedralOS/Omega/actions/runs/42026333825) | `9df129e92410` | `9df129e92410` |
+| macOS ARM64 | [42026338394](https://github.com/CathedralOS/Omega/actions/runs/42026338394) | `9df129e92410` | `9df129e92410` |
+| Windows x86-64 | [42026343121](https://github.com/CathedralOS/Omega/actions/runs/42026343121) | `9df129e92410` | `9df129e92410` |
+
+Each host supplies nine Source accepts, nine intended lifetime refusals, nine
+corpus and nine sample native/Terminal exit-zero agreements, nine invalid sample
+refusals and an ordinary CLI update followed by both engines at 0/0. The compiler
+inputs are identical between `2cf8f750ade0` and `9df129e92410`; the latter adds the
+eight remaining places' Linear declarations and their mirrors. All compilers
+have verified optimization level 1. The Linux replay does not become a `9df`
+compiler execution. Historical milliseconds remain when the recorded outcome is
+unchanged; actual fresh timings stay in the raw reports.
+
+These are nine ways to receive the input counter, with the common returned-case
+path described above. They do not establish nine different storage forms for
+the returned case. The broader parent task remains open.
 
 ## Earlier affine case results
 
