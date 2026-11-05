@@ -1,13 +1,13 @@
 {
   "schema": "omega-compiler-pilot-plan-v1",
   "producer": {
-    "revision": "f9579c887ab5c21c31ae439a10bc9711265a0ecb",
-    "tree": "d61fd4bd60aabafa4d4d10771a1152216ad0e339",
+    "revision": "16fc38316244d09f937abb5ebdc3b8b56a15265d",
+    "tree": "39b9b2c835acad27b9c6e03c1bfb82c18faa549e",
     "target": "linux_x86_64",
     "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
     "input_objects": {
-      "omega-rust": "3c82ff3aa4455d3c624e16e4d34b52b56ca47f66",
-      "source/library": "e3e1296eab03464c3ca08a0c419c76e25c24ec6a",
+      "omega-rust": "de973667355a4ed7d202bce6214a0d8727573c4a",
+      "source/library": "936ad8db05921ad1f7edb092bac738c1dcd6224d",
       "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
       "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
       "bootstrap": "cfb29e665d301b5ad7dabdb8cb16177c164ab035",
@@ -19,7 +19,7 @@
     },
     "executables": {
       "cli": {
-        "sha256": "ed1a9734734f5bd3139b4de48e4306b4c7b28da3b42c0991e389262951340bb8",
+        "sha256": "e76995d05ab0bfb8bb018a193cd2251a7464e6d6c2837f9f34a2380acd5be371",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
@@ -27,14 +27,15 @@
       },
       "runner": null
     },
-    "origin_run": 41975217448,
-    "cache_key": "compiler-regression-Linux-X64-930ad300ab5b66029346c7ae14a6d49284f61cbeba994e9d242c180ccf948756-f9579c887ab5c21c31ae439a10bc9711265a0ecb"
+    "origin_run": 41984611126,
+    "cache_key": "compiler-regression-Linux-X64-930ad300ab5b66029346c7ae14a6d49284f61cbeba994e9d242c180ccf948756-16fc38316244d09f937abb5ebdc3b8b56a15265d"
   },
   "fixtures": [],
   "source_only": false,
   "samples": [],
   "cli_fixtures": [
-    "pass/borrows/copied_dispatch_payload_before_mutating_argument_exit",
-    "pass/facts/match_reference_referent_through_local_exit"
+    "pass/borrows/runtime_qualified_owner_reference_storage_exit",
+    "pass/facts/match_reference_referent_through_local_exit",
+    "pass/borrows/copied_dispatch_payload_before_mutating_argument_exit"
   ]
 }
