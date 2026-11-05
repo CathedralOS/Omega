@@ -895,7 +895,8 @@ impl Operation<'_, '_> {
             self.operator(),
             BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
         ) && let Some((minimum, maximum)) = primitive.and_then(PrimitiveType::integer_bounds)
-            && walk
+        {
+            let proved = walk
                 .machine
                 .zip(walk.state)
                 .is_some_and(|(machine, state)| {
@@ -908,9 +909,10 @@ impl Operation<'_, '_> {
                         Some(&numerics::bignum::BigInt::from_i128(minimum)),
                         Some(&numerics::bignum::BigInt::from_i128(maximum)),
                     )
-                })
-        {
-            return true;
+                });
+            if proved {
+                return true;
+            }
         }
         match self.operator() {
             BinaryOperator::Subtract => {
@@ -1234,17 +1236,29 @@ impl Operation<'_, '_> {
         } else {
             String::new()
         };
+        // A trailing completion is parsed as an unconditional value arm, so
+        // the same refusal is the state's terminal expression. Pins name
+        // either phrase; both describe this one result.
+        let terminal_completion = if self.walk.owner.ends_with("return value") {
+            format!(
+                " terminal expression may overflow `{}`.",
+                primitive_name(primitive)
+            )
+        } else {
+            String::new()
+        };
         format!(
             "exact arithmetic in {} may overflow `{}`: the operands are not provably in range \
              (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast \
              to a larger type, constrain the operands' range (bound a parameter with a \
              `requires` clause, or narrow a value with a dominating guard), or opt into a \
-             defined-overflow domain (`{} in Wrapping`/`Saturating`/`Trapping`).{}{}",
+             defined-overflow domain (`{} in Wrapping`/`Saturating`/`Trapping`).{}{}{}",
             self.walk.owner,
             primitive_name(primitive),
             primitive_name(primitive),
             call_hint,
             target_hint,
+            terminal_completion,
         )
     }
 

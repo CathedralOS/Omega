@@ -12882,8 +12882,8 @@ fail/facts/source_indexed_family_authored_terminating_state_cycle rejected 1021m
 	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 fail/facts/source_indexed_family_changed_capture rejected 1004ms expected @7eee0bd20c4b
 	invalid mathematical application `retain(other)`: mathematical argument does not preserve its declared carrier and policy
-fail/facts/source_indexed_family_cited_requires_unmet rejected 802ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+fail/facts/source_indexed_family_cited_requires_unmet rejected 32307ms expected @e24b1abdbc99
+	cannot prove requires contract for call vector_bound from bounded: Length <= 7
 fail/facts/source_indexed_family_constructor_head_false rejected 912ms expected @7eee0bd20c4b
 	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_family_constructor_index_false rejected 1038ms expected @7eee0bd20c4b
@@ -12894,8 +12894,8 @@ fail/facts/source_indexed_family_forwarded_parameter_rejected rejected 935ms exp
 	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_family_illegal_runtime_elimination rejected 695ms unexpected @ccdb99ca2214
 	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_insufficient_consumer_bound rejected 710ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+fail/facts/source_indexed_family_insufficient_consumer_bound rejected 28072ms expected @e24b1abdbc99
+	terminal expression may overflow `u64`
 fail/facts/source_indexed_family_missing_head_bound rejected 968ms expected @7eee0bd20c4b
 	source induction case has no checked derivation from its exact constraints and child hypotheses
 fail/facts/source_indexed_family_open_constructor_missing_sum_premise rejected 1224ms expected @7eee0bd20c4b
