@@ -8388,23 +8388,23 @@ fail/facts/finite_family_returned_descriptor/target_body rejected 5335ms expecte
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_static_inline_result/call_result rejected 6017ms expected @d70bac37d282
+fail/facts/finite_family_static_inline_result/call_result rejected 5047ms expected @6d20220933d7
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/const_name rejected 4835ms expected @d70bac37d282
+fail/facts/finite_family_static_inline_result/const_name rejected 5005ms expected @6d20220933d7
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/field rejected 4275ms expected @d70bac37d282
+fail/facts/finite_family_static_inline_result/field rejected 5009ms expected @6d20220933d7
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/local rejected 5188ms expected @d70bac37d282
+fail/facts/finite_family_static_inline_result/local rejected 5000ms expected @6d20220933d7
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/match_join rejected 5169ms expected @d70bac37d282
+fail/facts/finite_family_static_inline_result/match_join rejected 4972ms expected @6d20220933d7
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/other_machine rejected 4803ms expected @d70bac37d282
+fail/facts/finite_family_static_inline_result/other_machine rejected 4996ms expected @6d20220933d7
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/other_state rejected 4746ms expected @d70bac37d282
+fail/facts/finite_family_static_inline_result/other_state rejected 5008ms expected @6d20220933d7
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/parameter rejected 5192ms expected @d70bac37d282
+fail/facts/finite_family_static_inline_result/parameter rejected 5076ms expected @6d20220933d7
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/target_body rejected 4715ms expected @d70bac37d282
+fail/facts/finite_family_static_inline_result/target_body rejected 5015ms expected @6d20220933d7
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
 fail/facts/five_variant_enum_payload_bound_through_call_result_rejected rejected 2789ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_payload from payload_call: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -12883,8 +12883,9 @@ fail/facts/source_indexed_family_constructor_parent_index_false rejected 942ms e
 	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_family_forwarded_parameter_rejected rejected 935ms expected @7eee0bd20c4b
 	source constructor predicate has no checked derivation yet
-fail/facts/source_indexed_family_illegal_runtime_elimination rejected 695ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+fail/facts/source_indexed_family_illegal_runtime_elimination rejected 6421ms expected @6d20220933d7
+	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
 fail/facts/source_indexed_family_insufficient_consumer_bound rejected 28072ms expected @e24b1abdbc99
 	terminal expression may overflow `u64`
 fail/facts/source_indexed_family_missing_head_bound rejected 968ms expected @7eee0bd20c4b
@@ -15081,14 +15082,14 @@ fail/generics/runtime_index_carrier_call_selected_mutated rejected 2141ms expect
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_call_selected_stale rejected 2986ms expected @ccdb99ca2214
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
-fail/generics/runtime_index_carrier_call_stale_capture rejected 6811ms expected @d70bac37d282
+fail/generics/runtime_index_carrier_call_stale_capture rejected 9055ms expected @6d20220933d7
 	machine `probe` state `entry` cannot prove runtime index subject equality at statement 4; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_cast_stale rejected 2881ms expected @ccdb99ca2214
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_const rejected 330ms expected @3f59f4c9e33c+wt
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
-fail/generics/runtime_index_carrier_constructor_wrong_payload rejected 5983ms expected @d70bac37d282
+fail/generics/runtime_index_carrier_constructor_wrong_payload rejected 9335ms expected @6d20220933d7
 	machine `escape` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_descriptor_borrow_alias rejected 2536ms expected @ccdb99ca2214
 	mutable scalar loan cannot preserve a runtime index descriptor
@@ -22805,15 +22806,15 @@ pass/facts/finite_family_returned_descriptor/other_machine checked 6964ms check-
 pass/facts/finite_family_returned_descriptor/other_state checked 6979ms check-target:macos_arm64 @f37c9cfc83e2
 pass/facts/finite_family_returned_descriptor/parameter checked 6993ms check-target:macos_arm64 @f37c9cfc83e2
 pass/facts/finite_family_returned_descriptor/target_body checked 7080ms check-target:macos_arm64 @f37c9cfc83e2
-pass/facts/finite_family_static_inline_result/call_result checked 12280ms check-target:macos_arm64 @d70bac37d282
-pass/facts/finite_family_static_inline_result/const_name checked 12947ms check-target:macos_arm64 @d70bac37d282
-pass/facts/finite_family_static_inline_result/field checked 12894ms check-target:macos_arm64 @d70bac37d282
-pass/facts/finite_family_static_inline_result/local checked 12945ms check-target:macos_arm64 @d70bac37d282
-pass/facts/finite_family_static_inline_result/match_join checked 13021ms check-target:macos_arm64 @d70bac37d282
-pass/facts/finite_family_static_inline_result/other_machine checked 11709ms check-target:macos_arm64 @d70bac37d282
-pass/facts/finite_family_static_inline_result/other_state checked 11044ms check-target:macos_arm64 @d70bac37d282
-pass/facts/finite_family_static_inline_result/parameter checked 11842ms check-target:macos_arm64 @d70bac37d282
-pass/facts/finite_family_static_inline_result/target_body checked 11822ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/call_result checked 13237ms check-target:macos_arm64 @6d20220933d7
+pass/facts/finite_family_static_inline_result/const_name checked 13029ms check-target:macos_arm64 @6d20220933d7
+pass/facts/finite_family_static_inline_result/field checked 12933ms check-target:macos_arm64 @6d20220933d7
+pass/facts/finite_family_static_inline_result/local checked 13092ms check-target:macos_arm64 @6d20220933d7
+pass/facts/finite_family_static_inline_result/match_join checked 13112ms check-target:macos_arm64 @6d20220933d7
+pass/facts/finite_family_static_inline_result/other_machine checked 13088ms check-target:macos_arm64 @6d20220933d7
+pass/facts/finite_family_static_inline_result/other_state checked 13077ms check-target:macos_arm64 @6d20220933d7
+pass/facts/finite_family_static_inline_result/parameter checked 13054ms check-target:macos_arm64 @6d20220933d7
+pass/facts/finite_family_static_inline_result/target_body checked 13104ms check-target:macos_arm64 @6d20220933d7
 pass/facts/five_variant_enum_payload_bound_through_call_result_exit checked 3392ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/five_variant_enum_payload_bound_through_const_name_exit checked 3321ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/five_variant_enum_payload_bound_through_field_exit checked 3647ms check-target:macos_arm64 @ccdb99ca2214
@@ -24919,7 +24920,7 @@ pass/facts/slice_view_layout_geometry_through_other_state_exit rejected 1989ms c
 	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 pass/facts/slice_view_layout_geometry_through_parameter_exit checked 3888ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/slice_view_layout_geometry_through_target_body_exit checked 4009ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/source_indexed_binary_tree_distinct_exit checked 11326ms check-target:macos_arm64 terminal-inspections:match @6b26c447f83
+pass/facts/source_indexed_binary_tree_distinct_exit checked 29293ms check-target:macos_arm64 terminal-inspections:match @6d20220933d7
 pass/facts/source_indexed_binary_tree_empty_children_exit checked 6072ms check-target:macos_arm64 @b7747e5d2569
 pass/facts/source_indexed_binary_tree_irrelevant_scalar_scope_exit checked 11627ms check-target:macos_arm64 terminal-inspections:match @6b26c447f83
 pass/facts/source_indexed_binary_tree_through_call_result_exit checked 5909ms check-target:macos_arm64 @0be3713483e9
@@ -25904,7 +25905,7 @@ pass/generics/runtime_index_carrier_after_earlier_descriptor_write_exit checked 
 pass/generics/runtime_index_carrier_argument_equal_exit checked 8302ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_index_carrier_array_valid checked 2645ms @ccdb99ca2214
 pass/generics/runtime_index_carrier_call_result checked 2442ms @ccdb99ca2214
-pass/generics/runtime_index_carrier_call_saved_capture_exit checked 11524ms check-target:macos_arm64 @d70bac37d282
+pass/generics/runtime_index_carrier_call_saved_capture_exit checked 12415ms check-target:macos_arm64 @6d20220933d7
 pass/generics/runtime_index_carrier_call_selected_index checked 2197ms @ccdb99ca2214
 pass/generics/runtime_index_carrier_call_selected_preserved checked 3006ms @ccdb99ca2214
 pass/generics/runtime_index_carrier_call_selected_replacement checked 2920ms @ccdb99ca2214

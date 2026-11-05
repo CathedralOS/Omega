@@ -89,48 +89,62 @@ family supply have separate requirements.
 
 ## Validation and remaining scope
 
-The current folder contains nine valid programs and nine reject twins, mirrored
-under `tests/omega/{pass,fail}/facts/finite_family_static_inline_result/`.
-The current programs add the explicit finite-sum return described above. The
-Build declarations and valid-program exit remain unchanged. Validation of this
-change is in progress; the table below records the earlier programs only.
+All nine current programs and their nine reject twins are mirrored under
+`tests/omega/{pass,fail}/facts/finite_family_static_inline_result/`.
+The current programs return the selected array through the explicit case value
+described above. Their Build declarations and expected exit remain unchanged.
 
-| Host | Compiler source | Fresh checking | Fresh corpus execution | Fresh sample execution |
+| Host | Compiler source | Checking | Corpus execution | Sample execution |
 | --- | --- | --- | --- | --- |
-| Linux ARM64 | `ed656648a42a42ed65cfb991f1ac8941a7dbd558` | 9 pass, 9 intended rejects | 9 native/Terminal exit-zero agreements | 9 agreements, 9 intended rejects |
-| Windows x86-64 | `46cad3817d2fbb2d03aaa45b5fae6f68b89ad0ad` | 9 pass, 9 intended rejects | 9 native/Terminal exit-zero agreements | 9 agreements, 9 intended rejects |
+| Linux x86-64 | `6d20220933d71e8aad836e69687751c92ebcd2bc` | 9 valid, 9 intended rejects | 9 native/Terminal exit-zero agreements | 9 agreements, 9 intended rejects |
+| Linux ARM64 | `64376af6ae978b4ddb2d2d50874724226ccb0646` | 9 valid, 9 intended rejects | 9 native/Terminal exit-zero agreements | 9 agreements, 9 intended rejects |
+| macOS ARM64 | `64376af6ae978b4ddb2d2d50874724226ccb0646` | 9 valid, 9 intended rejects | 9 native/Terminal exit-zero agreements | 9 agreements, 9 intended rejects |
+| Windows x86-64 | `64376af6ae978b4ddb2d2d50874724226ccb0646` | 9 valid, 9 intended rejects | 9 native/Terminal exit-zero agreements | 9 agreements, 9 intended rejects |
 
-The [Linux ARM64 run](https://github.com/CathedralOS/Omega/actions/runs/41961822390)
-and [Windows run](https://github.com/CathedralOS/Omega/actions/runs/41961828697)
-use program source `51ea1c54b2cfd7695dd666ae61cb55c27f8f61c8`.
-Both reuse authenticated optimization-level-1 executables from their recorded
-compiler sources. All compiler inputs and all 306 frozen program, fixture and
-library inputs match those sources. No Rust compiler build was needed. The
-workflow-only dispatch commits are recorded separately from the programs and
-compilers. Source checking uses the existing macOS ARM64 check target; execution
-uses each host's actual target.
+The [Linux run](https://github.com/CathedralOS/Omega/actions/runs/42106651463)
+also checked the focused malformed-output and stale-index controls. In total,
+30 valid programs checked, 29 controls rejected for their intended reasons,
+and 16 programs returned the authored zero in both engines. The Source report
+retains its timing movements against the stored baseline. The whole run failed
+because its ordinary CLI setup passed a relative workspace path before
+compilation. A [focused replay](https://github.com/CathedralOS/Omega/actions/runs/42113960599)
+with that path corrected passed package admission and returned zero in both
+engines, using the same authenticated optimized compiler. It did not repeat or
+relabel the completed checks.
 
-Earlier full-row Linux x86-64 and macOS ARM64 observations remain at their
-original sources in the [Linux](https://github.com/CathedralOS/Omega/actions/runs/41783441526)
-and [Mac](https://github.com/CathedralOS/Omega/actions/runs/41784898410) reports
-and existing corpus records. They are historical results, not fresh execution
-with either compiler above. The later explicit provider choices came from
+The [Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/42115153222),
+[macOS ARM64](https://github.com/CathedralOS/Omega/actions/runs/42115149060) and
+[Windows x86-64](https://github.com/CathedralOS/Omega/actions/runs/42115157698)
+runs also passed checking, both execution engines, all sample projects and
+ordinary package admission. Their full reports and actual products are retained.
+Each checks the same nine programs and nine twins, executes the nine positives
+in both engines, and exercises ordinary package admission. Their compiler and
+program inputs match the completed Linux work. Results keep the actual producer
+and host; Source checking uses the existing macOS ARM64 check target, while
+execution uses each host's actual target.
+
+Independent source review confirmed that the final lowering cleanup in
+[PR #1919](https://github.com/CathedralOS/Omega/pull/1919) leaves the proof references
+in these programs unchanged. Results stay stamped with the compiler revisions
+actually used.
+
+Earlier [Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/41961822390)
+and [Windows](https://github.com/CathedralOS/Omega/actions/runs/41961828697)
+results used program source `51ea1c54b2cfd7695dd666ae61cb55c27f8f61c8`, before
+the explicit case return. Earlier [Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41783441526)
+and [macOS ARM64](https://github.com/CathedralOS/Omega/actions/runs/41784898410)
+results and their stored corpus records also remain historical. These results
+are retained at their original sources; they do not validate the changed return
+path. The explicit provider choices came from
 [PR #1789](https://github.com/CathedralOS/Omega/pull/1789).
 
-Earlier reports also include programs that have since been retired. Those
-reports remain historical evidence in [PR #1721](https://github.com/CathedralOS/Omega/pull/1721);
-they do not describe the contents or acceptance of this folder today.
+The malformed output case previously reached a late lowering refusal despite
+having the wrong payload type. It now fails source checking for that mismatch.
+The saved-index pair separately checks that a returned value retains the index
+captured before a later write. These controls keep their original programs and
+rejection pins.
 
-Those earlier results filled the previously unmeasured Windows row and
-remaining Linux ARM64 places. They establish coverage of the earlier programs;
-they do not validate the new finite-sum return path. Both parent tasks remain open for their wider acceptance,
-including ownership and cleanup, escaping runtime-sized results, remaining
-source migrations and product-compiler support. No owner design decision is
-needed for this coverage update.
-
-The new local program already checked and ran with native/Terminal exit-zero
-agreement before the checking repair. Its malformed output case instead reached
-a late unlowerable-body refusal. A focused repaired-compiler check now reports
-that the payload cannot retain a different captured index. This is a missing
-source check, not evidence that the old compiler executed the invalid program.
-That focused constructor source is now pinned separately from the nine width-mismatch twins. The current programs and compiler still require final execution validation.
+Both parent tasks remain open. This row covers copyable arrays and this case
+return. Exclusive ownership and cleanup, escaping runtime-sized results,
+complete family supply, remaining source migrations and product-compiler support
+remain separate requirements.
