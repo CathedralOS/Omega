@@ -305,19 +305,14 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                             .supplied_output_resources
                             .iter()
                             .filter(|(_, resource)| resource.loan == *parent_loan)
-                            .filter_map(|(_, resource)| {
-                                flow.borrow_lifetimes
+                            .filter(|&(_, resource)| flow.borrow_lifetimes
                                     .weakenings
-                                    .is_valid(resource.holder_weakening)
-                                    .then(|| {
-                                        (
+                                    .is_valid(resource.holder_weakening)).map(|(_, resource)| (
                                             resource.holder_weakening,
                                             flow.borrow_lifetimes
                                                 .weakenings
                                                 .get(resource.holder_weakening),
-                                        )
-                                    })
-                            })
+                                        ))
                             .collect::<Vec<_>>()
                     } else {
                         flow.borrow_lifetimes

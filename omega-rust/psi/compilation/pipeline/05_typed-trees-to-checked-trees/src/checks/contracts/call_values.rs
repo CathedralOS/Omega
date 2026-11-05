@@ -1296,12 +1296,12 @@ pub(crate) fn operand_erases_membership(
         return true;
     }
 
-    if let checked_trees::FlowOperandCompletion::Constructed(children) = operand.completion {
-        if let Some(children) = control.operand_children.span(children) {
+    if let checked_trees::FlowOperandCompletion::Constructed(children) = operand.completion
+        && let Some(children) = control.operand_children.span(children) {
             for child in children {
                 let child_path = control.operand_child_paths.span_or_empty(child.path);
-                if path.starts_with(child_path) {
-                    if operand_erases_membership(
+                if path.starts_with(child_path)
+                    && operand_erases_membership(
                         program,
                         control,
                         child.value,
@@ -1313,13 +1313,11 @@ pub(crate) fn operand_erases_membership(
                         active.pop();
                         return true;
                     }
-                }
             }
         }
-    }
 
-    if let checked_trees::FlowOperandCompletion::Selected(alternatives) = operand.completion {
-        if let Some(rows) = control.operand_alternatives.span(alternatives) {
+    if let checked_trees::FlowOperandCompletion::Selected(alternatives) = operand.completion
+        && let Some(rows) = control.operand_alternatives.span(alternatives) {
             let any_erased = rows.iter().any(|row| {
                 operand_erases_membership(
                     program,
@@ -1336,11 +1334,9 @@ pub(crate) fn operand_erases_membership(
                 return true;
             }
         }
-    }
 
     if let checked_trees::FlowOperandCompletion::Copied { copy, path: prefix } = operand.completion
-    {
-        if control.copied_values.is_valid(copy) {
+        && control.copied_values.is_valid(copy) {
             let copied = control.copied_values.get(copy);
             let mut combined = control.operand_child_paths.span_or_empty(prefix).to_vec();
             combined.extend_from_slice(path);
@@ -1357,7 +1353,6 @@ pub(crate) fn operand_erases_membership(
                 return true;
             }
         }
-    }
 
     if operand.backing.is_valid() {
         let mut combined = control
