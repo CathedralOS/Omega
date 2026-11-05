@@ -12,6 +12,18 @@ pub(super) struct CompletedOperand {
 }
 
 impl CompletedOperand {
+    fn from_completed(
+        argument: terminal_psi::StructuralArgument,
+        claims: Option<Vec<terminal_psi::StructuralResultClaimBinding>>,
+    ) -> Result<Self, LoweringError> {
+        Self::checked(
+            argument,
+            claims.ok_or(LoweringError::Unsupported(
+                "completed operand has no published custody",
+            ))?,
+        )
+    }
+
     fn checked(
         argument: terminal_psi::StructuralArgument,
         claims: Vec<terminal_psi::StructuralResultClaimBinding>,
@@ -28,6 +40,16 @@ impl CompletedOperand {
 }
 
 impl emission::Emission<'_, '_, '_> {
+    /// An already completed binding carries its current claim names, including
+    /// a known empty roster. It needs no second source-expression consumption.
+    pub(super) fn completed_operand(
+        &self,
+        argument: terminal_psi::StructuralArgument,
+    ) -> Result<CompletedOperand, LoweringError> {
+        let claims = self.evaluation.current_claims.source(&argument)?;
+        CompletedOperand::from_completed(argument, claims)
+    }
+
     pub(super) fn capture_operand(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -52,9 +74,14 @@ impl emission::Emission<'_, '_, '_> {
         } else {
             self.evaluation.current_claims.source(&argument)?
         };
+        if self.multiplicity != StructuralMultiplicity::Unrestricted
+            && argument.place.get() >= first_new_place
+        {
+            return CompletedOperand::from_completed(argument, completed_claims);
+        }
         let claims = if self.multiplicity == StructuralMultiplicity::Unrestricted {
             Vec::new()
-        } else if argument.place.get() < first_new_place {
+        } else {
             crate::emission::claim_bindings::lower_owned_operand_claims(
                 identities,
                 self.checked,
@@ -69,10 +96,6 @@ impl emission::Emission<'_, '_, '_> {
                 self.structural_type,
                 self.structural_types,
             )?
-        } else {
-            completed_claims.ok_or(LoweringError::Unsupported(
-                "fresh constructor operand has no published custody",
-            ))?
         };
         CompletedOperand::checked(argument, claims)
     }

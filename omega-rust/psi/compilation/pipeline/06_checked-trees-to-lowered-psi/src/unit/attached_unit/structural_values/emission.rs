@@ -118,8 +118,7 @@ pub(crate) fn receive_completed<'source>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     initialization: &checked_trees::CheckedStructuralLocalInitialization,
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
-    source: PlaceId,
-    structural_type: StructuralTypeId,
+    source: argument_evaluation::StructuralValueStorage,
     environment: &mut super::super::operation_frame::OperationEnvironment<'source>,
     calls: &mut CallEmissionContext<'_>,
     evaluation: &mut argument_evaluation::Evaluation,
@@ -137,7 +136,7 @@ pub(crate) fn receive_completed<'source>(
         owner: facts::PlaceRoot::Symbol(result.local.symbol),
         destination: ValueDestination::Binding,
         statement: result.statement_index,
-        structural_type,
+        structural_type: source.selected_type,
         multiplicity: result.multiplicity,
         binding_type_reference: Default::default(),
         access: StructuralAccess::Owned,
@@ -147,7 +146,11 @@ pub(crate) fn receive_completed<'source>(
     emit_source(
         identities,
         production,
-        Some(StructuralArgument::whole(source, StructuralAccess::Owned)),
+        Some(StructuralArgument {
+            place: source.place,
+            path: source.path,
+            access: terminal_access(initialization.source().access),
+        }),
         environment,
         calls,
         evaluation,
@@ -602,8 +605,10 @@ fn emit_source<'source>(
         None
     };
     let place = if let Some(source) = completed_source {
-        let first_new_place = *emission.environment.next_place;
-        emission.materialize_place(identities, source, *value, first_new_place)?
+        // Its producer already completed the value and published its custody.
+        // Receiving it does not evaluate another authored consuming expression.
+        let completed = emission.completed_operand(source)?;
+        emission.materialize_completed_operand(identities, completed)?
     } else if let Some(alias) = projected_storage {
         let first_new_place = *emission.environment.next_place;
         let mut argument = StructuralArgument {
@@ -2639,9 +2644,17 @@ impl Emission<'_, '_, '_> {
         } else {
             structural_values(self.checked).nodes.get(value).expression
         };
-        let source_claims = self
-            .capture_operand(identities, source.clone(), expression, first_new_place)?
-            .claims;
+        let completed = self.capture_operand(identities, source, expression, first_new_place)?;
+        self.materialize_completed_operand(identities, completed)
+    }
+
+    fn materialize_completed_operand(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        completed: super::operand_claims::CompletedOperand,
+    ) -> Result<PlaceId, LoweringError> {
+        let source = &completed.argument;
+        let source_claims = &completed.claims;
         let block = block_id(allocate_dense(self.next_block)?);
         let place = place_id(allocate_dense(self.environment.next_place)?);
         // Common owners retain their dominating homes. Forwarding their
@@ -2653,7 +2666,7 @@ impl Emission<'_, '_, '_> {
         let position = u32::try_from(structural_parameters.len())
             .map_err(|_| LoweringError::Unsupported("owned move parameter count exceeds u32"))?;
         structural_parameters
-            .push(self.value_binding_parameter(identities, &source, place, position)?);
+            .push(self.value_binding_parameter(identities, source, place, position)?);
         let parameters = fresh_value_declarations(self.next_value, self.values)?;
         self.environment
             .private_places
@@ -2673,13 +2686,9 @@ impl Emission<'_, '_, '_> {
             current_claims: None,
             has_incoming_memberships: false,
         };
-        self.complete_value(
-            super::operand_claims::CompletedOperand {
-                argument: source.clone(),
-                claims: source_claims.clone(),
-            },
-            &mut continuation,
-        )?;
+        let source = source.clone();
+        let source_claims = source_claims.clone();
+        self.complete_value(completed, &mut continuation)?;
         self.seal_continuation_names(&mut continuation)?;
         self.operations.arrival_claims.push((place, source_claims));
         self.start(block);
