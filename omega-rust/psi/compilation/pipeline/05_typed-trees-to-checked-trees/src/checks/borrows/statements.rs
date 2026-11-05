@@ -719,6 +719,7 @@ pub(super) fn check_statement_borrows<'p>(
     check_call_mutation_borrows(
         program,
         facts,
+        loan_occurrences,
         state_flow,
         borrow_state,
         stated_premises,
@@ -754,6 +755,7 @@ pub(super) fn check_statement_borrows<'p>(
 fn check_call_mutation_borrows<'p>(
     program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state_flow: &FlowStateFact,
     borrow_state: &checked_trees::StateBorrowFact,
     stated_premises: &[StatedOrderingPremise],
