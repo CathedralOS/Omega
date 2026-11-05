@@ -452,6 +452,25 @@ impl OperationBuffer {
             );
         }
         if let Some(result) = operation.result.structural() {
+            // Copying or moving a whole descriptor keeps its referent. A
+            // projected child needs its own formation; its parent's backing
+            // cannot identify that child's reference.
+            match &operation.kind {
+                OperationKind::MoveStructuralValue { source } => {
+                    self.reference_backings.forward(source, result.place);
+                }
+                OperationKind::StructuralLeafCopy { source, path } if path.is_empty() => {
+                    self.reference_backings.forward(
+                        &terminal_psi::StructuralArgument {
+                            place: *source,
+                            path: Vec::new(),
+                            access: terminal_psi::StructuralAccess::Owned,
+                        },
+                        result.place,
+                    );
+                }
+                _ => {}
+            }
             self.structural_establishments.push(result.place);
         } else if let OperationKind::EstablishTrivialAffineLocal { destination }
         | OperationKind::EstablishByteSequenceLiteral { destination, .. } =

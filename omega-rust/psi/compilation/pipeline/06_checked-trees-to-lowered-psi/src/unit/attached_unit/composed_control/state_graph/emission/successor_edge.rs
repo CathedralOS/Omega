@@ -373,7 +373,13 @@ impl StateGraphEmission<'_, '_> {
                                         if super::super::result_custody::loan_subject(&transfer.source, &checked.facts.values.structural_values).is_some() {
                                             // The producer records the evaluated backing for both
                                             // descriptor operations and borrowed block arrivals.
-                                            let source = operations.reference_backings.source(place)?;
+                                            let source = operations.reference_backings.source(place).or_else(|| {
+                                                if std::env::var_os("OMEGA_STATE_REFERENCE_DIAGNOSTICS").is_some() {
+                                                    let producer = operations.iter().find(|operation| operation.result.structural().is_some_and(|result| result.place == place));
+                                                    eprintln!("state reference backing unavailable: place={place:?} binding={binding:?} producer={:?}", producer.map(|operation| (&operation.id, &operation.kind)));
+                                                }
+                                                None
+                                            }).ok_or(LoweringError::Unsupported("completed state reference lost its emitted formation"))?;
                                             captured_backing = Some((source.place, source.path.clone()));
                                             if let Some(group) = self.captured_loans.group(target, target_index as u32) {
                                                 captured_loans.push((group, place));

@@ -69,15 +69,20 @@ impl Execution<'_, '_, '_> {
         completion: FlowOperandCompletion,
     ) -> Option<Handle<FlowOperandFact>> {
         let target = validation::call_target_symbol(self.program, call);
-        // A slot with one admitted implementation has an ordinary checked
-        // body. Its data parameters exclude the selector that the call still
-        // evaluates first. The original call retains its public lifetime debts.
-        let (state, argument_offset) =
-            if let Some(slot) = self.program.dynamic_slot_by_symbol(target) {
-                (validation::unique_dispatched_entry(self.program, slot)?, 1)
-            } else {
-                (validation::call_target_state(self.program, target)?, 0)
-            };
+        let FlowOperandCompletion::InvocationResult { invocation, .. } = completion else {
+            return None;
+        };
+        let actuals = self
+            .context
+            .control
+            .calls
+            .get(invocation)
+            .argument_operands();
+        // Use the same completed selector and checked body as stored results.
+        // The body's parameters start after the selector; the public call
+        // keeps all lifetimes required by its declared contract.
+        let (_, state, data_actuals) = self.completed_call_target(target, actuals)?;
+        let argument_offset = actuals.len().checked_sub(data_actuals.len())?;
         let parameters = self.program.state_parameters(state);
         let arguments = self
             .program
@@ -139,17 +144,7 @@ impl Execution<'_, '_, '_> {
             let position =
                 typed_trees::signature::state_parameter_position(parameters, source.source.root)?;
             inputs.get(position + argument_offset)?;
-            let FlowOperandCompletion::InvocationResult { invocation, .. } = completion else {
-                return None;
-            };
-            let actual = self
-                .context
-                .control
-                .calls
-                .get(invocation)
-                .argument_operands()
-                .handles()
-                .nth(position + argument_offset)?;
+            let actual = data_actuals.handles().nth(position)?;
             let values =
                 self.call_backing_values(actual, &source.source, reference, source_snapshot)?;
             for (operand, projection) in values {
