@@ -52,7 +52,7 @@ pub(crate) fn regions_for_calls(
                 has_receiver: call.has_receiver,
                 accesses: call.accesses,
             };
-            let ceiling = crate::flow::signature_ceiling_regions(
+            let ceiling = crate::flow::linear_restoration_ceiling_regions(
                 program,
                 machine,
                 state,
