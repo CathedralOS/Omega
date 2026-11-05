@@ -21156,9 +21156,7 @@ pass/domains/executable_domain_membership_union_guard_exit checked 17146ms check
 pass/domains/explicit_domain_erasure checked 1990ms @0cea3356c5b0+wt
 pass/domains/float_conversion_qualification_transport_exit checked 14070ms check-target:macos_arm64 @30013776d577
 pass/domains/guard_predicate_establishes_domain checked 2359ms @ccdb99ca2214
-pass/domains/inactive_impossible_payload_exit rejected 1343ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `consume` state `entry` value call to `impossible` violates required fact `false`: the instantiated fact is structurally false
-	machine `consume_negated` state `entry` value call to `impossible` violates required fact `false`: the instantiated fact is structurally false
+pass/domains/inactive_impossible_payload_exit checked 4194ms check-target:macos_arm64 @4196a1889b83
 pass/domains/indexed_domain_fact checked 2396ms @ad7c6890a897+wt
 pass/domains/indexed_domain_known_disjoint_call_exit checked 1764ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @f1058703209f+wt
 pass/domains/indexed_membership_follows_completed_values checked 3035ms check-target:macos_arm64 @ccdb99ca2214
