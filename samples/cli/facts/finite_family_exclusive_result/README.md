@@ -68,8 +68,7 @@ The governing rules are [ownership and cleanup](../../../../wiki/spec/language/o
 
 | Matching host | Run | Actual compiler | Program source |
 | --- | --- | --- | --- |
-| Linux x86-64, local | [41985245723](https://github.com/CathedralOS/Omega/actions/runs/41985245723) | `f37c9cfc83e2` | `0795de340570` |
-| Linux x86-64, other eight | [41990718557](https://github.com/CathedralOS/Omega/actions/runs/41990718557) | `f37c9cfc83e2` | `e2e2bad96355` |
+| Linux x86-64 | [41993126604](https://github.com/CathedralOS/Omega/actions/runs/41993126604) | `4264bc537ced` | `4264bc537ced` |
 | Linux ARM64 | [41990133234](https://github.com/CathedralOS/Omega/actions/runs/41990133234) | `555bdbb56368` | `e2e2bad96355` |
 | macOS ARM64 | [41990141523](https://github.com/CathedralOS/Omega/actions/runs/41990141523) | `555bdbb56368` | `e2e2bad96355` |
 | Windows x86-64 | [41990149995](https://github.com/CathedralOS/Omega/actions/runs/41990149995) | `555bdbb56368` | `e2e2bad96355` |
@@ -77,15 +76,25 @@ The governing rules are [ownership and cleanup](../../../../wiki/spec/language/o
 Together, each host supplies nine Source accepts, nine intended lifetime
 refusals, nine corpus native/Terminal exit-zero agreements and eighteen sample
 outcomes. The local ordinary CLI also updates and runs at 0/0 on each host.
-The local executable inputs are identical between the two Linux program
-revisions. All compilers have verified optimization level 1; these runs reuse
-retained binaries and do not build Rust.
+The original Linux local and eight-place runs remain at
+[41985245723](https://github.com/CathedralOS/Omega/actions/runs/41985245723) and
+[41990718557](https://github.com/CathedralOS/Omega/actions/runs/41990718557). A
+real observation-file merge conflict required integrating published main, which
+changed common checking code. The fresh Linux compiler then passed the entire
+cleanup scope. Its whole job remains failed because two additional, unchanged
+finite-family controls timed out at their existing adaptive limits. No timeout
+is recorded as an intended rejection. All compilers have verified optimization
+level 1. Only the integrated Linux compiler needed a fresh Rust build.
 
 The three `555bdbb56368` compilers retain that actual identity. Their only
 compiler difference from `f37c9cfc83e2` consolidates two public-contract conflict
 checks during target-neutral lowering. Independent review establishes identical
 catalog output on admitted paths; these are not executions of `f37` on those
-three hosts. Their frozen library and backend inputs are unchanged.
+three hosts. The later integration changes common proof/checking consumers,
+which the fresh Linux scope covers, and fixed-byte construction absent from
+these cleanup values. Independent review found no changed target-specific
+consumer requiring another three builds. Original other-host identities and
+outcomes remain intact; no integrated-compiler execution is claimed there.
 
 Two earlier attempts remain failed: the first local source omitted the lifetime
 required by its two case paths, and the first eight-place Linux observer passed
@@ -105,5 +114,5 @@ Those older runs used `ed656648a42a` on Linux and `46cad3817d2f` on macOS and
 Windows. They remain evidence for their original plain-ticket programs, with
 raw reports, baseline failures and independent reviews preserved on that PR.
 The new results above establish the active-payload extension. The parent task
-remains open, including its older Std-backed finite-family controls that still
-time out rather than reach their intended rejection.
+remains open. Its older controls for an incomplete provider and a width outside
+the family still time out before their intended contract errors.
