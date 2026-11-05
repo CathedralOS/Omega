@@ -74,7 +74,22 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: af33106a1e73370a88493503a8f0365380e17b1f
           persist-credentials: false
+      - name: Bind the clean reviewed source and retain the separate workflow driver
+        shell: bash
+        run: |
+          python3 - <<'BIND'
+          import json,os,subprocess
+          from pathlib import Path
+          source='af33106a1e73370a88493503a8f0365380e17b1f'
+          driver=os.environ['GITHUB_SHA']
+          subprocess.run(['git','checkout','--detach',source],check=True)
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==source
+          assert not subprocess.check_output(['git','status','--porcelain'],text=True)
+          out=Path('build/compiler-pilot');out.mkdir(parents=True,exist_ok=True)
+          (out/'driver-source.json').write_text(json.dumps({'driver':driver,'reviewed_source':source,'tree':'134d0978978ea7045d9539a78f8a20631ba40d35','binding':'Explicit child candidate for existing compiler pilot; driver remains separately recorded.'},indent=2)+'\n')
+          BIND
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
@@ -143,7 +158,7 @@ jobs:
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py --phase prepare
+        run: python -c "import os,subprocess,sys; environment=dict(os.environ,GITHUB_SHA='af33106a1e73370a88493503a8f0365380e17b1f'); raise SystemExit(subprocess.call([sys.executable,'tools/ci/compiler_pilot.py',*sys.argv[1:]],env=environment))" --phase prepare
       - name: Upload the prepared producer and build receipts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
@@ -177,7 +192,210 @@ jobs:
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py --phase consume
+        run: python -c "import os,subprocess,sys; environment=dict(os.environ,GITHUB_SHA='af33106a1e73370a88493503a8f0365380e17b1f'); raise SystemExit(subprocess.call([sys.executable,'tools/ci/compiler_pilot.py',*sys.argv[1:]],env=environment))" --phase consume
+      - name: Check existing atomic frontier replay and nine actual sample stores
+        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
+        shell: bash
+        run: |
+          python3 - <<'EXTRAS'
+          from pathlib import Path
+          import hashlib,json,subprocess,sys,time,os
+          root=Path.cwd();out=root/'build/compiler-pilot/integration-extras';out.mkdir(parents=True,exist_ok=True)
+          settings={'source': 'af33106a1e73370a88493503a8f0365380e17b1f',
+           'tree': '134d0978978ea7045d9539a78f8a20631ba40d35',
+           'frozen_inputs': {'samples/cli/facts/atomic_bounded_resident/README.md': '8cf1c2c97f19bc12497f4f9bcbf28fea33cc67816d08279705e3e23d8a45b35f',
+                             'samples/cli/facts/atomic_bounded_resident/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/call_result/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/call_result/invalid/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/call_result/invalid/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'samples/cli/facts/atomic_bounded_resident/call_result/invalid/main.omg': '6b107675af8ac0f0811e08df703e32c329bd2bc30728e55879f06063fa23bea7',
+                             'samples/cli/facts/atomic_bounded_resident/call_result/invalid/sample.json': '815b0c8bab6722df060ae0aebb88e794bd407d3d692beaa771d8d79f85e868a9',
+                             'samples/cli/facts/atomic_bounded_resident/call_result/main.omg': 'cbfb7767b3c15cbe41d669faad847f9f43d5d427bf8a8483c4be5917ba74d1e5',
+                             'samples/cli/facts/atomic_bounded_resident/const_name/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/const_name/invalid/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/const_name/invalid/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'samples/cli/facts/atomic_bounded_resident/const_name/invalid/main.omg': '6da1223770b8cfacf6b85c6dc3d947085b44b1dda48bfccb957cbff4799a2b16',
+                             'samples/cli/facts/atomic_bounded_resident/const_name/invalid/sample.json': '815b0c8bab6722df060ae0aebb88e794bd407d3d692beaa771d8d79f85e868a9',
+                             'samples/cli/facts/atomic_bounded_resident/const_name/main.omg': 'ce8678b75c8cae2e36ae6857b543efa20dee0d98ddcef72aa5f2b4690210c3fe',
+                             'samples/cli/facts/atomic_bounded_resident/field/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/field/invalid/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/field/invalid/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'samples/cli/facts/atomic_bounded_resident/field/invalid/main.omg': '7557e52d9f4b520b9bd84b93309e74b2d18530301921d50dcbf92fc0887a96f9',
+                             'samples/cli/facts/atomic_bounded_resident/field/invalid/sample.json': '815b0c8bab6722df060ae0aebb88e794bd407d3d692beaa771d8d79f85e868a9',
+                             'samples/cli/facts/atomic_bounded_resident/field/main.omg': '9dabaf0a406847538a6b210e600a2aaf97bc67277e17c3a835259c08d6953f84',
+                             'samples/cli/facts/atomic_bounded_resident/local/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/local/invalid/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/local/invalid/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'samples/cli/facts/atomic_bounded_resident/local/invalid/main.omg': 'e88ced76f3fdcf1edc70f103bf4d4fd29af0e2617791f8b5d46bbcf83a2d6d16',
+                             'samples/cli/facts/atomic_bounded_resident/local/invalid/sample.json': '815b0c8bab6722df060ae0aebb88e794bd407d3d692beaa771d8d79f85e868a9',
+                             'samples/cli/facts/atomic_bounded_resident/local/main.omg': '03f867075d8476c33a9158d67ce97a35787c09f7790ee671bac90f804955c849',
+                             'samples/cli/facts/atomic_bounded_resident/main.omg': '03f867075d8476c33a9158d67ce97a35787c09f7790ee671bac90f804955c849',
+                             'samples/cli/facts/atomic_bounded_resident/match_join/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/match_join/invalid/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/match_join/invalid/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'samples/cli/facts/atomic_bounded_resident/match_join/invalid/main.omg': '235fe1ca5d9fdf029541c9e1bb07fdd553091487cb7e6f909d990f3b61021772',
+                             'samples/cli/facts/atomic_bounded_resident/match_join/invalid/sample.json': '815b0c8bab6722df060ae0aebb88e794bd407d3d692beaa771d8d79f85e868a9',
+                             'samples/cli/facts/atomic_bounded_resident/match_join/main.omg': '97c2aa25232fe87a6eadeecb771d4a9212265f0e912a860f534ff7af926e19a8',
+                             'samples/cli/facts/atomic_bounded_resident/other_machine/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/other_machine/invalid/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/other_machine/invalid/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'samples/cli/facts/atomic_bounded_resident/other_machine/invalid/main.omg': '7ed84fe1d541d79e096d9a7d11d614ece2eea93d5878fe3c9b93144afd35a5c3',
+                             'samples/cli/facts/atomic_bounded_resident/other_machine/invalid/sample.json': '815b0c8bab6722df060ae0aebb88e794bd407d3d692beaa771d8d79f85e868a9',
+                             'samples/cli/facts/atomic_bounded_resident/other_machine/main.omg': '6976c99fcca361ec3df6b89b973eff26609906408d8c4eb57d9955859020b5ea',
+                             'samples/cli/facts/atomic_bounded_resident/other_state/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/other_state/invalid/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/other_state/invalid/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'samples/cli/facts/atomic_bounded_resident/other_state/invalid/main.omg': '311109207980ca40e9058688acea80e0137689ea338e27380f353a42b4b674e6',
+                             'samples/cli/facts/atomic_bounded_resident/other_state/invalid/sample.json': '815b0c8bab6722df060ae0aebb88e794bd407d3d692beaa771d8d79f85e868a9',
+                             'samples/cli/facts/atomic_bounded_resident/other_state/main.omg': 'aa5e96540c204af108b78b1932dea297230438efd64218a996d3463d301bbba4',
+                             'samples/cli/facts/atomic_bounded_resident/parameter/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/parameter/invalid/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'samples/cli/facts/atomic_bounded_resident/parameter/invalid/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'samples/cli/facts/atomic_bounded_resident/parameter/invalid/main.omg': 'cfdb91010ad000349dc9e5ddf1c2cb7ab27f723332979beb84aa69da32a1b74d',
+                             'samples/cli/facts/atomic_bounded_resident/parameter/invalid/sample.json': '815b0c8bab6722df060ae0aebb88e794bd407d3d692beaa771d8d79f85e868a9',
+                             'samples/cli/facts/atomic_bounded_resident/parameter/main.omg': '4093f7ee072df6481b676a58437217b0ae6d054435c1d1dd6092d8252af01b5c',
+                             'samples/cli/facts/atomic_bounded_resident/target_body/build.omg': 'e64796e0d8bbabf61a86a57591214fbf5e8cc7103e28a394b7b8370868de49c9',
+                             'samples/cli/facts/atomic_bounded_resident/target_body/invalid/build.omg': 'e64796e0d8bbabf61a86a57591214fbf5e8cc7103e28a394b7b8370868de49c9',
+                             'samples/cli/facts/atomic_bounded_resident/target_body/invalid/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'samples/cli/facts/atomic_bounded_resident/target_body/invalid/main.omg': '9695acf036a87e2626f99d5bd946911860d3bf0c6532672fd040bbe1888b5244',
+                             'samples/cli/facts/atomic_bounded_resident/target_body/invalid/sample.json': '815b0c8bab6722df060ae0aebb88e794bd407d3d692beaa771d8d79f85e868a9',
+                             'samples/cli/facts/atomic_bounded_resident/target_body/main.omg': '881e20880068e18d89981639e867249053797b0eedc6ee3a1382930f663ff005',
+                             'tests/omega/fail/atomics/atomic_boolean_ordinary_bool_load/build.omg': '3f682c31d0d3ce768b71b0ad9182cc62e83a9b41d7096b8c2cb80e767eeec408',
+                             'tests/omega/fail/atomics/atomic_boolean_ordinary_bool_load/expected.txt': '97645d97d7e1a65d8cff7264183630516c9921bc50ca6f8f01f811a8942f5a45',
+                             'tests/omega/fail/atomics/atomic_boolean_ordinary_bool_load/main.omg': '82d42f5867fa0ddf973c12ef5d2c4dba0c0454b363933df2a469fec39f8a55d8',
+                             'tests/omega/fail/atomics/atomic_compare_exchange_failure_stronger_rejected/expected.txt': '362e5ca4dfbb6b12624383a3f17a5c0b05846e176fa4298566f707c11a3f774b',
+                             'tests/omega/fail/atomics/atomic_compare_exchange_failure_stronger_rejected/main.omg': 'aaefe64b25a0eafad552efbf7d61b463aee2f40208b799086773e5f9a3b6c13a',
+                             'tests/omega/fail/atomics/atomic_load_publish_ordering_rejected/expected.txt': '99682b2a4f53c5bc66262603d3fc738c357fad65846aed6bc8dbde5b6ada7779',
+                             'tests/omega/fail/atomics/atomic_load_publish_ordering_rejected/main.omg': '68ca66d2db66a2bb6bbbf80e8e203a25e28420755428f479534a5c8ec02e2a52',
+                             'tests/omega/fail/atomics/atomic_store_receive_ordering_rejected/expected.txt': '56faca7af9d2971af829426360fc6e834f7990f6980fea335d0c48fd8168c811',
+                             'tests/omega/fail/atomics/atomic_store_receive_ordering_rejected/main.omg': '65af405716bf87c475bb7680d3bc083c393e16ef7d1011d1531569a6ce17fc20',
+                             'tests/omega/fail/atomics/shared_receiver_plain_field_write/expected.txt': '1b8bdedd2b75509b2ee8ef9a641c79d9f64a02e71847dfc4738779a8fd231447',
+                             'tests/omega/fail/atomics/shared_receiver_plain_field_write/main.omg': '4d2e5f7b3291844e0cf56e47c99143879954957ce7135c69e854fb32003da561',
+                             'tests/omega/fail/atomics/stored_reference_non_atomic_shared_store/expected.txt': 'd3ae6223376716ba1483c41995186eec9ee0dc32ee89708dcb0a6d5e579aec92',
+                             'tests/omega/fail/atomics/stored_reference_non_atomic_shared_store/main.omg': '36b03de0d0bfc5d51c091eab9157b32bfc9b2010ca75e7429211d5942f09ff58',
+                             'tests/omega/fail/borrow/write_only_stored_pointer_observation/expected.txt': 'c50c0fd91dee86b9cb0d0b6b86c2781f4edf6b09b75e1672cc0b294ef2d2aba0',
+                             'tests/omega/fail/borrow/write_only_stored_pointer_observation/main.omg': '7a4f372c4070330b5a592ab6a23c00fb6a34bdcf4d411f0bdbffdd6866b660f4',
+                             'tests/omega/fail/facts/atomic_bounded_fetch/local/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'tests/omega/fail/facts/atomic_bounded_fetch/local/main.omg': '9c5a8252b994a397feb1aee6bb0528b36b44a660c0ebcd9580538b85e2d45eef',
+                             'tests/omega/fail/facts/atomic_bounded_resident/call_result/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'tests/omega/fail/facts/atomic_bounded_resident/call_result/main.omg': '6b107675af8ac0f0811e08df703e32c329bd2bc30728e55879f06063fa23bea7',
+                             'tests/omega/fail/facts/atomic_bounded_resident/const_name/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'tests/omega/fail/facts/atomic_bounded_resident/const_name/main.omg': '6da1223770b8cfacf6b85c6dc3d947085b44b1dda48bfccb957cbff4799a2b16',
+                             'tests/omega/fail/facts/atomic_bounded_resident/field/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'tests/omega/fail/facts/atomic_bounded_resident/field/main.omg': '7557e52d9f4b520b9bd84b93309e74b2d18530301921d50dcbf92fc0887a96f9',
+                             'tests/omega/fail/facts/atomic_bounded_resident/local/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'tests/omega/fail/facts/atomic_bounded_resident/local/main.omg': 'e88ced76f3fdcf1edc70f103bf4d4fd29af0e2617791f8b5d46bbcf83a2d6d16',
+                             'tests/omega/fail/facts/atomic_bounded_resident/match_join/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'tests/omega/fail/facts/atomic_bounded_resident/match_join/main.omg': '235fe1ca5d9fdf029541c9e1bb07fdd553091487cb7e6f909d990f3b61021772',
+                             'tests/omega/fail/facts/atomic_bounded_resident/other_machine/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'tests/omega/fail/facts/atomic_bounded_resident/other_machine/main.omg': '7ed84fe1d541d79e096d9a7d11d614ece2eea93d5878fe3c9b93144afd35a5c3',
+                             'tests/omega/fail/facts/atomic_bounded_resident/other_state/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'tests/omega/fail/facts/atomic_bounded_resident/other_state/main.omg': '311109207980ca40e9058688acea80e0137689ea338e27380f353a42b4b674e6',
+                             'tests/omega/fail/facts/atomic_bounded_resident/parameter/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'tests/omega/fail/facts/atomic_bounded_resident/parameter/main.omg': 'cfdb91010ad000349dc9e5ddf1c2cb7ab27f723332979beb84aa69da32a1b74d',
+                             'tests/omega/fail/facts/atomic_bounded_resident/target_body/expected.txt': '334f8d9bcac9de7037fee445a51c96466d6dca804a2392289dd748d15707980d',
+                             'tests/omega/fail/facts/atomic_bounded_resident/target_body/main.omg': 'bd7e03cf871790e6e249f11c2c473ca678ec88b981db6145b8c21ee684a1d9ff',
+                             'tests/omega/fail/recast/shared_atomic_to_ordinary/build.omg': '996b1eb8aa5a05031b5bbfd3dd2eef134ff968c0c1bf7baf0989f20413376a52',
+                             'tests/omega/fail/recast/shared_atomic_to_ordinary/expected.txt': '8b3ed69a41d2a1e0a8ec6024888f3d3e03186e1315da11013991bbcccd05a351',
+                             'tests/omega/fail/recast/shared_atomic_to_ordinary/main.omg': '2a630032e4f7b928bb0d311fd43b0d2ac5caf0598cf23056c1eba5172c6fa941',
+                             'tests/omega/fail/recast/shared_ordinary_to_atomic/build.omg': '00e977fafed4a4f4f2e451367181f9fe63692abd26a9669b50b8fb13c18f8e95',
+                             'tests/omega/fail/recast/shared_ordinary_to_atomic/expected.txt': '8b3ed69a41d2a1e0a8ec6024888f3d3e03186e1315da11013991bbcccd05a351',
+                             'tests/omega/fail/recast/shared_ordinary_to_atomic/main.omg': 'ee391ac8976d62c8faec708d7bf9434995c104df6e8d6ac52a0ad979703e8cf5',
+                             'tests/omega/pass/atomics/atomic_global_order_operations/build.omg': 'e1753dd4d4979c4037e4ddd1b39bd8e6ed7efb7897f4a1bb8bd2c5a660c9cc5c',
+                             'tests/omega/pass/atomics/atomic_global_order_operations/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/atomics/atomic_global_order_operations/main.omg': 'd28371b8693717c5a37e29eee28635994a8b1292045fdc68723f80eaba979a5e',
+                             'tests/omega/pass/atomics/runtime_atomic_operand_order_exit/build.omg': '26644dc9dd4263b2d8236e793074274c6f4b6597eaafe1c27ec81d26c99e8aa7',
+                             'tests/omega/pass/atomics/runtime_atomic_operand_order_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/atomics/runtime_atomic_operand_order_exit/main.omg': '62e206db9636e539eb308d579854fd1c0dacc4deb16b96947a676ead4b75e6e1',
+                             'tests/omega/pass/facts/atomic_bounded_fetch/local/build.omg': '64135ce40c0613730fed268305c22765fbca1cc93b92c201eb690b0da22a474a',
+                             'tests/omega/pass/facts/atomic_bounded_fetch/local/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_fetch/local/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_fetch/local/main.omg': '8bdba4d62c6c1c34184533888a4af4e09a7582cbbcc6bf4a6c73d8f33d36b360',
+                             'tests/omega/pass/facts/atomic_bounded_resident/call_result/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'tests/omega/pass/facts/atomic_bounded_resident/call_result/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/call_result/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/call_result/main.omg': 'cbfb7767b3c15cbe41d669faad847f9f43d5d427bf8a8483c4be5917ba74d1e5',
+                             'tests/omega/pass/facts/atomic_bounded_resident/const_name/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'tests/omega/pass/facts/atomic_bounded_resident/const_name/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/const_name/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/const_name/main.omg': 'ce8678b75c8cae2e36ae6857b543efa20dee0d98ddcef72aa5f2b4690210c3fe',
+                             'tests/omega/pass/facts/atomic_bounded_resident/field/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'tests/omega/pass/facts/atomic_bounded_resident/field/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/field/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/field/main.omg': '9dabaf0a406847538a6b210e600a2aaf97bc67277e17c3a835259c08d6953f84',
+                             'tests/omega/pass/facts/atomic_bounded_resident/local/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'tests/omega/pass/facts/atomic_bounded_resident/local/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/local/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/local/main.omg': '03f867075d8476c33a9158d67ce97a35787c09f7790ee671bac90f804955c849',
+                             'tests/omega/pass/facts/atomic_bounded_resident/match_join/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'tests/omega/pass/facts/atomic_bounded_resident/match_join/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/match_join/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/match_join/main.omg': '97c2aa25232fe87a6eadeecb771d4a9212265f0e912a860f534ff7af926e19a8',
+                             'tests/omega/pass/facts/atomic_bounded_resident/other_machine/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'tests/omega/pass/facts/atomic_bounded_resident/other_machine/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/other_machine/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/other_machine/main.omg': '6976c99fcca361ec3df6b89b973eff26609906408d8c4eb57d9955859020b5ea',
+                             'tests/omega/pass/facts/atomic_bounded_resident/other_state/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'tests/omega/pass/facts/atomic_bounded_resident/other_state/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/other_state/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/other_state/main.omg': 'aa5e96540c204af108b78b1932dea297230438efd64218a996d3463d301bbba4',
+                             'tests/omega/pass/facts/atomic_bounded_resident/parameter/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'tests/omega/pass/facts/atomic_bounded_resident/parameter/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/parameter/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/parameter/main.omg': '4093f7ee072df6481b676a58437217b0ae6d054435c1d1dd6092d8252af01b5c',
+                             'tests/omega/pass/facts/atomic_bounded_resident/target_body/build.omg': '97a5183bf22dc2550b972c4a2c36170d7173e4f12df7f9487a5c02eb928f39b1',
+                             'tests/omega/pass/facts/atomic_bounded_resident/target_body/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/target_body/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_bounded_resident/target_body/main.omg': 'db169fd2b03da8ff532c33315feb6d300fe4dda45f9e5f28903aff235c807e0b',
+                             'tests/omega/pass/facts/atomic_try_exchange_once/local/build.omg': '63051f02b64a0d03e866b4f256e2138135893e761107f7402e34588a2ae1af06',
+                             'tests/omega/pass/facts/atomic_try_exchange_once/local/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_try_exchange_once/local/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                             'tests/omega/pass/facts/atomic_try_exchange_once/local/main.omg': '61c83d453718a817c9bca3d0fa9c96267e8aace1a3aff599c98a1113b10f895e'},
+           'samples': ['samples/cli/facts/atomic_bounded_resident/local/invalid',
+                       'samples/cli/facts/atomic_bounded_resident/field/invalid',
+                       'samples/cli/facts/atomic_bounded_resident/parameter/invalid',
+                       'samples/cli/facts/atomic_bounded_resident/call_result/invalid',
+                       'samples/cli/facts/atomic_bounded_resident/match_join/invalid',
+                       'samples/cli/facts/atomic_bounded_resident/const_name/invalid',
+                       'samples/cli/facts/atomic_bounded_resident/other_state/invalid',
+                       'samples/cli/facts/atomic_bounded_resident/other_machine/invalid',
+                       'samples/cli/facts/atomic_bounded_resident/target_body/invalid'],
+           'rust_tests': {'package': 'abstract-operations',
+                          'filter': 'atomic::frontier_tests',
+                          'expected_tests': 6}}
+          os.environ['GITHUB_SHA']=settings['source']
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==settings['source']
+          assert not subprocess.check_output(['git','status','--porcelain'],text=True)
+          for p,h in settings['frozen_inputs'].items():assert hashlib.sha256((root/p).read_bytes()).hexdigest()==h,p
+          sys.path[:0]=[str(root/'tools'),str(root/'tools/ci')]
+          from compiler_pilot import CompilerProducer
+          from sample_projects import project_at
+          from sample_native_gate import rejection_verdict
+          preparation=json.loads((root/'build/compiler-pilot/preparation.json').read_text());assert preparation['passed'] and preparation['candidate']==settings['source']
+          record=dict(preparation['producer']);record['cli']=Path(record['cli']);record['runner']=None if record['runner'] is None else Path(record['runner']);producer=CompilerProducer(**record);producer.verify()
+          refusals=[];rows=[]
+          command=['cargo','test','--locked','-p','abstract-operations','--lib','atomic::frontier_tests','--','--nocapture']
+          started=time.monotonic()
+          with (out/'frontier-tests.stdout').open('wb') as stdout,(out/'frontier-tests.stderr').open('wb') as stderr:
+              completed=subprocess.run(command,stdout=stdout,stderr=stderr)
+          text=(out/'frontier-tests.stdout').read_text();passed=completed.returncode==0 and '6 passed; 0 failed;' in text
+          (out/'frontier-tests.json').write_text(json.dumps({'source':settings['source'],'command':command,'exit':completed.returncode,'seconds':time.monotonic()-started,'passed':passed},indent=2)+'\n')
+          if not passed:refusals.append('existing independent atomic frontier tests failed or incomplete')
+          for sample in settings['samples']:
+              project=project_at(root/sample,root);assert project.role=='intended-invalid' and project.entry is not None
+              destination=out/'sample-checks'/sample;destination.mkdir(parents=True,exist_ok=True)
+              command=[str(producer.cli),'--check','--target','linux_x86_64',str(project.entry)];producer.verify();started=time.monotonic()
+              with (destination/'stdout').open('wb') as stdout,(destination/'stderr').open('wb') as stderr:
+                  completed=subprocess.run(command,stdout=stdout,stderr=stderr,timeout=120)
+              producer.verify();stderr=(destination/'stderr').read_text();matched,detail=rejection_verdict(project,completed.returncode,stderr,expected_exit=1)
+              actual_store="machine `publish` state `entry` assignment stores a value not provably within its data's `requires` facts" in stderr
+              row={'sample':sample,'role':project.role,'command':command,'exit':completed.returncode,'seconds':time.monotonic()-started,'detail':detail,'actual_store_bound_refusal':actual_store,'passed':matched and actual_store,'main_sha256':hashlib.sha256(project.entry.read_bytes()).hexdigest()};rows.append(row)
+              (out/'samples.json').write_text(json.dumps(rows,indent=2)+'\n')
+              if not row['passed']:refusals.append(sample+': actual store-bound refusal unmet')
+          producer.verify()
+          (out/'summary.json').write_text(json.dumps({'passed':not refusals,'refusals':refusals,'source':settings['source'],'tree':settings['tree'],'producer':producer.record(),'frozen_inputs':settings['frozen_inputs'],'sample_checks':len(rows),'existing_tests':6},indent=2)+'\n')
+          raise SystemExit(bool(refusals))
+          EXTRAS
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('preparation.json', 'summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
