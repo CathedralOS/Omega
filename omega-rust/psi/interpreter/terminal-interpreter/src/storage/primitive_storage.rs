@@ -2720,6 +2720,9 @@ impl TerminalExecution<'_> {
                 }
                 retired.push(root);
             }
+            if let Some(home) = self.linear_homes.remove(&place) {
+                retired.push(StructuralRuntimePlace::from(&home));
+            }
             crate::storage::scalar_array::PackedHomeRetirement::retire_packed_home(
                 &mut self.scalar_array_values,
                 &place,

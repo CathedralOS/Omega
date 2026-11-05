@@ -118,6 +118,10 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) values: RuntimeRows<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: RuntimeRows<PlaceId, TerminalStructuralValue>,
+    /// Reserved linear storage before any completed owned value is installed.
+    /// A whole store can install an empty claim roster; indexed stores publish
+    /// their real owned parts, whose exact claims fence every later value use.
+    pub(crate) linear_homes: RuntimeRows<PlaceId, TerminalStructuralValue>,
     /// Host-lent entry storage outlives frame-local views. Keep only borrowed
     /// inputs: an owned argument transfers custody and cannot be read back.
     pub(crate) borrowed_entry_storage: Vec<(u32, PlaceId, TerminalStructuralValue)>,
@@ -255,6 +259,7 @@ pub(crate) struct SuspendedCall {
     pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
     pub(crate) values: RuntimeRows<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: RuntimeRows<PlaceId, TerminalStructuralValue>,
+    pub(crate) linear_homes: RuntimeRows<PlaceId, TerminalStructuralValue>,
     pub(crate) aggregate_argument_backings: RuntimeRows<PlaceId, AggregateBacking>,
     pub(crate) scalar_array_values: crate::storage::scalar_array::ScalarArrayBindings,
     pub(crate) byte_sequence_values: RuntimeRows<PlaceId, ByteSequenceBinding>,
@@ -673,6 +678,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             values,
             borrowed_entry_storage,
             structural_values,
+            linear_homes: RuntimeRows::new(account.as_ref()),
             aggregate_argument_backings: RuntimeRows::new(account.as_ref()),
             original_storage_roots: RuntimeRows::new(account.as_ref()),
             original_byte_cells: RuntimeRows::new(account.as_ref()),

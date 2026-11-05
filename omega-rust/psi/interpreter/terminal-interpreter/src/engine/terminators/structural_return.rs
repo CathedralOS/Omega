@@ -28,6 +28,11 @@ impl TerminalExecution<'_> {
             .and_then(|machine| machine.result.structural())
             .cloned()
             .ok_or(malformed())?;
+        self.require_owned_value_claims(&StructuralArgument {
+            place: *source,
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        })?;
         // A return roster describes typed custody, including guarded payloads.
         // Only the stored discriminator activates a Case path; a catalogue row
         // neither creates a claim nor establishes a tag.

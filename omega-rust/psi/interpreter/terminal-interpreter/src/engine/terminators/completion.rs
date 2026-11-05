@@ -44,9 +44,11 @@ impl TerminalExecution<'_> {
         while let Some(action) = remaining.next() {
             self.collect_retired_descriptor_storage(Some(&continuation));
             let retired = match &action {
-                TerminalAffineCleanupAction::RetireHome(place) => {
-                    self.structural_values.get(place).cloned()
-                }
+                TerminalAffineCleanupAction::RetireHome(place) => self
+                    .structural_values
+                    .get(place)
+                    .or_else(|| self.linear_homes.get(place))
+                    .cloned(),
                 _ => None,
             };
             let nominal = commit_cleanup_action(
@@ -55,6 +57,7 @@ impl TerminalExecution<'_> {
                 &self.program.machines(),
                 self.program.verified_machine(self.current_machine)?,
                 &mut self.structural_values,
+                &mut self.linear_homes,
                 &mut self.scalar_array_values,
                 &mut self.reference_referents,
                 &mut self.structural_element_view_fields,
@@ -96,9 +99,15 @@ impl TerminalExecution<'_> {
             // bindings without pruning backing retained by outgoing values.
             // Retiring views before this point would erase homes still
             // named by explicit cleanup or by a suspended cleanup hook.
-            let retired: Vec<_> = self.structural_values.values().map(Into::into).collect();
+            let retired: Vec<_> = self
+                .structural_values
+                .values()
+                .chain(self.linear_homes.values())
+                .map(Into::into)
+                .collect();
             self.retire_plain_locals();
             self.structural_values.clear();
+            self.linear_homes.clear();
             for root in retired {
                 self.queue_retired_descriptor_home(root);
             }
@@ -149,6 +158,7 @@ impl TerminalExecution<'_> {
         self.access_view_occurrences = caller.access_view_occurrences;
         self.values = caller.values;
         self.structural_values = caller.structural_values;
+        self.linear_homes = caller.linear_homes;
         self.aggregate_argument_backings = caller.aggregate_argument_backings;
         self.scalar_array_values = caller.scalar_array_values;
         self.element_view_values = caller.element_view_values;
