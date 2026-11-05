@@ -266,7 +266,11 @@ fn pure_build_accounting() {
     check(&mut CompilationSession::default(), &cold, "windows_x86_64")
         .result
         .expect("affordable cold row");
-    let before_cold = counters::build_execution_count();
+    let before_cold = (
+        counters::build_execution_count(),
+        counters::source_build_execution_count(),
+        counters::provider_defaults_execution_count(),
+    );
     let failure = check(&mut CompilationSession::default(), &cold, "linux_x86_64")
         .result
         .expect_err("cold occurrence must reject the same allowance");
@@ -279,7 +283,15 @@ fn pure_build_accounting() {
         }),
         "{diagnostics:?}"
     );
-    assert_eq!(counters::build_execution_count() - before_cold, 1);
+    build_sequence::print_execution_counts("cold source fuel refusal");
+    assert_eq!(
+        (
+            counters::build_execution_count() - before_cold.0,
+            counters::source_build_execution_count() - before_cold.1,
+            counters::provider_defaults_execution_count() - before_cold.2
+        ),
+        (2, 1, 1)
+    );
     println!("cold_and_warm_hard_ceiling_decisions_agree");
 
     // A later-axis refusal must not partially spend fuel on the cached path.
@@ -2364,6 +2376,8 @@ fn foreign_source_return_refuses() {
     let request = package_invocation_requests("pass/build/activation_yields_without_replay");
     let mut session = CompilationSession::default();
     let before = counters::build_execution_count();
+    let sources_before = counters::source_build_execution_count();
+    let suppliers_before = counters::provider_defaults_execution_count();
     let mut first = session
         .begin_source_compilation(request())
         .expect("first source admission");
@@ -2386,7 +2400,15 @@ fn foreign_source_return_refuses() {
                 .contains("completion belongs to another invocation")
         }));
     }
-    assert_eq!(counters::build_execution_count(), before + 2);
+    build_sequence::print_execution_counts("swapped source returns refused");
+    assert_eq!(
+        (
+            counters::build_execution_count() - before,
+            counters::source_build_execution_count() - sources_before,
+            counters::provider_defaults_execution_count() - suppliers_before
+        ),
+        (4, 2, 2)
+    );
     println!("source_continuations_rejected_swapped_normal_returns_without_replay");
 }
 
@@ -2781,7 +2803,11 @@ fn logged_build_reuse() {
     };
     let mut session = CompilationSession::default();
     let account = sponsor(limits(1_000_000));
-    let before = counters::build_execution_count();
+    let before = (
+        counters::build_execution_count(),
+        counters::source_build_execution_count(),
+        counters::provider_defaults_execution_count(),
+    );
     let mut cold_fuel = 0;
     for target in ["windows_x86_64", "linux_x86_64"] {
         let checked = check(&mut session, &account, target)
@@ -2805,7 +2831,15 @@ fn logged_build_reuse() {
             assert_eq!(usage.fuel_units, cold_fuel);
         }
     }
-    assert_eq!(counters::build_execution_count() - before, 1);
+    build_sequence::print_execution_counts("two logged source requests completed");
+    assert_eq!(
+        (
+            counters::build_execution_count() - before.0,
+            counters::source_build_execution_count() - before.1,
+            counters::provider_defaults_execution_count() - before.2
+        ),
+        (2, 1, 1)
+    );
     assert_eq!(account.consumed_fuel_units(), 2 * cold_fuel);
     assert_eq!(account.live_storage_cells(), 0);
     assert_eq!(account.live_payload_bytes(), 0);
@@ -2845,7 +2879,11 @@ fn logged_build_reuse() {
     assert_eq!(limited.consumed_fuel_units(), cold_fuel);
     println!("warm_log_limit_rejected_atomically_without_execution");
 
-    let before_cold = counters::build_execution_count();
+    let before_cold = (
+        counters::build_execution_count(),
+        counters::source_build_execution_count(),
+        counters::provider_defaults_execution_count(),
+    );
     let failure = check(&mut CompilationSession::default(), &limited, "linux_x86_64")
         .result
         .expect_err("executed logging must reject the same remaining byte allowance");
@@ -2856,7 +2894,15 @@ fn logged_build_reuse() {
             .contains("evaluation BuildLog allowance exhausted")),
         "{diagnostics:?}"
     );
-    assert_eq!(counters::build_execution_count() - before_cold, 1);
+    build_sequence::print_execution_counts("cold source log refusal");
+    assert_eq!(
+        (
+            counters::build_execution_count() - before_cold.0,
+            counters::source_build_execution_count() - before_cold.1,
+            counters::provider_defaults_execution_count() - before_cold.2
+        ),
+        (2, 1, 1)
+    );
     assert_eq!(limited.live_storage_cells(), 0);
     assert_eq!(limited.live_payload_bytes(), 0);
     println!("cold_log_limit_rejected_and_live_storage_retired");
