@@ -1198,9 +1198,9 @@ pub(super) fn capture_guarantees(
             return;
         }
     }
-    // These declaration questions keep the same expression and telescope while
-    // completed operands are bound below. Reuse their first answers locally;
-    // the identity-meaning query still runs only when its original guard needs it.
+    // The compared expression and parameter declarations stay unchanged while
+    // operands are bound below. Keep these metadata results local, and check
+    // identity equality only when its original guard needs it.
     let data_identity_references = binary
         .filter(|binary| binary.operator == BinaryOperator::Equal)
         .and_then(|_| {
