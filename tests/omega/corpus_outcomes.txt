@@ -1465,7 +1465,7 @@ fail/borrows/local_case_subject_carried_alias_write rejected 5930ms expected @91
 	state `saved` receives `frame` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 9)
 	statement 9 borrows `frame` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 9)
 	statement 9 mutates `frame.items[1]` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 9)
-fail/borrows/local_descriptor_replacement_while_borrowed rejected 2376ms expected @ccdb99ca2214
+fail/borrows/local_descriptor_replacement_while_borrowed rejected 4116ms expected @01b061017f95
 	statement 4 mutates `view` while local borrow `borrowed` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/local_projected_field_mut_and_shared_argument rejected 2174ms expected @ccdb99ca2214
 	state `copy` receives `screen.banner` as both mutable and read-only
@@ -15398,7 +15398,7 @@ fail/facts/nominal_loan_backing_cleanup_through_const_name_cleanup_prerequisite 
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish drop_room clause `room.count == 10`
 fail/facts/nominal_loan_backing_cleanup_through_field_cleanup_prerequisite rejected 9577ms expected @ee4dbb4b2d56
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: holder.room does not establish drop_room clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_local_cleanup_prerequisite rejected 11418ms expected @ee4dbb4b2d56
+fail/facts/nominal_loan_backing_cleanup_through_local_cleanup_prerequisite rejected 4304ms expected @01b061017f95
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish drop_room clause `room.count == 10`
 fail/facts/nominal_loan_backing_cleanup_through_match_join_cleanup_prerequisite rejected 10684ms expected @ee4dbb4b2d56
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish drop_room clause `room.count == 10`
@@ -26047,7 +26047,7 @@ pass/borrows/runtime_carrier_reference_reselection_exit checked 72576ms check-ta
 pass/borrows/runtime_carrier_reference_store_exit checked 16825ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_case_byte_field_length_cleanup_exit rejected 2847ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `receive` state `entry` statement 2: cannot prove selected case for payload access `__transition_subject#30.view.bytes`: captured source `envelope::Held.view.bytes` has no live case evidence
-pass/borrows/runtime_case_descriptor_retirement_exit checked 3804ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_case_descriptor_retirement_exit checked 5598ms check-target:macos_arm64 @01b061017f95
 pass/borrows/runtime_case_payload_partial_transfer_exit checked 3500ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_case_reference_mixed_state_returns_exit checked 3246ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_case_reference_reordered_state_returns_exit checked 3527ms check-target:macos_arm64 @ccdb99ca2214
@@ -26192,7 +26192,7 @@ pass/borrows/runtime_reference_result_case_payload_exit checked 7024ms check-tar
 pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 17426ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_replaced_reference_record_return_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_result_element_call_selector_capture_exit checked 3643ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_retained_operand_descriptor_cleanup_exit checked 3836ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_retained_operand_descriptor_cleanup_exit checked 5567ms check-target:macos_arm64 @01b061017f95
 pass/borrows/runtime_returned_literal_window_exit checked 6609ms check-target:macos_arm64 terminal-runtime.window:unrequested terminal-inspections:match @ccdb99ca2214
 pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit checked 78475ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_returned_mutable_window_restoration_exit checked 3399ms check-target:macos_arm64 @ccdb99ca2214
@@ -29627,7 +29627,7 @@ pass/facts/descriptor_range_exclusive_loan_through_target_body_exit checked 1805
 pass/facts/descriptor_replacement_order_borrow_first_array_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/descriptor_replacement_order_captured_selector_exit checked 4528ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/descriptor_replacement_order_copied_carrier_exit checked 3924ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/descriptor_replacement_order_local_carrier_exit checked 3300ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/descriptor_replacement_order_local_carrier_exit checked 5724ms check-target:macos_arm64 @01b061017f95
 pass/facts/descriptor_replacement_order_original_exit checked 3802ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/descriptor_replacement_order_owned_first_array_exit checked 3603ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/descriptor_replacement_order_reordered_state_exit checked 3409ms check-target:macos_arm64 @ccdb99ca2214
@@ -32099,7 +32099,7 @@ pass/facts/nominal_declaration_owner_through_target_body checked 3880ms check-ta
 pass/facts/nominal_loan_backing_cleanup_through_call_result_exit checked 14808ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/nominal_loan_backing_cleanup_through_const_name_exit checked 16423ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/nominal_loan_backing_cleanup_through_field_exit checked 16449ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/nominal_loan_backing_cleanup_through_local_exit checked 17946ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/facts/nominal_loan_backing_cleanup_through_local_exit checked 5711ms check-target:macos_arm64 @01b061017f95
 pass/facts/nominal_loan_backing_cleanup_through_match_join_exit checked 15939ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/nominal_loan_backing_cleanup_through_other_machine_exit checked 16387ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/nominal_loan_backing_cleanup_through_other_state_exit checked 37285ms check-target:macos_arm64 terminal-inspections:match @ee4dbb4b2d56

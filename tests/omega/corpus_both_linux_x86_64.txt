@@ -716,8 +716,7 @@ pass/borrows/runtime_captured_record_nested_field_snapshot_exit built 15867ms ex
 pass/borrows/runtime_captured_window_effectful_selector_exit built 1527ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
 pass/borrows/runtime_carrier_reference_reselection_exit built 16565ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/borrows/runtime_carrier_reference_store_exit built 16705ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/borrows/runtime_case_descriptor_retirement_exit incomplete 7438ms interpreter:unchecked @a92f16431042
-	`inspect_window` has no executable body: this compiler does not lower a state of it yet (sequence cleanup actions); in state `inspect_window::entry`
+pass/borrows/runtime_case_descriptor_retirement_exit built 5840ms exit:0 interpreter-exit:0 interpreter:agrees @01b061017f95
 pass/borrows/runtime_case_payload_partial_transfer_exit built 7955ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/borrows/runtime_case_reference_mixed_state_returns_exit built 2702ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/borrows/runtime_case_reference_reordered_state_returns_exit built 2611ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -816,7 +815,7 @@ pass/borrows/runtime_reference_record_direct_payload_restoration_exit built 6735
 pass/borrows/runtime_released_loan_with_forwarded_view_exit built 6075ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/borrows/runtime_replaced_reference_record_return_exit built 2694ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/borrows/runtime_result_element_call_selector_capture_exit built 2774ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/borrows/runtime_retained_operand_descriptor_cleanup_exit built 2351ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/borrows/runtime_retained_operand_descriptor_cleanup_exit built 5411ms exit:0 interpreter-exit:0 interpreter:agrees @01b061017f95
 pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit built 6137ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/borrows/runtime_returned_nonzero_nested_window_exit built 1868ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/borrows/runtime_returned_owned_sibling_descriptor_exit built 1824ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -3167,7 +3166,7 @@ pass/facts/descriptor_range_exclusive_loan_through_target_body_exit built 2410ms
 pass/facts/descriptor_replacement_order_borrow_first_array_exit built 2451ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/descriptor_replacement_order_captured_selector_exit built 2375ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/descriptor_replacement_order_copied_carrier_exit built 2398ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/descriptor_replacement_order_local_carrier_exit built 2379ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/descriptor_replacement_order_local_carrier_exit built 5390ms exit:0 interpreter-exit:0 interpreter:agrees @01b061017f95
 pass/facts/descriptor_replacement_order_original_exit built 2348ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/descriptor_replacement_order_owned_first_array_exit built 2399ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/descriptor_replacement_order_reordered_state_exit built 2029ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -4297,7 +4296,7 @@ pass/facts/nominal_declaration_owner_through_target_body built 2293ms exit:0 int
 pass/facts/nominal_loan_backing_cleanup_through_call_result_exit built 2321ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
 pass/facts/nominal_loan_backing_cleanup_through_const_name_exit built 2166ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
 pass/facts/nominal_loan_backing_cleanup_through_field_exit built 2175ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
-pass/facts/nominal_loan_backing_cleanup_through_local_exit built 1970ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
+pass/facts/nominal_loan_backing_cleanup_through_local_exit built 5673ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @01b061017f95
 pass/facts/nominal_loan_backing_cleanup_through_match_join_exit built 1829ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
 pass/facts/nominal_loan_backing_cleanup_through_other_machine_exit built 2276ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
 pass/facts/nominal_loan_backing_cleanup_through_other_state_exit built 5772ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees terminal-inspections:match @a92f16431042

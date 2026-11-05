@@ -82,6 +82,14 @@ also execute at native 0 and Terminal 0 in this run. Their precondition and
 runtime-service refusal controls reject. Four hosted Build entries are authored;
 these runtime observations are Linux x86-64 only.
 
+[Cleanup controls 41948975171](https://github.com/CathedralOS/Omega/actions/runs/41948975171)
+on source `01b061017f95a89d09d11f18f19cc36e553dee20` also pass: four
+native/Terminal exit-zero agreements and two intended rejects. The nominal hook
+prints exactly `OD` in both engines; its count-prerequisite twin rejects. The
+other programs check case retirement, retained operand cleanup and replacement
+with an untouched sibling. These are focused regression controls, not a new
+fact-row closure.
+
 Four additional storage controls remain separate repairs. The qualified-array
 and byte-view element programs return native 0 but decline in Terminal Psi;
 reference rebinding fails during lowering, and nominal cleanup fails native
