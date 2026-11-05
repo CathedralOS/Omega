@@ -299,22 +299,15 @@ impl Execution<'_, '_, '_> {
                 ..Default::default()
             });
         }
-        // Every completed candidate records its descriptor, including a call
-        // with only one supplier. Saving or joining that result must retain
-        // the same formation identity as passing it directly to another call.
+        if alternatives.len() == 1 {
+            return Some(self.context.control.operands.insert(alternatives.pop()?));
+        }
         let mut profiles = Vec::new();
         for value in alternatives {
             let descriptor = self.context.control.operands.insert(value);
-            let profile = self
-                .context
-                .control
-                .operand_retentions
-                .get_mut(value.retention);
+            let mut profile = *self.context.control.operand_retentions.get(value.retention);
             profile.descriptor = descriptor;
-            profiles.push(*profile);
-        }
-        if let [profile] = profiles.as_slice() {
-            return Some(profile.descriptor);
+            profiles.push(profile);
         }
         let alternatives = self
             .context
