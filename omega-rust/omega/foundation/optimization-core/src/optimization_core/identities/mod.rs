@@ -1,7 +1,7 @@
 //! Optimizer module role: stage group. Canonical, domain-separated optimization identities.
 //! Shared digest framing routes into rule/fact, stage, artifact, decision, and bundle ownership.
 
-const IDENTITY_WIDTH: usize = 32;
+pub(crate) const IDENTITY_WIDTH: usize = 32;
 
 fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WIDTH] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);

@@ -2439,7 +2439,7 @@ mod snapshot_tests {
             .transfer(
                 &machine,
                 &before,
-                &[captured.clone()],
+                std::slice::from_ref(&captured),
                 [(&selected, &captured)].into_iter(),
                 super::case_flow::Transfer::Operation(position),
                 &case_storage,

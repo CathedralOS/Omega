@@ -1,6 +1,7 @@
 //! Decision-v5 construction, canonical identity, and wire codec.
 
 use crate::cursor::Cursor;
+use crate::optimization_core::CountFrame;
 use crate::{
     AnalysisSet, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
     OptimizationDecisionIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
@@ -12,6 +13,11 @@ use super::{
     OptimizationFactReference, OptimizationFactReferenceDecodeError,
     OptimizationManifestDecodeError,
 };
+
+/// Domain prefix of the decision row's canonical identity encoding. It is
+/// content, not the identity's own domain: the digest is taken over this
+/// spelling followed by the row.
+const DECISION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-manifest-decision.v5\0";
 
 /// Canonical machine record for one policy/validation decision.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -79,6 +85,82 @@ impl OptimizationDecisionRecord {
         })
     }
 
+    /// The authoritative row, written once for both encodings. The wire record
+    /// frames the consumed-fact count as u32 and the canonical identity row as
+    /// u64; every other byte and the field order are stated here alone.
+    fn write_row(&self, encoded: &mut Vec<u8>, frame: CountFrame) {
+        write_decision_row(
+            self.input,
+            self.candidate,
+            self.rule,
+            self.verdict,
+            self.consumed_analyses,
+            &self.consumed_facts,
+            self.validator,
+            encoded,
+            frame,
+        );
+    }
+}
+
+/// The authoritative row, written once for both encodings. The identity is a
+/// function of these parts, never an input, so a record is never observed with
+/// a provisional identity.
+fn write_decision_row(
+    input: OptimizationUnitIdentity,
+    candidate: OptimizationCandidateIdentity,
+    rule: OptimizationRuleIdentity,
+    verdict: OptimizationCandidateVerdict,
+    consumed_analyses: AnalysisSet,
+    consumed_facts: &[OptimizationFactReference],
+    validator: Option<OptimizationValidatorIdentity>,
+    encoded: &mut Vec<u8>,
+    frame: CountFrame,
+) {
+    encoded.extend_from_slice(&input.bytes());
+    encoded.extend_from_slice(&candidate.bytes());
+    encoded.extend_from_slice(&rule.bytes());
+    encoded.extend_from_slice(&verdict.encode());
+    encoded.extend_from_slice(&consumed_analyses.encode());
+    frame.push(encoded, consumed_facts.len());
+    for fact in consumed_facts {
+        encoded.extend_from_slice(&fact.encode());
+    }
+    match validator {
+        None => encoded.push(0),
+        Some(validator) => {
+            encoded.push(1);
+            encoded.extend_from_slice(&validator.bytes());
+        }
+    }
+}
+
+fn decision_identity(
+    input: OptimizationUnitIdentity,
+    candidate: OptimizationCandidateIdentity,
+    rule: OptimizationRuleIdentity,
+    verdict: OptimizationCandidateVerdict,
+    consumed_analyses: AnalysisSet,
+    consumed_facts: &[OptimizationFactReference],
+    validator: Option<OptimizationValidatorIdentity>,
+) -> OptimizationDecisionIdentity {
+    let mut canonical = Vec::new();
+    canonical.extend_from_slice(DECISION_IDENTITY_DOMAIN);
+    write_decision_row(
+        input,
+        candidate,
+        rule,
+        verdict,
+        consumed_analyses,
+        consumed_facts,
+        validator,
+        &mut canonical,
+        CountFrame::Canonical,
+    );
+    OptimizationDecisionIdentity::from_canonical_bytes(&canonical)
+}
+
+impl OptimizationDecisionRecord {
     pub fn encode(&self) -> Vec<u8> {
         let mut encoded = Vec::with_capacity(
             DECISION_FIXED_WIDTH
@@ -88,22 +170,7 @@ impl OptimizationDecisionRecord {
         encoded.extend_from_slice(DECISION_WIRE_FORMAT.magic);
         crate::codec_bytes::push_encoded(&mut encoded, DECISION_WIRE_FORMAT.version.to_le_bytes());
         encoded.extend_from_slice(&self.identity.bytes());
-        encoded.extend_from_slice(&self.input.bytes());
-        encoded.extend_from_slice(&self.candidate.bytes());
-        encoded.extend_from_slice(&self.rule.bytes());
-        encoded.extend_from_slice(&self.verdict.encode());
-        encoded.extend_from_slice(&self.consumed_analyses.encode());
-        crate::codec_bytes::push_count_u32(&mut encoded, self.consumed_facts.len());
-        for fact in &self.consumed_facts {
-            encoded.extend_from_slice(&fact.encode());
-        }
-        match self.validator {
-            None => encoded.push(0),
-            Some(validator) => {
-                encoded.push(1);
-                encoded.extend_from_slice(&validator.bytes());
-            }
-        }
+        self.write_row(&mut encoded, CountFrame::Wire);
         encoded
     }
 
@@ -164,34 +231,4 @@ impl OptimizationDecisionRecord {
         }
         Ok(record)
     }
-}
-
-fn decision_identity(
-    input: OptimizationUnitIdentity,
-    candidate: OptimizationCandidateIdentity,
-    rule: OptimizationRuleIdentity,
-    verdict: OptimizationCandidateVerdict,
-    consumed_analyses: AnalysisSet,
-    consumed_facts: &[OptimizationFactReference],
-    validator: Option<OptimizationValidatorIdentity>,
-) -> OptimizationDecisionIdentity {
-    let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.optimization-manifest-decision.v5\0");
-    canonical.extend_from_slice(&input.bytes());
-    canonical.extend_from_slice(&candidate.bytes());
-    canonical.extend_from_slice(&rule.bytes());
-    canonical.extend_from_slice(&verdict.encode());
-    canonical.extend_from_slice(&consumed_analyses.encode());
-    crate::codec_bytes::push_count_u64(&mut canonical, consumed_facts.len());
-    for fact in consumed_facts {
-        canonical.extend_from_slice(&fact.encode());
-    }
-    match validator {
-        None => canonical.push(0),
-        Some(validator) => {
-            canonical.push(1);
-            canonical.extend_from_slice(&validator.bytes());
-        }
-    }
-    OptimizationDecisionIdentity::from_canonical_bytes(&canonical)
 }

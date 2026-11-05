@@ -769,8 +769,8 @@ fn validate_literal_facts(
             }
         }
     }
-    if !pending_predicates.is_empty() {
-        if let Err(unretained) =
+    if !pending_predicates.is_empty()
+        && let Err(unretained) =
             observations.retain_pending_predicates(super::PendingConstructionPredicates {
                 machine: machine.symbol,
                 state: state.symbol,
@@ -779,14 +779,13 @@ fn validate_literal_facts(
                 parameters,
                 predicates: pending_predicates,
             })
-        {
-            predicate_diagnostics.extend(
-                unretained
-                    .predicates
-                    .into_iter()
-                    .map(|obligation| Diagnostic::error(obligation.diagnostic)),
-            );
-        }
+    {
+        predicate_diagnostics.extend(
+            unretained
+                .predicates
+                .into_iter()
+                .map(|obligation| Diagnostic::error(obligation.diagnostic)),
+        );
     }
     let source_span = expression_table(program).source_span(expression);
     diagnostics.extend(

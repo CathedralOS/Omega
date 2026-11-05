@@ -43,12 +43,10 @@ use super::{
     BTreeMap, CheckFacts, CheckedNominalAffineUnitCleanupMachinePlan, CheckedStructuralAccess,
     CheckedUnitEffectOperationPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, Diagnostic, MachineSupplyMode,
-    Multiplicity, PermissionEventSource, TypeReferenceNode,
+    CheckedUnitStructuralTypePlan, Diagnostic, MachineSupplyMode, Multiplicity,
+    PermissionEventSource, TypeReferenceNode,
 };
-use crate::execution::terminal_unit::calls::{
-    entry_claims, free_structural_scalar_signature,
-};
+use crate::execution::terminal_unit::calls::{entry_claims, free_structural_scalar_signature};
 use crate::execution::terminal_unit::types::{
     ShapeCollector, is_unit, machine_binders, state_flow,
 };

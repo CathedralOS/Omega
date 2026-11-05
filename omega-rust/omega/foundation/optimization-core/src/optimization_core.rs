@@ -24,6 +24,26 @@ pub(crate) mod rollback;
 
 use std::fmt;
 
+/// Which width frames one counted row's length. A wire record frames its counts
+/// as u32; a canonical identity row frames them as u64. The row content is the
+/// same bytes either way, so a record family writes its row once and passes the
+/// frame, instead of keeping a second encoder beside the first that must agree
+/// on every field and field order.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum CountFrame {
+    Wire,
+    Canonical,
+}
+
+impl CountFrame {
+    pub(crate) fn push(self, encoded: &mut Vec<u8>, count: usize) {
+        match self {
+            Self::Wire => crate::codec_bytes::push_count_u32(encoded, count),
+            Self::Canonical => crate::codec_bytes::push_count_u64(encoded, count),
+        }
+    }
+}
+
 /// The five-u64 work-counter row budget and usage encodings share:
 /// little-endian words in declaration order across a 40-byte wire row.
 pub(crate) fn encode_work_counters(fields: [u64; 5]) -> [u8; 40] {

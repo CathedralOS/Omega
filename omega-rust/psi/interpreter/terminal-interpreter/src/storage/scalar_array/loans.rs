@@ -12,7 +12,7 @@ use crate::storage::runtime_rows::RuntimeRows;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeShape,
+    StructuralTypeShape,
 };
 
 /// Captured backing retains its actual memberships before a receiving contract

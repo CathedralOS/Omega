@@ -154,6 +154,9 @@ and [omega-rust/pipeline.md](omega-rust/pipeline.md):
 
 ## Commands
 
+On a fresh Linux host or cloud container, `bash tools/agent_setup.sh` installs
+the pinned toolchain, `mbx`, `cargo-nextest` and `zstd`, and fetches crates;
+`python3 tools/doctor.py` then confirms the host is ready.
 See [tools/testing.md](tools/testing.md) for full details. Always close stdin
 with `< /dev/null` on non-interactive `omega` / `corpus_runner` invocations so
 background processes never hang on open stdin:
