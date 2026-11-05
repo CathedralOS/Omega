@@ -24929,9 +24929,7 @@ pass/facts/source_indexed_binary_tree_through_other_machine_exit checked 5843ms 
 pass/facts/source_indexed_binary_tree_through_other_state_exit checked 5852ms check-target:macos_arm64 @0be3713483e9
 pass/facts/source_indexed_binary_tree_through_parameter_exit checked 11841ms check-target:macos_arm64 terminal-inspections:match @6b26c447f83
 pass/facts/source_indexed_binary_tree_through_target_body_exit checked 6075ms check-target:macos_arm64 @0be3713483e9
-pass/facts/source_indexed_family rejected 1493ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 1765, end: 1772 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_family/main.omg", line: 40, column: 23 }) }]
+pass/facts/source_indexed_family checked 11106ms check-target:macos_arm64 terminal-inspections:match @48ba169b5da
 pass/facts/source_indexed_family_alpha_positive checked 5198ms check-target:macos_arm64 @efe09d463c38
 pass/facts/source_indexed_family_capture_roster_positive checked 5501ms check-target:macos_arm64 @efe09d463c38
 pass/facts/source_indexed_family_forwarded_parameter_exit checked 10990ms check-target:macos_arm64 terminal-inspections:match @6b26c447f83
