@@ -69,6 +69,14 @@ impl CompletedPureBuildInputs {
                 !snapshot.inputs().is_empty() || !snapshot.required_outputs().is_empty()
             })
         {
+            eprintln!(
+                "Pure Build input declined: entry {:?}, artifact_only={}, scoped_outputs={}, snapshot_inputs={}, snapshot_outputs={}",
+                selected_entry,
+                artifact_only,
+                scope.required_outputs().len(),
+                snapshot.map_or(0, |snapshot| snapshot.inputs().len()),
+                snapshot.map_or(0, |snapshot| snapshot.required_outputs().len()),
+            );
             return None;
         }
         let activation = scope.activation();
@@ -78,6 +86,9 @@ impl CompletedPureBuildInputs {
         // value; an uncaptured anonymous source supplies no reuse custody.
         // Fresh semantic/grant admission and completion checks remain required.
         if packages.is_none() && captured_inventory.is_none() {
+            eprintln!(
+                "Pure Build input declined: entry {selected_entry:?} has no package or authenticated capture"
+            );
             return None;
         }
         Some(Self {
@@ -239,8 +250,20 @@ impl CompletedPureBuild {
         inputs: CompletedPureBuildInputs,
         configuration: Arc<ComputedBuildConfig>,
     ) -> Option<Self> {
-        let usage = configuration.evaluation_usage?;
-        let observations = configuration.observation_summary.as_ref()?;
+        let Some(usage) = configuration.evaluation_usage else {
+            eprintln!(
+                "Pure Build completion declined: entry {:?} has no measured usage",
+                inputs.selected_entry
+            );
+            return None;
+        };
+        let Some(observations) = configuration.observation_summary.as_ref() else {
+            eprintln!(
+                "Pure Build completion declined: entry {:?} has no observations",
+                inputs.selected_entry
+            );
+            return None;
+        };
         if usage.measurement != inputs.measurement_identity
             || usage.validate().is_err()
             || usage.filesystem_operation_attempts != 0
@@ -257,6 +280,25 @@ impl CompletedPureBuild {
             || observations.activation() != inputs.activation
             || observations.captured_source_inventory() != inputs.captured_inventory
         {
+            eprintln!(
+                "Pure Build completion declined: entry {:?}, measurement={}, usage_valid={}, usage_filesystem_ops={}, host_observed={}, filesystem_ops={}, named_inputs={}, required_outputs={}, included_sources={}, empty_staging={}, generated_sources={}, entry={}, activation={}, capture={}",
+                inputs.selected_entry,
+                usage.measurement == inputs.measurement_identity,
+                usage.validate().is_ok(),
+                usage.filesystem_operation_attempts,
+                observations.filesystem_host_observed(),
+                observations.filesystem_operation_attempts().len(),
+                observations.named_input_inventories().len(),
+                observations.required_output_settlements().len(),
+                observations.included_source_handoffs().len(),
+                observations
+                    .staged_output_tree()
+                    .is_some_and(|tree| tree.entry_count() == 0),
+                configuration.generated_sources.len(),
+                configuration.selected_build_machine_symbol == Some(inputs.selected_entry),
+                observations.activation() == inputs.activation,
+                observations.captured_source_inventory() == inputs.captured_inventory,
+            );
             return None;
         }
         Some(Self {

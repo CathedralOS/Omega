@@ -56,9 +56,20 @@ impl AdmittedBuildProgram {
             || self.machine.execution_mode != build_time_evaluation::BuildMachineExecutionMode::Pure
             || !self.restricted_build_requests().is_empty()
         {
+            eprintln!(
+                "Pure Build input declined: entry {:?}, filesystem={}, mode={:?}, restricted_requests={}",
+                self.machine.symbol,
+                self.machine.filesystem_reachable,
+                self.machine.execution_mode,
+                self.restricted_build_requests().len(),
+            );
             return None;
         }
         let Some(checked) = self.prepared.checked_program() else {
+            eprintln!(
+                "Pure Build input declined: no checked program for {:?}",
+                self.machine.symbol
+            );
             return None;
         };
         crate::activation::completed_pure_build::CompletedPureBuildInputs::from_admitted(
