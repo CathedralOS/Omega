@@ -211,15 +211,9 @@ pub(crate) fn requires_value_environment(
         );
     }
     requirements::seed_state_requirements(program, machine, entry_state, None, &mut environment);
-    // Nested machines are separate machines. Their entry is this state's
-    // body, so caller guards and closed by-value arguments have to land here
-    // and not only on a later state's incoming join.
-    arrivals::apply_cross_machine_reference_arrivals(
-        program,
-        machine,
-        entry_state,
-        &mut environment,
-    );
+    // A declaration starts under its own requirements. Private callers may
+    // supply more facts only through the complete arrival observer at the
+    // consuming operation; a partial caller scan cannot seed body assumptions.
     environment
 }
 
@@ -508,17 +502,8 @@ pub(super) fn narrow_environment_by_condition(
     // compatible arm's yield — `let ok = match e { a -> x < 4, b -> false }`
     // observed true is `x < 4`, so a snapshot bound on `ok` keeps that arm's
     // comparison exactly as a spelled one would.
-    if let Some(arm_value) =
-        meaning::match_result_unique_arm(program, condition, positive)
-    {
-        narrow_environment_by_condition(
-            program,
-            machine,
-            state,
-            environment,
-            arm_value,
-            positive,
-        );
+    if let Some(arm_value) = meaning::match_result_unique_arm(program, condition, positive) {
+        narrow_environment_by_condition(program, machine, state, environment, arm_value, positive);
         return;
     }
     let Some(comparison) =
