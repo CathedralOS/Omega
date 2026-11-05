@@ -847,8 +847,12 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 }
                 StructuralValue { value, calls, .. } => self.structural(*value, calls),
                 ByteSequence { value, .. } => self.bytes(value, value.root),
-                crate::CheckedUnitLocalBindingPlan::TrivialAffine { .. }
-                | crate::CheckedUnitLocalBindingPlan::Structural { .. } => 0,
+                crate::CheckedUnitLocalBindingPlan::Structural { initial_value, .. } => {
+                    initial_value
+                        .as_ref()
+                        .map_or(0, |value| self.argument(value.source()))
+                }
+                crate::CheckedUnitLocalBindingPlan::TrivialAffine { .. } => 0,
             },
             CheckedUnitEffectOperationPlan::EvaluateStructuralValue { value, calls, .. } => {
                 self.structural(*value, calls)

@@ -467,6 +467,9 @@ pub enum CheckedUnitLocalBindingPlan {
         declaration_ordinal: u32,
         symbol: SymbolHandle,
         result: CheckedUnitStructuralResultBindingPlan,
+        /// An already completed initializer transfers into this new home.
+        /// Absence reserves storage for later checked member establishment.
+        initial_value: Option<CheckedStructuralLocalInitialization>,
         qualifications: Vec<SemanticDomainId>,
         discard_result_on_return: bool,
     },
@@ -508,6 +511,44 @@ pub enum CheckedUnitLocalBindingPlan {
         operand_source: Option<crate::CheckedArrayConstructionSource>,
         discard_result_on_return: bool,
     },
+}
+
+/// A local receives this already evaluated value through ordinary owned
+/// transfer. The occurrence selects its checked consumption receipt; it does
+/// not schedule another evaluation of the initializer.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedStructuralLocalInitialization {
+    source: CheckedUnitStructuralArgumentPlan,
+    source_binding_ordinal: u32,
+    pub value: crate::CheckedStructuralValueHandle,
+}
+
+impl CheckedStructuralLocalInitialization {
+    /// C5 calls this after the initializer completes with the local's exact
+    /// stored type and checked formation contract. The source presentation is
+    /// fixed here; a projection or borrow cannot become an initialization.
+    pub fn completed_result(
+        result: &CheckedUnitStructuralResultBindingPlan,
+        value: crate::CheckedStructuralValueHandle,
+    ) -> Self {
+        Self {
+            source: CheckedUnitStructuralArgumentPlan::structural_result(
+                result.binding_ordinal,
+                result.type_identity,
+                crate::CheckedStructuralAccess::Owned,
+            ),
+            source_binding_ordinal: result.binding_ordinal,
+            value,
+        }
+    }
+
+    pub fn source(&self) -> &CheckedUnitStructuralArgumentPlan {
+        &self.source
+    }
+
+    pub fn source_binding_ordinal(&self) -> u32 {
+        self.source_binding_ordinal
+    }
 }
 
 impl CheckedUnitLocalBindingPlan {
@@ -917,10 +958,16 @@ impl CheckedUnitEffectOperationPlan {
         }
     }
 
-    /// The whole owned binding a window repair or local rebind installs.
+    /// The completed owned value installed into a new home or by a store.
     pub fn installed_value(&self) -> Option<&CheckedUnitStructuralArgumentPlan> {
-        self.store()
-            .and_then(crate::CheckedStorePlan::installed_value)
+        match self {
+            Self::EstablishLocal(CheckedUnitLocalBindingPlan::Structural {
+                initial_value, ..
+            }) => initial_value.as_ref().map(|initial| &initial.source),
+            _ => self
+                .store()
+                .and_then(crate::CheckedStorePlan::installed_value),
+        }
     }
 
     /// The byte value a contents or descriptor store writes.

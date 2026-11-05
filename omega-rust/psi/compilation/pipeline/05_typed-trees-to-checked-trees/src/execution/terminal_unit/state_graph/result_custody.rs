@@ -118,9 +118,10 @@ pub(super) fn account<'calls>(
     };
     let mut guarded_discards = Vec::new();
     for (producer_index, operation) in operations.iter().enumerate() {
-        // A declared home has a binding and a type, but no completed value to
-        // dispose. Its later stores retain their own produced values and exact
-        // custody; the reserved home cannot invent another value occurrence.
+        // Named-storage cleanup owns the home's disposal. A reservation has
+        // no completed value; initialized storage receives the custody already
+        // accounted at its source producer. This home ordinal must not create
+        // a second anonymous value disposal.
         if matches!(
             operation,
             OperationPlan::EstablishLocal(
@@ -1527,22 +1528,32 @@ fn installed_view_claims(
     following: &[OperationPlan],
 ) -> Option<Vec<language_semantics::PermissionClaimIdentity>> {
     let mut installations = following.iter().filter_map(|operation| {
-        let OperationPlan::Store(store) = operation else {
-            return None;
+        let (type_identity, statement_index) = match operation {
+            OperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::Structural {
+                    result,
+                    initial_value: Some(_),
+                    ..
+                },
+            ) => (result.type_identity, result.statement_index),
+            OperationPlan::Store(store) => {
+                let (checked_trees::CheckedStoreLeaf::OwnedRebind { type_identity }
+                | checked_trees::CheckedStoreLeaf::StructuralStore { type_identity, .. }) =
+                    &store.destination.leaf
+                else {
+                    return None;
+                };
+                (*type_identity, store.statement_index)
+            }
+            _ => return None,
         };
-        let (checked_trees::CheckedStoreLeaf::OwnedRebind { type_identity }
-        | checked_trees::CheckedStoreLeaf::StructuralStore { type_identity, .. }) =
-            &store.destination.leaf
-        else {
-            return None;
-        };
-        let supplied = store.installed_value()?;
-        (*type_identity == result.type_identity
+        let supplied = operation.installed_value()?;
+        (type_identity == result.type_identity
             && supplied.type_identity == result.type_identity
             && supplied.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
             && supplied.access == StructuralAccess::Owned
             && supplied.path.is_empty())
-        .then_some(store.statement_index)
+        .then_some(statement_index)
     });
     if installations.next()? != result.statement_index || installations.next().is_some() {
         return None;

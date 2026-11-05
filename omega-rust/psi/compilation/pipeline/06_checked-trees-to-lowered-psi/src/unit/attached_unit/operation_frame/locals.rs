@@ -49,7 +49,7 @@ impl OperationFrame<'_, '_> {
                 self.establish_structural_value(identities, operation)
             }
             checked_trees::CheckedUnitLocalBindingPlan::Structural { .. } => {
-                self.establish_structural_local(operation)
+                self.establish_structural_local(identities, operation)
             }
             // Primitive and affine storage belong to the ordinary machine's
             // statement sequence, never an operation frame.
@@ -701,17 +701,18 @@ impl OperationFrame<'_, '_> {
         )
     }
 
-    /// Establish one declared structural local's home as an operation result
-    /// place. Member stores and borrows rejoin the local through the binding
-    /// the result registration publishes; the home itself has no contents
-    /// until member operations establish them.
+    /// Establish a local's stable home by reserving storage or receiving its
+    /// completed initializer. Later stores and borrows name the place this
+    /// binding publishes; only a reservation still needs its contents filled.
     pub(super) fn establish_structural_local(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishLocal(
             checked_trees::CheckedUnitLocalBindingPlan::Structural {
                 result,
+                initial_value,
                 qualifications,
                 discard_result_on_return,
                 ..
@@ -722,6 +723,14 @@ impl OperationFrame<'_, '_> {
         };
         self.results
             .require_next(result, "structural local result binding is not dense")?;
+        if let Some(value) = initial_value {
+            return self.initialize_owned_local(
+                identities,
+                result,
+                value,
+                *discard_result_on_return,
+            );
+        }
         let structural_type = lookup_type_id(self.type_ids, &result.type_identity)?;
         let multiplicity =
             crate::shared::terminal_identities::structural_multiplicity(result.multiplicity);

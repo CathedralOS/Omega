@@ -42,6 +42,14 @@ pub(super) fn admit(
     }
     for (operation_index, operation) in operations.iter().enumerate() {
         match operation {
+            OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Structural {
+                initial_value: Some(value), ..
+            }) => {
+                if !call_argument_admitted(value.source(), &operations[..operation_index])
+                {
+                    return None;
+                }
+            }
             OperationPlan::Call(call)
                 if call_custody_admitted(call, &operations[..operation_index]) => {}
             // Capturing coordinates neither moves the destination nor opens

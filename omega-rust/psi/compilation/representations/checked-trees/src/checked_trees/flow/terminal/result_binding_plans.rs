@@ -39,8 +39,8 @@ pub struct CheckedUnitStructuralResultBindingPlan {
 /// loans, claims and edge disposal of that local name this result. The zero
 /// value (an invalid `symbol`) marks an anonymous result -- a returned
 /// value, a computed dispatch subject, a nested operand, an explicitly
-/// discarded call, a call whose result a store consumes, or the call result
-/// a descriptor local's first store reads after its home is established.
+/// discarded call, a call whose result a store consumes, or an initializer
+/// transferred into a separate local home.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedInitializedLocal {
     pub symbol: SymbolHandle,
