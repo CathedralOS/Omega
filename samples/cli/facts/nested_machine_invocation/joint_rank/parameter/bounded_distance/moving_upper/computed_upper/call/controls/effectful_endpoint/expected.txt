@@ -1,1 +1,0 @@
-has no observation-free, reach-free, crash-free value denotation

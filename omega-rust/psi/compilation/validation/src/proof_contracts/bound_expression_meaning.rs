@@ -39,6 +39,34 @@ pub fn has_builtin_bound_expression_meaning(
     )
 }
 
+/// A Boolean `match` observed at `value` could only come from an arm able to
+/// yield that polarity: a literal yield of the opposite polarity rules its
+/// arm out. When exactly one arm survives, the observation is that arm's
+/// yield, recovered at the arm's own point. Two or more survivors keep the
+/// joined result opaque because the taken arm is unknowable. Consumers still
+/// own the surviving arm's own meaning, custody and write-epoch checks; this
+/// grants no evidence by itself.
+pub fn match_result_unique_arm(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    value: bool,
+) -> Option<ExpressionHandle> {
+    let ExpressionNode::Match(dispatch) = expression_table(program).expression(expression) else {
+        return None;
+    };
+    let mut survivors = expression_table(program)
+        .match_arms(dispatch.arms)
+        .iter()
+        .filter(|arm| {
+            !matches!(
+                expression_table(program).expression(arm.value),
+                ExpressionNode::Boolean(literal) if *literal != value
+            )
+        });
+    let arm = survivors.next()?;
+    survivors.next().is_none().then_some(arm.value)
+}
+
 /// Check a guard node whose Boolean children the caller decomposes and checks
 /// separately. A true conjunction (or false disjunction) can contribute an
 /// independent builtin fact even when another child selects an authored

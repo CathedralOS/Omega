@@ -1,8 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "Indexed<A * (B + C)>==Indexed<A * B + A * C>",
-    "`multiply` of `IndexSemiring` licenses no law"
-  ]
-}

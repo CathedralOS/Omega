@@ -1479,10 +1479,7 @@ impl StructuralJudge<'_> {
             |field| {
                 let selected = field_place(field.symbol)?;
                 let value = self
-                    .captured_place_projection(
-                        &selected,
-                        language_semantics::content::ContentPlaceVersion::Current,
-                    )
+                    .current_place_projection(&selected)
                     .or_else(|| {
                         // A retired aggregate has no whole snapshot. Its inline
                         // child may still have a complete current field roster.
@@ -1523,6 +1520,91 @@ impl StructuralJudge<'_> {
         }
         active.pop();
         subject
+    }
+
+    /// The current contents of one place for a stored-predicate judgment.
+    /// A captured observation wins. Otherwise an entry formal's cell that no
+    /// recorded exposure has touched still holds its entry contents: the same
+    /// declaration projection an executed read would observe, under the same
+    /// exposure rule `storage_observation_invalidated` applies to such reads.
+    pub(in crate::proof_contracts::contract_entailment) fn current_place_projection(
+        &self,
+        place: &CanonicalPlace,
+    ) -> Option<super::StructuralTerm> {
+        self.captured_place_projection(
+            place,
+            language_semantics::content::ContentPlaceVersion::Current,
+        )
+        .or_else(|| self.untouched_entry_projection(place))
+    }
+
+    /// Project an entry formal's declaration value along fields and live tags.
+    /// A case segment needs the ledger's surviving tag for its exact prefix;
+    /// indexed and reference-bearing cells retain their captured-read fence.
+    /// Only an owned formal or an exclusive formal of reference-free storage
+    /// qualifies: nothing else can write its cells without an exposure here,
+    /// which is what lets this skip the scalar read-backing authentication.
+    fn untouched_entry_projection(&self, place: &CanonicalPlace) -> Option<super::StructuralTerm> {
+        self.requires_value_preservation().then_some(())?;
+        let root = place.root.as_symbol()?;
+        let (_, state) = self.runtime_declaration_scope()?;
+        let parameter = self.program.state_parameter_by_symbol(state, root)?;
+        let frames = self.frame_resolver()?;
+        let exclusive = match crate::reference_shell(self.program, parameter.type_reference) {
+            None => frames.value_is_reference_free(parameter.type_reference),
+            Some(shell) => {
+                shell.access == language_semantics::ReferenceAccess::Mutable
+                    && frames.value_is_reference_free(shell.referee)
+            }
+        };
+        if !exclusive {
+            return None;
+        }
+        // The storage graph answers per place whether incoming storage still
+        // reaches it; without a graph, any recorded write to the root fences.
+        if self.graph_storage_mode() {
+            if self.graph_place_invalidated(place) {
+                return None;
+            }
+        } else if self.invalidated_storage.contains(&root) {
+            return None;
+        }
+        // The formal's own exclusive shell names its caller-owned referent;
+        // any further reference belongs to a separate live epoch.
+        let referent = crate::reference_shell(self.program, parameter.type_reference)
+            .map_or(parameter.type_reference, |shell| shell.referee);
+        let reference = crate::value_custody::places::owned_projection_type_reference(
+            self.program,
+            referent,
+            &place.segments,
+        )?;
+        let mut value = super::StructuralTerm::Variable(parameter.name.to_string());
+        let mut prefix = CapturedStorageCoordinate {
+            root: place.root,
+            segments: Vec::new(),
+        };
+        for segment in &place.segments {
+            match segment {
+                PlaceSegment::Case { variant } => {
+                    self.stored_values
+                        .iter()
+                        .find(|stored| stored.coordinate == prefix)
+                        .and_then(|stored| stored.selected_case)
+                        .filter(|selected| selected == variant)?;
+                }
+                PlaceSegment::Field { symbol } => {
+                    value = super::super::observed_projections::project_field(
+                        value,
+                        self.program.symbols.name(*symbol),
+                    )?;
+                }
+                _ => return None,
+            }
+            prefix
+                .segments
+                .push(CapturedStorageSegment::Place(*segment));
+        }
+        frames.value_is_reference_free(reference).then_some(value)
     }
 
     /// Query a captured place rather than reconstructing its initializer.

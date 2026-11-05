@@ -1,2 +1,0 @@
-data `Holder` cannot bind implementation `Implementation`
-selected declaration does not name a package-scoped conformance

@@ -184,7 +184,9 @@ pub(crate) fn has_carrier(
                 program.data_type_parameter_by_symbol(symbol).is_some_and(|binder| {
                     matches!(binder.kind, TypeParameterKind::Const { type_reference }
                         if super::type_references::type_references_match(program, type_reference, expected))
-                        || runtime_value && matches!(binder.kind, TypeParameterKind::Value { type_reference }
+                        || (runtime_value
+                            || program.typed_program().finite_value_binder_in_scope(lexical_owner, symbol))
+                            && matches!(binder.kind, TypeParameterKind::Value { type_reference }
                         if super::type_references::type_references_match(program, type_reference, expected))
                 })
             },
@@ -193,7 +195,7 @@ pub(crate) fn has_carrier(
         return true;
     }
     if !super::type_references::exact_const_carrier_is_eligible(program, expected)
-        || !has_value_category(program, expression, runtime_value)
+        || !has_value_category(program, expression, runtime_value, lexical_owner)
     {
         return false;
     }
@@ -266,6 +268,7 @@ fn has_value_category(
     program: &dyn crate::CheckingInput,
     root: ExpressionHandle,
     runtime_value: bool,
+    lexical_owner: symbols::SymbolHandle,
 ) -> bool {
     let mut pending = vec![root];
     let mut visited = Vec::new();
@@ -286,7 +289,11 @@ fn has_value_category(
                             .data_type_parameter_by_symbol(path.symbol)
                             .is_some_and(|parameter| {
                                 matches!(parameter.kind, TypeParameterKind::Const { .. })
-                                    || runtime_value
+                                    || (runtime_value
+                                        || program.typed_program().finite_value_binder_in_scope(
+                                            lexical_owner,
+                                            path.symbol,
+                                        ))
                                         && matches!(parameter.kind, TypeParameterKind::Value { .. })
                             }),
                         SymbolKind::Const => program

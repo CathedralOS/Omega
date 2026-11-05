@@ -358,7 +358,7 @@ fn seed_boolean_guard_local(
 ) {
     if matches!(
         program.expression_table.expression(expression),
-        ExpressionNode::Binary(_)
+        ExpressionNode::Binary(_) | ExpressionNode::Match(_)
     ) && call_frames.is_some_and(|frames| {
         frames
             .expression_write_frame(machine, expression)

@@ -14,12 +14,13 @@ pub(super) enum Bound {
         bindings: Vec<validation::RuntimeRankApplicationBinding>,
     },
     /// A peer's authored endpoint read from this participant. `formals`
-    /// pairs each formal position the owner's expression reads with this
-    /// participant's parameter position that the owner receives it from.
+    /// pairs each formal the owner's expression reads with the helper
+    /// parameter that supplies it, including a field path when the call
+    /// passes a projection of that parameter rather than the parameter whole.
     Transported {
         owner: symbols::SymbolHandle,
         expression: ExpressionHandle,
-        formals: Vec<(usize, usize)>,
+        formals: Vec<TransportedFormal>,
         entry_value: ScopedArithmeticValue,
         formation: validation::IntegerApplicationFormation,
     },
@@ -74,14 +75,15 @@ impl Bound {
                 ..
             } => {
                 let (owner_machine, owner_state) = validation::find_state(program, *owner)?;
-                let (parameters, arguments) =
+                let (parameters, arguments, paths) =
                     transported_roster(program, owner_state, formals, edge.arguments)?;
-                let expression = edge.values.bind_integer_expression_formals(
+                let expression = edge.values.bind_projected_formals(
                     owner_machine,
                     owner_state,
                     *expression,
                     &parameters,
                     &arguments,
+                    &paths,
                 )?;
                 edge.values
                     .integer_expression_formation(edge.values.machine(), &expression)
@@ -165,17 +167,17 @@ impl Bound {
                     let actual_parameters = program.state_parameters(evaluator);
                     let bindings = formals
                         .iter()
-                        .map(|(formal, actual)| {
-                            let coordinate = |parameter: symbols::SymbolHandle| {
-                                validation::RankSubjectCoordinate {
-                                    parameter,
-                                    path: Vec::new(),
-                                }
-                            };
+                        .map(|supply| {
                             Some(validation::RuntimeRankApplicationBinding {
                                 calls: Vec::new(),
-                                formal: coordinate(formal_parameters.get(*formal)?.symbol),
-                                actual: coordinate(actual_parameters.get(*actual)?.symbol),
+                                formal: validation::RankSubjectCoordinate {
+                                    parameter: formal_parameters.get(supply.formal)?.symbol,
+                                    path: Vec::new(),
+                                },
+                                actual: validation::RankSubjectCoordinate {
+                                    parameter: actual_parameters.get(supply.actual)?.symbol,
+                                    path: supply.path.clone(),
+                                },
                                 entry_indexes: Vec::new(),
                             })
                         })
@@ -194,21 +196,37 @@ impl Bound {
     }
 }
 
+/// One formal of an authored endpoint and the helper storage that supplies it.
+/// `path` is empty when the call passes the helper parameter whole. A field
+/// projection keeps the segments from that parameter to the supplied value.
+#[derive(Clone, PartialEq, Eq)]
+pub(super) struct TransportedFormal {
+    pub(super) formal: usize,
+    pub(super) actual: usize,
+    pub(super) path: Vec<facts::PlaceSegment>,
+}
+
 /// The owner's formals a transported endpoint reads, each paired with the
-/// actual this participant's caller supplies for the matching parameter.
+/// actual this participant's caller supplies for the matching parameter and
+/// the field path from that actual to the formal's value.
 pub(super) fn transported_roster(
     program: &dyn validation::CheckingInput,
     owner: &typed_trees::state::State,
-    formals: &[(usize, usize)],
+    formals: &[TransportedFormal],
     arguments: &[ExpressionHandle],
 ) -> Option<(
     Vec<typed_trees::signature::StateParameter>,
     Vec<ExpressionHandle>,
+    Vec<Vec<facts::PlaceSegment>>,
 )> {
     let parameters = program.state_parameters(owner);
-    formals
-        .iter()
-        .map(|(formal, actual)| Some((parameters.get(*formal)?.clone(), *arguments.get(*actual)?)))
-        .collect::<Option<Vec<_>>>()
-        .map(|pairs| pairs.into_iter().unzip())
+    let mut roster = Vec::new();
+    let mut supplied = Vec::new();
+    let mut paths = Vec::new();
+    for supply in formals {
+        roster.push(parameters.get(supply.formal)?.clone());
+        supplied.push(*arguments.get(supply.actual)?);
+        paths.push(supply.path.clone());
+    }
+    Some((roster, supplied, paths))
 }

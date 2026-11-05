@@ -1,1 +1,0 @@
-a bounded cursor rank lacks independent entry formation

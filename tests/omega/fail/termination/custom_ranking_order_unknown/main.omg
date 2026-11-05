@@ -13,7 +13,7 @@ machine Main::weaken(main: &mut Main, power: u64) -> u64
 terminates by power -> Card::PowerOrder
 {
     transition power > 0 {
-        true -> weaken(main, power - 1)
+        true -> Main::weaken(main, power - 1)
         false -> power
     }
 }

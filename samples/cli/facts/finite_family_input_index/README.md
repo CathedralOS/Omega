@@ -128,14 +128,39 @@ it. The reject twins challenge only their own index or membership obligation.
 Ordinary borrow and cleanup rules still apply to the observation argument;
 recording a value grants no extra access or lifetime.
 
+The current shared repair lets calls that cannot replace stored references
+check without reconstructing storage details from earlier proof-only
+statements. Unknown reference effects still reject. This removes the shared
+`Nat.mod` refusal exposed by a later integration, with every program unchanged.
+
+The [complete Linux replay](https://github.com/CathedralOS/Omega/actions/runs/41867447392)
+at compiler source `972297978286bb346cb46a4a7979286f22c6920f` observes
+13 checking accepts, 14 intended refusals, 13 native/Terminal zero agreements
+and all 27 ordinary outcomes: 13 zero agreements and 14 intended refusals.
+It uses the verified optimization-level-1 CLI and corpus runner from
+[the focused producer run](https://github.com/CathedralOS/Omega/actions/runs/41860200412),
+without another compiler build or changed limits. The
+[source archive](https://github.com/CathedralOS/Omega/pull/1826)
+retains that actual compiler. All 182 program and oracle files remain fixed.
+The later published callback and checker changes have a separate applicability
+review for these value-only family parameters. These results remain executions
+at `972297978286`; this documentation update is not a new-source execution.
+
+The changed-limit twins still refuse the index mismatch, and the replaced-width
+case still observes row 32 after the earlier write. Proving that a call cannot
+replace references does not discard its ordinary scalar writes. Published
+records remain unchanged because their status, facts and complete diagnostics
+match these observations; current CLI evidence is retained separately.
+
 The complete checked call, family table, selected Build row and result survive
 Terminal production, interpretation, calling plans and native execution on the
-four hosted targets measured below. The focused scope includes this row's 12 positive projects
-and 13 reject controls, plus the existing static inline-result target and twin.
+four hosted targets at the measured sources below. The focused scope includes
+this row's 12 positive projects and 13 reject controls, plus the existing static
+inline-result target and twin.
 
 The [Windows x86-64 replay](https://github.com/CathedralOS/Omega/actions/runs/41830011701)
 and [Linux ARM64 replay](https://github.com/CathedralOS/Omega/actions/runs/41827408170)
-now complete the remaining hosts at compiler source
+completed the remaining matching-host measurements at compiler source
 `2dcf275fa50f3b59a0700b391bd84c2f187b48b5`. Each checks 13 positives and
 14 intended refusals, observes 13 native/Terminal exit-zero agreements, and
 passes all 27 ordinary projects: 13 zero agreements and 14 intended refusals.
@@ -162,9 +187,10 @@ new-source executions. Their [measured source archive](https://github.com/Cathed
 and macOS [binary seed](https://github.com/CathedralOS/Omega/actions/runs/41813109293)
 remain available.
 
-Only the Windows and ARM corpus records change for this completion. Source,
-Linux and macOS records remain unchanged; their actual focused observations
-and ordinary CLI results are retained separately.
+PR #1814 added only the measured Windows and ARM corpus records. Source, Linux
+and macOS records stayed unchanged. The shared repair also preserves all
+published records; their actual observations and ordinary CLI results remain
+attached to the measured sources above.
 
 The selected-relay migration, ordinary package-review repair and this fact's
 matching-host acceptance are now observed across all four hosted targets.
@@ -173,6 +199,14 @@ open.
 
 <details>
 <summary>Earlier source and measurements</summary>
+
+The [first integrated Linux replay](https://github.com/CathedralOS/Omega/actions/runs/41834854874)
+passed the full 27/13/27 scope at `89984b4d4607`. The later
+[integration run](https://github.com/CathedralOS/Omega/actions/runs/41841704932)
+at `977be69fd10c` failed before any positive executed: `Nat.mod` reported
+`stored call has no complete statement-successor effects`. That unrelated
+refusal also masked 13 intended invalid causes. The original failed run is
+preserved; it is not relabeled as passing after the shared repair.
 
 The target-prefixed programs were working migration inputs, not a demonstrated
 compiler defect. At fixed published source

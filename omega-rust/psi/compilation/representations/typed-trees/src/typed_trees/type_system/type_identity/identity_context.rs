@@ -316,13 +316,19 @@ impl TypeIdentityContext<'_> {
         // invalid expression symbol. Binder-aware template identity recovers
         // that exact local by its symbol-table name; concrete qualified names
         // never match this one-segment route.
-        if !symbol.is_valid()
-            && !fallback.contains("::")
-            && let Some((_, replacement)) = self.binders.iter().find(|(candidate, _)| {
+        if !symbol.is_valid() && !fallback.contains("::") {
+            let mut replacements = self.binders.iter().filter(|(candidate, _)| {
                 candidate.is_valid() && program.symbols.name(*candidate) == fallback
-            })
-        {
-            return replacement.clone();
+            });
+            if let Some((_, replacement)) = replacements.next() {
+                // A declared correspondence can give both sides the same
+                // key. Different keys leave this unresolved name ambiguous;
+                // choosing the first would identify unrelated subjects.
+                if replacements.any(|(_, other)| other != replacement) {
+                    return substitution::rejected(self);
+                }
+                return replacement.clone();
+            }
         }
         if symbol.is_valid() {
             let path = program.symbols.display_path(symbol, "::");

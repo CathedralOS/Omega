@@ -158,8 +158,16 @@ pub(crate) fn evaluate(
     if need_aggregate_resolution || need_lexical_resolution {
         // Resolve the original machine owners before placeholder synthesis.
         // Their runtime bodies are neither typed as probes nor executed here.
+        let mut selection_syntax = syntax.clone();
+        crate::syntax_probes::retain_pending_const_inputs(
+            &mut selection_syntax,
+            &arguments
+                .iter()
+                .map(|(argument, _, _)| *argument)
+                .collect::<Vec<_>>(),
+        );
         let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
-            context.resolution_request(syntax.clone()),
+            context.resolution_request(selection_syntax),
         )?;
         for (argument, original) in aggregate_arguments {
             if let TypeReferenceNode::ConstExpression(expression) =
@@ -218,18 +226,13 @@ pub(crate) fn evaluate(
     // retain their authored values and pending custody; a provisional zero
     // must never become an input to an unrelated structural equation.
     let mut probe = syntax.clone();
-    crate::syntax_probes::defer_pending_const_qualifications(
+    crate::syntax_probes::retain_pending_const_inputs(
         &mut probe,
         &arguments
             .iter()
             .map(|(argument, _, _)| *argument)
             .collect::<Vec<_>>(),
     );
-    for (argument, _, _) in &arguments {
-        probe
-            .type_references
-            .retain_pending_const_argument_uses(*argument);
-    }
     let declaration_frontier = probe.root_item_handles().len();
     let owners = pending
         .iter()

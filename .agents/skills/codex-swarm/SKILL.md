@@ -6,7 +6,7 @@ description: Coordinate compiler advancement through reusable Codex cloud sessio
 # Codex Swarm (Platform Adapter)
 
 This skill defines **only** the Codex cloud-thread transport for coordinating independent Codex executors.
-- **Worker workflow:** Every session follows [advance](../advance/SKILL.md) (`/advance`) for capability selection, the 9-place sample loop, validation, and board updates. Point sessions to `.agents/skills/advance/SKILL.md` rather than duplicating `/advance` instructions.
+- **Worker workflow:** Every session follows [advance](../advance/SKILL.md) (`/advance`) and [AGENTS.md](../../../AGENTS.md#law-of-completion) for capability selection, validation, and board updates. Point sessions to `.agents/skills/advance/SKILL.md` rather than duplicating `/advance` instructions.
 - **Coordinator review & landing:** Workers push a **draft** PR (`gh pr create --draft`) and stop (`candidate_ready`). The coordinator audits every diff using [coordinator-review](../coordinator-review/SKILL.md) before running `python3 tools/landing.py land <pr> --expected-head <sha>`.
 
 ## 1. Codex Session Tools & Controller Adapter

@@ -1,2 +1,0 @@
-cannot complete return from machine `inspect` state `entry`
-`requires` facts of `pair` (data `Pair`) unproved; restore them first

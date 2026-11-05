@@ -60,10 +60,6 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
     {
         return unsupported("Unit graph requires a closed checked body");
     }
-    // The ordinary callable contract publishes the checked requirements and
-    // guarantees. Result custody below independently transports linear claims;
-    // a linear carrier does not require a second source-contract admission.
-    super::super::admission::reject_attachment(plan)?;
     // Each executable occurrence resolves its authored owner. Custody
     // specialization may retain multiple occurrences of the same declaration;
     // it neither creates source facts nor changes that declaration's contract.

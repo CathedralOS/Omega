@@ -111,9 +111,6 @@ pub struct CheckedBoundaryMachinePlan {
     /// A boundary trait contributes a nominal service identity; an ordinary
     /// trait's logical invocation contract does not create service authority.
     pub owning_service: Option<language_semantics::ServiceReachId>,
-    /// Present for a bodyless attached boundary declaration; absent for a
-    /// static boundary-trait requirement, which has no runtime provider value.
-    pub attachment_type_identity: Option<TypeIdentityId>,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     /// Primitive parameters in authored order after removing structural
     /// parameters into their independent custody namespace.
@@ -159,7 +156,6 @@ impl CheckedBoundaryMachinePlan {
             machine: self.machine,
             state: self.state,
             returns_unit: self.result.is_unit(),
-            attachment_type_identity: self.attachment_type_identity,
             structural_parameters: &self.structural_parameters,
             scalar_parameters: &self.scalar_parameters,
             erased_scalar_parameters: &[],

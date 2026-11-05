@@ -162,6 +162,15 @@ pub(in crate::proof_contracts::contract_entailment) enum OperationOperandDemand<
     Selected(&'query [ExpressionHandle]),
 }
 
+/// Whether a path forms an operation's incoming operands.
+pub(in crate::proof_contracts::contract_entailment) enum OperationObservation<'program> {
+    /// The walk could not form the operands.
+    Refused,
+    /// The walk completed, and this path does not evaluate the operation.
+    Unreached,
+    Reached(Vec<NormalOperationEntry<'program>>),
+}
+
 /// A root's observation frontier. A query-only frontier is not a normal
 /// invocation result or permission to advance the statement.
 pub(in crate::proof_contracts::contract_entailment) struct RootObservation<'program> {
@@ -592,34 +601,65 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
     ) -> Option<Vec<NormalOperationEntry<'program>>> {
+        match self.operation_observation(statement_index, call, operand_demand, environment, scope)
+        {
+            OperationObservation::Reached(entries) => Some(entries),
+            OperationObservation::Refused | OperationObservation::Unreached => None,
+        }
+    }
+
+    /// Separate a completed walk that never evaluates `call` from a walk that
+    /// cannot form the operands. Callers that only need the reached entries
+    /// still see both as absence; a fit proof must not treat the former as a
+    /// failed operand.
+    pub(in crate::proof_contracts::contract_entailment) fn operation_observation(
+        &self,
+        statement_index: usize,
+        call: ExpressionHandle,
+        operand_demand: OperationOperandDemand<'_>,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+    ) -> OperationObservation<'program> {
         // Earlier siblings still execute in order, but their unused aggregate
         // values need not be retained to observe this operation's operands.
         // The requested operation and every effectful child keep value demand.
         let observations = [call];
-        let operands = self.statement_observation_operands(
+        let Some(operands) = self.statement_observation_operands(
             statement_index,
             call,
             scope,
             NormalValueDemand::Observe(&observations),
-        )?;
+        ) else {
+            return OperationObservation::Refused;
+        };
         let mut entries = NormalObservationEntries::default();
-        self.clone().evaluate_normal_operands(
-            &operands,
-            environment,
-            scope,
-            0,
-            OperationObservations {
-                stop: ObservationStop::BeforeOperation(call),
-                expressions: &[],
-                operands: operand_demand,
-                values: &[],
-                roots: &[],
-                delivery: ValueDelivery::Required,
-            },
-            &mut entries,
-            None,
-        )?;
-        (!entries.operations.is_empty()).then_some(entries.operations)
+        if self
+            .clone()
+            .evaluate_normal_operands(
+                &operands,
+                environment,
+                scope,
+                0,
+                OperationObservations {
+                    stop: ObservationStop::BeforeOperation(call),
+                    expressions: &[],
+                    operands: operand_demand,
+                    values: &[],
+                    roots: &[],
+                    delivery: ValueDelivery::Required,
+                },
+                &mut entries,
+                None,
+            )
+            .is_none()
+        {
+            return OperationObservation::Refused;
+        }
+        if entries.operations.is_empty() {
+            OperationObservation::Unreached
+        } else {
+            OperationObservation::Reached(entries.operations)
+        }
     }
 
     /// Observe the path before a value expression or any of its operands.

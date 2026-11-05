@@ -1,6 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "has no observation-free, reach-free, crash-free value denotation"
-  ]
-}

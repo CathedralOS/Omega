@@ -1,1 +1,0 @@
-partial exact division in machine `rank` requires contract: the divisor must be proven nonzero

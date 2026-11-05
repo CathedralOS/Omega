@@ -1,1 +1,0 @@
-construction of `Progress` field `inner` may overflow

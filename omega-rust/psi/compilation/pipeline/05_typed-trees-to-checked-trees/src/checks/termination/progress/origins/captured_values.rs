@@ -200,8 +200,12 @@ fn resolve_captures(
                 handle,
                 &projection,
                 operands.last()?.storage_snapshot,
-            ) {
-                let selected = stored.captures()?;
+            )
+                // A snapshot with no completed capture (an entry descriptor or
+                // an untracked slot) is not a reason to abandon the value.
+                // Its completed producers below still authenticate it.
+                && let Some(selected) = stored.captures()
+            {
                 if selected.is_empty() {
                     return None;
                 }

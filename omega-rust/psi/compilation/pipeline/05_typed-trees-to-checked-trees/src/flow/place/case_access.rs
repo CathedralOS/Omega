@@ -272,10 +272,14 @@ impl<'program> CaseEvidence<'program> {
             self.statement_index,
             subject,
         );
-        let selected = stable
+        let mut selected = stable
             && case.is_valid()
             && self.program.symbols.get(case).kind == symbols::SymbolKind::Variant
             && self.has_value_for_subject(&self.prepare_stable_subject(subject), case, required);
+        if !selected && stable && case.is_valid() {
+            let prepared = self.prepare_stable_subject(subject);
+            selected = self.dispatch_copy_carries_case(&prepared.place, case, required);
+        }
         if !selected && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
             eprintln!(
                 "CHECKSITE current-case machine={:?} state={:?} statement={} subject={subject:?} stable={stable} case={case:?} required={required} observations={:?}",
@@ -408,6 +412,117 @@ impl<'program> CaseEvidence<'program> {
             }
         }
         declared && excluded_alternative
+    }
+
+    /// A transition evaluates an owned copy, then proves the case on that copy.
+    /// The payload read still names the initializer. The case carries back when
+    /// the initializer is an immutable binding: nothing can change it after the
+    /// copy, so the copy's tag is the source's tag.
+    fn dispatch_copy_carries_case(
+        &self,
+        subject: &CanonicalPlace,
+        case: SymbolHandle,
+        required: bool,
+    ) -> bool {
+        if self.program.symbols.get(case).kind != symbols::SymbolKind::Variant {
+            return false;
+        }
+        let statements = self
+            .program
+            .statement_table
+            .statements(self.state.statement_nodes);
+        self.observations.iter().any(|row| {
+            if row.variant != case
+                || row.selected != required
+                || row.place.segments != subject.segments
+            {
+                return false;
+            }
+            let PlaceRoot::Symbol(copy) = row.place.root else {
+                return false;
+            };
+            let Some((local_index, initializer)) =
+                statements
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, statement)| {
+                        if index > self.statement_index {
+                            return None;
+                        }
+                        let local = statement.as_local_data()?;
+                        if local.symbol != copy
+                            || local.is_mutable
+                            || !local.role.has_ordinary_initializer()
+                        {
+                            return None;
+                        }
+                        local
+                            .ordinary_value_initializer()
+                            .map(|value| (index, value))
+                    })
+            else {
+                return false;
+            };
+            let Some(source) = crate::published::places::place_at(
+                self.program,
+                self.state.symbol,
+                local_index,
+                initializer,
+            ) else {
+                return false;
+            };
+            if !self.places_name_same_value(local_index, subject, &source) {
+                return false;
+            }
+            self.place_root_is_immutable(&source)
+        })
+    }
+
+    fn places_name_same_value(
+        &self,
+        at: usize,
+        subject: &CanonicalPlace,
+        source: &CanonicalPlace,
+    ) -> bool {
+        if super::canonical_places_agree(self.program, subject, source) {
+            return true;
+        }
+        let PlaceRoot::Expression(expression) = subject.root else {
+            return false;
+        };
+        let Some(named) =
+            crate::published::places::place_at(self.program, self.state.symbol, at, expression)
+        else {
+            return false;
+        };
+        let mut resolved = named;
+        resolved.segments.extend_from_slice(&subject.segments);
+        super::canonical_places_agree(self.program, &resolved, source)
+    }
+
+    fn place_root_is_immutable(&self, place: &CanonicalPlace) -> bool {
+        let PlaceRoot::Symbol(symbol) = place.root else {
+            return false;
+        };
+        if self
+            .program
+            .state_parameters(self.state)
+            .iter()
+            .any(|parameter| parameter.symbol == symbol && !parameter.is_mutable)
+        {
+            return true;
+        }
+        self.program
+            .statement_table
+            .statements(self.state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                statement.as_local_data().is_some_and(|local| {
+                    local.symbol == symbol
+                        && !local.is_mutable
+                        && local.role.has_ordinary_initializer()
+                })
+            })
     }
 }
 

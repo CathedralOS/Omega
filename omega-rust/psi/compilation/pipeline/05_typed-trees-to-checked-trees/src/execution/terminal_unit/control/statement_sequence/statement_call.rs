@@ -237,6 +237,20 @@ pub(super) fn plan(
             structural_replacement = Some(replacement);
         }
     }
+    if let Some(authored) = statement.as_call()
+        && validation::compiler_operations::statement_wire_codec_intrinsic(program, authored)
+            .is_some()
+    {
+        // Numbered-data `Schema::encode` has no synthesized machine. Operand
+        // preparation already evaluated the selector. The store below is the
+        // cursor write that machine used to perform: era, tags, and payload
+        // bytes, landed in the exclusive `written` referent.
+        call_phase("statement sequence: call: derived wire codec");
+        let store =
+            super::wire_codec::written_store(program, machine, state, statement_index, authored)?;
+        operations.push(store);
+        return Some(());
+    }
     call_phase("statement sequence: call: call operation");
     let mut operation = build_call_operation(
         program,

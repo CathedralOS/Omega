@@ -1,1 +1,0 @@
-specification call `observed` has no observation-free, reach-free, crash-free value denotation

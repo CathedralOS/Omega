@@ -44,10 +44,9 @@ guard against the expected Pair.
 The [reject twin](local/invalid/main.omg) changes only the decoder's final load
 from slot 2 to slot 1. For input 17/42, this would return 17/17. Capacity, success
 paths and storage handling remain fixed. Each twin must reject that field law,
-without unrelated formation or ownership failures. The nine positives and twins
-are also retained under
-[tests/omega/pass/facts](../../../../tests/omega/pass/facts/) and
-[tests/omega/fail/facts](../../../../tests/omega/fail/facts/).
+without unrelated formation or ownership failures. All nine positives and twins
+remain here as executable samples. Main's corpus cleanup removed their duplicate
+test folders; the original run reports retain those earlier observations.
 
 A separate runtime caller uses ordinary TryFrom, whose interface supplies no
 preservation promise. It examines both actual returned Pair fields, buffer bytes

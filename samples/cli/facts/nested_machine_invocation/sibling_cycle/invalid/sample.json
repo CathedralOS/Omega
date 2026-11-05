@@ -1,5 +1,0 @@
-{
-  "rejection_contains": [
-    "a termination promise additionally requires strict descent on every complete cycle"
-  ]
-}

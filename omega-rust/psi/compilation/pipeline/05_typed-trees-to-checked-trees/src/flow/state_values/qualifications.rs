@@ -445,20 +445,9 @@ pub(in crate::flow) fn capture_argument(
     let Some(parameter) = program.state_parameters(destination).get(ordinal) else {
         return Vec::new();
     };
-    let Some(source) =
+    let Some(authored) =
         flow_context.canonical_place_at(program, state.symbol, statement_index, argument)
     else {
-        return Vec::new();
-    };
-    let Some(source) = crate::flow::observations::completed_copy_read_place(
-        program,
-        &flow_context.control,
-        copied_values,
-        state.symbol,
-        statement_index,
-        argument,
-        &source,
-    ) else {
         return Vec::new();
     };
     let Some(source_type) =
@@ -466,16 +455,63 @@ pub(in crate::flow) fn capture_argument(
     else {
         return Vec::new();
     };
-    capture_place(
+    // A copied reference with several referents has no single read place.
+    // The authored binding still names that finite set; resolving it below
+    // keeps every alternative and does not substitute a later descriptor.
+    let source = crate::flow::observations::completed_copy_read_place(
         program,
-        semantic,
-        flow_context,
-        source.root,
-        &source.segments,
-        source_type,
-        parameter.symbol,
-        contexts,
-    )
+        &flow_context.control,
+        copied_values,
+        state.symbol,
+        statement_index,
+        argument,
+        &authored,
+    );
+    let source = match source {
+        Some(place) => place,
+        None if validation::reference_shell(program, source_type).is_some() => authored,
+        None => return Vec::new(),
+    };
+    // A reference argument denotes its referents. Every finite alternative
+    // must carry the claim; an unresolved referent contributes nothing.
+    let denoted = if validation::reference_shell(program, source_type).is_some() {
+        match crate::flow::argument_storage_places(
+            program,
+            state.symbol,
+            statement_index,
+            &source,
+            flow_context.call_frames,
+        ) {
+            Some(places) if !places.is_empty() => places,
+            _ => return Vec::new(),
+        }
+    } else {
+        vec![source]
+    };
+    let mut common: Option<Vec<CapturedQualification>> = None;
+    for place in denoted {
+        let found = capture_place(
+            program,
+            semantic,
+            flow_context,
+            place.root,
+            &place.segments,
+            source_type,
+            parameter.symbol,
+            contexts,
+        );
+        common = Some(match common {
+            None => found,
+            Some(previous) => previous
+                .into_iter()
+                .filter(|claim| found.iter().any(|next| claim.input.same_claim(&next.input)))
+                .collect(),
+        });
+        if common.as_ref().is_some_and(Vec::is_empty) {
+            break;
+        }
+    }
+    common.unwrap_or_default()
 }
 
 pub(in crate::flow) fn finish(
