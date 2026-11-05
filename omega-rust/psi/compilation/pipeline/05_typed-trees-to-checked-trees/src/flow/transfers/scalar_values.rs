@@ -283,7 +283,7 @@ pub(super) fn completed_store_integer_bounds(
                 program,
                 parameters: program.state_parameters(state),
                 symbols,
-                value_at_place: |_, _| None,
+                value_at_place: |_: &CanonicalPlace, _: ExpressionHandle| None::<ScalarValue>,
             },
         )
     });
