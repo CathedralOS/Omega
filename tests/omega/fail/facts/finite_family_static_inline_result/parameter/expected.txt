@@ -1,1 +1,1 @@
-for conformance requirement `Family::row` does not match the binder's trait arguments
+an indexed value retains its captured index
