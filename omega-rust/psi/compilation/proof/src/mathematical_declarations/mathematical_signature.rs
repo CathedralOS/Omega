@@ -664,10 +664,19 @@ impl<'a> Elaborator<'a> {
         self.retain_source_evidence_carriers()?;
         self.retain_indexed_contract_theorems()?;
         self.retain_computed_orders()?;
-        let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
+        let trace = std::env::var_os("OMEGA_STRUCT_TRACE").is_some();
+        let budget = Budget::new(DEFAULT_CONVERSION_STEPS);
+        let mut budget = if trace {
+            budget.with_normalization_counts(self.declarations.len())
+        } else {
+            budget
+        };
         let signature =
             check_signature_with_attribution(&mut self.arena, &self.declarations, &mut budget)
                 .map_err(|failure| {
+                    if trace {
+                        self.report_signature_failure(&failure, &budget);
+                    }
                     let authored = self
                         .authored
                         .iter()
@@ -769,6 +778,62 @@ impl<'a> Elaborator<'a> {
             authored: self.authored,
             prepared: self.prepared,
         })
+    }
+
+    /// A shared allowance can run out after several valid declarations. Report
+    /// its position and work without repeating or changing the failed check.
+    fn report_signature_failure(
+        &self,
+        failure: &proof_admission::SignatureCheckError,
+        budget: &Budget,
+    ) {
+        let row = &self.declarations[failure.declaration];
+        eprintln!(
+            "STRUCT mathematical signature failure declaration={} declarations={} remaining_before_declaration={} remaining={} error={:?} levels={} type={:?} type_node={:?} body={:?} body_node={:?}",
+            failure.declaration,
+            self.declarations.len(),
+            failure.remaining_before_declaration,
+            budget.remaining(),
+            failure.error,
+            row.level_arity,
+            row.ty,
+            self.arena.get(row.ty),
+            row.body,
+            row.body.map(|body| self.arena.get(body))
+        );
+        if let Some(counts) = budget.normalization_counts() {
+            eprintln!(
+                "STRUCT mathematical signature work beta={} projection={} case={} identity={} induction={} squash={} boxed={} unlisted_unfoldings={}",
+                counts.beta,
+                counts.projection,
+                counts.case,
+                counts.identity,
+                counts.induction,
+                counts.squash,
+                counts.boxed,
+                counts.unlisted_unfoldings
+            );
+            let mut unfoldings = counts
+                .unfoldings
+                .iter()
+                .copied()
+                .enumerate()
+                .filter(|(_, count)| *count != 0)
+                .collect::<Vec<_>>();
+            unfoldings.sort_unstable_by_key(|&(declaration, count)| {
+                (std::cmp::Reverse(count), declaration)
+            });
+            for (declaration, count) in unfoldings.into_iter().take(16) {
+                let row = &self.declarations[declaration];
+                eprintln!(
+                    "STRUCT mathematical signature unfolding declaration={declaration} count={count} type={:?} type_node={:?} body={:?} body_node={:?}",
+                    row.ty,
+                    self.arena.get(row.ty),
+                    row.body,
+                    row.body.map(|body| self.arena.get(body))
+                );
+            }
+        }
     }
 
     fn retain_constant_meanings(&mut self) {

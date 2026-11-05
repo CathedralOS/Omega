@@ -21,6 +21,12 @@ impl Elaborator<'_> {
         if demands.is_empty() {
             return Ok(());
         }
+        let trace = std::env::var_os("OMEGA_STRUCT_TRACE").is_some();
+        let rank_start = self.declarations.len();
+        let rank_started = trace.then(std::time::Instant::now);
+        if trace {
+            eprintln!("STRUCT comparison rank proof start declaration={rank_start}");
+        }
         let Some(theory) = self.integer_theory.as_mut() else {
             return Err(self.refuse(
                 "computed order evidence requires the shared mathematical integer vocabulary"
@@ -33,8 +39,23 @@ impl Elaborator<'_> {
                     GraphFailure::Unavailable(reason) | GraphFailure::Kernel(reason) => reason,
                 })
             })?;
+        if let Some(started) = rank_started {
+            eprintln!(
+                "STRUCT comparison rank proof complete declarations={rank_start}..{} micros={}",
+                self.declarations.len(),
+                started.elapsed().as_micros()
+            );
+        }
         let mut sources = validation::computed_order::SourceOrderPreparation::new(self.program);
         for demand in demands {
+            let start = self.declarations.len();
+            let started = trace.then(std::time::Instant::now);
+            if trace {
+                eprintln!(
+                    "STRUCT comparison source proof start target={:?} carrier={:?} declaration={start}",
+                    demand.target, demand.carrier
+                );
+            }
             let judgment = match self.computed_order(&demand, &ranks, &mut sources) {
                 Ok(evidence) => Ok(evidence),
                 Err(GraphFailure::Unavailable(reason)) => {
@@ -48,6 +69,16 @@ impl Elaborator<'_> {
                 }
                 Err(GraphFailure::Kernel(reason)) => return Err(self.refuse(reason)),
             };
+            if let Some(started) = started {
+                eprintln!(
+                    "STRUCT comparison source proof complete target={:?} carrier={:?} declarations={start}..{} proved={} micros={}",
+                    demand.target,
+                    demand.carrier,
+                    self.declarations.len(),
+                    judgment.is_ok(),
+                    started.elapsed().as_micros()
+                );
+            }
             self.prepared.computed_orders.insert(PreparedComputedOrder {
                 target: demand.target,
                 carrier: demand.carrier,

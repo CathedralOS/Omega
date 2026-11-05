@@ -151,6 +151,8 @@ impl Signature {
 #[derive(Debug)]
 pub struct SignatureCheckError {
     pub declaration: usize,
+    /// Distinguish work on this declaration from work already spent on its prefix.
+    pub remaining_before_declaration: u32,
     pub error: CoreError,
 }
 
@@ -180,6 +182,7 @@ pub fn check_signature_with_attribution(
 ) -> Result<Signature, SignatureCheckError> {
     let mut signature = Signature::new();
     for (position, declaration) in declarations.iter().enumerate() {
+        let remaining_before_declaration = budget.remaining();
         let formed = {
             let context = Context::with_level_arity(declaration.level_arity)
                 .with_signature(signature.clone());
@@ -195,6 +198,7 @@ pub fn check_signature_with_attribution(
         // retain the signature allocation instead of copying it per declaration.
         formed.map_err(|error| SignatureCheckError {
             declaration: position,
+            remaining_before_declaration,
             error,
         })?;
         signature.push(declaration.clone());
