@@ -17685,8 +17685,7 @@ fail/relevance/erased_mutable_parameter rejected 838ms expected @ccdb99ca2214
 	machine `Main::record::record` erased parameter `x` cannot be `mut`; an erased binding owns no runtime storage or custody
 fail/relevance/erased_parameter_runtime_read rejected 903ms expected @ccdb99ca2214
 	erased parameter `bound` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
-fail/relevance/erased_reference_distinct_subject rejected 1937ms expected regressed-from:checked @ccdb99ca2214
-	state `keep` receives `right` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+fail/relevance/erased_reference_distinct_subject rejected 2745ms expected regressed-from:checked @4710c3c8595b
 	cannot prove requires contract for call keep from forward: right == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/relevance/erased_reference_mutable_formal rejected 748ms expected @ccdb99ca2214
 	machine `keep::entry` erased parameter `witness` cannot be `mut`; an erased binding owns no runtime storage or custody
