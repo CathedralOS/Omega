@@ -191,7 +191,7 @@ impl StateGraphEmission<'_, '_> {
             id: evaluation.current,
             parameters: std::mem::take(&mut evaluation.parameters),
             erased_scalar_formals: Vec::new(),
-            erased_proof_formals: Vec::new(),
+            erased_proof_formals: std::mem::take(&mut evaluation.completion_proof_formals),
             structural_parameters: std::mem::take(&mut evaluation.block_structural_parameters),
             operations: operations[evaluation.operation_start
                 ..if dispatches || !edge_blocks.is_empty() {

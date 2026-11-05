@@ -587,8 +587,7 @@ pub(super) fn guard_observations(
             // can yield it: a literal yield of the other polarity rules its
             // arm out. When exactly one arm survives, its yield held at that
             // arm's own point; several survivors keep the decision opaque.
-            if let Some(arm_value) =
-                validation::match_result_unique_arm(program, expression, value)
+            if let Some(arm_value) = validation::match_result_unique_arm(program, expression, value)
             {
                 guard_observations(program, machine, state, arm_value, value, observations);
                 return;

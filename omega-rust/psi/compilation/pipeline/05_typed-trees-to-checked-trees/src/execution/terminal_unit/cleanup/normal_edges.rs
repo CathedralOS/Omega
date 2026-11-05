@@ -213,13 +213,10 @@ fn cleanup_rows(
         .collect::<Vec<_>>();
     let mut retirements = Vec::new();
     let mut establishment_ordered = Vec::new();
-    for disposition_handle in facts
-        .contextual_cleanup
-        .state_disposition_handles(
-            super::owning_cleanup_machine(program, state.symbol),
-            state.symbol,
-        )
-    {
+    for disposition_handle in facts.contextual_cleanup.state_disposition_handles(
+        super::owning_cleanup_machine(program, state.symbol),
+        state.symbol,
+    ) {
         let disposition = facts
             .contextual_cleanup
             .dispositions

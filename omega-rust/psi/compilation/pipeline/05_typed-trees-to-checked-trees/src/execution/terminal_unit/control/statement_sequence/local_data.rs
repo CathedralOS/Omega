@@ -135,6 +135,13 @@ fn plan_inner(
         trace.phase(phase);
         trace.statement(Some(statement_index));
     };
+    // A transition subject captured from erased indexed evidence is the
+    // scrutinee's proof identity. Its borrow is not a runtime carrier, and
+    // demanding a structural call binding would invent storage the parameter
+    // does not have. Fail closed for every other non-call structural initializer.
+    if validation::dispatch_subject_of_erased_binding(program, state, local) {
+        return Some(LocalPlan::Planned);
+    }
     local_phase("statement sequence: local data: initializer expression");
     if !expressions(program).expression_is_valid(local.initial_value)
         && validation::is_atomic_type(program, local.type_reference)
