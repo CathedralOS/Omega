@@ -15,7 +15,7 @@ from check_rules import (
     board_task_ids, changed_golden_rows, citing_documents, count_source_reads,
     count_status_phrases, dangling_task_ids, dangling_task_violations,
     added_compiler_lines, already_pinned_fact_violations, capability_notices,
-    diagnostic_fragments, diff_hygiene_violations, turned_green,
+    CorpusEvidence, corpus_evidence, diagnostic_fragments, diff_hygiene_violations,
     expected_pin_violations, fact_row_violations,
     fixture_owner, golden_row_quality_violations, golden_rows, golden_violations, lanes,
     measurement_violations, nearest_rows, pinned_fixture_for_fact,
@@ -355,22 +355,47 @@ class CapabilityEvidenceTests(unittest.TestCase):
             "\tcannot prove requires contract\n"
             "pass/calls/regressed rejected 10ms regressed-from:checked @abc\n"
             "pass/calls/green checked 10ms @abc\n"
-            "fail/calls/control rejected 10ms expected @abc\n")
+            "fail/calls/control rejected 10ms expected @abc\n"
+            "\tcannot prove index `i`\n"
+            "fail/calls/accepted checked 10ms @abc\n"
+            "fail/calls/wrong_reason rejected 10ms unexpected @abc\n"
+            "\tunsupported construct\n")
+    NOTHING = CorpusEvidence([], [], [], [])
 
     def test_only_existing_positive_rows_that_gain_a_success_count(self):
-        head = ("pass/calls/lost rejected 10ms regressed-from:checked @def\n"
-                "pass/calls/refused checked 11ms @def\n"
-                "pass/calls/regressed checked 11ms @def\n"
-                "pass/calls/green checked 12ms @def\n"
-                "pass/calls/new_case checked 10ms @def\n"
-                "fail/calls/control rejected 10ms expected @def\n")
-        self.assertEqual(turned_green(self.BASE, head),
-                         ["pass/calls/refused", "pass/calls/regressed"])
+        head = (self.BASE
+                .replace("pass/calls/lost checked 10ms", "pass/calls/lost rejected 10ms regressed-from:checked")
+                .replace("pass/calls/refused rejected 10ms", "pass/calls/refused checked 11ms")
+                .replace("pass/calls/regressed rejected 10ms regressed-from:checked",
+                         "pass/calls/regressed checked 11ms")
+                + "pass/calls/new_case checked 10ms @def\n")
+        evidence = corpus_evidence(self.BASE, head)
+        self.assertEqual(evidence.greened, ["pass/calls/refused", "pass/calls/regressed"])
+        self.assertEqual(evidence.added_rows, ["pass/calls/new_case"])
 
     def test_a_row_still_carrying_its_regression_is_not_green(self):
         head = self.BASE.replace("pass/calls/refused rejected 10ms",
                                  "pass/calls/refused checked 10ms regressed-from:checked")
-        self.assertEqual(turned_green(self.BASE, head), [])
+        self.assertEqual(corpus_evidence(self.BASE, head).greened, [])
+
+    def test_controls_that_now_reject_for_their_pin_close(self):
+        head = (self.BASE
+                .replace("fail/calls/accepted checked 10ms", "fail/calls/accepted rejected 12ms expected")
+                .replace("fail/calls/wrong_reason rejected 10ms unexpected",
+                         "fail/calls/wrong_reason rejected 10ms expected"))
+        self.assertEqual(corpus_evidence(self.BASE, head).closed_controls,
+                         ["fail/calls/accepted", "fail/calls/wrong_reason"])
+
+    def test_a_control_that_only_gains_its_pin_does_not_close(self):
+        base = self.BASE + "fail/calls/unpinned rejected 10ms @abc\n"
+        head = base.replace("fail/calls/unpinned rejected 10ms", "fail/calls/unpinned rejected 10ms expected")
+        self.assertEqual(corpus_evidence(base, head), self.NOTHING)
+
+    def test_a_changed_diagnostic_counts_and_a_re_record_does_not(self):
+        reworded = self.BASE.replace("\tcannot prove index `i`", "\tcannot prove index `i` < 4")
+        self.assertEqual(corpus_evidence(self.BASE, reworded).diagnostic_changes, ["fail/calls/control"])
+        restamped = self.BASE.replace("10ms", "99ms").replace("@abc", "@def")
+        self.assertEqual(corpus_evidence(self.BASE, restamped), self.NOTHING)
 
     def test_only_product_compiler_rust_counts(self):
         numstat = ("40\t10\tomega-rust/psi/compilation/pipeline/05/src/calls.rs\n"
@@ -381,16 +406,25 @@ class CapabilityEvidenceTests(unittest.TestCase):
                    "-\t-\tomega-rust/psi/compilation/pipeline/05/src/table.bin\n")
         self.assertEqual(added_compiler_lines(numstat), 55)
 
-    def test_compiler_code_without_closure_prints_a_notice(self):
-        notices = capability_notices(55, [], 0)
+    def test_code_that_changes_no_outcome_gets_the_stronger_notice(self):
+        notices = capability_notices(55, self.NOTHING, 0)
         self.assertEqual(len(notices), 1)
-        self.assertIn("adds 55 lines of compiler Rust", notices[0])
+        self.assertIn("adds 55 lines of compiler Rust and changes no corpus outcome", notices[0])
+
+    def test_code_pinned_only_on_its_own_rows_is_named(self):
+        evidence = CorpusEvidence([], [], [], ["fail/calls/new_twin", "pass/calls/new_case"])
+        notices = capability_notices(55, evidence, 0)
+        self.assertIn("pinned only on 2 row(s) it adds", notices[0])
+        self.assertIn("pass/calls/new_case", notices[0])
 
     def test_closure_or_removed_code_needs_no_notice(self):
-        self.assertEqual(capability_notices(55, ["pass/calls/refused"], 0), [])
-        self.assertEqual(capability_notices(55, [], 3), [])
-        self.assertEqual(capability_notices(0, [], 0), [])
-        self.assertEqual(capability_notices(-200, [], 0), [])
+        for evidence in (CorpusEvidence(["pass/calls/refused"], [], [], []),
+                         CorpusEvidence([], ["fail/calls/accepted"], [], []),
+                         CorpusEvidence([], [], ["fail/calls/control"], ["pass/calls/new_case"])):
+            self.assertEqual(capability_notices(55, evidence, 0), [])
+        self.assertEqual(capability_notices(55, self.NOTHING, 3), [])
+        self.assertEqual(capability_notices(0, self.NOTHING, 0), [])
+        self.assertEqual(capability_notices(-200, self.NOTHING, 0), [])
 
 
 class MeasurementTests(unittest.TestCase):

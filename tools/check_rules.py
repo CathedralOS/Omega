@@ -87,11 +87,13 @@ One check reports instead of failing:
   existing pass/run row green, and 245 of all 1,085 commits were per-case
   "keep/carry/preserve/retain" repairs, most of which added a new fixture row
   rather than closing a failing one. Refusing that shape outright would also
-  refuse most legitimate work (a new behavior pinned by its own fixture pair,
-  diagnostics, internal restructuring), so this prints a notice that
-  coordinator review must resolve: a change that adds compiler Rust, turns no
-  existing pass/run row green and deletes no `TASKS.md` line names in its PR
-  body the existing failing row, sample or acceptance it closes.
+  refuse legitimate work (a new behavior pinned by its own fixture pair,
+  performance work, restructuring), so this prints a notice that coordinator
+  review must resolve. Evidence is a change to a row that existed at the base
+  (a positive row turned green, a control that now rejects for its pinned
+  reason, a control whose recorded diagnostic changed) or a deleted
+  `TASKS.md` line. Without it, the notice distinguishes code pinned only on
+  rows the change adds from code that changes no corpus outcome at all.
 
 The diff checks compare `--base` (default: the merge base with origin/main)
 with HEAD and read only Git and the tree. Nothing here builds or runs the
@@ -573,32 +575,73 @@ COMPILER_ROOTS = ("omega-rust/psi/", "omega-rust/omega/compilation/")
 GREEN_OUTCOMES = ("checked", "built")
 
 
-def golden_outcomes(text: str) -> dict:
-    """Each row's outcome, and whether it carries a `regressed-from:` token:
-    such a row records a lost success, so it is not green whatever it says."""
-    outcomes = {}
+class Row(NamedTuple):
+    outcome: str
+    flags: frozenset
+    diagnostics: tuple
+
+
+def golden_records(text: str) -> dict:
+    """Each row's outcome, its flag tokens (`expected`, `unexpected`,
+    `regressed-from:…`; timings and stamps dropped, since a re-record changes
+    them without changing what was observed) and its diagnostic lines."""
+    records, name = {}, None
     for line in text.splitlines():
+        if line.startswith("\t") and name:
+            records[name] = records[name]._replace(
+                diagnostics=records[name].diagnostics + (line.strip(),))
+            continue
         if not line.strip() or line[0] in "#\t ":
             continue
         tokens = line.split()
-        if len(tokens) >= 2:
-            regressed = any(token.startswith("regressed-from:") for token in tokens[2:])
-            outcomes[tokens[0]] = (tokens[1], regressed)
-    return outcomes
+        if len(tokens) < 2:
+            name = None
+            continue
+        name = tokens[0]
+        flags = frozenset(token for token in tokens[2:]
+                          if not token.startswith("@") and not re.fullmatch(r"\d+m?s", token))
+        records[name] = Row(tokens[1], flags, ())
+    return records
 
 
-def is_green(outcome) -> bool:
-    return outcome[0] in GREEN_OUTCOMES and not outcome[1]
+def is_green(row: Row) -> bool:
+    return row.outcome in GREEN_OUTCOMES and not any(
+        flag.startswith("regressed-from:") for flag in row.flags)
 
 
-def turned_green(base_text: str, head_text: str) -> list:
-    """Positive rows that existed at the base without a success and have one
-    now. New rows do not count: a new fixture shows the repair's own case, not
-    a failure the compiler already had."""
-    base, head = golden_outcomes(base_text), golden_outcomes(head_text)
-    return sorted(name for name, outcome in head.items()
-                  if name.startswith(("pass/", "run/")) and name in base
-                  and is_green(outcome) and not is_green(base[name]))
+def is_pinned_rejection(row: Row) -> bool:
+    return row.outcome == "rejected" and "expected" in row.flags and "unexpected" not in row.flags
+
+
+class CorpusEvidence(NamedTuple):
+    greened: list
+    closed_controls: list
+    diagnostic_changes: list
+    added_rows: list
+
+
+def corpus_evidence(base_text: str, head_text: str) -> CorpusEvidence:
+    """What the golden says the change did to fixtures that existed at the
+    base. Rows the change adds are listed separately: a new fixture shows the
+    repair's own case, not a failure the compiler already had."""
+    base, head = golden_records(base_text), golden_records(head_text)
+    greened, closed, reworded = [], [], []
+    for name, row in head.items():
+        before = base.get(name)
+        if before is None:
+            continue
+        if name.startswith(("pass/", "run/")) and is_green(row) and not is_green(before):
+            greened.append(name)
+        elif name.startswith("fail/") and is_pinned_rejection(row):
+            # A control closes when the base accepted it or rejected it for
+            # the wrong reason. An unpinned rejection that gains `expected`
+            # gained its pin in this change; the compiler did not move.
+            if before.outcome != "rejected" or "unexpected" in before.flags:
+                closed.append(name)
+            elif is_pinned_rejection(before) and row.diagnostics != before.diagnostics:
+                reworded.append(name)
+    return CorpusEvidence(sorted(greened), sorted(closed), sorted(reworded),
+                          sorted(set(head) - set(base)))
 
 
 def is_product_compiler_rust(path: str) -> bool:
@@ -618,13 +661,25 @@ def added_compiler_lines(numstat: str) -> int:
     return total
 
 
-def capability_notices(compiler_lines: int, greened: list, tasks_deleted: int) -> list:
-    if compiler_lines <= 0 or greened or tasks_deleted:
+def capability_notices(compiler_lines: int, evidence: CorpusEvidence, tasks_deleted: int) -> list:
+    """No notice when the change closes something that already existed: a
+    positive row turned green, a control that now rejects for its pinned
+    reason, a control whose recorded diagnostic changed, or a board line.
+    Otherwise the notice says which of the two remaining shapes it is."""
+    if compiler_lines <= 0 or tasks_deleted or evidence.greened \
+            or evidence.closed_controls or evidence.diagnostic_changes:
         return []
-    return [f"this change adds {compiler_lines} lines of compiler Rust but turns no existing "
-            f"pass/run row in {GOLDEN} green and deletes no {TASKS_BOARD} line. Name in the "
-            "PR body the existing failing row, sample or acceptance it closes; coordinator "
-            "review treats a repair that names none as per-case glue."]
+    if evidence.added_rows:
+        shown = ", ".join(evidence.added_rows[:3]) + (", …" if len(evidence.added_rows) > 3 else "")
+        return [f"this change adds {compiler_lines} lines of compiler Rust pinned only on "
+                f"{len(evidence.added_rows)} row(s) it adds to {GOLDEN} ({shown}); no existing row "
+                f"turns green or changes its rejection, and no {TASKS_BOARD} line is deleted. Name "
+                "in the PR body the existing failing row, sample or acceptance it closes, or the "
+                "behavior no existing fixture covered."]
+    return [f"this change adds {compiler_lines} lines of compiler Rust and changes no corpus "
+            f"outcome: no row in {GOLDEN} is added, turns green or changes its rejection, and no "
+            f"{TASKS_BOARD} line is deleted. Performance or restructuring work says so in the PR "
+            "body with its measurement; any other repair with no observable outcome is per-case glue."]
 
 
 def capability_evidence(base: str, root: Path = ROOT) -> list:
@@ -633,7 +688,7 @@ def capability_evidence(base: str, root: Path = ROOT) -> list:
     tasks = git("diff", "--numstat", base, "HEAD", "--", TASKS_BOARD, root=root).split()
     return capability_notices(
         added_compiler_lines(numstat),
-        turned_green(show(base, GOLDEN, root), show("HEAD", GOLDEN, root)),
+        corpus_evidence(show(base, GOLDEN, root), show("HEAD", GOLDEN, root)),
         int(tasks[1]) if len(tasks) >= 2 and tasks[1] != "-" else 0)
 
 
