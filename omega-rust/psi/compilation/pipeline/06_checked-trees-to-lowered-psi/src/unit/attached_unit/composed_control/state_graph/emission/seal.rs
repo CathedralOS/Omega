@@ -202,18 +202,18 @@ impl StateGraphEmission<'_, '_> {
                 .to_vec(),
             terminator,
         });
+        let root = evaluation
+            .blocks
+            .iter_mut()
+            .find(|block| block.id == self.state_ids[position])
+            .ok_or(LoweringError::Unsupported(
+                "Unit graph state root disappeared during evaluation",
+            ))?;
         if position != 0 || self.entry_reentered {
             // Argument evaluation can split the body; bindings belong to its source root.
             // Entry-aliased parameters keep the entry parameter's place, so
             // they are not block parameters either.
             let aliased = &self.admitted.entry_aliases;
-            let root = evaluation
-                .blocks
-                .iter_mut()
-                .find(|block| block.id == self.state_ids[position])
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph state root disappeared during evaluation",
-                ))?;
             // A chain member holding moved storage is declared as that owned
             // storage now, after the body emitted against its exclusive view
             // and before private-borrow transport would forward it. A shared
@@ -249,6 +249,11 @@ impl StateGraphEmission<'_, '_> {
                     self.checked,
                     &self.state_erased_proof[position],
                 );
+        } else {
+            // The source entry reads its machine's proof inputs. Its internal
+            // successor blocks have their own proof parameters, so only this
+            // exact source root binds references to the invocation.
+            crate::scalar_lowering::contracts::bind_invocation_proof_references(root);
         }
         if let Some(rank) = current_rank {
             self.block_ranks.extend(
