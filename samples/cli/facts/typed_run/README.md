@@ -16,6 +16,15 @@ the cleanup hook must print exactly once after the explicit `M` marker, giving
 `MD` plus a newline. Both engines must exit 0. This rung does not complete the
 runtime-count fact or generic Vec.
 
+It also splits an authorized zero-byte prefix, constructs an empty live run,
+and forwards that run alongside the occupied singleton. The following machines
+require its zero count, zero byte length and original base; runtime checks
+observe the same descriptor. The [forged-empty control](../../../../tests/omega/fail/memory/typed_run_empty_forgery/main.omg)
+cannot establish `Live` from a raw descriptor, and the
+[nonempty-backing control](../../../../tests/omega/fail/memory/typed_run_empty_nonempty_backing/main.omg)
+cannot pass nonempty backing to `Run::empty`. Process exit abandons the fixture's
+remaining backing claims; it does not demonstrate empty-run release.
+
 Command: `omega run --both tests/omega/pass/facts/typed_run_singleton/main.omg`.
 The [rejected-initialization rung](../../../../tests/omega/pass/facts/typed_run_singleton_rejection/main.omg) supplies an
 oversized extent, checks `IncompatibleSupply`, and recovers the original extent
