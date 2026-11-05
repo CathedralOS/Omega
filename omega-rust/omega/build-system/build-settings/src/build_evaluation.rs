@@ -210,6 +210,14 @@ pub fn prepare_build_evaluation(
     // Every activation checks its helpers before snapshot capture or effects.
     // Package authority adds to that semantic floor; standalone source cannot
     // bypass it. Admission below consumes this exact checked program.
+    let completed_checks = pure_build_compilation
+        .map(PureBuildCompilation::completed_checks)
+        .transpose()?
+        .unwrap_or_default();
+    let prior_checks = prior_checks
+        .into_iter()
+        .chain(completed_checks.iter())
+        .collect::<Vec<_>>();
     let (prepared, providers, retained_check) = crate::admission::checking::prepare_checked_build(
         typed,
         pre_checks,
@@ -219,7 +227,7 @@ pub fn prepare_build_evaluation(
         execution_profile,
         timings,
         &prior_checks,
-        retain_check,
+        retain_check || pure_build_compilation.is_some(),
     )?;
     let filesystem_scope = crate::prepare_filesystem_scope(
         root_path,
@@ -259,7 +267,10 @@ pub fn prepare_build_evaluation(
     // checked result nor an old grant is reusable. Fresh admission above fixes
     // the current checked Build meaning; exact equality below permits only its
     // completed Pure value to be reused.
-    let inputs = admitted.pure_consumption_inputs(package_inputs, snapshot);
+    let inputs = admitted.pure_consumption_inputs(package_inputs, snapshot, retained_check.clone());
+    // The private Pure owner keeps its own completed judgment even when this
+    // caller did not request a judgment for incremental source compilation.
+    let retained_check = retain_check.then_some(retained_check).flatten();
     let reusable = inputs
         .as_ref()
         .zip(pure_build_compilation)

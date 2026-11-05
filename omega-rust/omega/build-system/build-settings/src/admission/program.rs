@@ -51,6 +51,7 @@ impl AdmittedBuildProgram {
         &self,
         packages: Option<&package_compilation::PackageCompilationInputs>,
         snapshot: Option<&package_compilation::BuildSnapshotRequest>,
+        retained_check: Option<psi_compiler::RetainedCheck>,
     ) -> Option<crate::activation::completed_pure_build::CompletedPureBuildInputs> {
         if self.machine.filesystem_reachable
             || self.machine.execution_mode != build_time_evaluation::BuildMachineExecutionMode::Pure
@@ -75,6 +76,7 @@ impl AdmittedBuildProgram {
         };
         crate::activation::completed_pure_build::CompletedPureBuildInputs::from_admitted(
             checked,
+            retained_check,
             self.providers.clone(),
             self.machine.symbol,
             self.machine.initial_build.clone(),

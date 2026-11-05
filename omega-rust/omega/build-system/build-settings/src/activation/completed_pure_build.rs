@@ -17,6 +17,10 @@ use std::sync::{Arc, Mutex};
 #[derive(Clone)]
 pub(crate) struct CompletedPureBuildInputs {
     checked: build_time_evaluation::CheckedBuildProgram,
+    // Retain the judgment that produced this exact program. It is a candidate
+    // for Psi's full input/authority match, never a replacement for admission
+    // or another field in the completed-value key.
+    retained_check: Option<psi_compiler::RetainedCheck>,
     providers: crate::admission::provider_execution::BuildProviderPlans,
     measurement_identity: evaluation_accounting::EvaluationMeasurementIdentity,
     // Absence is the ordinary per-invocation policy, not a reason to repeat
@@ -52,6 +56,7 @@ impl CompletedPureBuildInputs {
     /// completed carrier prevents an admitted-but-unexecuted value from reuse.
     pub(crate) fn from_admitted(
         checked: build_time_evaluation::CheckedBuildProgram,
+        retained_check: Option<psi_compiler::RetainedCheck>,
         providers: crate::admission::provider_execution::BuildProviderPlans,
         selected_entry: symbols::SymbolHandle,
         initial_build: BuildTimeValue,
@@ -93,6 +98,7 @@ impl CompletedPureBuildInputs {
         }
         Some(Self {
             checked,
+            retained_check,
             providers,
             measurement_identity,
             sponsor_policy: sponsor.map(|sponsor| (sponsor.measurement(), sponsor.limits())),
@@ -172,6 +178,23 @@ pub struct PureBuildCompilation {
 }
 
 impl PureBuildCompilation {
+    /// Completed Pure inputs retain the immutable language judgment that
+    /// produced them. The checker still matches its full preparation input and
+    /// admits this request before taking any earlier result.
+    pub(crate) fn completed_checks(
+        &self,
+    ) -> Result<Vec<psi_compiler::RetainedCheck>, Vec<diagnostics::Diagnostic>> {
+        let completed = self.completed.lock().map_err(|_| {
+            vec![diagnostics::Diagnostic::error(
+                "completed Pure Build owner is unavailable",
+            )]
+        })?;
+        Ok(completed
+            .iter()
+            .filter_map(|completed| completed.inputs.retained_check.clone())
+            .collect())
+    }
+
     pub(crate) fn matching_configuration(
         &self,
         inputs: &CompletedPureBuildInputs,
