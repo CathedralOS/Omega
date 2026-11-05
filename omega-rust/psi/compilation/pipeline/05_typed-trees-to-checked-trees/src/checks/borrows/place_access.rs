@@ -13,8 +13,7 @@
 use crate::flow::expressions;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
-    BorrowAccessKind, BorrowFacts, BorrowLoanFact, CapturedPlace, CheckFacts, FlowConstraintRef,
-    FlowStateFact,
+    BorrowAccessKind, BorrowLoanFact, CapturedPlace, CheckFacts, FlowConstraintRef, FlowStateFact,
 };
 
 use super::access_sources;
@@ -422,13 +421,14 @@ fn trace_argument_capture_refusal(
 /// loan `loan_handle`.
 pub(super) fn access_interferes<'p>(
     program: &'p dyn ::validation::CheckingInput,
-    borrow: &BorrowFacts,
+    facts: &CheckFacts,
     backings: &[ResolvedAlias],
     kind: &BorrowAccessKind,
     loan_handle: Handle<BorrowLoanFact>,
     premises: &[StatedOrderingPremise],
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
+    let borrow = &facts.borrow;
     let loan = borrow.loans.get(loan_handle);
     !backings.iter().all(|backing| {
         if let Some(non_interfering) = super::overlap::retained_debt_non_interfering(
@@ -436,7 +436,7 @@ pub(super) fn access_interferes<'p>(
         ) {
             return non_interfering;
         }
-        if backing.retains_loan(borrow, loan_handle) {
+        if backing.retains_loan(program, facts, loan_handle) {
             return true;
         }
         // Distinct leaves returned together share an input lifetime, not

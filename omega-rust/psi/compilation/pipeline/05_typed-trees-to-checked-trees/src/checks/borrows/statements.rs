@@ -118,7 +118,7 @@ pub(super) fn check_statement_borrows<'p>(
                 loan.formation_expression,
             );
             let retained_lineage =
-                super::aliases::formation_lineage(&facts.borrow, borrow_state, loan_handle);
+                super::aliases::formation_lineage(program, facts, borrow_state, loan_handle);
             let formation_constraints = if loan.established_by_call.is_valid() {
                 if !facts.borrow.calls.is_valid(loan.established_by_call) {
                     diagnostics.push(Diagnostic::error(
@@ -225,7 +225,8 @@ pub(super) fn check_statement_borrows<'p>(
                 statement.entry_constraints
             };
             for active_loan_handle in facts.flow.borrow_loan_constraints(formation_constraints) {
-                if super::aliases::same_descriptor(&facts.borrow, loan_handle, active_loan_handle) {
+                if super::aliases::same_descriptor(program, facts, loan_handle, active_loan_handle)
+                {
                     continue;
                 }
                 let active_loan = facts.borrow.loans.get(active_loan_handle);
@@ -268,7 +269,7 @@ pub(super) fn check_statement_borrows<'p>(
                         && active_loan.kind.direct_reborrow_effect(&loan.kind).is_some()
                         && retained_lineage.as_ref().is_some_and(|lineage| {
                             super::aliases::formation_preserves_loan(
-                                program, &facts.borrow, borrow_state, lineage, active_loan_handle,
+                                program, facts, borrow_state, lineage, active_loan_handle,
                             )
                         }))
                     || supplying_accesses.as_ref().is_some_and(|sources| {
@@ -641,7 +642,7 @@ pub(super) fn check_statement_borrows<'p>(
             }
             if !super::place_access::access_interferes(
                 program,
-                &facts.borrow,
+                facts,
                 &destinations,
                 &checked_trees::BorrowAccessKind::Mutable,
                 loan_handle,

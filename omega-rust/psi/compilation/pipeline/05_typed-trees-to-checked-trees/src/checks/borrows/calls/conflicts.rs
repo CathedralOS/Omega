@@ -493,7 +493,7 @@ pub(super) fn check_call_access_conflicts<'p>(
             // formed through it, suspends that backing for the invocation.
             if !place_access::access_interferes(
                 program,
-                &facts.borrow,
+                facts,
                 &operand_backings[index].places,
                 &access.kind,
                 *loan_handle,

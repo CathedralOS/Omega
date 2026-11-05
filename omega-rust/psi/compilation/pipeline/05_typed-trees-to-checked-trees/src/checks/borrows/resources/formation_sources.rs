@@ -110,7 +110,7 @@ pub(super) fn validate(
                 else {
                     return refusal("view formation requires an established borrowing occurrence");
                 };
-                for parent in nearest_parents(&facts.borrow, state, loan)? {
+                for parent in nearest_parents(program, facts, state, loan)? {
                     crate::shared::collections::push_unique(&mut parents, parent);
                 }
             }
@@ -137,11 +137,13 @@ pub(super) fn validate(
 }
 
 fn nearest_parents(
-    borrow: &checked_trees::BorrowFacts,
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
     state: &checked_trees::StateBorrowFact,
     source: Handle<BorrowLoanFact>,
 ) -> Result<Vec<Handle<BorrowLoanFact>>, Vec<Diagnostic>> {
-    if crate::checks::borrows::aliases::retained_lineage(borrow, state, source).is_none() {
+    let borrow = &facts.borrow;
+    if crate::checks::borrows::aliases::retained_lineage(program, facts, state, source).is_none() {
         return refusal("captured descriptor has incomplete or cyclic borrowing ancestry");
     }
     let mut pending = vec![source];
