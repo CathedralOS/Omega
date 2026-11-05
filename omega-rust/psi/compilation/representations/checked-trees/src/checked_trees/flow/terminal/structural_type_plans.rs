@@ -490,6 +490,9 @@ pub struct CheckedUnitStructuralParameterPlan {
     /// Strictly ordered normalized domain identities.
     pub qualifications: Vec<SemanticDomainId>,
     pub projected_qualifications: Vec<CheckedStructuralPathQualification>,
+    /// Entry facts that the lent storage does not itself owe. An empty path
+    /// selects the whole parameter; projected facts keep their exact subject.
+    pub additional_input_qualifications: Vec<CheckedStructuralPathQualification>,
 }
 
 /// Source-handle-free structural path retained by checked terminal plans.

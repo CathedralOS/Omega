@@ -154,6 +154,29 @@ pub(crate) fn parameter_signatures(
         trace.phase("state graph: state signature: parameter signature: projected qualifications");
         let projected_qualifications =
             projected_parameter_qualifications(program, shapes, parameter_type, binders)?;
+        // The formal may require more than its underlying storage type does.
+        // Keep those entry facts separate from the duties every write retains;
+        // callers still establish the complete ordinary qualification roster.
+        let mut additional_input_qualifications = Vec::new();
+        if let Some(shell) = validation::reference_shell(program, parameter_type) {
+            let storage =
+                validation::structural_qualification_contract(program, shell.referee).ok()?;
+            additional_input_qualifications.extend(
+                qualifications
+                    .iter()
+                    .filter(|domain| !storage.qualifications.contains(domain))
+                    .map(|domain| checked_trees::CheckedStructuralPathQualification {
+                        path: Vec::new(),
+                        domain: *domain,
+                    }),
+            );
+            additional_input_qualifications.extend(
+                projected_qualifications
+                    .iter()
+                    .filter(|row| !storage.projected_qualifications.contains(row))
+                    .cloned(),
+            );
+        }
         structural_parameters.push(CheckedUnitStructuralParameterPlan {
             position: source_position,
             primitive_referent: shapes.primitive_scalar(type_identity),
@@ -162,6 +185,7 @@ pub(crate) fn parameter_signatures(
             access,
             qualifications,
             projected_qualifications,
+            additional_input_qualifications,
         });
     }
     Some((structural_parameters, scalar_parameters))
