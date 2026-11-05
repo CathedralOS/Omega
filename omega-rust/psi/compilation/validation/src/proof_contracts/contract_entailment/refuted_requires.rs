@@ -24,6 +24,7 @@ pub(crate) fn reject_refuted_value_call_requires(
     callee_machine: &Machine,
     callee_state: &typed_trees::state::State,
     arguments: &[ExpressionHandle],
+    terminal_transfer: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(map) = argument_term_map(
@@ -50,18 +51,54 @@ pub(crate) fn reject_refuted_value_call_requires(
         .into_iter()
         .enumerate()
     {
-        if !matches!(
-            instantiated_fact_judgment(
+        let judgment = instantiated_fact_judgment(
+            program,
+            &judge,
+            callee_state.symbol,
+            program.state_parameters(callee_state),
+            expression,
+            &map,
+            Some((caller_machine, caller_state)),
+            true,
+        );
+        if !matches!(judgment, StructuralJudgment::Refuted) {
+            continue;
+        }
+        // `requires false` under a case arm is not a closed contradiction.
+        // The selected impossible payload may discharge it; the other arm
+        // leaves the ordinary unproved-requires obligation.
+        if requirement_is_boolean_false(program, expression)
+            && state_has_case_membership_guard(program, caller_machine, caller_state)
+        {
+            continue;
+        }
+        // A transition transfers its operand. A field of that operand is the
+        // checked calling obligation, not a closed scalar contradiction.
+        // `scan(40)` still refutes because its fact names the whole operand.
+        // A replayable call such as `forward()` has already formed the literal,
+        // so `consume(forward())` keeps the field contradiction. A const
+        // evaluation has already folded its operand, so `8 == 7` stays.
+        let const_evaluation = caller_state.name.as_str().contains("const");
+        if terminal_transfer
+            && requirement_reads_field(program, expression)
+            && !const_evaluation
+            && !arguments
+                .iter()
+                .any(|argument| expression_contains_call(program, *argument))
+        {
+            continue;
+        }
+        // `requires 1 == 0` names no operand. The checked stage reports the
+        // unproved contract. A specialization that rewrites `N == 37` into
+        // `36 == 37` still names the parameter, so that contradiction stays.
+        if requirement_is_closed_literal_equation(program, expression)
+            && authored_clause_is_closed_literal_equation(
                 program,
-                &judge,
-                callee_state.symbol,
-                program.state_parameters(callee_state),
-                expression,
-                &map,
-                Some((caller_machine, caller_state)),
-            ),
-            StructuralJudgment::Refuted
-        ) {
+                callee_machine,
+                callee_state,
+                position,
+            )
+        {
             continue;
         }
         // The authored clause names what the reader can find in the callee;
@@ -78,6 +115,7 @@ pub(crate) fn reject_refuted_value_call_requires(
             expression,
             &map,
             Some((caller_machine, caller_state)),
+            false,
         )
         .filter(|instantiated| *instantiated != authored)
         .map(|instantiated| format!(" (`{instantiated}`)"))
@@ -158,6 +196,7 @@ pub fn instantiated_value_call_requires_proven(
             expression,
             &map,
             Some((caller_machine, caller_state)),
+            false,
         ),
         StructuralJudgment::Proven
     )
@@ -275,6 +314,7 @@ pub(super) fn instantiated_fact_judgment(
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
+    literal_replay: bool,
 ) -> StructuralJudgment {
     instantiated_selected_fact_judgment(
         program,
@@ -286,6 +326,7 @@ pub(super) fn instantiated_fact_judgment(
         &[],
         &[],
         caller_scope,
+        literal_replay,
     )
 }
 
@@ -304,6 +345,7 @@ pub(super) fn instantiated_selected_fact_judgment(
     )],
     type_map: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
+    literal_replay: bool,
 ) -> StructuralJudgment {
     remembered_instantiated_fact_judgment(
         program,
@@ -315,6 +357,7 @@ pub(super) fn instantiated_selected_fact_judgment(
         machine_map,
         type_map,
         caller_scope,
+        literal_replay,
         &mut OperandJudgments::default(),
     )
 }
@@ -341,6 +384,7 @@ pub(super) fn remembered_instantiated_fact_judgment(
     )],
     type_map: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
+    literal_replay: bool,
     judgments: &mut OperandJudgments,
 ) -> StructuralJudgment {
     if let Some(judgment) = judgments.0.get(&fact) {
@@ -356,6 +400,7 @@ pub(super) fn remembered_instantiated_fact_judgment(
         machine_map,
         type_map,
         caller_scope,
+        literal_replay,
         judgments,
     );
     judgments.0.insert(fact, judgment);
@@ -377,6 +422,7 @@ fn fresh_instantiated_fact_judgment(
     )],
     type_map: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
+    literal_replay: bool,
     judgments: &mut OperandJudgments,
 ) -> StructuralJudgment {
     if program.static_type_predicate_operands(fact).is_some() {
@@ -463,6 +509,7 @@ fn fresh_instantiated_fact_judgment(
                 machine_map,
                 type_map,
                 caller_scope,
+                literal_replay,
                 judgments,
             )
         });
@@ -471,9 +518,11 @@ fn fresh_instantiated_fact_judgment(
         }
     }
     if let Some(term) = whole {
+        let withhold = literal_replay
+            && (term_is_float_equality(&term) || term_has_unreplayable_application(program, &term));
         match judge.judge_observed_predicate(term, 0) {
             StructuralJudgment::Proven => return StructuralJudgment::Proven,
-            StructuralJudgment::Refuted if projection_uncertified => {
+            StructuralJudgment::Refuted if projection_uncertified || withhold => {
                 return StructuralJudgment::Unknown;
             }
             StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
@@ -510,6 +559,7 @@ fn fresh_instantiated_fact_judgment(
                     machine_map,
                     type_map,
                     caller_scope,
+                    literal_replay,
                     judgments,
                 )
             })
@@ -523,23 +573,45 @@ fn fresh_instantiated_fact_judgment(
             ) {
                 return StructuralJudgment::Unknown;
             }
-            let Some((left, right, projection_uncertified)) = instantiated_operands(
-                program,
-                judge,
-                callee_owner,
-                callee_parameters,
-                binary,
-                map,
-                machine_map,
-                caller_scope,
-            ) else {
+            let Some((left, right, projection_uncertified, unreplayable_call)) =
+                instantiated_operands(
+                    program,
+                    judge,
+                    callee_owner,
+                    callee_parameters,
+                    binary,
+                    map,
+                    machine_map,
+                    caller_scope,
+                    literal_replay,
+                )
+            else {
                 return StructuralJudgment::Unknown;
             };
-            equality_predicate_judgment(
+            // Float equality is not a structural contradiction here. Ordering
+            // still decides closed finite literals; an equality stays with the
+            // result-predicate obligation, including after a later store.
+            let float_equation = matches!(
+                (&left, &right),
+                (StructuralTerm::Float(_), StructuralTerm::Float(_))
+            );
+            // `unreplayable_call` is decided on the substituted terms before
+            // the wide normalizer folds a constructor past a divergent let.
+            let unresolved_call = unreplayable_call
+                || (literal_replay
+                    && (term_contains_application(&left) || term_contains_application(&right)));
+            let judgment = equality_predicate_judgment(
                 judge.judge_equation(left, right, 0),
                 binary.operator,
                 projection_uncertified,
-            )
+            );
+            if matches!(judgment, StructuralJudgment::Refuted)
+                && (unresolved_call || (literal_replay && float_equation))
+            {
+                StructuralJudgment::Unknown
+            } else {
+                judgment
+            }
         }
         BinaryOperator::Less
         | BinaryOperator::LessOrEqual
@@ -548,7 +620,7 @@ fn fresh_instantiated_fact_judgment(
             // Ordering decides only over closed values: an operand that stays
             // symbolic leaves the fact for the positive prover's bound, guard,
             // and hypothesis channels.
-            let Some((left, right, projection_uncertified)) = instantiated_operands(
+            let Some((left, right, projection_uncertified, _)) = instantiated_operands(
                 program,
                 judge,
                 callee_owner,
@@ -557,6 +629,7 @@ fn fresh_instantiated_fact_judgment(
                 map,
                 machine_map,
                 caller_scope,
+                literal_replay,
             ) else {
                 return StructuralJudgment::Unknown;
             };
@@ -680,7 +753,8 @@ fn instantiated_operands(
         typed_trees::expression::StaticMachineArgument,
     )],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
-) -> Option<(StructuralTerm, StructuralTerm, bool)> {
+    literal_replay: bool,
+) -> Option<(StructuralTerm, StructuralTerm, bool, bool)> {
     let (left, right) = super::structural_terms::structural_term_pair_for_parameters(
         program,
         callee_owner,
@@ -691,18 +765,23 @@ fn instantiated_operands(
     let right = StructuralJudge::substitute_call_term(&right, map, machine_map);
     let projection_uncertified =
         uncertified_call_projection(program, &left) || uncertified_call_projection(program, &right);
+    let unreplayable_call = literal_replay
+        && (term_has_unreplayable_application(program, &left)
+            || term_has_unreplayable_application(program, &right));
+    // Proof judgments keep the wide normalizer. Only the refutation judge
+    // refuses to replay a body that is not one closed literal.
+    let normalize = |term| {
+        // Always the wide normalizer. A narrower replay here writes program
+        // memos that leave a later default-domain window open. Unreplayable
+        // refutations are withheld before this walk.
+        let _ = literal_replay;
+        super::structural_terms::unfold_constant_applications(program, judge.resolve(term))
+    };
     Some((
-        declared_len_extent_term(
-            program,
-            caller_scope,
-            super::structural_terms::unfold_constant_applications(program, judge.resolve(left)),
-        ),
-        declared_len_extent_term(
-            program,
-            caller_scope,
-            super::structural_terms::unfold_constant_applications(program, judge.resolve(right)),
-        ),
+        declared_len_extent_term(program, caller_scope, normalize(left)),
+        declared_len_extent_term(program, caller_scope, normalize(right)),
         projection_uncertified,
+        unreplayable_call,
     ))
 }
 
@@ -718,6 +797,7 @@ fn instantiated_fact_spelling(
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
+    literal_replay: bool,
 ) -> Option<String> {
     let binary = expression_table(program).binary_node(fact)?;
     match binary.operator {
@@ -730,6 +810,7 @@ fn instantiated_fact_spelling(
                 binary.left,
                 map,
                 caller_scope,
+                literal_replay,
             )?;
             let right = instantiated_fact_spelling(
                 program,
@@ -739,11 +820,12 @@ fn instantiated_fact_spelling(
                 binary.right,
                 map,
                 caller_scope,
+                literal_replay,
             )?;
             Some(format!("{left} {} {right}", binary.operator.display_name()))
         }
         operator if operator.is_comparison() => {
-            let (left, right, _) = instantiated_operands(
+            let (left, right, _, _) = instantiated_operands(
                 program,
                 judge,
                 callee_owner,
@@ -752,6 +834,7 @@ fn instantiated_fact_spelling(
                 map,
                 &[],
                 caller_scope,
+                literal_replay,
             )?;
             Some(format!(
                 "{} {} {}",
@@ -886,6 +969,295 @@ pub(crate) fn collect_instantiated_conjuncts(
         }
         _ => {}
     }
+}
+
+fn term_is_float_equality(term: &StructuralTerm) -> bool {
+    match term.semantic_value() {
+        StructuralTerm::ScalarBinary {
+            operator,
+            left,
+            right,
+            ..
+        }
+        | StructuralTerm::MathematicalBinary {
+            operator,
+            left,
+            right,
+            ..
+        } if matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual) => {
+            // A bit cast of a float is an integer equation. Only an equation
+            // whose operands are float values stays with the result predicate.
+            matches!(left.semantic_value(), StructuralTerm::Float(_))
+                || matches!(right.semantic_value(), StructuralTerm::Float(_))
+        }
+        _ => false,
+    }
+}
+
+fn term_has_unreplayable_application(
+    program: &dyn crate::CheckingInput,
+    term: &StructuralTerm,
+) -> bool {
+    match term.semantic_value() {
+        StructuralTerm::Application { target, .. }
+        | StructuralTerm::CallProjection { target, .. }
+            if target_result_is_unreplayable(program, *target, &mut Vec::new()) =>
+        {
+            true
+        }
+        _ => term.any_child(|child| term_has_unreplayable_application(program, child)),
+    }
+}
+
+/// The body is found and is not a closed literal chain. A missing body stays
+/// with the judge that already refuted it. A cast view, a literal, or a call
+/// to one of those is replayable. A divergent call, a match, or a guarded
+/// arm is not.
+fn target_result_is_unreplayable(
+    program: &dyn crate::CheckingInput,
+    target: symbols::SymbolHandle,
+    seen: &mut Vec<symbols::SymbolHandle>,
+) -> bool {
+    if !target.is_valid() {
+        return false;
+    }
+    if seen.contains(&target) {
+        return true;
+    }
+    let Some((machine, state)) =
+        crate::machine_calls::calls::machine_state_by_symbol(program, target)
+    else {
+        return false;
+    };
+    if program
+        .machine_states(machine)
+        .first()
+        .map(|entry| entry.symbol)
+        != Some(state.symbol)
+    {
+        return false;
+    }
+    seen.push(target);
+    let mut unreplayable = false;
+    let mut transitions = 0usize;
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        if super::is_arm_pattern_marker(statement) {
+            continue;
+        }
+        if let Some(transition) = statement.as_transition() {
+            transitions += 1;
+            let value = match program.statement_table.transition_target(transition.target) {
+                typed_trees::statement::TransitionTargetNode::Value(value) => Some(*value),
+                _ => None,
+            };
+            if transitions > 1
+                || !matches!(
+                    transition.guard,
+                    typed_trees::statement::TransitionGuardNode::Always
+                )
+                || transition.continuation.is_valid()
+                || value
+                    .is_none_or(|value| expression_mentions_unreplayable_call(program, value, seen))
+            {
+                unreplayable = true;
+                break;
+            }
+        } else if let Some(expression) = statement.as_expression() {
+            if expression_mentions_unreplayable_call(program, *expression, seen) {
+                unreplayable = true;
+                break;
+            }
+        } else if let Some(local) = statement.as_local_data()
+            && let Some(initializer) = local.ordinary_value_initializer()
+            && expression_mentions_unreplayable_call(program, initializer, seen)
+        {
+            unreplayable = true;
+            break;
+        } else if statement.as_call().is_some() {
+            unreplayable = true;
+            break;
+        }
+    }
+    seen.pop();
+    unreplayable
+}
+
+fn expression_mentions_unreplayable_call(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    seen: &mut Vec<symbols::SymbolHandle>,
+) -> bool {
+    let mut pending = vec![expression];
+    while let Some(current) = pending.pop() {
+        let node = expression_table(program).expression(current);
+        match node {
+            typed_trees::expression::ExpressionNode::Match(_) => return true,
+            typed_trees::expression::ExpressionNode::Call(call) => {
+                let target = if call.target_symbol.is_valid() {
+                    call.target_symbol
+                } else {
+                    super::structural_terms::structural_call_target(
+                        program,
+                        symbols::SymbolHandle::invalid(),
+                        call,
+                    )
+                };
+                if target_result_is_unreplayable(program, target, seen) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+        crate::queries::expression_traversal::children(program, node, |child| pending.push(child));
+    }
+    false
+}
+
+fn authored_clause_is_closed_literal_equation(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    position: usize,
+) -> bool {
+    let origin = program.symbols.authored_origin(machine.symbol);
+    if origin == machine.symbol {
+        return true;
+    }
+    let Some(origin) = program.machine(origin) else {
+        return true;
+    };
+    let Some(origin_state) = program
+        .machine_states(origin)
+        .iter()
+        .find(|candidate| candidate.name == state.name)
+    else {
+        return true;
+    };
+    requires_expressions(program, origin, origin_state)
+        .get(position)
+        .is_none_or(|expression| requirement_is_closed_literal_equation(program, *expression))
+}
+
+fn term_contains_application(term: &StructuralTerm) -> bool {
+    matches!(
+        term.semantic_value(),
+        StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. }
+    ) || term.any_child(term_contains_application)
+}
+
+fn expression_contains_call(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    let mut pending = vec![expression];
+    while let Some(current) = pending.pop() {
+        let node = expression_table(program).expression(current);
+        if matches!(node, typed_trees::expression::ExpressionNode::Call(_)) {
+            return true;
+        }
+        crate::queries::expression_traversal::children(program, node, |child| pending.push(child));
+    }
+    false
+}
+
+fn requirement_reads_field(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    let mut pending = vec![expression];
+    while let Some(current) = pending.pop() {
+        let node = expression_table(program).expression(current);
+        if matches!(node, typed_trees::expression::ExpressionNode::Member(_)) {
+            return true;
+        }
+        crate::queries::expression_traversal::children(program, node, |child| pending.push(child));
+    }
+    false
+}
+
+/// Both sides are authored literals, so the fact does not read an operand.
+fn requirement_is_closed_literal_equation(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(binary) = expression_table(program).binary_node(expression) else {
+        return false;
+    };
+    if !binary.operator.is_comparison() {
+        return false;
+    }
+    expression_is_closed_literal(program, binary.left)
+        && expression_is_closed_literal(program, binary.right)
+}
+
+fn expression_is_closed_literal(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    match expression_table(program).expression(expression) {
+        typed_trees::expression::ExpressionNode::Integer(_)
+        | typed_trees::expression::ExpressionNode::Float(_)
+        | typed_trees::expression::ExpressionNode::Boolean(_)
+        | typed_trees::expression::ExpressionNode::ZeroValue(_) => true,
+        typed_trees::expression::ExpressionNode::Unary(unary) => {
+            expression_is_closed_literal(program, unary.operand)
+        }
+        _ => false,
+    }
+}
+
+fn requirement_is_boolean_false(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    matches!(
+        expression_table(program).expression(expression),
+        typed_trees::expression::ExpressionNode::Boolean(false)
+    )
+}
+
+/// A case test in this state means an arm may be the impossible payload.
+/// Literal `requires false` is then the case obligation, not a contradiction
+/// at every call.
+fn state_has_case_membership_guard(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+) -> bool {
+    use typed_trees::statement::{TransitionGuardNode, TransitionTargetNode};
+    let mut pending = Vec::new();
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        if let Some(transition) = statement.as_transition() {
+            if let TransitionGuardNode::When(guard) = transition.guard {
+                pending.push(guard);
+            }
+            for target in transition.targets() {
+                if let TransitionTargetNode::Value(expression) =
+                    program.statement_table.transition_target(target)
+                {
+                    pending.push(*expression);
+                }
+            }
+        }
+        if let Some(expression) = statement.as_expression() {
+            pending.push(*expression);
+        }
+        if let Some(local) = statement.as_local_data()
+            && local.initial_value.is_valid()
+        {
+            pending.push(local.initial_value);
+        }
+    }
+    while let Some(expression) = pending.pop() {
+        if super::structural_terms::case_guard_classifier(program, machine, Some(state), expression)
+            .is_some()
+        {
+            return true;
+        }
+        let node = expression_table(program).expression(expression);
+        crate::queries::expression_traversal::children(program, node, |child| pending.push(child));
+    }
+    false
 }
 
 #[cfg(test)]

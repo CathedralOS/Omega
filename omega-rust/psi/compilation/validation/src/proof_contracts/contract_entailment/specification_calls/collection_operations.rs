@@ -39,7 +39,7 @@ pub(super) fn validate_builtin_index(
         } else {
             None
         };
-        let collection = caller.term(program, indexed.collection)?;
+        let collection = caller.term(program, indexed.collection, prior_facts.captures)?;
         let judge = prior_facts.structural_judge(program, caller, arguments)?;
         Some(super::super::collection_bounds::proves_observed_bounds(
             program,
@@ -50,7 +50,7 @@ pub(super) fn validate_builtin_index(
             collection,
             |source| {
                 Some((
-                    caller.term(program, source)?,
+                    caller.term(program, source, prior_facts.captures)?,
                     caller.expression_type(program, source),
                 ))
             },

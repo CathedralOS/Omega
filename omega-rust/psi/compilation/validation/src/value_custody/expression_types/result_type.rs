@@ -562,6 +562,9 @@ fn result_type(
                     crate::collection_operations::MeasureReceiver::Declared(receiver),
                 )
                 .is_some()
+                    || crate::collection_operations::core_vector_measure_member(
+                        program, member, receiver,
+                    )
                 {
                     return builtin_type_reference(program, BuiltinTypeAtom::U64);
                 }

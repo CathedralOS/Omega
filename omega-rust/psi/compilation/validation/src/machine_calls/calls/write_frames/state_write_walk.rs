@@ -240,11 +240,11 @@ pub(crate) struct CollectedStatementPrefix {
     pub(crate) aliases: Vec<(String, FramePlaceOrigin)>,
     pub(crate) divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
     pub(crate) stored: Vec<StoredLocalOrigins>,
-    /// Unresolved earlier calls have already withdrawn affected sources.
-    /// This scratch context can analyze later calls, but supplies no positive
-    /// alias, backing or descriptor evidence until the closed body is checked.
+    /// Earlier unresolved calls may have changed these descriptors. Continue
+    /// checking later calls, but do not use this prefix to prove their backing
+    /// until those earlier calls have complete checked effects.
     pub(crate) template_dependent: bool,
-    /// Failed suppliers remain obligations at every later entry boundary.
+    /// Keep known call failures so later queries cannot treat the prefix as valid.
     pub(crate) incomplete_calls: Vec<super::stored_calls::StoredReferenceCallFailure>,
 }
 

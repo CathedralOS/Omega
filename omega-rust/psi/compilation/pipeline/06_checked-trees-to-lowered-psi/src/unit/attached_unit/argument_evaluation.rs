@@ -501,9 +501,8 @@ impl Evaluation {
                     } => facts::PlaceRoot::Expression(expression),
                     _ => return unsupported("value storage source has no storage identity"),
                 };
-                let local = structural_local_by_root(&self.structural_locals, root).ok_or(
-                    LoweringError::Unsupported("value storage local is not established"),
-                )?;
+                let local = structural_local_by_root(&self.structural_locals, root)
+                    .ok_or_else(|| self.missing_value_storage_local(source, root))?;
                 StructuralValueStorage {
                     place: local.argument.place,
                     path: local.argument.path.clone(),
@@ -516,6 +515,47 @@ impl Evaluation {
             _ => return unsupported("value storage source has no owned structural storage"),
         };
         Ok(storage)
+    }
+
+    fn missing_value_storage_local(
+        &self,
+        source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+        root: facts::PlaceRoot,
+    ) -> LoweringError {
+        let mut retired_binding_count = 0;
+        let mut retired_bindings = Vec::new();
+        for binding in self
+            .retired_structural_bindings
+            .iter()
+            .filter(|binding| root.as_symbol() == Some(binding.symbol))
+        {
+            retired_binding_count += 1;
+            if retired_bindings.len() < 4 {
+                retired_bindings.push((
+                    binding.place,
+                    binding.statement,
+                    match binding.end {
+                        StructuralBindingEnd::ConsumedSource => "consumed source",
+                        StructuralBindingEnd::RetiredHome => "retired home",
+                    },
+                ));
+            }
+        }
+        LoweringError::MissingValueStorageLocal {
+            machine: self.machine,
+            source: source.clone(),
+            current_local_count: self.structural_locals.len(),
+            current_locals: self
+                .structural_locals
+                .iter()
+                .take(8)
+                .map(|local| (local.root, local.argument.place))
+                .collect(),
+            completed_cleanup_home: structural_local_by_root(&self.completed_cleanup_homes, root)
+                .map(|local| local.argument.place),
+            retired_binding_count,
+            retired_bindings,
+        }
     }
 
     /// Checked cleanup can outlive the source frontier that established an
@@ -1026,6 +1066,17 @@ impl Evaluation {
         }
         self.structural_locals
             .retain(|local| local.argument.place != place);
+    }
+
+    /// End an anonymous result that occupies a declared local's place.
+    /// The result and the local are two registrations of one home. Releasing
+    /// the result must leave the named local established: a later descriptor
+    /// release still resolves that symbol.
+    pub(crate) fn retire_result_carrier(&mut self, place: PlaceId) {
+        self.structural_value_owners
+            .retain(|owner| owner.value.place != place || owner.symbol.is_valid());
+        self.structural_locals
+            .retain(|local| local.argument.place != place || local.root.as_symbol().is_some());
     }
 
     /// A consuming operation removes executable names, while expression-owner

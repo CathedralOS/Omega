@@ -695,6 +695,10 @@ fn validate_arguments(
     arguments: &[StaticMachineArgument],
     scope: ArgumentScope<'_>,
 ) -> Result<(), Diagnostic> {
+    let caller = match scope {
+        ArgumentScope::Caller(Some(state)) => program.machine_holding_state(state.symbol),
+        _ => None,
+    };
     let has_types = parameters
         .iter()
         .any(|parameter| matches!(parameter.kind, TypeParameterKind::Type));
@@ -748,6 +752,11 @@ fn validate_arguments(
             && program
                 .data_type_parameter_by_symbol(argument.symbol)
                 .is_some_and(|source| matches!(source.kind, TypeParameterKind::Value { .. }))
+            && !caller.is_some_and(|caller| {
+                program
+                    .typed_program()
+                    .finite_value_binder_in_scope(caller.symbol, argument.symbol)
+            })
         {
             return Err(Diagnostic::error(format!(
                 "const parameter `{}` of `{name}` cannot accept runtime-capable Value binder `{}`",

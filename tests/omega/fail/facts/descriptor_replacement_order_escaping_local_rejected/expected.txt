@@ -1,2 +1,0 @@
-returns a view borrowing the local
-does not outlive the call

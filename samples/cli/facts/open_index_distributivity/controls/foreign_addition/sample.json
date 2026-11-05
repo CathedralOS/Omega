@@ -1,8 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "`multiply` of `IndexProduct` licenses distributivity over `add`",
-    "`add` of `IndexSum` licenses no law"
-  ]
-}

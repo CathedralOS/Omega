@@ -47,7 +47,7 @@ use super::{
     Multiplicity, PermissionEventSource, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::calls::{
-    entry_claims, free_structural_scalar_signature, structural_signature,
+    entry_claims, free_structural_scalar_signature,
 };
 use crate::execution::terminal_unit::types::{
     ShapeCollector, is_unit, machine_binders, state_flow,
@@ -117,19 +117,11 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
     }
 
     let binders = machine_binders(program, machine);
-    // An attached caller keeps its empty-record attachment. A free consuming
-    // machine — the generic `drop<T>` specialization — carries no attachment;
-    // its signature is the free structural roster instead.
-    let (attachment_type_identity, structural_parameters) = if machine.attached_data.is_none() {
-        let (structural, scalar) =
-            free_structural_scalar_signature(program, shapes, state, &binders)?;
-        if !scalar.is_empty() {
-            return None;
-        }
-        (None, structural)
-    } else {
-        structural_signature(program, shapes, state, &binders)?
-    };
+    let (structural_parameters, scalar) =
+        free_structural_scalar_signature(program, shapes, state, &binders)?;
+    if !scalar.is_empty() {
+        return None;
+    }
     let source_parameters = program.state_parameters(state);
     if source_parameters.is_empty() || source_parameters.len() != structural_parameters.len() {
         return None;
@@ -152,15 +144,6 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             || !program.data_type_parameters(parameter_data).is_empty()
             || !is_bounded_nominal_cleanup_record(&parameter_shape.shape)
         {
-            return None;
-        }
-    }
-    if let Some(attachment_type_identity) = &attachment_type_identity {
-        let attachment_shape = shapes.types.get(attachment_type_identity)?;
-        if !matches!(
-            &attachment_shape.shape,
-            CheckedUnitStructuralTypeShape::Record { fields, .. } if fields.is_empty()
-        ) {
             return None;
         }
     }
@@ -251,7 +234,6 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
     Some(CheckedNominalAffineUnitCleanupMachinePlan {
         machine: machine.symbol,
         state: state.symbol,
-        attachment_type_identity,
         caller_requirements,
     })
 }
@@ -319,9 +301,6 @@ pub(crate) fn nominal_cleanup_target_matches(
         && plan.returns_unit
         && plan.machine == machine.symbol
         && plan.state == state.symbol
-        && plan
-            .attachment_type_identity
-            .is_none_or(|identity| identity == type_identity)
         && plan.scalar_parameters.is_empty()
         && plan.structural_parameters.len() <= 1
         && plan.structural_parameters.iter().all(|parameter| {

@@ -1420,6 +1420,75 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         &mut self,
         expression: ExpressionHandle,
     ) -> HandleSpan<checked_trees::FlowOperandReferent> {
+        if let ExpressionNode::Match(dispatch) =
+            self.program.expression_table.expression(expression)
+        {
+            // Each arm keeps the addresses a direct use of that arm would
+            // see. A nonempty snapshot wins. An empty snapshot is unknown
+            // for that spelling, so the syntactic storage walk may still
+            // name the arm. An arm with neither record fails the join.
+            let mut rows = Vec::<checked_trees::FlowOperandReferent>::new();
+            for arm in self.program.expression_table.match_arms(dispatch.arms) {
+                let snapshot = self
+                    .stored_view_referents(arm.value)
+                    .filter(|referents| !referents.is_empty());
+                let arm_referents = if let Some(referents) = snapshot {
+                    referents
+                } else {
+                    let Some(places) =
+                        crate::flow::reference_expression_storage_places_including_shared(
+                            self.program,
+                            self.state.symbol,
+                            self.statement_index,
+                            arm.value,
+                            self.context.call_frames,
+                        )
+                    else {
+                        return HandleSpan::empty();
+                    };
+                    let formed = places
+                        .iter()
+                        .map(|referent| checked_trees::FlowOperandReferent {
+                            formation: arena::Handle::invalid(),
+                            root: referent.root,
+                            segments: self
+                                .context
+                                .control
+                                .operand_referent_segments
+                                .insert_many(referent.segments.iter().copied()),
+                        })
+                        .collect::<Vec<_>>();
+                    self.context.control.operand_referents.insert_many(formed)
+                };
+                let captured = self
+                    .context
+                    .control
+                    .operand_referents
+                    .span_or_empty(arm_referents);
+                if captured.is_empty() {
+                    return HandleSpan::empty();
+                }
+                for referent in captured {
+                    let duplicate = rows.iter().any(|prior| {
+                        prior.root == referent.root
+                            && self
+                                .context
+                                .control
+                                .operand_referent_segments
+                                .span_or_empty(prior.segments)
+                                == self
+                                    .context
+                                    .control
+                                    .operand_referent_segments
+                                    .span_or_empty(referent.segments)
+                    });
+                    if !duplicate {
+                        rows.push(*referent);
+                    }
+                }
+            }
+            return self.context.control.operand_referents.insert_many(rows);
+        }
         if let Some(referents) = self.stored_view_referents(expression) {
             return referents;
         }

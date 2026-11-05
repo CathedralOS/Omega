@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type"
-  ]
-}

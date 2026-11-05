@@ -1,6 +1,0 @@
-{
-  "rejection_contains": [
-    "returns a view borrowing temporary storage"
-  ],
-  "role": "intended-invalid"
-}

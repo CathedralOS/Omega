@@ -537,9 +537,18 @@ pub(super) fn asm_intrinsic_result_type(
 /// returns the same declaration a spelled call would target). Any consumer
 /// that compares or dispatches on the occurrence's `target_symbol` must
 /// resolve the same identity — the raw leaf loses every named operator call
-/// to an empty match. A call this cannot name keeps its authored leaf and
-/// fails closed at whichever consumer reads it.
+/// to an empty match. A sealed quotient request names its representative
+/// entry, so the occurrence carries that entry's whole signature. A call
+/// this cannot name keeps its authored leaf and fails closed at whichever
+/// consumer reads it.
 pub fn call_target_symbol(program: &dyn CheckingInput, call: &TableCallExpression) -> SymbolHandle {
+    // A sealed quotient request's executable callee is the selected
+    // representative entry. Borrow, flow, crash evidence, and emission key
+    // one occurrence on that entry's whole parameter signature. The theorem
+    // application stays inside the request and is not a second callee.
+    if let Some(request) = &call.quotient_operation {
+        return request.representative_operation.symbol;
+    }
     typed_trees::operator::resolve_named_expression_call(program, call)
         .map_or(call.target_symbol, |operator| operator.symbol)
 }

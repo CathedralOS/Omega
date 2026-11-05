@@ -388,6 +388,16 @@ impl<'program> CallFrameResolver<'program> {
         {
             return Ok(Vec::new());
         }
+        // `select_provider` records a build selection and installs no caller
+        // reference loan. Its generic slot inventory stays template-dependent,
+        // which is not an empty effect set for any other call in the machine.
+        // Other calls keep the completion query below; open types remain
+        // pending and missing required relations still refuse.
+        if machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
+            && provider_selection_statement(self.program, statement)
+        {
+            return Ok(Vec::new());
+        }
         // A complete empty writable-slot relation needs no caller origins.
         // Earlier proof-only statements may have no physical write prefix;
         // that does not make a later reference-free call opaque. A retained
@@ -419,9 +429,9 @@ impl<'program> CallFrameResolver<'program> {
             &mut FrameInference::for_state(state.symbol),
         )
         .map(|transfers| transfers.fallthrough());
-        if unbound
-            .as_ref()
-            .is_some_and(|transfer| transfer.is_complete() && transfer.effects.is_empty())
+        if let Some(transfer) = unbound.as_ref()
+            && transfer.effects.is_empty()
+            && transfer.incomplete_calls.is_empty()
         {
             let prefix = super::state_write_walk::collected_prefix_with_readiness_at(
                 &self.caches.state_write_shared_collections,
@@ -436,15 +446,34 @@ impl<'program> CallFrameResolver<'program> {
                 .as_ref()
                 .is_none_or(CollectedStatementPrefix::is_complete)
             {
-                return Ok(Vec::new());
+                // A symbolic call installs no concrete loan yet. Keep that
+                // obligation pending until its closed instance is checked.
+                return if transfer.template_dependent {
+                    Err(TemplateDependent)
+                } else {
+                    Ok(Vec::new())
+                };
             }
         }
         let (_, _, _, transfers) = self
             .statement_reference_transfer(machine, statement)
             .map_err(Unavailable)?;
         let transfer = transfers.fallthrough();
-        // A real failed supplier remains an obligation even when another
-        // invocation in this statement depends on an unresolved template.
+        // A call that installs no caller reference needs no slot relation.
+        // Required suppliers and unknown writes still refuse; an open type
+        // parameter remains pending rather than proving an empty relation.
+        if transfer.effects.is_empty()
+            && transfer
+                .incomplete_calls
+                .iter()
+                .all(|failure| !failure.requires_relation)
+        {
+            return if transfer.template_dependent {
+                Err(TemplateDependent)
+            } else {
+                Ok(Vec::new())
+            };
+        }
         if !transfer.incomplete_calls.is_empty() {
             return Err(Unavailable(
                 "stored call has no complete statement-successor effects: an invocation relation is unavailable",
@@ -2030,6 +2059,36 @@ pub fn frame_paths_overlap(left: &str, right: &str) -> bool {
         || right
             .strip_prefix(left)
             .is_some_and(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
+}
+
+/// The statement's own call is `select_provider`, and its arguments do not
+/// hide another call. A nested call stays on the ordinary transfer path.
+fn provider_selection_statement(
+    program: &dyn crate::CheckingInput,
+    statement: &StatementNode,
+) -> bool {
+    let selects = |target: &str| {
+        language_semantics::declaration_selection::BuildOperation::from_call_target(target)
+            == Some(language_semantics::declaration_selection::BuildOperation::ProviderSelection)
+    };
+    let arguments_are_call_free = |arguments| {
+        !program
+            .statement_table
+            .expression_handles(arguments)
+            .iter()
+            .copied()
+            .any(|argument| expression_has_calls(program, argument))
+    };
+    if let Some(call) = statement.as_call() {
+        return selects(call.target.as_str()) && arguments_are_call_free(call.arguments);
+    }
+    statement.as_expression().is_some_and(|root| {
+        expression_table(program)
+            .call_node(*root)
+            .is_some_and(|call| {
+                selects(call.target.as_str()) && arguments_are_call_free(call.arguments)
+            })
+    })
 }
 
 pub(crate) fn statement_value_expression_roots(

@@ -1175,17 +1175,6 @@ fn selected_value_type(
                 ),
                 _ => return None,
             };
-            // A `&mut self` / `&self` receiver's referee names the machine
-            // symbol; its attached data declaration carries the fields. Other
-            // receivers already name the data declaration directly.
-            let symbol = if program.data_definition_by_symbol(symbol).is_some() {
-                symbol
-            } else {
-                program
-                    .machine(symbol)
-                    .map(|machine| machine.attached_data_symbol)
-                    .unwrap_or(symbol)
-            };
             let mut definitions = program
                 .data_definitions()
                 .iter()

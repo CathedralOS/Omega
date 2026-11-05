@@ -15,7 +15,7 @@ machine Main::weaken(main: &mut Main, card: Card) -> u64
 terminates by card
 {
     transition card.power > 0 {
-        true -> weaken(main, Card { power: card.power - 1 })
+        true -> Main::weaken(main, Card { power: card.power - 1 })
         false -> card.power
     }
 }

@@ -243,11 +243,7 @@ pub(crate) fn lower_declarations(
                 plan.contract_owner,
             )
             .map_err(LoweringError::Unsupported)?,
-            attachment: plan
-                .attachment_type_identity
-                .as_ref()
-                .map(|identity| lookup_type_id(type_ids, identity))
-                .transpose()?,
+            attachment: None,
             scalar_parameters: scalar_parameters.clone(),
             crash_routes,
             structural_parameters: parameters.clone(),

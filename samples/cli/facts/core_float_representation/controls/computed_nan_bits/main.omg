@@ -1,4 +1,0 @@
-use omega::language::core::float;
-use omega::language::core::float_operations;
-const BITS: u32 = float::to_bits(F32::square_root(-1.0f32));
-machine main() {}

@@ -13,6 +13,7 @@ use super::{AbstractOperation, CanonicalBytes};
 use abstract_operations::atomic::AbstractAtomicLocation;
 use abstract_operations::{
     AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite, AtomicResidencyEdge,
+    AtomicResidencySource,
 };
 use language_core::atomic::{
     AtomicCompareExchangeAttemptAxis, AtomicCompareExchangeObservationAxis,
@@ -166,6 +167,23 @@ fn encode_residency_edge(bytes: &mut CanonicalBytes, edge: &Option<AtomicResiden
         Some(AtomicResidencyEdge::AfterEffect { operation }) => {
             bytes.u8(4);
             bytes.id(*operation);
+        }
+        Some(AtomicResidencyEdge::PathAlternatives { sources }) => {
+            bytes.u8(5);
+            bytes.len(sources.len());
+            for source in sources {
+                match source {
+                    AtomicResidencySource::Initial => bytes.u8(1),
+                    AtomicResidencySource::Write { operation } => {
+                        bytes.u8(2);
+                        bytes.id(*operation);
+                    }
+                    AtomicResidencySource::AfterEffect { operation } => {
+                        bytes.u8(3);
+                        bytes.id(*operation);
+                    }
+                }
+            }
         }
     }
 }

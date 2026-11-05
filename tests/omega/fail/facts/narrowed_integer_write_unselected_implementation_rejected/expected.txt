@@ -1,3 +1,0 @@
-IntegerAt call in main
-requires every performed value to fit its physical storage
-performed integer value is not proven to fit

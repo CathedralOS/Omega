@@ -44,10 +44,9 @@ guard against the expected Pair.
 The [reject twin](local/invalid/main.omg) changes only the decoder's final load
 from slot 2 to slot 1. For input 17/42, this would return 17/17. Capacity, success
 paths and storage handling remain fixed. Each twin must reject that field law,
-without unrelated formation or ownership failures. The nine positives and twins
-are also retained under
-[tests/omega/pass/facts](../../../../tests/omega/pass/facts/) and
-[tests/omega/fail/facts](../../../../tests/omega/fail/facts/).
+without unrelated formation or ownership failures. All nine positives and twins
+remain here as executable samples. Main's corpus cleanup removed their duplicate
+test folders; the original run reports retain those earlier observations.
 
 A separate runtime caller uses ordinary TryFrom, whose interface supplies no
 preservation promise. It examines both actual returned Pair fields, buffer bytes
@@ -63,37 +62,57 @@ byte snapshots, extent checks and write markers leave that evaluation. The live
 mutable reference stays inside it. Main checks those observations and runs the
 same observer at runtime.
 
-[Run 41876775834](https://github.com/CathedralOS/Omega/actions/runs/41876775834),
-at exact producer source `fedba668faa985235b7b4db1a46c04397219fdbd`,
+[Run 41917901703](https://github.com/CathedralOS/Omega/actions/runs/41917901703),
+at exact producer source `d97ab1ffb60d787137a56d861a03e45dd49219ee`,
 executes all nine positives with native 0, Terminal 0 and engine agreement.
 All nine twins reject only the Reader's field guarantees. The complete request
-has 31 source observations, 13 native/Terminal agreements, all nine ordinary CLI
+has 35 source observations, 17 native/Terminal agreements, nine ordinary CLI
 projects and eighteen sample results. Every CLI project completes update and
 both-engine execution; all nine sample positives return zero and their nine
-twins reject as intended. The compiler binaries match the earlier focused run;
-optimized preparation takes 84 seconds on the warm cache. Original reports,
-optimized profile metadata, the source bundle and complete raw log are retained
-with [PR 1819](https://github.com/CathedralOS/Omega/pull/1819). These observations
-keep their original producer identity when regression records or prose change.
+twins reject as intended. All four strict storage controls also return zero in
+both engines, including collection metadata and the guarded array descriptor.
+Original reports, optimized profile metadata, the source bundle and complete raw
+log are retained with [PR 1819](https://github.com/CathedralOS/Omega/pull/1819).
+These observations keep their exact producer identity when prose or regression
+records change.
+
+[Integrated run 41955214793](https://github.com/CathedralOS/Omega/actions/runs/41955214793)
+on source `923ef974b33cfdd86565a5a24aef4efc90b6a4bb` also passes after merging
+the newer call and cleanup checks from main. It checks the 21 surviving source
+controls, executes eleven regression programs at native 0 / Terminal 0, and
+passes all nine CLI projects and eighteen sample checks. Every corrupt-decoder
+twin still matches its intended refusal. The nominal cleanup hook again prints
+exactly `OD` in both engines. Programs, Build files and expected results are
+unchanged; main's removal of duplicate test folders and runtime dumps is retained.
 
 The direct named constant call and positional implementation through a constant
 also execute at native 0 and Terminal 0 in this run. Their precondition and
 runtime-service refusal controls reject. Four hosted Build entries are authored;
 these runtime observations are Linux x86-64 only.
 
+[Cleanup controls 41948975171](https://github.com/CathedralOS/Omega/actions/runs/41948975171)
+on source `01b061017f95a89d09d11f18f19cc36e553dee20` also pass: four
+native/Terminal exit-zero agreements and two intended rejects. The nominal hook
+prints exactly `OD` in both engines; its count-prerequisite twin rejects. The
+other programs check case retirement, retained operand cleanup and replacement
+with an untouched sibling. These are focused regression controls, not a new
+fact-row closure.
+
+Four additional storage controls failed in earlier focused runs. The qualified-array
+and byte-view element programs returned native 0 but declined in Terminal Psi;
+reference rebinding failed during lowering, and nominal cleanup failed native
+legalization. [Fixed-base comparison 41922376454](https://github.com/CathedralOS/Omega/actions/runs/41922376454)
+reproduces all four on exact base
+`b750758f9e4f2981abf643595b2f099752172e56`, at the same stages and operations.
+Their complete diagnostics match; the array comparison removes only the later
+outer diagnostic field `storage=None`. No failed positive from that comparison
+is recorded as passing. The failure diagnostics retain the supplying reference
+contracts and operation name for the next repair.
+
 The [original valid-source baseline](https://github.com/CathedralOS/Omega/actions/runs/41546898552)
-and [compiler changes](https://github.com/CathedralOS/Omega/pull/1562) retain the
-earlier diagnostics and repairs. [Comparison 41772865951](https://github.com/CathedralOS/Omega/actions/runs/41772865951)
-and [comparison 41774777402](https://github.com/CathedralOS/Omega/actions/runs/41774777402)
-attribute six earlier failures to fixed main `db92349b9c2ef6e6e3705372ba6754b3e70e4874`.
-Those historical records include four earlier formation or borrowing-source
-failures and two default-body positives that could not lower their returned
-expression. They remain separately unaccepted; they are not current execution
-evidence. Four explicit header-zero checks, the default-body positives and the
-[nested-machine sibling-write control](../../../../tests/omega/fail/borrows/nested_machine_carried_field_sibling_rejected/main.omg)
-are selected in [follow-up 41878304380](https://github.com/CathedralOS/Omega/actions/runs/41878304380)
-on the same producer. Their results remain pending. Wrong-reason refusals and
-timeouts do not satisfy those obligations.
+and [earlier compiler repairs](https://github.com/CathedralOS/Omega/pull/1562)
+retain the earlier contract failures. The full standard Representation
+interface, reflection adapters and other hosts remain parent work.
 
 The programs exercise the following obligations. The parent task retains the
 separate controls above, broader library support and other-host execution:

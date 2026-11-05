@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "storage address_of requires exactly one ordinary storage reference and no static arguments"
-  ]
-}

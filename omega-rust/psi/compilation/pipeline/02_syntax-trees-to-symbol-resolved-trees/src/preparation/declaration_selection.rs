@@ -993,6 +993,12 @@ impl<'base> ConstantSelection<'base> {
                     Item::TypeAlias(alias) => {
                         (SymbolKind::TypeAlias, &alias.name, alias.type_parameters, 0)
                     }
+                    Item::Trait(definition) => (
+                        SymbolKind::Trait,
+                        &definition.name,
+                        definition.type_parameters,
+                        0,
+                    ),
                     Item::Machine(machine) => (
                         SymbolKind::Machine,
                         &machine.name,

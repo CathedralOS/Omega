@@ -427,10 +427,10 @@ pub(super) fn prepare(
 
 /// A helper with no ranking of its own may measure toward the endpoint a peer
 /// authored, read through the helper's own call to that peer. Each formal the
-/// endpoint reads must arrive as one of the helper's whole, unreassigned
-/// parameters, so the helper's entry already holds the value the peer will
-/// see. The pairing only proposes a bound; every actual edge and complete
-/// cycle is still proved by the component search.
+/// endpoint reads must arrive as storage the helper already holds at entry:
+/// one of its unreassigned parameters, or a field projection of one. A
+/// computed argument is not entry storage. The pairing only proposes a bound;
+/// every actual edge and complete cycle is still proved by the component search.
 fn transported_bounds(
     program: &dyn validation::CheckingInput,
     helper: &Machine,
@@ -458,11 +458,23 @@ fn transported_bounds(
                         program,
                         *arguments.get(*formal)?,
                     )?;
+                    if place.segments.iter().any(|segment| {
+                        !matches!(
+                            segment,
+                            facts::PlaceSegment::Field { symbol } if symbol.is_valid()
+                        )
+                    }) {
+                        return None;
+                    }
                     let actual = actuals.iter().position(|parameter| {
                         place.root == facts::PlaceRoot::Symbol(parameter.symbol)
                             && !parameter.is_mutable
                     })?;
-                    place.segments.is_empty().then_some((*formal, actual))
+                    Some(super::coordinates::TransportedFormal {
+                        formal: *formal,
+                        actual,
+                        path: place.segments.clone(),
+                    })
                 })
                 .collect::<Option<Vec<_>>>();
             let Some(pairs) = pairs else {
@@ -470,11 +482,11 @@ fn transported_bounds(
             };
             let roster = pairs
                 .iter()
-                .map(|(formal, _)| formals[*formal].clone())
+                .map(|supply| formals[supply.formal].clone())
                 .collect::<Vec<_>>();
             let supplied = pairs
                 .iter()
-                .map(|(formal, _)| arguments[*formal])
+                .map(|supply| arguments[supply.formal])
                 .collect::<Vec<_>>();
             let Some((formation, entry_value)) = values
                 .bind_integer_expression_formals(owner, owner_state, expression, &roster, &supplied)
