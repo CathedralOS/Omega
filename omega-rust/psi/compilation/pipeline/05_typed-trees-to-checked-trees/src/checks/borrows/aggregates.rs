@@ -331,9 +331,9 @@ fn lifetime_windows(
     if debt.loan.is_valid()
         && let Some(windows) =
             super::resources::supplied_permissions::debt_windows(borrow, debt.loan)
-        {
-            return Some(windows);
-        }
+    {
+        return Some(windows);
+    }
     let mut windows = Vec::new();
     let mut completed = false;
     let mut other = false;

@@ -2544,18 +2544,22 @@ pub(super) fn check(
                         position: Some(position),
                     },
                     parameter.relevance.is_erased(),
-                    if parameter.relevance.is_erased() && is_source_evidence_carrier(program, parameter.type_reference) { {
-                        scope.expected_erased_identity(
-                            parameter.type_reference,
-                            call.target_symbol,
-                            &site,
-                            parameters,
-                            arguments,
-                            position,
-                        )
-                    } } else { {
-                        Err("the parameter has no checked erased-carrier signature".into())
-                    } },
+                    if parameter.relevance.is_erased()
+                        && is_source_evidence_carrier(program, parameter.type_reference)
+                    {
+                        {
+                            scope.expected_erased_identity(
+                                parameter.type_reference,
+                                call.target_symbol,
+                                &site,
+                                parameters,
+                                arguments,
+                                position,
+                            )
+                        }
+                    } else {
+                        { Err("the parameter has no checked erased-carrier signature".into()) }
+                    },
                     diagnostics,
                 );
             }

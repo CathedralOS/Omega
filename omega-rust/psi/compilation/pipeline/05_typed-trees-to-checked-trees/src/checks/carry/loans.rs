@@ -788,11 +788,12 @@ pub(super) fn retain_backing_values(
         retain_backing(borrow, entry.backing, live_symbols, &mut loans);
         if let checked_trees::SuspensionCrossingLoanSource::CapturedActual { resource } =
             entry.source
-            && let Ok(parents) = outputs::parents(borrow, resource) {
-                for parent in parents {
-                    crate::shared::collections::push_unique(&mut loans, parent);
-                }
+            && let Ok(parents) = outputs::parents(borrow, resource)
+        {
+            for parent in parents {
+                crate::shared::collections::push_unique(&mut loans, parent);
             }
+        }
     }
     let (mut value_cursor, mut loan_cursor, mut input_cursor) = (0, 0, 0);
     while value_cursor < live_symbols.len()
@@ -868,11 +869,12 @@ pub(super) fn retain_backing_values(
             retain_backing(borrow, entry.backing, live_symbols, &mut loans);
             if let checked_trees::CheckedOutputBorrowInputPermission::Borrowed { resource } =
                 borrow.supplied_output_inputs.get(input).permission
-                && let Ok(parents) = outputs::parents(borrow, resource) {
-                    for parent in parents {
-                        crate::shared::collections::push_unique(&mut loans, parent);
-                    }
+                && let Ok(parents) = outputs::parents(borrow, resource)
+            {
+                for parent in parents {
+                    crate::shared::collections::push_unique(&mut loans, parent);
                 }
+            }
         }
     }
 }

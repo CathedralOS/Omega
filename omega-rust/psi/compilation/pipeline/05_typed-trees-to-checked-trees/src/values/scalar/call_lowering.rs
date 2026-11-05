@@ -510,21 +510,22 @@ pub(crate) fn lower_proof_term(
     if let Some(view) = program.prepared_mathematics() {
         if let Some(constructor) = view.source_constructor(expression)
             && constructor.type_identity == program.normalized_type_identity(expected_type)
-            && constructor.constructor != expression {
-                return lower_proof_term(
-                    program,
-                    caller_state,
-                    operators,
-                    constructor.constructor,
-                    expected_type,
-                    parameters,
-                    authored_parameters,
-                    parameter_types,
-                    locals,
-                    exact_integer_casts,
-                    proof_only,
-                );
-            }
+            && constructor.constructor != expression
+        {
+            return lower_proof_term(
+                program,
+                caller_state,
+                operators,
+                constructor.constructor,
+                expected_type,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                exact_integer_casts,
+                proof_only,
+            );
+        }
         if let Some(constructor) = view.source_constructor(expression)
             && constructor.type_identity == program.normalized_type_identity(expected_type)
         {
