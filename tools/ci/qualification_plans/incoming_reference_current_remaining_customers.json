@@ -1,0 +1,75 @@
+{
+  "schema": "omega-compiler-pilot-plan-v1",
+  "producer": {
+    "revision": "108c9557ff2c58a47bdef02b3401ae1728e2765a",
+    "tree": "dcbf27680d9fe2ff601eed3ae6c01b2853a863c4",
+    "target": "linux_x86_64",
+    "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+    "input_objects": {
+      "omega-rust": "d38f1aa7a76b44a45c829ad1fee341d301ed8547",
+      "source/library": "e3e1296eab03464c3ca08a0c419c76e25c24ec6a",
+      "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
+      "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
+      "bootstrap": "cfb29e665d301b5ad7dabdb8cb16177c164ab035",
+      "tools/benchmark": "6c1a4399e3f037c808a23ad59825e76664482e2f",
+      "Cargo.toml": "2699e0a8d0be49c789639cbd3c603521634145d9",
+      "Cargo.lock": "b9590ac649fdf234e519f0197a05372d3fe65df5",
+      "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+      ".cargo": null
+    },
+    "executables": {
+      "cli": {
+        "sha256": "d8602991e969462190ae9c8b4fb22164f2a1fb03b030f473390de37e6c692078",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      },
+      "runner": {
+        "sha256": "9527094919b1fd9eec8dcce490d34e29a83ad161756576927e4769e51e9904b6",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      }
+    },
+    "origin_run": 41945047443,
+    "cache_key": "compiler-regression-Linux-X64-930ad300ab5b66029346c7ae14a6d49284f61cbeba994e9d242c180ccf948756-108c9557ff2c58a47bdef02b3401ae1728e2765a"
+  },
+  "fixtures": [
+    "pass/facts/data_where_standing_nested_borrowed_field_known_saved_descriptor",
+    "pass/facts/data_where_standing_nested_borrowed_field_incoming_compatibility",
+    "pass/generics/runtime_finite_recursive_reference_catalog_exit",
+    "pass/borrows/supplied_output_ordinary_helper_saved_reference_exit",
+    "pass/types/storage_address_core_name_shadowed_exit",
+    "pass/targets/runtime_target_named_provider_defaults_exit",
+    "pass/facts/representation_conversion_through_local_exit",
+    "fail/facts/data_where_standing_nested_borrowed_field_intermediate_write_only",
+    "fail/facts/data_where_standing_nested_borrowed_field_suspended_descriptor_slot",
+    "fail/borrow/scalar_reborrow_does_not_preserve_arrival_bound",
+    "fail/proofs/constructor_shared_scalar_result_precedes_write",
+    "fail/atomics/stored_reference_non_atomic_shared_store",
+    "fail/float/constructed_ieee_unknown_nan",
+    "fail/float/specification_index_reference_selector_unbounded",
+    "fail/proofs/constructor_mutable_scalar_result_precedes_write",
+    "fail/domains/structural_constructor_predicate_unsatisfied",
+    "fail/facts/data_where_standing_nested_borrowed_field_incoming_compatibility",
+    "fail/borrows/borrowed_descriptor_operand_retains_source_home",
+    "fail/borrows/opaque_reference_wrong_input_return",
+    "fail/generics/runtime_index_carrier_tail_descriptor",
+    "fail/borrows/supplied_output_ordinary_helper_saved_reference_forbidden",
+    "fail/contracts/address_observation_shadow_write",
+    "fail/slices/saved_byte_predicate_operand_overlap",
+    "fail/borrows/symbolic_call_before_concrete_output_obligation",
+    "fail/borrows/symbolic_call_preserves_concrete_output_obligations",
+    "fail/borrows/generic_call_output_source_write"
+  ],
+  "source_only": false,
+  "samples": [
+    "samples/cli/facts/representation_conversion/local/invalid"
+  ],
+  "cli_fixtures": [
+    "pass/borrows/runtime_shared_scalar_local_capture_exit",
+    "pass/borrows/runtime_shared_qualified_view_scalar_choice_exit"
+  ]
+}
