@@ -94,6 +94,35 @@ pub(crate) fn observe_inputs(
             current_binding.domain,
             current_binding.semantic_domain,
         ) {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE content input current={current:?} binding={current_binding:?} completion={:?}",
+                    conservation.completed_value,
+                );
+                for context in &contexts {
+                    for fact in facts
+                        .semantic
+                        .context_view(facts.semantic.contexts.get(*context))
+                        .facts()
+                    {
+                        let Some((_, _, domain, instance)) = fact.payload.domain_membership()
+                        else {
+                            continue;
+                        };
+                        let Some(source) = fact.place.as_place() else {
+                            continue;
+                        };
+                        let source = facts.semantic.places.get(source);
+                        eprintln!(
+                            "CHECKSITE content input membership root={:?} path={:?} domain={domain:?} instance={instance:?} origin={:?} evidence={:?}",
+                            source.root,
+                            facts.semantic.place_segments.span_or_empty(source.segments),
+                            fact.origin,
+                            fact.evidence,
+                        );
+                    }
+                }
+            }
             return Err("input's exact routed membership is not live at completion");
         }
         preserve_projection(
