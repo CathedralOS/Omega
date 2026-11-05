@@ -75,6 +75,15 @@ jobs:
       CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
       CARGO_BUILD_FINGERPRINT: content
       OMEGA_CORPUS_JOBS: '2'
+      # Per-fixture wall-clock cap for the corpus runner (default 120 s). Each
+      # smoke fixture re-checks the bundled std library, and on this 2-vCPU
+      # runner that alone takes 55-117 s (passing runs, 2026-11-02..05), so the
+      # default turned speed into a coin flip: the same fixtures passed and
+      # timed out on alternate merges. This gate checks outcomes, not speed;
+      # 300 s keeps ~2.5x headroom and still fails a real hang well inside the
+      # job timeout. The adaptive 3x-golden cap cannot help: those goldens were
+      # recorded on a much faster macOS host (11-16 s).
+      OMEGA_CORPUS_FIXTURE_SECS: '300'
       RUST_MIN_STACK: '67108864'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
