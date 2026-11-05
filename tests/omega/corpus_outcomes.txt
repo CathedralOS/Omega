@@ -6959,20 +6959,20 @@ fail/facts/component_scalar_lending_through_target_body_rejected rejected 8139ms
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/facts/compound_index_guard_through_call_result_rejected rejected 4862ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_const_name_rejected rejected 4568ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_const_name_rejected rejected 3720ms expected @7055dc5319e1
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_field_rejected rejected 4713ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_field_rejected rejected 3744ms expected @7055dc5319e1
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_local_rejected rejected 4708ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_local_rejected rejected 3680ms expected @7055dc5319e1
 	cannot prove index `b * 20 + a` is within length 200 in put::entry
 fail/facts/compound_index_guard_through_match_join_rejected rejected 4700ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
 	cannot prove index `main.b * 20 + second_a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_other_machine_rejected rejected 4700ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_other_machine_rejected rejected 4344ms expected @7055dc5319e1
 	cannot prove index `main.b * 20 + main.a` is within length 200 in store::entry
-fail/facts/compound_index_guard_through_other_state_rejected rejected 4715ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_other_state_rejected rejected 3718ms expected @7055dc5319e1
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_parameter_rejected rejected 4706ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_parameter_rejected rejected 3743ms expected @7055dc5319e1
 	cannot prove index `b * 20 + a` is within length 200 in store::entry
 fail/facts/compound_index_guard_through_target_body_rejected rejected 4675ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
