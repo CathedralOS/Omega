@@ -583,7 +583,7 @@ impl Elaborator<'_> {
                     body: proposition,
                 });
                 self.scope.clear();
-                let theorem = self.source_family_induction(symbol, invariant)?;
+                let theorem = self.source_family_induction(symbol, invariant, &actuals)?;
                 let signature = Signature::from_declarations(self.declarations.clone());
                 let closure = judgment_assumption_closure(
                     &self.arena,
