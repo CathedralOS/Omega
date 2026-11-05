@@ -103,6 +103,21 @@ def validate_exits(code, stderr, expected):
             f"wrapper {code}, native {native}, Terminal {[line[:1500] for line in terminal[:3]]}")
 
 
+def inspect_kept_artifact(producer, products, runtime, command):
+    """Describe the kept artifact without changing its execution verdict."""
+    artifact = products / "program.oterm"
+    diagnostic = dict(artifact=str(artifact), status="missing")
+    if not artifact.is_file():
+        return diagnostic
+    try:
+        code = command("diagnostic-terminal-inspection",
+                       [producer.cli, "inspect-terminal", "--artifact", artifact], runtime, 240)
+        diagnostic.update(status="completed", exit_code=code)
+    except (OSError, ValueError) as error:
+        diagnostic.update(status="failed", error=str(error))
+    return diagnostic
+
+
 def observe(root, producer, fixture, output):
     expected = expected_exit(root, fixture, producer.target)
     output.mkdir(parents=True, exist_ok=False)
@@ -211,6 +226,14 @@ def observe(root, producer, fixture, output):
                 path.relative_to(output / "products").as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
                 for path in sorted((output / "products").rglob("*")) if path.is_file()
             }
+        if "OMEGA_COMPILER_CHECK_SITES" in env:
+            # The producer already kept this artifact. Its public inspection
+            # helps locate a failed operation, but does not approve execution.
+            record["diagnostic_inspection"] = inspect_kept_artifact(
+                producer, output / "products", runtime, command)
+            # Inspection refusal is optional diagnostics; changed producer or
+            # source inputs remain a custody failure for the whole observation.
+            verify()
         validate_exits(code, text, expected)
         if not kept or not (output / "products/program.oterm").is_file():
             raise ValueError("ordinary CLI fixture lost its retained Terminal product")
