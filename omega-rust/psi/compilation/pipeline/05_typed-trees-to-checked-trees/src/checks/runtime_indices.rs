@@ -1984,7 +1984,9 @@ impl Scope<'_> {
                     Application::bare(cast.target_type, self.statement),
                     diagnostics,
                 );
-                self.check(cast.value, required, diagnostics);
+                if has_value_indices {
+                    self.check(cast.value, required, diagnostics);
+                }
                 return;
             }
             ExpressionNode::ArrayLiteral(elements) => {
