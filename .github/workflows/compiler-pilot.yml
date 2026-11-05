@@ -155,6 +155,24 @@ jobs:
           retention-days: 7
       # Save compiled objects before any program consumer can use the job budget.
       # A failed preparation still retains useful objects and keeps the job red.
+      - name: Check existing resolver metadata and authority tests
+        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
+        run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          import json,shutil,subprocess,time
+          out=Path('build/compiler-pilot');out.mkdir(parents=True,exist_ok=True)
+          filters=['resolution_payload_tests','completed_queries_keep_full_authority_depth_and_premise_context','bucket_collisions_preserve_capture_proofs_and_recurrence_inputs','static_selection_landings_']
+          rows=[]
+          for index,selection in enumerate(filters):
+              command=['mbx','nextest','run','--locked','-p','validation',selection] if shutil.which('mbx') else ['cargo','test','--locked','-p','validation','--lib',selection,'--','--nocapture']
+              started=time.monotonic()
+              with (out/('resolver-tests-'+str(index)+'.stdout')).open('wb') as stdout,(out/('resolver-tests-'+str(index)+'.stderr')).open('wb') as stderr:
+                  completed=subprocess.run(command,stdout=stdout,stderr=stderr)
+              row=dict(filter=selection,command=command,exit=completed.returncode,seconds=round(time.monotonic()-started,3),source=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),existing_tests_only=True);rows.append(row)
+              (out/'resolver-tests.json').write_text(json.dumps(rows,indent=2)+'\n');print(row,flush=True)
+              if completed.returncode:raise SystemExit(completed.returncode)
+          PYTHON
       - name: Save build cache before fixture observations
         if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
