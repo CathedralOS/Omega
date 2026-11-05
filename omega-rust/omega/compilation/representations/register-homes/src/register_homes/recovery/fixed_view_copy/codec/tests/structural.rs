@@ -302,8 +302,12 @@ fn outgoing_slot_roles_bind_rosters_memory_and_authenticated_round_trips() {
         match mutation {
             0 => function.outgoing_arguments[1].id.role = OutgoingArgumentSlotRole::Argument,
             1 => {
-                function.memory_accesses.last_mut().unwrap().role =
-                    SelectedMemoryAccessRole::WriteOutgoing { slot: argument }
+                function
+                    .memory_accesses
+                    .iter_mut()
+                    .next_back()
+                    .unwrap()
+                    .role = SelectedMemoryAccessRole::WriteOutgoing { slot: argument }
             }
             2 => {
                 let position = function.memory_accesses.len() - 2;
@@ -678,10 +682,14 @@ fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identi
                 eq!(function.calls[0].call.descriptor_origins.pop() => Some(Origin::Empty));
             }
             _ => {
-                function.memory_accesses.last_mut().unwrap().role =
-                    SelectedMemoryAccessRole::ReadReturnedView {
-                        producer: OperationId::new(83).unwrap(),
-                    }
+                function
+                    .memory_accesses
+                    .iter_mut()
+                    .next_back()
+                    .unwrap()
+                    .role = SelectedMemoryAccessRole::ReadReturnedView {
+                    producer: OperationId::new(83).unwrap(),
+                }
             }
         }
         assert_ne!(changed.encode().unwrap(), encoded);
@@ -742,7 +750,8 @@ fn retained_plan_preserves_returned_input_fact_lifetimes() {
     let mut standing = plan.clone();
     std::sync::Arc::make_mut(&mut standing.transformed)
         .functions
-        .last_mut()
+        .iter_mut()
+        .next_back()
         .unwrap()
         .calls[0]
         .call
