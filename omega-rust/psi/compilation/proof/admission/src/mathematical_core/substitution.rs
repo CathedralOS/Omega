@@ -28,6 +28,8 @@ pub fn substitute(arena: &mut TermArena, body: TermHandle, argument: TermHandle)
 /// Instantiate universe parameters throughout the term. Term binders do not
 /// scope universe parameters. An out-of-range parameter returns its index:
 /// typing owns scope checking and must still refuse malformed instantiations.
+/// Keep unchanged payloads and their parents so unfolding a closed definition
+/// does not copy its body. Parameter checks still run before retaining a leaf.
 pub fn instantiate_levels(
     arena: &mut TermArena,
     term: TermHandle,
@@ -70,7 +72,11 @@ impl Remapping<'_> {
                 std::cmp::Ordering::Less => Ok(term),
             },
             (Self::Levels { arguments }, Term::Sort(sort)) => {
-                let level = instantiate_level(&sort.level(), arguments)?;
+                let original = sort.level();
+                let level = instantiate_level(&original, arguments)?;
+                if level == original {
+                    return Ok(term);
+                }
                 let sort = match sort {
                     Sort::Type(_) => Sort::Type(level),
                     Sort::Strict(_) => Sort::Strict(level),
@@ -85,13 +91,16 @@ impl Remapping<'_> {
                 },
             ) => {
                 let declaration = *declaration;
-                let levels = levels
+                let instantiated = levels
                     .iter()
                     .map(|level| instantiate_level(level, arguments))
                     .collect::<Result<Vec<_>, _>>()?;
+                if instantiated == *levels {
+                    return Ok(term);
+                }
                 Ok(arena.insert(Term::Constant {
                     declaration,
-                    levels,
+                    levels: instantiated,
                 }))
             }
             _ => Ok(term),

@@ -130,6 +130,20 @@ fn universe_instantiation_preserves_scope_and_refuses_missing_parameters() {
         domain: sort,
         codomain: constant,
     });
+    let before = arena.len();
+    assert_eq!(
+        instantiate_levels(
+            &mut arena,
+            term,
+            &[Level::Parameter(0), Level::Parameter(1)]
+        ),
+        Ok(term)
+    );
+    assert_eq!(
+        arena.len(),
+        before,
+        "identity actuals retain the whole term"
+    );
     assert_eq!(
         instantiate_levels(&mut arena, term, &[Level::Constant(2)]),
         Err(1)
@@ -151,4 +165,33 @@ fn universe_instantiation_preserves_scope_and_refuses_missing_parameters() {
             levels: vec![expected]
         }
     );
+}
+
+#[test]
+fn universe_instantiation_keeps_closed_sorts_constants_and_parents() {
+    let mut arena = TermArena::new();
+    let relevant = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+    let strict = arena.insert(Term::Sort(Sort::Strict(Level::Constant(1))));
+    let monomorphic = arena.insert(Term::Constant {
+        declaration: 17,
+        levels: vec![],
+    });
+    let closed_application = arena.insert(Term::Constant {
+        declaration: 18,
+        levels: vec![Level::Constant(2)],
+    });
+    let first = arena.insert(Term::Pi {
+        domain: relevant,
+        codomain: monomorphic,
+    });
+    let second = arena.insert(Term::Pi {
+        domain: strict,
+        codomain: closed_application,
+    });
+    let term = arena.insert(Term::Pair { first, second });
+    let before = arena.len();
+    for actuals in [vec![], vec![Level::Constant(7)]] {
+        assert_eq!(instantiate_levels(&mut arena, term, &actuals), Ok(term));
+        assert_eq!(arena.len(), before, "closed payloads require no new nodes");
+    }
 }
