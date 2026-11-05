@@ -854,7 +854,6 @@ struct InductionBuilder<'a, 'b, K> {
     iw: TermHandle,
     label_packs: Vec<TermHandle>,
     logical_result: TermHandle,
-    reconstruction_equality: TermHandle,
     invariant: TermHandle,
     lemmas: &'b [TermHandle],
     case_adapters: Vec<TermHandle>,
@@ -866,13 +865,6 @@ impl<K: Copy + Eq + Into<Key>> InductionBuilder<'_, '_, K> {
     }
     fn sum_type(&self, start: usize) -> S {
         S::Closed(self.label_types.tails[start])
-    }
-    fn reconstructed_label(&mut self, label: S) -> S {
-        if self.b.cases.len() > 1 {
-            pair(fst(label.clone()), snd(label))
-        } else {
-            label
-        }
     }
     fn label(&mut self, start: usize, value: S) -> S {
         app(S::Closed(self.label_packs[start]), value)
@@ -939,13 +931,12 @@ impl<K: Copy + Eq + Into<Key>> InductionBuilder<'_, '_, K> {
             .ok_or("the source induction case has no checked adapter")?;
         Ok(app(S::Closed(adapter), payload))
     }
-    fn eliminate(&mut self, start: usize, value: S) -> Result<S, &'static str> {
-        if start >= self.b.cases.len() {
-            return Err("source induction cannot eliminate an empty constructor roster");
-        }
-        if start + 1 == self.b.cases.len() {
-            return self.case_application(start, value);
-        }
+    fn tail_dispatcher(
+        &mut self,
+        start: usize,
+        value: S,
+        next_dispatcher: TermHandle,
+    ) -> Result<S, &'static str> {
         let tag = self.b.terms.fresh();
         let payload = self.b.terms.fresh();
         let tm = self.b.terms.type_motive_at(self.b.label_level());
@@ -958,56 +949,49 @@ impl<K: Copy + Eq + Into<Key>> InductionBuilder<'_, '_, K> {
         let zero_body = self.case_application(start, S::Var(z))?;
         let zero = lam(z, zero_type, zero_body);
         let o = self.b.terms.fresh();
-        let one_body = self.eliminate(start + 1, S::Var(o))?;
+        let one_body = app(S::Closed(next_dispatcher), S::Var(o));
         let one = lam(o, one_type, one_body);
-        Ok(app(
+        let body = app(
             choose(motive, zero, one, fst(value.clone())),
-            snd(value),
+            snd(value.clone()),
+        );
+        // Case selection reconstructs only this tag/payload pair. Transport
+        // its result to the original tail through the existing typed pair
+        // equality, before another dispatcher can use the declared result.
+        let domain = self.sum_type(start);
+        let reconstructed = pair(fst(value.clone()), snd(value.clone()));
+        let endpoint = self.b.terms.fresh();
+        let equality = self.b.terms.fresh();
+        let equality_domain = S::Identity(
+            Box::new(domain.clone()),
+            Box::new(reconstructed.clone()),
+            Box::new(S::Var(endpoint)),
+        );
+        let result = self.result_type(start, S::Var(endpoint));
+        let motive = lam(
+            endpoint,
+            domain.clone(),
+            lam(equality, equality_domain, result),
+        );
+        let proof = S::Reflexivity(Box::new(domain), Box::new(reconstructed));
+        Ok(S::IdentityElimination(
+            Box::new(motive),
+            Box::new(body),
+            Box::new(value),
+            Box::new(proof),
         ))
     }
-    fn step(&mut self) -> Result<S, &'static str> {
+    fn step(&mut self, dispatcher: TermHandle) -> S {
         let a = self.b.terms.fresh();
-        let tail = self.b.terms.fresh();
-        let sum_type = self.sum_type(0);
-        let body = self.eliminate(0, S::Var(tail))?;
-        let function = lam(tail, sum_type, body);
-        let value = S::Var(a);
-        // The motive is index-only, so g does not occur in the hypothesis
-        // or conclusion. Keep its exact iindW domain once outside the case
-        // eliminator instead of duplicating an IW formation in every motive.
+        // g keeps the actual iindW child domain even though the index-only
+        // result needs only the separate hypotheses proved by each case.
         let p = self.b.terms.fresh();
         let positions = app(S::Closed(self.family.children), S::Var(a));
         let next = app(app(S::Closed(self.family.next), S::Var(a)), S::Var(p));
         let children = pi(p, positions, app(S::Closed(self.iw), next));
         let g = self.b.terms.fresh();
-        let endpoint = self.b.terms.fresh();
-        let equality = self.b.terms.fresh();
-        let reconstructed = self.reconstructed_label(S::Var(a));
-        let equality_domain = S::Identity(
-            Box::new(S::Closed(self.family.carrier)),
-            Box::new(reconstructed),
-            Box::new(S::Var(endpoint)),
-        );
-        let motive = lam(
-            endpoint,
-            S::Closed(self.family.carrier),
-            lam(
-                equality,
-                equality_domain,
-                app(S::Closed(self.logical_result), S::Var(endpoint)),
-            ),
-        );
-        let transported = S::IdentityElimination(
-            Box::new(motive),
-            Box::new(app(function, value)),
-            Box::new(S::Var(a)),
-            Box::new(app(S::Closed(self.reconstruction_equality), S::Var(a))),
-        );
-        Ok(lam(
-            a,
-            S::Closed(self.family.carrier),
-            lam(g, children, transported),
-        ))
+        let body = app(S::Closed(dispatcher), S::Var(a));
+        lam(a, S::Closed(self.family.carrier), lam(g, children, body))
     }
 }
 
@@ -1145,7 +1129,6 @@ pub(super) fn induction<K: Copy + Eq + Into<Key>>(
         iw,
         label_packs,
         logical_result,
-        reconstruction_equality: TermHandle::default(),
         invariant,
         lemmas,
         case_adapters: Vec::with_capacity(cases.len()),
@@ -1187,32 +1170,43 @@ pub(super) fn induction<K: Copy + Eq + Into<Key>>(
             .case_adapters
             .push(retain(arena, declarations, ty, body));
     }
-    // Check typed dependent-pair eta once at the actual label carrier. The
-    // case adapter then transports its already proved result along this
-    // ordinary equality, rather than repeatedly comparing the reconstructed
-    // label beneath B/next and every recursive hypothesis. This introduces
-    // neither an equality assumption nor a new computation rule: the full
-    // equality definition and the J motive/base remain signature-checked.
-    let label = producer.b.terms.fresh();
-    let reconstructed = producer.reconstructed_label(S::Var(label));
-    let equality_type = pi(
-        label,
-        S::Closed(family.carrier),
-        S::Identity(
-            Box::new(S::Closed(family.carrier)),
-            Box::new(reconstructed.clone()),
-            Box::new(S::Var(label)),
-        ),
-    )
-    .term(arena, &mut Vec::new())?;
-    let equality_body = lam(
-        label,
-        S::Closed(family.carrier),
-        S::Reflexivity(Box::new(S::Closed(family.carrier)), Box::new(reconstructed)),
-    )
-    .term(arena, &mut Vec::new())?;
-    producer.reconstruction_equality = retain(arena, declarations, equality_type, equality_body);
-    let step_body = producer.step()?.term(arena, &mut Vec::new())?;
+    // Each remaining case tail has one checked dispatcher. Its one-branch
+    // calls the next declaration instead of embedding that whole eliminator
+    // again. Every branch stays in the final checked signature.
+    let mut dispatcher = *producer
+        .case_adapters
+        .last()
+        .ok_or("source induction has no checked terminal case adapter")?;
+    for start in (0..cases.len() - 1).rev() {
+        let tail = producer.b.terms.fresh();
+        let domain = producer.sum_type(start);
+        let body = producer.tail_dispatcher(start, S::Var(tail), dispatcher)?;
+        let result = producer.result_type(start, S::Var(tail));
+        let body = lam(tail, domain.clone(), body).term(arena, &mut Vec::new())?;
+        let ty = pi(tail, domain, result).term(arena, &mut Vec::new())?;
+        let context = proof_admission::Context::empty().with_signature(
+            proof_admission::Signature::from_declarations(declarations.clone()),
+        );
+        let budget = proof_admission::Budget::new(proof_admission::DEFAULT_CONVERSION_STEPS);
+        #[cfg(test)]
+        let budget = budget.with_normalization_counts(declarations.len());
+        let mut budget = budget;
+        proof_admission::check_type(arena, &context, body, ty, &mut budget).map_err(|error| {
+            #[cfg(test)]
+            if let Some(counts) = budget.normalization_counts() {
+                let mut unfoldings = counts.unfoldings.iter().copied().enumerate()
+                    .filter(|(_, count)| *count != 0).collect::<Vec<_>>();
+                unfoldings.sort_unstable_by_key(|&(position, count)| (std::cmp::Reverse(count), position));
+                unfoldings.truncate(16);
+                eprintln!("source induction tail {start} kernel work remaining={} beta={} projection={} case={} identity={} induction={} squash={} boxed={} unlisted={} unfolds={unfoldings:?}",
+                    budget.remaining(), counts.beta, counts.projection, counts.case, counts.identity,
+                    counts.induction, counts.squash, counts.boxed, counts.unlisted_unfoldings);
+            }
+            format!("source induction tail {start} dispatcher fails kernel checking: {error:?}")
+        })?;
+        dispatcher = retain(arena, declarations, ty, body);
+    }
+    let step_body = producer.step(dispatcher).term(arena, &mut Vec::new())?;
     let a = producer.b.terms.fresh();
     let result_type = producer.type_at_label(S::Var(a));
     let step_type = pi(a, S::Closed(family.carrier), result_type).term(arena, &mut Vec::new())?;
