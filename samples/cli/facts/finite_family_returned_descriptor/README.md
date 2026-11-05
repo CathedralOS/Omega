@@ -108,7 +108,16 @@ the same lowering operations and emitted contracts for every admitted row;
 only already-refusing contract disagreements can report a different first error.
 The ARM observations keep their original source identity.
 
-Windows and macOS remain pending. The two unchanged Std-based controls also
+[Windows](https://github.com/CathedralOS/Omega/actions/runs/41973546386) and
+[macOS](https://github.com/CathedralOS/Omega/actions/runs/41973543038) also pass
+that complete scope at the same original `555bdbb56368426ed961fd76f613a32315ab44f1`
+source. Each host's raw reports, executable profiles, frozen inputs and ordinary
+CLI engine markers passed independent review. All four hosted targets therefore
+have actual observations; only Linux executes the final contract-join refactor.
+The other three retain their original stamps and the reviewed applicability
+argument above.
+
+The two unchanged Std-based controls also
 [time out with the published pre-repair compiler](https://github.com/CathedralOS/Omega/actions/runs/41974279825);
 their enforcement remains unresolved. No result is promoted to a newer main.
 Goldens retain the old timing when the recorded behavior is unchanged; fresh

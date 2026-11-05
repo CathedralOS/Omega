@@ -2959,20 +2959,20 @@ pass/facts/finite_family_input_index/other_machine built 7113ms exit:0 interpret
 pass/facts/finite_family_input_index/other_state built 7107ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/parameter built 7173ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/target_body built 7224ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
-pass/facts/finite_family_returned_descriptor/call_result built 3730ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/call_result built 3730ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
 pass/facts/finite_family_returned_descriptor/caller_view built 3715ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/const_name built 3698ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/field built 3772ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/const_name built 3698ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/facts/finite_family_returned_descriptor/field built 3772ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
 pass/facts/finite_family_returned_descriptor/incoming_join built 3766ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/local built 3772ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/match_join built 3954ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/other_machine built 3967ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/other_state built 3769ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/parameter built 3755ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/local built 3772ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/facts/finite_family_returned_descriptor/match_join built 3954ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/facts/finite_family_returned_descriptor/other_machine built 3967ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/facts/finite_family_returned_descriptor/other_state built 3769ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/facts/finite_family_returned_descriptor/parameter built 3755ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
 pass/facts/finite_family_returned_descriptor/pointer_field built 3759ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_returned_descriptor/replaced_source built 3763ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_returned_descriptor/saved_source built 3787ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/target_body built 3885ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/target_body built 3885ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
 pass/facts/finite_family_returned_descriptor/target_qualification built 3696ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply rejected 3838ms expected native-rejection:match @059fb0b41d83
 	no provider is selected for boundary requirement `SelectedTarget::target_only`, which the program entry reaches on target `windows_x86_64`
@@ -7216,6 +7216,7 @@ pass/traits/equatable_string_field_equality_exit incomplete 8878ms interpreter:u
 	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `Main::main::main`, statement 3
 pass/traits/equatable_synthesis checked 3641ms @5f668826adf3+wt
 pass/traits/exact_edge_application_and_invocation_parameters built 8729ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/traits/finite_family_case_view_result_exit built 5789ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
 pass/traits/float_contract_refinement_boundaries_exit built 7741ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/traits/generic_dyn_contract_inventory_exit built 2643ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/traits/generic_map_applied_contract_exit built 2316ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

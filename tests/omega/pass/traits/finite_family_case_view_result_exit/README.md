@@ -24,4 +24,8 @@ at `f37c9cfc83e25c784206b0b60fb5d829f5295499` also checks and runs this program,
 including ordinary package review and native/Terminal exit 0.
 [Linux ARM](https://github.com/CathedralOS/Omega/actions/runs/41973539242) passes
 with its original compiler and program source `555bdbb56368426ed961fd76f613a32315ab44f1`.
-Windows and macOS qualification remains pending.
+[Windows](https://github.com/CathedralOS/Omega/actions/runs/41973546386) and
+[macOS](https://github.com/CathedralOS/Omega/actions/runs/41973543038) pass at that
+same original source. Independent review accepted the raw evidence and found
+that the final refactor preserves these admitted programs' emitted contracts.
+No other-host execution at the final Linux source is claimed.
