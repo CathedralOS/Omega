@@ -1641,6 +1641,7 @@ impl StructuralJudge<'_> {
                             &[],
                             type_bindings,
                             None,
+                            false,
                             judgments,
                         ),
                         super::StructuralJudgment::Refuted

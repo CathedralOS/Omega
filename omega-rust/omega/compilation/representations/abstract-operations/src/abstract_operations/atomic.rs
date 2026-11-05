@@ -28,6 +28,10 @@
 //! bounded `happens_before` derivation — a named write must happen before
 //! the event and be the modification-order-latest write to the place on
 //! every execution path — instead of trusting the producer's claim.
+//! Distinct known paths retain all their latest residencies. Replay checks
+//! that complete set; a loop backedge can contribute a previous execution of
+//! the same static event. No alternative chooses the observed value or proves
+//! synchronization with another activation.
 //! An `AfterEffect` boundary instead records the exact latest opaque access,
 //! independently replayed on every path. It expires knowledge of the writer
 //! inside that access: the next atomic instruction observes current residency,
@@ -53,6 +57,8 @@ use terminal_psi::{
 use crate::{AbstractOperation, AbstractResult};
 use scalar_storage::contains_only_scalars;
 
+#[cfg(test)]
+mod frontier_tests;
 mod scalar_storage;
 
 /// The fetch-family arithmetic one normalized atomic read-modify-write
@@ -114,9 +120,10 @@ pub use language_core::atomic::FenceOrdering as AbstractAtomicFenceOrdering;
 ///
 /// A load's result is a fresh definition, so value equality cannot witness a
 /// read edge; the concurrency contract's relations exist only through this
-/// retained claim. Where execution paths converge on different latest writes
-/// no single member exists and the event can carry no checkable edge.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// retained claim. When paths have different known latest writes, the complete
+/// alternatives remain explicit. This does not select one observed writer,
+/// infer a value, or establish synchronization with another activation.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AtomicResidencyEdge {
     /// The event stands against the place's residency as it stood before the
     /// activation: no earlier write to the place may precede it on any
@@ -130,6 +137,17 @@ pub enum AtomicResidencyEdge {
     /// without claiming which write inside that operation supplied it or
     /// retaining old facts. This is a sequencing boundary and serial
     /// sequencing evidence, not a cross-activation claim.
+    AfterEffect { operation: OperationId },
+    /// Sorted, distinct latest residencies across the actual incoming paths.
+    /// A backedge may name an earlier execution of this same static operation.
+    /// Replay must recover exactly these alternatives, with no unknown path.
+    PathAlternatives { sources: Vec<AtomicResidencySource> },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AtomicResidencySource {
+    Initial,
+    Write { operation: OperationId },
     AfterEffect { operation: OperationId },
 }
 
@@ -150,6 +168,9 @@ pub enum AtomicEdgeViolation {
     /// The event claims the pre-activation residency although a write to
     /// its place may precede it on some execution path.
     InitialResidencyAfterWrite,
+    /// Alternatives omit a path, invent a writer, contain unknown storage,
+    /// or are not a canonical list of at least two distinct sources.
+    InvalidPathAlternatives,
     /// The claimed identity resolves to no single atomic event in the
     /// activation: it names nothing atomic, or is ambiguous under a shared
     /// operation identity.
@@ -519,14 +540,15 @@ impl AbstractAtomicEvent {
 /// every rule that forms `synchronizes_with` either pairs a publication
 /// with an observation on distinct activations — which a single function
 /// never expresses — or composes sequenced-before edges already inside the
-/// closure. A write therefore happens before an event exactly when
+/// closure. A unanimously named write happens before an event when
 /// it precedes it in their shared block or stands in a block dominating
 /// the event's; `predecessors` and `dominators` are the function's
 /// validated control-flow relations. A finite backward worklist follows every
 /// predecessor while translating the queried root through its exact storage
 /// binding. Each path stops at its latest write or at the actual invocation
-/// entrance. Only the singleton initial fact or one exact latest writer can
-/// authorize a claim; revisiting a cycle supplies no initial-residency fact.
+/// entrance. A single source authorizes its exact claim; different known
+/// incoming paths retain their complete canonical alternatives. Revisiting a
+/// cycle supplies no initial-residency fact.
 /// `projection_before_edge` receives predecessor, successor and successor-local root;
 /// it returns the exact source root and projection prefix. `None` means
 /// the edge cannot preserve that storage coordinate.
@@ -541,7 +563,7 @@ impl AbstractAtomicEvent {
 /// Non-atomic writes and calls lending the backing invalidate any known writer.
 /// An `AfterEffect` boundary must name that exact latest operation on every
 /// path; it supplies no knowledge of internal writes or their values. Effects
-/// with no retained operation identity and ambiguous frontiers still refuse.
+/// with no retained operation identity or unresolved storage still refuse.
 /// Edge bindings compose their exact prefix with the queried path; the field
 /// remains unchanged. Projection-changing cycles remain unknown. Returns the
 /// offending event's block and node position together with the refusal,
@@ -607,17 +629,17 @@ pub fn happens_before_atomic_coherence_violation(
             // axiom order and report the first refusal under its own role.
             let rosters: [(
                 bool,
-                Option<AtomicResidencyEdge>,
+                Option<&AtomicResidencyEdge>,
                 fn(AtomicEdgeViolation) -> AtomicCoherenceViolation,
             ); 2] = [
                 (
                     event.observes_resident(),
-                    *reads_from,
+                    reads_from.as_ref(),
                     AtomicCoherenceViolation::ReadsFrom,
                 ),
                 (
                     event.joins_modification_order(),
-                    *modification_after,
+                    modification_after.as_ref(),
                     AtomicCoherenceViolation::ModificationAfter,
                 ),
             ];
@@ -831,7 +853,7 @@ fn carrier_paths_may_overlap(left: &[PathSegment], right: &[PathSegment]) -> boo
 #[allow(clippy::too_many_arguments)]
 fn residency_edge_violation(
     event: &AbstractAtomicEvent,
-    edge: AtomicResidencyEdge,
+    edge: &AtomicResidencyEdge,
     block: BlockId,
     index: usize,
     events: &BTreeMap<OperationId, Vec<(BlockId, usize, &AbstractAtomicEvent)>>,
@@ -842,13 +864,49 @@ fn residency_edge_violation(
         return Some(AtomicEdgeViolation::MissingEdge);
     };
     match edge {
+        AtomicResidencyEdge::PathAlternatives { sources } => {
+            if sources.len() < 2 || sources.windows(2).any(|pair| pair[0] >= pair[1]) {
+                return Some(AtomicEdgeViolation::InvalidPathAlternatives);
+            }
+            let mut claimed_frontier = BTreeSet::new();
+            for source in sources {
+                let source = match *source {
+                    AtomicResidencySource::Initial => ReachingWrite::Initial,
+                    AtomicResidencySource::AfterEffect { operation } => {
+                        ReachingWrite::Effect(operation)
+                    }
+                    AtomicResidencySource::Write { operation: claimed } => {
+                        let Some([(writer, position, resolved)]) =
+                            events.get(&claimed).map(Vec::as_slice)
+                        else {
+                            return Some(AtomicEdgeViolation::Unresolved { claimed });
+                        };
+                        if !resolved.joins_modification_order()
+                            || (resolved.location() != Some(location)
+                                && !reached.contains(&ReachingWrite::Atomic(*writer, *position)))
+                        {
+                            return Some(AtomicEdgeViolation::OutsideModificationOrder { claimed });
+                        }
+                        // The independent backward walk proves the actual path
+                        // reaches this write before the observer. A write on one
+                        // branch need not dominate the other incoming branches.
+                        ReachingWrite::Atomic(*writer, *position)
+                    }
+                };
+                claimed_frontier.insert(source);
+            }
+            (claimed_frontier != *reached).then_some(AtomicEdgeViolation::InvalidPathAlternatives)
+        }
         AtomicResidencyEdge::AfterEffect { operation } => (reached
-            != &BTreeSet::from([ReachingWrite::Effect(operation)]))
-            .then_some(AtomicEdgeViolation::Unresolved { claimed: operation }),
+            != &BTreeSet::from([ReachingWrite::Effect(*operation)]))
+            .then_some(AtomicEdgeViolation::Unresolved {
+                claimed: *operation,
+            }),
         AtomicResidencyEdge::InitialResidency => (reached
             != &BTreeSet::from([ReachingWrite::Initial]))
             .then_some(AtomicEdgeViolation::InitialResidencyAfterWrite),
         AtomicResidencyEdge::Write { operation: claimed } => {
+            let claimed = *claimed;
             let Some([(writer, position, resolved)]) = events.get(&claimed).map(Vec::as_slice)
             else {
                 return Some(AtomicEdgeViolation::Unresolved { claimed });

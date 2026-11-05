@@ -752,6 +752,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     &machine_substitution,
                     &type_substitution,
                     Some((machine, state)),
+                    false,
                 ),
                 StructuralJudgment::Proven,
             );

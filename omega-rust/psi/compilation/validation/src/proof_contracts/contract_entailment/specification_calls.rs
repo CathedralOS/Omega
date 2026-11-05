@@ -1229,6 +1229,7 @@ fn validate_specification_expression_in_scope(
                                                 .expect("complete application")
                                                 .types,
                                             caller.state_scope(),
+                                            false,
                                         ),
                                         StructuralJudgment::Proven
                                     )

@@ -76,17 +76,19 @@ Omega's terminal-to-abstract lowering (`machine/operation/atomic_events.rs`)
 keeps each Terminal event as one `AbstractOperation::AtomicEvent` at the same
 `AbstractAtomicLocation` (root place and complete cell path). It adds the
 `reads_from` and `modification_after` edges that the optimization unit's
-happens-before replay rechecks. A backward latest-write analysis follows the actual whole-storage edge
-bindings, so a state parameter keeps the same modification history under its
+happens-before replay rechecks. A backward latest-write analysis follows the
+actual whole-storage edge bindings, so a state parameter keeps the same modification history under its
 own place identity. The independent unit checker reconstructs that relation
 from its current edges and rejects substituted backing, stale initial-residency
-claims and ambiguous writes. An intervening non-atomic write or call lending
-the atomic backing, including a shared call, expires knowledge of its writer.
+claims and unknown storage. Different known paths retain a canonical list of
+all latest residencies, including initial residency and a prior iteration of the
+same event. Independent replay requires the exact complete list; it grants no
+observed-value equality or cross-activation synchronization. An intervening
+non-atomic write or call lending the atomic backing, including a shared call, expires knowledge of its writer.
 The next event may retain an `AfterEffect` boundary naming that exact latest
 operation on every path; independent replay reconstructs the boundary, without
 claiming which internal write supplied the resident or recovering an old value.
-Shared access does not prove an
-unchanged atomic resident. Source and Terminal proof composition independently
+Shared access does not prove an unchanged atomic resident. Source and Terminal proof composition independently
 expire observations that shared calls may mutate; copied SSA values survive.
 The event retains its block-local root and the ordinary shared receiver path,
 including stored-reference crossings. Arrival and local declarations supply
