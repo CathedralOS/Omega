@@ -196,21 +196,46 @@ def fetch(source, name, destination):
         shutil.copyfile(Path(source, name), destination)
 
 
-@contextlib.contextmanager
-def opened_part(source, name):
-    """A readable byte stream of one published part, downloaded as it is read."""
+# Consecutive interrupted attempts, without new bytes, before a part fails.
+PART_ATTEMPTS = 5
+
+
+def part_blocks(source, name, block_size=1 << 20):
+    """Yield one published part's bytes in order, downloading as they are read.
+
+    A cloud session's proxy can drop a long download partway through (seen at
+    641 MB of a part), and a part streams straight into zstd, so curl's own
+    retry, which restarts from byte zero, cannot help. An interrupted download
+    resumes at the next unread byte with a range request instead; curl refuses
+    (exit 33) a server that ignores the range, and the caller's digest check
+    rejects anything else that went wrong.
+    """
     if "://" not in source:
         with open(Path(source, name), "rb") as stream:
-            yield stream
+            yield from iter(lambda: stream.read(block_size), b"")
         return
-    download = subprocess.Popen(["curl", "-fsSL", "--retry", "3", f"{source}/{name}"],
-                                stdout=subprocess.PIPE)
-    try:
-        yield download.stdout
-    finally:
-        download.stdout.close()
-        if download.wait():
-            raise WarmBuildError(f"downloading {name} failed (curl exit {download.returncode})")
+    offset = 0
+    failures = 0
+    while True:
+        command = ["curl", "-fsSL", "--retry", "3", f"{source}/{name}"]
+        if offset:
+            command[1:1] = ["-C", str(offset)]
+        download = subprocess.Popen(command, stdout=subprocess.PIPE)
+        received = 0
+        try:
+            for block in iter(lambda: download.stdout.read(block_size), b""):
+                received += len(block)
+                yield block
+        finally:
+            download.stdout.close()
+            status = download.wait()
+        if status == 0:
+            return
+        offset += received
+        failures = 0 if received else failures + 1
+        if failures >= PART_ATTEMPTS:
+            raise WarmBuildError(f"downloading {name} failed (curl exit {status}) "
+                                 f"after {offset} bytes")
 
 
 def unpack(source, manifest, worktree):
@@ -226,10 +251,9 @@ def unpack(source, manifest, worktree):
     try:
         for part in manifest["parts"]:
             digest = hashlib.sha256()
-            with opened_part(source, part["name"]) as stream:
-                for block in iter(lambda: stream.read(1 << 20), b""):
-                    digest.update(block)
-                    pipeline.stdin.write(block)
+            for block in part_blocks(source, part["name"]):
+                digest.update(block)
+                pipeline.stdin.write(block)
             if digest.hexdigest() != part["sha256"]:
                 raise WarmBuildError(f"{part['name']} does not match its published digest")
         pipeline.stdin.close()
@@ -333,9 +357,16 @@ def session_start(root):
     worktree = warm_worktree(root)
     if (worktree / "target").exists():
         return 0
-    if not shutil.which("zstd"):
-        subprocess.run(["apt-get", "install", "-y", "-qq", "zstd"], capture_output=True)
     status = status_path(root)
+    if not shutil.which("zstd"):
+        # A fresh container has no package lists, so install alone finds nothing.
+        subprocess.run(["apt-get", "update", "-qq"], capture_output=True)
+        subprocess.run(["apt-get", "install", "-y", "-qq", "zstd"], capture_output=True)
+    if not shutil.which("zstd"):
+        # Without it every part fails to unpack as a misleading download error.
+        status.write_text("failed: zstd is not installed; run tools/agent_setup.sh\n",
+                          encoding="utf-8")
+        return 0
     with held(lock_path(root)):
         if (worktree / "target").exists():
             return 0

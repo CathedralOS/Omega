@@ -47,6 +47,9 @@ use validation::{
     declared_case_projection_field, expression_result_type_reference, find_call_site,
 };
 
+mod receiving_queries;
+use receiving_queries::{AliasMembership, CastTargetChecks, CastTargets, StateLocalDeclarations};
+
 #[derive(Clone)]
 struct Application<'program> {
     reference: TypeReferenceHandle,
@@ -97,6 +100,17 @@ struct Scope<'a> {
     statement: usize,
     target: TransitionTargetHandle,
     frames: Option<&'a CallFrameResolver<'a>>,
+    locals: &'a StateLocalDeclarations<'a>,
+    cast_targets: &'a CastTargets,
+}
+
+type ErasedProofIdentity = Result<NormalizedTypeIdentity, std::borrow::Cow<'static, str>>;
+
+/// A proof payload's field binders belong to its declaring case, including
+/// after an immutable local copies that payload.
+struct ErasedProofInput {
+    reference: TypeReferenceHandle,
+    payload_owner: SymbolHandle,
 }
 
 impl Scope<'_> {
@@ -655,8 +669,8 @@ impl Scope<'_> {
             }
             ExpressionNode::Name(path) => {
                 let formation = self
-                    .program
-                    .state_local_declaration(self.state, path.head_symbol)
+                    .locals
+                    .declaration(path.head_symbol)
                     .map(|(position, _)| position)
                     .unwrap_or(0);
                 Some(Application::bare(reference, formation))
@@ -1096,22 +1110,11 @@ impl Scope<'_> {
                             if !matches!(parameter.kind, TypeParameterKind::Value { .. }) {
                                 return false;
                             }
-                            // Specialization clones pattern bindings. A carrier
-                            // that still names the template symbol and a
-                            // parameter that names the clone are one captured
-                            // index.
-                            if same_captured_index(self.program, *left, *right)
-                                || self.supplied_index_matches(required, *right, *left)
-                                || self.supplied_index_matches(actual, *left, *right)
-                            {
-                                return true;
-                            }
-                            let closed_requirement = self.static_index(*right, required).is_some()
-                                || matches!(self.program.type_reference_table.type_reference(*right),
-                                    TypeReferenceNode::ConstExpression(expression)
-                                        if self.program.closed_integer_expression_value_in(*expression, self.machine.symbol).is_some());
-                            if !closed_requirement
-                                && let (Some(site), Some(position)) =
+                            // Compare the call's completed operand descriptor
+                            // with its receiving index. Declaration names and
+                            // later reads of the supplying variable cannot
+                            // replace either captured value.
+                            if let (Some(site), Some(position)) =
                                     (required.call, required.position)
                                 && let Some((_, descriptor, _)) = self
                                     .program
@@ -1247,8 +1250,8 @@ impl Scope<'_> {
                 }
                 let reference = declaration_type_reference(self.program, path.head_symbol)?;
                 let formation = self
-                    .program
-                    .state_local_declaration(self.state, path.head_symbol)
+                    .locals
+                    .declaration(path.head_symbol)
                     .map(|(position, _)| position)
                     .unwrap_or(0);
                 let mut receiver = Application::bare(reference, formation);
@@ -1313,30 +1316,22 @@ impl Scope<'_> {
         expression: ExpressionHandle,
         required: Application<'_>,
         erased: bool,
-        expected_proof_identity: Option<NormalizedTypeIdentity>,
+        expected_proof_identity: ErasedProofIdentity,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
+        let (expected_proof_identity, expected_refusal) = match expected_proof_identity {
+            Ok(identity) => (Some(identity), None),
+            Err(reason) => (None, Some(reason)),
+        };
         let formal_evidence = erased
             && is_source_evidence_carrier(self.program, required.reference)
             && expected_proof_identity.is_some_and(|expected| {
-                self.erased_evidence_reference(expression, 0)
+                self.erased_proof_input(expression, 0)
                     .is_some_and(|actual| {
-                        let payload_owner =
-                            match self.program.expression_table.expression(expression) {
-                                ExpressionNode::Member(_) => declared_case_projection_field(
-                                    self.program,
-                                    self.machine,
-                                    Some(self.state),
-                                    expression,
-                                )
-                                .map(|field| self.program.symbols.get(field.symbol).parent)
-                                .unwrap_or_default(),
-                                _ => SymbolHandle::invalid(),
-                            };
-                        if !self.stable_proof_indices(actual, payload_owner, 0) {
+                        if !self.stable_proof_indices(actual.reference, actual.payload_owner, 0) {
                             return false;
                         }
-                        self.actual_erased_identity(expression, actual)
+                        self.actual_erased_identity(expression, actual.reference)
                             .is_some_and(|actual| actual.is_valid() && actual == expected)
                     })
             });
@@ -1395,31 +1390,58 @@ impl Scope<'_> {
         if checked_evidence {
             return;
         }
+        let before = diagnostics.len();
+        let reference = required.reference;
         self.check(expression, required, diagnostics);
+        if erased && diagnostics.len() > before {
+            let reason = if !is_source_evidence_carrier(self.program, reference) {
+                "the receiving type has no checked mathematical carrier"
+            } else if expected_proof_identity.is_none() {
+                expected_refusal
+                    .as_deref()
+                    .unwrap_or("the receiving indices have no stable proof identity")
+            } else if let Some(input) = self.erased_proof_input(expression, 0) {
+                if !self.stable_proof_indices(input.reference, input.payload_owner, 0) {
+                    "the source indices are not stable proof inputs"
+                } else {
+                    "the source and receiving indices do not have the same proof identity"
+                }
+            } else {
+                "the source is not a checked proof input or immutable proof projection"
+            };
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "erased binding to `{}` cannot retain its indices: {reason}",
+                    self.program.display_type_reference(reference),
+                ))
+                .with_source_span(self.program.expression_table.source_span(expression)),
+            );
+        }
+    }
+
+    fn proof_alias_initializer(&self, symbol: SymbolHandle) -> Option<(usize, ExpressionHandle)> {
+        let (ordinal, local) = self.locals.declaration(symbol)?;
+        if ordinal >= self.statement || local.is_mutable {
+            return None;
+        }
+        local
+            .ordinary_value_initializer()
+            .map(|value| (ordinal, value))
     }
 
     /// An open mathematical value is supplied by an exact erased formal,
     /// including an exact erased payload projection. Its checked source
     /// carrier, rather than a fabricated closed term, owns the type.
-    fn erased_evidence_reference(
+    fn erased_proof_input(
         &self,
         expression: ExpressionHandle,
         depth: usize,
-    ) -> Option<TypeReferenceHandle> {
+    ) -> Option<ErasedProofInput> {
         if depth > 128 || !expression.is_valid() {
             return None;
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
-                let reference = expression_result_type_reference(
-                    self.program,
-                    self.machine,
-                    self.state,
-                    expression,
-                )?;
-                if !is_source_evidence_carrier(self.program, reference) {
-                    return None;
-                }
                 if path.symbol != path.head_symbol
                     || self
                         .program
@@ -1430,16 +1452,36 @@ impl Scope<'_> {
                 {
                     return None;
                 }
+                if let Some((ordinal, initializer)) = self.proof_alias_initializer(path.symbol) {
+                    return Scope {
+                        statement: ordinal,
+                        target: TransitionTargetHandle::invalid(),
+                        ..*self
+                    }
+                    .erased_proof_input(initializer, depth + 1);
+                }
+                let reference = expression_result_type_reference(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    expression,
+                )?;
+                if !is_source_evidence_carrier(self.program, reference) {
+                    return None;
+                }
                 let formal = self
                     .program
                     .state_parameter_by_symbol(self.state, path.symbol)?;
                 (formal.relevance.is_erased()
                     && !formal.is_mutable
                     && formal.type_reference == reference)
-                    .then_some(reference)
+                    .then_some(ErasedProofInput {
+                        reference,
+                        payload_owner: SymbolHandle::invalid(),
+                    })
             }
             ExpressionNode::Member(member) => {
-                let receiver = self.erased_evidence_reference(member.receiver, depth + 1)?;
+                let receiver = self.erased_proof_input(member.receiver, depth + 1)?;
                 let field = declared_case_projection_field(
                     self.program,
                     self.machine,
@@ -1450,7 +1492,10 @@ impl Scope<'_> {
                     return None;
                 }
                 if is_source_evidence_carrier(self.program, field.type_reference) {
-                    return Some(field.type_reference);
+                    return Some(ErasedProofInput {
+                        reference: field.type_reference,
+                        payload_owner: self.program.symbols.get(field.symbol).parent,
+                    });
                 }
                 // A prepared Type application substitutes its payload types.
                 // Rejoin this exact selection to the independently formed
@@ -1478,15 +1523,20 @@ impl Scope<'_> {
                     (case.symbol == case_symbol).then_some(case)
                 })?;
                 let declared = self.program.data_payload_field_by_symbol(case, retained)?;
-                let applied =
-                    self.program
-                        .data_constructor_field(receiver, owner.symbol, retained)?;
+                let applied = self.program.data_constructor_field(
+                    receiver.reference,
+                    owner.symbol,
+                    retained,
+                )?;
                 (declared.relevance.is_erased()
                     && applied.symbol == field.symbol
                     && applied.identity == field.identity
                     && applied.type_reference == field.type_reference
                     && is_source_evidence_carrier(self.program, declared.type_reference))
-                .then_some(declared.type_reference)
+                .then_some(ErasedProofInput {
+                    reference: declared.type_reference,
+                    payload_owner: case.symbol,
+                })
             }
             _ => None,
         }
@@ -1562,6 +1612,16 @@ impl Scope<'_> {
                                 match table.type_reference(*argument) {
                                     TypeReferenceNode::Named { symbol, .. } => {
                                         self.stable_index_symbol(*symbol, payload_owner)
+                                            || self.proof_alias_initializer(*symbol).is_some_and(
+                                                |(ordinal, initializer)| {
+                                                    Scope {
+                                                        statement: ordinal,
+                                                        target: TransitionTargetHandle::invalid(),
+                                                        ..*self
+                                                    }
+                                                    .stable_proof_argument(initializer, depth + 1)
+                                                },
+                                            )
                                     }
                                     TypeReferenceNode::ConstExpression(expression) => {
                                         self.stable_proof_argument(*expression, depth + 1)
@@ -1617,13 +1677,21 @@ impl Scope<'_> {
                 if path.symbol.is_valid() && path.symbol == path.head_symbol =>
             {
                 self.stable_index_symbol(path.symbol, SymbolHandle::invalid())
-                    || self
-                        .erased_evidence_reference(expression, depth + 1)
-                        .is_some()
+                    || self.erased_proof_input(expression, depth + 1).is_some()
+                    || self.proof_alias_initializer(path.symbol).is_some_and(
+                        |(ordinal, initializer)| {
+                            Scope {
+                                statement: ordinal,
+                                target: TransitionTargetHandle::invalid(),
+                                ..*self
+                            }
+                            .stable_proof_argument(initializer, depth + 1)
+                        },
+                    )
             }
             ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
             ExpressionNode::Member(member) => {
-                self.erased_evidence_reference(member.receiver, depth + 1)
+                self.erased_proof_input(member.receiver, depth + 1)
                     .is_some()
                     && declared_case_projection_field(
                         self.program,
@@ -1665,7 +1733,30 @@ impl Scope<'_> {
         expression: ExpressionHandle,
         reference: TypeReferenceHandle,
     ) -> Option<NormalizedTypeIdentity> {
+        self.actual_erased_identity_at(expression, reference, 0)
+    }
+
+    fn actual_erased_identity_at(
+        &self,
+        expression: ExpressionHandle,
+        reference: TypeReferenceHandle,
+        depth: usize,
+    ) -> Option<NormalizedTypeIdentity> {
         use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
+        if depth > 128 {
+            return None;
+        }
+        if let ExpressionNode::Name(path) = self.program.expression_table.expression(expression)
+            && let Some((ordinal, initializer)) = self.proof_alias_initializer(path.symbol)
+        {
+            let prior = Scope {
+                statement: ordinal,
+                target: TransitionTargetHandle::invalid(),
+                ..*self
+            };
+            let input = prior.erased_proof_input(initializer, 0)?;
+            return prior.actual_erased_identity_at(initializer, input.reference, depth + 1);
+        }
         let ExpressionNode::Member(member) = self.program.expression_table.expression(expression)
         else {
             return applied_type_identity(self.program, reference, self.machine.symbol, &[]);
@@ -1699,7 +1790,7 @@ impl Scope<'_> {
                 )
             })
             .collect::<Vec<_>>();
-        let receiver_type = self.erased_evidence_reference(member.receiver, 0)?;
+        let receiver_type = self.erased_proof_input(member.receiver, 0)?.reference;
         let table = &self.program.type_reference_table;
         let receiver_type = table.peeled_type_reference(receiver_type);
         let receiver_type = match table.type_reference(receiver_type) {
@@ -1740,23 +1831,139 @@ impl Scope<'_> {
                 )
             })
             .collect::<Vec<_>>();
+        let aliases = self.proof_identity_aliases(&[member.receiver], Some(receiver_type));
+        let mut scopes = aliases
+            .iter()
+            .map(|binding| AppliedTypeIdentityScope {
+                declaration: self.machine.symbol,
+                arguments: std::slice::from_ref(binding),
+                lifetimes: &[],
+            })
+            .collect::<Vec<_>>();
+        scopes.extend([
+            AppliedTypeIdentityScope {
+                declaration: data.symbol,
+                arguments: &indices,
+                lifetimes: &[],
+            },
+            AppliedTypeIdentityScope {
+                declaration: case.symbol,
+                arguments: &fields,
+                lifetimes: &[],
+            },
+        ]);
         applied_type_identity_in_scope(
             self.program,
             reference,
             data.symbol,
             self.machine.symbol,
-            &[
-                AppliedTypeIdentityScope {
-                    declaration: data.symbol,
-                    arguments: &indices,
-                    lifetimes: &[],
-                },
-                AppliedTypeIdentityScope {
-                    declaration: case.symbol,
-                    arguments: &fields,
-                    lifetimes: &[],
-                },
-            ],
+            &scopes,
+        )
+        .filter(|identity| identity.is_valid())
+    }
+
+    /// Pattern bindings copy projections from an immutable proof input. Keep
+    /// that correspondence in the caller's scope, before substituting callee
+    /// formals. An immutable copy of mutable storage is deliberately excluded:
+    /// its captured value belongs to the ordinary completed-operand check.
+    fn proof_identity_aliases(
+        &self,
+        arguments: &[ExpressionHandle],
+        reference: Option<TypeReferenceHandle>,
+    ) -> Vec<(
+        SymbolHandle,
+        typed_trees::type_identity::IndexIdentityArgument<'_>,
+    )> {
+        fn collect_symbol(
+            scope: &Scope<'_>,
+            symbol: SymbolHandle,
+            depth: usize,
+            aliases: &mut Vec<(SymbolHandle, ExpressionHandle)>,
+            membership: &mut AliasMembership<'_>,
+        ) {
+            if depth > 128 || membership.contains(symbol) {
+                return;
+            }
+            let Some((ordinal, initializer)) = scope.proof_alias_initializer(symbol) else {
+                return;
+            };
+            let prior = Scope {
+                statement: ordinal,
+                target: TransitionTargetHandle::invalid(),
+                ..*scope
+            };
+            if prior.stable_proof_argument(initializer, depth + 1) {
+                collect_expression(&prior, initializer, depth + 1, aliases, membership);
+                aliases.push((symbol, initializer));
+                membership.insert(symbol);
+            }
+        }
+        fn collect_expression(
+            scope: &Scope<'_>,
+            expression: ExpressionHandle,
+            depth: usize,
+            aliases: &mut Vec<(SymbolHandle, ExpressionHandle)>,
+            membership: &mut AliasMembership<'_>,
+        ) {
+            if depth > 128 || !expression.is_valid() {
+                return;
+            }
+            match scope.program.expression_table.expression(expression) {
+                ExpressionNode::Name(path) if path.symbol == path.head_symbol => {
+                    collect_symbol(scope, path.symbol, depth + 1, aliases, membership);
+                }
+                ExpressionNode::Member(member) => {
+                    collect_expression(scope, member.receiver, depth + 1, aliases, membership);
+                }
+                _ => {}
+            }
+        }
+        let mut aliases = Vec::new();
+        let mut membership = self.locals.alias_membership();
+        for argument in arguments {
+            collect_expression(self, *argument, 0, &mut aliases, &mut membership);
+        }
+        if let Some(reference) = reference {
+            for symbol in typed_trees::references::collect_type_symbol_dependencies(
+                self.program.typed_program(),
+                reference,
+            ) {
+                collect_symbol(self, symbol, 0, &mut aliases, &mut membership);
+            }
+        }
+        aliases
+            .into_iter()
+            .map(|(symbol, value)| {
+                (
+                    symbol,
+                    typed_trees::type_identity::IndexIdentityArgument::Expression(value),
+                )
+            })
+            .collect()
+    }
+
+    fn proof_binding_identity(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Option<NormalizedTypeIdentity> {
+        use typed_trees::type_identity::AppliedTypeIdentityScope;
+        // The expected type supplies its own index dependencies. Do not derive
+        // the annotation's meaning from the initializer it is checking.
+        let aliases = self.proof_identity_aliases(&[], Some(reference));
+        let scopes = aliases
+            .iter()
+            .map(|binding| AppliedTypeIdentityScope {
+                declaration: self.machine.symbol,
+                arguments: std::slice::from_ref(binding),
+                lifetimes: &[],
+            })
+            .collect::<Vec<_>>();
+        applied_type_identity_in_scope(
+            self.program,
+            reference,
+            self.machine.symbol,
+            self.machine.symbol,
+            &scopes,
         )
         .filter(|identity| identity.is_valid())
     }
@@ -1769,19 +1976,33 @@ impl Scope<'_> {
         parameters: &[StateParameter],
         arguments: &[ExpressionHandle],
         position: usize,
-    ) -> Option<NormalizedTypeIdentity> {
+    ) -> ErasedProofIdentity {
         use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
-        if parameters.len() != arguments.len()
-            || !arguments
-                .iter()
-                .all(|argument| self.stable_proof_argument(*argument, 0))
+        if parameters.len() != arguments.len() {
+            return Err("the call's parameter and argument counts disagree".into());
+        }
+        if let Some((position, argument)) = arguments
+            .iter()
+            .enumerate()
+            .find(|(_, argument)| !self.stable_proof_argument(**argument, 0))
         {
-            return None;
+            let name = if self.program.expression_table.expression_is_valid(*argument) {
+                self.program.expression_table.display_name(*argument)
+            } else {
+                "unavailable source expression".to_owned()
+            };
+            return Err(format!(
+                "argument {} (`{}`) is not an immutable proof input",
+                position + 1,
+                name,
+            )
+            .into());
         }
         let callee = self
             .program
             .machine_by_symbol(target)
-            .or_else(|| self.program.machine_holding_state(target))?;
+            .or_else(|| self.program.machine_holding_state(target))
+            .ok_or("the call has no retained receiving machine")?;
         let (application, explicit) = match site {
             CallSite::Statement(call) => (
                 call.authored_machine_application,
@@ -1798,25 +2019,21 @@ impl Scope<'_> {
         let mut static_parameters = self.program.machine_type_parameters(callee);
         let mut static_arguments = explicit;
         if application.is_valid() {
-            let row = self
-                .program
-                .expression_table
-                .static_machine_application(application);
+            let (source_symbol, source_parameters) =
+                validation::authored_call_parameters(self.program, self.machine.symbol, site)?;
             let source = self
                 .program
-                .machine_by_symbol(row.registration_operation)
-                .or_else(|| {
-                    self.program
-                        .machine_holding_state(row.registration_operation)
-                })?;
-            let entry = self.program.machine_states(source).first()?;
-            let source_parameters = self.program.state_parameters(entry);
-            if source_parameters.len() != parameters.len()
-                || !source_parameters.get(position)?.relevance.is_erased()
+                .machine_by_symbol(source_symbol)
+                .ok_or("the authored application has no source signature")?;
+            if !source_parameters
+                .get(position)
+                .is_some_and(|parameter| parameter.relevance.is_erased())
             {
-                return None;
+                return Err(
+                    "the source signature does not retain this erased parameter position".into(),
+                );
             }
-            // The authored proof signature keeps the original telescope even
+            // The authored proof signature keeps its original parameters even
             // when executable specialization closes another entry's indices.
             reference = source_parameters[position].type_reference;
             source_parameters_override = Some(source_parameters);
@@ -1829,10 +2046,10 @@ impl Scope<'_> {
         }
         let parameters = source_parameters_override.unwrap_or(parameters);
         if !is_source_evidence_carrier(self.program, reference) {
-            return None;
+            return Err("the source signature has no checked mathematical carrier".into());
         }
         if static_parameters.len() != static_arguments.len() && !static_arguments.is_empty() {
-            return None;
+            return Err("the static parameter and argument counts disagree".into());
         }
         let mut substitutions = parameters
             .iter()
@@ -1845,7 +2062,7 @@ impl Scope<'_> {
                 TypeParameterKind::Value { .. } | TypeParameterKind::Const { .. }
             );
             if value_role && !self.stable_static_proof_argument(actual) {
-                return None;
+                return Err("a static value argument is not an immutable proof input".into());
             }
             let argument = if value_role && actual.type_reference.is_valid() {
                 IndexIdentityArgument::TypeReference(actual.type_reference)
@@ -1860,18 +2077,25 @@ impl Scope<'_> {
             };
             substitutions.push((formal.symbol, argument));
         }
-        applied_type_identity_in_scope(
-            self.program,
-            reference,
-            owner,
-            self.machine.symbol,
-            &[AppliedTypeIdentityScope {
-                declaration: owner,
-                arguments: &substitutions,
+        let aliases = self.proof_identity_aliases(arguments, None);
+        let mut scopes = aliases
+            .iter()
+            .map(|binding| AppliedTypeIdentityScope {
+                declaration: self.machine.symbol,
+                arguments: std::slice::from_ref(binding),
                 lifetimes: &[],
-            }],
-        )
-        .filter(|identity| identity.is_valid())
+            })
+            .collect::<Vec<_>>();
+        scopes.push(AppliedTypeIdentityScope {
+            declaration: owner,
+            arguments: &substitutions,
+            lifetimes: &[],
+        });
+        applied_type_identity_in_scope(self.program, reference, owner, self.machine.symbol, &scopes)
+            .filter(|identity| identity.is_valid())
+            .ok_or_else(|| {
+                "the receiving indices cannot be normalized in the caller's scope".into()
+            })
     }
 
     /// An equal unspecialized spelling does not prove a dependent call's
@@ -1923,13 +2147,26 @@ impl Scope<'_> {
         required: Application<'_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        if self
+        // A fresh walk marks only independent cast-target formation. Caller
+        // substitutions and receiving applications are never cached.
+        let mut checked_cast_targets = self.cast_targets.receiving_walk(self.program);
+        self.check_received_value(expression, required, &mut checked_cast_targets, diagnostics);
+    }
+
+    fn check_received_value(
+        &self,
+        expression: ExpressionHandle,
+        required: Application<'_>,
+        checked_cast_targets: &mut CastTargetChecks<'_>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let has_value_indices = !self
             .program
             .type_application_value_indices(required.reference)
-            .is_empty()
-        {
-            return;
-        }
+            .is_empty();
+        // An unindexed aggregate can still receive indexed fields or case
+        // payloads. Walk construction obligations before skipping a plain leaf;
+        // only the completed value's own indices need subject comparison.
         if !expression.is_valid() {
             if self
                 .program
@@ -1950,17 +2187,29 @@ impl Scope<'_> {
             .expression_const_declaration(expression)
             .is_some()
         {
-            self.check_completed_value(expression, &required, diagnostics);
+            if has_value_indices {
+                self.check_completed_value(expression, &required, diagnostics);
+            }
             return;
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Atomic(atomic) => {
-                self.check(atomic.value, required, diagnostics);
+                self.check_received_value(
+                    atomic.value,
+                    required,
+                    checked_cast_targets,
+                    diagnostics,
+                );
                 return;
             }
             ExpressionNode::Match(dispatch) => {
                 for arm in self.program.expression_table.match_arms(dispatch.arms) {
-                    self.check(arm.value, required.clone(), diagnostics);
+                    self.check_received_value(
+                        arm.value,
+                        required.clone(),
+                        checked_cast_targets,
+                        diagnostics,
+                    );
                 }
                 return;
             }
@@ -1971,16 +2220,26 @@ impl Scope<'_> {
                         .type_application_value_indices(cast.target_type)
                         .has_runtime_values() =>
             {
-                self.check_completed_value(expression, &required, diagnostics);
+                if has_value_indices {
+                    self.check_completed_value(expression, &required, diagnostics);
+                }
                 return;
             }
             ExpressionNode::Cast(cast) => {
-                self.check(
-                    cast.value,
-                    Application::bare(cast.target_type, self.statement),
-                    diagnostics,
-                );
-                self.check(cast.value, required, diagnostics);
+                // Target formation belongs to the cast expression, independent
+                // of the enclosing receiving application. Check it once during
+                // this walk; every receiving application still checks its own
+                // nested fields and captured indices below. Otherwise each cast
+                // doubles the traversal of all casts inside its operand.
+                if checked_cast_targets.needs_check(expression) {
+                    self.check_received_value(
+                        cast.value,
+                        Application::bare(cast.target_type, self.statement),
+                        checked_cast_targets,
+                        diagnostics,
+                    );
+                }
+                self.check_received_value(cast.value, required, checked_cast_targets, diagnostics);
                 return;
             }
             ExpressionNode::ArrayLiteral(elements) => {
@@ -1992,12 +2251,13 @@ impl Scope<'_> {
                     self.program.type_reference_table.type_reference(reference)
                 {
                     for element in self.program.expression_table.expression_handles(*elements) {
-                        self.check(
+                        self.check_received_value(
                             *element,
                             Application {
                                 reference: *element_type,
                                 ..required.clone()
                             },
+                            checked_cast_targets,
                             diagnostics,
                         );
                     }
@@ -2088,12 +2348,13 @@ impl Scope<'_> {
                     }
                     for (field, selected) in fields.iter().zip(selected_fields) {
                         if let Some(selected) = selected {
-                            self.check(
+                            self.check_received_value(
                                 field.value,
                                 Application {
                                     reference: selected.type_reference,
                                     ..required.clone()
                                 },
+                                checked_cast_targets,
                                 diagnostics,
                             );
                         } else {
@@ -2105,7 +2366,9 @@ impl Scope<'_> {
             }
             _ => {}
         }
-        self.check_completed_value(expression, &required, diagnostics);
+        if has_value_indices {
+            self.check_completed_value(expression, &required, diagnostics);
+        }
     }
 
     fn check_completed_value(
@@ -2136,301 +2399,6 @@ impl Scope<'_> {
     }
 }
 
-impl Scope<'_> {
-    /// A specialized parameter type still names the clone, while this call
-    /// binds the template formal to the captured index the carrier retained.
-    fn supplied_index_matches(
-        &self,
-        application: &Application<'_>,
-        formal_reference: TypeReferenceHandle,
-        actual_reference: TypeReferenceHandle,
-    ) -> bool {
-        let Some(actual_symbol) = index_symbol(self.program, actual_reference) else {
-            return false;
-        };
-        let Some(mut formal) = index_symbol(self.program, formal_reference) else {
-            return false;
-        };
-        for _ in 0..8 {
-            if let Some((_, expression)) = application
-                .arguments
-                .iter()
-                .find(|(symbol, _)| *symbol == formal)
-                && let Some(expression) = expression
-                && let ExpressionNode::Name(path) =
-                    self.program.expression_table.expression(*expression)
-                && path.symbol == actual_symbol
-            {
-                return true;
-            }
-            if let Some((_, Some(bound))) = application
-                .substitutions
-                .iter()
-                .find(|(symbol, _)| *symbol == formal)
-                && let Some(values) = self.values(self.statement)
-                && let Some(current) = values.current_symbol(actual_symbol)
-                && values.proves_values_relation(
-                    self.program,
-                    self.machine,
-                    BinaryOperator::Equal,
-                    bound,
-                    &current,
-                )
-            {
-                return true;
-            }
-            if self.call_supplies_index(application, formal, actual_symbol) {
-                return true;
-            }
-            let generated = self.program.symbols.get(formal).generated_from;
-            if !generated.is_valid() {
-                break;
-            }
-            formal = generated;
-        }
-        false
-    }
-
-    /// The call's static argument is the carrier index when the formal it
-    /// instantiates derives from that same parameter. Unrelated symbols stay
-    /// distinct even when their displays match.
-    fn call_supplies_index(
-        &self,
-        application: &Application<'_>,
-        formal: SymbolHandle,
-        actual: SymbolHandle,
-    ) -> bool {
-        let Some(site) = application.call else {
-            return false;
-        };
-        if self.state_argument_names_index(site, formal, actual) {
-            return true;
-        }
-        let direct = match site {
-            CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
-            CallSite::Statement(call) => call.machine_arguments.as_ref(),
-            CallSite::TransitionNamed { .. } => &[][..],
-        };
-        let target = site.target_symbol(self.program);
-        if let Some(callee) = self
-            .program
-            .machine_by_symbol(target)
-            .or_else(|| self.program.machine_holding_state(target))
-        {
-            if self.roster_binds(
-                self.program.machine_type_parameters(callee),
-                direct,
-                formal,
-                actual,
-            ) {
-                return true;
-            }
-            if let Ok(Some(template)) = self
-                .program
-                .typed_program()
-                .executable_application_template(callee.symbol)
-                && let Some(source) = self.program.machine_by_symbol(template)
-                && self.roster_binds(
-                    self.program.machine_type_parameters(source),
-                    direct,
-                    formal,
-                    actual,
-                )
-            {
-                return true;
-            }
-        }
-        let handle = site.authored_application();
-        if !handle.is_valid() {
-            return false;
-        }
-        let row = self
-            .program
-            .expression_table
-            .static_machine_application(handle);
-        let arguments = self
-            .program
-            .expression_table
-            .static_machine_application_arguments(handle);
-        let Some(source) = self
-            .program
-            .machine_by_symbol(row.registration_operation)
-            .or_else(|| {
-                self.program
-                    .machine_holding_state(row.registration_operation)
-            })
-        else {
-            return false;
-        };
-        self.roster_binds(
-            self.program.machine_type_parameters(source),
-            arguments,
-            formal,
-            actual,
-        )
-    }
-
-    /// Positional operands keep their index identity when another operand of
-    /// the same call is effectful. The parameter and the carrier type must
-    /// still be one derivation, and the operand must name that carrier.
-    fn state_argument_names_index(
-        &self,
-        site: CallSite<'_>,
-        formal: SymbolHandle,
-        actual: SymbolHandle,
-    ) -> bool {
-        let target = site.target_symbol(self.program);
-        let Some(parameters) = call_target_parameters(self.program, target) else {
-            return false;
-        };
-        let arguments = call_site_argument_expressions(self.program, &site);
-        if parameters.len() != arguments.len() {
-            return false;
-        }
-        parameters
-            .iter()
-            .zip(arguments)
-            .any(|(parameter, argument)| {
-                same_symbol_derivation(self.program, formal, parameter.symbol)
-                    && self.expression_names_index(*argument, actual)
-            })
-    }
-
-    fn expression_names_index(&self, expression: ExpressionHandle, expected: SymbolHandle) -> bool {
-        let mut expression = expression;
-        for _ in 0..8 {
-            match self.program.expression_table.expression(expression) {
-                ExpressionNode::Name(path) => {
-                    return same_symbol_derivation(self.program, path.symbol, expected)
-                        || same_symbol_derivation(self.program, path.head_symbol, expected);
-                }
-                ExpressionNode::Member(member) => {
-                    return same_symbol_derivation(self.program, member.member_symbol, expected);
-                }
-                ExpressionNode::Borrow(borrow) => expression = borrow.target,
-                _ => return false,
-            }
-        }
-        false
-    }
-
-    fn roster_binds(
-        &self,
-        parameters: &[TypeParameter],
-        arguments: &[StaticMachineArgument],
-        formal: SymbolHandle,
-        actual: SymbolHandle,
-    ) -> bool {
-        if parameters.is_empty() || parameters.len() != arguments.len() {
-            return false;
-        }
-        parameters
-            .iter()
-            .zip(arguments)
-            .any(|(parameter, argument)| {
-                symbol_derives_from(self.program, formal, parameter.symbol)
-                    && self.static_argument_names(argument, actual)
-            })
-    }
-
-    fn static_argument_names(
-        &self,
-        argument: &StaticMachineArgument,
-        expected: SymbolHandle,
-    ) -> bool {
-        if argument.symbol.is_valid()
-            && symbol_derives_from(self.program, argument.symbol, expected)
-        {
-            return true;
-        }
-        argument.type_reference.is_valid()
-            && index_symbol(self.program, argument.type_reference)
-                .is_some_and(|symbol| symbol_derives_from(self.program, symbol, expected))
-    }
-}
-
-fn same_symbol_derivation(
-    program: &dyn CheckingInput,
-    left: SymbolHandle,
-    right: SymbolHandle,
-) -> bool {
-    symbol_derives_from(program, left, right) || symbol_derives_from(program, right, left)
-}
-
-fn symbol_derives_from(
-    program: &dyn CheckingInput,
-    mut symbol: SymbolHandle,
-    origin: SymbolHandle,
-) -> bool {
-    if !symbol.is_valid() || !origin.is_valid() {
-        return false;
-    }
-    if symbol == origin {
-        return true;
-    }
-    for _ in 0..8 {
-        let next = program.symbols.get(symbol).generated_from;
-        if !next.is_valid() {
-            return false;
-        }
-        if next == origin {
-            return true;
-        }
-        symbol = next;
-    }
-    false
-}
-
-fn index_symbol(
-    program: &dyn CheckingInput,
-    reference: TypeReferenceHandle,
-) -> Option<SymbolHandle> {
-    match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } => symbol.is_valid().then_some(*symbol),
-        TypeReferenceNode::ConstExpression(expression) => {
-            match program.expression_table.expression(*expression) {
-                ExpressionNode::Name(path) if path.symbol.is_valid() => Some(path.symbol),
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
-fn same_captured_index(
-    program: &dyn CheckingInput,
-    left: TypeReferenceHandle,
-    right: TypeReferenceHandle,
-) -> bool {
-    let symbol = |reference| match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
-        TypeReferenceNode::ConstExpression(expression) => {
-            match program.expression_table.expression(*expression) {
-                ExpressionNode::Name(path) => Some(path.symbol),
-                _ => None,
-            }
-        }
-        _ => None,
-    };
-    let (Some(left), Some(right)) = (symbol(left), symbol(right)) else {
-        return false;
-    };
-    if left == right {
-        return true;
-    }
-    let origin = |mut symbol: SymbolHandle| {
-        for _ in 0..8 {
-            let generated = program.symbols.get(symbol).generated_from;
-            if !generated.is_valid() {
-                break;
-            }
-            symbol = generated;
-        }
-        symbol
-    };
-    origin(left) == origin(right)
-}
-
 pub(super) fn check(
     program: &dyn CheckingInput,
     facts: &CheckFacts,
@@ -2448,6 +2416,7 @@ pub(super) fn check(
     if !has_const_indices && !has_runtime_indices {
         return;
     }
+    let cast_targets = CastTargets::default();
     for (_, flow) in facts.flow.control.states.iter() {
         let Some(machine) = program.machine_by_symbol(flow.machine_symbol) else {
             continue;
@@ -2455,6 +2424,7 @@ pub(super) fn check(
         let Some(state) = program.state_by_symbol(flow.state_symbol) else {
             continue;
         };
+        let locals = StateLocalDeclarations::new(program, state);
         for (statement, node) in crate::flow::state_statements(program, state.statement_nodes)
             .iter()
             .enumerate()
@@ -2466,6 +2436,8 @@ pub(super) fn check(
                 statement,
                 target: TransitionTargetHandle::invalid(),
                 frames,
+                locals: &locals,
+                cast_targets: &cast_targets,
             };
             // A scalar loan would discard the descriptor/index relationship.
             // Whole indexed loans retain that relationship in their referee type.
@@ -2490,7 +2462,14 @@ pub(super) fn check(
                     local.initial_value,
                     Application::bare(local.type_reference, statement),
                     local.relevance.is_erased(),
-                    applied_type_identity(program, local.type_reference, machine.symbol, &[]),
+                    local
+                        .relevance
+                        .is_erased()
+                        .then(|| scope.proof_binding_identity(local.type_reference))
+                        .flatten()
+                        .ok_or_else(|| {
+                            "the binding's declared indices could not be normalized".into()
+                        }),
                     diagnostics,
                 ),
                 StatementNode::Expression(expression) if state.return_type.is_valid() => scope
@@ -2546,6 +2525,8 @@ pub(super) fn check(
                 statement: call.statement_index,
                 target: TransitionTargetHandle::invalid(),
                 frames,
+                locals: &locals,
+                cast_targets: &cast_targets,
             };
             let (substitutions, captured_arguments) =
                 scope.call_substitutions(site, parameters, arguments);
@@ -2563,9 +2544,9 @@ pub(super) fn check(
                         position: Some(position),
                     },
                     parameter.relevance.is_erased(),
-                    (parameter.relevance.is_erased()
-                        && is_source_evidence_carrier(program, parameter.type_reference))
-                    .then(|| {
+                    if parameter.relevance.is_erased()
+                        && is_source_evidence_carrier(program, parameter.type_reference)
+                    {
                         scope.expected_erased_identity(
                             parameter.type_reference,
                             call.target_symbol,
@@ -2574,8 +2555,9 @@ pub(super) fn check(
                             arguments,
                             position,
                         )
-                    })
-                    .flatten(),
+                    } else {
+                        Err("the parameter has no checked erased-carrier signature".into())
+                    },
                     diagnostics,
                 );
             }

@@ -190,7 +190,8 @@ fn call_body_result_origins(
         });
         relative?
     };
-    let returned = instantiate_result_origins(
+
+    instantiate_result_origins(
         program,
         caller_machine,
         parameters,
@@ -201,8 +202,7 @@ fn call_body_result_origins(
         inference,
         include_shared,
         inputs,
-    );
-    returned
+    )
 }
 
 /// Complete result relation in the requested state's own parameter namespace.
@@ -410,7 +410,8 @@ fn state_equation<'program>(
                 return Some(());
             }
             *returns = true;
-            let merged = merge_result_arm(
+
+            merge_result_arm(
                 program,
                 machine,
                 state,
@@ -423,8 +424,7 @@ fn state_equation<'program>(
                 inference,
                 include_shared,
                 prefixes.get(index).and_then(Option::as_ref),
-            );
-            merged
+            )
         };
         for (index, statement) in statements.iter().enumerate() {
             match statement {

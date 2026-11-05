@@ -91,6 +91,9 @@ impl PublishedStructuralTypes {
         for (place, carrier) in &operations.literal_types {
             self.retain(*place, *carrier)?;
         }
+        for (place, carrier) in &operations.captured_place_types {
+            self.retain(*place, *carrier)?;
+        }
         Ok(self)
     }
 }

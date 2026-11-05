@@ -1166,6 +1166,15 @@ impl ExpressionTable {
             .map(|(_, handle)| (*handle, self.expressions.get(*handle)))
     }
 
+    /// Include retained backing nodes outside the projected iteration roots,
+    /// in increasing arena position with each live slot's exact generation.
+    /// This storage inventory grants no executable traversal or admission.
+    pub fn iter_backing_expressions(
+        &self,
+    ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
+        self.expressions.iter()
+    }
+
     pub fn iter_expressions_from(
         &self,
         start_arena_index: usize,

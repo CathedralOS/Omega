@@ -210,7 +210,9 @@ pub(super) fn collect_constructor_calls(
 /// the same computation roots as an invocation in the statement sequence.
 /// A transition guard retains its own earlier computation. The two schedules
 /// share an occurrence ledger so neither can claim a call the other executes.
-/// Every remaining occurrence at that statement must belong to those roots.
+/// Remaining occurrences must belong to this invocation's arm: a sibling
+/// arm's calls run only when this arm does not, and a structural argument
+/// owns the calls nested under its value, including a qualification cast.
 pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -351,6 +353,16 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         calls,
         &mut consumed,
     )?;
+    consume_operand_value_calls(
+        program,
+        facts,
+        machine,
+        state,
+        call,
+        arguments,
+        calls,
+        &mut consumed,
+    )?;
     let scheduled_subject = |candidate: &checked_trees::FlowCallFact| {
         scheduled_dispatch_subject(
             program,
@@ -371,12 +383,21 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
     {
         return None;
     }
+    let active_arm = validation::transition_call_target(
+        program,
+        owner,
+        source_state,
+        call.statement_index,
+        call.call_ordinal,
+    );
     calls
         .iter()
         .filter(|candidate| candidate.statement_index == call.statement_index)
         .all(|candidate| {
             std::ptr::eq(candidate, call)
                 || scheduled_subject(candidate)
+                || scheduled_by_active_arm(candidate, predecessors)
+                || other_transition_arm(program, owner, source_state, active_arm, candidate)
                 || facts.flow.control.is_retired(state, candidate)
                 || program
                     .symbols
@@ -387,6 +408,111 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
                     .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), candidate))
         })
         .then_some(())
+}
+
+/// Structural arguments own the calls inside their value, not only a call
+/// written as the argument expression itself. A qualification cast is a
+/// whole-value projection over the operand call; that call still executes
+/// on this arm.
+fn consume_operand_value_calls(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    call: &checked_trees::FlowCallFact,
+    arguments: &[typed_trees::expression::ExpressionHandle],
+    calls: &[checked_trees::FlowCallFact],
+    consumed: &mut super::CallOccurrenceLedger,
+) -> Option<()> {
+    let statement_ordinal = u32::try_from(call.statement_index).ok()?;
+    let minimum = u32::try_from(call.call_ordinal.checked_add(1)?).ok()?;
+    let plans = &facts.values.structural_values;
+    for argument in arguments {
+        let Some(root) = plans.root_for_expression(state, statement_ordinal, *argument) else {
+            continue;
+        };
+        if root.machine != machine || !plans.nodes.is_valid(root.root) {
+            return None;
+        }
+        if !operand_value_nests_calls(&plans.nodes.get(root.root).kind) {
+            continue;
+        }
+        super::structural_values::collect(
+            program,
+            facts,
+            machine,
+            state,
+            call.statement_index,
+            root.root,
+            calls,
+            minimum,
+            consumed,
+            &mut Vec::new(),
+        )?;
+    }
+    Some(())
+}
+
+/// Kinds whose children can carry a call this argument evaluates. A place
+/// or copied leaf has no nested invocation; its selectors stay on the scalar
+/// argument roster.
+fn operand_value_nests_calls(kind: &checked_trees::CheckedStructuralValueKind) -> bool {
+    match kind {
+        checked_trees::CheckedStructuralValueKind::Reference { source_value, .. } => {
+            source_value.is_valid()
+        }
+        checked_trees::CheckedStructuralValueKind::Projection { .. }
+        | checked_trees::CheckedStructuralValueKind::QuotientAdaptation { .. }
+        | checked_trees::CheckedStructuralValueKind::QuotientCall { .. }
+        | checked_trees::CheckedStructuralValueKind::Record { .. }
+        | checked_trees::CheckedStructuralValueKind::StructuralCase { .. }
+        | checked_trees::CheckedStructuralValueKind::FixedArray { .. }
+        | checked_trees::CheckedStructuralValueKind::Dispatch { .. }
+        | checked_trees::CheckedStructuralValueKind::ViewSubslice { .. }
+        | checked_trees::CheckedStructuralValueKind::Call { .. } => true,
+        _ => false,
+    }
+}
+
+/// The active arm's preparation already scheduled this call, including a
+/// call retained inside a structural value rather than as its own operation.
+fn scheduled_by_active_arm(
+    candidate: &checked_trees::FlowCallFact,
+    predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
+) -> bool {
+    predecessors.iter().any(|operation| {
+        operation.with_value_calls().any(|scheduled| {
+            scheduled.call().is_some_and(|planned| {
+                planned.coordinate.statement_index as usize == candidate.statement_index
+                    && planned.coordinate.call_ordinal as usize == candidate.call_ordinal
+            })
+        })
+    })
+}
+
+/// A call that completes or evaluates a different arm of this transition.
+/// Guard calls keep the zero target and stay on every arm's roster.
+fn other_transition_arm(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    active_arm: Option<typed_trees::statement::TransitionTargetHandle>,
+    candidate: &checked_trees::FlowCallFact,
+) -> bool {
+    let Some(active_arm) = active_arm else {
+        return false;
+    };
+    if !active_arm.is_valid() {
+        return false;
+    }
+    validation::transition_call_target(
+        program,
+        machine,
+        state,
+        candidate.statement_index,
+        candidate.call_ordinal,
+    )
+    .is_some_and(|arm| arm.is_valid() && arm != active_arm)
 }
 
 /// Join a saved dispatch call or operand read to its one already scheduled

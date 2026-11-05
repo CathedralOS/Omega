@@ -744,8 +744,14 @@ pub(super) fn clone_single_specialized_machine(
                 };
                 call.machine_arguments = arguments;
                 for application in applications {
-                    expressions_of_mut(program)
-                        .remap_static_application_operands(application, realized);
+                    // The retained actuals include symbol-only Value bindings,
+                    // not just the authored argument rows. Keep the statement
+                    // call in the same realized scope as its emitted operands.
+                    expressions_of_mut(program).remap_call_static_applications(
+                        application,
+                        None,
+                        realized,
+                    );
                 }
             }
             for statement in program

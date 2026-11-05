@@ -87,6 +87,11 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
 
 ## Step 4: Validate, Sweep the Root-Cause Family & Reconcile `TASKS.md`
 
+Done means the compiler still holds the same object. The pinned diagnostic, and
+the finite `tests/omega` facts fixture, is a photograph of that object.
+Changing the fact, the bound, or the operation so a place passes is repainting
+that photograph: a different object, and a green check on it is not done.
+
 1. **Run focused validation & sweep the full root-cause family ([testing.md](../../../tools/testing.md)):**
    - Do not stop at a 1-off fixture win: identify all pinned regressions in
      `tests/omega/corpus_outcomes.txt` (`--list-pinned-regressions`) and failing
@@ -116,7 +121,8 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
 1. **Push HEAD to a remote `work/` ref and open a draft PR:**
    ```bash
    git push origin HEAD:refs/heads/work/<name>
-   gh pr create --draft --title "<title>" --body "<body following Explain the change>"
+   python3 tools/check_rules.py --base origin/main --title "<title>" --body-file PR_BODY
+   gh pr create --draft --title "<title>" --body-file PR_BODY  # ends with `Agent: <name>, <session>`
    ```
 2. **Follow the landing boundary ([AGENTS.md](../../../AGENTS.md#sessions-and-subagents)):**
    - **When controlled by a coordinator session:** Stop at the draft PR and

@@ -27,8 +27,10 @@ use terminal_psi::{ErasedProofFormal, StructuralResultDeclaration};
 
 mod indexed_theorems;
 mod namespace;
+mod proof_scope;
 pub(crate) use indexed_theorems::indexed_theorems;
 pub(crate) use namespace::validate_indexed_operands;
+pub(crate) use proof_scope::bind_invocation_proof_references;
 
 /// Source checking knows a structural result even when a product's contract
 /// namespace cannot publish its place. Only that explicit absence permits

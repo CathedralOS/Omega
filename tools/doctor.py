@@ -204,8 +204,9 @@ def check_mbx():
     path = shutil.which("mbx")
     if not path:
         return check("mbx", "warn", "mbx not on PATH",
-                     fix="AGENTS.md prefers mbx over cargo; install it or "
-                         "use cargo directly")
+                     fix="AGENTS.md prefers mbx over cargo; install it "
+                         "from https://mr-boxington.jdx.dev/installation "
+                         "or use cargo directly")
     version = run(["mbx", "--version"], timeout=20)
     text = version[1] if version and not version[0] else "version unknown"
     return check("mbx", "ok", f"{text} ({path})")
