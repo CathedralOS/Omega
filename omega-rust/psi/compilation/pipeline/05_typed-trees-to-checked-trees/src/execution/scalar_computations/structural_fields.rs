@@ -458,6 +458,24 @@ impl Builder<'_, '_> {
                 }),
             ));
         }
+        // The parameter place keeps the descriptor as a runtime value parameter
+        // of the specialized machine. That parameter is the saved integer; the
+        // erased carrier still has no storage to borrow.
+        if let Some(symbol) = descriptor_parameter_symbol(self.program, &field)
+            && let Some(position) = self
+                .parameters
+                .iter()
+                .position(|parameter| parameter.symbol == symbol)
+            && self.parameter_types.get(position) == Some(&field.primitive_type)
+        {
+            return Some(self.insert(
+                field.primitive_type,
+                ComputationKind::Value(checked_trees::CheckedScalarExpression::Parameter {
+                    position,
+                    primitive_type: field.primitive_type,
+                }),
+            ));
+        }
         let receiver_value = if let Some(captured) = self.captured_dispatch_value(expression)
             && captured.type_reference == field.type_reference
             && field.root == facts::PlaceRoot::Expression(captured.expression)
@@ -545,6 +563,32 @@ fn closed_descriptor_value(
         landed_type,
         domain: field.domain,
     }))
+}
+
+/// A descriptor whose application operand is a runtime value parameter. The
+/// parameter place saves that operand as the field; other places save a
+/// closed integer literal.
+fn descriptor_parameter_symbol(
+    program: &dyn ::validation::CheckingInput,
+    field: &validation::StructuralScalarField,
+) -> Option<symbols::SymbolHandle> {
+    if !field.path.is_empty()
+        || !matches!(
+            field.root,
+            facts::PlaceRoot::Expression(_) | facts::PlaceRoot::Symbol(_)
+        )
+    {
+        return None;
+    }
+    let (_, _, index) = descriptor_fields(program, field.type_reference)
+        .into_iter()
+        .find(|(_, descriptor, _)| descriptor.symbol == field.field)?;
+    match program.type_reference_table.type_reference(index) {
+        typed_trees::types::TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
+            Some(*symbol)
+        }
+        _ => None,
+    }
 }
 
 /// Value-parameter descriptors of the carrier, after the reference shells a
