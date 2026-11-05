@@ -19,6 +19,10 @@ impl<'program> InputOwner<'program> {
         let erased: Arc<dyn InputAllocation + 'program> = value.clone();
         Self(Arc::downgrade(&erased))
     }
+
+    pub(super) fn same_current<T: Send + Sync + 'program>(&self, value: &Arc<T>) -> bool {
+        LiveInputOwner::same_retained_allocation(value, self)
+    }
 }
 
 impl PartialEq for InputOwner<'_> {
@@ -29,30 +33,35 @@ impl PartialEq for InputOwner<'_> {
     }
 }
 
-#[derive(PartialEq)]
-struct Owners<'program> {
-    entry_machines: InputOwner<'program>,
-    declaration_parameters: InputOwner<'program>,
-    normal_results: InputOwner<'program>,
-    completed_nominal_values: InputOwner<'program>,
-    returned_field_owners: InputOwner<'program>,
-    body_invocations: InputOwner<'program>,
-    runtime_induction: InputOwner<'program>,
-    normal_memberships: InputOwner<'program>,
-    normal_content_guarantees: InputOwner<'program>,
-    invalidated_storage: InputOwner<'program>,
-    stored_values: InputOwner<'program>,
-    normal_guarantees: InputOwner<'program>,
-    captured_result_equations: InputOwner<'program>,
-    conditional_guarantees: InputOwner<'program>,
-    substitutions: InputOwner<'program>,
-    rewrites: InputOwner<'program>,
-    disequalities: InputOwner<'program>,
-    case_facts: InputOwner<'program>,
-    case_substitutions: InputOwner<'program>,
+/// The current question already keeps these allocations alive. Borrow them for
+/// comparison; only a published completed answer needs retained weak owners.
+trait LiveInputOwner<'program> {
+    fn retain(&self) -> InputOwner<'program>;
+    fn same_retained_allocation(&self, retained: &InputOwner<'program>) -> bool;
 }
 
-#[derive(PartialEq)]
+impl<'program, T: Send + Sync + 'program> LiveInputOwner<'program> for Arc<T> {
+    fn retain(&self) -> InputOwner<'program> {
+        InputOwner::new(self)
+    }
+
+    fn same_retained_allocation(&self, retained: &InputOwner<'program>) -> bool {
+        // This address test is only a rejection filter. The retained owner
+        // must still be live and identify the same Arc allocation below.
+        if !std::ptr::addr_eq(retained.0.as_ptr(), Arc::as_ptr(self)) {
+            return false;
+        }
+        let Some(retained) = retained.0.upgrade() else {
+            return false;
+        };
+        let current: Arc<dyn InputAllocation + 'program> = self.clone();
+        Arc::ptr_eq(&retained, &current)
+    }
+}
+
+const OWNER_COUNT: usize = 19;
+
+#[derive(Clone, Copy, PartialEq)]
 struct Modes {
     resolve_applications: bool,
     require_closed_computation: bool,
@@ -74,6 +83,28 @@ struct ReturnedValueInput<'program> {
     context: InputOwner<'program>,
 }
 
+impl<'program> ReturnedValueInput<'program> {
+    fn capture(source: &super::normal_returns::CompletedValueSource<'program>) -> Self {
+        Self {
+            machine: source.machine,
+            state: source.state,
+            expression: source.expression,
+            type_reference: source.type_reference,
+            storage_version: source.storage_version,
+            context: InputOwner::new(&source.context),
+        }
+    }
+
+    fn same_current(&self, source: &super::normal_returns::CompletedValueSource<'program>) -> bool {
+        self.machine == source.machine
+            && self.state == source.state
+            && self.expression == source.expression
+            && self.type_reference == source.type_reference
+            && self.storage_version == source.storage_version
+            && self.context.same_current(&source.context)
+    }
+}
+
 pub(super) struct ResolutionInputs<'program> {
     program: &'program dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
@@ -85,11 +116,27 @@ pub(super) struct ResolutionInputs<'program> {
     // Graph validity is read at this version, so it is an input too.
     storage_version: Option<super::storage_effects::StorageVersion>,
     returned_value_source: Option<ReturnedValueInput<'program>>,
-    owners: Owners<'program>,
+    owners: [InputOwner<'program>; OWNER_COUNT],
     modes: Modes,
 }
 
-impl ResolutionInputs<'_> {
+/// The same input classification, borrowed for one immutable lookup. This view
+/// never enters the completed-answer table or retains a historical payload.
+pub(super) struct CurrentResolutionInputs<'current, 'program> {
+    program: &'program dyn crate::CheckingInput,
+    machine_symbol: SymbolHandle,
+    declaration_state: SymbolHandle,
+    body_type_parameters: &'program [typed_trees::data::TypeParameter],
+    premise_facts: &'current [ExpressionHandle],
+    capture_sequence: usize,
+    storage_write_sequence: usize,
+    storage_version: Option<super::storage_effects::StorageVersion>,
+    returned_value_source: Option<&'current super::normal_returns::CompletedValueSource<'program>>,
+    owners: [&'current dyn LiveInputOwner<'program>; OWNER_COUNT],
+    modes: Modes,
+}
+
+impl<'program> ResolutionInputs<'program> {
     pub(super) fn same_inputs(&self, other: &Self) -> bool {
         std::ptr::eq(self.program, other.program)
             && self.machine_symbol == other.machine_symbol
@@ -103,10 +150,57 @@ impl ResolutionInputs<'_> {
             && self.owners == other.owners
             && self.modes == other.modes
     }
+
+    pub(super) fn same_current_inputs(
+        &self,
+        current: &CurrentResolutionInputs<'_, 'program>,
+    ) -> bool {
+        std::ptr::eq(self.program, current.program)
+            && self.machine_symbol == current.machine_symbol
+            && self.declaration_state == current.declaration_state
+            && std::ptr::eq(self.body_type_parameters, current.body_type_parameters)
+            && self.premise_facts.as_slice() == current.premise_facts
+            && self.capture_sequence == current.capture_sequence
+            && self.storage_write_sequence == current.storage_write_sequence
+            && self.storage_version == current.storage_version
+            && match (&self.returned_value_source, current.returned_value_source) {
+                (None, None) => true,
+                (Some(retained), Some(current)) => retained.same_current(current),
+                _ => false,
+            }
+            && self
+                .owners
+                .iter()
+                .zip(current.owners)
+                .all(|(retained, current)| current.same_retained_allocation(retained))
+            && self.modes == current.modes
+    }
+}
+
+impl<'program> CurrentResolutionInputs<'_, 'program> {
+    fn retain(self) -> ResolutionInputs<'program> {
+        ResolutionInputs {
+            program: self.program,
+            machine_symbol: self.machine_symbol,
+            declaration_state: self.declaration_state,
+            body_type_parameters: self.body_type_parameters,
+            premise_facts: self.premise_facts.to_vec(),
+            capture_sequence: self.capture_sequence,
+            storage_write_sequence: self.storage_write_sequence,
+            storage_version: self.storage_version,
+            returned_value_source: self.returned_value_source.map(ReturnedValueInput::capture),
+            owners: self.owners.map(|owner| owner.retain()),
+            modes: self.modes,
+        }
+    }
 }
 
 impl<'program> StructuralJudge<'program> {
     pub(super) fn resolution_inputs(&self) -> ResolutionInputs<'program> {
+        self.current_resolution_inputs().retain()
+    }
+
+    pub(super) fn current_resolution_inputs(&self) -> CurrentResolutionInputs<'_, 'program> {
         // Exhaustive on purpose: a new judge field must be classified here.
         // Program-pure memo cells supply no premises and are not retained.
         let Self {
@@ -153,46 +247,39 @@ impl<'program> StructuralJudge<'program> {
             frame_resolver: _,
             prepared_integer_premises_cache: _,
         } = self;
-        ResolutionInputs {
+        CurrentResolutionInputs {
             program: *program,
             machine_symbol: *machine_symbol,
             declaration_state: *declaration_state,
             body_type_parameters,
-            premise_facts: premise_facts.clone(),
+            premise_facts,
             capture_sequence: *capture_sequence,
             storage_write_sequence: *storage_write_sequence,
             storage_version: *storage_version,
-            returned_value_source: returned_value_source.as_ref().map(|source| {
-                ReturnedValueInput {
-                    machine: source.machine,
-                    state: source.state,
-                    expression: source.expression,
-                    type_reference: source.type_reference,
-                    storage_version: source.storage_version,
-                    context: InputOwner::new(&source.context),
-                }
-            }),
-            owners: Owners {
-                entry_machines: InputOwner::new(entry_machines),
-                declaration_parameters: InputOwner::new(declaration_parameters),
-                normal_results: InputOwner::new(normal_results),
-                completed_nominal_values: InputOwner::new(completed_nominal_values),
-                returned_field_owners: InputOwner::new(returned_field_owners),
-                body_invocations: InputOwner::new(body_invocations),
-                runtime_induction: InputOwner::new(runtime_induction),
-                normal_memberships: InputOwner::new(normal_memberships),
-                normal_content_guarantees: InputOwner::new(normal_content_guarantees),
-                invalidated_storage: InputOwner::new(invalidated_storage),
-                stored_values: InputOwner::new(stored_values),
-                normal_guarantees: InputOwner::new(normal_guarantees),
-                captured_result_equations: InputOwner::new(captured_result_equations),
-                conditional_guarantees: InputOwner::new(conditional_guarantees),
-                substitutions: InputOwner::new(substitutions),
-                rewrites: InputOwner::new(rewrites),
-                disequalities: InputOwner::new(disequalities),
-                case_facts: InputOwner::new(case_facts),
-                case_substitutions: InputOwner::new(case_substitutions),
-            },
+            returned_value_source: returned_value_source.as_ref(),
+            // Capture and lookup share this exact ordered roster. A new judge
+            // field must be classified by the exhaustive destructure above.
+            owners: [
+                entry_machines,
+                declaration_parameters,
+                normal_results,
+                completed_nominal_values,
+                returned_field_owners,
+                body_invocations,
+                runtime_induction,
+                normal_memberships,
+                normal_content_guarantees,
+                invalidated_storage,
+                stored_values,
+                normal_guarantees,
+                captured_result_equations,
+                conditional_guarantees,
+                substitutions,
+                rewrites,
+                disequalities,
+                case_facts,
+                case_substitutions,
+            ],
             modes: Modes {
                 resolve_applications: *resolve_applications,
                 require_closed_computation: *require_closed_computation,

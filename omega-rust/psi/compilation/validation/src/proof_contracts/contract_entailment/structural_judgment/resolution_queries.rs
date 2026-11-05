@@ -152,6 +152,7 @@ impl<'program> CompletedResolutions<'program> {
         depth: usize,
         fingerprint: u64,
     ) -> Option<(StructuralQueryAnswer, Vec<ApplicationRead>)> {
+        let current_inputs = judge.current_resolution_inputs();
         let index = self
             .buckets
             .get(&fingerprint)?
@@ -164,9 +165,12 @@ impl<'program> CompletedResolutions<'program> {
                     && entry.depth == depth
                     && entry.resolution_depth == judge.application_resolution_depth()
                     && entry.specification_terms == judge.specification_terms
-                    && entry.returned_field_trace
-                        == judge.returned_field_trace.as_ref().map(InputOwner::new)
-                    && entry.inputs.same_inputs(&judge.resolution_inputs())
+                    && match (&entry.returned_field_trace, &judge.returned_field_trace) {
+                        (None, None) => true,
+                        (Some(retained), Some(current)) => retained.same_current(current),
+                        _ => false,
+                    }
+                    && entry.inputs.same_current_inputs(&current_inputs)
                     && entry.term.same_resolution_payload(term)
                     && entry.reads.iter().all(|read| {
                         judge.application_is_active_in_mode(
@@ -742,6 +746,97 @@ mod tests {
         assert_eq!(fingerprint(&authority), fingerprint(&term));
         judge.completed_resolution(authority, 0, compute);
         assert_eq!(calls.get(), 5);
+    }
+
+    #[test]
+    fn completed_queries_keep_premise_and_returned_storage_inputs_distinct() {
+        let program = typed_trees::TypedTrees::default();
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let calls = Cell::new(0);
+        let compute = |_: &StructuralJudge<'_>, term| {
+            calls.set(calls.get() + 1);
+            term
+        };
+        let term = StructuralTerm::ObservedValue {
+            observed_type: TypeReferenceHandle::from_arena_index(1),
+            value: Box::new(StructuralTerm::Variable("input".to_owned())),
+            descriptor: None,
+        };
+        judge.completed_resolution(term.clone(), 0, compute);
+        judge.completed_resolution(term.clone(), 0, compute);
+        assert_eq!(calls.get(), 1);
+
+        judge
+            .premise_facts
+            .push(typed_trees::expression::ExpressionHandle::from_arena_index(
+                1,
+            ));
+        judge.completed_resolution(term.clone(), 0, compute);
+        assert_eq!(calls.get(), 2);
+
+        judge.returned_value_source = Some(super::super::normal_returns::CompletedValueSource {
+            machine: SymbolHandle::from_arena_index(2),
+            state: SymbolHandle::from_arena_index(3),
+            expression: typed_trees::expression::ExpressionHandle::from_arena_index(4),
+            type_reference: TypeReferenceHandle::from_arena_index(5),
+            storage_version: Some(super::super::storage_effects::StorageVersion {
+                state: SymbolHandle::from_arena_index(3),
+                snapshot: arena::Handle::from_arena_index(1),
+            }),
+            context: Arc::new(judge.clone()),
+        });
+        judge.completed_resolution(term.clone(), 0, compute);
+        judge.completed_resolution(term.clone(), 0, compute);
+        assert_eq!(calls.get(), 3);
+
+        judge
+            .returned_value_source
+            .as_mut()
+            .unwrap()
+            .storage_version
+            .as_mut()
+            .unwrap()
+            .snapshot = arena::Handle::from_arena_index(2);
+        judge.completed_resolution(term, 0, compute);
+        assert_eq!(calls.get(), 4);
+    }
+
+    #[test]
+    fn completed_query_keys_do_not_keep_replaced_premise_payloads_alive() {
+        let program = typed_trees::TypedTrees::default();
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let calls = Cell::new(0);
+        let compute = |_: &StructuralJudge<'_>, term| {
+            calls.set(calls.get() + 1);
+            term
+        };
+        let term = StructuralTerm::ObservedValue {
+            observed_type: TypeReferenceHandle::from_arena_index(1),
+            value: Box::new(StructuralTerm::Variable("input".to_owned())),
+            descriptor: None,
+        };
+        judge.completed_resolution(term.clone(), 0, compute);
+        judge.completed_resolution(term.clone(), 0, compute);
+        assert_eq!(calls.get(), 1);
+        let previous = Arc::downgrade(&judge.normal_results);
+        // Even unchanged bytes have a new premise owner after COW separates
+        // the value from its historical weak handles.
+        let _ = Arc::make_mut(&mut judge.normal_results);
+        assert!(previous.upgrade().is_none());
+        judge.completed_resolution(term, 0, compute);
+        assert_eq!(calls.get(), 2);
     }
 
     #[test]
