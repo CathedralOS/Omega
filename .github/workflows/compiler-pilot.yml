@@ -152,6 +152,7 @@ jobs:
           path: build/compiler-pilot/
           if-no-files-found: warn
           compression-level: 0
+          include-hidden-files: true
           retention-days: 7
       # Save compiled objects before any program consumer can use the job budget.
       # A failed preparation still retains useful objects and keeps the job red.
@@ -177,7 +178,25 @@ jobs:
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py --phase consume
+        run: |
+          python3 - <<'PROOF_INPUTS'
+          from pathlib import Path
+          import json,sys
+          sys.path[:0]=['tools','tools/ci']
+          import compiler_pilot
+          out=Path('build/compiler-pilot')
+          producer=compiler_pilot.load_producer(out/'producer.json')
+          summary=dict(schema='omega-compiler-pilot-v1',passed=False)
+          try:
+              compiler_pilot.execute(out,summary,positives=('pass/facts/finite_family_static_inline_result/local', 'pass/facts/finite_family_static_inline_result/field', 'pass/facts/finite_family_static_inline_result/parameter', 'pass/facts/finite_family_static_inline_result/call_result', 'pass/facts/finite_family_static_inline_result/match_join', 'pass/facts/finite_family_static_inline_result/const_name', 'pass/facts/finite_family_static_inline_result/other_state', 'pass/facts/finite_family_static_inline_result/other_machine', 'pass/facts/finite_family_static_inline_result/target_body', 'pass/generics/runtime_index_carrier_argument_equal_exit', 'pass/facts/source_indexed_family_alpha_positive', 'pass/facts/source_indexed_family_capture_roster_positive', 'pass/facts/source_indexed_family_recursive_index_positive', 'pass/facts/source_indexed_binary_tree_distinct_exit', 'pass/facts/source_indexed_binary_tree_empty_children_exit', 'pass/generics/runtime_index_carrier_call_saved_capture_exit'),negatives=('fail/facts/finite_family_static_inline_result/local', 'fail/facts/finite_family_static_inline_result/field', 'fail/facts/finite_family_static_inline_result/parameter', 'fail/facts/finite_family_static_inline_result/call_result', 'fail/facts/finite_family_static_inline_result/match_join', 'fail/facts/finite_family_static_inline_result/const_name', 'fail/facts/finite_family_static_inline_result/other_state', 'fail/facts/finite_family_static_inline_result/other_machine', 'fail/facts/finite_family_static_inline_result/target_body', 'fail/generics/runtime_index_carrier_cast_stale', 'fail/generics/runtime_index_carrier_argument_unequal', 'fail/facts/source_indexed_binary_tree_distinct_rejected', 'fail/facts/source_indexed_binary_tree_empty_children_rejected', 'fail/generics/runtime_index_carrier_call_stale_capture', 'fail/generics/runtime_index_carrier_argument_effect', 'fail/generics/runtime_index_carrier_call_selected_mutated', 'fail/generics/runtime_index_carrier_call_selected_stale', 'fail/generics/runtime_index_carrier_argument_repeated_mismatch', 'fail/generics/runtime_index_carrier_explicit_argument_effect', 'fail/facts/source_indexed_binary_tree_child_swap_rejected', 'fail/facts/source_indexed_family_changed_capture', 'fail/facts/source_indexed_family_wrong_payload_carrier', 'fail/facts/source_indexed_family_illegal_runtime_elimination', 'fail/generics/runtime_index_carrier_array_mismatch', 'fail/generics/runtime_index_carrier_nested_mismatch', 'fail/generics/runtime_index_carrier_nested_payload_effect', 'fail/generics/runtime_index_carrier_constructor_wrong_payload', 'fail/relevance/erased_reference_runtime_guard', 'fail/relevance/erased_parameter_runtime_read'),
+                  checking_only=('pass/generics/runtime_index_carrier_mutable_survival', 'pass/generics/runtime_index_carrier_parameter', 'pass/generics/runtime_index_carrier_array_valid', 'pass/generics/runtime_index_carrier_nested_valid', 'pass/generics/runtime_index_carrier_match_valid', 'pass/generics/runtime_index_carrier_call_result', 'pass/generics/runtime_index_carrier_direct_call_result', 'pass/generics/runtime_index_carrier_call_selected_index', 'pass/generics/runtime_index_carrier_call_selected_preserved', 'pass/generics/runtime_index_carrier_call_selected_replacement', 'pass/relevance/erased_array_transition', 'pass/relevance/erased_parameter_named_transition_forward', 'pass/relevance/erased_state_param', 'pass/proofs/erased_mathematical_initializers'),producer=producer,samples=('samples/cli/facts/finite_family_static_inline_result/call_result', 'samples/cli/facts/finite_family_static_inline_result/call_result/invalid', 'samples/cli/facts/finite_family_static_inline_result/const_name', 'samples/cli/facts/finite_family_static_inline_result/const_name/invalid', 'samples/cli/facts/finite_family_static_inline_result/field', 'samples/cli/facts/finite_family_static_inline_result/field/invalid', 'samples/cli/facts/finite_family_static_inline_result/local', 'samples/cli/facts/finite_family_static_inline_result/local/invalid', 'samples/cli/facts/finite_family_static_inline_result/match_join', 'samples/cli/facts/finite_family_static_inline_result/match_join/invalid', 'samples/cli/facts/finite_family_static_inline_result/other_machine', 'samples/cli/facts/finite_family_static_inline_result/other_machine/invalid', 'samples/cli/facts/finite_family_static_inline_result/other_state', 'samples/cli/facts/finite_family_static_inline_result/other_state/invalid', 'samples/cli/facts/finite_family_static_inline_result/parameter', 'samples/cli/facts/finite_family_static_inline_result/parameter/invalid', 'samples/cli/facts/finite_family_static_inline_result/target_body', 'samples/cli/facts/finite_family_static_inline_result/target_body/invalid'),cli_fixtures=('pass/facts/finite_family_static_inline_result/local',))
+              summary['passed']=True
+          except Exception as error:
+              summary['error']=str(error)
+              raise
+          finally:
+              (out/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          PROOF_INPUTS
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('preparation.json', 'summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
@@ -190,6 +209,7 @@ jobs:
             !build/compiler-pilot/producer-*/**
           if-no-files-found: warn
           compression-level: 0
+          include-hidden-files: true
           retention-days: 7
       # The corpus reports alone, so `corpus_gate.py --compare --remote` reads
       # rows without downloading the retained producer (350-520 MB).
