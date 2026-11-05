@@ -152,6 +152,7 @@ jobs:
           path: build/compiler-pilot/
           if-no-files-found: warn
           compression-level: 0
+          include-hidden-files: true
           retention-days: 7
       # Save compiled objects before any program consumer can use the job budget.
       # A failed preparation still retains useful objects and keeps the job red.
@@ -190,6 +191,7 @@ jobs:
             !build/compiler-pilot/producer-*/**
           if-no-files-found: warn
           compression-level: 0
+          include-hidden-files: true
           retention-days: 7
       # The corpus reports alone, so `corpus_gate.py --compare --remote` reads
       # rows without downloading the retained producer (350-520 MB).
