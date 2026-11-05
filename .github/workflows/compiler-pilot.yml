@@ -155,6 +155,28 @@ jobs:
           retention-days: 7
       # Save compiled objects before any program consumer can use the job budget.
       # A failed preparation still retains useful objects and keeps the job red.
+      - name: Check existing resolver metadata and authority tests
+        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
+        shell: bash
+        run: |
+          python3 - <<'UNIT_TESTS'
+          from pathlib import Path
+          import json,shutil,subprocess,sys,time
+          sys.path.insert(0,'tools')
+          import build_slot,corpus_gate
+          out=Path('build/compiler-pilot');records=[]
+          filters=['resolution_payload_tests','completed_queries_keep_full_authority_depth_and_premise_context','bucket_collisions_preserve_capture_proofs_and_recurrence_inputs','static_selection_landings_']
+          with build_slot.hold(Path.cwd()):
+              for index,selection in enumerate(filters):
+                  command=['mbx','nextest','run','--locked','-p','validation',selection] if shutil.which('mbx') else ['cargo','test','--locked','-p','validation','--lib',selection,'--','--nocapture']
+                  started=time.monotonic()
+                  with (out/('resolver-tests-'+str(index)+'.stdout')).open('wb') as stdout,(out/('resolver-tests-'+str(index)+'.stderr')).open('wb') as stderr:
+                      completed=subprocess.run(command,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr,env=corpus_gate.optimized_environment())
+                  records.append(dict(filter=selection,command=command,exit=completed.returncode,seconds=round(time.monotonic()-started,3),source=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),existing_tests_only=True))
+                  (out/'resolver-tests.json').write_text(json.dumps(records,indent=2)+'\n')
+                  print(records[-1],flush=True)
+                  if completed.returncode:raise SystemExit(completed.returncode)
+          UNIT_TESTS
       - name: Save build cache before fixture observations
         if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
