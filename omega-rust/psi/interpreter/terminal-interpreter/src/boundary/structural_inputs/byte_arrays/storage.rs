@@ -411,6 +411,37 @@ impl TerminalExecution<'_> {
                 } else if self.initialized_empty_byte_array(&storage.referent)? {
                     Ok(0)
                 } else {
+                    let machine = self.program.machine(self.current_machine).ok();
+                    let mut declared_home = false;
+                    let mut zeroed_home = false;
+                    for (place, value) in self.structural_values.iter() {
+                        if value.opaque_identity != storage.referent.opaque_identity {
+                            continue;
+                        }
+                        if let Some((producer, _)) =
+                            machine.and_then(|machine| machine.producing_operation(*place))
+                        {
+                            declared_home |= matches!(
+                                producer.kind,
+                                terminal_psi::OperationKind::EstablishStructuralLocal { .. }
+                            );
+                            zeroed_home |= matches!(
+                                producer.kind,
+                                terminal_psi::OperationKind::EstablishZeroedStructural { .. }
+                            );
+                        }
+                    }
+                    eprintln!(
+                        "Missing byte backing: arrays={} same_identity={} path_segments={} declared_home={} zeroed_home={}",
+                        self.structural_byte_storage.len(),
+                        self.structural_byte_storage
+                            .keys()
+                            .filter(|home| home.opaque_identity == storage.referent.opaque_identity)
+                            .count(),
+                        storage.referent.path.len(),
+                        declared_home,
+                        zeroed_home,
+                    );
                     Err(malformed().in_reference_formation("missing runtime byte array storage"))
                 }
             }
