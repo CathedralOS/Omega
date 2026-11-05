@@ -79,6 +79,20 @@ cleanup:
   `samples/cli/facts`. A new `.omg` there fails when a base fixture's directory
   name is that fact or starts with `<fact>_` and no longer fact folder owns it.
 
+One check reports instead of failing:
+
+- Capability evidence. A compiler repair should show what it closes. From
+  2026-10-29 to 2026-11-05, 549 of the 621 commits that added compiler Rust
+  under `omega-rust/psi/` or `omega-rust/omega/compilation/` turned no
+  existing pass/run row green, and 245 of all 1,085 commits were per-case
+  "keep/carry/preserve/retain" repairs, most of which added a new fixture row
+  rather than closing a failing one. Refusing that shape outright would also
+  refuse most legitimate work (a new behavior pinned by its own fixture pair,
+  diagnostics, internal restructuring), so this prints a notice that
+  coordinator review must resolve: a change that adds compiler Rust, turns no
+  existing pass/run row green and deletes no `TASKS.md` line names in its PR
+  body the existing failing row, sample or acceptance it closes.
+
 The diff checks compare `--base` (default: the merge base with origin/main)
 with HEAD and read only Git and the tree. Nothing here builds or runs the
 compiler; re-recording a golden row is the author's run.
@@ -553,6 +567,76 @@ def golden_row_quality_violations(diff: str) -> list:
     return violations
 
 
+# Capability evidence (notice, not a violation) -------------------------------
+
+COMPILER_ROOTS = ("omega-rust/psi/", "omega-rust/omega/compilation/")
+GREEN_OUTCOMES = ("checked", "built")
+
+
+def golden_outcomes(text: str) -> dict:
+    """Each row's outcome, and whether it carries a `regressed-from:` token:
+    such a row records a lost success, so it is not green whatever it says."""
+    outcomes = {}
+    for line in text.splitlines():
+        if not line.strip() or line[0] in "#\t ":
+            continue
+        tokens = line.split()
+        if len(tokens) >= 2:
+            regressed = any(token.startswith("regressed-from:") for token in tokens[2:])
+            outcomes[tokens[0]] = (tokens[1], regressed)
+    return outcomes
+
+
+def is_green(outcome) -> bool:
+    return outcome[0] in GREEN_OUTCOMES and not outcome[1]
+
+
+def turned_green(base_text: str, head_text: str) -> list:
+    """Positive rows that existed at the base without a success and have one
+    now. New rows do not count: a new fixture shows the repair's own case, not
+    a failure the compiler already had."""
+    base, head = golden_outcomes(base_text), golden_outcomes(head_text)
+    return sorted(name for name, outcome in head.items()
+                  if name.startswith(("pass/", "run/")) and name in base
+                  and is_green(outcome) and not is_green(base[name]))
+
+
+def is_product_compiler_rust(path: str) -> bool:
+    parts = path.split("/")
+    return (path.startswith(COMPILER_ROOTS) and path.endswith(".rs")
+            and not {"tests", "benches"} & set(parts)
+            and not TEST_FILE.search(parts[-1]))
+
+
+def added_compiler_lines(numstat: str) -> int:
+    """Net lines added to product compiler Rust; binary entries count zero."""
+    total = 0
+    for line in numstat.splitlines():
+        fields = line.split("\t")
+        if len(fields) == 3 and fields[0] != "-" and is_product_compiler_rust(fields[2]):
+            total += int(fields[0]) - int(fields[1])
+    return total
+
+
+def capability_notices(compiler_lines: int, greened: list, tasks_deleted: int) -> list:
+    if compiler_lines <= 0 or greened or tasks_deleted:
+        return []
+    return [f"this change adds {compiler_lines} lines of compiler Rust but turns no existing "
+            f"pass/run row in {GOLDEN} green and deletes no {TASKS_BOARD} line. Name in the "
+            "PR body the existing failing row, sample or acceptance it closes; coordinator "
+            "review treats a repair that names none as per-case glue."]
+
+
+def capability_evidence(base: str, root: Path = ROOT) -> list:
+    numstat = git("diff", "--numstat", "--no-renames", base, "HEAD", "--",
+                  *[prefix.rstrip("/") for prefix in COMPILER_ROOTS], root=root)
+    tasks = git("diff", "--numstat", base, "HEAD", "--", TASKS_BOARD, root=root).split()
+    return capability_notices(
+        added_compiler_lines(numstat),
+        turned_green(show(base, GOLDEN, root), show("HEAD", GOLDEN, root)),
+        int(tasks[1]) if len(tasks) >= 2 and tasks[1] != "-" else 0)
+
+
 def fixture_of(path: str, rows: set, fixture_dirs: set) -> str:
     """The fixture that owns `path`: the deepest recorded row whose directory
     holds it, else the shallowest directory that holds a main.omg."""
@@ -969,6 +1053,8 @@ def main(arguments=None):
     if options.title is not None:
         violations += subject_violations(
             options.title, lanes((ROOT / "AGENTS.md").read_text(encoding="utf-8")))
+    for notice in capability_evidence(base):
+        print(f"check_rules: notice: {notice}", file=sys.stderr)
     for violation in violations:
         print(f"check_rules: {violation}", file=sys.stderr)
     if not violations:

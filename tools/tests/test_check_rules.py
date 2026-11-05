@@ -14,7 +14,8 @@ from check_rules import (
     SOURCE_READS, STAGE06_ROOT, STATUS_PHRASES,
     board_task_ids, changed_golden_rows, citing_documents, count_source_reads,
     count_status_phrases, dangling_task_ids, dangling_task_violations,
-    already_pinned_fact_violations, diagnostic_fragments, diff_hygiene_violations,
+    added_compiler_lines, already_pinned_fact_violations, capability_notices,
+    diagnostic_fragments, diff_hygiene_violations, turned_green,
     expected_pin_violations, fact_row_violations,
     fixture_owner, golden_row_quality_violations, golden_rows, golden_violations, lanes,
     measurement_violations, nearest_rows, pinned_fixture_for_fact,
@@ -346,6 +347,50 @@ class GoldenTests(unittest.TestCase):
         self.assertTrue(any("tests/omega/corpus_extra.txt" in v for v in violations))
         self.assertTrue(any("tools/swarm/waves/w99.json" in v for v in violations))
         self.assertTrue(any("PR adds 8 .omg files (limit is 6)" in v for v in violations))
+
+
+class CapabilityEvidenceTests(unittest.TestCase):
+    BASE = ("pass/calls/lost checked 10ms @abc\n"
+            "pass/calls/refused rejected 10ms @abc\n"
+            "\tcannot prove requires contract\n"
+            "pass/calls/regressed rejected 10ms regressed-from:checked @abc\n"
+            "pass/calls/green checked 10ms @abc\n"
+            "fail/calls/control rejected 10ms expected @abc\n")
+
+    def test_only_existing_positive_rows_that_gain_a_success_count(self):
+        head = ("pass/calls/lost rejected 10ms regressed-from:checked @def\n"
+                "pass/calls/refused checked 11ms @def\n"
+                "pass/calls/regressed checked 11ms @def\n"
+                "pass/calls/green checked 12ms @def\n"
+                "pass/calls/new_case checked 10ms @def\n"
+                "fail/calls/control rejected 10ms expected @def\n")
+        self.assertEqual(turned_green(self.BASE, head),
+                         ["pass/calls/refused", "pass/calls/regressed"])
+
+    def test_a_row_still_carrying_its_regression_is_not_green(self):
+        head = self.BASE.replace("pass/calls/refused rejected 10ms",
+                                 "pass/calls/refused checked 10ms regressed-from:checked")
+        self.assertEqual(turned_green(self.BASE, head), [])
+
+    def test_only_product_compiler_rust_counts(self):
+        numstat = ("40\t10\tomega-rust/psi/compilation/pipeline/05/src/calls.rs\n"
+                   "25\t0\tomega-rust/omega/compilation/backend/src/abi.rs\n"
+                   "90\t0\tomega-rust/psi/compilation/pipeline/05/tests/calls.rs\n"
+                   "30\t0\tomega-rust/psi/compilation/pipeline/05/src/calls_tests.rs\n"
+                   "70\t0\tomega-rust/omega/build-system/src/plan.rs\n"
+                   "-\t-\tomega-rust/psi/compilation/pipeline/05/src/table.bin\n")
+        self.assertEqual(added_compiler_lines(numstat), 55)
+
+    def test_compiler_code_without_closure_prints_a_notice(self):
+        notices = capability_notices(55, [], 0)
+        self.assertEqual(len(notices), 1)
+        self.assertIn("adds 55 lines of compiler Rust", notices[0])
+
+    def test_closure_or_removed_code_needs_no_notice(self):
+        self.assertEqual(capability_notices(55, ["pass/calls/refused"], 0), [])
+        self.assertEqual(capability_notices(55, [], 3), [])
+        self.assertEqual(capability_notices(0, [], 0), [])
+        self.assertEqual(capability_notices(-200, [], 0), [])
 
 
 class MeasurementTests(unittest.TestCase):
