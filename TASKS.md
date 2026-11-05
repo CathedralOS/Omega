@@ -1344,8 +1344,7 @@ defines the complete product bar.
   beyond Omega 00's serial unique-reaching-write restriction
   (`omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering/machine/operation/atomic_events.rs`).
   - Qualify `pass/atomics/shared_receiver_atomic_store` on Linux x86-64 and
-    Windows x86-64 and add an executable entry for
-    `pass/atomics/atomic_global_order_operations`.
+    Windows x86-64.
   - Complete target operations, selection/encoding, and checked refinement for
     every admitted width, alignment, and ordering (swap/fetch return the
     instruction-observed prior; preserve observing/non-observing,

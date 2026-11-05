@@ -19514,7 +19514,7 @@ pass/asm/scratch_target_sibling_capture_identity_exit checked 3424ms check-targe
 pass/asm/scratch_zero_flag_survives_move_exit checked 3657ms check-target:linux_x86_64 @ccdb99ca2214
 pass/asm/state_fact_transfers_exit incomplete 3571ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
 	`main` calls `reordered`; `reordered` has no executable body: this compiler does not lower a state of it yet (statement sequence: call count agreement); in state `reordered::entry`
-pass/atomics/atomic_global_order_operations checked 2365ms @ccdb99ca2214
+pass/atomics/atomic_global_order_operations checked 6958ms check-target:macos_arm64 @2bb67af4e82e
 pass/atomics/atomic_order_surface checked 3098ms @ccdb99ca2214
 pass/atomics/placed_atomic_load checked 2812ms @ccdb99ca2214
 pass/atomics/placed_atomic_shared_store checked 3156ms @ccdb99ca2214

@@ -210,7 +210,7 @@ pass/asm/scratch_target_sibling_capture_identity_exit built 1903ms interpreter-e
 pass/asm/scratch_zero_flag_survives_move_exit built 1911ms interpreter-exit:0 @6e42425cd720
 pass/asm/state_fact_transfers_exit incomplete 1957ms interpreter:unchecked @6e42425cd720
 	`main` calls `reordered`; `reordered` has no executable body: this compiler does not lower a state of it yet (statement sequence: call count agreement); in state `reordered::entry`
-pass/atomics/atomic_global_order_operations checked 1640ms @6e42425cd720
+pass/atomics/atomic_global_order_operations built 5696ms exit:0 interpreter-exit:0 interpreter:agrees @a1da0d793346
 pass/atomics/atomic_order_surface checked 2011ms @6e42425cd720
 pass/atomics/placed_atomic_load checked 1761ms @6e42425cd720
 pass/atomics/placed_atomic_shared_store checked 1651ms @6e42425cd720
