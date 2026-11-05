@@ -1259,7 +1259,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 .iter()
                 .find(|(result, _)| result.binding_ordinal == *binding_ordinal)?;
             if !retirement.carrier_children_retired(result) {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                {
                     eprintln!(
                         "CHECKSITE exit-reference-pending state={state:?} result={} reason=carrier-children scheduled={} loans={loans:?}",
                         result.binding_ordinal,
@@ -1276,7 +1278,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 }
                 retired
             }) {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                {
                     eprintln!(
                         "CHECKSITE exit-reference-pending state={state:?} result={} reason=storage-holder scheduled={} storage_loans={storage_loans:?} waiting={waiting_storage:?} row={:?}",
                         result.binding_ordinal,
@@ -1291,7 +1295,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 .loan_group(*loans)?
                 .all(|(loan, _)| retirement.children_retired(loan))
             {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                {
                     eprintln!(
                         "CHECKSITE exit-reference-pending state={state:?} result={} reason=loan-children scheduled={} rows={:?}",
                         result.binding_ordinal,
@@ -1331,7 +1337,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         }
         if releases.is_empty() {
             if !pending.is_empty() {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                {
                     for (_, operation, storage_loans) in &pending {
                         let OperationPlan::ReleaseReference {
                             source: SourcePlan::StructuralResult { binding_ordinal },
