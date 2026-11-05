@@ -53,9 +53,9 @@ ObservationRoute satisfies Observation {
 // transitive call closure reaches the boundary seam. Acceptance must hold
 // under a policy refusing quotient assumptions, so the closure decides.
 //
-// The closure check is unreachable today: the inline `observe` member has
-// no checked body or admitted external realization. Its formation refuses before quotient validation runs; this
-// fixture does not establish the later quotient-closure check.
+// The inline `observe` member has no checked body or admitted external
+// realization. This control checks that formation duty; it does not establish
+// the later quotient-closure check.
 public machine representative(value: Representative) -> Representative {
     let seen: bool = ObservationRoute::observe(value);
     value

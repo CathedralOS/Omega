@@ -1,1 +1,1 @@
-cannot prove ensures contract for exit from Grow::shrink
+machine `Grow::shrink` realizes `Shrink::shrink` but does not guarantee its `ensures result <= value`
