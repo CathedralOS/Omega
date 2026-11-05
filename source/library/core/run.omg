@@ -10,7 +10,19 @@ public data Run<P, T> [linear] {
 }
 
 public domain<P, T> Run<P, T>::Live<P, T>
-established by Run::initialize_from_profile;
+established by Run::empty, Run::initialize_from_profile;
+
+// An empty authorized partition contains no cells to initialize. The checked
+// route retains its existing backing claim and establishes no element authority.
+public machine Run::empty<P, T>(storage: Extent in Granted & Vacant)
+    -> Run<P, T> in Live<P, T>
+requires storage.length == 0
+ensures result.count == 0, result.storage.base == storage.base,
+    result.storage.length == storage.length
+{
+    let result: Run<P, T> = Run { storage: storage as Extent in Granted, count: 0 };
+    result
+}
 
 // This ordinary predicate publishes the count promised by cell initialization.
 // It grants no storage or custody and is not an alternative to Live.
