@@ -1,0 +1,57 @@
+{
+  "source": "cc7dad262fd756c3ea8eae3244a7e357823d018a",
+  "tree": "281fa68f5f894826279e41d8b726bcd0c9e35d7a",
+  "origin_run": 42089402980,
+  "origin_artifact": {
+    "id": 13444324602,
+    "name": "compiler-pilot-windows_x86_64-cc7dad262fd756c3ea8eae3244a7e357823d018a-1",
+    "size_in_bytes": 314036123,
+    "digest": "sha256:d44fb64379801d3dccb98feef4710eb2c5395b975085e0f75dd7f23fd5f7add9"
+  },
+  "producer": {
+    "revision": "cc7dad262fd756c3ea8eae3244a7e357823d018a",
+    "tree": "281fa68f5f894826279e41d8b726bcd0c9e35d7a",
+    "target": "windows_x86_64",
+    "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-pc-windows-msvc\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+    "cli": "D:\\a\\Omega\\Omega\\build\\compiler-pilot\\producer-3xupgu4l\\omega.exe",
+    "runner": "D:\\a\\Omega\\Omega\\build\\compiler-pilot\\producer-3xupgu4l\\corpus_runner.exe",
+    "cli_profile": {
+      "binary": "D:\\a\\Omega\\Omega\\build\\compiler-pilot\\producer-3xupgu4l\\omega.exe",
+      "sha256": "4098c493dbd6eac17256717e125f52008807d21f9243dc9223dcba575984d039",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "runner_profile": {
+      "binary": "D:\\a\\Omega\\Omega\\build\\compiler-pilot\\producer-3xupgu4l\\corpus_runner.exe",
+      "sha256": "2ab6b02a8a3a648ea8e1ce57e385506b983ec45f7a2104a03a06baf30adc45e9",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "compiler_and_workflow_objects": {
+    "omega-rust": "d1eb0b9d9eb7a6d6335784558ee8e782692dc4b9",
+    "source/library": "b0c1c63cc3e2820f703162304cee159bbbcf3186",
+    "tools": "ab6e265a8fa714ff68ab0c735182f943df5663f0",
+    ".github": "d8d2e39c15d7b0de0ba7382e0f7178d69e42f1a3",
+    "Cargo.toml": "2699e0a8d0be49c789639cbd3c603521634145d9",
+    "Cargo.lock": "e881ca0c250750753b5cf7294ce69621add8dfee",
+    "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929"
+  },
+  "cache": {
+    "id": 10078854254,
+    "key": "compiler-pilot-Windows-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-cc7dad262fd756c3ea8eae3244a7e357823d018a",
+    "ref": "refs/heads/evidence/atomic-shared-receiver-current-windows-20261105",
+    "size_in_bytes": 477286942,
+    "version": "ec580333c1c06d53728bf4230b878bd47439980ed27b42c4175d8833feba087d"
+  },
+  "limits": "No compiler build or source workload. One existing CDB starts the verified cached CLI at its default initial break, loads only local symbols, prints module/PDB facts and quits. Debugger wait50s plus bounded cleanup10s; direct build-profile inquiry10s. Every failed setup/observation stays failed. This is not CPU sampling or acceptance.",
+  "prior_findings": "Stock4f1c and cc7 corpus70/92/7 remain failed at120s. cc7 ordinary70/70 passed with all9products. Array previous owned-process attach AccessDenied is retained; no attach is attempted here.",
+  "primary_docs": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/cdb-command-line-options",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/-lmi"
+  ]
+}
