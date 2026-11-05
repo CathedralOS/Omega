@@ -99,20 +99,34 @@ pub fn project_external_provider_declarations(
     // checked requirement's identity here; this adds no satisfaction or plan.
     // Keep a failed identity deferred until review needs that requirement,
     // just as a missing numeric candidate was deferred before this projection.
-    for (_, requirement) in checked.facts.operators.provider_requirements.iter() {
-        if declarations
+    let mut represented = declarations
+        .iter()
+        .map(|(symbol, _)| (symbol.arena_index(), symbol.generation()))
+        .collect::<Vec<_>>();
+    represented.sort_unstable();
+    represented.dedup();
+    let requirements = arena::unique_handles_in_order(
+        checked
+            .facts
+            .operators
+            .provider_requirements
             .iter()
-            .any(|(symbol, _)| *symbol == requirement.symbol)
+            .map(|(_, requirement)| requirement.symbol),
+    );
+    for requirement in requirements {
+        if represented
+            .binary_search(&(requirement.arena_index(), requirement.generation()))
+            .is_ok()
         {
             continue;
         }
         declarations.push((
-            requirement.symbol,
+            requirement,
             crate::machine_lowering::declarations::nominal(
                 &mut identities,
                 checked,
                 sources,
-                requirement.symbol,
+                requirement,
             ),
         ));
     }
