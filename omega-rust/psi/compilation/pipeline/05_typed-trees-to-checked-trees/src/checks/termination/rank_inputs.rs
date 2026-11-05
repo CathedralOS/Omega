@@ -5,6 +5,7 @@
 mod coordinates;
 mod declaration_inputs;
 mod entry;
+pub(in crate::checks::termination) mod entry_observation_paths;
 use crate::checks::current_scalar_values::CurrentScalarValues;
 pub(super) use coordinates::Coordinate;
 pub(super) use entry::{
@@ -23,13 +24,14 @@ pub(super) fn at_entry<'program>(
     state: &'program State,
     frames: Option<&validation::CallFrameResolver<'_>>,
     paths: &[Vec<facts::PlaceSegment>],
+    declared_reads: Option<(&validation::RankSubjectCoordinate, &[validation::DeclaredInputRead])>,
 ) -> Option<EntryInputs<'program>> {
     let execution = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
     // A declaration has an entry observation even when its body is empty.
     let first = execution.indices().first().copied().unwrap_or(0);
-    let values = CurrentScalarValues::at_observing_projections(
+    let mut values = CurrentScalarValues::at_observing_projections(
         program,
         machine,
         state,
@@ -38,6 +40,9 @@ pub(super) fn at_entry<'program>(
         frames,
         paths,
     )?;
+    if let Some((root, reads)) = declared_reads {
+        values.seed_declared_read_entry_fields(root, reads);
+    }
     let coordinates = coordinates::coordinates(program, state, &values);
     Some(EntryInputs {
         values,

@@ -10324,6 +10324,8 @@ fail/facts/nested_borrow_qualification_through_parameter_rejected rejected 2465m
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/nested_borrow_qualification_through_target_body_rejected rejected 2788ms expected @ccdb99ca2214
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_declared_repeated_reads_local rejected 4550ms expected @d0dc0a825502+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_invocation/call_result rejected 1468ms expected @959aa53558d2
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
@@ -23797,6 +23799,7 @@ pass/facts/nested_borrow_qualification_through_other_machine_exit checked 3790ms
 pass/facts/nested_borrow_qualification_through_other_state_exit checked 3755ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_borrow_qualification_through_parameter_exit checked 3670ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_borrow_qualification_through_target_body_exit checked 3309ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_declared_repeated_reads_local checked 6396ms check-target:macos_arm64 @d0dc0a825502+wt
 pass/facts/nested_machine_invocation/call_result checked 3796ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_invocation/const_name checked 4014ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_invocation/copied_payload checked 3545ms check-target:macos_arm64 @ccdb99ca2214

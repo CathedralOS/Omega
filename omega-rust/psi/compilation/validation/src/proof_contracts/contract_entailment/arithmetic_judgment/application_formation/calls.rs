@@ -65,7 +65,7 @@ pub(super) fn form(
                     decisions,
                 )?)
             } else {
-                engine.captured_record_call_input(*argument, expression)?
+                engine.captured_record_call_input(*argument, &parameters, &arguments)?
             };
             if !crate::has_anonymous_numeric_results(program, *argument) {
                 let actual_type = match &input {
