@@ -27,8 +27,8 @@ machine unwrap<'bytes>(returned: Returned<'bytes>, width: u32) -> Packet<'bytes>
     }
 }
 machine confirm<'bytes>(packet: Packet<'bytes>, actual: u32, expected: u32) -> Packet<'bytes> crashes Trap {
-    transition actual == expected { true -> (packet) false -> bad() }
-    machine bad() -> Packet<'bytes> { crash Trap; }
+    transition actual == expected { true -> (packet) false -> bad(packet) }
+    machine bad(packet: Packet<'bytes>) -> Packet<'bytes> { crash Trap; }
 }
 machine check<'bytes>(packet: &Packet<'bytes>, width: u32, last: u8) crashes Trap
 requires width == 16 || width == 32
