@@ -690,6 +690,32 @@ impl StructuralJudge<'_> {
             .then(|| first.clone())
     }
 
+    /// A selected shared reference may already carry its performed scalar
+    /// observation. Read that exact current binding before expanding a broader
+    /// supplier list, which also includes paths this value did not select.
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn current_shared_reference_contents(
+        &self,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        at: Option<super::StorageVersion>,
+    ) -> Option<super::super::super::StructuralTerm> {
+        self.requires_value_preservation().then_some(())?;
+        let declared = self.scalar_reference_read_type(machine, state, expression)?;
+        let shell = crate::reference_shell(self.program, declared)?;
+        if shell.access != language_semantics::ReferenceAccess::Shared {
+            return None;
+        }
+        let coordinate = self.captured_storage_coordinate(Some((machine, state)), expression)?;
+        let value = self.current_storage_value_at(&coordinate, at)?;
+        let observed = super::super::super::structural_terms::shared_inline_observation_type(
+            self.program,
+            &value,
+        )?;
+        crate::declared_carriers_match(self.program, declared, observed)
+            .then(|| value.semantic_value().clone())
+    }
+
     /// Observe every possible scalar cell at the performed read's cut. This
     /// frontier supplies proof alternatives, never one physical alias identity.
     /// Missing or expired suppliers leave the whole observation unavailable.
