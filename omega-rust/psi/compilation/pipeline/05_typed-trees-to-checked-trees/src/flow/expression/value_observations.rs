@@ -588,12 +588,13 @@ impl Execution<'_, '_, '_> {
                             .or_else(|| {
                                 assignment_values
                                     .get_or_insert_with(|| {
-                                        crate::values::AssignmentObservationBatch::prepare(
+                                        crate::values::AssignmentObservationBatch::prepare_for_root(
                                             self.program,
                                             self.semantic,
                                             captured_contexts.iter().map(|context| {
                                                 self.semantic.contexts.get(*context)
                                             }),
+                                            source.root,
                                         )
                                     })
                                     .scalar_value(&place)

@@ -34,6 +34,33 @@ impl<'input> AssignmentObservationBatch<'input> {
         }
     }
 
+    /// Prepare the assignments one source root can supply. The context already
+    /// retains this roster, including its original order within each root.
+    /// Other roots cannot agree with any queried member of that source, so do
+    /// not reconstruct them or scan the context's non-assignment facts.
+    pub(crate) fn prepare_for_root<'context>(
+        program: &'input dyn ::validation::CheckingInput,
+        semantic: &'input FactPlan,
+        contexts: impl IntoIterator<Item = &'context FactContext>,
+        root: facts::PlaceRoot,
+    ) -> Self {
+        let observations = contexts
+            .into_iter()
+            .flat_map(|context| {
+                semantic
+                    .assignments_with_root(context, root)
+                    .filter_map(move |fact| {
+                        assignment_observation(program, semantic, context, fact)
+                    })
+            })
+            .collect();
+        Self {
+            program,
+            semantic,
+            observations,
+        }
+    }
+
     fn payloads<'query>(
         &'query self,
         subject: &'query CanonicalPlace,
@@ -405,27 +432,33 @@ pub(crate) fn prepare_assignment_observations(
     semantic
         .context_view(context)
         .facts()
-        .filter_map(|fact| {
-            if !matches!(
-                fact.payload,
-                FactPayload::AssignedValue { .. }
-                    | FactPayload::AssignedScalarValue { .. }
-                    | FactPayload::AssignedIntegerBounds { .. }
-            ) {
-                return None;
-            }
-            let place = fact.place.as_place()?;
-            let place =
-                canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
-            if has_completed_call_snapshot(program, semantic, context, fact) {
-                return None;
-            }
-            Some(AssignmentObservation {
-                place,
-                payload: fact.payload,
-            })
-        })
+        .filter_map(|fact| assignment_observation(program, semantic, context, fact))
         .collect()
+}
+
+fn assignment_observation(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    context: &FactContext,
+    fact: &facts::Fact,
+) -> Option<AssignmentObservation> {
+    if !matches!(
+        fact.payload,
+        FactPayload::AssignedValue { .. }
+            | FactPayload::AssignedScalarValue { .. }
+            | FactPayload::AssignedIntegerBounds { .. }
+    ) {
+        return None;
+    }
+    let place = fact.place.as_place()?;
+    let place = canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
+    if has_completed_call_snapshot(program, semantic, context, fact) {
+        return None;
+    }
+    Some(AssignmentObservation {
+        place,
+        payload: fact.payload,
+    })
 }
 
 /// The immutable owned storage whose retained scalar observation remains valid
