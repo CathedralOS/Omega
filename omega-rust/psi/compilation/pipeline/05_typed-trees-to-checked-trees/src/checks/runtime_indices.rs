@@ -1410,15 +1410,6 @@ impl Scope<'_> {
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
-                let reference = expression_result_type_reference(
-                    self.program,
-                    self.machine,
-                    self.state,
-                    expression,
-                )?;
-                if !is_source_evidence_carrier(self.program, reference) {
-                    return None;
-                }
                 if path.symbol != path.head_symbol
                     || self
                         .program
@@ -1436,6 +1427,15 @@ impl Scope<'_> {
                         ..*self
                     }
                     .erased_evidence_reference(initializer, depth + 1);
+                }
+                let reference = expression_result_type_reference(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    expression,
+                )?;
+                if !is_source_evidence_carrier(self.program, reference) {
+                    return None;
                 }
                 let formal = self
                     .program
