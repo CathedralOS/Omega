@@ -104,21 +104,20 @@ pub(in crate::flow) fn record<'plans>(
             .and_then(|capture| {
                 super::completed_argument_facts(program, build, capture, invocation)
             });
+        // Scalar agreement and fallback bounds read the same completed
+        // operand. Prepare each queried root once for those readings.
+        let mut assignments = completed.as_ref().map(|completed| {
+            crate::values::RootAssignmentObservations::new(program, semantic, &completed.contexts)
+        });
         let observed = capture
             .zip(completed.as_ref())
             .and_then(|(capture, completed)| {
+                let assignments = assignments.as_mut()?;
                 // Every retained alternative must agree; absence is unknown.
                 let mut values = completed.places.iter().map(|place| {
-                    crate::values::scalar_value_at_place(
-                        program,
-                        semantic,
-                        completed
-                            .contexts
-                            .iter()
-                            .map(|context| semantic.contexts.get(*context)),
-                        &place.projected,
-                    )
-                    .or_else(|| super::literal(program, capture.expression))
+                    assignments
+                        .scalar_value(&place.projected)
+                        .or_else(|| super::literal(program, capture.expression))
                 });
                 let first = values.next()??;
                 values
@@ -132,17 +131,10 @@ pub(in crate::flow) fn record<'plans>(
                 maximum: value.clone(),
             }),
             _ => completed.as_ref().and_then(|completed| {
+                let assignments = assignments.as_mut()?;
                 let mut joined: Option<facts::IntegerRange> = None;
                 for place in &completed.places {
-                    let incoming = crate::values::integer_bounds_at_place(
-                        program,
-                        semantic,
-                        completed
-                            .contexts
-                            .iter()
-                            .map(|context| semantic.contexts.get(*context)),
-                        &place.projected,
-                    )?;
+                    let incoming = assignments.integer_bounds(&place.projected)?;
                     joined = Some(match joined {
                         None => incoming,
                         Some(previous) => facts::IntegerRange {
