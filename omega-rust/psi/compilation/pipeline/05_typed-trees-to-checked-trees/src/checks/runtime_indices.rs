@@ -99,6 +99,13 @@ struct Scope<'a> {
     frames: Option<&'a CallFrameResolver<'a>>,
 }
 
+/// A proof payload's field binders belong to its declaring case, including
+/// after an immutable local copies that payload.
+struct ErasedProofInput {
+    reference: TypeReferenceHandle,
+    payload_owner: SymbolHandle,
+}
+
 impl Scope<'_> {
     fn expression_is_const(
         &self,
@@ -1308,24 +1315,12 @@ impl Scope<'_> {
         let formal_evidence = erased
             && is_source_evidence_carrier(self.program, required.reference)
             && expected_proof_identity.is_some_and(|expected| {
-                self.erased_evidence_reference(expression, 0)
+                self.erased_proof_input(expression, 0)
                     .is_some_and(|actual| {
-                        let payload_owner =
-                            match self.program.expression_table.expression(expression) {
-                                ExpressionNode::Member(_) => declared_case_projection_field(
-                                    self.program,
-                                    self.machine,
-                                    Some(self.state),
-                                    expression,
-                                )
-                                .map(|field| self.program.symbols.get(field.symbol).parent)
-                                .unwrap_or_default(),
-                                _ => SymbolHandle::invalid(),
-                            };
-                        if !self.stable_proof_indices(actual, payload_owner, 0) {
+                        if !self.stable_proof_indices(actual.reference, actual.payload_owner, 0) {
                             return false;
                         }
-                        self.actual_erased_identity(expression, actual)
+                        self.actual_erased_identity(expression, actual.reference)
                             .is_some_and(|actual| actual.is_valid() && actual == expected)
                     })
             });
@@ -1384,7 +1379,30 @@ impl Scope<'_> {
         if checked_evidence {
             return;
         }
-        self.check(expression, required, diagnostics);
+        let before = diagnostics.len();
+        self.check(expression, required.clone(), diagnostics);
+        if erased && diagnostics.len() > before {
+            let reason = if !is_source_evidence_carrier(self.program, required.reference) {
+                "the receiving type has no checked mathematical carrier"
+            } else if expected_proof_identity.is_none() {
+                "the receiving indices have no stable proof identity"
+            } else if let Some(input) = self.erased_proof_input(expression, 0) {
+                if !self.stable_proof_indices(input.reference, input.payload_owner, 0) {
+                    "the source indices are not stable proof inputs"
+                } else {
+                    "the source and receiving indices do not have the same proof identity"
+                }
+            } else {
+                "the source is not a checked proof input or immutable proof projection"
+            };
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "erased binding to `{}` cannot retain its indices: {reason}",
+                    self.program.display_type_reference(required.reference),
+                ))
+                .with_source_span(self.program.expression_table.source_span(expression)),
+            );
+        }
     }
 
     fn proof_alias_initializer(&self, symbol: SymbolHandle) -> Option<(usize, ExpressionHandle)> {
@@ -1400,11 +1418,11 @@ impl Scope<'_> {
     /// An open mathematical value is supplied by an exact erased formal,
     /// including an exact erased payload projection. Its checked source
     /// carrier, rather than a fabricated closed term, owns the type.
-    fn erased_evidence_reference(
+    fn erased_proof_input(
         &self,
         expression: ExpressionHandle,
         depth: usize,
-    ) -> Option<TypeReferenceHandle> {
+    ) -> Option<ErasedProofInput> {
         if depth > 128 || !expression.is_valid() {
             return None;
         }
@@ -1426,7 +1444,7 @@ impl Scope<'_> {
                         target: TransitionTargetHandle::invalid(),
                         ..*self
                     }
-                    .erased_evidence_reference(initializer, depth + 1);
+                    .erased_proof_input(initializer, depth + 1);
                 }
                 let reference = expression_result_type_reference(
                     self.program,
@@ -1443,10 +1461,13 @@ impl Scope<'_> {
                 (formal.relevance.is_erased()
                     && !formal.is_mutable
                     && formal.type_reference == reference)
-                    .then_some(reference)
+                    .then_some(ErasedProofInput {
+                        reference,
+                        payload_owner: SymbolHandle::invalid(),
+                    })
             }
             ExpressionNode::Member(member) => {
-                let receiver = self.erased_evidence_reference(member.receiver, depth + 1)?;
+                let receiver = self.erased_proof_input(member.receiver, depth + 1)?;
                 let field = declared_case_projection_field(
                     self.program,
                     self.machine,
@@ -1457,7 +1478,10 @@ impl Scope<'_> {
                     return None;
                 }
                 if is_source_evidence_carrier(self.program, field.type_reference) {
-                    return Some(field.type_reference);
+                    return Some(ErasedProofInput {
+                        reference: field.type_reference,
+                        payload_owner: self.program.symbols.get(field.symbol).parent,
+                    });
                 }
                 // A prepared Type application substitutes its payload types.
                 // Rejoin this exact selection to the independently formed
@@ -1485,15 +1509,20 @@ impl Scope<'_> {
                     (case.symbol == case_symbol).then_some(case)
                 })?;
                 let declared = self.program.data_payload_field_by_symbol(case, retained)?;
-                let applied =
-                    self.program
-                        .data_constructor_field(receiver, owner.symbol, retained)?;
+                let applied = self.program.data_constructor_field(
+                    receiver.reference,
+                    owner.symbol,
+                    retained,
+                )?;
                 (declared.relevance.is_erased()
                     && applied.symbol == field.symbol
                     && applied.identity == field.identity
                     && applied.type_reference == field.type_reference
                     && is_source_evidence_carrier(self.program, declared.type_reference))
-                .then_some(declared.type_reference)
+                .then_some(ErasedProofInput {
+                    reference: declared.type_reference,
+                    payload_owner: case.symbol,
+                })
             }
             _ => None,
         }
@@ -1569,6 +1598,16 @@ impl Scope<'_> {
                                 match table.type_reference(*argument) {
                                     TypeReferenceNode::Named { symbol, .. } => {
                                         self.stable_index_symbol(*symbol, payload_owner)
+                                            || self.proof_alias_initializer(*symbol).is_some_and(
+                                                |(ordinal, initializer)| {
+                                                    Scope {
+                                                        statement: ordinal,
+                                                        target: TransitionTargetHandle::invalid(),
+                                                        ..*self
+                                                    }
+                                                    .stable_proof_argument(initializer, depth + 1)
+                                                },
+                                            )
                                     }
                                     TypeReferenceNode::ConstExpression(expression) => {
                                         self.stable_proof_argument(*expression, depth + 1)
@@ -1624,9 +1663,7 @@ impl Scope<'_> {
                 if path.symbol.is_valid() && path.symbol == path.head_symbol =>
             {
                 self.stable_index_symbol(path.symbol, SymbolHandle::invalid())
-                    || self
-                        .erased_evidence_reference(expression, depth + 1)
-                        .is_some()
+                    || self.erased_proof_input(expression, depth + 1).is_some()
                     || self.proof_alias_initializer(path.symbol).is_some_and(
                         |(ordinal, initializer)| {
                             Scope {
@@ -1640,7 +1677,7 @@ impl Scope<'_> {
             }
             ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
             ExpressionNode::Member(member) => {
-                self.erased_evidence_reference(member.receiver, depth + 1)
+                self.erased_proof_input(member.receiver, depth + 1)
                     .is_some()
                     && declared_case_projection_field(
                         self.program,
@@ -1703,8 +1740,8 @@ impl Scope<'_> {
                 target: TransitionTargetHandle::invalid(),
                 ..*self
             };
-            let reference = prior.erased_evidence_reference(initializer, 0)?;
-            return prior.actual_erased_identity_at(initializer, reference, depth + 1);
+            let input = prior.erased_proof_input(initializer, 0)?;
+            return prior.actual_erased_identity_at(initializer, input.reference, depth + 1);
         }
         let ExpressionNode::Member(member) = self.program.expression_table.expression(expression)
         else {
@@ -1739,7 +1776,7 @@ impl Scope<'_> {
                 )
             })
             .collect::<Vec<_>>();
-        let receiver_type = self.erased_evidence_reference(member.receiver, 0)?;
+        let receiver_type = self.erased_proof_input(member.receiver, 0)?.reference;
         let table = &self.program.type_reference_table;
         let receiver_type = table.peeled_type_reference(receiver_type);
         let receiver_type = match table.type_reference(receiver_type) {
@@ -1780,7 +1817,7 @@ impl Scope<'_> {
                 )
             })
             .collect::<Vec<_>>();
-        let aliases = self.proof_argument_aliases(&[member.receiver]);
+        let aliases = self.proof_identity_aliases(&[member.receiver], Some(receiver_type));
         let mut scopes = aliases
             .iter()
             .map(|binding| AppliedTypeIdentityScope {
@@ -1815,14 +1852,37 @@ impl Scope<'_> {
     /// that correspondence in the caller's scope, before substituting callee
     /// formals. An immutable copy of mutable storage is deliberately excluded:
     /// its captured value belongs to the ordinary completed-operand check.
-    fn proof_argument_aliases(
+    fn proof_identity_aliases(
         &self,
         arguments: &[ExpressionHandle],
+        reference: Option<TypeReferenceHandle>,
     ) -> Vec<(
         SymbolHandle,
         typed_trees::type_identity::IndexIdentityArgument<'_>,
     )> {
-        fn collect(
+        fn collect_symbol(
+            scope: &Scope<'_>,
+            symbol: SymbolHandle,
+            depth: usize,
+            aliases: &mut Vec<(SymbolHandle, ExpressionHandle)>,
+        ) {
+            if depth > 128 || aliases.iter().any(|(known, _)| *known == symbol) {
+                return;
+            }
+            let Some((ordinal, initializer)) = scope.proof_alias_initializer(symbol) else {
+                return;
+            };
+            let prior = Scope {
+                statement: ordinal,
+                target: TransitionTargetHandle::invalid(),
+                ..*scope
+            };
+            if prior.stable_proof_argument(initializer, depth + 1) {
+                collect_expression(&prior, initializer, depth + 1, aliases);
+                aliases.push((symbol, initializer));
+            }
+        }
+        fn collect_expression(
             scope: &Scope<'_>,
             expression: ExpressionHandle,
             depth: usize,
@@ -1832,33 +1892,26 @@ impl Scope<'_> {
                 return;
             }
             match scope.program.expression_table.expression(expression) {
-                ExpressionNode::Name(path) => {
-                    if aliases.iter().any(|(symbol, _)| *symbol == path.symbol) {
-                        return;
-                    }
-                    let Some((ordinal, initializer)) = scope.proof_alias_initializer(path.symbol)
-                    else {
-                        return;
-                    };
-                    let prior = Scope {
-                        statement: ordinal,
-                        target: TransitionTargetHandle::invalid(),
-                        ..*scope
-                    };
-                    if prior.stable_proof_argument(initializer, depth + 1) {
-                        collect(&prior, initializer, depth + 1, aliases);
-                        aliases.push((path.symbol, initializer));
-                    }
+                ExpressionNode::Name(path) if path.symbol == path.head_symbol => {
+                    collect_symbol(scope, path.symbol, depth + 1, aliases);
                 }
                 ExpressionNode::Member(member) => {
-                    collect(scope, member.receiver, depth + 1, aliases);
+                    collect_expression(scope, member.receiver, depth + 1, aliases);
                 }
                 _ => {}
             }
         }
         let mut aliases = Vec::new();
         for argument in arguments {
-            collect(self, *argument, 0, &mut aliases);
+            collect_expression(self, *argument, 0, &mut aliases);
+        }
+        if let Some(reference) = reference {
+            for symbol in typed_trees::references::collect_type_symbol_dependencies(
+                self.program.typed_program(),
+                reference,
+            ) {
+                collect_symbol(self, symbol, 0, &mut aliases);
+            }
         }
         aliases
             .into_iter()
@@ -1869,6 +1922,32 @@ impl Scope<'_> {
                 )
             })
             .collect()
+    }
+
+    fn proof_binding_identity(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Option<NormalizedTypeIdentity> {
+        use typed_trees::type_identity::AppliedTypeIdentityScope;
+        // The expected type supplies its own index dependencies. Do not derive
+        // the annotation's meaning from the initializer it is checking.
+        let aliases = self.proof_identity_aliases(&[], Some(reference));
+        let scopes = aliases
+            .iter()
+            .map(|binding| AppliedTypeIdentityScope {
+                declaration: self.machine.symbol,
+                arguments: std::slice::from_ref(binding),
+                lifetimes: &[],
+            })
+            .collect::<Vec<_>>();
+        applied_type_identity_in_scope(
+            self.program,
+            reference,
+            self.machine.symbol,
+            self.machine.symbol,
+            &scopes,
+        )
+        .filter(|identity| identity.is_valid())
     }
 
     fn expected_erased_identity(
@@ -1970,7 +2049,7 @@ impl Scope<'_> {
             };
             substitutions.push((formal.symbol, argument));
         }
-        let aliases = self.proof_argument_aliases(arguments);
+        let aliases = self.proof_identity_aliases(arguments, None);
         let mut scopes = aliases
             .iter()
             .map(|binding| AppliedTypeIdentityScope {
@@ -2352,7 +2431,11 @@ pub(super) fn check(
                     local.initial_value,
                     Application::bare(local.type_reference, statement),
                     local.relevance.is_erased(),
-                    applied_type_identity(program, local.type_reference, machine.symbol, &[]),
+                    local
+                        .relevance
+                        .is_erased()
+                        .then(|| scope.proof_binding_identity(local.type_reference))
+                        .flatten(),
                     diagnostics,
                 ),
                 StatementNode::Expression(expression) if state.return_type.is_valid() => scope
