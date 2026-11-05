@@ -73,7 +73,7 @@ impl From<SymbolHandle> for Key {
 #[derive(Clone)]
 enum S {
     Closed(TermHandle),
-    Telescope(TermHandle, Vec<S>),
+    SourceDomain(TermHandle, Vec<Key>),
     Var(Key),
     Type,
     Two,
@@ -129,17 +129,20 @@ impl S {
     ) -> Result<TermHandle, &'static str> {
         let node = match self {
             Self::Closed(t) => return Ok(*t),
-            Self::Telescope(function, arguments) => {
-                // These functions were just closed over the exact source
-                // fields. Apply their generated lambdas here so each use of
-                // the descriptor does not repeat that administrative work.
-                // Predicate bodies and field domains stay in the checked
-                // description; this never unfolds an authored source call.
+            Self::SourceDomain(function, parameters) => {
+                // These lambdas were just built by source_field_function,
+                // not read from authored functions or predicate evidence.
+                // Reduce only that administrative telescope, preserving its
+                // body and exact source-keyed Type actual under inner binders.
                 let mut result = *function;
-                for argument in arguments {
-                    let actual = argument.term(arena, scope)?;
+                for parameter in parameters {
+                    let position = scope
+                        .iter()
+                        .rposition(|key| key == parameter)
+                        .ok_or("source payload domain lost its Type binder")?;
+                    let actual = arena.insert(Term::Variable((scope.len() - 1 - position) as u32));
                     let Term::Lambda { body, .. } = arena.get(result) else {
-                        return Err("generated source function lost its exact parameter telescope");
+                        return Err("source payload domain lost its generated Type telescope");
                     };
                     result = substitute(arena, body, actual);
                 }
@@ -334,11 +337,12 @@ impl<K: Copy + Eq + Into<Key>> Builder<'_, K> {
         if self.type_parameters.is_empty() || self.type_parameters.contains(&symbol) {
             S::Closed(ty)
         } else {
-            S::Telescope(
+            S::SourceDomain(
                 ty,
                 self.type_parameters
                     .iter()
-                    .map(|symbol| S::Var((*symbol).into()))
+                    .copied()
+                    .map(Into::into)
                     .collect(),
             )
         }
@@ -363,14 +367,11 @@ impl<K: Copy + Eq + Into<Key>> Builder<'_, K> {
         Ok(body)
     }
     fn constraint_application(&self, case: usize) -> S {
-        S::Telescope(
-            self.cases[case].constraints,
-            self.common
-                .iter()
-                .chain(self.cases[case].payload.iter())
-                .map(|(symbol, _)| S::Var((*symbol).into()))
-                .collect(),
-        )
+        let mut term = S::Closed(self.cases[case].constraints);
+        for (symbol, _) in self.common.iter().chain(self.cases[case].payload.iter()) {
+            term = app(term, S::Var((*symbol).into()));
+        }
+        term
     }
     fn payload_type(&self, case: usize) -> S {
         let mut body = self.constraint_application(case);
@@ -406,16 +407,14 @@ impl<K: Copy + Eq + Into<Key>> Builder<'_, K> {
         fst(value)
     }
     fn child_index(&self, case: usize, child: usize, payload: S) -> S {
-        let arguments = self
-            .common
-            .iter()
-            .map(|(symbol, _)| S::Var((*symbol).into()))
-            .chain(
-                (0..self.cases[case].payload.len())
-                    .map(|ordinal| Self::projected(payload.clone(), ordinal)),
-            )
-            .collect();
-        S::Telescope(self.cases[case].child_indices[child], arguments)
+        let mut term = S::Closed(self.cases[case].child_indices[child]);
+        for (symbol, _) in self.common {
+            term = app(term, S::Var((*symbol).into()));
+        }
+        for ordinal in 0..self.cases[case].payload.len() {
+            term = app(term, Self::projected(payload.clone(), ordinal));
+        }
+        term
     }
     fn case_body(&mut self, case: usize, payload: S, kind: ResultKind) -> Result<S, &'static str> {
         let count = self.cases[case].child_indices.len();
