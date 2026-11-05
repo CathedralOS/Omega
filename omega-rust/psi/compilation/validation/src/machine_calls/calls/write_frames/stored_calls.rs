@@ -148,21 +148,28 @@ fn declaration_intrinsic_has_no_signature(
     program: &dyn crate::CheckingInput,
     call_site: super::caller_aliases::CallerWriteSite<'_>,
 ) -> bool {
+    // Provider selection needs its retained operation below. A missing record
+    // cannot regain that rule here just because the call has a familiar name.
+    let other_intrinsic = |intrinsic| {
+        intrinsic
+            != language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection
+    };
     match call_site {
         super::caller_aliases::CallerWriteSite::Call(call) => {
-            crate::compiler_operations::classify_statement_call_intrinsic(program, call).is_some()
+            crate::compiler_operations::classify_statement_call_intrinsic(program, call)
+                .is_some_and(other_intrinsic)
         }
         super::caller_aliases::CallerWriteSite::Expression(expression) => program
             .expression_table
             .call_node(expression)
             .is_some_and(|call| {
                 crate::compiler_operations::classify_expression_call_intrinsic(program, call)
-                    .is_some()
+                    .is_some_and(other_intrinsic)
                     || crate::compiler_operations::authored_call_intrinsic(
                         program,
                         typed_trees::references::StaticArgumentCall::Expression(expression, call),
                     )
-                    .is_some()
+                    .is_some_and(other_intrinsic)
             }),
         _ => false,
     }
