@@ -26,6 +26,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod completion;
 pub(super) use completion::PreparedSelectedGuarantees;
+mod matches;
 mod metadata_paths;
 mod terms;
 
