@@ -307,9 +307,9 @@ impl ValueEnvironment {
         self.numeric_observations = StatementNumericObservations::default();
     }
 
-    /// Both statement checking and collection-bound arrivals consume the same
-    /// prepared normal-value batch. Copies borrow these final-prefix rows;
-    /// they never re-enter the collector for each expression or destination.
+    /// Statement checking and collection-bound arrivals share operand-time
+    /// values and separate completed-root associations. Copies borrow the
+    /// prepared batch instead of collecting each expression or destination again.
     pub(crate) fn prepare_numeric_observations(
         &mut self,
         program: &dyn crate::CheckingInput,

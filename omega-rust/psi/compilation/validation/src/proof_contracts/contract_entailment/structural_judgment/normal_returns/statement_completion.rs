@@ -155,6 +155,7 @@ impl<'program> StructuralJudge<'program> {
                 roots: entries.roots,
                 roots_unavailable: entries.roots_unavailable,
                 operations: entries.operations,
+                values: entries.values,
                 values_unavailable: entries.values_unavailable,
             },
         })

@@ -726,6 +726,19 @@ impl Observations {
         for &expression in &completed.roots_unavailable {
             self.invalidate_root(program, expression);
         }
+        if self.wants_scalar_values {
+            for observed in &completed.values {
+                if self.candidates.contains(&observed.expression) {
+                    self.collect_value(
+                        program,
+                        machine,
+                        state,
+                        observed.expression,
+                        observed.value.clone(),
+                    );
+                }
+            }
+        }
         for root in &completed.roots {
             let results = self
                 .results
@@ -735,22 +748,9 @@ impl Observations {
                     crate::expression_owners::expression_contains(program, root.expression, result)
                 })
                 .collect::<Vec<_>>();
-            let candidates = self
-                .candidates
-                .iter()
-                .copied()
-                .filter(|&candidate| {
-                    crate::expression_owners::expression_contains(
-                        program,
-                        root.expression,
-                        candidate,
-                    )
-                })
-                .collect::<Vec<_>>();
             for path in &root.paths {
-                if self.wants_scalar_values {
-                    self.collect_requested(program, machine, state, path, &candidates);
-                }
+                // Associations describe what is known after this root. Scalar
+                // operand values above retain their own earlier proof context.
                 self.collect_associations(program, machine, state, &results, path);
             }
         }
@@ -943,40 +943,47 @@ impl Observations {
             if !candidates.contains(expression) {
                 continue;
             }
-            let Some(carrier) = super::observed_projections::integer_storage_read(
-                program,
-                machine,
-                state,
-                *expression,
-            ) else {
-                continue;
-            };
             let value = judge.completed_value_identity(value.clone());
+            self.collect_value(program, machine, state, *expression, value);
+        }
+    }
 
-            let value = match value.semantic_value() {
-                StructuralTerm::Integer(integer) => ScopedArithmeticValue::Integer(integer.clone()),
-                _ => {
-                    let Some(key) = value.observation_identity_key() else {
-                        self.invalidate_root(program, *expression);
-                        continue;
-                    };
-                    ScopedArithmeticValue::Atom {
-                        identity: format!("state:{:?}:completed-scalar:{key}", self.state),
-                        unsigned: !carrier.primitive.is_signed_integer(),
-                    }
+    fn collect_value(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        value: StructuralTerm,
+    ) {
+        let Some(carrier) =
+            super::observed_projections::integer_storage_read(program, machine, state, expression)
+        else {
+            return;
+        };
+        let value = match value.semantic_value() {
+            StructuralTerm::Integer(integer) => ScopedArithmeticValue::Integer(integer.clone()),
+            _ => {
+                let Some(key) = value.observation_identity_key() else {
+                    self.invalidate_root(program, expression);
+                    return;
+                };
+                ScopedArithmeticValue::Atom {
+                    identity: format!("state:{:?}:completed-scalar:{key}", self.state),
+                    unsigned: !carrier.primitive.is_signed_integer(),
                 }
-            };
-            if let Some((_, prior)) = self
-                .values
-                .iter_mut()
-                .find(|(source, _)| source == expression)
-            {
-                if prior.as_ref() != Some(&value) {
-                    *prior = None;
-                }
-            } else {
-                self.values.push((*expression, Some(value)));
             }
+        };
+        if let Some((_, prior)) = self
+            .values
+            .iter_mut()
+            .find(|(source, _)| *source == expression)
+        {
+            if prior.as_ref() != Some(&value) {
+                *prior = None;
+            }
+        } else {
+            self.values.push((expression, Some(value)));
         }
     }
 }

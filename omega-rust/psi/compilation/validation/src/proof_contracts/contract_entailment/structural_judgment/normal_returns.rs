@@ -180,10 +180,18 @@ pub(in crate::proof_contracts::contract_entailment) struct RootObservation<'prog
     pub paths: Vec<StructuralJudge<'program>>,
 }
 
+/// A value normalized when its own evaluation completed. Later operands may
+/// establish more facts about it, but cannot justify its earlier formation.
+pub(in crate::proof_contracts::contract_entailment) struct CompletedValueObservation {
+    pub expression: ExpressionHandle,
+    pub value: StructuralTerm,
+}
+
 pub(in crate::proof_contracts::contract_entailment) struct CompletedNormalObservations<'program> {
     pub roots: Vec<RootObservation<'program>>,
     pub roots_unavailable: Vec<ExpressionHandle>,
     pub operations: Vec<NormalOperationEntry<'program>>,
+    pub values: Vec<CompletedValueObservation>,
     pub values_unavailable: Vec<ExpressionHandle>,
 }
 
@@ -194,6 +202,7 @@ struct NormalObservationEntries<'program> {
     roots: Vec<RootObservation<'program>>,
     roots_unavailable: Vec<ExpressionHandle>,
     operations: Vec<NormalOperationEntry<'program>>,
+    values: Vec<CompletedValueObservation>,
     values_unavailable: Vec<ExpressionHandle>,
 }
 
@@ -829,6 +838,7 @@ impl<'program> StructuralJudge<'program> {
             roots: entries.roots,
             roots_unavailable: entries.roots_unavailable,
             operations: entries.operations,
+            values: entries.values,
             values_unavailable: entries.values_unavailable,
         })
     }
@@ -1361,6 +1371,18 @@ impl<'program> StructuralJudge<'program> {
             && !entries.values_unavailable.contains(&expression)
         {
             entries.values_unavailable.push(expression);
+        }
+        if requested_operations.values.contains(&expression) {
+            for path in &paths {
+                if path.value_requested
+                    && let Some(value) = path.observed_value()
+                {
+                    entries.values.push(CompletedValueObservation {
+                        expression,
+                        value: path.judge.completed_value_identity(value.clone()),
+                    });
+                }
+            }
         }
         if requested_operations.stop == ObservationStop::AfterValue(expression) {
             for path in paths {
