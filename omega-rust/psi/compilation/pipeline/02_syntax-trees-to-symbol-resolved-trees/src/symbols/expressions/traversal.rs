@@ -5,7 +5,7 @@ use super::references::{
     assign_call_symbol, assign_member_symbol, assign_membership_symbol, assign_name_symbol,
     assign_pattern_head_symbol, assign_struct_literal_symbols,
 };
-use crate::symbols::expression_paths::pattern_field_symbol;
+use crate::symbols::expression_paths::assign_pattern_field_symbols;
 use crate::symbols::scope::MachineScope;
 use symbol_resolved_trees::expression::ExpressionHandle;
 use symbol_resolved_trees::expression::ExpressionNode;
@@ -265,20 +265,7 @@ impl ExpressionSymbolContext<'_, '_> {
                         .pattern = arm.pattern;
                     if let MatchPattern::Destructure(pattern) = arm.pattern {
                         self.reassign_type_reference(pattern.application_type);
-                        let head = self
-                            .expression_table
-                            .name_path_node(pattern.head)
-                            .map(|path| path.symbol)
-                            .unwrap_or_default();
-                        for position in 0..pattern.fields.count() {
-                            let field = pattern.fields.handle_at(position);
-                            let spelling = self.expression_table.match_fields(pattern.fields)
-                                [position as usize]
-                                .member
-                                .as_str();
-                            let selected = pattern_field_symbol(self.symbols, head, spelling);
-                            self.expression_table.match_field_mut(field).field_symbol = selected;
-                        }
+                        assign_pattern_field_symbols(self.symbols, self.expression_table, pattern);
                     }
                     self.assign_expression_table_symbols(arm.value);
                 }
