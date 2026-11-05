@@ -667,6 +667,31 @@ class CompilerPilotTests(unittest.TestCase):
                 self.assertEqual(pilot.select_fixtures(f" {negative}, {positive} "),
                                  ((positive,), (negative,)))
 
+    def test_run_fixture_keeps_exact_selection_and_requires_both_engines(self):
+        fixture = "run/borrows/conditional_origins"
+        negative = "fail/borrows/local_escape"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, fixture, negative)
+            (root / "tests/omega" / fixture / "expected_native_exit.txt").write_text("0\n")
+            with patch.object(pilot, "ROOT", root), \
+                    patch.object(pilot, "prepare_producer") as build:
+                self.assertEqual(pilot.select_fixtures(fixture + "," + negative),
+                                 ((fixture,), (negative,)))
+                report = self.report(both=True)
+                report["observations"] = [dict(fixture=fixture, status="built",
+                    facts={"exit": "0", "interpreter-exit": "0", "interpreter": "agrees"})]
+                pilot.validate_report(report, (fixture,), both=True,
+                                      revision="a" * 40, target="linux_x86_64")
+                report["observations"][0]["facts"]["interpreter"] = "unchecked"
+                with self.assertRaisesRegex(ValueError, "missing native/Terminal agreement"):
+                    pilot.validate_report(report, (fixture,), both=True,
+                                          revision="a" * 40, target="linux_x86_64")
+                self.fixture_root(root, fixture + "_extra")
+                with self.assertRaisesRegex(ValueError, "unrequested fixtures"):
+                    pilot.select_fixtures(fixture)
+                build.assert_not_called()
+
     def test_nested_fact_ids_keep_exact_selection_and_refusals(self):
         positive = "pass/facts/invocation_lifetime/local"
         negative = "fail/facts/invocation_lifetime/local"

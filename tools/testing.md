@@ -241,7 +241,7 @@ rebuilds changed Rust inputs, so a routine post-merge integration can spend the
 same cold-build time that branch reuse was meant to avoid.
 
 Locally, the same selector is `python tools/ci/compiler_pilot.py --fixtures IDS`
-or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must name existing normalized directories under `pass/` or `fail/`
+or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must name existing normalized directories under `pass/`, `run/` or `fail/`
 containing `main.omg`, including nested fact-place paths.
 For canonical checking rows after runtime is already qualified, add
 `--checking-only` (manual workflow input `checking_only: true`). It requires
@@ -917,8 +917,8 @@ checking only on `linux_x86_64`; `--native` or `--both` also compares
 native/Terminal rows on the matching host (`linux_x86_64`, `linux_arm64`,
 `windows_x86_64` or `macos_arm64`). The base's rows are cached like local
 ones, so a second remote compare against that base dispatches only the head.
-The pilot takes exact `pass/` and `fail/` IDs, so `run/` fixtures and `--shard`
-stay local.
+The pilot accepts exact `pass/`, `run/` and `fail/` IDs; `run/` fixtures keep
+their authored engine oracles. `--shard` stays local.
 
 The base is built from its commit in a separate worktree
 (`build/compare-bases/<sha>`) with its own build directory, so neither uncommitted edits nor artifacts from
