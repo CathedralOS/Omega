@@ -498,6 +498,9 @@ impl Query<'_> {
             && self.belongs(value)
         {
             let destination = match operation {
+                CheckedUnitEffectOperationPlan::EstablishLocal(
+                    CheckedUnitLocalBindingPlan::Structural { result, .. },
+                ) => Destination::Holder(result.clone(), Vec::new()),
                 CheckedUnitEffectOperationPlan::Store(store) => Destination::Storage {
                     statement_index: store.statement_index,
                     captured_selection: store.captured_selection.clone(),

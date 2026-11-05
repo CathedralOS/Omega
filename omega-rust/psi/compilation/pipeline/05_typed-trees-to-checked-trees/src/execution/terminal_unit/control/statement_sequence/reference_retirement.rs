@@ -583,12 +583,11 @@ impl Retirement<'_> {
                     self.results,
                 )
             } else {
-                // Stores select their receiving leaf inside the existing exact
-                // construction query. Keep every possible child for a store
-                // that installs a value; ordinary releases and scalar stores
-                // cannot produce a descriptor.
-                if matches!(operation, CheckedUnitEffectOperationPlan::Store(store)
-                    if store.installed_value().is_some())
+                // Installation selects its receiving holder in the exact
+                // construction query, including a completed initializer's new
+                // home. Keep all possible children for that query to check;
+                // releases and scalar stores do not install descriptors.
+                if operation.installed_value().is_some()
                     && let Some(loans) = self.facts.borrow.loan_group(state.loans)
                 {
                     for (child, _) in loans {
@@ -1549,32 +1548,26 @@ impl Retirement<'_> {
                         return false;
                     };
                     if self.operations.iter().any(|operation| {
-                        let CheckedUnitEffectOperationPlan::Store(store) = operation else {
+                        let Some((owner, formation, selection)) = stores::receiver(
+                            self.program,
+                            self.facts,
+                            self.machine,
+                            self.state,
+                            operation,
+                        ) else {
                             return false;
                         };
                         self.order
-                            .precedes(loan.statement_index, store.statement_index as usize)
-                            && self
-                                .order
-                                .precedes(store.statement_index as usize, statement as usize)
-                            && store.installed_value().is_some()
-                            && stores::receiver(
+                            .precedes(loan.statement_index, formation as usize)
+                            && self.order.precedes(formation as usize, statement as usize)
+                            && owner == loan.owner_symbol
+                            && validation::reference_result_custody::loan_owner_path(
                                 self.program,
-                                self.facts,
-                                self.machine,
-                                self.state,
-                                operation,
+                                reference,
+                                &selection,
                             )
-                            .is_some_and(|(owner, _, selection)| {
-                                owner == loan.owner_symbol
-                                    && validation::reference_result_custody::loan_owner_path(
-                                        self.program,
-                                        reference,
-                                        &selection,
-                                    )
-                                    .is_some_and(|path| {
-                                        self.facts.borrow.loan_owner_path(loan).starts_with(&path)
-                                    })
+                            .is_some_and(|path| {
+                                self.facts.borrow.loan_owner_path(loan).starts_with(&path)
                             })
                     }) {
                         // A later replacement receipt settles the installed

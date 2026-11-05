@@ -1696,8 +1696,8 @@ pub(in crate::execution::terminal_unit) fn consume_results(
             consume_result(operations, binding_ordinal, access, projected)?;
         }
     }
-    // A whole-result field store consumes the minted binding the same way a
-    // call argument does: Owned access retires the producer's disposal debt.
+    // Installing a completed value into a local home or field consumes it as
+    // an owned call argument does, retiring the producer's disposal debt.
     if let Some(value) = consumer.installed_value()
         && let Some(binding_ordinal) = value.source_structural_result_binding_ordinal()
     {

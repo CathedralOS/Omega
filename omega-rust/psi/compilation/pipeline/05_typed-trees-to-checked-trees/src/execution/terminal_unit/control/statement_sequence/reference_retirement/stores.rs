@@ -137,19 +137,19 @@ pub(super) fn receiver(
     state: &typed_trees::state::State,
     operation: &OperationPlan,
 ) -> Option<(SymbolHandle, u32, Vec<PathSegment>)> {
-    let OperationPlan::Store(store) = operation else {
+    operation.installed_value()?;
+    let statement = operation.source_statement_index()?;
+    let selection = operation
+        .store()
+        .map_or(&[][..], |store| store.captured_selection.as_slice());
+    let (symbol, path) = destination(program, facts, machine, state, statement, selection)?;
+    if operation
+        .structural_result_binding()
+        .is_some_and(|result| result.local.symbol != symbol)
+    {
         return None;
-    };
-    store.installed_value()?;
-    let (symbol, path) = destination(
-        program,
-        facts,
-        machine,
-        state,
-        store.statement_index,
-        &store.captured_selection,
-    )?;
-    Some((symbol, store.statement_index, path))
+    }
+    Some((symbol, statement, path))
 }
 
 pub(super) fn loans(

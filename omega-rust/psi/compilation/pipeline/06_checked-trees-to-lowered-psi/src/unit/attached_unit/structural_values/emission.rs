@@ -96,6 +96,82 @@ pub(crate) fn emit<'source>(
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<ValueOutcome<CompletedValue>, LoweringError> {
+    emit_source(
+        identities,
+        production,
+        None,
+        environment,
+        calls,
+        evaluation,
+        values,
+        next_value,
+        next_block,
+        next_edge,
+        operations,
+    )
+}
+
+/// Receive an already completed value at a new owned binding. Its original
+/// occurrence supplies the consumption receipt, never another evaluation or
+/// another issuance of its claims.
+pub(crate) fn receive_completed<'source>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    initialization: &checked_trees::CheckedStructuralLocalInitialization,
+    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+    source: PlaceId,
+    structural_type: StructuralTypeId,
+    environment: &mut super::super::operation_frame::OperationEnvironment<'source>,
+    calls: &mut CallEmissionContext<'_>,
+    evaluation: &mut argument_evaluation::Evaluation,
+    values: &mut Vec<ValueDeclaration>,
+    next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<ValueOutcome<CompletedValue>, LoweringError> {
+    // C5 retains a named receiving home and its exact normal initializer.
+    // This is transport of that completed contract, not another formation
+    // against a receiving annotation or another execution of its calls.
+    let production = ValueProduction {
+        value: initialization.value,
+        owner: facts::PlaceRoot::Symbol(result.local.symbol),
+        destination: ValueDestination::Binding,
+        statement: result.statement_index,
+        structural_type,
+        multiplicity: result.multiplicity,
+        binding_type_reference: Default::default(),
+        access: StructuralAccess::Owned,
+        selection: Default::default(),
+        calls: &[],
+    };
+    emit_source(
+        identities,
+        production,
+        Some(StructuralArgument::whole(source, StructuralAccess::Owned)),
+        environment,
+        calls,
+        evaluation,
+        values,
+        next_value,
+        next_block,
+        next_edge,
+        operations,
+    )
+}
+
+fn emit_source<'source>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    production: ValueProduction<'source>,
+    completed_source: Option<StructuralArgument>,
+    environment: &mut super::super::operation_frame::OperationEnvironment<'source>,
+    calls: &mut CallEmissionContext<'_>,
+    evaluation: &mut argument_evaluation::Evaluation,
+    values: &mut Vec<ValueDeclaration>,
+    next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<ValueOutcome<CompletedValue>, LoweringError> {
     let checked = environment.checked;
     let machine = environment.machine;
     let state = environment.state;
@@ -115,21 +191,22 @@ pub(crate) fn emit<'source>(
     {
         return unsupported("structural producer has a different checked source coordinate");
     }
-    let prepared_claims = if production.destination == ValueDestination::Evaluation {
-        Vec::new()
-    } else {
-        crate::emission::claim_bindings::prepare_establishment_claims(
-            identities,
-            checked,
-            machine,
-            state,
-            production.statement as usize,
-            production.owner,
-            occurrence.type_reference,
-            structural_type,
-            structural_types,
-        )?
-    };
+    let prepared_claims =
+        if completed_source.is_some() || production.destination == ValueDestination::Evaluation {
+            Vec::new()
+        } else {
+            crate::emission::claim_bindings::prepare_establishment_claims(
+                identities,
+                checked,
+                machine,
+                state,
+                production.statement as usize,
+                production.owner,
+                occurrence.type_reference,
+                structural_type,
+                structural_types,
+            )?
+        };
     let result_claims = emit_establishment_claims(&prepared_claims, &mut calls.claims)?;
     let authored_state = crate::shared::declarations::state_declaration(checked, state)?.1;
     let captured_sources = production
@@ -248,7 +325,9 @@ pub(crate) fn emit<'source>(
     let view_loan = declaration.and_then(|declaration| {
         borrowed_view_join_access(&declaration.shape, production.multiplicity)
     });
-    let result_access = if let Some(access) = borrowed_alias {
+    let result_access = if completed_source.is_some() {
+        StructuralAccess::Owned
+    } else if let Some(access) = borrowed_alias {
         // Equal source/destination carriers transport the existing loan. They
         // do not acquire owned custody merely because mutable access is affine.
         access
@@ -439,7 +518,8 @@ pub(crate) fn emit<'source>(
         }
         _ => None,
     };
-    let projected_storage = if emission.sources.is_empty()
+    let projected_storage = if completed_source.is_none()
+        && emission.sources.is_empty()
         && let Some((
             source,
             path,
@@ -521,7 +601,10 @@ pub(crate) fn emit<'source>(
     } else {
         None
     };
-    let place = if let Some(alias) = projected_storage {
+    let place = if let Some(source) = completed_source {
+        let first_new_place = *emission.environment.next_place;
+        emission.materialize_place(identities, source, *value, first_new_place)?
+    } else if let Some(alias) = projected_storage {
         let first_new_place = *emission.environment.next_place;
         let mut argument = StructuralArgument {
             place: alias.place(),
