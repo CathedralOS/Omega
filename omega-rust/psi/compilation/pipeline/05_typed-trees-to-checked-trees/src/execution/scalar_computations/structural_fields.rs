@@ -444,6 +444,19 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         field: validation::StructuralScalarField,
     ) -> Option<ComputationHandle> {
+        // A saved operand is an expression home, not a fresh value to evaluate.
+        // Specialization reads a value-parameter descriptor from that operand
+        // after erasure has removed the carrier's runtime place. The closed
+        // integer operand of the application is the field's established value,
+        // so the observation does not borrow storage the carrier does not have.
+        if let Some(literal) = closed_descriptor_value(self.program, &field) {
+            return Some(self.insert(
+                field.primitive_type,
+                ComputationKind::Value(checked_trees::CheckedScalarExpression::IntegerLiteral {
+                    literal,
+                }),
+            ));
+        }
         let receiver_value = if let Some(captured) = self.captured_dispatch_value(expression)
             && captured.type_reference == field.type_reference
             && field.root == facts::PlaceRoot::Expression(captured.expression)
@@ -502,4 +515,28 @@ impl Builder<'_, '_> {
             },
         ))
     }
+}
+
+/// The closed integer a value-parameter descriptor denotes when the read's
+/// root is a saved expression rather than a symbol home. A path below that
+/// descriptor is a different observation and keeps the ordinary borrow.
+fn closed_descriptor_value(
+    program: &dyn ::validation::CheckingInput,
+    field: &validation::StructuralScalarField,
+) -> Option<numerics::literals::IntegerLiteral> {
+    if !field.path.is_empty() || !matches!(field.root, facts::PlaceRoot::Expression(_)) {
+        return None;
+    }
+    let (_, _, index) = program
+        .data_application_value_fields(field.type_reference)
+        .into_iter()
+        .find(|(_, descriptor, _)| descriptor.symbol == field.field)?;
+    let literal = program
+        .typed_program()
+        .static_const_literal_from_type_reference(index)?;
+    let landed_type = field.primitive_type.landed_landing()?;
+    Some(literal.with_landing(numerics::literals::IntegerLanding {
+        landed_type,
+        domain: field.domain,
+    }))
 }
