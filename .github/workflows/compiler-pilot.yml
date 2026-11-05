@@ -5,11 +5,12 @@ permissions:
   contents: read
   actions: read
 jobs:
-  debugger-start-feasibility:
+  source-caller-diagnostic:
     runs-on: windows-2022
     timeout-minutes: 15
     env:
       CARGO_TARGET_DIR: D:/ot
+      OMEGA_CORPUS_FIXTURE_SECS: 120
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -22,11 +23,11 @@ jobs:
         run: |
           from pathlib import Path
           import hashlib, os
-          dst = Path(os.environ['RUNNER_TEMP']) / 'atomic-debug-start-observer'
+          dst = Path(os.environ['RUNNER_TEMP']) / 'atomic-source-caller-observer'
           dst.mkdir(exist_ok=False)
           files = {
-              '.github/observers/windows_debugger_start_cc7.py': ('observer.py', '6bad3e366d3e64ce45f6cc7148d4edb5a1afb86346ec76576b618dc60dca6c52'),
-              '.github/observers/windows-debugger-start-cc7-recipe.json': ('recipe.json', 'c840385369daaba91b528696f44e271b83ea243a615d27661bab89aeec50d171'),
+              '.github/observers/windows_source_callers_cc7.py': ('observer.py', '6222d4ce0d461bf7621fc792cd9f2ec0c5e2564f7eaff4a3762bf69c75d9efbd'),
+              '.github/observers/windows-source-callers-cc7-recipe.json': ('recipe.json', 'e189846b1585a816326634e4f1a6e1bb40a3be2f7db94624790abd54623afa07'),
           }
           for source, (target, expected) in files.items():
               data = Path(source).read_bytes()
@@ -49,8 +50,8 @@ jobs:
             D:/ot
           key: compiler-pilot-Windows-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-cc7dad262fd756c3ea8eae3244a7e357823d018a
           fail-on-cache-miss: true
-      - name: Inspect local PDB loading from a debugger-created process
-        timeout-minutes: 3
+      - name: Capture two acknowledged Source runner caller snapshots
+        timeout-minutes: 5
         env:
           GH_TOKEN: ${{ github.token }}
           OMEGA_DEBUG_START_OBSERVER: ${{ github.sha }}
@@ -66,8 +67,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: atomic-windows-debugger-start-cc7-${{ github.run_id }}
-          path: build/atomic-windows-debugger-start-cc7/
+          name: atomic-windows-source-callers-cc7-${{ github.run_id }}
+          path: build/atomic-windows-source-callers-cc7/
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 7
