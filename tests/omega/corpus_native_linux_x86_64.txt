@@ -3146,6 +3146,7 @@ pass/facts/induction_call_guarantee_through_other_machine_exit built 2735ms exit
 pass/facts/induction_call_guarantee_through_other_state_exit built 2736ms exit:0 @961147032a93+wt
 pass/facts/induction_call_guarantee_through_parameter_exit built 2734ms exit:0 @961147032a93+wt
 pass/facts/induction_call_guarantee_through_target_body_exit built 1936ms exit:0 @961147032a93+wt
+pass/facts/inferred_array_equation_call_mixed_binders_value_index_exit built 4158ms exit:0 @35dd60f55878
 pass/facts/inferred_array_equation_call_through_call_result_exit built 2636ms exit:0 @a92f16431042
 pass/facts/inferred_array_equation_call_through_const_name_exit built 3390ms exit:0 @a92f16431042
 pass/facts/inferred_array_equation_call_through_field_exit built 2953ms exit:0 @a92f16431042
@@ -5159,6 +5160,8 @@ pass/generics/generic_result_parameter_receipt checked 4048ms @a92f16431042
 pass/generics/generic_seq_consuming_map_filter checked 3706ms @a92f16431042
 pass/generics/generic_seq_map_filter checked 2052ms @a92f16431042
 pass/generics/higher_order_schema checked 2735ms @a92f16431042
+pass/generics/inferred_equation_computed_satisfaction_exit built 4250ms exit:0 @35dd60f55878
+pass/generics/inferred_equation_typed_const_const_name_exit built 4331ms exit:0 @35dd60f55878
 pass/generics/inferred_machine_array_equation_deferred_bodies_exit built 2158ms exit:0 @a92f16431042
 pass/generics/inferred_machine_array_equation_generic_owner_field_exit built 2242ms exit:0 @a92f16431042
 pass/generics/inferred_machine_array_equation_named_extent_exit built 1999ms exit:0 @a92f16431042

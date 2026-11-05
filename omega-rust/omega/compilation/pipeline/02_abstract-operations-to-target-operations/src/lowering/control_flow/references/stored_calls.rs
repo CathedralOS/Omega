@@ -286,6 +286,40 @@ pub(in crate::lowering) fn catalog(
                             DescriptorStoredOrigin::Provider(provider) => {
                                 sources.push(Source::Provider(effects.provider_origin(&provider)?));
                             }
+                            // An exact contents query with no further projection is
+                            // the incoming pointer at that query. The caller
+                            // already holds that leaf, so the stored effect
+                            // can retarget it.
+                            DescriptorStoredOrigin::IncomingContents {
+                                position,
+                                steps,
+                                projection,
+                            } if projection.exact
+                                && !projection.indirect
+                                && projection.path.is_empty()
+                                && projection.window.is_none()
+                                && projection.captured_at.is_none() =>
+                            {
+                                let parameter = function.structural_parameters.get(position)?;
+                                let query_path = steps
+                                    .iter()
+                                    .map(|step| match step {
+                                        terminal_semantics::descriptor_lifetimes::DescriptorContentsStep::Address(segment) => {
+                                            Some(segment.clone())
+                                        }
+                                        terminal_semantics::descriptor_lifetimes::DescriptorContentsStep::AnyElement { .. } => None,
+                                    })
+                                    .collect::<Option<Vec<_>>>()?;
+                                sources.push(Source::Incoming(StructuralArgument {
+                                    place: parameter.place,
+                                    path: descriptor_path(
+                                        types.catalog(),
+                                        parameter.structural_type,
+                                        &query_path,
+                                    )?,
+                                    access: parameter.access,
+                                }));
+                            }
                             DescriptorStoredOrigin::Invocation { .. }
                             | DescriptorStoredOrigin::IncomingContents { .. }
                             | DescriptorStoredOrigin::Literal { .. }

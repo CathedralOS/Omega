@@ -6,7 +6,7 @@
 //! integer value. Address ceilings remain the symbolic model bound.
 
 use super::structural_judgment::StructuralTerm;
-use super::structural_judgment::normal_returns::OperationOperandDemand;
+use super::structural_judgment::normal_returns::{OperationObservation, OperationOperandDemand};
 use super::structural_prefix::{PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor};
 use crate::frozen_program::CheckingQuery;
 use crate::proof_contracts::arithmetic_domains::BigIntInterval;
@@ -1068,30 +1068,48 @@ impl StructuralPrefixVisitor for OperandFit {
 
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
         let (program, machine, state, judge, environment) = observation;
+        let scope = (machine, state, self.request.context_reference);
         let entries = match self.request.source {
-            OperandSource::AnonymousValue => judge.normal_value_entries(
-                self.site.statement_index,
-                self.request.expression,
-                environment,
-                (machine, state, self.request.context_reference),
-            ),
-            _ => judge.normal_operation_entries(
-                self.site.statement_index,
-                self.request.expression,
-                OperationOperandDemand::All,
-                environment,
-                (machine, state, self.request.context_reference),
-            ),
+            OperandSource::AnonymousValue => {
+                let Some(entries) = judge.normal_value_entries(
+                    self.site.statement_index,
+                    self.request.expression,
+                    environment,
+                    scope,
+                ) else {
+                    self.judgment = Some(CarrierFit::Unknown);
+                    self.range_complete = false;
+                    return;
+                };
+                if entries.is_empty() {
+                    self.judgment = Some(CarrierFit::Unknown);
+                    self.range_complete = false;
+                    return;
+                }
+                entries
+            }
+            _ => {
+                match judge.operation_observation(
+                    self.site.statement_index,
+                    self.request.expression,
+                    OperationOperandDemand::All,
+                    environment,
+                    scope,
+                ) {
+                    // A short-circuited arm of a transition guard never forms
+                    // this comparison. That absence is not a failed fit, and
+                    // recording it as unknown would discard an arm that does
+                    // form the operand.
+                    OperationObservation::Unreached => return,
+                    OperationObservation::Refused => {
+                        self.judgment = Some(CarrierFit::Unknown);
+                        self.range_complete = false;
+                        return;
+                    }
+                    OperationObservation::Reached(entries) => entries,
+                }
+            }
         };
-        let Some(entries) = entries else {
-            self.judgment = Some(CarrierFit::Unknown);
-            self.range_complete = false;
-            return;
-        };
-        if entries.is_empty() {
-            self.judgment = Some(CarrierFit::Unknown);
-            self.range_complete = false;
-        }
         for entry in entries {
             let Some(value) = entry
                 .arguments

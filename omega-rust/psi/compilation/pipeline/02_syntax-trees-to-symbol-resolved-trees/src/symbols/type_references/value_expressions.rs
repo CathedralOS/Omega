@@ -114,19 +114,13 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
             data_payload_fields: &declarations.data_payload_fields,
             type_constraints: &program.tables.types.constraints,
         };
-        for argument in conformance.arguments.handles() {
-            let mut reference = declarations.child_type_references.get(argument).clone();
-            assign_type_value_expression_symbols(
-                symbols,
-                &scope,
-                &[],
-                SymbolHandle::invalid(),
-                &mut program.tables.bodies.expressions,
-                &mut declarations.child_type_references,
-                &mut reference,
-            );
-            *declarations.child_type_references.get_mut(argument) = reference;
-        }
+        assign_type_argument_value_expression_symbols(
+            symbols,
+            &scope,
+            &mut program.tables.bodies.expressions,
+            &mut declarations.child_type_references,
+            conformance.arguments,
+        );
     }
     // Constants own type-bound expressions too, including unused declarations.
     // Resolve under their exact source/module owner before typed endpoint
@@ -282,6 +276,30 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
             .data_payload_fields
             .get_mut(handle)
             .type_reference = reference;
+    }
+}
+
+/// Bind value expressions in an argument list under its declaration owner.
+/// Type-name binding alone does not select calls or values inside an argument.
+pub(in crate::symbols) fn assign_type_argument_value_expression_symbols(
+    symbols: &SymbolTable,
+    scope: &MachineScope<'_>,
+    expressions: &mut ExpressionTable,
+    child_types: &mut Arena<TypeReference>,
+    arguments: arena::HandleSpan<TypeReference>,
+) {
+    for argument in arguments.handles() {
+        let mut reference = child_types.get(argument).clone();
+        assign_type_value_expression_symbols(
+            symbols,
+            scope,
+            &[],
+            SymbolHandle::invalid(),
+            expressions,
+            child_types,
+            &mut reference,
+        );
+        *child_types.get_mut(argument) = reference;
     }
 }
 
