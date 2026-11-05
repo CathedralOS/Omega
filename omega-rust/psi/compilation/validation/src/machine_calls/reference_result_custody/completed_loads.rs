@@ -7,6 +7,9 @@ use checked_trees::{
 };
 use facts::PlaceRoot;
 
+mod prepared_slots;
+pub use prepared_slots::PreparedDescriptorLoadSlots;
+
 /// Repeated reads can share a descriptor only when their completed captures
 /// identify the same unchanged input slot. The pointer's temporary home and
 /// opaque referent are different coordinates and cannot stand in for that slot.
@@ -44,7 +47,13 @@ pub fn completed_descriptor_load_slot(
     if capture.statement_index != loan.statement_index {
         return Err("the descriptor loan differs from its completed read statement");
     }
-    let mut pending = vec![loaded.sources];
+    unchanged_input_slot(loaded.sources)
+}
+
+fn unchanged_input_slot(
+    source: crate::completed_storage::StoredOperand,
+) -> Result<crate::CanonicalPlace, &'static str> {
+    let mut pending = vec![source];
     let mut selected = None;
     while let Some(source) = pending.pop() {
         match source {
@@ -78,6 +87,21 @@ pub struct CompletedDescriptorLoad {
     pub sources: crate::completed_storage::StoredOperand,
 }
 
+fn activation_matches_load(
+    facts: &CheckFacts,
+    identity: Handle<IncomingReferenceIdentity>,
+    expression: typed_trees::expression::ExpressionHandle,
+    activation: &checked_trees::FlowBorrowActivationFact,
+) -> bool {
+    if !facts.borrow.loans.is_valid(activation.loan) {
+        return false;
+    }
+    let loan = facts.borrow.loans.get(activation.loan);
+    loan.incoming_reference == identity
+        && loan.storage_owner == PlaceRoot::Expression(expression)
+        && loan.formation_expression == expression
+}
+
 pub fn completed_descriptor_load(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
@@ -96,26 +120,33 @@ pub fn completed_descriptor_load(
     {
         return Err("the descriptor load belongs to another invocation");
     }
-    let control = &facts.flow.control;
     let mut activations = facts
         .flow
         .borrow_lifetimes
         .activations
         .span_or_empty(state.borrow_activations)
         .iter()
-        .filter(|activation| {
-            if !facts.borrow.loans.is_valid(activation.loan) {
-                return false;
-            }
-            let loan = facts.borrow.loans.get(activation.loan);
-            loan.incoming_reference == identity
-                && loan.storage_owner == PlaceRoot::Expression(expression)
-                && loan.formation_expression == expression
-        });
+        .filter(|activation| activation_matches_load(facts, identity, expression, activation));
     let activation = activations
         .next()
         .ok_or("the incoming pointer has no actual load activation")?;
-    if activations.next().is_some() || !control.operands.is_valid(activation.formation_value) {
+    if activations.next().is_some() {
+        return Err("the incoming pointer has no unique completed load");
+    }
+    complete_descriptor_load(program, facts, state, expression, activation)
+}
+
+// Selection establishes one matching activation. Both the ordinary query and
+// the immutable batch use this same completed-read authentication and source cut.
+fn complete_descriptor_load(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    expression: typed_trees::expression::ExpressionHandle,
+    activation: &checked_trees::FlowBorrowActivationFact,
+) -> Result<CompletedDescriptorLoad, &'static str> {
+    let control = &facts.flow.control;
+    if !control.operands.is_valid(activation.formation_value) {
         return Err("the incoming pointer has no unique completed load");
     }
     let capture = control.operands.get(activation.formation_value);

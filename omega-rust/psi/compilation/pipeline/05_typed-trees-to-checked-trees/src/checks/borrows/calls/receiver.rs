@@ -1,6 +1,7 @@
 //! Exclusive-place operations and explicit state-jump subject access.
 //! Ordinary machine arguments use the shared call compatibility checks.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use crate::published::places::place_at;
 use checked_trees::{BorrowAccessKind, CapturedPlace, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
@@ -23,6 +24,7 @@ pub(in crate::checks::borrows) use footprint::{
 pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
     program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state_flow: &FlowStateFact,
     statement: &checked_trees::FlowStatementFact,
     expression: typed_trees::expression::ExpressionHandle,
@@ -31,8 +33,14 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
     diagnostics: &mut Vec<Diagnostic>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
-    let Some(receiver) = access_sources::resolve(program, facts, state_flow, statement, expression)
-    else {
+    let Some(receiver) = access_sources::resolve(
+        program,
+        facts,
+        loan_occurrences,
+        state_flow,
+        statement,
+        expression,
+    ) else {
         diagnostics.push(Diagnostic::error(
             "exclusive operation requires an exact receiver source and available loan authority",
         ));
@@ -57,6 +65,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
         if place_access::access_interferes(
             program,
             facts,
+            loan_occurrences,
             std::slice::from_ref(&receiver),
             &BorrowAccessKind::Mutable,
             loan_handle,
@@ -109,6 +118,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
             let Some(access) = aliases::resolve_place(
                 program,
                 facts,
+                loan_occurrences,
                 state_flow,
                 statement.entry_constraints,
                 place,

@@ -1,5 +1,6 @@
 //! Frozen reference leaves held by completed actuals. Unknown address coverage
 //! remains unknown; lifetime dependencies never substitute for referents.
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep};
 use crate::published::places::place_at;
 use arena::Handle;
@@ -42,6 +43,7 @@ impl HeldLeaf {
 pub(super) fn append(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     operand: Handle<FlowOperandFact>,
     until: usize,
@@ -67,6 +69,7 @@ pub(super) fn append(
             append(
                 program,
                 facts,
+                loan_occurrences,
                 state,
                 alternative.value,
                 until,
@@ -95,6 +98,7 @@ pub(super) fn append(
             append(
                 program,
                 facts,
+                loan_occurrences,
                 state,
                 child.value,
                 until,
@@ -157,8 +161,14 @@ pub(super) fn append(
                 continue;
             }
         }
-        let places =
-            super::super::captured_descriptors::places(program, facts, state, operand, &path);
+        let places = super::super::captured_descriptors::places(
+            program,
+            facts,
+            loan_occurrences,
+            state,
+            operand,
+            &path,
+        );
         match places {
             Some(places) => {
                 for place in places {

@@ -11,6 +11,7 @@
 //! handles retain all authority; no new durable proof, pointer or lifetime is
 //! manufactured by this traversal.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowLoanFact, BorrowLoanOwnerSegment, CapturedPlace, CheckFacts, FlowConstraintRef,
@@ -57,6 +58,7 @@ enum LoadPurpose {
 pub(super) fn resolve(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     constraints: HandleSpan<FlowConstraintRef>,
@@ -65,6 +67,7 @@ pub(super) fn resolve(
     resolve_for(
         program,
         facts,
+        loan_occurrences,
         state,
         statement_index,
         constraints,
@@ -76,6 +79,7 @@ pub(super) fn resolve(
 pub(super) fn storage(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     constraints: HandleSpan<FlowConstraintRef>,
@@ -84,6 +88,7 @@ pub(super) fn storage(
     resolve_for(
         program,
         facts,
+        loan_occurrences,
         state,
         statement_index,
         constraints,
@@ -95,6 +100,7 @@ pub(super) fn storage(
 fn resolve_for(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     constraints: HandleSpan<FlowConstraintRef>,
@@ -104,6 +110,7 @@ fn resolve_for(
     match resolve_loads(
         program,
         facts,
+        loan_occurrences,
         state,
         statement_index,
         constraints,
@@ -126,6 +133,7 @@ fn resolve_for(
 fn resolve_loads(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     constraints: HandleSpan<FlowConstraintRef>,
@@ -275,9 +283,15 @@ fn resolve_loads(
 
         let lookup = descriptor_lookup(program, facts, state, constraints, &descriptor)
             .ok_or("the selected slot has no exact current descriptor namespace")?;
-        let candidates =
-            aliases::resolve_descriptor_places(program, facts, state, constraints, lookup.clone())
-                .ok_or("the selected slot has no complete current occurrence roster")?;
+        let candidates = aliases::resolve_descriptor_places(
+            program,
+            facts,
+            loan_occurrences,
+            state,
+            constraints,
+            lookup.clone(),
+        )
+        .ok_or("the selected slot has no complete current occurrence roster")?;
         if candidates.is_empty() {
             return Err("the selected descriptor has no authority alternatives");
         }

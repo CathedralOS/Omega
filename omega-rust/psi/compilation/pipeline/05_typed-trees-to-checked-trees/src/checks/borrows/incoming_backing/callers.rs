@@ -1,6 +1,7 @@
 //! Check every call: its write must not conflict with the saved reference.
 //! If the arguments still depend on the caller's inputs, check its callers in
 //! turn. A recursive call cycle cannot supply its own proof.
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use checked_trees::{BorrowAccessKind, CheckFacts};
 use symbols::SymbolHandle;
 
@@ -88,6 +89,7 @@ impl<'facts> IncomingBackingCalls<'facts> {
         &self,
         program: &dyn validation::CheckingInput,
         facts: &CheckFacts,
+        loan_occurrences: &LoanOccurrences<'_>,
         mut pending: Vec<Requirement>,
     ) -> Result<(), &'static str> {
         let mut pending = pending
@@ -145,7 +147,14 @@ impl<'facts> IncomingBackingCalls<'facts> {
                     invocation.call.invocation_storage,
                 );
                 let mut backings = Vec::new();
-                collect_backings(program, facts, invocation.caller, source, &mut backings)?;
+                collect_backings(
+                    program,
+                    facts,
+                    loan_occurrences,
+                    invocation.caller,
+                    source,
+                    &mut backings,
+                )?;
                 if backings.is_empty() {
                     return Err("an invocation has no complete captured backing alternatives");
                 }
@@ -154,6 +163,7 @@ impl<'facts> IncomingBackingCalls<'facts> {
                 let storage = actual_storage(
                     program,
                     facts,
+                    loan_occurrences,
                     invocation.caller,
                     storage_actual,
                     &requirement.storage.segments,

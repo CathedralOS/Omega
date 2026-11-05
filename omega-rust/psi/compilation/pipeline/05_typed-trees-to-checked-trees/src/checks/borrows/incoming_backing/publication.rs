@@ -1,6 +1,7 @@
 //! Keep the caller requirements with the checked source. When Build selects
 //! an external entry, check them again: that entry has no ordinary caller whose
 //! arguments can prove its outstanding requirements.
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use checked_trees::CheckFacts;
 use facts::{PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
@@ -21,11 +22,14 @@ pub(crate) fn check_external_roots(
     }
     let program: &dyn validation::CheckingInput = checked;
     let facts = &checked.facts;
+    let prepared_loans = LoanOccurrences::new(program, facts);
+    let loan_occurrences = &prepared_loans;
     let calls = IncomingBackingCalls::new(program, facts, roots);
     let mut diagnostics = Vec::new();
     for (_, row) in facts.borrow.incoming_compatibility.iter() {
-        let result = retained_requirement(facts, row)
-            .and_then(|requirement| calls.discharge(program, facts, vec![requirement]));
+        let result = retained_requirement(facts, row).and_then(|requirement| {
+            calls.discharge(program, facts, loan_occurrences, vec![requirement])
+        });
         if let Err(reason) = result {
             diagnostics.push(diagnostics::Diagnostic::error(format!(
                 "external root admission cannot establish captured backing compatibility at statement {}: {reason}",
@@ -119,12 +123,7 @@ fn retained_requirement(
         || store.state_symbol != row.state_symbol
         || store.statement_index != row.statement_index
         || !facts.borrow.loans.is_valid(descriptor_loan)
-        || facts
-            .borrow
-            .loans
-            .get(descriptor_loan)
-            .incoming_reference
-            != loan.incoming_reference
+        || facts.borrow.loans.get(descriptor_loan).incoming_reference != loan.incoming_reference
     {
         return Err(
             "the retained incoming compatibility requirement has mismatched load/store owners",

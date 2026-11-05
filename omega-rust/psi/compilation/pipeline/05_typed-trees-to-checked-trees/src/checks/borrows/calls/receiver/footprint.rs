@@ -2,6 +2,7 @@
 //! Ordinary returning calls use explicit argument exclusivity, not a
 //! receiver-specific relaxation based on which fields the callee accesses.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use crate::flow;
 use validation::CanonicalPlace;
 
@@ -24,6 +25,7 @@ pub(in crate::checks::borrows) struct ReceiverSummaries<'cache> {
 pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loans<'p>(
     program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state_flow: &FlowStateFact,
     call: &BorrowCallFact,
     stated_premises: &[StatedOrderingPremise],
@@ -93,6 +95,7 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
             aliases::resolve_place(
                 program,
                 facts,
+                loan_occurrences,
                 state_flow,
                 entry_constraints,
                 operand.clone(),
