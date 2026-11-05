@@ -69,10 +69,10 @@ def select_fixtures(request):
     groups = set()
     for fixture in fixtures:
         path = PurePosixPath(fixture)
-        if (len(path.parts) < 3 or path.parts[0] not in ("pass", "fail")
+        if (len(path.parts) < 3 or path.parts[0] not in ("pass", "run", "fail")
                 or any(part in (".", "..") for part in path.parts)
                 or "\\" in fixture or path.as_posix() != fixture):
-            raise ValueError(f"not a normalized pass/... or fail/... fixture ID: {fixture!r}")
+            raise ValueError(f"not a normalized pass/..., run/... or fail/... fixture ID: {fixture!r}")
         directory = root.joinpath(*path.parts)
         if not directory.resolve().is_relative_to(root) or not (directory / "main.omg").is_file():
             raise ValueError(f"fixture has no existing main.omg inside tests/omega: {fixture}")
@@ -84,7 +84,7 @@ def select_fixtures(request):
     if matched != set(fixtures):
         raise ValueError("corpus substring filter would also select unrequested fixtures: "
                          + ", ".join(sorted(matched - set(fixtures))))
-    return (tuple(fixture for fixture in fixtures if fixture.startswith("pass/")),
+    return (tuple(fixture for fixture in fixtures if not fixture.startswith("fail/")),
             tuple(fixture for fixture in fixtures if fixture.startswith("fail/")))
 
 
