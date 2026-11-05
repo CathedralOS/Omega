@@ -511,9 +511,7 @@ fn collect_reborrow_sources(
             return None;
         }
         let result = validation::reference_shell(program, capture.type_reference)?;
-        if checked_trees::BorrowAccessKind::from(result.access).direct_reborrow_effect(access).is_none() {
-            return None;
-        }
+        checked_trees::BorrowAccessKind::from(result.access).direct_reborrow_effect(access)?;
         let sources = control.operand_reborrow_sources.span(profile.reborrow_sources)?;
         let mut selected = Vec::new();
         for source in sources {
@@ -522,9 +520,7 @@ fn collect_reborrow_sources(
             let path = control.operand_retained_paths.span(source.source_path)?;
             let reference = validation::owned_projection_type_reference(program, value.type_reference, path)?;
             let reference = validation::reference_shell(program, reference)?;
-            if checked_trees::BorrowAccessKind::from(reference.access).direct_reborrow_effect(access).is_none() {
-                return None;
-            }
+            checked_trees::BorrowAccessKind::from(reference.access).direct_reborrow_effect(access)?;
             let suffix = validation::corresponding_place_projection(
                 program, reference.referee, control.operand_retained_paths.span(source.projection)?,
             )?;

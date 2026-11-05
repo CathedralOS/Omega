@@ -153,12 +153,8 @@ fn applied_result_reference(
                 if !dependencies.contains(&slot.binder.symbol) {
                     continue;
                 }
-                let Some(argument) = slot.argument else {
-                    return None;
-                };
-                let Some(actual) = value_index_reference(program, argument) else {
-                    return None;
-                };
+                let argument = slot.argument?;
+                let actual = value_index_reference(program, argument)?;
                 substitutions.push((slot.binder.symbol, actual));
                 continue;
             }

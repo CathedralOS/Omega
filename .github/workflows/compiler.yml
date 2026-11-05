@@ -18,7 +18,9 @@ concurrency:
 jobs:
   compiler-check:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Clippy artifacts are not shared with the earlier `cargo check` cache, so
+    # the first run after this change is cold. The queue waits 20 minutes.
+    timeout-minutes: 20
     env:
       CARGO_BUILD_JOBS: '2'
       CARGO_INCREMENTAL: '0'
@@ -44,6 +46,9 @@ jobs:
           else
             python tools/check_rules.py --base HEAD^1
           fi
+      # Formatting is RC-REPOSITORY's first command and needs no build.
+      - name: Check formatting
+        run: python tools/fmt.py --check
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
@@ -55,6 +60,9 @@ jobs:
             compiler-check-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
       - name: Check production dependency boundaries
         run: python tools/check_native_boundary.py
-      - name: Check the exact integration candidate
-        run: cargo check --locked -p omega
+      # Clippy type-checks the same crates as `cargo check -p omega` and also
+      # rejects warnings, so lint debt cannot reach main unnoticed. Test and
+      # example targets are linted after merge in repository-lint.yml.
+      - name: Check and lint the exact integration candidate
+        run: cargo clippy --locked -p omega -- -D warnings
 

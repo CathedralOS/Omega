@@ -2,6 +2,9 @@
 //!
 //! They may then inspect or interleave the original root activation. Keeping
 //! this preparation explicit also makes its real execution charges visible.
+//!
+//! Each test or example that includes this file uses a different subset.
+#![allow(dead_code)]
 
 pub fn prepare_package_root(invocation: &mut compiler::PackageBuildInvocation) {
     let mut queries = invocation.product_queries();

@@ -121,6 +121,8 @@ pub(crate) fn capture_into(
         qualifications,
         projected_qualifications,
     }];
-    operations.captured_place_types.push((place, structural_type));
+    operations
+        .captured_place_types
+        .push((place, structural_type));
     Ok(())
 }
