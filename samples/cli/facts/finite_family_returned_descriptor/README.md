@@ -85,9 +85,19 @@ the focused program. The existing local-backing twin rejects correctly. The
 whole report remains failed: two unchanged Std-based family controls time out
 without a diagnostic. They provide no current rejection evidence.
 
-The tagged-case versions of all nine places and twins are now prepared.
-Their checking and execution on all four hosts remain pending. No result from
-the focused program is promoted to these changed programs or to a newer main.
+[The Linux row run](https://github.com/CathedralOS/Omega/actions/runs/41973178090)
+checks all nine tagged-case programs, runs each at native/Terminal exit 0 in the
+corpus and as an ordinary sample, and rejects all nine local-backing twins.
+It also rejects an out-of-family width, a missing family row and unproved tuple
+forwarding. Independent review verified the raw reports, all 316 frozen inputs,
+both optimized executables and both retained source bundles. The programs are
+at `555bdbb56368426ed961fd76f613a32315ab44f1`; the authenticated compiler remains
+`44f1471e7e5f9e96599b8d0f68dd8b11d053f687`.
+
+Fresh Windows, macOS and Linux ARM qualification remains pending. No focused
+result is promoted to the changed row, another host or a newer main. Goldens
+retain the old timing when the recorded behavior is unchanged; fresh raw
+elapsed times remain in their reports.
 
 Earlier complete plain-record results remain historical in the
 [Linux report](https://github.com/CathedralOS/Omega/actions/runs/41829998724)
