@@ -50,6 +50,16 @@ must be resolved before landing. Do not repeat broad suites to attribute one tes
 
 ### Merge validation budget
 
+When local resources cannot support a Rust test build, the manual
+`compiler.yml` workflow accepts one package and a required test-name filter on
+the selected remote branch. For example, `gh workflow run compiler.yml
+--ref work/my-change -f test_package=validation -f test_filter=integer_predicates`
+selects library unit tests. Set `test_target` for an integration-test binary.
+The job reports its actual source revision and command; retain its result with
+that revision. A filter matching no executed tests fails. This uses ordinary
+Cargo checking and execution, without replacing
+the separate compiler-program acceptance checks.
+
 For each proposed build or test, name the decision it answers, the affected
 behavior, and why applicable existing evidence is insufficient. Estimate time
 and resources, including compilation. Reuse evidence only when its revision,
