@@ -69,6 +69,15 @@ cleanup:
   and status prose on the board. `TASKS.md` must stay at or below 460 lines,
   use discrete single-line bullets without wrapped continuation lines or
   status-history prose, and never grow in line or sub-bullet count across a PR.
+- Rewritten diagnostic pins. A fail fixture's `expected.txt` is the diagnostic
+  the corpus requires. Rewriting that text makes a new refusal look pinned
+  without the compiler learning the old one. An `expected.txt` that already
+  existed on the base keeps its diagnostic fragments. A new fixture file may
+  carry its own pin.
+- Duplicate fact programs. A fact already pinned under
+  `tests/omega/{pass,fail,run}/facts` does not need another program under
+  `samples/cli/facts`. A new `.omg` there fails when a base fixture's directory
+  name is that fact or starts with `<fact>_` and no longer fact folder owns it.
 
 The diff checks compare `--base` (default: the merge base with origin/main)
 with HEAD and read only Git and the tree. Nothing here builds or runs the
@@ -715,6 +724,129 @@ def show(revision: str, path: str, root: Path = ROOT) -> str:
         return ""
 
 
+def diagnostic_fragments(text: str) -> frozenset:
+    """Non-empty trimmed lines of expected.txt. The corpus requires each one
+    to occur in the diagnostic, so the set is the pin."""
+    return frozenset(line.strip() for line in text.splitlines() if line.strip())
+
+
+def _is_omega_expected(path: str) -> bool:
+    return path.startswith("tests/omega/") and path.endswith("/expected.txt")
+
+
+def _quote_fragments(fragments: list) -> str:
+    shown = ", ".join(repr(fragment) for fragment in fragments[:3])
+    if len(fragments) > 3:
+        shown += f" (+{len(fragments) - 3} more)"
+    return shown
+
+
+def expected_pin_violations(changes: list, before, after) -> list:
+    """Refuse a rewrite of pinned diagnostic text.
+
+    `before(path)` and `after(path)` return the file at the base and at HEAD.
+    A newly added expected.txt may pin a new fixture. Changing or deleting the
+    fragments of an expected.txt that already existed on the base may not.
+    """
+    violations = []
+    for status, path in changes:
+        if status == "A" or not _is_omega_expected(path):
+            continue
+        old = diagnostic_fragments(before(path))
+        new = frozenset() if status == "D" else diagnostic_fragments(after(path))
+        if old == new:
+            continue
+        if status == "D":
+            detail = "removed the file and its pinned diagnostic"
+        else:
+            parts = []
+            removed = sorted(old - new)
+            added = sorted(new - old)
+            if removed:
+                parts.append("dropped " + _quote_fragments(removed))
+            if added:
+                parts.append("added " + _quote_fragments(added))
+            detail = "; ".join(parts)
+        violations.append(
+            f"{path}: broke existing-diagnostic-pin: {detail}. "
+            "An expected.txt that already existed on the base keeps its pinned "
+            "diagnostic; add a new fixture file to pin a different diagnostic.")
+    return violations
+
+
+def sample_fact_name(path: str) -> str:
+    """The fact folder of a samples/cli/facts path, or "" for a root file."""
+    if not path.startswith(FACTS_ROOT):
+        return ""
+    fact, separator, _rest = path[len(FACTS_ROOT):].partition("/")
+    return fact if separator and fact else ""
+
+
+def omega_fact_fixtures(paths) -> set:
+    """`tier/facts/<directory>` for files under tests/omega fact fixtures."""
+    found = set()
+    for path in paths:
+        parts = path.split("/")
+        if (len(parts) >= 5 and parts[0] == "tests" and parts[1] == "omega"
+                and parts[3] == "facts" and parts[4]):
+            found.add(f"{parts[2]}/facts/{parts[4]}")
+    return found
+
+
+def fixture_owner(directory: str, fact_names: set) -> str:
+    """The longest fact folder that `directory` names, at a '_' boundary."""
+    matches = [fact for fact in fact_names
+               if directory == fact or directory.startswith(fact + "_")]
+    if not matches:
+        return ""
+    return max(matches, key=lambda fact: (len(fact), fact))
+
+
+def pinned_fixture_for_fact(fact: str, fixtures: set, fact_names: set) -> str:
+    names = set(fact_names)
+    names.add(fact)
+    hits = [fixture for fixture in fixtures
+            if fixture_owner(fixture.rsplit("/", 1)[-1], names) == fact]
+    return min(hits) if hits else ""
+
+
+def already_pinned_fact_violations(changes: list, fixtures: set, fact_names: set) -> list:
+    """Refuse a new samples/cli/facts program for a fact the corpus already pins.
+
+    `fixtures` holds `tier/facts/<directory>` names present on the base.
+    `fact_names` holds samples/cli/facts folder names on the base and HEAD, so
+    a longer fact such as may_write_codec_argument keeps its own fixtures.
+    """
+    names = set(fact_names)
+    added = []
+    for status, path in changes:
+        if status != "A" or not path.startswith(FACTS_ROOT) or not path.endswith(".omg"):
+            continue
+        fact = sample_fact_name(path)
+        if not fact:
+            continue
+        names.add(fact)
+        added.append((path, fact))
+    violations = []
+    for path, fact in added:
+        witness = pinned_fixture_for_fact(fact, fixtures, names)
+        if not witness:
+            continue
+        violations.append(
+            f"{path}: broke already-pinned-fact: new .omg under {FACTS_ROOT}{fact} "
+            f"while tests/omega already has facts fixture `{witness}` for that fact. "
+            "Adding a samples/cli/facts program for a fact already pinned under "
+            "tests/omega/{pass,fail,run}/facts is refused.")
+    return violations
+
+
+def list_tree(revision: str, *paths, root: Path = ROOT) -> list:
+    if not paths:
+        return []
+    return [line for line in git("ls-tree", "-r", "--name-only", revision, *paths, root=root).splitlines()
+            if line]
+
+
 def diff_hygiene_violations(changes: list) -> list:
     """Enforce repository organization and anti-bloat guardrails on added files:
     1. No new .omg files under samples/cli/facts/ or tests/omega/{pass,fail,run}/facts/.
@@ -779,6 +911,19 @@ def diff_checks(base: str, root: Path = ROOT) -> list:
             f"{FACTS_ROOT}{name}: new fact folders are frozen to prevent corpus bloat; "
             f"pin the repair by flipping existing regressions in {GOLDEN} or adding a "
             "focused fixture pair under tests/omega/{pass,fail,run}/<behavior>/")
+    violations += expected_pin_violations(
+        changes,
+        lambda path: show(base, path, root),
+        lambda path: show("HEAD", path, root))
+    fixture_roots = ("tests/omega/pass/facts", "tests/omega/fail/facts", "tests/omega/run/facts")
+    fact_names = set()
+    for revision in (base, "HEAD"):
+        for path in list_tree(revision, FACTS_ROOT, root=root):
+            fact = sample_fact_name(path)
+            if fact:
+                fact_names.add(fact)
+    violations += already_pinned_fact_violations(
+        changes, omega_fact_fixtures(list_tree(base, *fixture_roots, root=root)), fact_names)
     return violations
 
 
