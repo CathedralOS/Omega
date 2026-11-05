@@ -103,6 +103,23 @@ def rest_queue_entry(repository, slug, number):
     return None
 
 
+def queue_run_passed(repository, remote, number):
+    """Whether the PR's newest merge-queue run succeeded, so GitHub merges it next.
+
+    The queue's run completes before GitHub marks the PR merged: #1921 read as
+    out of the queue and still OPEN for about 35 seconds after its run passed.
+    Only a newest run that failed, was cancelled or never existed means the
+    entry was removed.
+    """
+    slug = repository_name(repository, remote)
+    runs = rest(repository, "GET", f"repos/{slug}/actions/runs?event=merge_group&per_page=50")
+    prefix = f"gh-readonly-queue/main/pr-{number}-"
+    for run in runs.get("workflow_runs", []):  # newest first
+        if run.get("head_branch", "").startswith(prefix):
+            return run.get("status") == "completed" and run.get("conclusion") == "success"
+    return False
+
+
 def rest_pull_request(repository, remote, number):
     """`pull_request`'s record built from REST, in the same GraphQL shape."""
     slug = repository_name(repository, remote)
@@ -363,8 +380,12 @@ def land(repository, remote, number, expected, seconds, interval=CHECK_POLL_SECO
             raise LandingError(f"{description} on {expected}; the merge request stays armed, so a "
                                "pushed fix lands when its check passes.")
         if confirmed:
-            raise LandingError(f"PR {number} left the merge queue without merging; inspect the queue "
-                               "run with gh run list and do not re-enqueue blindly.")
+            if not queue_run_passed(repository, remote, number):
+                raise LandingError(f"PR {number} left the merge queue without merging; inspect the "
+                                   "queue run with gh run list and do not re-enqueue blindly.")
+            # Its queue run passed, so GitHub is merging it: wait for MERGED.
+            if not remaining():
+                return pull, 2
         # The queue entry can lag the mutation; read once more before calling it removed.
         confirmed = True
         time.sleep(interval)
