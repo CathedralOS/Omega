@@ -1200,41 +1200,6 @@ impl<'program> StructuralJudge<'program> {
         self.rewrites.iter().next().is_none()
     }
 
-    pub(in crate::proof_contracts::contract_entailment) fn has_no_rewrites_or_substitutions(
-        &self,
-    ) -> bool {
-        self.rewrites.iter().next().is_none()
-            && self.substitutions.is_empty()
-            && self.captured_result_equations.is_empty()
-    }
-
-    /// Numeric association filtering uses the same admitted leaf namespace
-    /// as prepared integer atoms. This identity filter supplies no equality
-    /// proof; its caller still proves the original operands on every path.
-    pub(in crate::proof_contracts::contract_entailment) fn completed_integer_semantic_value(
-        &self,
-        value: &StructuralTerm,
-    ) -> StructuralTerm {
-        let value = self.integer_projection_value(self.completed_value_identity(value.clone()));
-        self.completed_integer_call(&value)
-            .map(|(_, canonical, _)| canonical)
-            .unwrap_or(value)
-            .into_semantic_value()
-    }
-
-    pub(in crate::proof_contracts::contract_entailment) fn prepared_integer_premise_atoms_when_consistent(
-        &self,
-    ) -> Option<Vec<StructuralTerm>> {
-        if !self.runtime_body_values || self.case_facts_only {
-            return None;
-        }
-        if !self.rewrites.has_potential_integer_premises() {
-            return Some(Vec::new());
-        }
-        let prepared = self.cached_prepared_integer_premises()?;
-        (!prepared.is_contradictory()).then(|| prepared.observations.atoms.clone())
-    }
-
     /// Prepare independently formed premises once, then fork their exact
     /// captured-value namespace for each goal. Goal operations and opaque
     /// registrations remain private to that fork; no requested truth enters
