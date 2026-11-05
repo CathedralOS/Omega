@@ -121,7 +121,8 @@ that photograph: a different object, and a green check on it is not done.
 1. **Push HEAD to a remote `work/` ref and open a draft PR:**
    ```bash
    git push origin HEAD:refs/heads/work/<name>
-   gh pr create --draft --title "<title>" --body "<body following Explain the change>"
+   python3 tools/check_rules.py --base origin/main --title "<title>" --body-file PR_BODY
+   gh pr create --draft --title "<title>" --body-file PR_BODY  # ends with `Agent: <name>, <session>`
    ```
 2. **Follow the landing boundary ([AGENTS.md](../../../AGENTS.md#sessions-and-subagents)):**
    - **When controlled by a coordinator session:** Stop at the draft PR and
