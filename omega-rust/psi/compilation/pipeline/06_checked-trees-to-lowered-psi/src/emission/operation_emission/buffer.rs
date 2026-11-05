@@ -26,16 +26,6 @@ pub(crate) struct SourceQuotientCall {
     pub(crate) call: OperationId,
 }
 
-/// The storage duties published by one evaluated reference formation. This
-/// includes temporary call operands, which need no retained-loan occurrence.
-#[derive(Debug, Clone)]
-pub(crate) struct SourceReferenceRequirements {
-    pub(crate) state: symbols::SymbolHandle,
-    pub(crate) statement_index: usize,
-    pub(crate) expression: checked_trees::expression::ExpressionHandle,
-    pub(crate) requirements: Vec<checked_trees::CheckedSourceQualification>,
-}
-
 /// One evaluated invocation that cannot continue normally, before the control
 /// owner allocates its edge. Completion kind remains explicit: ordinary module
 /// nonreturn grants none of an external outcome's delegated domain authority.
@@ -332,7 +322,8 @@ pub(crate) struct OperationBuffer {
     /// Source-only associations created by the actual reference emitter.
     /// The source operand belongs to its formation epoch, not current storage.
     pub(crate) loan_captures: Vec<lowered_psi::LoweredSourceLoanCapture>,
-    pub(crate) reference_requirements: Vec<SourceReferenceRequirements>,
+    pub(crate) reference_requirements:
+        std::sync::Arc<crate::emission::call_qualifications::SourceReferenceRequirements>,
     pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
     /// The module's selector interfaces and tables, by identity.
     pub(crate) dynamic_dispatch:
@@ -638,6 +629,9 @@ impl OperationBuffer {
 
     pub(crate) fn new(
         identity_base: u64,
+        reference_requirements: std::sync::Arc<
+            crate::emission::call_qualifications::SourceReferenceRequirements,
+        >,
         dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
     ) -> Self {
         Self {
@@ -663,7 +657,7 @@ impl OperationBuffer {
             quotient_adaptations: Vec::new(),
             quotient_calls: Vec::new(),
             loan_captures: Vec::new(),
-            reference_requirements: Vec::new(),
+            reference_requirements,
             loan_completions: Vec::new(),
             selected_comparisons: Vec::new(),
             source_checked_obligations: Vec::new(),

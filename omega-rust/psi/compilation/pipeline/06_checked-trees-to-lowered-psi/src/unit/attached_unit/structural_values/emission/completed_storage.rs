@@ -38,21 +38,14 @@ impl Emission<'_, '_, '_> {
                 projected_qualifications,
                 &source.path,
             );
-        terminal_semantics::present_structural_memberships(
+        let mut additional_input_qualifications =
+            terminal_psi::StructuralPathQualification::select_rows(additional, &source.path);
+        terminal_semantics::present_structural_membership_contract(
             self.structural_types.iter(),
             self.domain_declarations.iter(),
             structural_type,
             &mut qualifications,
             &mut projected_qualifications,
-        )
-        .map_err(LoweringError::Unsupported)?;
-        let mut additional_input_qualifications =
-            terminal_psi::StructuralPathQualification::select_rows(additional, &source.path);
-        terminal_semantics::present_structural_memberships(
-            self.structural_types.iter(),
-            self.domain_declarations.iter(),
-            structural_type,
-            &mut Vec::new(),
             &mut additional_input_qualifications,
         )
         .map_err(LoweringError::Unsupported)?;
@@ -172,11 +165,15 @@ impl Emission<'_, '_, '_> {
         whole: &[semantic_vocabulary::StructuralDomainId],
         projected: &[terminal_psi::StructuralPathQualification],
     ) -> Result<Vec<terminal_psi::StructuralPathQualification>, LoweringError> {
-        let (_, _, additional) =
-            self.completed_memberships(source.place)
-                .ok_or(LoweringError::Unsupported(
-                    "input fact source contract is missing",
-                ))?;
+        let (_, _, additional) = self.completed_memberships(source.place).ok_or_else(|| {
+            LoweringError::at_statement(
+                self.checked,
+                self.machine,
+                self.state,
+                self.statement,
+                "input fact source contract is missing",
+            )
+        })?;
         let mut selected =
             terminal_psi::StructuralPathQualification::select_rows(additional, &source.path);
         terminal_semantics::present_structural_memberships(
@@ -186,7 +183,15 @@ impl Emission<'_, '_, '_> {
             &mut Vec::new(),
             &mut selected,
         )
-        .map_err(LoweringError::Unsupported)?;
+        .map_err(|reason| {
+            LoweringError::at_statement(
+                self.checked,
+                self.machine,
+                self.state,
+                self.statement,
+                reason,
+            )
+        })?;
         selected.retain(|row| {
             if row.path.is_empty() {
                 whole.contains(&row.domain)

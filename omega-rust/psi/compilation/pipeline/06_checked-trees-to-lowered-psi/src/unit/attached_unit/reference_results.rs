@@ -263,7 +263,6 @@ pub(crate) fn emit_carrier(
             ));
         }
     };
-    let mut source_requirements = Vec::new();
     let mut result = structural_result_declaration(place, structural_type, multiplicity);
     if resident_source.is_none()
         && matches!(
@@ -299,46 +298,13 @@ pub(crate) fn emit_carrier(
                 root,
                 &source.path,
             );
-            // Entry observations travel with the pointer as facts, while the
-            // remaining roster keeps its existing exclusive restoration debt.
-            let whole = whole
-                .iter()
-                .copied()
-                .filter(|domain| {
-                    !additional
-                        .iter()
-                        .any(|row| row.path.is_empty() && row.domain == *domain)
-                })
-                .collect::<Vec<_>>();
-            let projected = projected
-                .iter()
-                .filter(|row| !additional.contains(row))
-                .cloned()
-                .collect::<Vec<_>>();
-            result.additional_input_qualifications =
-                terminal_semantics::reference_carrier_memberships(
+            let (captured, additional_input) =
+                terminal_semantics::reference_carrier_membership_contract(
                     declarations.iter(),
                     root,
-                    &[],
+                    whole,
+                    projected,
                     additional,
-                    path,
-                    terminal_psi::StructuralAccess::SharedBorrow,
-                    structural_type,
-                    match &storage {
-                        PublishedReferenceStorage::RepresentationView(view) => Some(view),
-                        _ => None,
-                    },
-                )
-                .map_err(LoweringError::Unsupported)?;
-            result
-                .projected_qualifications
-                .extend_from_slice(&result.additional_input_qualifications);
-            result.projected_qualifications.extend(
-                terminal_semantics::reference_carrier_memberships(
-                    declarations.iter(),
-                    root,
-                    &whole,
-                    &projected,
                     path,
                     source.access,
                     structural_type,
@@ -347,8 +313,9 @@ pub(crate) fn emit_carrier(
                         _ => None,
                     },
                 )
-                .map_err(LoweringError::Unsupported)?,
-            );
+                .map_err(LoweringError::Unsupported)?;
+            result.projected_qualifications.extend(captured);
+            result.additional_input_qualifications = additional_input;
             if let Some(field) =
                 terminal_semantics::runtime_structural_field(declarations.iter(), root, path)
                 && field.field_type.byte_sequence_carrier().is_some()
@@ -410,13 +377,6 @@ pub(crate) fn emit_carrier(
                     .contains(&row.domain)
             });
             result.projected_qualifications.extend(required);
-            if let checked_trees::CheckedReferenceSourceContract::Standing {
-                source_requirements: requirements,
-                ..
-            } = formation.source_contract
-            {
-                source_requirements.clone_from(requirements);
-            }
         }
         result.projected_qualifications.sort();
         result.projected_qualifications.dedup();
@@ -448,14 +408,6 @@ pub(crate) fn emit_carrier(
                 });
         }
     }
-    operations.reference_requirements.push(
-        crate::emission::operation_emission::buffer::SourceReferenceRequirements {
-            state: formation.state,
-            statement_index: formation.statement_index,
-            expression: formation.expression,
-            requirements: source_requirements,
-        },
-    );
     operations.push(Operation::unsuspended(id, result, kind));
     Ok(operation_result_place(place, id, structural_type))
 }

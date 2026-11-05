@@ -52,6 +52,16 @@ pub struct StructuralDomainPredicate {
 }
 
 impl StructuralDomainDeclaration {
+    /// A value observation can outlive the declaration that required it.
+    /// Only a complete predicate without authority or custody requirements may
+    /// be omitted from a narrower view; storage duties remain independent.
+    pub fn is_pure_predicate(&self) -> bool {
+        self.complete_predicate_theory
+            && self.has_no_required_memberships()
+            && self.establishment_routes.is_empty()
+            && self.content_projection.is_none()
+    }
+
     /// Authorization belongs to this exact boundary requirement, not another
     /// conformer or a private issuer whose value the provider merely forwards.
     pub fn authorizes_boundary_requirement(

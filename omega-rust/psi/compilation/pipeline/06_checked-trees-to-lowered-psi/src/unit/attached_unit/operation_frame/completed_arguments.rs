@@ -360,19 +360,12 @@ pub(crate) fn emit_snapshot(
 ) -> Result<terminal_psi::StructuralPlaceDeclaration, LoweringError> {
     let (mut qualifications, mut projected_qualifications, mut additional_input_qualifications) =
         selected_memberships(source, parameters, evaluation, operations)?;
-    terminal_semantics::present_structural_memberships(
+    terminal_semantics::present_structural_membership_contract(
         types.iter(),
         domains.iter(),
         structural_type,
         &mut qualifications,
         &mut projected_qualifications,
-    )
-    .map_err(LoweringError::Unsupported)?;
-    terminal_semantics::present_structural_memberships(
-        types.iter(),
-        domains.iter(),
-        structural_type,
-        &mut Vec::new(),
         &mut additional_input_qualifications,
     )
     .map_err(LoweringError::Unsupported)?;

@@ -63,9 +63,12 @@ mod scalars;
 mod storage;
 mod structural;
 pub use calls::invocation_inputs::validate_empty_erased_invocation_inputs;
-pub use descriptors::membership_presentations::present_structural_memberships;
+pub use descriptors::membership_presentations::{
+    present_structural_membership_contract, present_structural_memberships,
+};
 pub use descriptors::selected_memberships::{
-    reference_carrier_memberships, reference_source_memberships,
+    reference_carrier_membership_contract, reference_carrier_memberships,
+    reference_source_memberships,
 };
 pub use domain_preservation::{
     domain_predicate_is_closed, domain_predicate_observes_no_storage, domain_write_is_disjoint,

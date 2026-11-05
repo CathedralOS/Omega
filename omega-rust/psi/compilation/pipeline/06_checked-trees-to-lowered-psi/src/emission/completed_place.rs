@@ -273,19 +273,12 @@ pub(crate) fn present_capture(
             )
     };
     let present = |identity, mut whole: Vec<_>, mut projected: Vec<_>, mut additional: Vec<_>| {
-        terminal_semantics::present_structural_memberships(
+        terminal_semantics::present_structural_membership_contract(
             types.iter(),
             domains.iter(),
             identity,
             &mut whole,
             &mut projected,
-        )
-        .map_err(LoweringError::Unsupported)?;
-        terminal_semantics::present_structural_memberships(
-            types.iter(),
-            domains.iter(),
-            identity,
-            &mut Vec::new(),
             &mut additional,
         )
         .map_err(LoweringError::Unsupported)?;

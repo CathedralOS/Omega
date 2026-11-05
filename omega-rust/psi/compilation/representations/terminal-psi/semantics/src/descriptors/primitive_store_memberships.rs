@@ -389,10 +389,5 @@ fn expiring_input_predicate<'types, 'domain>(
     }
     crate::qualification_path_carrier(types, root, path)
         .and_then(|carrier| exact_domain(domains, carrier, membership))
-        .is_some_and(|domain| {
-            domain.complete_predicate_theory
-                && domain.has_no_required_memberships()
-                && domain.establishment_routes.is_empty()
-                && domain.content_projection.is_none()
-        })
+        .is_some_and(StructuralDomainDeclaration::is_pure_predicate)
 }

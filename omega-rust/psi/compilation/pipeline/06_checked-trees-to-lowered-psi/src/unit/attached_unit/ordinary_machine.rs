@@ -1360,6 +1360,7 @@ fn establish_call_literals(
             ))?;
     let mut operations = OperationBuffer::new(
         operation_identity_base,
+        super::bodies::UnitBody::Ordinary(plan).reference_requirements(checked, plan.state)?,
         std::sync::Arc::clone(dynamic_dispatch),
     );
     let mut private_places = literal_arguments

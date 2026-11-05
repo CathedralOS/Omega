@@ -113,6 +113,26 @@ pub struct InstalledLoanHomes<'a> {
 }
 
 impl<'a> InstalledLoanHomes<'a> {
+    /// Cleanup projects through the descriptor's current carrier. A descriptor
+    /// loaded through another reference keeps that incoming slot's path as its
+    /// identity, but its computed carrier uses the recorded formation path.
+    pub fn storage_path(
+        &self,
+        program: &dyn crate::CheckingInput,
+        loan: &BorrowLoanFact,
+    ) -> Option<Cow<'a, [BorrowLoanOwnerSegment]>> {
+        if loan.storage_owner == facts::PlaceRoot::Expression(loan.formation_expression) {
+            return Some(Cow::Borrowed(
+                self.borrow
+                    .owner_segments
+                    .span(loan.formation_owner_path?)?,
+            ));
+        }
+        Some(self.owner_path(program, loan))
+    }
+
+    /// The resolved source slot remains the identity used by loan flow. Only
+    /// completed stores refine its conservative dynamic element coordinate.
     pub fn owner_path(
         &self,
         program: &dyn crate::CheckingInput,
@@ -124,7 +144,7 @@ impl<'a> InstalledLoanHomes<'a> {
         }
         self.installed_owner(program, loan)
             .map(Cow::Owned)
-            .unwrap_or_else(|| Cow::Borrowed(self.borrow.loan_owner_path(loan)))
+            .unwrap_or(Cow::Borrowed(owner))
     }
 
     fn installed_owner(

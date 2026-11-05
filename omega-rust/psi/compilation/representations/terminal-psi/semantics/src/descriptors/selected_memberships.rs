@@ -53,6 +53,67 @@ pub fn reference_carrier_memberships<'types>(
     }
 }
 
+/// Transport the complete source contract when a reference is formed. Input
+/// observations remain available as facts, while only the remaining source
+/// roster imposes restoration duties on exclusive access.
+#[allow(clippy::too_many_arguments)]
+pub fn reference_carrier_membership_contract<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    whole: &[StructuralDomainId],
+    projected: &[StructuralPathQualification],
+    additional_input: &[StructuralPathQualification],
+    path: &[StructuralPathSegment],
+    access: StructuralAccess,
+    reference: StructuralTypeId,
+    storage: Option<&terminal_psi::ReferenceStorageView>,
+) -> Result<
+    (
+        Vec<StructuralPathQualification>,
+        Vec<StructuralPathQualification>,
+    ),
+    &'static str,
+> {
+    let standing_whole = whole
+        .iter()
+        .copied()
+        .filter(|domain| {
+            !additional_input
+                .iter()
+                .any(|row| row.path.is_empty() && row.domain == *domain)
+        })
+        .collect::<Vec<_>>();
+    let standing_projected = projected
+        .iter()
+        .filter(|row| !additional_input.contains(row))
+        .cloned()
+        .collect::<Vec<_>>();
+    let additional = reference_carrier_memberships(
+        types.clone(),
+        root,
+        &[],
+        additional_input,
+        path,
+        StructuralAccess::SharedBorrow,
+        reference,
+        storage,
+    )?;
+    let mut captured = reference_carrier_memberships(
+        types,
+        root,
+        &standing_whole,
+        &standing_projected,
+        path,
+        access,
+        reference,
+        storage,
+    )?;
+    captured.extend_from_slice(&additional);
+    captured.sort();
+    captured.dedup();
+    Ok((captured, additional))
+}
+
 /// Capture source memberships below an ordinary reference boundary. Geometry
 /// only bounds the candidate set; access, bounds, live custody and selector
 /// evaluation remain independent consuming judgments. `AllElements` is a
