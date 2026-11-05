@@ -1408,10 +1408,30 @@ impl TerminalExecution<'_> {
         // opaque maps. Descriptor-bearing values keep the construction storage
         // transaction, including standalone view descriptors and their custody.
         let destination_path = window.path;
-        if let Some(writes) = child
-            .replacement_writes(self, value, destination, &destination_path)
-            .map_err(|error| failure("scalar storage preparation", error))?
-        {
+        // Installing a complete value in a vacant declared home establishes
+        // its storage representation too. Leaf writes would split a byte-array
+        // backing into unrelated scalar cells, so later byte loans could not
+        // find the initialized array. Existing borrowed storage instead keeps
+        // its pinned endpoints and uses the ordinary replacement writes.
+        let initializes_home = disposition == terminal_psi::StructuralStoreDisposition::Vacant
+            && path.is_empty()
+            && field.is_none()
+            && machine
+                .producing_operation(destination)
+                .is_some_and(|(producer, ty)| {
+                    matches!(producer.kind, OperationKind::EstablishStructuralLocal {})
+                        && producer.result.structural().is_some_and(|result| {
+                            result.place == destination && result.structural_type == ty
+                        })
+                });
+        let writes = if initializes_home {
+            None
+        } else {
+            child
+                .replacement_writes(self, value, destination, &destination_path)
+                .map_err(|error| failure("scalar storage preparation", error))?
+        };
+        if let Some(writes) = writes {
             writes.commit(self)?;
         } else if window.aggregate_view {
             // An empty interpreted array already has its authenticated backing;
