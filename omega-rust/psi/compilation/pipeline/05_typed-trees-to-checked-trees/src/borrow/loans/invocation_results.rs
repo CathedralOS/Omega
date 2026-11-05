@@ -1,9 +1,8 @@
-//! Establish the descriptor permissions supplied by one independent invocation.
-//! A complete public return relation with no input lifetime source permits this
-//! invocation namespace; it does not lend caller storage or identify image
-//! backing. Bodies still owe return-escape checking and opaque providers still
-//! owe admission. Bare references, aggregate fields and projected call results
-//! use this same formation; owner paths retain conditional case slots.
+//! A completed call supplies permission to use each returned reference.
+//! Its input lifetimes are retained separately; these rows do not claim that
+//! the pointer selects an input's storage. Checked bodies still owe return
+//! checking, and opaque providers still owe admission of their safe contract.
+//! Bare references and reference fields share the same invocation formation.
 
 use super::{PendingIncomingReference, StatementBorrowLoan};
 use checked_trees::expression::ExpressionHandle;

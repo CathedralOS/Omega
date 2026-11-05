@@ -1100,7 +1100,7 @@ fn collect_formed_projection(
             checked_trees::BorrowLoanLineage::DirectRoot
                 | checked_trees::BorrowLoanLineage::Reborrow { .. }
         ) || (row.formation == checked_trees::BorrowLoanFormation::ReturnedDescriptor
-            && !is_independent_return(program, facts, state, loan, row, capture))
+            && !is_completed_return(program, facts, state, loan, row, capture))
             || row.kind.direct_reborrow_effect(output_access).is_none()
             || row.formation_expression != capture.expression
             || row.statement_index != capture.statement_index
@@ -1126,10 +1126,10 @@ fn collect_formed_projection(
     output.len() > before
 }
 
-/// A returned reference with no borrowed input owns its invocation's permission,
-/// rather than forwarding an earlier caller loan. Require that exact checked
-/// incoming identity and performed call; an empty lifetime roster proves neither.
-fn is_independent_return(
+/// The completed invocation supplies the returned descriptor's permission.
+/// Match its exact incoming identity and performed call; the input lifetime
+/// frontier remains separate and cannot supply that permission itself.
+fn is_completed_return(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,

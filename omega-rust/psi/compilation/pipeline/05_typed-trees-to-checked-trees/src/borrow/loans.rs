@@ -72,7 +72,7 @@ use types::{is_reference_type, reference_borrow_access_kind};
 mod descriptor_loads;
 pub(super) use descriptor_loads::prepare as prepare_descriptor_loads;
 
-mod independent_invocations;
+mod invocation_results;
 mod reference_borrows;
 pub(in crate::borrow) use aggregate_loans::borrowed_initializer_loans;
 use aggregate_loans::*;

@@ -798,7 +798,7 @@ pub(super) fn relative_result_loans(
         };
         let contract = available!(call_view_return_contract(program, state_symbol, call));
         if matches!(contract.source(program), ViewReturnSource::NotApplicable) {
-            return Ok(super::independent_invocations::form(
+            return Ok(super::invocation_results::form(
                 program,
                 state_symbol,
                 machine_symbol,
@@ -809,7 +809,17 @@ pub(super) fn relative_result_loans(
             )
             .map(|loans| limit_access(loans, &access_limits)));
         }
-        let fields = available!(contract.reference_sources(program));
+        let mut fields = available!(contract.reference_sources(program));
+        let target = validation::call_target_symbol(program, call);
+        let opaque_result = !validation::call_target_has_checked_body_contract(program, target);
+        if opaque_result {
+            // The safe call contract supplies the returned pointer's grant.
+            // Its declared inputs retain their full lifetime and access debt;
+            // none of those inputs identifies the returned address.
+            for field in &mut fields {
+                field.lifetime_only = true;
+            }
+        }
         let mut loans = result_source_loans(
             program,
             state_symbol,
@@ -848,6 +858,20 @@ pub(super) fn relative_result_loans(
                     BorrowLoanLineage::DirectRoot
                 };
             }
+        }
+        if opaque_result {
+            loans.extend(
+                super::invocation_results::form(
+                    program,
+                    state_symbol,
+                    machine_symbol,
+                    local_data,
+                    expression,
+                    target,
+                    contract.return_type_reference(program),
+                )
+                .ok_or("completed result reference permissions are unavailable")?,
+            );
         }
         return Ok(Some(limit_access(loans, &access_limits)));
     }

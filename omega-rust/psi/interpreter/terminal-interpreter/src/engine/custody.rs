@@ -529,15 +529,23 @@ pub(crate) fn bind_active_structural_arguments(
     bind_structural_arguments(&active, arguments, account)
 }
 
-/// An internal edge relabels already established storage in one activation.
-/// A whole owner may stay live beside a reborrow of that same source place;
-/// this does not supply a second owned value or authorize two exclusive loans.
-/// Entry and ordinary call binding keep the strict independent-input rule.
+/// A state argument's established source, captured before cleanup. Reference
+/// projection records the exact backing reached under the requested access;
+/// a parameter records an already admitted input declaration.
+#[derive(Default)]
+pub(crate) struct BlockArgumentProvenance<'a> {
+    pub(crate) parameter: Option<&'a StructuralParameterDeclaration>,
+    pub(crate) reference_projection: Option<StructuralRuntimePlace>,
+}
+
+/// An internal edge relabels storage in one activation. An affine owner may
+/// stay live beside its established loan. Entry and ordinary call binding
+/// retain the strict rule for independent inputs.
 pub(crate) fn bind_active_block_arguments(
     parameters: &[StructuralParameterDeclaration],
     sources: &[terminal_psi::StructuralArgument],
     arguments: &[TerminalStructuralValue],
-    source_parameters: &[Option<&StructuralParameterDeclaration>],
+    provenance: &[BlockArgumentProvenance<'_>],
     types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     cases: &BTreeMap<
         StructuralRuntimePlace,
@@ -545,11 +553,11 @@ pub(crate) fn bind_active_block_arguments(
     >,
     account: Option<&EvaluationInvocationAccount>,
 ) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
-    if sources.len() != parameters.len() || source_parameters.len() != parameters.len() {
+    if sources.len() != parameters.len() || provenance.len() != parameters.len() {
         return Err(malformed());
     }
     let active = active_structural_parameters(parameters, arguments, types, cases)?;
-    bind_existing_structural_places(&active, arguments, sources, source_parameters, account)
+    bind_existing_structural_places(&active, arguments, sources, provenance, account)
 }
 
 fn active_structural_parameters(
@@ -591,13 +599,14 @@ pub(crate) fn bind_structural_arguments(
 /// A fresh reborrow names the owner's actual source place. A forwarded loan
 /// names its already admitted borrow parameter instead; its accompanying owner
 /// is still the same live affine source. The binder separately joins runtime
-/// identities and paths. Copies, linear custody and two loans do not form this
-/// relation, and independent inputs supply no source-parameter roster.
+/// identities and paths. A saved reference supplies its resolved projection.
+/// Two owned values, linear custody and two loans cannot use this relation;
+/// independent inputs supply no established source provenance.
 fn retains_source_owner(
     parameters: &[StructuralParameterDeclaration],
     arguments: &[TerminalStructuralValue],
     sources: &[terminal_psi::StructuralArgument],
-    source_parameters: &[Option<&StructuralParameterDeclaration>],
+    provenance: &[BlockArgumentProvenance<'_>],
     first: usize,
     second: usize,
 ) -> bool {
@@ -618,18 +627,21 @@ fn retains_source_owner(
         && owner_source.path.is_empty()
         && loan_source.access == parameters[loan].access
         && (owner_source.place == loan_source.place
-            || (source_parameters
+            // A saved descriptor has already resolved its access and exact
+            // backing. Keeping that backing's owner on this internal edge
+            // neither duplicates ownership nor admits another exclusive loan.
+            || provenance.get(loan).and_then(|source| source.reference_projection.as_ref())
+                .is_some_and(|source| *source == StructuralRuntimePlace::from(&arguments[loan]))
+            || (provenance
                 .get(owner)
-                .copied()
-                .flatten()
+                .and_then(|source| source.parameter)
                 .is_some_and(|source| {
                     source.access == StructuralAccess::Owned
                         && source.multiplicity == StructuralMultiplicity::Affine
                 })
-                && source_parameters
+                && provenance
                     .get(loan)
-                    .copied()
-                    .flatten()
+                    .and_then(|source| source.parameter)
                     .is_some_and(|source| {
                         source.access != StructuralAccess::Owned
                             && source.multiplicity == StructuralMultiplicity::Unrestricted
@@ -644,7 +656,7 @@ fn bind_existing_structural_places(
     parameters: &[StructuralParameterDeclaration],
     arguments: &[TerminalStructuralValue],
     sources: &[terminal_psi::StructuralArgument],
-    source_parameters: &[Option<&StructuralParameterDeclaration>],
+    provenance: &[BlockArgumentProvenance<'_>],
     account: Option<&EvaluationInvocationAccount>,
 ) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
     if arguments.len() != parameters.len() {
@@ -718,7 +730,7 @@ fn bind_existing_structural_places(
                     parameters,
                     arguments,
                     sources,
-                    source_parameters,
+                    provenance,
                     previous_index,
                     argument_index,
                 )

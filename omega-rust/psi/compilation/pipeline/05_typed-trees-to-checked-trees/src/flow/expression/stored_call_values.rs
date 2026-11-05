@@ -40,9 +40,7 @@ impl Execution<'_, '_, '_> {
         }
         let mut inputs = inputs;
         let contract = if let Some(slot) = self.program.dynamic_slot_by_symbol(call.target_symbol) {
-            if let Some((machine, state, selected)) =
-                self.completed_call_target(call.target_symbol, inputs)
-            {
+            if let Some((machine, state, selected)) = self.selected_store_target(call, inputs) {
                 inputs = selected;
                 validation::ReferenceSlotContract::CheckedBody { machine, state }
             } else {

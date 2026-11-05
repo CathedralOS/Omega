@@ -1,31 +1,30 @@
-//! Find the body named by a completed call and bind its data arguments.
-//! Stored outputs and returned references use this same result. Unknown
-//! selectors, differing alternatives and unavailable checked bodies leave
-//! the target unresolved. The public call still owns its declared guarantees.
+//! Resource footprints of an exact completed local selector. Dispatch and
+//! guarantees remain public. Unknown values, differing alternatives and absent
+//! checked bodies supply no relation; constructor inventory is never closure.
 
 use super::Execution;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
-    DynamicConformanceFacts, FlowControlFacts, FlowOperandFact, FlowStatementFact,
+    BorrowCallFact, DynamicConformanceFacts, FlowControlFacts, FlowOperandFact, FlowStatementFact,
 };
 use facts::PlaceSegment;
 use symbols::SymbolHandle;
 use typed_trees::{machine::Machine, state::State, types::TypeReferenceHandle};
 
 impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
-    pub(super) fn completed_call_target(
+    pub(super) fn selected_store_target(
         &mut self,
-        target: SymbolHandle,
+        call: &BorrowCallFact,
         actuals: HandleSpan<FlowOperandFact>,
     ) -> Option<(&'plans Machine, &'plans State, HandleSpan<FlowOperandFact>)> {
-        if let Some(state) = validation::call_target_state(self.program, target) {
+        if let Some(state) = validation::call_target_state(self.program, call.target_symbol) {
             return Some((
                 self.program.machine_holding_state(state.symbol)?,
                 state,
                 actuals,
             ));
         }
-        let slot = self.program.dynamic_slot_by_symbol(target)?;
+        let slot = self.program.dynamic_slot_by_symbol(call.target_symbol)?;
         let prefix = slot
             .parameters
             .len()

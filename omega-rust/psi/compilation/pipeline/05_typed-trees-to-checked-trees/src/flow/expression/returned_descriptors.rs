@@ -69,30 +69,17 @@ impl Execution<'_, '_, '_> {
         completion: FlowOperandCompletion,
     ) -> Option<Handle<FlowOperandFact>> {
         let target = validation::call_target_symbol(self.program, call);
-        let FlowOperandCompletion::InvocationResult { invocation, .. } = completion else {
-            return None;
-        };
-        let actuals = self
-            .context
-            .control
-            .calls
-            .get(invocation)
-            .argument_operands();
-        // Use the same completed selector and checked body as stored results.
-        // The body's parameters start after the selector; the public call
-        // keeps all lifetimes required by its declared contract.
-        let (_, state, data_actuals) = self.completed_call_target(target, actuals)?;
-        let argument_offset = actuals.len().checked_sub(data_actuals.len())?;
+        let state = validation::call_target_state(self.program, target)?;
         let parameters = self.program.state_parameters(state);
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments)
-            .get(argument_offset..)?;
         let sources = self
             .context
             .call_frames?
-            .reference_result_leaf_origins_for_arguments(state.symbol, arguments)?;
+            .reference_result_leaf_origins_for_arguments(
+                state.symbol,
+                self.program
+                    .expression_table
+                    .expression_handles(call.arguments),
+            )?;
         // Selector expressions belong to the callee. Erase them the same way
         // the returned loan does, keeping element versus window shape, so the
         // descriptor and the loan name one captured place.
@@ -143,8 +130,18 @@ impl Execution<'_, '_, '_> {
                 .all(super::super::place_segment_has_static_identity);
             let position =
                 typed_trees::signature::state_parameter_position(parameters, source.source.root)?;
-            inputs.get(position + argument_offset)?;
-            let actual = data_actuals.handles().nth(position)?;
+            inputs.get(position)?;
+            let FlowOperandCompletion::InvocationResult { invocation, .. } = completion else {
+                return None;
+            };
+            let actual = self
+                .context
+                .control
+                .calls
+                .get(invocation)
+                .argument_operands()
+                .handles()
+                .nth(position)?;
             let values =
                 self.call_backing_values(actual, &source.source, reference, source_snapshot)?;
             for (operand, projection) in values {

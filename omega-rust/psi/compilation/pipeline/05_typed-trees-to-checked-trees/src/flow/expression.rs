@@ -38,7 +38,6 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod boolean_completions;
 mod call_storage;
-mod completed_call_target;
 mod dispatch;
 mod dispatch_copies;
 mod live_memberships;
@@ -47,6 +46,7 @@ mod result_facts;
 mod result_memberships;
 mod returned_descriptors;
 mod returned_regions;
+mod selected_call_stores;
 mod stored_call_values;
 mod transitions;
 mod value_observations;
