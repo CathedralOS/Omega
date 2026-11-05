@@ -1,36 +1,15 @@
-name: Qualify complete-value storage on matching hosts
+name: Observe the retained integrated customer timeout
 on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 env:
-  CARGO_BUILD_JOBS: '2'
-  CARGO_INCREMENTAL: '0'
-  CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
-  CARGO_BUILD_FINGERPRINT: content
-  RUST_MIN_STACK: '67108864'
-  OMEGA_CORPUS_JOBS: '1'
   OMEGA_CORPUS_FIXTURE_SECS: '120'
 jobs:
-  matching-host:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - host: windows_x86_64
-            runner: windows-2022
-            target_dir: D:/ot
-          - host: macos_arm64
-            runner: macos-15
-            target_dir: /tmp/ot
-          - host: linux_arm64
-            runner: ubuntu-24.04-arm
-            target_dir: /tmp/ot
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 220
-    env:
-      NATIVE_HOST: ${{ matrix.host }}
-      CARGO_TARGET_DIR: ${{ matrix.target_dir }}
+  observe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -39,114 +18,114 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
-        id: build-cache
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
-      - name: Prepare the exact optimized compiler
-        id: preparation
-        shell: bash
+          artifact-ids: 13416015516
+          run-id: 42026360839
+          github-token: ${{ github.token }}
+          path: build/compiler-pilot/integrated
+      - name: Install the standard debugger
+        run: command -v gdb || (sudo apt-get -qq update && sudo apt-get -qq install -y gdb)
+      - name: Authenticate the exact completed preparation and restore only executable modes
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          python - <<'OBSERVE'
+          python3 - <<'OBSERVE'
           from pathlib import Path
           import hashlib,json,os,sys
-          root=Path.cwd();sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          root=Path.cwd()
+          sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
           import compiler_pilot
-          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA'];target=os.environ['NATIVE_HOST']
+          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA']
           assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
-          assert compiler_pilot.corpus_gate.host_target()==target and target in ['windows_x86_64','macos_arm64','linux_arm64']
-          assert os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
           os.environ['GITHUB_SHA']=source
-          output=root/'build/compiler-pilot/affected-host'
-          positive=('pass/traits/float_contract_refinement_boundaries_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit');negative=('fail/build/float_default_wrong_value', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner')
-          output.mkdir(parents=True,exist_ok=False)
-          (output/'driver.json').write_text(json.dumps({'source':source,'driver':driver,'target':target},indent=2)+'\n')
-          raise SystemExit(compiler_pilot.run_suite('compiler-pilot/affected-host',positive,negative,phase='prepare'))
-          OBSERVE
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: core-float-affected-preparation-${{ matrix.host }}-${{ github.run_id }}
-          path: build/compiler-pilot/affected-host/
-          include-hidden-files: true
-          compression-level: 0
-          retention-days: 30
-      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
-        if: always() && !cancelled() && steps.preparation.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
-      - name: Observe the affected corpus and original controls
-        if: ${{ !cancelled() && steps.preparation.outcome == 'success' }}
-        shell: bash
-        run: |
-          python - <<'OBSERVE'
-          from pathlib import Path
-          import hashlib,json,os,sys
-          root=Path.cwd();sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
-          import compiler_pilot
-          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA'];target=os.environ['NATIVE_HOST']
-          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
-          assert compiler_pilot.corpus_gate.host_target()==target and target in ['windows_x86_64','macos_arm64','linux_arm64']
+          assert compiler_pilot.corpus_gate.host_target()=='linux_x86_64'
           assert os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
-          os.environ['GITHUB_SHA']=source
-          output=root/'build/compiler-pilot/affected-host'
-          positive=('pass/traits/float_contract_refinement_boundaries_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit');negative=('fail/build/float_default_wrong_value', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner')
-          prepared=json.loads((output/'preparation.json').read_text())
-          assert prepared['passed'] and prepared['candidate']==source and prepared['target']==target
-          assert json.loads((output/'driver.json').read_text())=={'source':source,'driver':driver,'target':target}
-          producer=compiler_pilot.load_producer(output/'producer.json');producer.verify()
-          status=compiler_pilot.run_suite('compiler-pilot/affected-corpus',positive,negative,producer=producer)
-          producer.verify();observed=root/'build/compiler-pilot/affected-corpus'
-          latency=all(item['millis']<=120000 for name in ['checking.json','both.json'] for item in json.loads((observed/name).read_text())['observations']) if all((observed/name).exists() for name in ['checking.json','both.json']) else False
-          (observed/'scope.json').write_text(json.dumps({'source':source,'driver':driver,'target':target,'producer':producer.record(),'suite_exit':status,'latency_within_original_limit':latency,'passed':status==0 and latency},indent=2)+'\n')
-          raise SystemExit(0 if status==0 and latency else 1)
-          OBSERVE
-      - name: Observe the original ordinary customers
-        if: ${{ !cancelled() && steps.preparation.outcome == 'success' }}
-        shell: bash
-        run: |
-          python - <<'OBSERVE'
-          from pathlib import Path
-          import hashlib,json,os,sys
-          root=Path.cwd();sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
-          import compiler_pilot
-          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA'];target=os.environ['NATIVE_HOST']
-          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
-          assert compiler_pilot.corpus_gate.host_target()==target and target in ['windows_x86_64','macos_arm64','linux_arm64']
-          assert os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
-          os.environ['GITHUB_SHA']=source
-          output=root/'build/compiler-pilot/affected-host'
-          positive=('pass/traits/float_contract_refinement_boundaries_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit');negative=('fail/build/float_default_wrong_value', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner')
-          prepared=json.loads((output/'preparation.json').read_text())
-          assert prepared['passed'] and prepared['candidate']==source and prepared['target']==target
-          assert json.loads((output/'driver.json').read_text())=={'source':source,'driver':driver,'target':target}
-          producer=compiler_pilot.load_producer(output/'producer.json');producer.verify()
+          output=root/'build/compiler-pilot/integrated'
+          positive=('pass/traits/named_contract_arithmetic_refinement', 'pass/traits/float_contract_refinement_boundaries_exit', 'pass/providers/inline_member_generic_requirement_exit', 'pass/providers/generic_required_instance_roster_exit', 'pass/providers/canonical_inherited_provider_instances_exit', 'pass/providers/occurrence_region_binding_forwarding_exit', 'pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/build/provider_applied_static_capture_exit', 'pass/ownership/runtime_nested_projected_claim_return_exit', 'pass/ownership/runtime_selective_constructed_owner_custody_exit', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/core/aggregate_snapshot_copy_exit', 'pass/ownership/linear_inline_constructed_argument_claims_exit', 'pass/ownership/runtime_constructed_child_claim_frontier_exit', 'pass/ownership/runtime_completed_case_claim_return_exit', 'pass/traits/public_method_callback_prefix_inference_exit');negative=('fail/proofs/quotient_representative_admitted_closure_rejected', 'fail/traits/inline_requirement_inherited_false_ensures', 'fail/traits/member_omits_requirement_ensures', 'fail/providers/provider_type_slot_unknown', 'fail/traits/exact_application_keeps_parameter_types', 'fail/providers/inline_member_sibling_requirement_rejected', 'fail/providers/occurrence_region_binding_conflicting_inputs', 'fail/build/float_default_wrong_value', 'fail/packages/rootless_numeric_provider_missing_satisfaction', 'fail/traits/conformance_reference_row_retired', 'fail/contracts/mutable_owned_call_ensures_keeps_poststate', 'fail/references/rebound_parameter_reference_drops_referent_bound', 'fail/ownership/whole_borrowed_missing_repair', 'fail/ownership/whole_linear_parent_move_keeps_unique_custody', 'fail/borrows/whole_referent_store_through_shared_loan', 'fail/traits/ordinary_selection_name_missing_conformance_region', 'fail/traits/explicit_implementation_missing_const_argument', 'fail/build/provider_structural_type_application_conflict', 'fail/providers/inherited_provider_phantom_arguments', 'fail/ownership/selected_linear_source_missing_drop', 'fail/data/constructor_distinct_field_versions', 'fail/data/constructor_prior_operand_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/cases/constructor_subject_range_neighbor_not_evidence', 'fail/ownership/linear_array_constructor_duplicate_operand', 'fail/ownership/linear_array_member_scope_loss', 'fail/borrows/shared_observation_does_not_discharge_linear_owner', 'fail/traits/public_method_callback_prefix_wrong_contract');checking_only=('pass/packages/rootless_numeric_provider_review', 'pass/packages/rootless_numeric_provider_consumer', 'pass/float/runtime_classification_result_categories_exit')
+          import subprocess
+          expected_artifact=13416015516;expected_digest='sha256:44a8c77a69398457f64aeac7c3f7c7aa9f02b7f2cfa15f2b227d91bc1d81e749';expected_bytes=262273355
+          original_run=42026360839;original_driver='49ee070c01637756d629596c78b8bbc543b343f2'
+          run=json.loads(subprocess.check_output(['gh','api','repos/CathedralOS/Omega/actions/runs/'+str(original_run)],text=True))
+          assert run['id']==original_run and run['head_sha']==original_driver and run['status']=='completed' and run['conclusion']=='failure'
+          artifact=json.loads(subprocess.check_output(['gh','api','repos/CathedralOS/Omega/actions/artifacts/'+str(expected_artifact)],text=True))
+          assert artifact['id']==expected_artifact and not artifact['expired'] and artifact['digest']==expected_digest and artifact['size_in_bytes']==expected_bytes
+          assert artifact['workflow_run']['id']==original_run and artifact['workflow_run']['head_sha']==original_driver
+          sealed={'preparation.json': '3f33b5555022aec7cf01d9f3bad582be86e32c551aa283d2489adb451d73a7f7', 'producer.json': 'c70eddf20af5a6054d1756ac10b7cb8ac0515cc28d8a378399509590f54ff5c6', 'driver.json': '3b0192674168751e0b850d0f0927f7d71f3d7f03089c62cf8886eb57852c029c', 'sdk/preparation.json': 'bfba02eb99eb7b6c8ba4626b5514b94b2c3761411f9613e27dcf8ab95f32be19', 'source/manifest.json': '0636d4a2e5b6dd1f00b88ae4ea45888c78baeaf4b99ec2baa9dded8b68e54b98'}
+          for relative,digest in sealed.items():assert hashlib.sha256((output/relative).read_bytes()).hexdigest()==digest,relative
+          prepared=json.loads((output/'preparation.json').read_text());assert prepared['passed'] and prepared['candidate']==source and prepared['tree']==compiler_pilot.command(['git','rev-parse','HEAD^{tree}'])
+          assert json.loads((output/'driver.json').read_text())=={'source':source,'driver':original_driver}
+          (output/'replay-origin.json').write_text(json.dumps({'source':source,'driver':driver,'original_run':original_run,'original_driver':original_driver,'original_run_conclusion':run['conclusion'],'artifact':artifact,'sealed_preparation_files':sealed,'builds_compiler':False},indent=2)+'\n')
+          import stat
+          manifest=json.loads((output/'producer.json').read_text())['producer']
+          assert manifest['revision']==source and manifest['tree']==compiler_pilot.command(['git','rev-parse','HEAD^{tree}'])
           rows=[]
-          for index,fixture in enumerate(('pass/ownership/runtime_whole_borrowed_transform_exit', 'pass/borrows/runtime_reference_aggregate_alias_replacement_exit')):
-           producer.verify()
-           row=compiler_pilot.ordinary_cli_fixture.observe(root,producer,fixture,root/'build/compiler-pilot/affected-ordinary'/str(index))
-           rows.append(row);producer.verify()
-           (root/'build/compiler-pilot/affected-ordinary/summary.json').write_text(json.dumps({'source':source,'driver':driver,'target':target,'producer':producer.record(),'observations':rows,'passed':all(row['passed'] for row in rows)},indent=2)+'\n')
-          raise SystemExit(0 if all(row['passed'] for row in rows) else 1)
+          entries=[(Path(manifest[name]),manifest[name+'_profile']) for name in ['cli','runner']]
+          sdk_prepared=output/'sdk/preparation.json'
+          if sdk_prepared.exists():
+           sdk_record=json.loads(sdk_prepared.read_text())
+           for name,value in sdk_record.get('binaries',{}).items():entries.append((Path(value),sdk_record['profiles'][name]))
+          for binary,profile in entries:
+           assert binary.is_file() and not binary.is_symlink() and binary.resolve().is_relative_to(output.resolve())
+           assert hashlib.sha256(binary.read_bytes()).hexdigest()==profile['sha256']
+           old_mode=stat.S_IMODE(binary.stat().st_mode);binary.chmod(old_mode|stat.S_IXUSR|stat.S_IXGRP|stat.S_IXOTH)
+           assert hashlib.sha256(binary.read_bytes()).hexdigest()==profile['sha256']
+           rows.append({'binary':str(binary),'sha256':profile['sha256'],'mode_before':oct(old_mode),'mode_after':oct(stat.S_IMODE(binary.stat().st_mode))})
+          (output/'restored-executable-modes.json').write_text(json.dumps({'source':source,'driver':driver,'executables':rows,'meaning':'Artifact download does not retain executable bits. Only exact recorded digests under the prepared directory regain that bit; bytes are unchanged.'},indent=2)+'\n')
+          OBSERVE
+      - name: Observe four stacks without rebuilding or changing the program
+        run: |
+          python3 - <<'OBSERVE'
+          from pathlib import Path
+          import hashlib,json,os,signal,subprocess,sys,time
+          root=Path.cwd();sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          import compiler_pilot
+          source='6b1c338126fafa80671d06878a8f9746254eddc9';driver=os.environ['GITHUB_SHA'];os.environ['GITHUB_SHA']=source
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
+          prepared=root/'build/compiler-pilot/integrated';producer=compiler_pilot.load_producer(prepared/'producer.json');producer.verify()
+          assert compiler_pilot.corpus_gate.host_target()=='linux_x86_64' and not os.environ.get('OMEGA_PHASE_PROFILE')
+          out=root/'build/compiler-pilot/integrated-latency-profile';out.mkdir(parents=True,exist_ok=False)
+          fixture='tests/omega/pass/ownership/runtime_whole_borrowed_transform_exit'
+          inputs={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((root/fixture).rglob('*')) if p.is_file() and '.omega' not in p.parts}
+          command=[str(producer.cli),'--check',str(root/fixture/'main.omg')]
+          report={'source':source,'driver':driver,'target':'linux_x86_64','producer':producer.record(),'fixture':fixture,'inputs':inputs,'command':command,'purpose':'Four bounded diagnostic stack snapshots of the actual120s timeout. No check verdict, engine execution or speed acceptance is inferred.','phase_profile':False,'snapshots':[],'passed':False}
+          started=time.monotonic()
+          with (out/'check.stdout').open('wb') as stdout,(out/'check.stderr').open('wb') as stderr:
+           process=subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr,start_new_session=True)
+           try:
+            for index,at in enumerate([20,45,70,95]):
+             delay=started+at-time.monotonic()
+             if delay>0:time.sleep(delay)
+             if process.poll() is not None:break
+             arguments=['sudo','--non-interactive','gdb','--nx','--batch','-iex','set auto-load off','-ex','set pagination off','-ex','set print frame-arguments none','-ex','set print elements 0','-p',str(process.pid),'-ex','thread apply all bt 45','-ex','detach']
+             row={'scheduled_seconds':at,'actual_seconds':round(time.monotonic()-started,3),'command':arguments}
+             with (out/(str(index)+'.stack.stdout')).open('wb') as stack_out,(out/(str(index)+'.stack.stderr')).open('wb') as stack_error:
+              try:row['exit']=subprocess.run(arguments,stdin=subprocess.DEVNULL,stdout=stack_out,stderr=stack_error,timeout=15).returncode
+              except subprocess.TimeoutExpired:row.update(exit=None,error='Debugger observation timed out; no stack success inferred.')
+             row['channels']={suffix:{'path':str(index)+'.stack.'+suffix,'sha256':hashlib.sha256((out/(str(index)+'.stack.'+suffix)).read_bytes()).hexdigest()} for suffix in ['stdout','stderr']}
+             report['snapshots'].append(row)
+            report['completed_without_termination']=process.poll() is not None
+           finally:
+            if process.poll() is None:
+             report['deliberately_stopped_for_diagnostic_budget']=True
+             os.killpg(process.pid,signal.SIGTERM)
+             try:process.wait(timeout=10)
+             except subprocess.TimeoutExpired:os.killpg(process.pid,signal.SIGKILL);process.wait()
+            report['exit']=process.returncode;report['seconds']=round(time.monotonic()-started,3)
+          producer.verify()
+          for path,digest in inputs.items():assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==digest
+          report['check_channels']={suffix:{'path':'check.'+suffix,'sha256':hashlib.sha256((out/('check.'+suffix)).read_bytes()).hexdigest()} for suffix in ['stdout','stderr']}
+          report['passed']=len(report['snapshots'])==4 and all(row['exit']==0 for row in report['snapshots'])
+          (out/'summary.json').write_text(json.dumps(report,indent=2)+'\n')
+          raise SystemExit(0 if report['passed'] else 1)
           OBSERVE
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: core-float-affected-observations-${{ matrix.host }}-${{ github.run_id }}
+          name: core-float-integrated-latency-profile-${{ github.run_id }}
           path: |
-            build/compiler-pilot/affected-corpus/
-            build/compiler-pilot/affected-ordinary/
+            build/compiler-pilot/integrated-latency-profile/
+            build/compiler-pilot/integrated/replay-origin.json
+            build/compiler-pilot/integrated/restored-executable-modes.json
           include-hidden-files: true
-          compression-level: 0
           retention-days: 30
