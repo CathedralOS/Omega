@@ -1,6 +1,7 @@
 //! Pass-v1 construction, ordered-rule validation, and wire codec.
 
 use crate::cursor::Cursor;
+use crate::optimization_core::identities::IDENTITY_WIDTH;
 use std::collections::BTreeSet;
 
 use crate::{
@@ -127,7 +128,7 @@ impl OptimizationPassManifestRecord {
         let input = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let output = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let ordered_rule_set = OptimizationRuleSetIdentity::from_bytes(cursor.array()?);
-        let rule_count = cursor.counted(32)?;
+        let rule_count = cursor.counted(IDENTITY_WIDTH)?;
         let mut ordered_rules = Vec::with_capacity(rule_count);
         for _ in 0..rule_count {
             ordered_rules.push(OptimizationRuleIdentity::from_bytes(cursor.array()?));
