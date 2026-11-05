@@ -25,6 +25,7 @@ mod receiver;
 mod regions;
 mod summary;
 
+pub(crate) use ceiling::linear_restoration_ceiling_regions;
 pub(crate) use ceiling::signature_ceiling_places;
 pub(crate) use ceiling::signature_ceiling_regions;
 pub(crate) use local_origins::close_storage_places_over_aliases;
