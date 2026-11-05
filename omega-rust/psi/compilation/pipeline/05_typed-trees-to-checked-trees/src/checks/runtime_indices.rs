@@ -2022,12 +2022,11 @@ impl Scope<'_> {
                         .machine_holding_state(row.registration_operation)
                 })
                 .ok_or("the authored application has no source signature")?;
-            let entry = self
-                .program
-                .machine_states(source)
-                .first()
-                .ok_or("the source signature has no entry state")?;
-            let source_parameters = self.program.state_parameters(entry);
+            // The registered operation may name an internal state. Its own
+            // parameters are the receiving signature, not the machine's entry.
+            let source_parameters =
+                call_target_parameters(self.program, row.registration_operation)
+                    .ok_or("the source operation has no retained parameter signature")?;
             if source_parameters.len() != parameters.len()
                 || !source_parameters
                     .get(position)
