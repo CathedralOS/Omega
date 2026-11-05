@@ -104,6 +104,8 @@ def validate_exits(code, stderr, expected):
 
 
 def observe(root, producer, fixture, output, *, dependency_projects=()):
+    # The child runs inside the copied workspace, so project and library paths must be absolute.
+    output = output.resolve()
     expected = expected_exit(root, fixture, producer.target)
     output.mkdir(parents=True, exist_ok=False)
     workspace = output / "workspace"
