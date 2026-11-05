@@ -34,5 +34,8 @@ is discarded, and the library still has no ProgramEntry.
 The original consumer at source `69ec9f80599b` first failed package setup because
 the old fixture copier omitted its sibling. With the sibling present, the same
 compiler correctly refused the competing `NativeFloats` and
-`UnusedNumericProvider` defaults. The explicit-root-choice migration has not yet
-been executed; it does not relabel either earlier refusal as success.
+`UnusedNumericProvider` defaults. The first explicit-root-choice replay at input source `ae987fcc85a9`
+then refused its unexposed numeric subject before execution. The consumer now
+imports `float_operations` explicitly and names the visible `F32::negate` slot
+in its four root rows. That authoring correction still needs a fresh replay;
+none of the earlier refusals is relabeled as success.
