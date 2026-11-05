@@ -1,13 +1,13 @@
 {
   "schema": "omega-compiler-pilot-plan-v1",
   "producer": {
-    "revision": "452fc2e74955ecd7227489e8897ebae120e8acf3",
-    "tree": "970e5e608843e589af772555cadb2a185b8baf45",
+    "revision": "f37d5407e2ae46437ce7ad03255f52fc61e9c850",
+    "tree": "90ff48a364ff44867574823d0659482afcfc650b",
     "target": "linux_x86_64",
     "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
     "input_objects": {
-      "omega-rust": "d49037cf98923c1889fe725d567cacc9d7c0d8d4",
-      "source/library": "2c43a3ee0afd0584fe1a5e88734a1d30df586c54",
+      "omega-rust": "17fda26c36bddab032fa0229f0ac5073274120fb",
+      "source/library": "51b55fc8c72ffcb7b759f04e14b4848b5dce31b5",
       "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
       "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
       "bootstrap": "cfb29e665d301b5ad7dabdb8cb16177c164ab035",
@@ -19,7 +19,7 @@
     },
     "executables": {
       "cli": {
-        "sha256": "974d06e5f39df720be3219ca7ed979f9894089a7a6ef5cd030f7b64b6ed5c722",
+        "sha256": "2ff84bd18f534236b5b19b4f673f8d549da2c4cc67f2cb3abd8edb0e45ec680d",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
@@ -27,8 +27,8 @@
       },
       "runner": null
     },
-    "origin_run": 41913401160,
-    "cache_key": "compiler-regression-Linux-X64-930ad300ab5b66029346c7ae14a6d49284f61cbeba994e9d242c180ccf948756-452fc2e74955ecd7227489e8897ebae120e8acf3"
+    "origin_run": 42003325331,
+    "cache_key": "compiler-regression-Linux-X64-930ad300ab5b66029346c7ae14a6d49284f61cbeba994e9d242c180ccf948756-f37d5407e2ae46437ce7ad03255f52fc61e9c850"
   },
   "fixtures": [],
   "source_only": false,

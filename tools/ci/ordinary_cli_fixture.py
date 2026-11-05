@@ -135,7 +135,7 @@ def observe(root, producer, fixture, output):
         try:
             with (output / f"{stage}.stdout").open("wb") as out, (output / f"{stage}.stderr").open("wb") as err:
                 command_env = (
-                    dict(env, OMEGA_REVIEW_TIMINGS="1")
+                    dict(env, OMEGA_REVIEW_TIMINGS="1", OMEGA_STRUCT_TRACE="1")
                     if stage in ("update", "resume")
                     else env
                 )
