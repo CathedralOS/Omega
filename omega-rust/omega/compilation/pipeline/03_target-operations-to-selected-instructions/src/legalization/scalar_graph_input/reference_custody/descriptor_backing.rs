@@ -473,7 +473,9 @@ pub(super) fn origin_overlaps_storage(
         target_operations::TargetReferenceOriginBase::Storage { root } => {
             root == place && origin_overlaps(&origin.path)
         }
-        target_operations::TargetReferenceOriginBase::IncomingContents { .. } => !independent_carrier,
+        target_operations::TargetReferenceOriginBase::IncomingContents { .. } => {
+            !independent_carrier
+        }
         target_operations::TargetReferenceOriginBase::Invocation { .. }
         | target_operations::TargetReferenceOriginBase::Provider { .. } => true,
     }
