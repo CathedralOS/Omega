@@ -16,15 +16,14 @@ impl OperationFrame<'_, '_> {
     ) -> Result<(), LoweringError> {
         let source = self
             .results
-            .repair_value(initial_value.source_binding_ordinal(), self.operations)?;
+            .value_storage(initial_value.source_binding_ordinal(), self.operations)?;
         let (mut environment, emission) = self.reborrow().split();
         let structural_values::ValueOutcome::Normal(completed) =
             structural_values::receive_completed(
                 identities,
                 initial_value,
                 result,
-                source.place,
-                source.structural_type,
+                source,
                 &mut environment,
                 emission.calls,
                 emission.evaluation,
