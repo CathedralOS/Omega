@@ -4,4 +4,4 @@ The existing Product program and runtime oracles are unchanged. Its Build now ex
 
 At producer `13c6c6688a7a` on Linux, the positive Build completed configuration, while Product publication later refused a missing numeric declaration identity. The wrong-value input reached `Crashed` with `cause: Trap` before configuration. Those observations establish the Build operation at that producer; the Product program has no engine result from that failed publication.
 
-The later declaration and storage repairs are awaiting fresh execution. All four hosted targets, final acceptance and parent-task completion remain open. The earlier `8dc` admission refusal retains its original source and inputs.
+Producer `9177e43f172b` later recorded native/Terminal exit 0 for this positive on Linux, in both the corpus and ordinary CLI. The wrong-value control still reached the intended Build trap. Those results qualify that producer; the later checking-reuse repair and the other hosted targets remain open. The earlier `8dc` admission refusal retains its original source and inputs.

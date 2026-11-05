@@ -20,6 +20,6 @@ omega audit packages --project tests/omega/pass/packages/rootless_numeric_provid
 omega run --both tests/omega/pass/packages/rootless_numeric_provider_consumer/main.omg
 ```
 
-The fresh review must include `UnusedNumericProvider::negate` even though the
-consumer never calls it. This pins declaration review, not a new executable IR
-or permission to execute an external provider.
+The fresh review must include `UnusedNumericProvider::native_negate` even though the
+consumer never calls it. Execution still requires the exact selected contract and installed provider
+authority.
