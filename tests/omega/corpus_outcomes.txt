@@ -2513,8 +2513,8 @@ fail/calls/closed_constructor_divergent_unselected_field_unknown rejected 15739m
 	specification call `Point::zero` is not denotational: the selected machine is not unconditionally terminating
 fail/calls/closed_constructor_generic_field_recast_not_identity rejected 17514ms expected @ccdb99ca2214
 	cannot prove requires contract for call take from Main::main: view.value > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-fail/calls/closed_constructor_inline_projection_divergence_unknown rejected 14933ms unexpected @ccdb99ca2214
-	machine `Main::main` state `main` value call to `take` violates required fact `point.x == projected()`: the instantiated fact is structurally false (`1 == 0`)
+fail/calls/closed_constructor_inline_projection_divergence_unknown rejected 108363ms expected @0d0c11daa127
+	specification call `projected` is not denotational: the selected machine is not unconditionally terminating
 fail/calls/closed_constructor_projection_reference_result_rejected rejected 16430ms expected @ccdb99ca2214
 	fact-position projection from call `zero` is not denotational: the selected call closure observes or mutates hidden state, uses atomic/external machinery, or contains a non-checked target
 	specification call `View::zero` has no observation-free, reach-free, crash-free value denotation: the selected closure contains runtime observations or mutable storage
@@ -2534,10 +2534,10 @@ fail/calls/closed_constructor_requires_symbolic_unknown rejected 17744ms expecte
 	cannot prove requires contract for call take from symbolic: point == Point.zero() (needs fact `point == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/calls/closed_constructor_store_recast_not_identity rejected 26733ms expected @5d70aa361af0
 	cannot prove requires contract for call take from Main::main: view > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-fail/calls/closed_constructor_unused_divergence_unknown rejected 13902ms unexpected @ccdb99ca2214
-	machine `Main::main` state `main` value call to `take` violates required fact `point == Point.zero()`: the instantiated fact is structurally false (`Point { x: 1, y: 0 } == Point { x: 0, y: 0 }`)
-fail/calls/closed_constructor_unused_mutual_divergence_unknown rejected 16521ms unexpected @ccdb99ca2214
-	machine `Main::main` state `main` value call to `take` violates required fact `point == Point.zero()`: the instantiated fact is structurally false (`Point { x: 1, y: 0 } == Point { x: 0, y: 0 }`)
+fail/calls/closed_constructor_unused_divergence_unknown rejected 101468ms expected @0d0c11daa127
+	specification call `Point::zero` is not denotational: the selected machine is not unconditionally terminating
+fail/calls/closed_constructor_unused_mutual_divergence_unknown rejected 100815ms expected @0d0c11daa127
+	specification call `Point::zero` is not denotational: the selected machine is not unconditionally terminating
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/calls/computed_zero_requires_argument_rejected rejected 15362ms expected @ccdb99ca2214
@@ -4604,8 +4604,8 @@ fail/domains/imported_provider_unissued_result rejected 4037ms expected @ccdb99c
 	native provider for `named-callable(path(Source::open),parameters(),result-dispatch(declared:package:a57e88258a5e92ee7a5b691ea43d637e0e737116c5396ed9f54b077b2dd0d396:product::Resource::Open))` cannot establish result provenance owned by another issuer; a checked provider must return the qualified value
 fail/domains/inactive_payload_cannot_supply_false_contract rejected 2190ms expected @ccdb99ca2214
 	cannot prove requires contract for call forbidden from consume: false (needs fact `false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/domains/inactive_payload_false_guard_cannot_supply_false_contract rejected 740ms unexpected @ccdb99ca2214
-	machine `consume` state `entry` value call to `forbidden` violates required fact `false`: the instantiated fact is structurally false
+fail/domains/inactive_payload_false_guard_cannot_supply_false_contract rejected 3316ms expected @0d0c11daa127
+	cannot prove requires contract for call forbidden from consume: false (needs fact `false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/domains/indexed_domain_requires_invalidated_by_known_index_mutation rejected 2117ms expected @ccdb99ca2214
 	cannot prove requires contract for call accept from Main::main: main.items[0] in Item::Valid (invalidated by prior mutation of main.items[0].value; main.items[0].value is part of Item::Valid) in state `main`
 fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejected 2296ms expected @ccdb99ca2214
@@ -7222,17 +7222,17 @@ fail/facts/core_integer_endpoint_through_local_rejected rejected 3103ms expected
 	cannot prove requires contract for call consume from probe: value == 0xffffffff (needs fact `value == 0xffffffff` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/core_integer_endpoint_through_match_join_rejected rejected 3701ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from probe: held.value == 0xffffffff (needs fact `value == 0xffffffff` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/core_integer_endpoint_through_other_machine_rejected rejected 2003ms unexpected @ccdb99ca2214
-	machine `probe` state `entry` value call to `consume` violates required fact `value == 0xffffffff`: the instantiated fact is structurally false (`65535 == 4294967295`)
-fail/facts/core_integer_endpoint_through_other_state_rejected rejected 1709ms unexpected @ccdb99ca2214
-	machine `probe` state `entry` value call to `nested` violates required fact `value == 0xffffffff`: the instantiated fact is structurally false (`65535 == 4294967295`)
-fail/facts/core_integer_endpoint_through_parameter_rejected rejected 1206ms unexpected @ccdb99ca2214
-	machine `main` state `entry` value call to `probe` violates required fact `value == 0xffffffff`: the instantiated fact is structurally false (`65535 == 4294967295`)
-fail/facts/core_integer_endpoint_through_target_body_rejected rejected 1827ms unexpected @ccdb99ca2214
-	machine `WindowsEndpointProbe::probe` state `probe` value call to `consume` violates required fact `value == 0xffffffff`: the instantiated fact is structurally false (`65535 == 4294967295`)
-	machine `LinuxX86EndpointProbe::probe` state `probe` value call to `consume` violates required fact `value == 0xffffffff`: the instantiated fact is structurally false (`65535 == 4294967295`)
-	machine `MacEndpointProbe::probe` state `probe` value call to `consume` violates required fact `value == 0xffffffff`: the instantiated fact is structurally false (`65535 == 4294967295`)
-	machine `LinuxArmEndpointProbe::probe` state `probe` value call to `consume` violates required fact `value == 0xffffffff`: the instantiated fact is structurally false (`65535 == 4294967295`)
+fail/facts/core_integer_endpoint_through_other_machine_rejected rejected 3503ms expected @0d0c11daa127
+	cannot prove requires contract for call consume from probe: forward((entry() as u32)) == 0xffffffff (needs fact `value == 0xffffffff` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/core_integer_endpoint_through_other_state_rejected rejected 3507ms expected @0d0c11daa127
+	cannot prove requires contract for call nested from probe: (entry() as u32) == 0xffffffff (needs fact `value == 0xffffffff` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/core_integer_endpoint_through_parameter_rejected rejected 3506ms expected @0d0c11daa127
+	cannot prove requires contract for call probe from main: (entry() as u32) == 0xffffffff (needs fact `value == 0xffffffff` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/core_integer_endpoint_through_target_body_rejected rejected 3764ms expected @0d0c11daa127
+	cannot prove requires contract for call consume from WindowsEndpointProbe::probe: (entry() as u32) == 0xffffffff (needs fact `value == 0xffffffff` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
+	cannot prove requires contract for call consume from LinuxX86EndpointProbe::probe: (entry() as u32) == 0xffffffff (needs fact `value == 0xffffffff` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
+	cannot prove requires contract for call consume from MacEndpointProbe::probe: (entry() as u32) == 0xffffffff (needs fact `value == 0xffffffff` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
+	cannot prove requires contract for call consume from LinuxArmEndpointProbe::probe: (entry() as u32) == 0xffffffff (needs fact `value == 0xffffffff` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
 fail/facts/correlated_invariant_store_through_call_result_rejected rejected 16924ms expected @46cdd6b85b82+wt
 	machine `advance` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/correlated_invariant_store_through_const_name_rejected rejected 16878ms expected @46cdd6b85b82+wt
@@ -13313,12 +13313,12 @@ fail/facts/temporary_case_cleanup_through_field_rejected rejected 4195ms expecte
 	cannot prove requires contract for call consume from main: holder.child.value == 2 (needs fact `value.value == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/temporary_case_cleanup_through_local_rejected rejected 4044ms expected @911f6617ba9e
 	cannot prove requires contract for call consume from main: value.value == 2 (needs fact `value.value == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/temporary_case_cleanup_through_match_join_rejected rejected 1597ms unexpected @911f6617ba9e
-	machine `main` state `entry` value call to `consume` violates required fact `value.value == 2`: the instantiated fact is structurally false (`1 == 2`)
+fail/facts/temporary_case_cleanup_through_match_join_rejected rejected 3398ms expected @0d0c11daa127
+	cannot prove ensures contract for exit from choose at statement 0: result.value == 2
 fail/facts/temporary_case_cleanup_through_other_machine_rejected rejected 1606ms expected @911f6617ba9e
 	machine `across` state `entry` value call to `consume` violates required fact `value.value == 2`: the instantiated fact is structurally false (`1 == 2`)
-fail/facts/temporary_case_cleanup_through_other_state_rejected rejected 3162ms unexpected @911f6617ba9e
-	machine `carry` state `entry` value call to `onward` violates required fact `value.value == 2`: the instantiated fact is structurally false (`1 == 2`)
+fail/facts/temporary_case_cleanup_through_other_state_rejected rejected 3363ms expected @0d0c11daa127
+	cannot prove requires contract for call onward from carry: constructor:79:package:e1f92109f5a2518f85009a2b73bf7c7d508784391d2951b6ffb48b4aa561c1cd::Bonus6:record17:common:name:value1:1.value == 2 (needs fact `value.value == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/temporary_case_cleanup_through_parameter_rejected rejected 2904ms expected @911f6617ba9e
 	machine `main` state `entry` value call to `through_parameter` violates required fact `value.value == 2`: the instantiated fact is structurally false (`1 == 2`)
 fail/facts/temporary_case_cleanup_through_target_body_rejected rejected 5619ms expected @911f6617ba9e
@@ -14328,8 +14328,9 @@ fail/float/refined_result_wrong_or_excluded_bounds rejected 4113ms expected @ccd
 	cannot prove ensures contract for exit from excluded at statement 0: result >= 0.0 && result < 3.0
 fail/float/requirement_record_field_trapping_requires_coverage rejected 4527ms expected @ccdb99ca2214
 	`multiply(value, 2.0)` in machine `packet` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/result_predicate_stale_or_wrong_value rejected 1690ms unexpected @ccdb99ca2214
-	machine `wrong_value` state `entry` value call to `accept` violates required fact `value == 3.75`: the instantiated fact is structurally false (`0.1 == 3.75`)
+fail/float/result_predicate_stale_or_wrong_value rejected 5259ms expected @0d0c11daa127
+	cannot prove requires contract for call accept from stale: current == 3.75 (needs fact `value == 3.75` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call accept from wrong_value: 0.1 == 3.75 (needs fact `value == 3.75` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/same_carrier_cast_cannot_mint_finite rejected 1908ms expected @ccdb99ca2214
 	cannot prove initializer `identity(value) as f64` satisfies `finite` for the bounded value of machine `invalid` state `entry` local `finite`
 fail/float/saved_ieee_conversion_guard_after_write rejected 2028ms unexpected @ccdb99ca2214
@@ -16391,8 +16392,8 @@ fail/proofs/completed_poststate_sibling_overwrite rejected 1781ms expected @ccdb
 	cannot prove default-domain field requirement for return from invalid, state entry, at statement 3: Captured requires Captured::Both
 fail/proofs/completed_qualified_membership_after_write rejected 3668ms expected @ccdb99ca2214
 	cannot prove requires contract for call observe from exercise: value in Counter::One (invalidated by prior mutation of value.value; value.value is part of Counter::One) in state `entry`
-fail/proofs/conditional_boolean_return_is_not_first_arm rejected 847ms unexpected @ccdb99ca2214
-	machine `main` state `entry` value call to `demand` violates required fact `value == true`: the instantiated fact is structurally false (`false == true`)
+fail/proofs/conditional_boolean_return_is_not_first_arm rejected 4096ms expected @0d0c11daa127
+	cannot prove requires contract for call demand from main: choose(false) == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/conditional_ih_requires_discharge rejected 697ms expected @ccdb99ca2214
 	machine `conditional_ih_requires_all` cites `add_le_add`, but the callee's requires fact `saturating_sub(c, d) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
 	machine `conditional_ih_requires_all` ensures contract proof fact `saturating_sub(mul(a, factor), mul(b, factor)) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
@@ -16651,8 +16652,8 @@ fail/proofs/mathematical_wrapping_capture rejected 771ms expected @ccdb99ca2214
 fail/proofs/mutable_ranked_accumulator_wrong_step rejected 12448ms expected @ccdb99ca2214
 	cannot prove requires contract for call accumulate from accumulate: remaining + accumulator == total (needs fact `remaining + accumulator == total` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove ensures contract for exit from accumulate at statement 4: result == total
-fail/proofs/named_boolean_return_is_not_omitted rejected 999ms unexpected @ccdb99ca2214
-	machine `main` state `entry` value call to `demand` violates required fact `value == false`: the instantiated fact is structurally false (`true == false`)
+fail/proofs/named_boolean_return_is_not_omitted rejected 3270ms expected @0d0c11daa127
+	cannot prove requires contract for call demand from main: choose(true) == false (needs fact `value == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/nat_exact_subtraction_requires_order rejected 1551ms expected @ccdb99ca2214
 	cannot prove requires contract for call subtract from remaining: used <= total (needs fact `right <= left` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/nat_metric_false_gap_zero rejected 671ms expected @ccdb99ca2214
@@ -16716,9 +16717,8 @@ fail/proofs/numeric_state_unknown_arrival rejected 2395ms expected @ccdb99ca2214
 	cannot prove requires contract for call tens from dispatch: 0 <= 9 && embed(unchecked) + embed(0) * 10 <= 99 (needs fact `count <= 9 && embed(rest) + embed(count) * 10 <= 99` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/numeric_state_wrapping_payload rejected 2106ms expected @ccdb99ca2214
 	cannot prove requires contract for call positive from wrong: embed(wrapped) > 0 (needs fact `embed(value) > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/opposite_guard_same_target rejected 1469ms unexpected @ccdb99ca2214
-	machine `main` state `entry` value call to `impossible` violates required fact `1 == 0`: the instantiated fact is structurally false
-	machine `main` state `entry` value call to `impossible` violates required fact `1 == 0`: the instantiated fact is structurally false
+fail/proofs/opposite_guard_same_target rejected 3274ms expected @0d0c11daa127
+	cannot prove requires contract for call impossible from main: 1 == 0 (needs fact `1 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/order_antisymmetry_false_twin rejected 886ms expected @ccdb99ca2214
 	machine `false_antisymmetric_distinct` ensures contract proof fact `a != b` is disproved: the requires contract entails its negation
 fail/proofs/order_asymmetry_refuted rejected 974ms expected @ccdb99ca2214
@@ -17020,8 +17020,8 @@ fail/proofs/structural_mathematical_predicate_wrong_polarity rejected 21043ms ex
 	cannot prove default-domain field requirement for return from invalid_below, state entry, at statement 0: Below.value requires Word::Below
 	construction of `NotTen` field `value` is not proven in domain `Word::NotTen` in invalid_unequal state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for return from invalid_unequal, state entry, at statement 0: NotTen.value requires Word::NotTen
-fail/proofs/unknown_boolean_return_is_not_omitted rejected 704ms unexpected @ccdb99ca2214
-	machine `main` state `entry` value call to `demand` violates required fact `value == true`: the instantiated fact is structurally false (`false == true`)
+fail/proofs/unknown_boolean_return_is_not_omitted rejected 3415ms expected @0d0c11daa127
+	cannot prove requires contract for call demand from main: choose(false) == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/value_call_refuted_inequality_rejected rejected 674ms expected @ccdb99ca2214
 	machine `invalid_nonzero_identity` state `entry` value call to `nonzero_identity` violates required fact `value != Nat`: the instantiated fact is structurally false (`Nat::Zero != Nat::Zero`)
 fail/proofs/wrapping_zero_product_does_not_cancel_factor rejected 12168ms expected @ccdb99ca2214
