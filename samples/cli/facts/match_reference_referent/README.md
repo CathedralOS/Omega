@@ -3,6 +3,13 @@
 A match selects one of two references, the join records that reference, and the consumer reads
 through the recorded reference.
 
+The current compiler rejects this row's root and all nine positive places at
+`read_through`'s `place == 17` requirement. These refusals were observed on
+2026-11-05 with optimized macOS ARM64 producer
+`64376af6ae978b4ddb2d2d50874724226ccb0646`; the sources still use 17 and 5.
+The execution claims below describe earlier observations, not current validation.
+The repair and the Build-selection migration remain under validation.
+
 `choose()` is declared `ensures result == true`, so the join is taken on its true arm, and the
 consumer `read_through` requires `place == 17`. Exit 0 therefore holds exactly when the join
 recorded the reference whose referent is `chosen` (17) and not `spare` (5): the evidence is the
@@ -25,7 +32,7 @@ they name, changes.
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the two referent values are the named constants `CHOSEN` and `SPARE` |
 | a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | the successor machine `pick` receives the two borrowed references |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine (`forward`) supplies the candidate references to `apply` |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of the four target bodies of `apply` performs the join |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Build selects an ordinary provider whose member passes both references to `apply`, which performs the join |
 
 ## Execution
 
@@ -77,7 +84,13 @@ and nine fail fixtures (each a byte-identical copy of its place twin plus the pi
 
 ## Requirements and Evidence
 
-- **Parent outcome:** `MATCH-SELECTIVE-LOWERING` (`TASKS.md`): "Lower value dispatch for owned,
+- **Parent outcomes:** `BUILD-OWNED-TARGET-SELECTION` and
+  `STATE-LOCAL-VALUE-FRONTIER` in [`TASKS.md`](../../../../TASKS.md).
+  The former replaces target-prefixed functions with explicit Build provider
+  selections. This row gives the public `SelectedReference::read` requirement
+  the `chosen == 17` contract and transports both references through each selected
+  member into the same ordinary `apply` helper. The latter includes the former
+  `MATCH-SELECTIVE-LOWERING` requirement: "Lower value dispatch for owned,
   borrowed and linear results, structural/case/domain patterns and coverage through to native
   execution. Preserve once-only subject evaluation, authored first-match order, selected-arm-only
   execution, exact result/loan origins and death edges." Under *Borrowed joins* the task names

@@ -695,6 +695,25 @@ impl StructuralJudge<'_> {
             self.program,
             declared,
         )?;
+        // A live shared copy already records the selected referent's contents.
+        // Reopening its conservative supplier list would add values from arms
+        // that did not execute. The current storage cut checks that this exact
+        // saved binding survives; its shared loan keeps the observed scalar
+        // unchanged. Descriptor-only values still need every supplier below.
+        if let Some(coordinate) =
+            self.captured_storage_coordinate(Some((machine, state)), expression)
+            && let Some(value) = self.current_storage_value_at(&coordinate, at)
+            && super::super::super::structural_terms::shared_inline_observation_type(
+                self.program,
+                &value,
+            )
+            .is_some_and(|observed| {
+                crate::declared_carriers_match(self.program, declared, observed)
+            })
+            && let super::super::super::StructuralTerm::ObservedValue { value, .. } = value
+        {
+            return Some(vec![*value]);
+        }
         let frames = self.frame_resolver()?;
         let dependencies = if crate::reference_shell(self.program, declared).is_some() {
             let supplied =
