@@ -87,6 +87,11 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
 
 ## Step 4: Validate, Sweep the Root-Cause Family & Reconcile `TASKS.md`
 
+Done means the compiler still holds the same object. The pinned diagnostic, and
+the finite `tests/omega` facts fixture, is a photograph of that object.
+Changing the fact, the bound, or the operation so a place passes is repainting
+that photograph: a different object, and a green check on it is not done.
+
 1. **Run focused validation & sweep the full root-cause family ([testing.md](../../../tools/testing.md)):**
    - Do not stop at a 1-off fixture win: identify all pinned regressions in
      `tests/omega/corpus_outcomes.txt` (`--list-pinned-regressions`) and failing
