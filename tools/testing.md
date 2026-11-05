@@ -172,6 +172,11 @@ The consumer retains ordinary stderr without forcing `OMEGA_PROVIDER_DEBUG` or
 check. A requested diagnostic replay still inherits both settings.
 Manual pilot runs can set `compiler_diagnostics=true` to enable them explicitly;
 leave it false for ordinary acceptance runs.
+For a failure that needs the complete ownership or state plan, set
+`structural_trace=true` to request the existing `OMEGA_STRUCT_TRACE` output.
+Select one fixture: these full traces can be large. This setting is off by
+default. It can also be enabled during an authenticated retained-compiler
+replay without rebuilding the compiler or changing its acceptance rules.
 
 For an ordinary run:
 
