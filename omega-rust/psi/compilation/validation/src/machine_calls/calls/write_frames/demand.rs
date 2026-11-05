@@ -436,6 +436,17 @@ impl<'program> CallFrameResolver<'program> {
         }
         let (_, _, _, transfers) = self.statement_reference_transfer(machine, statement)?;
         let transfer = transfers.fallthrough();
+        // A callee with no reference output and no recorded slot effect
+        // installs no caller loan. Calls that do owe a relation, and calls
+        // that invalidate an existing stored reference, stay incomplete.
+        if transfer.effects.is_empty()
+            && transfer
+                .incomplete_calls
+                .iter()
+                .all(|failure| !failure.requires_relation)
+        {
+            return Some(Vec::new());
+        }
         if !transfer.is_complete() {
             return None;
         }
