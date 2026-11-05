@@ -235,16 +235,16 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                     );
                     continue;
                 }
-                // A `Call` root surviving to synthesis is a pre-check
-                // continuation: the probe already declined it because its
-                // closure needs Omega's provider plan. Keep the authored
-                // application for the semantic evaluation owner's deferred
-                // fold rather than reporting it as a malformed argument.
+                // Calls that remain here still need semantic evaluation,
+                // which may require a selected provider plan. Keep the original
+                // application until that evaluation produces a value. Solving
+                // its equations now would mistake the unevaluated call for a
+                // completed non-integer argument.
                 if matches!(
                     syntax.expressions.expression(expression),
                     syntax_trees::expression::ExpressionNode::Call(_)
                 ) {
-                    continue;
+                    return Ok(None);
                 }
                 let destination =
                     syntax_type_identity(syntax, parameter_type).map_err(Diagnostic::error)?;

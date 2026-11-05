@@ -1009,6 +1009,21 @@ impl Operation<'_, '_> {
         if self.result_fits(primitive, range, interval, exact_result_proven) {
             return true;
         }
+        // A result proved to lie outside the carrier is a source obligation.
+        // Recording only a target recipe would hide it behind a later cast
+        // or layout check, so the authored subtraction never reports.
+        let definitely_outside = range
+            .high
+            .zip(interval.low)
+            .is_some_and(|(high, low)| low > high)
+            || range
+                .low
+                .zip(interval.high)
+                .is_some_and(|(low, high)| high < low);
+        if definitely_outside {
+            self.report_unrepresentable(primitive, diagnostics);
+            return false;
+        }
         if let Some(recipe) = recipe {
             use numerics::bignum::BigInt;
             if let Some(minimum) = range.low {
@@ -1036,16 +1051,8 @@ impl Operation<'_, '_> {
         // The completed graph can distinguish a disjoint write from a write
         // to these operands. Keep this occurrence mandatory until that graph
         // exists; no successful formation receipt is published here.
-        let definitely_outside = range
-            .high
-            .zip(interval.low)
-            .is_some_and(|(high, low)| low > high)
-            || range
-                .low
-                .zip(interval.high)
-                .is_some_and(|(low, high)| high < low);
-        if !definitely_outside
-            && decisions.allows_pending_formations
+        // A result already proved outside the carrier was reported above.
+        if decisions.allows_pending_formations
             && self.walk.checks_occurrence_fit
             && self.walk.specification_facts.is_none()
             && self.walk.program.storage_graph().is_none()

@@ -158,6 +158,41 @@ pub fn classify_statement_call_intrinsic(
     )
 }
 
+/// `Schema::encode` / `Schema::decode` on a numbered data declaration.
+/// Synthesis no longer installs a callable, and the schema symbol is not a
+/// machine. The leaf still names that declaration's derived wire schema.
+pub fn statement_wire_codec_intrinsic(
+    program: &dyn crate::CheckingInput,
+    call: &typed_trees::statement::TableCall,
+) -> Option<AuthoredDeclarationSelectionIntrinsic> {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
+
+    if call.target_symbol.is_valid() {
+        return None;
+    }
+    let intrinsic = match call.target.as_str() {
+        "encode" => Intrinsic::WireEncode,
+        "decode" => Intrinsic::WireDecode,
+        _ => return None,
+    };
+    let members = program.statement_table.name_path_members(call.receiver);
+    let leaf = members.last()?;
+    program
+        .wire_schemas()
+        .iter()
+        .any(|schema| schema.name.as_str() == leaf.as_str())
+        .then_some(intrinsic)
+}
+
+/// The one caller place an exclusive reference argument denotes.
+pub fn single_exclusive_reference_storage(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    argument: typed_trees::expression::ExpressionHandle,
+) -> Option<(symbols::SymbolHandle, Vec<facts::PlaceSegment>)> {
+    crate::machine_calls::calls::single_exclusive_reference_storage(program, machine, argument)
+}
+
 pub fn classify_expression_call_intrinsic(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
@@ -282,14 +317,27 @@ pub(crate) fn expression_call_only_observes_operands(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
+    // Provider selection records a build fact. The provider home is an empty
+    // carrier, so the call does not install a caller reference slot.
+    // `Owner::select_provider<Slot, Product>(defaults)` inside a provider
+    // default is that same fact with one carrier argument, not a machine call.
     call.layout_query.is_some()
         || matches!(
             classify_expression_call_intrinsic(program, call),
             Some(
                 AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_)
                     | AuthoredDeclarationSelectionIntrinsic::StorageAddress
+                    | AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection
             )
         )
+        || (BuildOperation::from_call_target(call.target.as_str())
+            == Some(BuildOperation::ProviderSelection)
+            && !call.target_symbol.is_valid()
+            && call.machine_arguments.len() == 2
+            && expression_table(program)
+                .expression_handles(call.arguments)
+                .len()
+                == 1)
 }
 
 /// A descriptor instruction borrows exactly ten bytes. Hardware-written bytes

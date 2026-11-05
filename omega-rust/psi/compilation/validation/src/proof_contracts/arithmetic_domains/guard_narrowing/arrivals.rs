@@ -515,30 +515,25 @@ fn comparison_leaf(
     (condition, positive)
 }
 
-/// Join caller-side reference-argument intervals into one callee entry.
+/// Join caller-side argument intervals into one callee entry.
 ///
 /// Nested machines are separate machines, so an in-machine arrival walk never
 /// rebinds a transition whose target is another machine. A reference parameter
 /// still denotes the caller's storage: the guard that selects that transition
 /// has already narrowed the caller's field interval, and the callee body is
-/// checked against that interval. The caller environment here is only the
-/// transition guard, not a solved incoming environment, so the harvest cannot
+/// checked against that interval. A by-value parameter receives the argument
+/// when that argument is a closed integer built from immutable locals. The
+/// caller environment here is only the transition guard plus those closed
+/// arguments, not a solved incoming environment, so the harvest cannot
 /// recurse through callee bodies. A guard that itself contains a call is left
 /// untransported. Several callers join by interval union; a caller that does
 /// not track a path drops that path.
-fn apply_cross_machine_reference_arrivals(
+pub(super) fn apply_cross_machine_reference_arrivals(
     program: &dyn crate::CheckingInput,
     callee: &Machine,
     entry: &State,
     environment: &mut ValueEnvironment,
 ) {
-    let parameters = program.state_parameters(entry);
-    if !parameters
-        .iter()
-        .any(|parameter| is_reference(program, parameter.type_reference))
-    {
-        return;
-    }
     let mut joined: Option<ValueEnvironment> = None;
     for caller in program.machines() {
         if caller.symbol == callee.symbol {
@@ -705,11 +700,106 @@ fn consider_cross_machine_call(
             bindings.push((path, parameter.name.as_str().to_owned()));
         }
     }
-    let rebound = narrowed.rebind(&bindings);
+    let mut rebound = narrowed.rebind(&bindings);
+    narrow_closed_value_arguments(program, caller, state, &parameters, arguments, &mut rebound);
+    // An empty by-value call records no path. Joining it would drop a sibling
+    // caller's closed interval, because a missing path is not evidence.
+    if bindings.is_empty() && rebound.intervals.is_empty() {
+        return;
+    }
     *joined = Some(match joined.take() {
         Some(previous) => previous.join(&rebound),
         None => rebound,
     });
+}
+
+/// A by-value parameter is the argument's value. Immutable locals fold through
+/// their initializers, so `compute(val)` with `val` built from closed casts
+/// checks the callee against that integer. A mutable local is the caller's
+/// current storage and is left to the reference arrival.
+fn narrow_closed_value_arguments(
+    program: &dyn crate::CheckingInput,
+    caller: &Machine,
+    state: &State,
+    parameters: &[typed_trees::signature::StateParameter],
+    arguments: &[ExpressionHandle],
+    environment: &mut ValueEnvironment,
+) {
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        if parameter.is_mutable
+            || parameter.is_const
+            || is_reference(program, parameter.type_reference)
+        {
+            continue;
+        }
+        let Some(interval) = closed_immutable_argument_interval(program, caller, state, *argument)
+        else {
+            continue;
+        };
+        let path = parameter.name.as_str().to_owned();
+        if let Some(value) = interval
+            .low
+            .filter(|low| interval.high == Some(*low) && *low >= 0)
+        {
+            environment.mark_known_u64(path.clone(), value as u64);
+        }
+        environment.narrow(path, interval);
+    }
+}
+
+fn closed_immutable_argument_interval(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<Interval> {
+    let seen = std::cell::RefCell::new(Vec::<SymbolHandle>::new());
+    let value = program
+        .typed_program()
+        .integer_expression_value_with_bindings(expression, machine.symbol, &mut |candidate| {
+            immutable_local_binding(program, machine, state, candidate, &seen)
+        })?;
+    Some(Interval::constant(value.to_i64()?))
+}
+
+fn immutable_local_binding(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    seen: &std::cell::RefCell<Vec<SymbolHandle>>,
+) -> Option<(numerics::bignum::BigInt, TypeReferenceHandle)> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let local = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == path.symbol => Some(local),
+            _ => None,
+        })?;
+    if local.is_mutable || !local.initial_value.is_valid() {
+        return None;
+    }
+    {
+        let mut seen = seen.borrow_mut();
+        if seen.contains(&local.symbol) {
+            return None;
+        }
+        seen.push(local.symbol);
+    }
+    let initial_value = local.initial_value;
+    let type_reference = local.type_reference;
+    let value = program
+        .typed_program()
+        .integer_expression_value_with_bindings(
+            initial_value,
+            machine.symbol,
+            &mut |candidate| immutable_local_binding(program, machine, state, candidate, seen),
+        )?;
+    Some((value, type_reference))
 }
 
 /// A captured invocation supplies immutable entry values. This uses the same

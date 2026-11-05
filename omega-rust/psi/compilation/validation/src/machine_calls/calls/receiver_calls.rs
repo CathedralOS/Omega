@@ -51,7 +51,12 @@ pub(super) fn validate_receiver_call(
             scope,
             receiver_members,
             arguments.len(),
-        ) {
+        ) && crate::machine_calls::compiler_operations::statement_wire_codec_intrinsic(
+            scope.program,
+            scope.call,
+        )
+        .is_none()
+        {
             diagnostics.push(Diagnostic::error(format!(
                 "qualified call `{}` has no resolved callable declaration",
                 scope.call.target,

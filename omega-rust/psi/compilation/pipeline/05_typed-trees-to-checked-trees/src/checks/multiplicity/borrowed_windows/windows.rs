@@ -164,7 +164,8 @@ impl<'facts> BorrowedStorageWindows<'facts> {
                 statement_index,
             ));
         }
-        let spelling = place_spelling(program, root, &storage_path);
+        let spelling =
+            walk.restoration_debt_spelling(statement_index, event.expression, root, &storage_path);
         if let Some(absent) = self.open.iter().find(|absent| {
             absent.root == root
                 && storage_path_compatibility(program, self.captures, &storage_path, &absent.path).0

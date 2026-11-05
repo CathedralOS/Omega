@@ -74,6 +74,30 @@ class ReplayPlanTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "tree differs"):
             self.plan()
 
+    def test_cache_selection_keeps_the_original_key_and_refuses_changed_inputs(self):
+        self.plan()
+        self.git("commit", "-qm", "consumer plan")
+        output = self.root / "cache-output"
+        with patch.object(pilot, "ROOT", self.root), \
+                patch.object(pilot, "prepare_producer") as build:
+            pilot.write_replay_cache_key("@replay.json", output)
+            self.assertEqual(output.read_text(), "key=original-cache\n")
+            (self.root / "omega-rust/compiler.rs").write_text("changed compiler")
+            self.git("add", "omega-rust/compiler.rs")
+            self.git("commit", "-qm", "changed compiler")
+            refused_output = self.root / "refused-output"
+            with self.assertRaisesRegex(ValueError, "changed since"):
+                pilot.write_replay_cache_key("@replay.json", refused_output)
+            self.assertFalse(refused_output.exists())
+            build.assert_not_called()
+
+    def test_cache_key_cannot_inject_another_workflow_output(self):
+        for value in ("original-cache\nkey=other-cache", "original-cache\rkey=other-cache"):
+            with self.subTest(value=value):
+                self.data["producer"]["cache_key"] = value
+                with self.assertRaisesRegex(ValueError, "cache reference"):
+                    self.plan()
+
     def test_untracked_and_escaping_plan_paths_refuse(self):
         (self.root / "untracked.json").write_text(json.dumps(self.data))
         for name in ("@untracked.json", "@../outside.json", "@/absolute.json", "@replay.json/../other.json"):

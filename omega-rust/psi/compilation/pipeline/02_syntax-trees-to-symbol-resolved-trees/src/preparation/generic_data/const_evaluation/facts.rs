@@ -1562,8 +1562,13 @@ pub(crate) fn const_type_requires_declaration_proof(
             return false;
         }
         visiting.push(data.name.source_span());
+        // Structural type equations are checked when the application forms.
+        // They do not require another proof about this particular value.
+        // Unclassified facts still require the ordinary destination judgment.
+        let value_facts = super::super::template_type_equation_offsets(syntax, data, selection)
+            .map_or(true, |offsets| offsets.len() != data.where_facts.len());
         let requires_proof =
-            !data.where_facts.is_empty()
+            value_facts
                 || syntax.tables.items.data_members(data.members).iter().any(
                     |member| match member {
                         DataMember::Field(field) => const_type_requires_declaration_proof(

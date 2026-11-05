@@ -102,6 +102,10 @@ pub(super) fn post_store_predicate_holds(
     // those observed bounds with its identity; an aggregate sibling's unknown
     // contents do not erase this scalar observation. No destination predicate
     // participates in establishing the operand or its bounds.
+    // A field copy carries the source declaration's interval when this
+    // statement has no tighter occurrence bound. `signature.parameter_count`
+    // is `<= 32` for every `BoundarySignature`, so storing it into
+    // `CallPlan.parameter_count` restores that same declared conjunct.
     let written_bounds =
         crate::proof_contracts::arithmetic_domains::occurrence_integer_expression_bounds(
             program,
@@ -109,7 +113,8 @@ pub(super) fn post_store_predicate_holds(
             state.symbol,
             statement_index,
             written_value,
-        );
+        )
+        .or_else(|| declared_member_field_bounds(program, machine, state, written_value));
     let written = ScopedArithmeticValue::Term(ScopedArithmeticExpression {
         owner: machine.symbol,
         expression: written_value,
@@ -318,6 +323,27 @@ pub(super) fn post_store_predicate_holds(
             place.definition,
             predicate,
         )
+}
+
+/// Closed bounds a data `requires` interval states for this field read.
+/// Unsigned fields with only an upper conjunct start at zero. A missing
+/// bound stays unknown rather than inventing the carrier width.
+fn declared_member_field_bounds(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<(i64, i64)> {
+    let interval = super::where_fact_intervals::stored_field_where_interval(
+        program, machine, state, expression,
+    )?;
+    let primitive = crate::expression_result_type_reference(program, machine, state, expression)
+        .and_then(|reference| program.primitive_type_reference(reference))?;
+    let low = interval
+        .low
+        .or_else(|| (!primitive.is_signed_integer()).then_some(0))?;
+    let high = interval.high?;
+    (low <= high).then_some((low, high))
 }
 
 fn scalar_binding(symbol: SymbolHandle, primitive: PrimitiveType) -> ScopedArithmeticBinding {
