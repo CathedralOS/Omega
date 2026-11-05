@@ -289,7 +289,7 @@ pub(super) fn authored_order_requests(
                 for &expression in &conjuncts {
                     // Source calls and constructors can retain qualifiers or
                     // elaborated operands. Read their selected meaning through
-                    // the same declaring telescope used by equation judgment.
+                    // the same parameter scope used by ordinary equation checking.
                     let Some((left, right)) =
                         identity_equality_terms(program, owner.symbol, parameters, expression)
                     else {
