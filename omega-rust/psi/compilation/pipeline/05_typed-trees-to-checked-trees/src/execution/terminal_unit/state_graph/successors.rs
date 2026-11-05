@@ -1404,7 +1404,7 @@ fn projected_loan_transfer(
     let (backing_type, source_contract) =
         crate::values::reference_sources::qualification_contract_at_site(
             program,
-            source.symbol,
+            source,
             ordinal as usize,
             formation_expression,
             target_type_reference,

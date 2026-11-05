@@ -186,8 +186,6 @@ impl<'a> UnitBody<'a> {
             .map(|(_, operation)| operation)
     }
 
-    /// Source states remain attached to the same complete operation inventory,
-    /// so call-local dependencies cannot borrow another state's facts.
     /// Loans carried on state edges can publish their own pointer descriptor.
     /// Their source contracts remain distinct from statement-owned results.
     pub(crate) fn projected_loans(
@@ -211,6 +209,8 @@ impl<'a> UnitBody<'a> {
             })
     }
 
+    /// Source states remain attached to the same complete operation inventory,
+    /// so call-local dependencies cannot borrow another state's facts.
     pub(crate) fn operations_with_states(
         self,
     ) -> impl Iterator<Item = (symbols::SymbolHandle, &'a CheckedUnitEffectOperationPlan)> {
