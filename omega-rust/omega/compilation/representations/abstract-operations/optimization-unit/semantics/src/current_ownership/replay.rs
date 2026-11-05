@@ -1249,6 +1249,33 @@ pub(super) fn validate_current_ownership_cfg(
                             *source,
                         ));
                     }
+                    let root = structural_source_contract(function, *source).ok_or(
+                        OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
+                            OperationSite::new(function.machine, block_id, node_index),
+                            *source,
+                        ),
+                    )?;
+                    // An allocated home is not a completed value. Arrays and
+                    // records retain their declared projected claims; a nominal
+                    // owner's own claim transports its children unchanged.
+                    terminal_semantics::owned_structure::validate_complete_claim_frontier(
+                        |identity| structural_types.get(&identity).copied(),
+                        root.structural_type,
+                        &[],
+                        frontier.claims.values().filter_map(|claim| {
+                            (claim.input == Some(*source)
+                                && claim.multiplicity == Some(StructuralMultiplicity::Linear))
+                            .then_some(claim.path.as_slice())
+                        }),
+                        &|path, case| membership_at(node_index as usize, *source, path, case, true),
+                    )
+                    .map_err(|reason| {
+                        OptimizationUnitValidationError::IncompleteValueClaimFrontier {
+                            site: OperationSite::new(function.machine, block_id, node_index),
+                            place: *source,
+                            reason,
+                        }
+                    })?;
                     let expected = frontier
                         .claims
                         .iter()

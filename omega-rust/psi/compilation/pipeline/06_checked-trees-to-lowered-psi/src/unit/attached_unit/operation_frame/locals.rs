@@ -754,10 +754,15 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "structural local established no result",
             ))?;
-        self.evaluation.establish_structural_result(
-            self.state,
+        // This home remains vacant until its stores establish a value. Keep
+        // its emitted empty claim roster while binding the local; construction
+        // and completed calls publish their own checked claim custody.
+        self.evaluation
+            .current_claims
+            .publish(produced.place, produced.claims.clone())?;
+        self.evaluation.establish_structural_binding(
             result,
-            produced,
+            produced.into(),
             self.structural_types.declarations(),
             self.operations,
         )

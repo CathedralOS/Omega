@@ -36,8 +36,19 @@ pub(super) fn prepare_build_invocation(
     frontier: TypedCompilationFrontier,
     mut timings: CompileTimings,
     pure_build_compilation: Option<&build_settings::PureBuildCompilation>,
+    purpose: super::source_build::BuildSourcePurpose<'_>,
 ) -> Result<BuildSourceInvocation, CompileFailure> {
     let started = std::time::Instant::now();
+    let (execution_purpose, toolchain_defaults) = match purpose {
+        super::source_build::BuildSourcePurpose::Defaults => (
+            artifacts::compile_timings::counters::BuildExecutionPurpose::ProviderDefaults,
+            None,
+        ),
+        super::source_build::BuildSourcePurpose::Source(defaults) => (
+            artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
+            Some(defaults),
+        ),
+    };
     let CheckedExecutionRequest {
         selected_target_profile,
         package_inputs,
@@ -60,7 +71,9 @@ pub(super) fn prepare_build_invocation(
     let build_input = source.build_input();
     let evaluation = build_settings::prepare_build_evaluation(
         build_settings::BuildEvaluationRequest {
+            execution_purpose,
             pure_build_compilation,
+            toolchain_defaults,
             root_path,
             typed: build_input.typed,
             pre_checks: build_input.pre_checks,
@@ -105,6 +118,10 @@ pub(super) fn prepare_build_invocation(
 }
 
 impl BuildSourceInvocation {
+    pub(super) fn anonymous_source(&self) -> Option<&package_compilation::AnonymousSourceCapture> {
+        self.frontier.anonymous_source.as_ref()
+    }
+
     pub(super) fn product_queries(&self) -> super::ProductQueries {
         super::ProductQueries::new(
             &self.frontier,
@@ -222,6 +239,7 @@ impl BuildSourceInvocation {
             package_inputs: package_inputs.cloned(),
             original_assembly,
             build_execution_profile,
+            toolchain_provider_defaults: None,
             timings,
             build_elapsed_micros: started.elapsed().as_micros(),
         })
@@ -265,6 +283,7 @@ pub(super) fn prepare_settled_product(
     let completed = complete_build_source(
         frontier,
         settled.evaluated,
+        settled.toolchain_provider_defaults,
         inputs,
         settled.build_execution_profile,
         &mut timings,
@@ -286,6 +305,7 @@ pub(super) fn prepare_settled_product(
 fn complete_build_source(
     frontier: TypedCompilationFrontier,
     evaluated: build_settings::EvaluatedBuild,
+    toolchain_provider_defaults: Option<package_compilation::CompletedProviderDefaults>,
     package_inputs: Option<&PackageCompilationInputs>,
     build_execution_profile: Option<target::TargetProfile>,
     timings: &mut CompileTimings,
@@ -293,7 +313,7 @@ fn complete_build_source(
     let TypedCompilationFrontier {
         preparation,
         mut source,
-        anonymous_source: _,
+        mut anonymous_source,
         product_sources,
         build_source: _,
         mut source_file_count,
@@ -349,6 +369,7 @@ fn complete_build_source(
             None => None,
         };
         source = product.source;
+        anonymous_source = product.anonymous_source;
         base_sources = product.base_sources;
         source_file_count = product.source_file_count;
         generated_source_custody = product.generated_source_custody;
@@ -367,6 +388,8 @@ fn complete_build_source(
         source = source
             .materialize_authored_bodies(&mut crate::observations::PsiStageTimings::new(timings))?;
     }
+    Arc::make_mut(&mut computed_build_config).toolchain_provider_defaults =
+        toolchain_provider_defaults;
     super::product_selections::admit(
         &mut source,
         Arc::make_mut(&mut computed_build_config),
@@ -391,6 +414,7 @@ fn complete_build_source(
     };
     Ok((
         BuiltTypedProgram {
+            anonymous_source,
             preparation,
             source,
             base_sources,
@@ -476,6 +500,7 @@ pub(super) fn complete_product_frontend(
 > {
     artifacts::compile_timings::counters::record_product_source_completion();
     let BuiltTypedProgram {
+        anonymous_source: _,
         preparation,
         source,
         base_sources,

@@ -26,6 +26,7 @@ pub(super) fn encode(
     crate::codec_bytes::push_encoded(bytes, provider.boundary.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, provider.requirement_identity.0.to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, provider.source_requirement_identity.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, provider.declaration_application.0.to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, provider.receiving_application.0.to_le_bytes());
     length(bytes, provider.receiving_region_arguments.len());
     for region in &provider.receiving_region_arguments {
@@ -90,6 +91,7 @@ pub(super) fn decode(
     let boundary = decode_id(cursor, BoundaryMachineId::new)?;
     let requirement_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let source_requirement_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
+    let declaration_application = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let receiving_application = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let receiving_region_arguments =
         decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
@@ -137,6 +139,7 @@ pub(super) fn decode(
         boundary,
         requirement_identity,
         source_requirement_identity,
+        declaration_application,
         receiving_application,
         receiving_region_arguments,
         provider_identity,

@@ -5,7 +5,10 @@
 //! it; no application import, private-name lookup or dependency Build execution
 //! is introduced. Activation authorship stays on the original receipt.
 
-use super::{PackageBuildHandoff, PackageCompilationInputs};
+use super::{
+    CompletedProviderDefaults, PackageBuildHandoff, PackageCompilationInputs,
+    ProviderDefaultsAdmission,
+};
 use build_declarations::DependencyPurpose;
 use build_time_evaluation::provider_declarations::ProviderSelection;
 use diagnostics::Diagnostic;
@@ -28,32 +31,10 @@ impl PackageCompilationInputs {
                     paths.push(anchor.source().path.clone());
                 }
             }
-            for selection in bundle.provider_selections() {
-                for anchor in [&selection.subject, &selection.provider] {
-                    let anchor = self.admit_retained_product_declaration(bundle, anchor)?;
-                    if anchor.source().resolution_stratum == SourceResolutionStratum::Base {
-                        paths.push(anchor.source().path.clone());
-                    }
-                }
-                for application in [
-                    &selection.subject_application,
-                    &selection.provider_application,
-                ]
-                .into_iter()
-                .flatten()
-                {
-                    for span in application.declaration_spans() {
-                        let file = application.sources.get(span.source_id).ok_or_else(|| {
-                            vec![Diagnostic::error(
-                                "retained application has a foreign source coordinate",
-                            )]
-                        })?;
-                        let source = self.admit_retained_product_source(bundle, file)?;
-                        if source.resolution_stratum == SourceResolutionStratum::Base {
-                            paths.push(source.path);
-                        }
-                    }
-                }
+            if let Some(defaults) = CompletedProviderDefaults::from_package(bundle)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
+            {
+                paths.extend(defaults.source_seeds(ProviderDefaultsAdmission::Package(self))?);
             }
         }
         paths.sort();
@@ -72,50 +53,17 @@ impl PackageCompilationInputs {
             if scope != DependencyPurpose::Product {
                 continue;
             }
-            self.admit_provider_activation(bundle)?;
-            for selection in bundle.provider_selections() {
-                let mut selected = selection.clone();
-                selected.subject =
-                    self.admit_retained_product_declaration(bundle, &selected.subject)?;
-                selected.provider =
-                    self.admit_retained_product_declaration(bundle, &selected.provider)?;
-                // Duplicate/default arbitration belongs to provider settlement,
-                // where authoritative root overrides have their proper tier.
-                for application in [
-                    &mut selected.subject_application,
-                    &mut selected.provider_application,
-                ]
-                .into_iter()
-                .flatten()
-                {
-                    let needed = application
-                        .declaration_spans()
-                        .map(|span| span.source_id)
-                        .collect::<Vec<_>>();
-                    let files = application
-                        .sources
-                        .files()
-                        .map(|file| {
-                            if needed.contains(&file.source_id) {
-                                self.admit_retained_product_source(bundle, file)
-                            } else {
-                                Ok(file.clone())
-                            }
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    application.sources = std::sync::Arc::new(source::SourceMap::from_files(files));
-                }
-                selections.push(
-                    source
-                        .rejoin_product_provider_selection(&selected)
-                        .map_err(|error| vec![error])?,
-                );
+            if let Some(defaults) = CompletedProviderDefaults::from_package(bundle)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
+            {
+                selections
+                    .extend(defaults.rejoin(source, ProviderDefaultsAdmission::Package(self))?);
             }
         }
         Ok(selections)
     }
 
-    fn admit_provider_activation(
+    pub(super) fn admit_provider_activation(
         &self,
         bundle: &PackageBuildHandoff,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -168,7 +116,7 @@ impl PackageCompilationInputs {
             .map_err(|reason| refuse(reason.into()))
     }
 
-    fn admit_retained_product_source(
+    pub(super) fn admit_retained_product_source(
         &self,
         bundle: &PackageBuildHandoff,
         original: &source::SourceFile,

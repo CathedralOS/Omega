@@ -2185,6 +2185,8 @@ fail/build/explicit_provider_scalar_completion rejected 3810ms expected @ccdb99c
 	Build helper scalar completion: scalar predicate is false: requires contract for call require_offset from SelectedImage::retained_suffix_start: identity(size_of()) + 48 == 65
 fail/build/explicit_provider_storage_extent rejected 4088ms expected @ccdb99ca2214
 	Build helper scalar completion: scalar predicate is false: index `16` of `table.slots`
+fail/build/float_default_wrong_value rejected 9816ms expected @6b1c338126fa
+	Build did not return normally: Crashed(TerminalCrash { site: Edge(EdgeId(15)), cause: Trap, site_guard: [], frontier_lower_bound: [] })
 fail/build/generated_declaration_continuation_domain rejected 905ms unexpected @ccdb99ca2214
 	tests/omega/fail/build/generated_declaration_continuation_domain/kit/.omega/generated/generated.omg:4:28: explicit domain subject binders are retired; use `self` in the domain's `requires` predicates
 fail/build/generated_resolution_source_location rejected 629ms expected @ccdb99ca2214
@@ -16321,7 +16323,7 @@ fail/packages/indexed_contract_out_of_bounds rejected 718ms expected @5c5c178f82
 	cannot prove index `8` is within length 8
 fail/packages/retained_dependency_body_loan rejected 2879ms expected @ccdb99ca2214
 	statement 2 mutates `cell.value` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 6)
-fail/packages/rootless_numeric_provider_missing_satisfaction rejected 10996ms expected @ccdb99ca2214
+fail/packages/rootless_numeric_provider_missing_satisfaction rejected 23534ms expected @6b1c338126fa
 	build selects provider `UnusedNumericProvider` for slot `operator::F32::negate(named(name(f32)))->named(name(f32))`, but no candidate exists in the loaded dependency closure
 fail/packages/std_missing_dependency_rejected rejected 300ms expected @ccdb99ca2214
 	tests/omega/fail/packages/std_missing_dependency_rejected/main.omg: import `omega_language_std::console` names package `omega_language_std` (bundled) as `omega_language_std`, but package `std_missing_dependency_rejected` (145ac3c645f4d6d28016570d3481be506c9727f8ff632d12f4346c545db6c00e) declares no product dependency under that alias -- declare `Build::depend(builder, ...)` or `Build::depend_as(builder, "omega_language_std", ...)` in its build.omg to add that dependency edge for the product scope
@@ -16853,8 +16855,8 @@ fail/proofs/quotient_pattern_rejected rejected 1354ms expected regressed-from:ch
 	destructure arm in machine `expose_pattern` state `entry` cannot pattern-match quotient `EquivalenceClass`: retained representatives are opaque and pattern matching requires a named lifted operation
 fail/proofs/quotient_private_crash_rejected rejected 408ms unexpected @41e5eea428cb+wt
 	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_private_crash_rejected`; found Package
-fail/proofs/quotient_representative_admitted_closure_rejected rejected 8409ms expected @41e5eea428cb+wt
-	bodyless boundary symbol `observe` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+fail/proofs/quotient_representative_admitted_closure_rejected rejected 6416ms expected @6b1c338126fa
+	inline member `ObservationRoute::observe` requires a checked body or an admitted external realization; a boundary claim does not supply an implementation
 fail/proofs/quotient_runtime_affine_carrier rejected 5753ms expected @41e5eea428cb+wt
 	quotient data `EquivalenceClass` carrier `Representative` contains non-copy Type content `Representative`; the initial quotient surface cannot identify affine or linear occurrences
 fail/proofs/quotient_runtime_equality_rejected rejected 2217ms expected @41e5eea428cb+wt
@@ -17289,7 +17291,7 @@ fail/providers/native_generic_binding_wrong_requirement rejected 1394ms expected
 	no provider is selected for boundary requirement `CText::length`, which the program entry reaches on target `windows_x86_64`
 fail/providers/nested_binding_missing_establishment rejected 3851ms expected @ccdb99ca2214
 	no provider is selected for boundary requirement `Reading::read`, which the program entry reaches on target `windows_x86_64`
-fail/providers/occurrence_region_binding_conflicting_inputs rejected 600ms expected regressed-from:checked @1982527ed4be+wt
+fail/providers/occurrence_region_binding_conflicting_inputs rejected 5754ms expected @6b1c338126fa
 	call to `entry` has conflicting ordinary borrow constraints for an erased lifetime
 fail/providers/operator_specialized_realization_selection_not_retained rejected 2104ms expected @ccdb99ca2214
 	machine `Provider` does not match one exact overload of operator requirement `Policy::convert`; its entry parameter and result types must equal one declared requirement signature
@@ -17322,8 +17324,8 @@ fail/providers/provider_result_private_qualification rejected 53732ms expected @
 	machine `TokenMintProvider::issue` state `issue` does not satisfy trait `TokenMint` machine `issue`: expected return `Token`, got `Token[in Token::Issued]`
 fail/providers/provider_selection_fabricated_activation rejected 29ms expected @ccdb99ca2214
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
-fail/providers/provider_type_slot_unknown rejected 3415ms expected @ccdb99ca2214
-	build selects provider `MissingProvider` for slot `Pick`, but no candidate exists in the loaded dependency closure
+fail/providers/provider_type_slot_unknown rejected 15709ms expected @6b1c338126fa
+	build selects provider `ReadRoute` for slot `ExactRead`, but no candidate exists in the loaded dependency closure
 fail/providers/provider_type_target_default_conflict rejected 2822ms expected @ccdb99ca2214
 	slot `Pick` has conflicting target-package defaults: `FirstProvider`, `SecondProvider` -- a target supplies at most one default provider type per slot
 fail/providers/qualified_foreign_result_forwarding_carrier rejected 2015ms expected @ccdb99ca2214
@@ -18728,9 +18730,11 @@ fail/traits/evidence_member_guarantee_identity rejected 1718ms expected @ccdb99c
 fail/traits/exact_application_keeps_invocation_binders rejected 1654ms expected @ccdb99ca2214
 	machine `identity` does not satisfy trait `Identity` machine `identity`: expected 0 callable generic parameter(s), got 1
 	machine `identity` does not satisfy trait `Marker` machine `identity`: expected 0 callable generic parameter(s), got 1
-fail/traits/exact_application_keeps_parameter_types rejected 1605ms expected @ccdb99ca2214
+fail/traits/exact_application_keeps_parameter_types rejected 12972ms expected @6b1c338126fa
 	machine `identity` state `entry` does not satisfy trait `Identity` machine `identity` parameter `value`: expected `Element`, got `i32`
 	machine `identity` state `entry` does not satisfy trait `Identity` machine `identity`: expected return `Element`, got `i32`
+	machine `Values::ExactValue::forward` state `forward` does not satisfy trait `ExactValue` machine `forward` parameter `value`: expected `u8`, got `u64`
+	machine `Values::ExactValue::forward` state `forward` does not satisfy trait `ExactValue` machine `forward`: expected return `Item`, got `u64`
 fail/traits/exact_application_keeps_universal_properties rejected 1534ms expected @ccdb99ca2214
 	machine `select` does not satisfy trait `Select` machine `select`: callable generic parameter 0 demands stronger type properties
 fail/traits/exact_edge_application_cannot_quantify_invocations rejected 1890ms expected @ccdb99ca2214
@@ -18847,7 +18851,9 @@ fail/traits/inherited_region_application_result_ambiguity rejected 1356ms expect
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
 fail/traits/inherited_region_application_telescope_ambiguity rejected 6571ms expected @0f36ecb1ab02
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
-fail/traits/member_omits_requirement_ensures rejected 1493ms expected @ccdb99ca2214
+fail/traits/inline_requirement_inherited_false_ensures rejected 15730ms expected @6b1c338126fa
+	cannot prove ensures contract for exit from ReadRoute::forward at statement 0: result == input
+fail/traits/member_omits_requirement_ensures rejected 13166ms expected @6b1c338126fa
 	machine `Grow::shrink` realizes `Shrink::shrink` but does not guarantee its `ensures result <= value`; callers of the requirement assume it
 fail/traits/member_requires_beyond_requirement rejected 1559ms expected @ccdb99ca2214
 	machine `Strict::shrink` realizes `Shrink::shrink` but requires `value <= 50`, which the requirement does not imply; callers of the requirement prove only its own `requires`
@@ -25635,7 +25641,7 @@ pass/float/runtime_absolute_shared_call_operands_exit checked 348202ms check-tar
 pass/float/runtime_authored_max_selection_exit checked 416979ms check-target:macos_arm64 @72a0af2d293d
 pass/float/runtime_builtin_guard_application_exit checked 412660ms check-target:macos_arm64 @72a0af2d293d
 pass/float/runtime_builtin_ieee_order_exit checked 409821ms check-target:macos_arm64 @72a0af2d293d
-pass/float/runtime_classification_result_categories_exit checked 6668ms check-target:macos_arm64 @ccdb99ca2214
+pass/float/runtime_classification_result_categories_exit checked 15782ms check-target:macos_arm64 @6b1c338126fa
 pass/float/runtime_coercion_future_policy_exit checked 17556ms check-target:macos_arm64 @6fbf73342bf2
 pass/float/runtime_exact_format_narrowing_exit checked 6281ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_exact_integer_coercion_exit checked 14465ms check-target:macos_arm64 @18fc751d0060+wt
@@ -25889,7 +25895,7 @@ pass/generics/runtime_generic_carrier_equation_context_exit rejected 4602ms chec
 	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.box.value requires Tagged
 	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.reversed.value requires Tagged
 	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.repeated.value requires Tagged
-pass/generics/runtime_generic_carrier_equation_exit checked 81947ms check-target:macos_arm64 @911f6617ba9e
+pass/generics/runtime_generic_carrier_equation_exit checked 105609ms check-target:macos_arm64 @6b1c338126fa
 pass/generics/runtime_generic_composite_field_arguments_exit checked 21727ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_generic_multiple_specializations_exit checked 13322ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_generic_qualified_constructor_shadow_exit checked 19688ms check-target:macos_arm64 @911f6617ba9e
@@ -26652,7 +26658,7 @@ pass/ownership/runtime_successor_cleanup_before_writes_exit rejected 6835ms chec
 	statement 3 mutates `counter.value` while local borrow `wrapper` is still active (borrowed at statement 0)
 pass/ownership/runtime_unknown_affine_case_discard_exit checked 3711ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_view_parameter_element_window_exit checked 12600ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/ownership/runtime_whole_borrowed_transform_exit checked 70817ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/ownership/runtime_whole_borrowed_transform_exit checked 99374ms check-target:macos_arm64 @6b1c338126fa
 pass/ownership/runtime_whole_borrowed_window_crash_exit checked 28523ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_whole_linear_parent_move_exit checked 11220ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_zero_case_linear_inventory_exit checked 12529ms check-target:macos_arm64 @ccdb99ca2214
@@ -26684,8 +26690,8 @@ pass/ownership/zero_case_qualified_inventory checked 2188ms @ccdb99ca2214
 pass/packages/implementation_parent_review checked 3425ms @ccdb99ca2214
 pass/packages/indexed_contract_field_review checked 32146ms check-target:macos_arm64 @911f6617ba9e
 pass/packages/retained_dependency_bodies_exit checked 4034ms check-target:macos_arm64 @ccdb99ca2214
-pass/packages/rootless_numeric_provider_consumer checked 11498ms check-target:macos_arm64 @ccdb99ca2214
-pass/packages/rootless_numeric_provider_review checked 13156ms @ccdb99ca2214
+pass/packages/rootless_numeric_provider_consumer checked 58345ms check-target:macos_arm64 @6b1c338126fa
+pass/packages/rootless_numeric_provider_review checked 40345ms @6b1c338126fa
 pass/packages/runtime_attached_owner_crash_guard_scope_exit checked 3639ms check-target:macos_arm64 @ccdb99ca2214
 pass/packages/runtime_public_attached_owner_cleanup_exit checked 7678ms check-target:macos_arm64 @6c3dcb823e47
 pass/parameters/byte_store_root_after_scalar_formal_exit checked 11779ms check-target:macos_arm64 @ccdb99ca2214
@@ -27027,8 +27033,7 @@ pass/providers/named_provider_namespace_independence_exit checked 3059ms check-t
 pass/providers/nested_binding_borrowed_call_exit checked 4311ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/occurrence_region_binding_exit rejected 3051ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	executed provider choice lost its complete static application
-pass/providers/occurrence_region_binding_forwarding_exit rejected 2737ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	executed provider choice lost its complete static application
+pass/providers/occurrence_region_binding_forwarding_exit checked 17304ms check-target:macos_arm64 @6b1c338126fa
 pass/providers/occurrence_region_binding_projected_type_exit rejected 3125ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	executed provider choice lost its complete static application
 pass/providers/opaque_write_only_checked_alternative rejected 3147ms expected check-target:macos_arm64 native-rejection:match @1f01fe627c9b
@@ -27966,7 +27971,7 @@ pass/traits/exact_edge_application_and_invocation_parameters checked 11835ms che
 pass/traits/finite_family_case_view_result_exit checked 8006ms check-target:macos_arm64 @f37c9cfc83e2
 pass/traits/finite_family_const_forwarding checked 2762ms check-target:macos_arm64 @a50253a693d8
 pass/traits/finite_family_uncalled_target checked 2779ms check-target:macos_arm64 @64d08af188aa
-pass/traits/float_contract_refinement_boundaries_exit checked 5171ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/float_contract_refinement_boundaries_exit checked 24656ms check-target:macos_arm64 @6b1c338126fa
 pass/traits/generic_dyn_contract_inventory_exit checked 3230ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/generic_map_applied_contract_exit checked 4202ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/generic_map_captured_constant_local checked 2472ms @ccdb99ca2214
@@ -27982,7 +27987,7 @@ pass/traits/inherited_nominal_requirement_diamond_exit checked 3249ms check-targ
 pass/traits/inherited_nominal_requirement_exit checked 3248ms check-target:macos_arm64 @f2c75870ebaf+wt
 pass/traits/inherited_nominal_requirement_refinement_exit checked 3251ms check-target:macos_arm64 @f2c75870ebaf+wt
 pass/traits/inherited_region_application_identity_exit checked 12686ms check-target:macos_arm64 @0f36ecb1ab02
-pass/traits/named_contract_arithmetic_refinement checked 3221ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/named_contract_arithmetic_refinement checked 17731ms check-target:macos_arm64 @6b1c338126fa
 pass/traits/nominal_generic_reference_forwarding_exit checked 13096ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/nominal_machine_binder_static_dispatch checked 11534ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/operator_machine_add checked 3752ms @ccdb99ca2214

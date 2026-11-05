@@ -420,6 +420,7 @@ pub(super) fn encode_provider_candidate(
     bytes.id(candidate.boundary);
     bytes.u32(candidate.requirement_identity.0);
     bytes.u32(candidate.source_requirement_identity.0);
+    bytes.u32(candidate.declaration_application.0);
     bytes.u32(candidate.receiving_application.0);
     bytes.slice(&candidate.receiving_region_arguments, |bytes, region| {
         bytes.u32(region.0);
