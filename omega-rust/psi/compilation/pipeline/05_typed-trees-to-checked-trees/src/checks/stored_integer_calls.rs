@@ -59,19 +59,50 @@ pub(crate) fn performed_assignment_origin_refusal(
     statement_index: usize,
     statement: &typed_trees::statement::StatementNode,
 ) -> Option<&'static str> {
-    let assignment = statement.as_assignment()?;
-    let reference =
-        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?;
+    let trace = |reason: &str| {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE assignment-origin machine={} state={} statement={statement_index}: {reason}",
+                machine.name, state.name,
+            );
+        }
+    };
+    let Some(assignment) = statement.as_assignment() else {
+        trace("not an assignment");
+        return None;
+    };
+    let Some(reference) =
+        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)
+    else {
+        trace("destination type is unresolved");
+        return None;
+    };
     let value_type = validation::assignment_value_type(program, reference);
     if !program
         .primitive_type_reference(value_type)
         .is_some_and(|primitive| primitive.accepts_integer_literal())
-        || validation::proof_only_classification(program).is_proof_machine(program, machine)
-        || !has_encoded_write_requirements(program)
     {
+        trace("destination is not an integer carrier");
         return None;
     }
-    assignment_origins::sources(program, frames, machine, state, statement_index, statement).err()
+    if validation::proof_only_classification(program).is_proof_machine(program, machine) {
+        trace("proof-only body has no physical write obligation");
+        return None;
+    }
+    if !has_encoded_write_requirements(program) {
+        trace("no narrowed physical storage is available in this source scope");
+        return None;
+    }
+    match assignment_origins::sources(program, frames, machine, state, statement_index, statement) {
+        Ok(_) => {
+            trace("assignment origins are available");
+            None
+        }
+        Err(reason) => {
+            trace(reason);
+            Some(reason)
+        }
+    }
 }
 
 pub(super) fn check(
