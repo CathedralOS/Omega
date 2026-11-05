@@ -26,7 +26,7 @@ jobs:
           dst = Path(os.environ['RUNNER_TEMP']) / 'atomic-source-caller-observer'
           dst.mkdir(exist_ok=False)
           files = {
-              '.github/observers/windows_source_callers_cc7.py': ('observer.py', 'af5558f70806b7c0d73878f84e176d6a7c9b904ded84bbf239a6bfff208df2ea'),
+              '.github/observers/windows_source_callers_cc7.py': ('observer.py', 'f5f82dcf37df5be934d9cbdac743dd9a951170be79badfdc46755915b3b2e02f'),
               '.github/observers/windows-source-callers-cc7-recipe.json': ('recipe.json', '179ddfd9bdb305ba856b01849ca10da4bc0168af1518cdc852bcc093a522783d'),
           }
           for source, (target, expected) in files.items():

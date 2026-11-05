@@ -266,7 +266,11 @@ def main():
         send(pdb_commands)
         reader.await_marker('RUNNER_PDB_READY', time.monotonic() + 20)
         lmi, lmvm = section(reader.text(), 'RUNNER_LMI'), section(reader.text(), 'RUNNER_LMVM')
-        assert [name.lower() for name in re.findall(r'^\s*Module:\s+(\S+)\s*$', lmi, re.M | re.I)] == [module.lower()]
+        lmi_modules = re.findall(r'^\s*Module:\s+(\S+)\s*$', lmi, re.M | re.I)
+        assert [name.lower() for name in lmi_modules] == [cached_runner.stem.lower()]
+        # !lmi names the linked image stem; lm uses the debugger symbol token.
+        # Keep both exact roles joined through the same actual module range.
+        assert str(runner).lower().replace('\\', '/') in lmi.lower().replace('\\', '/')
         assert re.search(r'^\s*Symbol Type:\s+PDB\b', lmi, re.M | re.I)
         assert re.search(r'^\s*' + re.escape(main_base) + r'\s+' + re.escape(main_end)
                          + r'\s+' + re.escape(module) + r'\s+[^\r\n]*\((?:private )?pdb symbols\)', lmvm, re.M | re.I)
@@ -277,6 +281,7 @@ def main():
         # OS process handle, its creation time and the complete runner digest.
         assert cpu()['created_100ns'] == baseline['created_100ns']
         report.update(runner_debug_image=cached_runner.name, runner_debug_module=module,
+                      runner_lmi_image_stem=lmi_modules[0],
                       runner_module_base=main_base, runner_module_end=main_end,
                       pdb_commands=pdb_commands, matching_runner_pdb=True)
         # Strictly establish both memberships: CDB may have created its child
@@ -418,10 +423,8 @@ def main():
             try:
                 if k32.WaitForSingleObject(process_handle, 0) != 0:
                     assert k32.TerminateProcess(process_handle, 1), ctypes.get_last_error()
-                assert k32.WaitForSingleObject(process_handle, 3000) == 0
-                report['owned_runner_exited'] = True
             except Exception as error:
-                report.update(passed=False, runner_cleanup_error=repr(error))
+                report['runner_termination_request_error'] = repr(error)
         if process is not None and process.poll() is None:
             try:
                 killed = subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'],
@@ -437,6 +440,17 @@ def main():
                 process.wait(timeout=3)
             except Exception as error:
                 report['cleanup_wait_error'] = repr(error)
+        # A stopped debuggee can keep its exit event pending until CDB is
+        # reaped. Confirm the held runner only after debugger cleanup, rather
+        # than treating that pending event as a permanent termination failure.
+        if process_handle and k32 and runner_identity_verified:
+            try:
+                wait_result = k32.WaitForSingleObject(process_handle, 3000)
+                report['runner_final_wait_result'] = wait_result
+                assert wait_result == 0, ('runner still alive after debugger cleanup', wait_result)
+                report['owned_runner_exited'] = True
+            except Exception as error:
+                report.update(passed=False, runner_cleanup_error=repr(error))
         if reader is not None:
             reader.thread.join(timeout=1)
         if 'stderr' in locals():
