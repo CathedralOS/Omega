@@ -20,7 +20,9 @@
 
 mod construction;
 pub(super) use construction::SourceConstructorContext;
+mod computed_orders;
 mod induction;
+mod order_graph;
 mod terms;
 
 use super::{Elaborator, ScalarCarrier};

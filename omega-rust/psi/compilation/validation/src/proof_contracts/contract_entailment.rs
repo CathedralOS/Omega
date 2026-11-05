@@ -107,6 +107,7 @@ pub use declaration_projections::declaration_projection_cases_hold;
 mod call_handbacks;
 mod captured_predicates;
 pub(crate) use call_handbacks::validate_scalar_loan_handbacks;
+pub mod computed_order;
 mod operand_fits;
 mod proof_edges;
 pub(crate) mod proof_integer;

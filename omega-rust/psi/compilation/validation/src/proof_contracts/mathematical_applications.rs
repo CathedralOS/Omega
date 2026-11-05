@@ -23,10 +23,10 @@ mod scalar_predicates;
 pub use float_predicates::{MathematicalFloatPredicate, float_predicates};
 pub(crate) use prepared::application_spine;
 pub use prepared::{
-    PreparedApplication, PreparedCapture, PreparedConstant, PreparedConstantMeaning,
-    PreparedIndexedTheorem, PreparedMathematicalApplications, PreparedMathematicalView,
-    PreparedSourceCarrier, PreparedSourceConstructor, PreparedSourceEvidence,
-    integer_embedding_meaning,
+    PreparedApplication, PreparedCapture, PreparedComputedOrder, PreparedComputedOrderEvidence,
+    PreparedConstant, PreparedConstantMeaning, PreparedIndexedTheorem,
+    PreparedMathematicalApplications, PreparedMathematicalView, PreparedSourceCarrier,
+    PreparedSourceConstructor, PreparedSourceEvidence, integer_embedding_meaning,
 };
 pub use scalar_predicates::scalar_predicate;
 

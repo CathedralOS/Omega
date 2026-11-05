@@ -132,6 +132,7 @@ pub use proof_contracts::contract_entailment::completed_domains::{
     completed_value_refutes_domain,
 };
 pub use proof_contracts::contract_entailment::completed_observations::completed_value_is_bounded_by_static;
+pub use proof_contracts::contract_entailment::computed_order;
 pub use proof_contracts::contract_entailment::content_conservation::{
     ConditionalContentGuarantee, ContentBackingAddressGoal, ContentConservationDependencies,
     ContentConservationImplication, completed_value_content_conservation_dependencies,
@@ -280,16 +281,17 @@ pub use crate::declarations::selection_authority::{
 };
 pub use crate::machine_calls::call_cycles::requirement_backing_machines;
 pub use crate::machine_calls::call_cycles::{
-    RankRelevance, RuntimeRankApplicationBinding, RuntimeRankBodyWitness, RuntimeRankComponents,
-    RuntimeRankInput, RuntimeRankOperand, ValidatedProofCallComponent, ValidatedProofRankInterval,
-    ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
-    ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
-    ValidatedProofRecursiveTransitionLane, ValidatedRuntimeIntegerRank,
-    ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
-    activation_target_state_index, infer_checked_proof_recursive_machines, internal_state_index,
-    machine_call_dependency_symbols, prepare_runtime_rank_components, rank_relevance,
-    retain_runtime_rank_component, retained_internal_rank_nonincrease,
-    retained_runtime_natural_components, retained_runtime_recursive_components,
+    ComputedOrderDemandSite, RankRelevance, RuntimeRankApplicationBinding, RuntimeRankBodyWitness,
+    RuntimeRankComponents, RuntimeRankInput, RuntimeRankOperand, StructuralCallClosure,
+    ValidatedProofCallComponent, ValidatedProofRankInterval, ValidatedProofRankingRelation,
+    ValidatedProofRecursiveCallSite, ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge,
+    ValidatedProofRecursiveMember, ValidatedProofRecursiveTransitionLane,
+    ValidatedRuntimeIntegerRank, ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge,
+    ValidatedRuntimeNaturalState, activation_target_state_index, computed_order_demand_sites,
+    infer_checked_proof_recursive_machines, internal_state_index, machine_call_dependency_symbols,
+    prepare_runtime_rank_components, rank_relevance, retain_runtime_rank_component,
+    retained_internal_rank_nonincrease, retained_runtime_natural_components,
+    retained_runtime_recursive_components, structurally_admitted_call_closure,
 };
 pub use crate::machine_calls::calls::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,

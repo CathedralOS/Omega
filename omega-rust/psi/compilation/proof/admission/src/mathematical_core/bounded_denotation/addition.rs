@@ -67,6 +67,13 @@ pub(super) struct Addition {
 }
 
 impl Denotation {
+    pub(super) fn source_add_cancel_subtract(
+        &mut self,
+        value: TermHandle,
+        amount: TermHandle,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        self.add_law_application(Law::CancelSubtract, &[value, amount])
+    }
     pub(super) fn add_order_both(
         &mut self,
         a: TermHandle,

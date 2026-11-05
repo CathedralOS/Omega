@@ -7,6 +7,10 @@ use crate::mathematical_core::{
     Budget, Context, DEFAULT_CONVERSION_STEPS, Signature, Term, TermHandle, infer_sort, substitute,
 };
 
+mod laws;
+mod orders;
+mod sums;
+
 #[derive(Clone, Copy)]
 struct NormalInteger {
     term: TermHandle,
@@ -139,6 +143,21 @@ impl Denotation {
                 equation,
             });
         }
+        if operation == self.add_operation()? {
+            let canonical = self.source_reduced_sum(normalized, depth + 1)?;
+            let equation = self.transitivity(
+                integer,
+                term,
+                normalized,
+                canonical.term,
+                equation,
+                canonical.equation,
+            );
+            return Ok(NormalInteger {
+                term: canonical.term,
+                equation,
+            });
+        }
         Ok(NormalInteger {
             term: normalized,
             equation,
@@ -212,57 +231,39 @@ impl Denotation {
         )))
     }
 
-    fn source_order_goal(
-        &mut self,
-        goal: TermHandle,
-        premises: &[(TermHandle, TermHandle)],
-        depth: usize,
-    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        if depth > 128 {
-            return Err(BoundedDenotationError::DepthLimitExceeded);
-        }
-        if let Some(proof) = self.closed_source_predicate(goal, 0)? {
-            return Ok(Some(proof));
-        }
-        for &(proposition, evidence) in premises {
-            if self.arena.structurally_equal(goal, proposition) {
-                return Ok(Some(evidence));
-            }
-        }
-        let Some(IntegerRelation::LessOrEqual { left, right }) = self.integer_relation(goal) else {
-            return Ok(None);
-        };
-        let (Some((left_add, a, c)), Some((right_add, b, d))) =
-            (self.source_binary(left)?, self.source_binary(right)?)
-        else {
-            return Ok(None);
-        };
-        if left_add != self.add_operation()? || right_add != self.add_operation()? {
-            return Ok(None);
-        }
-        let first_goal = self.order_term_application(false, a, b)?;
-        let second_goal = self.order_term_application(false, c, d)?;
-        let Some(first) = self.source_order_goal(first_goal, premises, depth + 1)? else {
-            return Ok(None);
-        };
-        let Some(second) = self.source_order_goal(second_goal, premises, depth + 1)? else {
-            return Ok(None);
-        };
-        self.add_order_both(a, b, c, d, first, second).map(Some)
-    }
-
     fn source_symbolic_goal(
         &mut self,
         goal: TermHandle,
         premises: &[(TermHandle, TermHandle)],
+        laws: &[laws::SourceLaw],
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        if let Some(IntegerRelation::LessThan { left, right }) = self.integer_relation(goal) {
+            let l = self.source_normal_integer(left, 0)?;
+            let r = self.source_normal_integer(right, 0)?;
+            let Some(proof) = self.source_strict_order(l.term, r.term, premises, laws)? else {
+                return self.closed_source_predicate(goal, 0);
+            };
+            let integer = self.integer_constant()?;
+            let left_equation = self.symmetry(integer, left, l.term, l.equation);
+            let right_equation = self.symmetry(integer, right, r.term, r.equation);
+            let proof = self.integer_law_application(
+                IntegerLaw::LessThanSubstituteLeft,
+                &[l.term, left, r.term, left_equation, proof],
+            )?;
+            return self
+                .integer_law_application(
+                    IntegerLaw::LessThanSubstituteRight,
+                    &[left, r.term, right, right_equation, proof],
+                )
+                .map(Some);
+        }
         let Some(IntegerRelation::LessOrEqual { left, right }) = self.integer_relation(goal) else {
             return self.closed_source_predicate(goal, 0);
         };
         let l = self.source_normal_integer(left, 0)?;
         let r = self.source_normal_integer(right, 0)?;
         let normal = self.order_term_application(false, l.term, r.term)?;
-        let Some(evidence) = self.source_order_goal(normal, premises, 0)? else {
+        let Some(evidence) = self.source_composed_order(normal, premises, laws)? else {
             return Ok(None);
         };
         let integer = self.integer_constant()?;
@@ -311,13 +312,84 @@ impl Denotation {
             .filter(|(proposition, _)| self.identity_parts(*proposition).is_some())
             .collect::<Vec<_>>();
         let mut orders = Vec::new();
+        let mut laws = Vec::new();
+        let mut rewritten_premises = Vec::new();
         for &(proposition, evidence) in &premises {
+            let Some((proposition, evidence)) =
+                self.source_rewritten_premise(proposition, evidence, &identities)?
+            else {
+                return Ok(None);
+            };
+            let proposition = self.source_normal_proposition(proposition, 0)?;
+            rewritten_premises.push((proposition, evidence));
             if let Some(order) = self.source_normal_order(proposition, evidence)? {
                 orders.push(order);
             }
+            if let Some((carrier, left, right)) = self.identity_parts(proposition) {
+                let integer = self.integer_constant()?;
+                if self.arena.structurally_equal(carrier, integer) {
+                    let forward = self.integer_law_application(
+                        IntegerLaw::EqualityToLessOrEqual,
+                        &[left, right, evidence],
+                    )?;
+                    let relation = self.order_term_application(false, left, right)?;
+                    if let Some(order) = self.source_normal_order(relation, forward)? {
+                        orders.push(order);
+                    }
+                    let reverse = self.symmetry(integer, left, right, evidence);
+                    let reverse = self.integer_law_application(
+                        IntegerLaw::EqualityToLessOrEqual,
+                        &[right, left, reverse],
+                    )?;
+                    let relation = self.order_term_application(false, right, left)?;
+                    if let Some(order) = self.source_normal_order(relation, reverse)? {
+                        orders.push(order);
+                    }
+                }
+            }
+            if let Some(law) = self.source_universal_law(proposition, evidence)? {
+                laws.push(law);
+            }
         }
         let Some(mut proof) = self.source_rewrite_proof(goal, &identities, |this, rewritten| {
-            this.source_symbolic_goal(rewritten, &orders)
+            let rewritten = this.source_normal_proposition(rewritten, 0)?;
+            for &(proposition, evidence) in &rewritten_premises {
+                if this.arena.structurally_equal(proposition, rewritten) {
+                    return Ok(Some(evidence));
+                }
+            }
+            if let Term::Id { ty, left, right } = this.arena.get(rewritten)
+                && this.arena.structurally_equal(left, right)
+            {
+                return Ok(Some(this.arena.insert(Term::Refl { ty, value: left })));
+            }
+            for law in &laws {
+                let Some(application) = this.source_law_application_plan(law, rewritten)? else {
+                    continue;
+                };
+                let mut proofs = Vec::new();
+                let mut complete = true;
+                for &condition in &application.conditions {
+                    let Some(proof) = this.source_composed_order(condition, &orders, &laws)? else {
+                        complete = false;
+                        break;
+                    };
+                    proofs.push(proof);
+                }
+                if !complete {
+                    continue;
+                }
+                let mut evidence = application.evidence;
+                for argument in application.arguments {
+                    let value = match argument {
+                        laws::LawArgument::Value(position) => application.values[position],
+                        laws::LawArgument::Condition(position) => proofs[position],
+                    };
+                    evidence = this.source_apply(evidence, value);
+                }
+                return Ok(Some(evidence));
+            }
+            this.source_symbolic_goal(rewritten, &orders, &laws)
         })?
         else {
             return Ok(None);

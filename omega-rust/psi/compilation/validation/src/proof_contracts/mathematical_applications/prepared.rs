@@ -22,7 +22,45 @@ pub struct PreparedMathematicalApplications {
     pub source_constructors: Arena<PreparedSourceConstructor>,
     pub source_carriers: Arena<PreparedSourceCarrier>,
     pub indexed_theorems: Arena<PreparedIndexedTheorem>,
+    pub computed_orders: Arena<PreparedComputedOrder>,
     pub safety_assumptions: Vec<u32>,
+}
+
+/// A comparison may support computed recursion only after its complete source
+/// evaluation graph has a checked connection to finite structural ranks.
+#[derive(Debug)]
+pub struct PreparedComputedOrder {
+    pub target: SymbolHandle,
+    pub carrier: crate::computed_order::OrdinalCarrier,
+    pub judgment: Result<PreparedComputedOrderEvidence, String>,
+}
+
+impl Default for PreparedComputedOrder {
+    fn default() -> Self {
+        Self {
+            target: SymbolHandle::invalid(),
+            carrier: Default::default(),
+            judgment: Err("no comparison-order evidence was prepared".into()),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct PreparedComputedOrderEvidence {
+    pub dependencies: crate::StructuralCallClosure,
+    pub bodies: Vec<crate::computed_order::SourceOrderBody>,
+    pub allowances: Vec<usize>,
+    pub ranks: proof_admission::IndexedFamily,
+    pub rank_theorem: TermHandle,
+    pub rank_type: TermHandle,
+    pub rank_constructors: Vec<(TermHandle, TermHandle)>,
+    pub evaluations: proof_admission::IndexedFamily,
+    pub theorem: TermHandle,
+    pub ty: TermHandle,
+    pub return_constructors: Vec<(TermHandle, TermHandle)>,
+    pub strict_schema: TermHandle,
+    pub strict_type: TermHandle,
+    pub assumption_closure: Vec<u32>,
 }
 
 /// Kernel induction associated with an exact source contract occurrence.
@@ -139,6 +177,22 @@ pub struct PreparedMathematicalView<'program> {
 }
 
 impl<'program> PreparedMathematicalView<'program> {
+    pub fn computed_order(
+        self,
+        target: SymbolHandle,
+        carrier: typed_trees::type_identity::TypeIdentityId,
+    ) -> Option<(
+        arena::Handle<PreparedComputedOrder>,
+        &'program PreparedComputedOrder,
+    )> {
+        self.applications
+            .computed_orders
+            .iter()
+            .find_map(|(handle, row)| {
+                (row.target == target && row.carrier.identity == carrier).then_some((handle, row))
+            })
+    }
+
     pub fn source_constructor(
         self,
         expression: ExpressionHandle,

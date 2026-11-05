@@ -1,0 +1,287 @@
+//! Describe an ordinary comparison body without granting it an order meaning.
+//!
+//! The proof producer needs every real return case and exact constructor/call
+//! identity before it can prove a comparison implies structural descent. These
+//! rows are source associations only; constructing them proves no inequality.
+
+use super::structural_terms::selected_application_machine;
+use symbols::SymbolHandle;
+use typed_trees::data::DataMember;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+mod source_graph;
+pub use source_graph::{
+    SourceApplication, SourceCall, SourceCase, SourceOutcome, SourceReturn, SourceValueOrigin,
+};
+
+/// An exact unary finite-inductive carrier. The base and recursive constructor
+/// are selected by their declaration graph, never by their spelling.
+#[derive(Clone, Debug, Default)]
+pub struct OrdinalCarrier {
+    pub reference: TypeReferenceHandle,
+    pub identity: typed_trees::type_identity::TypeIdentityId,
+    pub declaration: SymbolHandle,
+    pub base: SymbolHandle,
+    pub successor: SymbolHandle,
+    pub child: SymbolHandle,
+}
+
+/// A source value description. Positions identify logical binders, not a
+/// bounded integer approximation to the value's mathematical rank.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SourceOrderValue {
+    Variable(usize),
+    Base,
+    Successor(Box<SourceOrderValue>),
+}
+
+#[derive(Clone, Debug)]
+pub struct SourceOrderBody {
+    pub machine: SymbolHandle,
+    pub entry: SymbolHandle,
+    pub states: arena::HandleSpan<typed_trees::state::State>,
+    pub parameter_types: Vec<TypeReferenceHandle>,
+    pub result_type: TypeReferenceHandle,
+    pub cases: Vec<SourceCase>,
+}
+
+pub fn ordinal_carrier(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Result<OrdinalCarrier, &'static str> {
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
+        return Err("the structural rank has no exact nominal carrier application");
+    };
+    let definition = program
+        .data_definition_by_symbol(*symbol)
+        .ok_or("the structural rank carrier declaration is unavailable")?;
+    let identity = program.package_qualified_type_identity(reference);
+    if !identity.is_valid() {
+        return Err("the structural rank has no complete carrier application identity");
+    }
+    let mut base = None;
+    let mut successor = None;
+    let mut child = None;
+    for member in program.data_members(definition) {
+        let DataMember::Variant(variant) = member else {
+            return Err("the unary structural rank has an additional common field");
+        };
+        match program.data_payload_fields(variant) {
+            [] if base.is_none() => base = Some(variant.symbol),
+            [field]
+                if successor.is_none()
+                    && program.package_qualified_type_identity(field.type_reference)
+                        == identity =>
+            {
+                successor = Some(variant.symbol);
+                child = Some(field.symbol);
+            }
+            _ => return Err("the structural rank has no closed unary induction descriptor"),
+        }
+    }
+    Ok(OrdinalCarrier {
+        reference,
+        identity,
+        declaration: definition.symbol,
+        base: base.ok_or("the structural rank has no base constructor")?,
+        successor: successor.ok_or("the structural rank has no recursive constructor")?,
+        child: child.ok_or("the structural rank has no exact recursive field")?,
+    })
+}
+
+pub fn source_order_body(
+    program: &dyn crate::CheckingInput,
+    carrier: &OrdinalCarrier,
+    target: SymbolHandle,
+) -> Result<SourceOrderBody, &'static str> {
+    let machine = selected_application_machine(program, target)
+        .ok_or("the comparison graph has no exact selected entry body")?;
+    let entry = program
+        .machine_states(machine)
+        .first()
+        .ok_or("the comparison graph source body has no entry")?;
+    let parameter_types = program
+        .state_parameters(entry)
+        .iter()
+        .map(|parameter| parameter.type_reference)
+        .collect::<Vec<_>>();
+    if parameter_types
+        .iter()
+        .any(|reference| program.package_qualified_type_identity(*reference) != carrier.identity)
+        || (program.package_qualified_type_identity(entry.return_type) != carrier.identity
+            && !crate::machine_has_unit_result(program, machine))
+    {
+        return Err("the comparison graph loses an exact value carrier application");
+    }
+    let cases = source_graph::body(program, carrier, machine)?;
+    Ok(SourceOrderBody {
+        machine: machine.symbol,
+        entry: entry.symbol,
+        states: machine.states,
+        parameter_types,
+        result_type: entry.return_type,
+        cases,
+    })
+}
+
+/// Authored comparisons only request a proof. A matching signature or a
+/// fieldless result does not establish an order.
+#[derive(Clone, Debug)]
+pub struct OrderDemand {
+    pub target: SymbolHandle,
+    pub carrier: OrdinalCarrier,
+}
+
+pub fn order_demands(program: &dyn crate::CheckingInput) -> Vec<OrderDemand> {
+    let mut demands = Vec::new();
+    for site in crate::computed_order_demand_sites(program) {
+        let Some(machine) = program.machine_by_symbol(site.machine) else {
+            continue;
+        };
+        let Some((_, state)) =
+            crate::machine_calls::calls::machine_state_by_symbol(program, site.state)
+        else {
+            continue;
+        };
+        let Ok(carrier) = ordinal_carrier(program, site.carrier) else {
+            continue;
+        };
+        let Some(requests) = authored_order_requests(program, machine, state, &carrier) else {
+            continue;
+        };
+        for request in requests {
+            if !demands.iter().any(|previous: &OrderDemand| {
+                previous.target == request.target
+                    && previous.carrier.identity == request.carrier.identity
+            }) {
+                demands.push(request);
+            }
+        }
+    }
+    demands
+}
+
+/// The producer and edge consumer read the same authored comparison requests.
+/// Neither phase may select a different relation by looking at its spelling.
+pub(super) fn authored_order_requests(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    carrier: &OrdinalCarrier,
+) -> Option<Vec<OrderDemand>> {
+    use typed_trees::expression::BinaryOperator;
+    use typed_trees::statement::StatementNode;
+    let mut owners = vec![machine];
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        let target = match statement {
+            StatementNode::Call(call) if call.receiver.is_empty() => {
+                if call.static_machine_parameter.is_valid()
+                    || call.static_requirement_dispatch.is_some()
+                    || !call.machine_arguments.is_empty()
+                    || !call.evidence_arguments.is_empty()
+                {
+                    return None;
+                }
+                call.target_symbol
+            }
+            StatementNode::LocalData(local) if local.initial_value.is_valid() => {
+                let Some(call) = program.expression_table.call_node(local.initial_value) else {
+                    continue;
+                };
+                if call.receiver.is_valid() {
+                    continue;
+                }
+                if call.static_machine_parameter.is_valid()
+                    || call.static_requirement_dispatch.is_some()
+                    || !call.machine_arguments.is_empty()
+                    || !call.evidence_arguments.is_empty()
+                {
+                    return None;
+                }
+                call.target_symbol
+            }
+            _ => continue,
+        };
+        if let Some(callee) = selected_application_machine(program, target)
+            && !owners.iter().any(|owner| owner.symbol == callee.symbol)
+        {
+            owners.push(callee);
+        }
+    }
+    let mut requests = Vec::new();
+    let mut conjuncts = Vec::new();
+    for owner in owners {
+        for contract in program.machine_contracts(owner) {
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                let Some(expression) = fact.as_expression() else {
+                    continue;
+                };
+                conjuncts.clear();
+                super::law_conformance::collect_equality_conjuncts(
+                    program,
+                    *expression,
+                    &mut conjuncts,
+                );
+                for &expression in &conjuncts {
+                    let Some(equality) = program.expression_table.binary_node(expression) else {
+                        continue;
+                    };
+                    if equality.operator != BinaryOperator::Equal {
+                        continue;
+                    }
+                    for (operand, result) in [
+                        (equality.left, equality.right),
+                        (equality.right, equality.left),
+                    ] {
+                        let Some(call) = program.expression_table.call_node(operand) else {
+                            continue;
+                        };
+                        let Some((result_owner, result_case)) =
+                            super::structural_terms::case_classifier(program, result)
+                        else {
+                            continue;
+                        };
+                        if result_owner.symbol != carrier.declaration
+                            || result_case.symbol != carrier.base
+                        {
+                            continue;
+                        }
+                        let Some(relation) =
+                            selected_application_machine(program, call.target_symbol)
+                        else {
+                            continue;
+                        };
+                        let entry = program.machine_states(relation).first()?;
+                        let parameters = program.state_parameters(entry);
+                        if call.receiver.is_valid()
+                            || call.static_machine_parameter.is_valid()
+                            || call.static_requirement_dispatch.is_some()
+                            || !call.machine_arguments.is_empty()
+                            || !call.evidence_arguments.is_empty()
+                            || parameters.len() != 2
+                            || parameters.iter().any(|parameter| {
+                                program.package_qualified_type_identity(parameter.type_reference)
+                                    != carrier.identity
+                            })
+                            || program.package_qualified_type_identity(entry.return_type)
+                                != carrier.identity
+                        {
+                            continue;
+                        }
+                        if !requests
+                            .iter()
+                            .any(|request: &OrderDemand| request.target == call.target_symbol)
+                        {
+                            requests.push(OrderDemand {
+                                target: call.target_symbol,
+                                carrier: carrier.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Some(requests)
+}

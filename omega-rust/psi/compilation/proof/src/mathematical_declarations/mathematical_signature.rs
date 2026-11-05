@@ -88,6 +88,7 @@ pub(crate) struct CheckedMathematicalSignature {
     /// authored declaration order.
     authored: Vec<u32>,
     prepared: PreparedMathematicalApplications,
+    order_demands: Vec<validation::computed_order::OrderDemand>,
 }
 
 impl CheckedMathematicalSignature {
@@ -225,9 +226,10 @@ struct Elaborator<'a> {
 /// elaboration/checking diagnostics for the first declaration that fails.
 pub(crate) fn check_mathematical_signature(
     program: &dyn ::validation::CheckingInput,
+    needs_scheme: bool,
+    order_demands: Vec<validation::computed_order::OrderDemand>,
 ) -> Result<CheckedMathematicalSignature, Vec<diagnostics::Diagnostic>> {
     let mut arena = TermArena::new();
-    let needs_scheme = source_families::needs_scheme(program);
     let declarations = if needs_scheme {
         proof_admission::indexed_scheme(&mut arena)
     } else {
@@ -279,6 +281,7 @@ pub(crate) fn check_mathematical_signature(
         integer_theory: None,
         integer_multiply: None,
         prepared: PreparedMathematicalApplications::default(),
+        order_demands,
     };
     if needs_scheme {
         let theory = proof_admission::SourceIntegerTheory::new(
@@ -660,6 +663,7 @@ impl<'a> Elaborator<'a> {
         let applications = self.source_applications()?;
         self.retain_source_evidence_carriers()?;
         self.retain_indexed_contract_theorems()?;
+        self.retain_computed_orders()?;
         let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
         let signature =
             check_signature_with_attribution(&mut self.arena, &self.declarations, &mut budget)
@@ -910,6 +914,6 @@ enum ScalarCarrier {
     Carrier(u32),
 }
 
-pub(super) fn has_source_evidence_demand(program: &dyn validation::CheckingInput) -> bool {
+pub(super) fn has_source_family_demand(program: &dyn validation::CheckingInput) -> bool {
     source_families::needs_scheme(program)
 }

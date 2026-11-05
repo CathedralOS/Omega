@@ -5,11 +5,10 @@
 //! predecessor guard loses a computed subject's local binding and can mistake
 //! same-spelled state formals for entry parameters. The prefix stops before the
 //! queried call: its conclusion and later citations cannot license its descent.
-//! The legacy Nat/monus bridge still selects its relation from exact authored
-//! contract occurrences, never from a program-wide spelling search.
+//! An authored comparison can request descent checking, but only an independently
+//! checked body theorem can connect that comparison to a well-founded order.
 
 use super::citations::machine_requires_facts;
-use super::law_conformance::collect_equality_conjuncts;
 use super::structural_case_arms::recognize_structural_case_arms;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use super::structural_prefix::{
@@ -18,16 +17,13 @@ use super::structural_prefix::{
 };
 use super::structural_terms::{constructed_term, selected_application_machine, structural_term};
 use symbols::SymbolHandle;
-use typed_trees::data::{DataDefinition, DataMember, DataVariant};
-use typed_trees::expression::{BinaryOperator, ExpressionHandle};
+use typed_trees::data::{DataDefinition, DataField, DataMember, DataVariant};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
-use typed_trees::statement::StatementNode;
-use typed_trees::types::TypeReferenceNode;
 
-/// Judge the selected Nat predecessor obligation on every path to this edge.
-/// Unsupported prefixes and missing observations prove nothing. The operation
-/// remains the existing monus bridge; this changes its premise transport, not
-/// the supported ranking relation or the authority of a recursive conclusion.
+/// Judge the certified comparison on every path to this edge. Unsupported
+/// prefixes and missing observations prove nothing; a recursive conclusion
+/// cannot establish the decrease required to admit that same call.
 pub(crate) fn proof_edge_strict_decrease_judged(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -61,7 +57,10 @@ pub(crate) fn proof_interval_strict_decrease_judged(
     edge_argument: ExpressionHandle,
     measure: &typed_trees::signature::StateParameter,
     ranked_entries: &[SymbolHandle],
-) -> Option<SymbolHandle> {
+) -> Option<(
+    SymbolHandle,
+    arena::Handle<crate::mathematical_applications::PreparedComputedOrder>,
+)> {
     let entry = program.machine_states(machine).first()?;
     // Entry-relative premises describe all arrivals only on an acyclic state
     // graph. The shared prefix walker does not replay a recurrent arrival;
@@ -72,7 +71,17 @@ pub(crate) fn proof_interval_strict_decrease_judged(
         return None;
     }
     let relation = selected_decrease_relation(program, machine, state, measure)?;
+    if relation
+        .evidence
+        .dependencies
+        .machines
+        .iter()
+        .any(|dependency| *dependency == machine.symbol || ranked_entries.contains(dependency))
+    {
+        return None;
+    }
     let relation_symbol = relation.symbol;
+    let order = relation.order;
     let requires = machine_requires_facts(program, machine);
     let judge = StructuralJudge::from_requires(program, machine, &requires, true);
     let mut edge = StrictDecrease {
@@ -103,7 +112,7 @@ pub(crate) fn proof_interval_strict_decrease_judged(
         Some(&mut edge),
     );
     (recognized.is_some() && diagnostics.is_empty() && edge.seen && edge.proven)
-        .then_some(relation_symbol)
+        .then_some((relation_symbol, order))
 }
 
 struct StrictDecrease<'a> {
@@ -150,13 +159,13 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
                 .unwrap_or_default(),
             target: self.relation.symbol,
             selections: Vec::new(),
-            machine: "saturating_sub".to_owned(),
+            machine: self.relation.name.to_owned(),
             arguments: vec![
                 constructed_term(
                     self.relation.carrier,
                     Some(self.relation.successor),
                     vec![(
-                        "prev".to_owned(),
+                        self.relation.child.name.as_str().to_owned(),
                         StructuralJudge::substitute_term(&argument, environment),
                     )],
                 ),
@@ -171,15 +180,17 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
     }
 }
 
-/// Recover the existing Nat order bridge from authored selections. The legacy
-/// spelling restricts the bridge's supported relation; it cannot select a
-/// declaration or rescue a missing symbol. Multiple occurrences of one selected
-/// relation agree; conflicting relations remain unsupported.
+/// Every selected relation retains its exact carrier, source body theorem and
+/// structural dependency closure. Names remain diagnostic text only.
 struct SelectedDecreaseRelation<'program> {
     symbol: SymbolHandle,
+    name: &'program str,
     carrier: &'program DataDefinition,
     successor: &'program DataVariant,
     zero: &'program DataVariant,
+    child: &'program DataField,
+    evidence: &'program crate::mathematical_applications::PreparedComputedOrderEvidence,
+    order: arena::Handle<crate::mathematical_applications::PreparedComputedOrder>,
 }
 
 fn selected_decrease_relation<'program>(
@@ -188,134 +199,51 @@ fn selected_decrease_relation<'program>(
     state: &typed_trees::state::State,
     measure: &typed_trees::signature::StateParameter,
 ) -> Option<SelectedDecreaseRelation<'program>> {
-    let TypeReferenceNode::Named {
-        symbol: carrier, ..
-    } = program
-        .type_reference_table
-        .type_reference(measure.type_reference)
-    else {
-        return None;
-    };
-    let definition = program.data_definition_by_symbol(*carrier)?;
-    if definition.name.as_str() != "Nat" {
-        return None;
-    }
-    let is_carrier = |reference| {
-        matches!(
-            program.type_reference_table.type_reference(reference),
-            TypeReferenceNode::Named { symbol, .. } if symbol == carrier
-        )
-    };
-    let mut owners = vec![machine];
-    for statement in program.statement_table.statements(state.statement_nodes) {
-        let target = match statement {
-            StatementNode::Call(call) if call.receiver.is_empty() => {
-                if call.static_machine_parameter.is_valid()
-                    || call.static_requirement_dispatch.is_some()
-                    || !call.machine_arguments.is_empty()
-                    || !call.evidence_arguments.is_empty()
-                {
-                    return None;
-                }
-                call.target_symbol
-            }
-            StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-                let Some(call) = program.expression_table.call_node(local.initial_value) else {
-                    continue;
-                };
-                if call.receiver.is_valid() {
-                    continue;
-                }
-                if call.static_machine_parameter.is_valid()
-                    || call.static_requirement_dispatch.is_some()
-                    || !call.machine_arguments.is_empty()
-                    || !call.evidence_arguments.is_empty()
-                {
-                    return None;
-                }
-                call.target_symbol
-            }
-            _ => continue,
+    let ordinal = super::computed_order::ordinal_carrier(program, measure.type_reference).ok()?;
+    let definition = program.data_definition_by_symbol(ordinal.declaration)?;
+    let view = program.prepared_mathematics()?;
+    let mut selected = None;
+    for request in
+        super::computed_order::authored_order_requests(program, machine, state, &ordinal)?
+    {
+        let Some((order, row)) = view.computed_order(request.target, ordinal.identity) else {
+            continue;
         };
-        if let Some(callee) = selected_application_machine(program, target)
-            && !owners.iter().any(|owner| owner.symbol == callee.symbol)
+        let Ok(evidence) = &row.judgment else {
+            continue;
+        };
+        if selected
+            .as_ref()
+            .is_some_and(|(symbol, _, _, _)| *symbol != request.target)
         {
-            owners.push(callee);
+            return None;
         }
+        let relation = selected_application_machine(program, request.target)?;
+        selected = Some((request.target, relation.name.as_str(), evidence, order));
     }
-    let mut selected = SymbolHandle::invalid();
-    let mut conjuncts = Vec::new();
-    for owner in owners {
-        for contract in program.machine_contracts(owner) {
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
-                let Some(expression) = fact.as_expression() else {
-                    continue;
-                };
-                conjuncts.clear();
-                collect_equality_conjuncts(program, *expression, &mut conjuncts);
-                for expression in &conjuncts {
-                    let Some(equality) = program.expression_table.binary_node(*expression) else {
-                        continue;
-                    };
-                    if equality.operator != BinaryOperator::Equal {
-                        continue;
-                    }
-                    for operand in [equality.left, equality.right] {
-                        let Some(call) = program.expression_table.call_node(operand) else {
-                            continue;
-                        };
-                        let Some(relation) =
-                            selected_application_machine(program, call.target_symbol)
-                        else {
-                            continue;
-                        };
-                        if relation.attached_data.is_some()
-                            || relation.name.as_str() != "saturating_sub"
-                        {
-                            continue;
-                        }
-                        let entry = program.machine_states(relation).first()?;
-                        let parameters = program.state_parameters(entry);
-                        if call.receiver.is_valid()
-                            || call.static_machine_parameter.is_valid()
-                            || call.static_requirement_dispatch.is_some()
-                            || !call.machine_arguments.is_empty()
-                            || !call.evidence_arguments.is_empty()
-                            || parameters.len() != 2
-                            || parameters
-                                .iter()
-                                .any(|parameter| !is_carrier(parameter.type_reference))
-                            || !is_carrier(entry.return_type)
-                            || (selected.is_valid() && selected != call.target_symbol)
-                        {
-                            return None;
-                        }
-                        selected = call.target_symbol;
-                    }
-                }
-            }
-        }
-    }
-    if !selected.is_valid() {
-        return None;
-    }
-    // The ranked parameter already selects this carrier. Keep that declaration
-    // on the comparison goal when another package retains a same-named type.
-    let case = |name| {
-        program.data_members(definition).iter().find_map(|member| {
-            if let DataMember::Variant(variant) = member
-                && variant.name.as_str() == name
-            {
-                Some(variant)
-            } else {
-                None
-            }
-        })
+    let (symbol, name, evidence, order) = selected?;
+    let case = |symbol| {
+        program
+            .data_members(definition)
+            .iter()
+            .find_map(|member| match member {
+                DataMember::Variant(variant) if variant.symbol == symbol => Some(variant),
+                _ => None,
+            })
     };
+    let successor = case(ordinal.successor)?;
+    let child = program
+        .data_payload_fields(successor)
+        .iter()
+        .find(|field| field.symbol == ordinal.child)?;
     Some(SelectedDecreaseRelation {
-        symbol: selected,
+        symbol,
+        name,
         carrier: definition,
-        successor: case("Succ")?,
-        zero: case("Zero")?,
+        successor,
+        zero: case(ordinal.base)?,
+        child,
+        evidence,
+        order,
     })
 }

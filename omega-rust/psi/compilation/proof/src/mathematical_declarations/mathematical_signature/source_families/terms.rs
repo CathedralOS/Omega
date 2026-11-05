@@ -61,6 +61,13 @@ macro_rules! term {
 pub(super) enum Key {
     Source(SymbolHandle),
     Internal(usize),
+    Graph(usize),
+}
+
+impl From<SymbolHandle> for Key {
+    fn from(symbol: SymbolHandle) -> Self {
+        Self::Source(symbol)
+    }
 }
 
 #[derive(Clone)]
@@ -215,8 +222,8 @@ impl S {
     }
 }
 
-pub(super) struct Case {
-    pub payload: Vec<(SymbolHandle, TermHandle)>,
+pub(super) struct Case<K = SymbolHandle> {
+    pub payload: Vec<(K, TermHandle)>,
     /// Closed function of common fields then nonrecursive payload fields,
     /// returning the complete type-wide and active-case constraint type.
     pub constraints: TermHandle,
@@ -318,15 +325,15 @@ impl SourceTerms {
     }
 }
 
-struct Builder<'a> {
+struct Builder<'a, K> {
     terms: SourceTerms,
-    common: &'a [(SymbolHandle, TermHandle)],
-    index_fields: &'a [SymbolHandle],
-    cases: &'a [Case],
-    type_parameters: &'a [SymbolHandle],
+    common: &'a [(K, TermHandle)],
+    index_fields: &'a [K],
+    cases: &'a [Case<K>],
+    type_parameters: &'a [K],
 }
-impl Builder<'_> {
-    fn domain(&self, symbol: SymbolHandle, ty: TermHandle) -> S {
+impl<K: Copy + Eq + Into<Key>> Builder<'_, K> {
+    fn domain(&self, symbol: K, ty: TermHandle) -> S {
         if self.type_parameters.is_empty() || self.type_parameters.contains(&symbol) {
             S::Closed(ty)
         } else {
@@ -335,7 +342,7 @@ impl Builder<'_> {
                 self.type_parameters
                     .iter()
                     .copied()
-                    .map(Key::Source)
+                    .map(Into::into)
                     .collect(),
             )
         }
@@ -355,21 +362,21 @@ impl Builder<'_> {
         };
         let mut body = self.domain(last_symbol, last);
         for (symbol, ty) in fields.into_iter().rev() {
-            body = sigma(Key::Source(symbol), self.domain(symbol, ty), body);
+            body = sigma(symbol.into(), self.domain(symbol, ty), body);
         }
         Ok(body)
     }
     fn constraint_application(&self, case: usize) -> S {
         let mut term = S::Closed(self.cases[case].constraints);
         for (symbol, _) in self.common.iter().chain(self.cases[case].payload.iter()) {
-            term = app(term, S::Var(Key::Source(*symbol)));
+            term = app(term, S::Var((*symbol).into()));
         }
         term
     }
     fn payload_type(&self, case: usize) -> S {
         let mut body = self.constraint_application(case);
         for (symbol, ty) in self.cases[case].payload.iter().rev() {
-            body = sigma(Key::Source(*symbol), self.domain(*symbol, *ty), body);
+            body = sigma((*symbol).into(), self.domain(*symbol, *ty), body);
         }
         body
     }
@@ -389,7 +396,7 @@ impl Builder<'_> {
     fn carrier(&mut self) -> S {
         let mut body = self.sum_type(0);
         for (symbol, ty) in self.common.iter().rev() {
-            body = sigma(Key::Source(*symbol), self.domain(*symbol, *ty), body);
+            body = sigma((*symbol).into(), self.domain(*symbol, *ty), body);
         }
         body
     }
@@ -402,7 +409,7 @@ impl Builder<'_> {
     fn child_index(&self, case: usize, child: usize, payload: S) -> S {
         let mut term = S::Closed(self.cases[case].child_indices[child]);
         for (symbol, _) in self.common {
-            term = app(term, S::Var(Key::Source(*symbol)));
+            term = app(term, S::Var((*symbol).into()));
         }
         for ordinal in 0..self.cases[case].payload.len() {
             term = app(term, Self::projected(payload.clone(), ordinal));
@@ -465,7 +472,7 @@ impl Builder<'_> {
         let body = self.eliminate(0, S::Var(tail), kind)?;
         let mut function = lam(tail, sum_type, body);
         for (symbol, ty) in self.common.iter().rev() {
-            function = lam(Key::Source(*symbol), self.domain(*symbol, *ty), function);
+            function = lam((*symbol).into(), self.domain(*symbol, *ty), function);
         }
         let mut tail_value = label.clone();
         for _ in self.common {
@@ -520,12 +527,12 @@ pub(super) fn constructor_children(
 
 /// Closed producer terms. The caller must check the resulting ordinary scheme
 /// application and retain source correspondence before admitting any use.
-pub(super) fn description(
+pub(super) fn description<K: Copy + Eq + Into<Key>>(
     arena: &mut TermArena,
-    common: &[(SymbolHandle, TermHandle)],
-    index_fields: &[SymbolHandle],
-    cases: &[Case],
-    type_parameters: &[SymbolHandle],
+    common: &[(K, TermHandle)],
+    index_fields: &[K],
+    cases: &[Case<K>],
+    type_parameters: &[K],
 ) -> Result<IndexedFamily, &'static str> {
     let mut b = Builder {
         terms: SourceTerms::default(),
@@ -596,16 +603,16 @@ pub(super) fn intern_description(
 }
 
 /// Abstract temporary scalar assumptions without capturing existing binders.
-pub(super) fn abstract_parameters(
+pub(super) fn abstract_parameters<K: Copy>(
     arena: &mut TermArena,
     proof: TermHandle,
     ty: TermHandle,
-    parameters: &[(u32, SymbolHandle, TermHandle)],
+    parameters: &[(u32, K, TermHandle)],
 ) -> Result<(TermHandle, TermHandle), &'static str> {
-    fn go(
+    fn go<K: Copy>(
         arena: &mut TermArena,
         term: TermHandle,
-        parameters: &[(u32, SymbolHandle, TermHandle)],
+        parameters: &[(u32, K, TermHandle)],
         depth: u32,
     ) -> Result<TermHandle, &'static str> {
         macro_rules! at {
@@ -747,8 +754,8 @@ pub(super) fn abstract_parameters(
     Ok((body, statement))
 }
 
-struct InductionBuilder<'a, 'b> {
-    b: Builder<'a>,
+struct InductionBuilder<'a, 'b, K> {
+    b: Builder<'a, K>,
     family: &'b IndexedFamily,
     iw: TermHandle,
     label_pack: TermHandle,
@@ -757,7 +764,7 @@ struct InductionBuilder<'a, 'b> {
     invariant: TermHandle,
     lemmas: &'b [TermHandle],
 }
-impl InductionBuilder<'_, '_> {
+impl<K: Copy + Eq + Into<Key>> InductionBuilder<'_, '_, K> {
     fn reconstructed_label(&mut self, label: S) -> S {
         let mut function = S::Closed(self.label_pack);
         let mut tail = label;
@@ -781,7 +788,7 @@ impl InductionBuilder<'_, '_> {
         // dependent label at each B/next/out occurrence in the step type.
         let mut function = S::Closed(self.label_pack);
         for (symbol, _) in self.b.common {
-            function = app(function, S::Var(Key::Source(*symbol)));
+            function = app(function, S::Var((*symbol).into()));
         }
         app(function, value)
     }
@@ -827,7 +834,7 @@ impl InductionBuilder<'_, '_> {
         let ih = self.b.terms.fresh();
         let mut body = S::Closed(self.lemmas[case]);
         for (symbol, _) in self.b.common {
-            body = app(body, S::Var(Key::Source(*symbol)));
+            body = app(body, S::Var((*symbol).into()));
         }
         let mut predicate = payload.clone();
         for _ in &self.b.cases[case].payload {
@@ -875,7 +882,7 @@ impl InductionBuilder<'_, '_> {
         let body = self.eliminate(0, S::Var(tail))?;
         let mut function = lam(tail, sum_type, body);
         for (symbol, ty) in self.b.common.iter().rev() {
-            function = lam(Key::Source(*symbol), self.b.domain(*symbol, *ty), function);
+            function = lam((*symbol).into(), self.b.domain(*symbol, *ty), function);
         }
         let mut value = S::Var(a);
         for _ in self.b.common {
@@ -961,16 +968,16 @@ pub(super) fn constant_invariant_theorem(
 /// Construct the ordinary iindW application. Every case lemma is quantified
 /// over exact common/payload coordinates, its complete predicate, then one
 /// invariant hypothesis per exact child in declaration order.
-pub(super) fn induction(
+pub(super) fn induction<K: Copy + Eq + Into<Key>>(
     arena: &mut TermArena,
     family: &IndexedFamily,
-    common: &[(SymbolHandle, TermHandle)],
-    index_fields: &[SymbolHandle],
-    cases: &[Case],
+    common: &[(K, TermHandle)],
+    index_fields: &[K],
+    cases: &[Case<K>],
     invariant: TermHandle,
     lemmas: &[TermHandle],
     declarations: &mut Vec<Declaration>,
-    type_parameters: &[SymbolHandle],
+    type_parameters: &[K],
 ) -> Result<(TermHandle, TermHandle, TermHandle, TermHandle), &'static str> {
     if cases.len() != lemmas.len() {
         return Err("source induction lemma roster differs from its exact cases");
@@ -1010,17 +1017,13 @@ pub(super) fn induction(
     let sum_type = builder.sum_type(0);
     let mut raw_label = S::Var(tail);
     for (symbol, _) in common.iter().rev() {
-        raw_label = pair(S::Var(Key::Source(*symbol)), raw_label);
+        raw_label = pair(S::Var((*symbol).into()), raw_label);
     }
     let mut pack = lam(tail, sum_type.clone(), raw_label);
     let mut pack_type = pi(tail, sum_type, S::Closed(family.carrier));
     for (symbol, ty) in common.iter().rev() {
-        pack = lam(Key::Source(*symbol), builder.domain(*symbol, *ty), pack);
-        pack_type = pi(
-            Key::Source(*symbol),
-            builder.domain(*symbol, *ty),
-            pack_type,
-        );
+        pack = lam((*symbol).into(), builder.domain(*symbol, *ty), pack);
+        pack_type = pi((*symbol).into(), builder.domain(*symbol, *ty), pack_type);
     }
     let pack = pack.term(arena, &mut Vec::new())?;
     let pack_type = pack_type.term(arena, &mut Vec::new())?;
@@ -1341,11 +1344,11 @@ mod induction_tests {
 /// Check actual dependency closure rather than the ambient signature roster:
 /// a temporary value assumption may remain stored, but no theorem declaration
 /// or type can reach it through a transparent definition or another constant.
-pub(super) fn excludes_parameters(
+pub(super) fn excludes_parameters<K>(
     arena: &TermArena,
     declarations: &[Declaration],
     roots: &[TermHandle],
-    parameters: &[(u32, SymbolHandle, TermHandle)],
+    parameters: &[(u32, K, TermHandle)],
 ) -> bool {
     let mut pending = roots.to_vec();
     let mut seen_terms = std::collections::HashSet::new();
@@ -1846,4 +1849,61 @@ mod indexed_vector_budget_tests {
             .is_err()
         );
     }
+}
+
+/// Move a value argument behind an independent premise telescope by ordinary
+/// lambda/application construction. The caller checks the original dependent
+/// statement; no binder permutation is a conversion or admission rule.
+pub(super) fn value_after_premises(
+    arena: &mut TermArena,
+    function: TermHandle,
+    value_type: TermHandle,
+    premises: &[TermHandle],
+) -> TermHandle {
+    let value = arena.insert(Term::Variable(0));
+    let mut body = arena.insert(Term::Apply {
+        function,
+        argument: value,
+    });
+    for position in 0..premises.len() {
+        let argument = arena.insert(Term::Variable((premises.len() - position) as u32));
+        body = arena.insert(Term::Apply {
+            function: body,
+            argument,
+        });
+    }
+    body = arena.insert(Term::Lambda {
+        domain: value_type,
+        body,
+    });
+    for &domain in premises.iter().rev() {
+        body = arena.insert(Term::Lambda { domain, body });
+    }
+    body
+}
+
+pub(super) fn pair_under_premises(
+    arena: &mut TermArena,
+    first: TermHandle,
+    second: TermHandle,
+    premises: &[TermHandle],
+) -> TermHandle {
+    let mut first = first;
+    let mut second = second;
+    for position in 0..premises.len() {
+        let argument = arena.insert(Term::Variable((premises.len() - position - 1) as u32));
+        first = arena.insert(Term::Apply {
+            function: first,
+            argument,
+        });
+        second = arena.insert(Term::Apply {
+            function: second,
+            argument,
+        });
+    }
+    let mut body = arena.insert(Term::Pair { first, second });
+    for &domain in premises.iter().rev() {
+        body = arena.insert(Term::Lambda { domain, body });
+    }
+    body
 }

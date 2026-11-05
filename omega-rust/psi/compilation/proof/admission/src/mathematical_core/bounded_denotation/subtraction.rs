@@ -89,6 +89,37 @@ pub(super) struct Subtraction {
 }
 
 impl Denotation {
+    pub(super) fn source_subtract_zero(
+        &mut self,
+        value: TermHandle,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        self.subtract_law_application(Law::Zero, &[value])
+    }
+    pub(super) fn source_subtract_self(
+        &mut self,
+        value: TermHandle,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        self.subtract_law_application(Law::SelfZero, &[value])
+    }
+    pub(super) fn source_subtract_cancel_add_left(
+        &mut self,
+        value: TermHandle,
+        bound: TermHandle,
+        amount: TermHandle,
+        evidence: TermHandle,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        self.subtract_law_application(Law::CancelAddLeft, &[value, bound, amount, evidence])
+    }
+    pub(super) fn source_subtract_antitone(
+        &mut self,
+        value: TermHandle,
+        left: TermHandle,
+        right: TermHandle,
+        evidence: TermHandle,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        self.subtract_law_application(Law::Antitone, &[value, left, right, evidence])
+    }
+
     pub(super) fn subtract_operation(&mut self) -> Result<u32, BoundedDenotationError> {
         self.binary_integer_operation(|this| &mut this.subtraction.operation)
     }

@@ -609,6 +609,16 @@ impl Elaborator<'_> {
                 return Err(self.refuse("source indexed theorem depends on an assumption outside the audited integer safety roster".into()));
             }
         }
+        for (_, order) in self.prepared.computed_orders.iter() {
+            if let Ok(evidence) = &order.judgment
+                && evidence
+                    .assumption_closure
+                    .iter()
+                    .any(|position| !accepted.contains(position))
+            {
+                return Err(self.refuse("computed order evidence depends on an assumption outside the audited integer safety roster".into()));
+            }
+        }
         self.prepared.safety_assumptions = accepted;
         let rejected_constructor =
             self.prepared

@@ -40,7 +40,7 @@ struct Replacement {
 impl Denotation {
     /// Rewrite a source goal through explicit, lambda-bound identities and
     /// transport a derived normal goal back with the same J contexts. Closed
-    /// integer value parameters are rewrite variables; no proposition is
+    /// typed value parameters are rewrite variables; no proposition is
     /// installed as a signature assumption by this producer.
     pub(super) fn source_rewrite_proof(
         &mut self,
@@ -48,15 +48,31 @@ impl Denotation {
         identities: &[(TermHandle, TermHandle)],
         solve: impl FnOnce(&mut Self, TermHandle) -> Result<Option<TermHandle>, BoundedDenotationError>,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        let integer = self.integer_constant()?;
+        let equations = self.source_predicate_equations(identities)?;
+        let mut remaining = MAX_ELABORATION_NODES;
+        let Some((normal, replacements)) =
+            self.expand_equations(goal, &equations, &mut remaining)?
+        else {
+            return Ok(None);
+        };
+        let Some(mut evidence) = solve(self, normal)? else {
+            return Ok(None);
+        };
+        for replacement in replacements.into_iter().rev() {
+            evidence = self.replace_evidence(replacement, evidence, true);
+        }
+        Ok(Some(evidence))
+    }
+
+    fn source_predicate_equations(
+        &mut self,
+        identities: &[(TermHandle, TermHandle)],
+    ) -> Result<Vec<Equation>, BoundedDenotationError> {
         let mut equations = Vec::new();
         for &(statement, evidence) in identities {
             let Some((carrier, left, right)) = self.identity_parts(statement) else {
                 continue;
             };
-            if !self.arena.structurally_equal(carrier, integer) {
-                continue;
-            }
             let parameter = |term| match self.arena.get(term) {
                 Term::Constant { declaration, .. } => self
                     .declarations
@@ -84,19 +100,29 @@ impl Denotation {
                 });
             }
         }
+        Ok(equations)
+    }
+
+    /// Carry a premise through the same explicit substitutions as the goal.
+    /// Its original evidence is transported forward by J; normalization never
+    /// turns a rewritten proposition into an additional assumption.
+    pub(super) fn source_rewritten_premise(
+        &mut self,
+        proposition: TermHandle,
+        mut evidence: TermHandle,
+        identities: &[(TermHandle, TermHandle)],
+    ) -> Result<Option<(TermHandle, TermHandle)>, BoundedDenotationError> {
+        let equations = self.source_predicate_equations(identities)?;
         let mut remaining = MAX_ELABORATION_NODES;
         let Some((normal, replacements)) =
-            self.expand_equations(goal, &equations, &mut remaining)?
+            self.expand_equations(proposition, &equations, &mut remaining)?
         else {
             return Ok(None);
         };
-        let Some(mut evidence) = solve(self, normal)? else {
-            return Ok(None);
-        };
-        for replacement in replacements.into_iter().rev() {
-            evidence = self.replace_evidence(replacement, evidence, true);
+        for replacement in replacements {
+            evidence = self.replace_evidence(replacement, evidence, false);
         }
-        Ok(Some(evidence))
+        Ok(Some((normal, evidence)))
     }
 
     pub(super) fn compositional_transport(

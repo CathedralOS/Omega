@@ -15,7 +15,13 @@ pub(super) fn validate_component(
     program: &dyn crate::CheckingInput,
     members: &[usize],
     calls: &[ExactProofCallEdge],
-) -> Result<Vec<ValidatedProofRankInterval>, &'static str> {
+) -> Result<
+    (
+        arena::Handle<crate::mathematical_applications::PreparedComputedOrder>,
+        Vec<ValidatedProofRankInterval>,
+    ),
+    &'static str,
+> {
     let machines = program.machines();
     let mut ranks = Vec::new();
     for member in members {
@@ -73,7 +79,7 @@ pub(super) fn validate_component(
         .map(|(member, ..)| machines[*member].symbol)
         .collect::<Vec<_>>();
     let mut intervals = Vec::new();
-    let mut common_relation = symbols::SymbolHandle::invalid();
+    let mut common_order = None;
     for (origin, _, measure, _) in &ranks {
         let mut pending = vec![*origin];
         let mut visited = Vec::new();
@@ -112,7 +118,7 @@ pub(super) fn validate_component(
                     .arguments
                     .get(*rank_position)
                     .ok_or("closing call has no actual for the selected rank")?;
-                let Some(relation) = proof_interval_strict_decrease_judged(
+                let Some((relation, order)) = proof_interval_strict_decrease_judged(
                     program,
                     &machines[*origin],
                     state,
@@ -125,10 +131,10 @@ pub(super) fn validate_component(
                         "a computed closing argument is not proved smaller on every incoming path",
                     );
                 };
-                if common_relation.is_valid() && relation != common_relation {
+                if common_order.is_some_and(|previous| previous != order) {
                     return Err("computed intervals select different order relations");
                 }
-                common_relation = relation;
+                common_order = Some(order);
                 intervals.push(ValidatedProofRankInterval {
                     origin: machines[*origin].symbol,
                     origin_rank: measure.symbol,
@@ -145,5 +151,8 @@ pub(super) fn validate_component(
     if intervals.is_empty() {
         return Err("no checked interval closes at a ranked entry");
     }
-    Ok(intervals)
+    Ok((
+        common_order.ok_or("the component has no checked comparison order")?,
+        intervals,
+    ))
 }

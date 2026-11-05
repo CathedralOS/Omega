@@ -111,6 +111,8 @@ pub struct ValidatedProofRecursiveComponent {
 pub struct ValidatedProofCallComponent {
     pub members: Vec<SymbolHandle>,
     pub structural: Option<ValidatedProofRecursiveComponent>,
+    pub computed_order:
+        Option<arena::Handle<crate::mathematical_applications::PreparedComputedOrder>>,
     pub intervals: Vec<ValidatedProofRankInterval>,
 }
 
@@ -477,6 +479,140 @@ struct MachineCallGraph {
     selector_self_recursion: Vec<usize>,
 }
 
+/// Only recursive components that lack a structural proof need comparison
+/// evidence. Discover their source sites before constructing any graph proof.
+pub struct ComputedOrderDemandSite {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub carrier: TypeReferenceHandle,
+}
+
+pub fn computed_order_demand_sites(
+    program: &dyn crate::CheckingInput,
+) -> Vec<ComputedOrderDemandSite> {
+    if !program
+        .machines()
+        .iter()
+        .any(|machine| machine.termination_plan.implementation_witness.is_some())
+    {
+        return Vec::new();
+    }
+    let proof_only = crate::proof_only_classification(program);
+    let graph = build_machine_call_graph(program, &proof_only);
+    let components = proof_components::complete(
+        program,
+        &proof_only,
+        &graph.edges,
+        &graph.proof_dependencies,
+    );
+    let machines = program.machines();
+    let mut sites = Vec::new();
+    for component in components {
+        if proof_ranking::validate_component(program, &component.members, &component.edges)
+            .is_some()
+        {
+            continue;
+        }
+        for origin in &component.members {
+            let machine = &machines[*origin];
+            let Some((_, carrier, _)) = proof_rank_parameter(program, machine) else {
+                continue;
+            };
+            for member in &component.members {
+                for state in program.machine_states(&machines[*member]) {
+                    sites.push(ComputedOrderDemandSite {
+                        machine: machine.symbol,
+                        state: state.symbol,
+                        carrier,
+                    });
+                }
+            }
+        }
+    }
+    sites
+}
+
+/// Bodies whose recursive calls already descend by exact structural paths.
+/// A comparison theorem may depend on these bodies without using the computed
+/// ranking judgment that the theorem is meant to justify.
+#[derive(Clone, Debug)]
+pub struct StructuralCallClosure {
+    pub machines: Vec<SymbolHandle>,
+    pub components: Vec<ValidatedProofRecursiveComponent>,
+}
+
+pub fn structurally_admitted_call_closure(
+    program: &dyn crate::CheckingInput,
+    target: SymbolHandle,
+) -> Result<StructuralCallClosure, &'static str> {
+    let machines = program.machines();
+    let root = machines
+        .iter()
+        .position(|machine| {
+            program
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| entry.symbol == target)
+        })
+        .ok_or("the structural dependency closure has no exact callable entry")?;
+    let proof_only = crate::proof_only_classification(program);
+    let graph = build_machine_call_graph(program, &proof_only);
+    let mut reached = vec![false; machines.len()];
+    let mut pending = vec![root];
+    while let Some(position) = pending.pop() {
+        if reached[position] {
+            continue;
+        }
+        reached[position] = true;
+        if !proof_only.is_proof_machine(program, &machines[position]) {
+            return Err("the comparison dependency has no proof-value source meaning");
+        }
+        pending.extend(graph.edges[position].iter().copied());
+    }
+    let complete = proof_components::complete(
+        program,
+        &proof_only,
+        &graph.edges,
+        &graph.proof_dependencies,
+    );
+    let mut components = Vec::new();
+    for members in strongly_connected_components(&graph.edges) {
+        if !members.iter().any(|position| reached[*position]) {
+            continue;
+        }
+        let cyclic = members.len() > 1
+            || members
+                .first()
+                .is_some_and(|position| graph.edges[*position].contains(position));
+        if !cyclic {
+            continue;
+        }
+        let component = complete
+            .iter()
+            .find(|component| {
+                component.members.len() == members.len()
+                    && members
+                        .iter()
+                        .all(|member| component.members.contains(member))
+            })
+            .ok_or("the comparison dependency has an incomplete recursive call inventory")?;
+        let admitted =
+            proof_ranking::validate_component(program, &component.members, &component.edges)
+                .ok_or(
+                    "the comparison dependency needs computed rather than structural induction",
+                )?;
+        components.push(admitted);
+    }
+    Ok(StructuralCallClosure {
+        machines: machines
+            .iter()
+            .enumerate()
+            .filter_map(|(position, machine)| reached[position].then_some(machine.symbol))
+            .collect(),
+        components,
+    })
+}
+
 fn build_machine_call_graph(
     program: &dyn crate::CheckingInput,
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
@@ -672,15 +808,15 @@ fn build_validated_proof_recursive_components(
         .filter_map(|component| {
             let structural =
                 proof_ranking::validate_component(program, &component.members, &component.edges);
-            let intervals = if structural.is_some() {
-                Vec::new()
+            let (computed_order, intervals) = if structural.is_some() {
+                (None, Vec::new())
             } else {
                 match proof_intervals::validate_component(
                     program,
                     &component.members,
                     &component.edges,
                 ) {
-                    Ok(intervals) => intervals,
+                    Ok((order, intervals)) => (Some(order), intervals),
                     Err(reason) => {
                         failures.push((component.members, reason));
                         return None;
@@ -694,6 +830,7 @@ fn build_validated_proof_recursive_components(
                     .map(|member| machines[*member].symbol)
                     .collect(),
                 structural,
+                computed_order,
                 intervals,
             };
             Some((component.members, validated))

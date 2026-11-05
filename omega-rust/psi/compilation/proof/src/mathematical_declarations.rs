@@ -29,13 +29,15 @@ pub struct CheckedMathematics {
 pub fn check_mathematical_declarations(
     program: &dyn validation::CheckingInput,
 ) -> Result<CheckedMathematics, Vec<diagnostics::Diagnostic>> {
-    if program.mathematical_definitions().is_empty()
-        && !mathematical_signature::has_source_evidence_demand(program)
-    {
+    let order_demands = validation::computed_order::order_demands(program);
+    let needs_scheme =
+        mathematical_signature::has_source_family_demand(program) || !order_demands.is_empty();
+    if program.mathematical_definitions().is_empty() && !needs_scheme {
         return Ok(CheckedMathematics::default());
     }
     let declarations = build_checked_mathematical_declarations(program)?;
-    let (signature, applications) = check_mathematical_signature(program)?.into_checked_evidence();
+    let (signature, applications) =
+        check_mathematical_signature(program, needs_scheme, order_demands)?.into_checked_evidence();
     Ok(CheckedMathematics {
         declarations,
         signature: Some(signature),
