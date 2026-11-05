@@ -418,6 +418,12 @@ pub(super) fn build(
                     )
                     || covering_pair(facts, state.symbol, ordinal).is_some()) =>
             {
+                if result == CheckedControlResultPlan::Unit
+                    && transition_on_erased_dispatch_subject(program, state, when_true)
+                    && transition_on_erased_dispatch_subject(program, state, when_false)
+                {
+                    return Some(erased_proof_completion(state, statements, terminator_index));
+                }
                 trace.phase("state graph: terminator: conditional successors: guard expression");
                 let guard = retained_guard(facts, machine.symbol, state.symbol, ordinal)?;
                 if !guard_is_boolean(facts, &guard) {
@@ -644,6 +650,18 @@ pub(super) fn build(
                     TransitionGuardNode::Always | TransitionGuardNode::When(_)
                 )) =>
             {
+                // The scrutinee is an erased dispatch subject. It has no runtime
+                // place, and the arms only discharge the proof already checked
+                // on that subject. A unit state completes without borrowing it.
+                if result == CheckedControlResultPlan::Unit
+                    && tail.iter().all(|statement| {
+                        statement.as_transition().is_some_and(|transition| {
+                            transition_on_erased_dispatch_subject(program, state, transition)
+                        })
+                    })
+                {
+                    return Some(erased_proof_completion(state, statements, terminator_index));
+                }
                 trace.phase("state graph: terminator: guarded jump successors: roster");
                 let last_guarded = matches!(
                     tail.last(),
@@ -1132,4 +1150,60 @@ fn complete_selected_return(
             completion
         }
     })
+}
+
+/// Unit completion of a proof transition. Cleanup keeps the first arm's
+/// coordinate so the return has one source exit; the arms are not executed.
+fn erased_proof_completion(
+    state: &State,
+    statements: &[StatementNode],
+    terminator_index: usize,
+) -> (TerminatorPlan, Option<FlowClaimJoinExit>) {
+    let selected_exit = statements[terminator_index..]
+        .iter()
+        .position(|statement| statement.as_transition().is_some())
+        .map(|offset| FlowClaimJoinExit {
+            state_symbol: state.symbol,
+            statement_index: terminator_index + offset,
+            kind: FlowClaimJoinExitKind::TransitionTarget,
+        });
+    (TerminatorPlan::ReturnUnit, selected_exit)
+}
+
+/// A `When` guard that only classifies an erased dispatch subject, or the
+/// `Always` fallback of that same tail. The subject is proof identity.
+fn transition_on_erased_dispatch_subject(
+    program: &dyn ::validation::CheckingInput,
+    state: &State,
+    transition: &TableTransition,
+) -> bool {
+    let TransitionGuardNode::When(expression) = transition.guard else {
+        return true;
+    };
+    expression_names_erased_dispatch_subject(program, state, expression)
+}
+
+fn expression_names_erased_dispatch_subject(
+    program: &dyn ::validation::CheckingInput,
+    state: &State,
+    mut expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    use typed_trees::expression::ExpressionNode;
+    for _ in 0..8 {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => {
+                let Some((_, local)) = program.state_local_declaration(state, path.symbol) else {
+                    return false;
+                };
+                return validation::dispatch_subject_of_erased_binding(program, state, local);
+            }
+            ExpressionNode::Borrow(borrow) => expression = borrow.target,
+            ExpressionNode::Member(member) => expression = member.receiver,
+            ExpressionNode::Binary(binary) => expression = binary.left,
+            ExpressionNode::Unary(unary) => expression = unary.operand,
+            ExpressionNode::SavedSubject(_) => return false,
+            _ => return false,
+        }
+    }
+    false
 }

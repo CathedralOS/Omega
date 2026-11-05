@@ -110,25 +110,33 @@ machine main() crashes Trap {
     machine allocated(address: addr) {
         let grant: Extent in Granted = ExtentRootProvider::grant(Extent { base: address, length: 32 });
         let vacant: Extent in Granted & Vacant = VacantContentTransfer::transfer(grant);
+        let backing_base: addr = vacant.base;
+        let backing_length: u64 = vacant.length;
         transition Run::initialize_cell<WordPlacement, Word, TestMemory>(
             vacant, Word { prefix: 101, value: 17, suffix: 103 }) {
             AccessOutcome::Ready { view } -> bad()
-            AccessOutcome::Rejected { returned, reason } -> check_failure(returned, reason)
+            AccessOutcome::Rejected { returned, reason } -> check_failure(returned, reason, backing_base, backing_length)
         }
     }
-    machine check_failure(returned: AccessReturn<Extent in Granted & Vacant, Word>, reason: AccessInitializationFailure) {
+    machine check_failure(returned: AccessReturn<Extent in Granted & Vacant, Word>, reason: AccessInitializationFailure, backing_base: addr, backing_length: u64)
+        requires returned.source.base == backing_base, returned.source.length == backing_length
+    {
         transition reason {
-            AccessInitializationFailure::IncompatibleSupply -> recover(returned)
+            AccessInitializationFailure::IncompatibleSupply -> recover(returned, backing_base, backing_length)
             _ -> bad()
         }
     }
-    machine recover(returned: AccessReturn<Extent in Granted & Vacant, Word>) {
+    machine recover(returned: AccessReturn<Extent in Granted & Vacant, Word>, backing_base: addr, backing_length: u64)
+        requires returned.source.base == backing_base, returned.source.length == backing_length
+    {
         transition returned {
-            AccessReturn { source, custody } -> inspect_return(source, custody)
+            AccessReturn { source, custody } -> inspect_return(source, custody, backing_base, backing_length)
         }
     }
-    machine inspect_return(source: Extent in Granted & Vacant, custody: Word) {
-        transition source.length == 32 {
+    machine inspect_return(source: Extent in Granted & Vacant, custody: Word, backing_base: addr, backing_length: u64)
+        requires source.base == backing_base, source.length == backing_length
+    {
+        transition source.base == backing_base && source.length == 32 {
             true -> inspect(source, custody)
             false -> bad()
         }

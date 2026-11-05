@@ -20,6 +20,7 @@ mod evidence_rewrites;
 mod machine_arguments;
 mod type_parameter_substitution;
 
+pub(crate) use const_substitution::drop_refuted_closed_transition_arms;
 pub(crate) use const_substitution::fold_closed_const_machine_arguments;
 
 pub(crate) use cloned_calls::{rewrite_cloned_calls, statement_span_handles};
@@ -509,6 +510,21 @@ pub(super) fn insert_subject_names(
     }
 }
 
+/// A later const-only retarget keeps the callee's ordinary parameters.
+/// Arguments appended for a runtime specialization of the same source
+/// call are not parameters of this instance.
+fn align_ordinary_arguments(
+    arguments: &mut Vec<ExpressionHandle>,
+    parameter_count: usize,
+    subjects: &[ExpressionHandle],
+) {
+    let ordinary = parameter_count.saturating_sub(subjects.len());
+    if arguments.len() > ordinary {
+        arguments.truncate(ordinary);
+    }
+    insert_subject_operands(arguments, subjects);
+}
+
 pub(super) fn insert_subject_operands(
     arguments: &mut Vec<ExpressionHandle>,
     operands: &[ExpressionHandle],
@@ -571,7 +587,16 @@ pub(super) fn rewrite_selected_call_with_name(
             let new_arguments = if reuse {
                 snapshot.arguments
             } else {
-                insert_arguments_with_subjects(program, snapshot.arguments, subjects)
+                let parameter_count = program
+                    .state_by_symbol(target)
+                    .map(|state| program.state_parameters(state).len())
+                    .unwrap_or(subjects.len());
+                let mut arguments = program
+                    .statement_table
+                    .expression_handles(snapshot.arguments)
+                    .to_vec();
+                align_ordinary_arguments(&mut arguments, parameter_count, subjects);
+                program.statement_table.insert_expression_handles(arguments)
             };
             let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
                 unreachable!();
@@ -611,7 +636,11 @@ pub(super) fn rewrite_selected_call_with_name(
                 .expression_handles(snapshot.arguments)
                 .to_vec();
             if !reuse {
-                insert_subject_operands(&mut arguments, subjects);
+                let parameter_count = program
+                    .state_by_symbol(target)
+                    .map(|state| program.state_parameters(state).len())
+                    .unwrap_or(subjects.len());
+                align_ordinary_arguments(&mut arguments, parameter_count, subjects);
             }
             let new_arguments = expressions_of_mut(program).insert_expression_handles(arguments);
             let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle)

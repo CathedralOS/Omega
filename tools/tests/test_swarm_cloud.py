@@ -1325,7 +1325,7 @@ class AcceptanceTests(unittest.TestCase):
 
 class DocumentationTests(unittest.TestCase):
     def test_new_document_links_resolve_and_cli_surface_matches_contract(self):
-        for path in (ROOT/'tools/swarm/cloud.md', ROOT/'.agents/skills/dot-swarm/references/cloud-coordination.md'):
+        for path in (ROOT/'tools/swarm/cloud.md', ROOT/'.agents/skills/swarm/references/cloud-coordination.md'):
             for target in re.findall(r'\]\(([^)]+)\)',path.read_text()):
                 if '://' not in target and not target.startswith('#'):
                     self.assertTrue((path.parent/target.split('#')[0]).exists(),(path,target))

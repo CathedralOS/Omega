@@ -122,6 +122,13 @@ pub(super) fn parameter_destination_inventory(
     let mut leaves = Vec::new();
     let mut template_dependent = false;
     for parameter in parameters {
+        // An erased binding stays in the signature and owns no runtime
+        // storage, transfer, or read. It cannot be a caller reference slot,
+        // including when its proof carrier is recursive or names a type
+        // parameter. Closed instances do not regain runtime slots for it.
+        if parameter.relevance == language_core::BindingRelevance::Erased {
+            continue;
+        }
         let shell = crate::reference_shell(program, parameter.type_reference);
         if shell.is_some_and(|shell| !shell.access.is_exclusive()) {
             continue;

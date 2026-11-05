@@ -18,7 +18,8 @@ from check_rules import (
     golden_row_quality_violations, golden_rows, golden_violations, lanes,
     measurement_violations, nearest_rows,
     program_shingles, ratchet_counts, ratchet_violations, read_baseline,
-    read_dangling_baseline, subject_violations, write_dangling_baseline, write_ratchet,
+    read_dangling_baseline, subject_violations, tasks_board_violations,
+    write_dangling_baseline, write_ratchet,
 )
 
 
@@ -536,6 +537,46 @@ class DanglingTaskTests(unittest.TestCase):
         violations = dangling_task_violations(dangling_task_ids(documents, known), baseline)
         self.assertIn("AGENTS.md: cites NESTED-MACHINE-UNIFICATION", "\n".join(violations))
 
+
+class TasksBoardTests(unittest.TestCase):
+    BASE = (
+        "# Tasks\n\n"
+        "## Priority (human-set only)\n\n"
+        "- **NESTED-MACHINE-UNIFICATION.** Replace `state` with nested machines.\n"
+        "  - Resolve recursive lexical scopes and forward references.\n"
+        "  - Complete cyclic private arrivals and normal-return obligations.\n"
+        "  Acceptance: three-level nesting passes `omega run --both`.\n"
+    )
+
+    def test_the_current_tasks_board_is_clean(self):
+        text = (check_rules.ROOT / check_rules.TASKS_BOARD).read_text(encoding="utf-8")
+        self.assertEqual(tasks_board_violations(text, text), [])
+
+    def test_deleting_a_completed_subbullet_passes(self):
+        shrunk = self.BASE.replace(
+            "  - Resolve recursive lexical scopes and forward references.\n", ""
+        )
+        self.assertEqual(tasks_board_violations(shrunk, self.BASE), [])
+
+    def test_growing_lines_or_subbullets_fails(self):
+        grown = self.BASE + "  - Defer another newly discovered edge case.\n"
+        violations = tasks_board_violations(grown, self.BASE)
+        self.assertTrue(any("grew from 8 to 9 lines" in v for v in violations), violations)
+        self.assertTrue(any("sub-bullets grew from 2 to 3" in v for v in violations), violations)
+
+    def test_wrapped_continuation_and_status_history_fail(self):
+        bad = (
+            "# Tasks\n\n"
+            "## Priority (human-set only)\n\n"
+            "- **NESTED-MACHINE-UNIFICATION.** Replace `state` with nested machines.\n"
+            "  - The qualified-case row now preserves imported alias applications\n"
+            "    across wrapped continuation lines that remain open.\n"
+            "  Acceptance: three-level nesting passes `omega run --both`.\n"
+        )
+        violations = tasks_board_violations(bad)
+        self.assertTrue(any("wrapped continuation" in v for v in violations), violations)
+        self.assertTrue(any("now preserves" in v for v in violations), violations)
+        self.assertTrue(any("remain open" in v for v in violations), violations)
 
 
 if __name__ == "__main__":

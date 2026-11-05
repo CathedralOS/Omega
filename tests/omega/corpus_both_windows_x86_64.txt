@@ -2941,15 +2941,15 @@ pass/facts/field_where_index_through_other_machine_exit built 5071ms exit:0 inte
 pass/facts/field_where_index_through_other_state_exit built 4994ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/field_where_index_through_parameter_exit built 5040ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/field_where_index_through_target_body_exit built 5578ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/facts/finite_family_exclusive_result/call_result built 7244ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/const_name built 7231ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/field built 7254ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/local built 7242ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/match_join built 7221ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/other_machine built 7238ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/other_state built 7242ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/parameter built 7256ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/target_body built 7335ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
+pass/facts/finite_family_exclusive_result/call_result built 7244ms exit:0 interpreter-exit:0 interpreter:agrees @e2e2bad96355
+pass/facts/finite_family_exclusive_result/const_name built 7231ms exit:0 interpreter-exit:0 interpreter:agrees @e2e2bad96355
+pass/facts/finite_family_exclusive_result/field built 7254ms exit:0 interpreter-exit:0 interpreter:agrees @e2e2bad96355
+pass/facts/finite_family_exclusive_result/local built 7242ms exit:0 interpreter-exit:0 interpreter:agrees @e2e2bad96355
+pass/facts/finite_family_exclusive_result/match_join built 7221ms exit:0 interpreter-exit:0 interpreter:agrees @e2e2bad96355
+pass/facts/finite_family_exclusive_result/other_machine built 7238ms exit:0 interpreter-exit:0 interpreter:agrees @e2e2bad96355
+pass/facts/finite_family_exclusive_result/other_state built 7242ms exit:0 interpreter-exit:0 interpreter:agrees @e2e2bad96355
+pass/facts/finite_family_exclusive_result/parameter built 7256ms exit:0 interpreter-exit:0 interpreter:agrees @e2e2bad96355
+pass/facts/finite_family_exclusive_result/target_body built 7335ms exit:0 interpreter-exit:0 interpreter:agrees @e2e2bad96355
 pass/facts/finite_family_input_index/call_result built 7058ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/const_name built 7011ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/field built 7044ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
@@ -2959,23 +2959,31 @@ pass/facts/finite_family_input_index/other_machine built 7113ms exit:0 interpret
 pass/facts/finite_family_input_index/other_state built 7107ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/parameter built 7173ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/target_body built 7224ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
-pass/facts/finite_family_returned_descriptor/call_result built 3730ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/call_result built 3730ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
 pass/facts/finite_family_returned_descriptor/caller_view built 3715ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/const_name built 3698ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/field built 3772ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/const_name built 3698ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/facts/finite_family_returned_descriptor/field built 3772ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
 pass/facts/finite_family_returned_descriptor/incoming_join built 3766ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/local built 3772ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/match_join built 3954ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/other_machine built 3967ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/other_state built 3769ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/parameter built 3755ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/local built 3772ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/facts/finite_family_returned_descriptor/match_join built 3954ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/facts/finite_family_returned_descriptor/other_machine built 3967ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/facts/finite_family_returned_descriptor/other_state built 3769ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/facts/finite_family_returned_descriptor/parameter built 3755ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
 pass/facts/finite_family_returned_descriptor/pointer_field built 3759ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_returned_descriptor/replaced_source built 3763ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_returned_descriptor/saved_source built 3787ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/target_body built 3885ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/target_body built 3885ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
 pass/facts/finite_family_returned_descriptor/target_qualification built 3696ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply rejected 3838ms expected native-rejection:match @059fb0b41d83
 	no provider is selected for boundary requirement `SelectedTarget::target_only`, which the program entry reaches on target `windows_x86_64`
+pass/facts/finite_family_static_inline_result/call_result built 4640ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/const_name built 4640ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/field built 4812ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/local built 4741ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/match_join built 4833ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/other_machine built 4886ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/other_state built 4788ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/parameter built 4696ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
 pass/facts/finite_family_static_inline_result/target_body built 7363ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/five_variant_enum_payload_bound_through_call_result_exit built 4474ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/five_variant_enum_payload_bound_through_const_name_exit built 7117ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -7208,6 +7216,7 @@ pass/traits/equatable_string_field_equality_exit incomplete 8878ms interpreter:u
 	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `Main::main::main`, statement 3
 pass/traits/equatable_synthesis checked 3641ms @5f668826adf3+wt
 pass/traits/exact_edge_application_and_invocation_parameters built 8729ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/traits/finite_family_case_view_result_exit built 5789ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
 pass/traits/float_contract_refinement_boundaries_exit built 7741ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/traits/generic_dyn_contract_inventory_exit built 2643ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/traits/generic_map_applied_contract_exit built 2316ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

@@ -13,8 +13,8 @@ mod lifecycle;
 mod loan_resources;
 mod permission_sources;
 mod reborrow_drafts;
-mod stored_call_inputs;
 pub(in crate::checks::borrows) mod retained_backing;
+mod stored_call_inputs;
 pub(in crate::checks::borrows) mod supplied_permissions;
 
 use crate::checks::borrows::resources::disposition_events::{

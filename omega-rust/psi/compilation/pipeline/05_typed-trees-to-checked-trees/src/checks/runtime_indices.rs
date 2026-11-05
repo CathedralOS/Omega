@@ -581,9 +581,54 @@ impl Scope<'_> {
         (substitutions, captured_arguments)
     }
 
+    /// The subject a transparent mathematical definition returns. The body
+    /// names one of its parameters, and that parameter's argument is the
+    /// indexed value the call was built from.
+    fn mathematical_definition_subject(
+        &self,
+        target: SymbolHandle,
+        arguments: arena::HandleSpan<ExpressionHandle>,
+    ) -> Option<Application<'_>> {
+        let definition = self
+            .program
+            .mathematical_definitions()
+            .iter()
+            .find(|definition| definition.symbol == target)?;
+        let typed_trees::mathematical::MathematicalBody::Definition(body) = definition.body else {
+            return None;
+        };
+        let ExpressionNode::Name(path) = self.program.expression_table.expression(body) else {
+            return None;
+        };
+        let parameters = self.program.mathematical_parameters(definition.parameters);
+        let index = parameters.iter().position(|parameter| {
+            parameter.symbol == path.symbol
+                || self.program.symbols.get(path.symbol).generated_from == parameter.symbol
+        })?;
+        let argument = self
+            .program
+            .expression_table
+            .expression_handles(arguments)
+            .get(index)
+            .copied()?;
+        self.actual(argument)
+    }
+
     fn actual(&self, expression: ExpressionHandle) -> Option<Application<'_>> {
         if !expression.is_valid() {
             return None;
+        }
+        // A mathematical definition is not an executable call. Read the
+        // subject its body names before demanding a machine result type,
+        // which this declaration does not have.
+        if let ExpressionNode::Call(call) = self.program.expression_table.expression(expression) {
+            let target_symbol = call.target_symbol;
+            let argument_span = call.arguments;
+            if let Some(subject) =
+                self.mathematical_definition_subject(target_symbol, argument_span)
+            {
+                return Some(subject);
+            }
         }
         let reference =
             expression_result_type_reference(self.program, self.machine, self.state, expression)?;
@@ -617,7 +662,8 @@ impl Scope<'_> {
                 Some(Application::bare(reference, formation))
             }
             ExpressionNode::Call(call) => {
-                let parameters = call_target_parameters(self.program, call.target_symbol)?;
+                let target_symbol = call.target_symbol;
+                let parameters = call_target_parameters(self.program, target_symbol)?;
                 let arguments = self
                     .program
                     .expression_table
@@ -630,7 +676,7 @@ impl Scope<'_> {
                     // Interpret the declaration under captured formal bindings.
                     // A caller-applied index could otherwise bypass the prefix
                     // guard by ceasing to name any of those formal binders.
-                    reference: call_target_return_type(self.program, call.target_symbol)?,
+                    reference: call_target_return_type(self.program, target_symbol)?,
                     formation: self.statement,
                     substitutions,
                     arguments: captured_arguments,
@@ -1049,6 +1095,16 @@ impl Scope<'_> {
                             // above, but never acquire descriptor authority.
                             if !matches!(parameter.kind, TypeParameterKind::Value { .. }) {
                                 return false;
+                            }
+                            // Specialization clones pattern bindings. A carrier
+                            // that still names the template symbol and a
+                            // parameter that names the clone are one captured
+                            // index.
+                            if same_captured_index(self.program, *left, *right)
+                                || self.supplied_index_matches(required, *right, *left)
+                                || self.supplied_index_matches(actual, *left, *right)
+                            {
+                                return true;
                             }
                             let closed_requirement = self.static_index(*right, required).is_some()
                                 || matches!(self.program.type_reference_table.type_reference(*right),
@@ -2078,6 +2134,301 @@ impl Scope<'_> {
             )).with_source_span(self.program.expression_table.source_span(expression)));
         }
     }
+}
+
+impl Scope<'_> {
+    /// A specialized parameter type still names the clone, while this call
+    /// binds the template formal to the captured index the carrier retained.
+    fn supplied_index_matches(
+        &self,
+        application: &Application<'_>,
+        formal_reference: TypeReferenceHandle,
+        actual_reference: TypeReferenceHandle,
+    ) -> bool {
+        let Some(actual_symbol) = index_symbol(self.program, actual_reference) else {
+            return false;
+        };
+        let Some(mut formal) = index_symbol(self.program, formal_reference) else {
+            return false;
+        };
+        for _ in 0..8 {
+            if let Some((_, expression)) = application
+                .arguments
+                .iter()
+                .find(|(symbol, _)| *symbol == formal)
+                && let Some(expression) = expression
+                && let ExpressionNode::Name(path) =
+                    self.program.expression_table.expression(*expression)
+                && path.symbol == actual_symbol
+            {
+                return true;
+            }
+            if let Some((_, Some(bound))) = application
+                .substitutions
+                .iter()
+                .find(|(symbol, _)| *symbol == formal)
+                && let Some(values) = self.values(self.statement)
+                && let Some(current) = values.current_symbol(actual_symbol)
+                && values.proves_values_relation(
+                    self.program,
+                    self.machine,
+                    BinaryOperator::Equal,
+                    bound,
+                    &current,
+                )
+            {
+                return true;
+            }
+            if self.call_supplies_index(application, formal, actual_symbol) {
+                return true;
+            }
+            let generated = self.program.symbols.get(formal).generated_from;
+            if !generated.is_valid() {
+                break;
+            }
+            formal = generated;
+        }
+        false
+    }
+
+    /// The call's static argument is the carrier index when the formal it
+    /// instantiates derives from that same parameter. Unrelated symbols stay
+    /// distinct even when their displays match.
+    fn call_supplies_index(
+        &self,
+        application: &Application<'_>,
+        formal: SymbolHandle,
+        actual: SymbolHandle,
+    ) -> bool {
+        let Some(site) = application.call else {
+            return false;
+        };
+        if self.state_argument_names_index(site, formal, actual) {
+            return true;
+        }
+        let direct = match site {
+            CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
+            CallSite::Statement(call) => call.machine_arguments.as_ref(),
+            CallSite::TransitionNamed { .. } => &[][..],
+        };
+        let target = site.target_symbol(self.program);
+        if let Some(callee) = self
+            .program
+            .machine_by_symbol(target)
+            .or_else(|| self.program.machine_holding_state(target))
+        {
+            if self.roster_binds(
+                self.program.machine_type_parameters(callee),
+                direct,
+                formal,
+                actual,
+            ) {
+                return true;
+            }
+            if let Ok(Some(template)) = self
+                .program
+                .typed_program()
+                .executable_application_template(callee.symbol)
+                && let Some(source) = self.program.machine_by_symbol(template)
+                && self.roster_binds(
+                    self.program.machine_type_parameters(source),
+                    direct,
+                    formal,
+                    actual,
+                )
+            {
+                return true;
+            }
+        }
+        let handle = site.authored_application();
+        if !handle.is_valid() {
+            return false;
+        }
+        let row = self
+            .program
+            .expression_table
+            .static_machine_application(handle);
+        let arguments = self
+            .program
+            .expression_table
+            .static_machine_application_arguments(handle);
+        let Some(source) = self
+            .program
+            .machine_by_symbol(row.registration_operation)
+            .or_else(|| {
+                self.program
+                    .machine_holding_state(row.registration_operation)
+            })
+        else {
+            return false;
+        };
+        self.roster_binds(
+            self.program.machine_type_parameters(source),
+            arguments,
+            formal,
+            actual,
+        )
+    }
+
+    /// Positional operands keep their index identity when another operand of
+    /// the same call is effectful. The parameter and the carrier type must
+    /// still be one derivation, and the operand must name that carrier.
+    fn state_argument_names_index(
+        &self,
+        site: CallSite<'_>,
+        formal: SymbolHandle,
+        actual: SymbolHandle,
+    ) -> bool {
+        let target = site.target_symbol(self.program);
+        let Some(parameters) = call_target_parameters(self.program, target) else {
+            return false;
+        };
+        let arguments = call_site_argument_expressions(self.program, &site);
+        if parameters.len() != arguments.len() {
+            return false;
+        }
+        parameters
+            .iter()
+            .zip(arguments)
+            .any(|(parameter, argument)| {
+                same_symbol_derivation(self.program, formal, parameter.symbol)
+                    && self.expression_names_index(*argument, actual)
+            })
+    }
+
+    fn expression_names_index(&self, expression: ExpressionHandle, expected: SymbolHandle) -> bool {
+        let mut expression = expression;
+        for _ in 0..8 {
+            match self.program.expression_table.expression(expression) {
+                ExpressionNode::Name(path) => {
+                    return same_symbol_derivation(self.program, path.symbol, expected)
+                        || same_symbol_derivation(self.program, path.head_symbol, expected);
+                }
+                ExpressionNode::Member(member) => {
+                    return same_symbol_derivation(self.program, member.member_symbol, expected);
+                }
+                ExpressionNode::Borrow(borrow) => expression = borrow.target,
+                _ => return false,
+            }
+        }
+        false
+    }
+
+    fn roster_binds(
+        &self,
+        parameters: &[TypeParameter],
+        arguments: &[StaticMachineArgument],
+        formal: SymbolHandle,
+        actual: SymbolHandle,
+    ) -> bool {
+        if parameters.is_empty() || parameters.len() != arguments.len() {
+            return false;
+        }
+        parameters
+            .iter()
+            .zip(arguments)
+            .any(|(parameter, argument)| {
+                symbol_derives_from(self.program, formal, parameter.symbol)
+                    && self.static_argument_names(argument, actual)
+            })
+    }
+
+    fn static_argument_names(
+        &self,
+        argument: &StaticMachineArgument,
+        expected: SymbolHandle,
+    ) -> bool {
+        if argument.symbol.is_valid()
+            && symbol_derives_from(self.program, argument.symbol, expected)
+        {
+            return true;
+        }
+        argument.type_reference.is_valid()
+            && index_symbol(self.program, argument.type_reference)
+                .is_some_and(|symbol| symbol_derives_from(self.program, symbol, expected))
+    }
+}
+
+fn same_symbol_derivation(
+    program: &dyn CheckingInput,
+    left: SymbolHandle,
+    right: SymbolHandle,
+) -> bool {
+    symbol_derives_from(program, left, right) || symbol_derives_from(program, right, left)
+}
+
+fn symbol_derives_from(
+    program: &dyn CheckingInput,
+    mut symbol: SymbolHandle,
+    origin: SymbolHandle,
+) -> bool {
+    if !symbol.is_valid() || !origin.is_valid() {
+        return false;
+    }
+    if symbol == origin {
+        return true;
+    }
+    for _ in 0..8 {
+        let next = program.symbols.get(symbol).generated_from;
+        if !next.is_valid() {
+            return false;
+        }
+        if next == origin {
+            return true;
+        }
+        symbol = next;
+    }
+    false
+}
+
+fn index_symbol(
+    program: &dyn CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => symbol.is_valid().then_some(*symbol),
+        TypeReferenceNode::ConstExpression(expression) => {
+            match program.expression_table.expression(*expression) {
+                ExpressionNode::Name(path) if path.symbol.is_valid() => Some(path.symbol),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn same_captured_index(
+    program: &dyn CheckingInput,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+) -> bool {
+    let symbol = |reference| match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+        TypeReferenceNode::ConstExpression(expression) => {
+            match program.expression_table.expression(*expression) {
+                ExpressionNode::Name(path) => Some(path.symbol),
+                _ => None,
+            }
+        }
+        _ => None,
+    };
+    let (Some(left), Some(right)) = (symbol(left), symbol(right)) else {
+        return false;
+    };
+    if left == right {
+        return true;
+    }
+    let origin = |mut symbol: SymbolHandle| {
+        for _ in 0..8 {
+            let generated = program.symbols.get(symbol).generated_from;
+            if !generated.is_valid() {
+                break;
+            }
+            symbol = generated;
+        }
+        symbol
+    };
+    origin(left) == origin(right)
 }
 
 pub(super) fn check(

@@ -500,8 +500,8 @@ fail/asm/checked_asm_compare_stale_intermediate_goal rejected 2771ms expected @0
 	cannot prove ensures contract for exit from compare at statement 8: result == 37
 	cannot prove ensures contract for exit from compare at statement 8: result == 37
 	cannot prove ensures contract for exit from compare at statement 8: result == 37
-fail/asm/checked_asm_compare_wrong_entry_edge rejected 1998ms expected @ccdb99ca2214
-	cannot prove requires contract for call countdown$assembly$portable$4$entry from countdown: asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$1 == 0 (needs fact `asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/asm/checked_asm_compare_wrong_entry_edge rejected 2931ms expected @fc51486b710a
+	cannot prove requires contract for call countdown$assembly$portable$4$entry from countdown: asm#scratch#4#zf$version$2 || asm#scratch#4#eax$version$1 == 0 (needs fact `asm#scratch#4#zf || asm#scratch#4#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/asm/checked_asm_compare_wrong_flag_snapshot rejected 2549ms expected @0af7c594a1c0
 	cannot prove asm `requires` fact at block entry in main state `entry` (statement 31): snapshot & 2261 == 148
 fail/asm/checked_asm_compare_wrong_target rejected 604ms expected @ccdb99ca2214
@@ -2191,8 +2191,8 @@ fail/build/generated_resolution_source_location rejected 629ms expected @ccdb99c
 	machine `selected` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
 fail/build/generated_scalar_constant_range_refused rejected 1248ms expected published:none @ccdb99ca2214
 	scalar constant `VALUE` is invalid: const value `256` does not fit `u8`
-fail/build/generated_source_base_reference_refused rejected 23045ms unexpected published:none @ccdb99ca2214
-	cannot determine the dispatch subject storage type in `Main::main::main`
+fail/build/generated_source_base_reference_refused rejected 126276ms expected published:none @e9460cb64926
+	machine `Main::main` state `main` uses `ANSWER`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/build/generated_source_undeclared_call_refused rejected 1180ms unexpected published:none @ccdb99ca2214
 	tests/omega/fail/build/generated_source_undeclared_call_refused/.omega/generated/generated.omg:16:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract
 fail/build/generated_source_unsealed_handoff_refused rejected 1402ms expected published:none @ccdb99ca2214
@@ -3914,17 +3914,20 @@ fail/core/generic_resident_adapter_no_authority rejected 2781ms expected @ccdb99
 	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Granted
 fail/core/guaranteed_return_bound_actuals_rejected rejected 14148ms expected @ccdb99ca2214
 	exact arithmetic in machine `main` state `entry` local `second_difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/core/guarded_trap_ceiling_altered_carrier_rejected rejected 10622ms unexpected @ccdb99ca2214
+fail/core/guarded_trap_ceiling_altered_carrier_rejected rejected 128054ms expected @3f64aa42f0a9
 	call from `narrow` to `invalid` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/core/guarded_trap_ceiling_misses_signed_minimum_rejected rejected 10894ms unexpected @ccdb99ca2214
+	machine `narrow` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/core/guarded_trap_ceiling_misses_signed_minimum_rejected rejected 122502ms expected @3f64aa42f0a9
 	call from `narrow` to `invalid` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `narrow` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/core/guarded_trap_ceiling_other_site_rejected rejected 11723ms unexpected @ccdb99ca2214
 	call from `pack` to `check_high` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/core/guarded_trap_ceiling_unbounded_addend_rejected rejected 8955ms expected @ccdb99ca2214
 	uncovered Trap crash in machine `accumulate` state `entry` cast expression: Trapping `+` of `total as u8` and `step as u8` in `u8` traps when its result lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
 	uncovered Trap crash in machine `accumulate` state `entry` terminal expression: Trapping `+` of `total as u8` and `step as u8` in `u8` traps when its result lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
-fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 11119ms unexpected @ccdb99ca2214
+fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 121128ms expected @3f64aa42f0a9
 	call from `narrow` to `invalid` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `narrow` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/core/image_address_observation_does_not_grant rejected 4105ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume_granted from numeric_image_observation_is_not_a_root: unqualified in Extent::Granted in state `entry`
 fail/core/independent_content_contract_borrowed_input rejected 1218ms expected @ee4dbb4b2d56
@@ -5326,8 +5329,8 @@ fail/expressions/cast_struct_to_number_rejected rejected 13425ms expected @ccdb9
 	machine `Main::main` state `main` casts a `P` value to `i32`, but `as` converts between scalar types only
 fail/expressions/comparison_result_integer_store_rejected rejected 856ms expected @ccdb99ca2214
 	machine `Main::record` state `record` assignment stores a boolean into a `i32` place, which holds a numeric value
-fail/expressions/cross_enum_case_membership_rejected rejected 13155ms unexpected @ccdb99ca2214
-	cannot determine the dispatch subject storage type in `Main::main::main`
+fail/expressions/cross_enum_case_membership_rejected rejected 66780ms expected @e9460cb64926
+	case membership must test a value of the exact declaring data type (machine `Main::main`, state `main`)
 fail/expressions/cross_type_equality_rejected rejected 7639ms expected @ccdb99ca2214
 	cannot compare `P` and `Q` with `==`/`!=`: the operands are different data types (equality requires both operands to be the same type)
 fail/expressions/declared_operator_private_helper_selected_rejected rejected 3679ms expected @630d0f945fc2
@@ -6818,36 +6821,25 @@ fail/facts/checked_asm_nominal_predicate_through_target_body_rejected rejected 4
 	cannot prove asm `requires` fact at block entry in move_selected state `entry` (statement 5): output == 9
 	cannot prove asm `requires` fact at block entry in move_selected state `entry` (statement 5): output == 9
 	cannot prove asm `requires` fact at block entry in move_selected state `entry` (statement 5): output == 9
-fail/facts/checked_asm_rank_decrease_through_call_result_rejected rejected 2929ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#31#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#31#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-fail/facts/checked_asm_rank_decrease_through_const_name_rejected rejected 3401ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from main$assembly$portable$4$entry: ((asm#scratch#26#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#26#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$4$entry
-fail/facts/checked_asm_rank_decrease_through_field_rejected rejected 3389ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#27#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#27#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-fail/facts/checked_asm_rank_decrease_through_local_rejected rejected 3117ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#26#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#26#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-fail/facts/checked_asm_rank_decrease_through_match_join_rejected rejected 3278ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from countdown$assembly$portable$5$entry: ((asm#scratch#56#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#56#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$5$entry
-fail/facts/checked_asm_rank_decrease_through_other_machine_rejected rejected 2661ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#37#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#37#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$4$entry
-fail/facts/checked_asm_rank_decrease_through_other_state_rejected rejected 2795ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from next$assembly$portable$4$entry: ((asm#scratch#31#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#31#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_rank_decrease_through_parameter_rejected rejected 2813ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#31#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#31#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$4$entry
-fail/facts/checked_asm_rank_decrease_through_target_body_rejected rejected 2857ms expected @ccdb99ca2214
-	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#31#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#31#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#72#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#72#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#113#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#113#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove the `terminates by` ranking for machine countdown$assembly$linux_x86_64$4$entry
-	cannot prove the `terminates by` ranking for machine countdown$assembly$windows_x86_64$4$entry
-	cannot prove the `terminates by` ranking for machine countdown$assembly$macos_x86_64$4$entry
+fail/facts/checked_asm_rank_decrease_through_call_result_rejected rejected 4260ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#8#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#8#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_const_name_rejected rejected 4206ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from main$assembly$portable$4$entry: ((asm#scratch#3#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#3#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_field_rejected rejected 5095ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#4#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#4#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_local_rejected rejected 3959ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#3#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#3#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_match_join_rejected rejected 3886ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from countdown$assembly$portable$5$entry: ((asm#scratch#33#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#33#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_other_machine_rejected rejected 4062ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#14#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#14#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_other_state_rejected rejected 4292ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from next$assembly$portable$4$entry: ((asm#scratch#8#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#8#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_parameter_rejected rejected 4122ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#8#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#8#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_rank_decrease_through_target_body_rejected rejected 4244ms expected @d3e0d00aad47
+	cannot prove requires contract for call done from X86Countdown::countdown$assembly$portable$5$countdown: ((asm#scratch#40#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#40#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove requires contract for call done from ArmCountdown::countdown$assembly$portable$5$countdown: ((asm#scratch#85#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#85#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_register_contract_bound_through_call_result_rejected rejected 1143ms expected @ccdb99ca2214
 	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `forward(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/facts/checked_asm_register_contract_bound_through_const_name_rejected rejected 1584ms expected @ccdb99ca2214
@@ -6970,20 +6962,20 @@ fail/facts/component_scalar_lending_through_target_body_rejected rejected 8139ms
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/facts/compound_index_guard_through_call_result_rejected rejected 4862ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_const_name_rejected rejected 4568ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_const_name_rejected rejected 3720ms expected @7055dc5319e1
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_field_rejected rejected 4713ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_field_rejected rejected 3744ms expected @7055dc5319e1
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_local_rejected rejected 4708ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_local_rejected rejected 3680ms expected @7055dc5319e1
 	cannot prove index `b * 20 + a` is within length 200 in put::entry
 fail/facts/compound_index_guard_through_match_join_rejected rejected 4700ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
 	cannot prove index `main.b * 20 + second_a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_other_machine_rejected rejected 4700ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_other_machine_rejected rejected 4344ms expected @7055dc5319e1
 	cannot prove index `main.b * 20 + main.a` is within length 200 in store::entry
-fail/facts/compound_index_guard_through_other_state_rejected rejected 4715ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_other_state_rejected rejected 3718ms expected @7055dc5319e1
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_parameter_rejected rejected 4706ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_parameter_rejected rejected 3743ms expected @7055dc5319e1
 	cannot prove index `b * 20 + a` is within length 200 in store::entry
 fail/facts/compound_index_guard_through_target_body_rejected rejected 4675ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
@@ -8241,63 +8233,63 @@ fail/facts/finite_family_const_roster/parameter rejected 310ms expected @64d08af
 	callable expression argument does not name a const or value declaration
 fail/facts/finite_family_const_roster/target_body rejected 334ms expected @64d08af188aa
 	callable expression argument does not name a const or value declaration
-fail/facts/finite_family_exclusive_result/call_result rejected 3582ms expected @46cad3817d2f
+fail/facts/finite_family_exclusive_result/call_result rejected 3582ms expected @e2e2bad96355
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/const_name rejected 3430ms expected @46cad3817d2f
+fail/facts/finite_family_exclusive_result/const_name rejected 3430ms expected @e2e2bad96355
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/field rejected 4021ms expected @46cad3817d2f
+fail/facts/finite_family_exclusive_result/field rejected 4021ms expected @e2e2bad96355
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/local rejected 3729ms expected @46cad3817d2f
+fail/facts/finite_family_exclusive_result/local rejected 3729ms expected @0795de340570
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/match_join rejected 3632ms expected @46cad3817d2f
+fail/facts/finite_family_exclusive_result/match_join rejected 3632ms expected @e2e2bad96355
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/other_machine rejected 4153ms expected @46cad3817d2f
+fail/facts/finite_family_exclusive_result/other_machine rejected 4153ms expected @e2e2bad96355
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/other_state rejected 3426ms expected @46cad3817d2f
+fail/facts/finite_family_exclusive_result/other_state rejected 3426ms expected @e2e2bad96355
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/parameter rejected 3786ms expected @46cad3817d2f
+fail/facts/finite_family_exclusive_result/parameter rejected 3786ms expected @e2e2bad96355
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/target_body rejected 3309ms expected @46cad3817d2f
+fail/facts/finite_family_exclusive_result/target_body rejected 3309ms expected @e2e2bad96355
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
@@ -8358,39 +8350,39 @@ fail/facts/finite_family_owned_field/target_body rejected 5473ms expected @17be1
 	cannot prove ensures contract for exit from ReadField::read at statement 2: result >= 100
 	cannot prove ensures contract for exit from ReadField::read$specialized$ef379b294b035803$0$2723 at statement 2: result >= 100
 	cannot prove ensures contract for exit from ReadField::read$specialized$d45a4b2c8f81ae01$1$2728 at statement 2: result >= 100
-fail/facts/finite_family_returned_descriptor/call_result rejected 5568ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/call_result rejected 5568ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/const_name rejected 5429ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/const_name rejected 5429ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/field rejected 5354ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/field rejected 5354ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/local rejected 5302ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/local rejected 5302ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/match_join rejected 5323ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/match_join rejected 5323ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/other_machine rejected 5305ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/other_machine rejected 5305ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/other_state rejected 5320ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/other_state rejected 5320ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/parameter rejected 5323ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/parameter rejected 5323ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_returned_descriptor/target_body rejected 5335ms expected @9ad31e5e8715
+fail/facts/finite_family_returned_descriptor/target_body rejected 5335ms expected @f37c9cfc83e2
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
@@ -12858,112 +12850,114 @@ fail/facts/slice_view_layout_geometry_through_parameter_rejected rejected 4700ms
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/slice_view_layout_geometry_through_target_body_rejected rejected 4701ms expected @2e05cd243a72
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/source_indexed_binary_tree_child_swap_rejected rejected 583ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `joined` state `joined::entry`
-fail/facts/source_indexed_binary_tree_distinct_rejected rejected 819ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `joined` state `joined::entry`
-fail/facts/source_indexed_binary_tree_empty_children_rejected rejected 714ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `joined` state `joined::entry`
-fail/facts/source_indexed_binary_tree_irrelevant_scalar_scope_rejected rejected 246ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`
-fail/facts/source_indexed_binary_tree_through_call_result_rejected rejected 585ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced` state `produced::entry`
-fail/facts/source_indexed_binary_tree_through_const_name_rejected rejected 769ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_binary_tree_through_field_rejected rejected 731ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_binary_tree_through_local_rejected rejected 813ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_binary_tree_through_match_join_rejected rejected 867ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`
-fail/facts/source_indexed_binary_tree_through_other_machine_rejected rejected 514ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_binary_tree_through_other_state_rejected rejected 627ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_binary_tree_through_parameter_rejected rejected 627ms unexpected @ccdb99ca2214
-	generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_binary_tree_through_target_body_rejected rejected 792ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced::windows_x86_64` state `produced::windows_x86_64::entry`
+fail/facts/source_indexed_binary_tree_child_swap_rejected rejected 1028ms expected @7eee0bd20c4b
+	source recursive child `left` does not inhabit its declared indexed application `Tree<left_nodes, left_total>`; actual application is `Tree<const <expression>, const <expression>>`
+fail/facts/source_indexed_binary_tree_distinct_rejected rejected 1062ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_empty_children_rejected rejected 1031ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_irrelevant_scalar_scope_rejected rejected 1016ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_call_result_rejected rejected 1012ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_const_name_rejected rejected 994ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_field_rejected rejected 1013ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_local_rejected rejected 1010ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_match_join_rejected rejected 1010ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_other_machine_rejected rejected 994ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_other_state_rejected rejected 1003ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_parameter_rejected rejected 964ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_target_body_rejected rejected 975ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_family_authored_terminating_state_cycle rejected 1021ms unexpected @ccdb99ca2214
 	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_changed_capture rejected 735ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+fail/facts/source_indexed_family_changed_capture rejected 1004ms expected @7eee0bd20c4b
+	invalid mathematical application `retain(other)`: mathematical argument does not preserve its declared carrier and policy
 fail/facts/source_indexed_family_cited_requires_unmet rejected 802ms unexpected @ccdb99ca2214
 	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_constructor_head_false rejected 665ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_constructor_index_false rejected 684ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_constructor_parent_index_false rejected 790ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_forwarded_parameter_rejected rejected 677ms unexpected @ccdb99ca2214
-	generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+fail/facts/source_indexed_family_constructor_head_false rejected 912ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_constructor_index_false rejected 1038ms expected @7eee0bd20c4b
+	source recursive child `tail` does not inhabit its declared indexed application `Vector<previous, previous_total>`; actual application is `Vector<const <expression>, const <expression>>`
+fail/facts/source_indexed_family_constructor_parent_index_false rejected 942ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_forwarded_parameter_rejected rejected 935ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_family_illegal_runtime_elimination rejected 695ms unexpected @ccdb99ca2214
 	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 fail/facts/source_indexed_family_insufficient_consumer_bound rejected 710ms unexpected @ccdb99ca2214
 	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_missing_head_bound rejected 869ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_open_constructor_missing_sum_premise rejected 640ms unexpected @ccdb99ca2214
-	generic machine `consume_open` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_open_constructor_rejected rejected 790ms unexpected @ccdb99ca2214
-	generic machine `consume_open` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_open_constructor_wrong_child rejected 1177ms unexpected @ccdb99ca2214
-	generic machine `consume_open` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_root_constructor_rejected rejected 640ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_runtime_result_contract rejected 586ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+fail/facts/source_indexed_family_missing_head_bound rejected 968ms expected @7eee0bd20c4b
+	source induction case has no checked derivation from its exact constraints and child hypotheses
+fail/facts/source_indexed_family_open_constructor_missing_sum_premise rejected 1224ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_open_constructor_rejected rejected 1370ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_open_constructor_wrong_child rejected 1104ms expected @7eee0bd20c4b
+	source recursive child `tail` does not inhabit its declared indexed application `Vector<previous, previous_total>`; actual application is `Vector<Length, Total>`
+fail/facts/source_indexed_family_root_constructor_rejected rejected 935ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_runtime_result_contract rejected 4184ms expected @7eee0bd20c4b
+	cannot prove ensures contract for exit from open_total at statement 2: result <= 6
+	cannot prove ensures contract for exit from open_total$specialized$126450add920ba7b$0$2715 at statement 2: result <= 6
 fail/facts/source_indexed_family_same_rank_recursion rejected 582ms unexpected @ccdb99ca2214
 	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_through_call_result_rejected rejected 703ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced` state `produced::entry`
-fail/facts/source_indexed_family_through_const_name_rejected rejected 928ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_through_field_rejected rejected 658ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_through_local_rejected rejected 885ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_through_match_join_rejected rejected 957ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`
-fail/facts/source_indexed_family_through_other_machine_rejected rejected 893ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_through_other_state_rejected rejected 832ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_through_parameter_rejected rejected 954ms unexpected @ccdb99ca2214
-	generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_through_target_body_rejected rejected 747ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced::windows_x86_64` state `produced::windows_x86_64::entry`
+fail/facts/source_indexed_family_through_call_result_rejected rejected 902ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_const_name_rejected rejected 993ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_field_rejected rejected 946ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_local_rejected rejected 902ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_match_join_rejected rejected 906ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_other_machine_rejected rejected 968ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_other_state_rejected rejected 999ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_parameter_rejected rejected 958ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_target_body_rejected rejected 933ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_family_ungranted_family_assumption rejected 864ms unexpected @ccdb99ca2214
 	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_wrong_invariant rejected 658ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_family_wrong_payload_carrier rejected 715ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+fail/facts/source_indexed_family_wrong_invariant rejected 949ms expected @7eee0bd20c4b
+	source induction case has no checked derivation from its exact constraints and child hypotheses
+fail/facts/source_indexed_family_wrong_payload_carrier rejected 1391ms expected @7eee0bd20c4b
+	literal `7` is suffixed `i8` but lands in a `u64` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/facts/source_indexed_family_wrong_recursion_rank rejected 1027ms unexpected @ccdb99ca2214
 	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_type_parameter_head_rejected rejected 1019ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_type_parameter_through_call_result_rejected rejected 713ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced` state `produced::entry`
-fail/facts/source_indexed_type_parameter_through_const_name_rejected rejected 589ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_type_parameter_through_field_rejected rejected 900ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_type_parameter_through_local_rejected rejected 777ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_type_parameter_through_match_join_rejected rejected 1059ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`
-fail/facts/source_indexed_type_parameter_through_other_machine_rejected rejected 950ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_type_parameter_through_other_state_rejected rejected 824ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_type_parameter_through_parameter_rejected rejected 609ms unexpected @ccdb99ca2214
-	generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_type_parameter_through_target_body_rejected rejected 858ms unexpected @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced::windows_x86_64` state `produced::windows_x86_64::entry`
-fail/facts/source_indexed_type_parameter_wrong_type_fiber_rejected rejected 655ms unexpected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+fail/facts/source_indexed_type_parameter_head_rejected rejected 1395ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_call_result_rejected rejected 1153ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_const_name_rejected rejected 1191ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_field_rejected rejected 1172ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_local_rejected rejected 1225ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_match_join_rejected rejected 1158ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_other_machine_rejected rejected 1212ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_other_state_rejected rejected 1190ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_parameter_rejected rejected 1310ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_target_body_rejected rejected 1233ms expected @7eee0bd20c4b
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_wrong_type_fiber_rejected rejected 1651ms expected @7eee0bd20c4b
+	argument `evidence` for state `entry` expects `Vector<u64, 1, 7>`, got `named value`; expected carrier `generic(name(nominal\\(package-owner\\(32:37b5e21c5c143e8a141f43965e40f738560cfc1fa889e5ce1ed6c08ae3d6c422\\)\\,path\\(Vector\\)\\)),named(name(u64)),integer(1),integer(7))`, declared place carrier `generic(name(nominal\\(package-owner\\(32:37b5e21c5c143e8a141f43965e40f738560cfc1fa889e5ce1ed6c08ae3d6c422\\)\\,path\\(Vector\\)\\)),named(name(bool)),integer(1),integer(7))`
+	machine `vector_bound$specialized$8f1e221890b958c4$0$2705` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)
 fail/facts/source_indexed_type_parameter_wrong_value_fiber_rejected rejected 895ms expected @ccdb99ca2214
 	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 fail/facts/sret_aggregate_return_bound_through_call_result_rejected rejected 3622ms expected @911f6617ba9e
@@ -14066,8 +14060,8 @@ fail/float/authored_heterogeneous_float_operator_requires rejected 1882ms unexpe
 	implicit domain weakening in argument `right` for state `Float::subtract::subtract` drops `Measured`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/float/boundary_call_guard_wrong_argument rejected 9628ms expected @ccdb99ca2214
 	argument `value` for state `from_i32` expects `i32`, got `float literal`
-fail/float/boundary_call_guard_wrong_format rejected 8745ms unexpected @ccdb99ca2214
-	cannot determine the dispatch subject storage type in `Main::main::main`
+fail/float/boundary_call_guard_wrong_format rejected 59539ms expected @e9460cb64926
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
 fail/float/builtin_operand_borrow_conflict_rejected rejected 41596ms expected @1e29a538216e
 	state `abs_f64` receives `main.values` as both mutable and read-only
 	state `pair` receives `main.values` as both mutable and read-only
@@ -14142,8 +14136,8 @@ fail/float/exact_integer_to_float_all_policies_requires_denotation rejected 1843
 	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
 fail/float/exclusive_float_range_endpoint_rejected rejected 4538ms expected @ccdb99ca2214
 	cannot prove requires contract for call accept from Main::main: 1.5 >= 0.0 && 1.5 < 1.5 (needs fact `value >= 0.0 && value < 1.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-fail/float/false_ieee_ordered_guards_admit_nan rejected 2261ms unexpected @ccdb99ca2214
-	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/false_ieee_ordered_guards_admit_nan rejected 2093ms expected @b12da1b03c39
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/field_range_conversion_after_invalid_write rejected 4985ms expected @f78c2623a68c
 	cannot complete a call at statement 2 in machine `convert` state `entry`: this write left the `requires` facts of `sample` (data `Sample`) unproved; restore them first
 fail/float/finite_constructor_requires_operand_proof rejected 1976ms expected @ccdb99ca2214
@@ -14205,10 +14199,10 @@ fail/float/ieee_collection_other_element_write_retires_guard rejected 2367ms exp
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/ieee_collection_write_retires_guard rejected 2246ms expected @085f035b8b6e+wt
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-fail/float/indexed_ieee_i64_upper_ceiling_rejected rejected 2275ms unexpected @ccdb99ca2214
-	machine `convert` state `entry`: value call `I64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-fail/float/indexed_ieee_u64_upper_ceiling_rejected rejected 2162ms unexpected @ccdb99ca2214
-	machine `convert` state `entry`: value call `U64.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/indexed_ieee_i64_upper_ceiling_rejected rejected 2093ms expected @b12da1b03c39
+	machine `convert` state `entry` cannot prove unqualified `I64::from_f64` operand `values[index]` is finite and truncates into `i64`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i64 in Trapping` or `i64 in Saturating`
+fail/float/indexed_ieee_u64_upper_ceiling_rejected rejected 1966ms expected @b12da1b03c39
+	machine `convert` state `entry` cannot prove unqualified `U64::from_f64` operand `values[index]` is finite and truncates into `u64`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `u64 in Trapping` or `u64 in Saturating`
 fail/float/inequality_premise_allows_nan rejected 4467ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from keep at statement 0: result == value
 fail/float/integer_conversion_lookalike rejected 4353ms expected @ccdb99ca2214
@@ -14348,8 +14342,8 @@ fail/float/result_predicate_stale_or_wrong_value rejected 5259ms expected @0d0c1
 	cannot prove requires contract for call accept from wrong_value: 0.1 == 3.75 (needs fact `value == 3.75` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/same_carrier_cast_cannot_mint_finite rejected 1908ms expected @ccdb99ca2214
 	cannot prove initializer `identity(value) as f64` satisfies `finite` for the bounded value of machine `invalid` state `entry` local `finite`
-fail/float/saved_ieee_conversion_guard_after_write rejected 2028ms unexpected @ccdb99ca2214
-	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/saved_ieee_conversion_guard_after_write rejected 1965ms expected @b12da1b03c39
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `current` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/saved_ieee_guard_copy_after_write rejected 6035ms expected @95f6bd2b4430
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `copied` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/specification_index_reference_selector_unbounded rejected 4743ms expected @e8827ad1dd64+wt
@@ -15783,6 +15777,12 @@ fail/memory/resident_result_requires_execution_contract rejected 1333ms expected
 fail/memory/resident_transfer_cast_forgery rejected 2632ms expected @ccdb99ca2214
 	`as ... in Resident` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove default-domain field requirement for return from forge, state entry, at statement 0: storage requires Resident
+fail/memory/typed_run_backing_geometry rejected 6920ms expected @c35d90e77142
+	cannot prove requires contract for call extract from allocated: (__transition_subject#183.view as Run<WordPlacement, Word> ).storage.length != backing_length (needs fact `run.storage.length != backing_length` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/memory/typed_run_empty_forgery rejected 5035ms expected @2b6f0be25ff2
+	cannot prove default-domain field requirement for return from counterfeit, state entry, at statement 1: result requires Live
+fail/memory/typed_run_empty_nonempty_backing rejected 5009ms expected @2b6f0be25ff2
+	cannot prove requires contract for call empty from counterfeit: storage.length == 0 (needs fact `storage.length == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/memory/vacant_transfer_checked_adapter_forgery rejected 2567ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Vacant
 	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Granted
@@ -17685,8 +17685,7 @@ fail/relevance/erased_mutable_parameter rejected 838ms expected @ccdb99ca2214
 	machine `Main::record::record` erased parameter `x` cannot be `mut`; an erased binding owns no runtime storage or custody
 fail/relevance/erased_parameter_runtime_read rejected 903ms expected @ccdb99ca2214
 	erased parameter `bound` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
-fail/relevance/erased_reference_distinct_subject rejected 1937ms expected regressed-from:checked @ccdb99ca2214
-	state `keep` receives `right` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+fail/relevance/erased_reference_distinct_subject rejected 2745ms expected regressed-from:checked @4710c3c8595b
 	cannot prove requires contract for call keep from forward: right == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/relevance/erased_reference_mutable_formal rejected 748ms expected @ccdb99ca2214
 	machine `keep::entry` erased parameter `witness` cannot be `mut`; an erased binding owns no runtime storage or custody
@@ -18770,6 +18769,8 @@ fail/traits/external_row_does_not_capture_map_region rejected 799ms expected @cc
 	machine `read` state `entry` parameter `context` uses undeclared lifetime `'storage'; declare it in the owner's generic parameter list
 fail/traits/family_carrier_pack_dependent_storage_rejected rejected 6022ms expected @48bf716629cb+wt
 	machine `hold_any` state `entry` does not satisfy trait `Holding` machine `hold`: conformance borrow contract: unimplemented: callable input region frontier is incomplete
+fail/traits/finite_family_case_view_nonmember rejected 4176ms expected @f37c9cfc83e2
+	cannot prove requires contract for call check from main: 24 == 16 || 24 == 32 (needs fact `width == 16 || width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/finite_family_const_forwarding rejected 2014ms expected @a50253a693d8
 	cannot prove requires contract for call dyn Family::row from static_forward: Width == 16 && Lanes == 1 || Width == 32 && Lanes == 2 (needs fact `Width == 16 && Lanes == 1 || Width == 32 && Lanes == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/finite_family_const_missing_row rejected 515ms expected @a50253a693d8
@@ -19212,8 +19213,7 @@ pass/asm/checked_label_edges_exit checked 4130ms check-target:macos_arm64 @ccdb9
 pass/asm/checked_label_reverse_local_exit checked 3960ms check-target:macos_arm64 @ccdb99ca2214
 pass/asm/checked_label_specialization_exit checked 4140ms check-target:macos_arm64 @ccdb99ca2214
 pass/asm/checked_label_transition_exit checked 3279ms check-target:macos_arm64 @ccdb99ca2214
-pass/asm/entry_zero_branch_conditional_exit rejected 3250ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: asm#scratch#21#eax == 0 (needs fact `asm#scratch#21#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/asm/entry_zero_branch_conditional_exit checked 4050ms check-target:linux_x86_64 @fc51486b710a
 pass/asm/finite_prefix_preserves_model_exit checked 3863ms check-target:macos_arm64 @ccdb99ca2214
 pass/asm/instruction_disposition_native rejected 6847ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @0af7c594a1c0
 	cannot prove ensures contract for exit from write_eoi_by_choice at statement 1: proposition:fact:model_specific_written(2059,0)
@@ -22182,25 +22182,15 @@ pass/facts/checked_asm_nominal_predicate_through_other_machine_exit checked 6085
 pass/facts/checked_asm_nominal_predicate_through_other_state_exit checked 5996ms check-target:macos_arm64 @ceec2d4e7d8b
 pass/facts/checked_asm_nominal_predicate_through_parameter_exit checked 5897ms check-target:macos_arm64 @ceec2d4e7d8b
 pass/facts/checked_asm_nominal_predicate_through_target_body_exit checked 14464ms check-target:macos_arm64 @ceec2d4e7d8b
-pass/facts/checked_asm_rank_decrease_through_call_result_exit rejected 2366ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-pass/facts/checked_asm_rank_decrease_through_const_name_exit rejected 2428ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$4$entry
-pass/facts/checked_asm_rank_decrease_through_field_exit rejected 2712ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-pass/facts/checked_asm_rank_decrease_through_local_exit rejected 3009ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine main$assembly$portable$5$entry
-pass/facts/checked_asm_rank_decrease_through_match_join_exit rejected 2967ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$5$entry
-pass/facts/checked_asm_rank_decrease_through_other_machine_exit rejected 2729ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$4$entry
-pass/facts/checked_asm_rank_decrease_through_other_state_exit checked 3190ms check-target:linux_x86_64 @ccdb99ca2214
-pass/facts/checked_asm_rank_decrease_through_parameter_exit rejected 2631ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine countdown$assembly$portable$4$entry
-pass/facts/checked_asm_rank_decrease_through_target_body_exit rejected 3017ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine countdown$assembly$linux_x86_64$4$entry
-	cannot prove the `terminates by` ranking for machine countdown$assembly$windows_x86_64$4$entry
-	cannot prove the `terminates by` ranking for machine countdown$assembly$macos_x86_64$4$entry
+pass/facts/checked_asm_rank_decrease_through_call_result_exit checked 5866ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_const_name_exit checked 6600ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_field_exit checked 6728ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_local_exit checked 6553ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_match_join_exit checked 5909ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_other_machine_exit checked 6668ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_other_state_exit checked 5908ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_parameter_exit checked 6827ms check-target:linux_x86_64 @d3e0d00aad47
+pass/facts/checked_asm_rank_decrease_through_target_body_exit checked 5824ms check-target:linux_x86_64 @d3e0d00aad47
 pass/facts/checked_asm_register_contract_bound_through_call_result_exit checked 3484ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/checked_asm_register_contract_bound_through_const_name_exit checked 3337ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/checked_asm_register_contract_bound_through_field_exit checked 4439ms check-target:macos_arm64 @ccdb99ca2214
@@ -22777,15 +22767,15 @@ pass/facts/finite_family_const_roster/other_machine checked 2474ms check-target:
 pass/facts/finite_family_const_roster/other_state checked 2454ms check-target:macos_arm64 @64d08af188aa
 pass/facts/finite_family_const_roster/parameter checked 2441ms check-target:macos_arm64 @64d08af188aa
 pass/facts/finite_family_const_roster/target_body checked 2554ms check-target:macos_arm64 @64d08af188aa
-pass/facts/finite_family_exclusive_result/call_result checked 4350ms check-target:macos_arm64 @46cad3817d2f
-pass/facts/finite_family_exclusive_result/const_name checked 4949ms check-target:macos_arm64 @46cad3817d2f
-pass/facts/finite_family_exclusive_result/field checked 4425ms check-target:macos_arm64 @46cad3817d2f
-pass/facts/finite_family_exclusive_result/local checked 6032ms check-target:macos_arm64 @46cad3817d2f
-pass/facts/finite_family_exclusive_result/match_join checked 5412ms check-target:macos_arm64 @46cad3817d2f
-pass/facts/finite_family_exclusive_result/other_machine checked 4961ms check-target:macos_arm64 @46cad3817d2f
-pass/facts/finite_family_exclusive_result/other_state checked 5336ms check-target:macos_arm64 @46cad3817d2f
-pass/facts/finite_family_exclusive_result/parameter checked 5528ms check-target:macos_arm64 @46cad3817d2f
-pass/facts/finite_family_exclusive_result/target_body checked 4887ms check-target:macos_arm64 @46cad3817d2f
+pass/facts/finite_family_exclusive_result/call_result checked 4350ms check-target:macos_arm64 @e2e2bad96355
+pass/facts/finite_family_exclusive_result/const_name checked 4949ms check-target:macos_arm64 @e2e2bad96355
+pass/facts/finite_family_exclusive_result/field checked 4425ms check-target:macos_arm64 @e2e2bad96355
+pass/facts/finite_family_exclusive_result/local checked 6032ms check-target:macos_arm64 @0795de340570
+pass/facts/finite_family_exclusive_result/match_join checked 5412ms check-target:macos_arm64 @e2e2bad96355
+pass/facts/finite_family_exclusive_result/other_machine checked 4961ms check-target:macos_arm64 @e2e2bad96355
+pass/facts/finite_family_exclusive_result/other_state checked 5336ms check-target:macos_arm64 @e2e2bad96355
+pass/facts/finite_family_exclusive_result/parameter checked 5528ms check-target:macos_arm64 @e2e2bad96355
+pass/facts/finite_family_exclusive_result/target_body checked 4887ms check-target:macos_arm64 @e2e2bad96355
 pass/facts/finite_family_input_index/call_result checked 15566ms check-target:macos_arm64 @4148c7ab0c1e
 pass/facts/finite_family_input_index/const_name checked 17162ms check-target:macos_arm64 @4148c7ab0c1e
 pass/facts/finite_family_input_index/field checked 15732ms check-target:macos_arm64 @4148c7ab0c1e
@@ -22804,15 +22794,15 @@ pass/facts/finite_family_owned_field/other_machine checked 10031ms check-target:
 pass/facts/finite_family_owned_field/other_state checked 10045ms check-target:macos_arm64 @4969443addd0
 pass/facts/finite_family_owned_field/parameter checked 12194ms check-target:macos_arm64 @4969443addd0
 pass/facts/finite_family_owned_field/target_body checked 7332ms check-target:macos_arm64 @17be13e1a9ff
-pass/facts/finite_family_returned_descriptor/call_result checked 6985ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/const_name checked 7112ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/field checked 7042ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/local checked 7024ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/match_join checked 6992ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/other_machine checked 6964ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/other_state checked 6979ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/parameter checked 6993ms check-target:macos_arm64 @9ad31e5e8715
-pass/facts/finite_family_returned_descriptor/target_body checked 7080ms check-target:macos_arm64 @9ad31e5e8715
+pass/facts/finite_family_returned_descriptor/call_result checked 6985ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/const_name checked 7112ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/field checked 7042ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/local checked 7024ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/match_join checked 6992ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/other_machine checked 6964ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/other_state checked 6979ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/parameter checked 6993ms check-target:macos_arm64 @f37c9cfc83e2
+pass/facts/finite_family_returned_descriptor/target_body checked 7080ms check-target:macos_arm64 @f37c9cfc83e2
 pass/facts/finite_family_static_inline_result/call_result checked 5117ms check-target:macos_arm64 @ddc17fff6a3c
 pass/facts/finite_family_static_inline_result/const_name checked 4947ms check-target:macos_arm64 @ddc17fff6a3c
 pass/facts/finite_family_static_inline_result/field checked 4957ms check-target:macos_arm64 @ddc17fff6a3c
@@ -24927,91 +24917,44 @@ pass/facts/slice_view_layout_geometry_through_other_state_exit rejected 1989ms c
 	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 pass/facts/slice_view_layout_geometry_through_parameter_exit checked 3888ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/slice_view_layout_geometry_through_target_body_exit checked 4009ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/source_indexed_binary_tree_distinct_exit rejected 1407ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `joined` state `joined::entry`
-	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `joined` state `joined::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 1944, end: 1951 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_binary_tree_distinct"), path: "tests/omega/pass/facts/source_indexed_binary_tree_distinct_exit/main.omg", line: 39, column: 5 }) }]
-pass/facts/source_indexed_binary_tree_empty_children_exit rejected 810ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `joined` state `joined::entry`
-pass/facts/source_indexed_binary_tree_irrelevant_scalar_scope_exit rejected 1594ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`
-	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2985, end: 2995 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_binary_tree_match_join"), path: "tests/omega/pass/facts/source_indexed_binary_tree_irrelevant_scalar_scope_exit/main.omg", line: 60, column: 22 }) }]
-pass/facts/source_indexed_binary_tree_through_call_result_exit rejected 679ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced` state `produced::entry`
-pass/facts/source_indexed_binary_tree_through_const_name_exit rejected 597ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_binary_tree_through_field_exit rejected 576ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_binary_tree_through_local_exit rejected 876ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_binary_tree_through_match_join_exit rejected 584ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`
-pass/facts/source_indexed_binary_tree_through_other_machine_exit rejected 692ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_binary_tree_through_other_state_exit rejected 563ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_binary_tree_through_parameter_exit rejected 1279ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2944, end: 2961 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_binary_tree_parameter"), path: "tests/omega/pass/facts/source_indexed_binary_tree_through_parameter_exit/main.omg", line: 58, column: 26 }) }]
-pass/facts/source_indexed_binary_tree_through_target_body_exit rejected 678ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced::windows_x86_64` state `produced::windows_x86_64::entry`
-pass/facts/source_indexed_family rejected 1493ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 1765, end: 1772 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_family/main.omg", line: 40, column: 23 }) }]
-pass/facts/source_indexed_family_alpha_positive rejected 828ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `consume` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_family_capture_roster_positive rejected 611ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_family_forwarded_parameter_exit rejected 1438ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2309, end: 2326 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_family_forwarded_parameter_exit/main.omg", line: 55, column: 26 }) }]
-pass/facts/source_indexed_family_open_constructor_exit rejected 696ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `consume_open` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_family_recursive_index_positive rejected 627ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_family_through_call_result_exit rejected 593ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced` state `produced::entry`
-pass/facts/source_indexed_family_through_const_name_exit rejected 930ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_family_through_field_exit rejected 589ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_family_through_local_exit rejected 693ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_family_through_match_join_exit rejected 770ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`
-pass/facts/source_indexed_family_through_other_machine_exit rejected 597ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_family_through_other_state_exit rejected 612ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_family_through_parameter_exit rejected 1732ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2145, end: 2162 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_family_through_parameter_exit/main.omg", line: 50, column: 26 }) }]
-pass/facts/source_indexed_family_through_target_body_exit rejected 928ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced::windows_x86_64` state `produced::windows_x86_64::entry`
-pass/facts/source_indexed_type_parameter_exit rejected 1687ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 1719, end: 1726 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_type_parameter_baseline"), path: "tests/omega/pass/facts/source_indexed_type_parameter_exit/main.omg", line: 38, column: 23 }) }]
-pass/facts/source_indexed_type_parameter_through_call_result_exit rejected 1101ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced` state `produced::entry`
-pass/facts/source_indexed_type_parameter_through_const_name_exit rejected 774ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_type_parameter_through_field_exit rejected 675ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_type_parameter_through_local_exit rejected 740ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_type_parameter_through_match_join_exit rejected 1630ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`
-	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `join_total` state `join_total::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2244, end: 2254 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_type_parameter_through_match_join_exit/main.omg", line: 51, column: 43 }) }]
-pass/facts/source_indexed_type_parameter_through_other_machine_exit rejected 718ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_type_parameter_through_other_state_exit rejected 1202ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-pass/facts/source_indexed_type_parameter_through_parameter_exit rejected 1495ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-	inspection main admission: [Diagnostic { severity: Error, message: "generic machine `through_parameter` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2183, end: 2200 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("source_indexed_family"), path: "tests/omega/pass/facts/source_indexed_type_parameter_through_parameter_exit/main.omg", line: 49, column: 26 }) }]
-pass/facts/source_indexed_type_parameter_through_target_body_exit rejected 735ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `open_total` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `produced::windows_x86_64` state `produced::windows_x86_64::entry`
-pass/facts/source_indexed_type_parameter_u64_payload_exit rejected 761ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+pass/facts/source_indexed_binary_tree_distinct_exit checked 11326ms check-target:macos_arm64 terminal-inspections:match @6b26c447f83
+pass/facts/source_indexed_binary_tree_empty_children_exit checked 6072ms check-target:macos_arm64 @b7747e5d2569
+pass/facts/source_indexed_binary_tree_irrelevant_scalar_scope_exit checked 11627ms check-target:macos_arm64 terminal-inspections:match @6b26c447f83
+pass/facts/source_indexed_binary_tree_through_call_result_exit checked 5909ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_binary_tree_through_const_name_exit checked 5753ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_binary_tree_through_field_exit checked 5790ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_binary_tree_through_local_exit checked 5774ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_binary_tree_through_match_join_exit checked 5971ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_binary_tree_through_other_machine_exit checked 5843ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_binary_tree_through_other_state_exit checked 5852ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_binary_tree_through_parameter_exit checked 11841ms check-target:macos_arm64 terminal-inspections:match @6b26c447f83
+pass/facts/source_indexed_binary_tree_through_target_body_exit checked 6075ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_family checked 11106ms check-target:macos_arm64 terminal-inspections:match @48ba169b5da
+pass/facts/source_indexed_family_alpha_positive checked 5198ms check-target:macos_arm64 @efe09d463c38
+pass/facts/source_indexed_family_capture_roster_positive checked 5501ms check-target:macos_arm64 @efe09d463c38
+pass/facts/source_indexed_family_forwarded_parameter_exit checked 10990ms check-target:macos_arm64 terminal-inspections:match @6b26c447f83
+pass/facts/source_indexed_family_open_constructor_exit checked 5224ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_family_recursive_index_positive checked 5326ms check-target:macos_arm64 @efe09d463c38
+pass/facts/source_indexed_family_through_call_result_exit checked 5357ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_family_through_const_name_exit checked 5353ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_family_through_field_exit checked 5412ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_family_through_local_exit checked 5302ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_family_through_match_join_exit checked 5590ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_family_through_other_machine_exit checked 5488ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_family_through_other_state_exit checked 5635ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_family_through_parameter_exit checked 11366ms check-target:macos_arm64 terminal-inspections:match @6b26c447f83
+pass/facts/source_indexed_family_through_target_body_exit checked 5415ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_type_parameter_exit checked 11221ms check-target:macos_arm64 terminal-inspections:match @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_call_result_exit checked 5815ms check-target:macos_arm64 @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_const_name_exit checked 5581ms check-target:macos_arm64 @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_field_exit checked 5551ms check-target:macos_arm64 @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_local_exit checked 5487ms check-target:macos_arm64 @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_match_join_exit checked 11371ms check-target:macos_arm64 terminal-inspections:match @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_other_machine_exit checked 5634ms check-target:macos_arm64 @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_other_state_exit checked 5531ms check-target:macos_arm64 @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_parameter_exit checked 11316ms check-target:macos_arm64 terminal-inspections:match @6f9181f2497
+pass/facts/source_indexed_type_parameter_through_target_body_exit checked 5596ms check-target:macos_arm64 @6f9181f2497
+pass/facts/source_indexed_type_parameter_u64_payload_exit checked 5443ms check-target:macos_arm64 @6f9181f2497
 pass/facts/sret_aggregate_return_bound_through_call_result_exit checked 6236ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/sret_aggregate_return_bound_through_const_name_exit checked 6200ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/sret_aggregate_return_bound_through_field_exit checked 7333ms check-target:macos_arm64 @911f6617ba9e
@@ -25185,8 +25128,8 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit checked 359
 pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit checked 4669ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/typed_run_nested_owned checked 6936ms @9a26074461a7
-pass/facts/typed_run_singleton checked 16389ms check-target:macos_arm64 @9a26074461a7
-pass/facts/typed_run_singleton_rejection checked 15738ms check-target:macos_arm64 @9a26074461a7
+pass/facts/typed_run_singleton checked 16584ms check-target:macos_arm64 @2b6f0be25ff2
+pass/facts/typed_run_singleton_rejection checked 15499ms check-target:macos_arm64 @2b6f0be25ff2
 pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 6521ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 6552ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_direct_boundary_call_through_field_exit checked 6444ms check-target:macos_arm64 @d68d95fa82f8
@@ -27335,8 +27278,7 @@ pass/relevance/erased_record_param checked 6857ms @ccdb99ca2214
 pass/relevance/erased_record_parameter_exit checked 12422ms check-target:macos_arm64 @ccdb99ca2214
 pass/relevance/erased_reference_parameter_exit checked 3140ms check-target:linux_x86_64 @ccdb99ca2214
 pass/relevance/erased_reference_qualified_observation_exit checked 3296ms check-target:linux_x86_64 @ccdb99ca2214
-pass/relevance/erased_reference_receiver_field_exit rejected 2840ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "boot", reason: "nested argument schedule has no exact positional signature", gap: None })
+pass/relevance/erased_reference_receiver_field_exit checked 3777ms check-target:linux_x86_64 @817abb3772c3
 pass/relevance/erased_signature_param checked 3361ms @ccdb99ca2214
 pass/relevance/erased_state_param checked 3470ms @ccdb99ca2214
 pass/relevance/erased_subject_call checked 3583ms @ccdb99ca2214
@@ -28021,6 +27963,7 @@ pass/traits/equatable_string_field_equality_exit checked 12265ms check-target:ma
 pass/traits/equatable_synthesis checked 4469ms @ccdb99ca2214
 pass/traits/evidence_member_empty_output_frontier checked 2533ms @ccdb99ca2214
 pass/traits/exact_edge_application_and_invocation_parameters checked 11835ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/finite_family_case_view_result_exit checked 8006ms check-target:macos_arm64 @f37c9cfc83e2
 pass/traits/finite_family_const_forwarding checked 2762ms check-target:macos_arm64 @a50253a693d8
 pass/traits/finite_family_uncalled_target checked 2779ms check-target:macos_arm64 @64d08af188aa
 pass/traits/float_contract_refinement_boundaries_exit checked 5171ms check-target:macos_arm64 @ccdb99ca2214

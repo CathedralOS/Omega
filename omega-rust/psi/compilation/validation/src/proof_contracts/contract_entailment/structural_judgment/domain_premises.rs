@@ -628,7 +628,10 @@ impl StructuralJudge<'_> {
             if !callable.is_valid() || crate::reference_shell(program, *result_type).is_some() {
                 return false;
             }
-            if crate::field_domains::owned_nominal_data_definition(program, *result_type).is_some()
+            // Completed owned calls admit their exact prepared application,
+            // including generic data. Physical layout closure is not needed
+            // to retain the nominal value or its case-conditioned promises.
+            if crate::field_domains::readable_nominal_definition(program, *result_type).is_some()
                 && same_application(*result_type)
                 && value.observation_identity_key().as_ref() == Some(&identity)
             {
@@ -645,8 +648,9 @@ impl StructuralJudge<'_> {
             else {
                 return false;
             };
-            if crate::field_domains::owned_nominal_data_definition(program, projected_type)
-                .is_none()
+            if crate::reference_shell(program, projected_type).is_some()
+                || crate::field_domains::readable_nominal_definition(program, projected_type)
+                    .is_none()
                 || !same_application(projected_type)
             {
                 return false;

@@ -115,6 +115,17 @@ impl<'execution> ConstructorValue<'execution> {
             // home. It needs the same constructor transaction as other payloads.
             return Ok(None);
         }
+        // A fixed `u8` array keeps one byte backing. Rewriting it as scalar
+        // cells would leave that backing on the source identity, so a later
+        // byte view of the stored local finds no payload.
+        if terminal_semantics::fixed_byte_extent(
+            execution.structural_types().values(),
+            self.structural_type(),
+        )
+        .is_some()
+        {
+            return Ok(None);
+        }
         let mut writes = crate::storage::primitive_storage::PrimitiveStorageWrites::default();
         let supported =
             self.visit_scalar_leaves(execution, source, |selectors, scalar_type, value| {

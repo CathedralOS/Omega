@@ -212,7 +212,7 @@ pub fn structural_coordinate_in_type(
                 if selected_case.is_valid() {
                     return None;
                 }
-                let record = program.closed_data_definition(carrier)?;
+                let record = crate::field_domains::readable_nominal_definition(program, carrier)?;
                 let mut cases = program
                     .data_members(record)
                     .iter()
@@ -234,7 +234,10 @@ pub fn structural_coordinate_in_type(
                 endpoint = Endpoint::Root;
             }
             facts::PlaceSegment::Field { symbol } => {
-                let record = program.closed_data_definition(carrier)?;
+                // Generic bodies already have a prepared declaration with
+                // substituted field types. Observing its scalar fields needs
+                // that declaration, not a closed runtime layout.
+                let record = crate::field_domains::readable_nominal_definition(program, carrier)?;
                 let fields = if selected_case.is_valid() {
                     let case = program
                         .data_members(record)

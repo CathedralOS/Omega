@@ -23,6 +23,7 @@ const PROOF_TERM_INVOCATION_FORMAL: u8 = 7;
 // Scalar application lanes have their own tag. Existing erased-only terms keep
 // their canonical bytes; mixed terms explicitly encode every argument kind.
 const PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION: u8 = 8;
+const PROOF_TERM_PROJECTION: u8 = 9;
 
 pub(crate) fn encode_proof_terms(
     writer: &mut Writer,
@@ -134,6 +135,19 @@ fn encode_proof_term(
             writer.u8(PROOF_TERM_SCALAR);
             encode_scalar_term(writer, scalar, depth)?;
         }
+        ProofTerm::Projection {
+            type_identity,
+            formal_position,
+            fields,
+        } => {
+            writer.u8(PROOF_TERM_PROJECTION);
+            writer.string("proof term type identity", type_identity)?;
+            writer.u32(*formal_position);
+            writer.len("proof projection fields", fields.len())?;
+            for field in fields {
+                writer.string("proof projection field", field)?;
+            }
+        }
     }
     Ok(())
 }
@@ -239,6 +253,18 @@ fn decode_proof_term(reader: &mut Reader<'_>, depth: usize) -> Result<ProofTerm,
         }),
         PROOF_TERM_SCALAR => {
             let term = ProofTerm::Scalar(decode_scalar_term(reader, depth)?);
+            term.validate().map_err(CodecError::MalformedProposition)?;
+            Ok(term)
+        }
+        PROOF_TERM_PROJECTION => {
+            let type_identity = reader.string("proof term type identity")?;
+            let formal_position = reader.u32()?;
+            let fields = decode_counted(reader, |reader| reader.string("proof projection field"))?;
+            let term = ProofTerm::Projection {
+                type_identity,
+                formal_position,
+                fields,
+            };
             term.validate().map_err(CodecError::MalformedProposition)?;
             Ok(term)
         }
