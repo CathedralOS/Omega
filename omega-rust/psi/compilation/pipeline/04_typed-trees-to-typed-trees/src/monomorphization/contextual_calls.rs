@@ -57,31 +57,34 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
         if !retained.binding_declaration.is_valid() {
             retained.binding_declaration = declaration;
         }
-        let mut bindings = expressions_of(program)
-            .static_machine_application_bindings(application)
-            .to_vec();
-        for (parameter, actual) in &invocation.types {
-            let value = if program
-                .data_type_parameter_by_symbol(*parameter)
-                .is_some_and(|parameter| parameter.kind.is_const_or_value())
-            {
-                typed_trees::static_applications::StaticMachineBindingValue::Const(*actual)
-            } else {
-                typed_trees::static_applications::StaticMachineBindingValue::Type(*actual)
-            };
-            if let Some(binding) = bindings
-                .iter_mut()
-                .find(|binding| binding.parameter == *parameter)
-            {
-                binding.value = value;
-            } else {
-                bindings.push(typed_trees::static_applications::StaticMachineBinding {
-                    parameter: *parameter,
-                    value,
-                });
+        if retained.binding_declaration == declaration {
+            let mut bindings = expressions_of(program)
+                .static_machine_application_bindings(application)
+                .to_vec();
+            for (parameter, actual) in &invocation.types {
+                let value = if program
+                    .data_type_parameter_by_symbol(*parameter)
+                    .is_some_and(|parameter| parameter.kind.is_const_or_value())
+                {
+                    typed_trees::static_applications::StaticMachineBindingValue::Const(*actual)
+                } else {
+                    typed_trees::static_applications::StaticMachineBindingValue::Type(*actual)
+                };
+                if let Some(binding) = bindings
+                    .iter_mut()
+                    .find(|binding| binding.parameter == *parameter)
+                {
+                    binding.value = value;
+                } else {
+                    bindings.push(typed_trees::static_applications::StaticMachineBinding {
+                        parameter: *parameter,
+                        value,
+                    });
+                }
             }
+            expressions_of_mut(program)
+                .set_static_machine_application_bindings(application, &bindings);
         }
-        expressions_of_mut(program).set_static_machine_application_bindings(application, &bindings);
         let mut selected = invocation.machine_arguments.clone();
         let mut selection_changed = false;
         for (ordinal, (argument, expected)) in selected

@@ -44,12 +44,18 @@ pub fn selected_call_result_domain_matches(
     let lineage = program
         .realization_entry_lineage(target, application)
         .ok_or("result domain comparison lost its realization lineage")?;
+    let authored_application = match site {
+        CallSite::Expression { call, .. } => call.authored_machine_application,
+        CallSite::Statement(call) => call.authored_machine_application,
+        CallSite::TransitionNamed { .. } => Default::default(),
+    };
     let correspondence = CarrierCorrespondence::new(
         program,
         caller,
         dispatch.selection_application,
         application,
         &lineage,
+        authored_application,
     )?;
     let lifetimes = correspondence.result_lifetimes(program)?;
     let scopes = correspondence.result_scopes(&lifetimes);
