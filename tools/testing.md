@@ -261,6 +261,12 @@ not combine it with the other selection inputs. `source_only: true` limits its
 corpus leg to checking while permitting the selected ordinary CLI and sample
 runtime consumers.
 
+For a failure that needs the complete ownership or state plan, set
+`structural_trace=true` to request the existing `OMEGA_STRUCT_TRACE` output.
+Select one fixture: these full traces can be large. This setting is off by
+default. It can also be enabled during an authenticated retained-compiler
+replay without rebuilding the compiler or changing its acceptance rules.
+
 For a focused timing investigation, `phase_profile=true` enables the existing
 compiler phase profiler during consumers. It is off by default and changes no
 compiler acceptance rule or fixture timeout. Completed scopes remain in the job

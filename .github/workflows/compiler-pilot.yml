@@ -20,6 +20,10 @@ on:
         description: Check only the exact fixtures and rejection controls, without repeating runtime observations
         type: boolean
         default: false
+      structural_trace:
+        description: Include full ownership and state traces for a focused diagnostic run
+        type: boolean
+        default: false
       phase_profile:
         description: Record compiler phase timings for a focused attribution run
         type: boolean
@@ -170,6 +174,9 @@ jobs:
       - name: Enable requested compiler phase timings
         if: github.event_name == 'workflow_dispatch' && inputs.phase_profile
         run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_PHASE_PROFILE=1\n')"
+      - name: Enable requested ownership and state tracing
+        if: github.event_name == 'workflow_dispatch' && inputs.structural_trace
+        run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_STRUCT_TRACE=1\n')"
       - name: Optional executable observations
         if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
         env:
