@@ -16,7 +16,7 @@ Run normal `omega update --project <place> --target windows_x86_64`, then `omega
 
 The resumed fixed baseline `7df8b4d92070d83d357849fb2eb77e05c61f36a4` already runs the public local control in both engines, but the retained target-operation audit rejects every place. The repaired call transaction captures result metadata before consuming inputs and retains actual normal-call consumption as ancestry history after returned and stored outputs are installed. Shared copies use the ordinary observed-copy operation, while exclusive transport preserves the original occurrence, backing, access and parents. Original borrowed entry anchors remain available to restoration checks; only their disposal lies outside the local activation. Return-origin validation and the default production pipeline remain unchanged.
 
-Focused producer receipts, complete runtime observations, refusal controls and review are retained in the local claim's ignored `build/slot9-resume-evidence/`. This row establishes explicit once-only consumption; canonical domain-selected automatic cleanup remains separate acceptance of **FINITE-GENERIC-DISPATCH**.
+Focused producer receipts, complete runtime observations, refusal controls and review are retained in the local claim's ignored `build/slot9-resume-evidence/`. Those earlier observations establish explicit once-only consumption. The current automatic-cleanup programs have their own evidence below.
 
 ## Build-owned target-body migration
 
@@ -44,6 +44,10 @@ A focused frozen precursor with the same nominal hook checks with optimized
 compiler `538cc2df6785`, but native lowering refuses the hook's read of its
 stored pointer: `descriptor storage access conflicts with a retained loan`.
 The original lifetime twin still rejects. Its immutable inputs and raw results
-are retained in the owning qualification record. Current nine-place execution
-and the read-specific compiler repair remain pending; earlier explicit-settler
-observations below do not establish automatic cleanup.
+are retained in the owning qualification record. At committed inputs `91805a009c1d`, the ordinary CLI already runs all nine new
+programs with native/Terminal exits 0, and all nine twins reject. The corpus
+checks all nine positives and twins correctly, but its independent target audit
+refuses all nine native cases for that same descriptor-storage reason. This is
+a false rejection in the audit. No successful corpus execution or repaired
+compiler result is inferred. Earlier explicit-settler observations do not
+establish automatic cleanup.

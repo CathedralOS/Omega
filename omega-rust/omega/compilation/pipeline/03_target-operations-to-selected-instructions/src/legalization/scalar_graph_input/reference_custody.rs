@@ -44,6 +44,8 @@ use terminal_psi::{
 };
 
 mod borrowed_arrivals;
+mod carrier_reads;
+use carrier_reads::CarrierStorageRead;
 mod descriptor_backing;
 mod lifetime_debts;
 mod observations;
@@ -1352,11 +1354,9 @@ fn backing_intersects_storage(
             !matches!(
                 origin.base,
                 target_operations::TargetReferenceOriginBase::Provider { .. }
-            ) && descriptor_backing::overlaps(
-                &descriptor_backing::Backing::Source(Root::Alternatives(vec![origin.clone()])),
-                function.machine,
+            ) && descriptor_backing::origin_overlaps_storage(
+                origin,
                 place,
-                path,
                 activation_local,
                 &origin_overlaps,
             )
@@ -1370,6 +1370,22 @@ fn backing_intersects_storage(
         activation_local,
         &origin_overlaps,
     )
+}
+
+fn leaf_reference_access(
+    types: &[StructuralTypeDeclaration],
+    reference: &Leaf,
+) -> Option<StructuralAccess> {
+    leaf_type(
+        types,
+        reference.contract.structural_type(),
+        &reference.identity.path,
+    )
+    .and_then(|identity| find_structural_type(types, identity))
+    .and_then(|declaration| match declaration.shape {
+        StructuralTypeShape::Reference { access, .. } => Some(access),
+        _ => None,
+    })
 }
 
 fn lifetime_storage_access_conflicts(
@@ -1424,16 +1440,7 @@ fn leaf_storage_access_conflicts(
     if borrowed_arrivals::lends_from(custody, place, &reference.identity, requested) {
         return false;
     }
-    let permission = leaf_type(
-        types,
-        reference.contract.structural_type(),
-        &reference.identity.path,
-    )
-    .and_then(|identity| find_structural_type(types, identity))
-    .and_then(|declaration| match declaration.shape {
-        StructuralTypeShape::Reference { access, .. } => Some(access),
-        _ => None,
-    });
+    let permission = leaf_reference_access(types, reference);
     if requested == StructuralAccess::SharedBorrow
         && permission == Some(StructuralAccess::SharedBorrow)
     {
