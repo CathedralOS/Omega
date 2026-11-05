@@ -68,7 +68,12 @@ pub enum OptimizationCandidateVerdict {
 }
 
 impl OptimizationCandidateVerdict {
-    pub const fn encode(self) -> [u8; 2] {
+    /// Bytes one verdict occupies in every record that carries it. The encoder
+    /// and the record-width arithmetic below both read this, so the two cannot
+    /// disagree about how wide a verdict is.
+    pub const ENCODED_WIDTH: usize = 2;
+
+    pub const fn encode(self) -> [u8; Self::ENCODED_WIDTH] {
         match self {
             Self::Applied => [1, 0],
             Self::Skipped(reason) => [2, reason as u8],
@@ -79,7 +84,7 @@ impl OptimizationCandidateVerdict {
     pub fn decode(encoded: &[u8]) -> Result<Self, CoreContractDecodeError> {
         let [disposition, reason] = encoded else {
             return Err(CoreContractDecodeError::WrongLength {
-                expected: 2,
+                expected: Self::ENCODED_WIDTH,
                 actual: encoded.len(),
             });
         };

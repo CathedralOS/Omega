@@ -715,7 +715,7 @@ fn consider_cross_machine_call(
         }
     }
     let mut rebound = narrowed.rebind(&bindings);
-    narrow_closed_value_arguments(program, caller, state, &parameters, arguments, &mut rebound);
+    narrow_closed_value_arguments(program, caller, state, parameters, arguments, &mut rebound);
     // An empty by-value call records no path. Joining it would drop a sibling
     // caller's closed interval, because a missing path is not evidence.
     if bindings.is_empty() && rebound.intervals.is_empty() {

@@ -54,9 +54,7 @@ pub(super) fn admit(
     let mut coordinates = Vec::with_capacity(machines.len());
     for machine in &machines {
         if validation::mathematical_applications::is_indexed_logical_machine(program, machine) {
-            let Some(coordinate) = coordinate(program, machine, 0) else {
-                return None;
-            };
+            let coordinate = coordinate(program, machine, 0)?;
             ranked = true;
             coordinates.push(Some(coordinate));
         } else if nested_source_helper(program, machine, &machines) {

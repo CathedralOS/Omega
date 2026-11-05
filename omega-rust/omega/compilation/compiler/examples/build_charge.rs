@@ -1,6 +1,4 @@
 //! A pure Build cache hit owes the current occurrence its recorded logical charge.
-#[path = "../tests/support/build_sequence.rs"]
-mod build_sequence;
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 #[path = "../tests/support/joined_product_native.rs"]
@@ -9,6 +7,7 @@ use joined_product_native::{execute_joined_product, execute_report};
 
 #[path = "support/default_build.rs"]
 mod default_build_workflow;
+use default_build_workflow::build_sequence;
 
 use artifacts::compile_timings::counters;
 use build_time_evaluation::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};

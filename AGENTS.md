@@ -46,6 +46,14 @@ result they qualify. Put validation and detailed provenance afterward, retaining
 exact commands, source/host identities, failures and unverified cases. Historical
 results remain tied to their recorded sources, not promoted to fresh validation.
 
+End every PR description with one line naming the agent that wrote it:
+`Agent: <name>`, where the name is `Claude Code`, `Codex`, `Cursor`, `Devin`,
+`Antigravity`, `Dot` or `Human`, then a comma and its session link or worktree
+when there is one (`Agent: Codex, /root/target_selection_frontier`). Commits
+carry no tool attribution, squash merges drop the description from main, and
+several agents share each GitHub account, so this line is the only record of
+who did the work. `check_rules.py --body-file` checks it on every PR.
+
 ## Law of completion
 
 We are capable of taking an uncompilable sample through every necessary compiler
@@ -154,6 +162,9 @@ and [omega-rust/pipeline.md](omega-rust/pipeline.md):
 
 ## Commands
 
+On a fresh Linux host or cloud container, `bash tools/agent_setup.sh` installs
+the pinned toolchain, `mbx`, `cargo-nextest` and `zstd`, and fetches crates;
+`python3 tools/doctor.py` then confirms the host is ready.
 See [tools/testing.md](tools/testing.md) for full details. Always close stdin
 with `< /dev/null` on non-interactive `omega` / `corpus_runner` invocations so
 background processes never hang on open stdin:

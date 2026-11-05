@@ -973,10 +973,9 @@ impl Retirement<'_> {
                 || self
                     .order
                     .at_or_before(statement_index, self.statement_index as usize))
+            && self.owner_home_established(loan.owner_symbol)
         {
-            if self.owner_home_established(loan.owner_symbol) {
-                return true;
-            }
+            return true;
         }
         // A completed call can version a stored occurrence without moving an
         // owned argument or returning a value. Its preserved alternatives name

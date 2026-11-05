@@ -79,6 +79,22 @@ cleanup:
   `samples/cli/facts`. A new `.omg` there fails when a base fixture's directory
   name is that fact or starts with `<fact>_` and no longer fact folder owns it.
 
+One check reports instead of failing:
+
+- Capability evidence. A compiler repair should show what it closes. From
+  2026-10-29 to 2026-11-05, 549 of the 621 commits that added compiler Rust
+  under `omega-rust/psi/` or `omega-rust/omega/compilation/` turned no
+  existing pass/run row green, and 245 of all 1,085 commits were per-case
+  "keep/carry/preserve/retain" repairs, most of which added a new fixture row
+  rather than closing a failing one. Refusing that shape outright would also
+  refuse legitimate work (a new behavior pinned by its own fixture pair,
+  performance work, restructuring), so this prints a notice that coordinator
+  review must resolve. Evidence is a change to a row that existed at the base
+  (a positive row turned green, a control that now rejects for its pinned
+  reason, a control whose recorded diagnostic changed) or a deleted
+  `TASKS.md` line. Without it, the notice distinguishes code pinned only on
+  rows the change adds from code that changes no corpus outcome at all.
+
 The diff checks compare `--base` (default: the merge base with origin/main)
 with HEAD and read only Git and the tree. Nothing here builds or runs the
 compiler; re-recording a golden row is the author's run.
@@ -553,6 +569,129 @@ def golden_row_quality_violations(diff: str) -> list:
     return violations
 
 
+# Capability evidence (notice, not a violation) -------------------------------
+
+COMPILER_ROOTS = ("omega-rust/psi/", "omega-rust/omega/compilation/")
+GREEN_OUTCOMES = ("checked", "built")
+
+
+class Row(NamedTuple):
+    outcome: str
+    flags: frozenset
+    diagnostics: tuple
+
+
+def golden_records(text: str) -> dict:
+    """Each row's outcome, its flag tokens (`expected`, `unexpected`,
+    `regressed-from:…`; timings and stamps dropped, since a re-record changes
+    them without changing what was observed) and its diagnostic lines."""
+    records, name = {}, None
+    for line in text.splitlines():
+        if line.startswith("\t") and name:
+            records[name] = records[name]._replace(
+                diagnostics=records[name].diagnostics + (line.strip(),))
+            continue
+        if not line.strip() or line[0] in "#\t ":
+            continue
+        tokens = line.split()
+        if len(tokens) < 2:
+            name = None
+            continue
+        name = tokens[0]
+        flags = frozenset(token for token in tokens[2:]
+                          if not token.startswith("@") and not re.fullmatch(r"\d+m?s", token))
+        records[name] = Row(tokens[1], flags, ())
+    return records
+
+
+def is_green(row: Row) -> bool:
+    return row.outcome in GREEN_OUTCOMES and not any(
+        flag.startswith("regressed-from:") for flag in row.flags)
+
+
+def is_pinned_rejection(row: Row) -> bool:
+    return row.outcome == "rejected" and "expected" in row.flags and "unexpected" not in row.flags
+
+
+class CorpusEvidence(NamedTuple):
+    greened: list
+    closed_controls: list
+    diagnostic_changes: list
+    added_rows: list
+
+
+def corpus_evidence(base_text: str, head_text: str) -> CorpusEvidence:
+    """What the golden says the change did to fixtures that existed at the
+    base. Rows the change adds are listed separately: a new fixture shows the
+    repair's own case, not a failure the compiler already had."""
+    base, head = golden_records(base_text), golden_records(head_text)
+    greened, closed, reworded = [], [], []
+    for name, row in head.items():
+        before = base.get(name)
+        if before is None:
+            continue
+        if name.startswith(("pass/", "run/")) and is_green(row) and not is_green(before):
+            greened.append(name)
+        elif name.startswith("fail/") and is_pinned_rejection(row):
+            # A control closes when the base accepted it or rejected it for
+            # the wrong reason. An unpinned rejection that gains `expected`
+            # gained its pin in this change; the compiler did not move.
+            if before.outcome != "rejected" or "unexpected" in before.flags:
+                closed.append(name)
+            elif is_pinned_rejection(before) and row.diagnostics != before.diagnostics:
+                reworded.append(name)
+    return CorpusEvidence(sorted(greened), sorted(closed), sorted(reworded),
+                          sorted(set(head) - set(base)))
+
+
+def is_product_compiler_rust(path: str) -> bool:
+    parts = path.split("/")
+    return (path.startswith(COMPILER_ROOTS) and path.endswith(".rs")
+            and not {"tests", "benches"} & set(parts)
+            and not TEST_FILE.search(parts[-1]))
+
+
+def added_compiler_lines(numstat: str) -> int:
+    """Net lines added to product compiler Rust; binary entries count zero."""
+    total = 0
+    for line in numstat.splitlines():
+        fields = line.split("\t")
+        if len(fields) == 3 and fields[0] != "-" and is_product_compiler_rust(fields[2]):
+            total += int(fields[0]) - int(fields[1])
+    return total
+
+
+def capability_notices(compiler_lines: int, evidence: CorpusEvidence, tasks_deleted: int) -> list:
+    """No notice when the change closes something that already existed: a
+    positive row turned green, a control that now rejects for its pinned
+    reason, a control whose recorded diagnostic changed, or a board line.
+    Otherwise the notice says which of the two remaining shapes it is."""
+    if compiler_lines <= 0 or tasks_deleted or evidence.greened \
+            or evidence.closed_controls or evidence.diagnostic_changes:
+        return []
+    if evidence.added_rows:
+        shown = ", ".join(evidence.added_rows[:3]) + (", …" if len(evidence.added_rows) > 3 else "")
+        return [f"this change adds {compiler_lines} lines of compiler Rust pinned only on "
+                f"{len(evidence.added_rows)} row(s) it adds to {GOLDEN} ({shown}); no existing row "
+                f"turns green or changes its rejection, and no {TASKS_BOARD} line is deleted. Name "
+                "in the PR body the existing failing row, sample or acceptance it closes, or the "
+                "behavior no existing fixture covered."]
+    return [f"this change adds {compiler_lines} lines of compiler Rust and changes no corpus "
+            f"outcome: no row in {GOLDEN} is added, turns green or changes its rejection, and no "
+            f"{TASKS_BOARD} line is deleted. Performance or restructuring work says so in the PR "
+            "body with its measurement; any other repair with no observable outcome is per-case glue."]
+
+
+def capability_evidence(base: str, root: Path = ROOT) -> list:
+    numstat = git("diff", "--numstat", "--no-renames", base, "HEAD", "--",
+                  *[prefix.rstrip("/") for prefix in COMPILER_ROOTS], root=root)
+    tasks = git("diff", "--numstat", base, "HEAD", "--", TASKS_BOARD, root=root).split()
+    return capability_notices(
+        added_compiler_lines(numstat),
+        corpus_evidence(show(base, GOLDEN, root), show("HEAD", GOLDEN, root)),
+        int(tasks[1]) if len(tasks) >= 2 and tasks[1] != "-" else 0)
+
+
 def fixture_of(path: str, rows: set, fixture_dirs: set) -> str:
     """The fixture that owns `path`: the deepest recorded row whose directory
     holds it, else the shallowest directory that holds a main.omg."""
@@ -713,6 +852,26 @@ def subject_violations(subject: str, allowed: set) -> list:
     if len(subject) > SUBJECT_LIMIT:
         return [f"title is {len(subject)} characters; the limit is {SUBJECT_LIMIT}"]
     return []
+
+
+# Agent provenance -----------------------------------------------------------
+
+# Squash merges keep commit messages but drop the pull request description, and
+# AGENTS.md keeps tool attribution out of commits, so the description is the one
+# place a landing can say which agent wrote it. Several agents share each GitHub
+# account, so the account cannot say it either.
+AGENT_NAMES = ("Claude Code", "Codex", "Cursor", "Devin", "Antigravity", "Dot", "Human")
+AGENT_LINE = re.compile(r"^Agent: (?P<name>.+?)(?:,\s*(?P<detail>\S.*))?\s*$", re.MULTILINE)
+
+
+def provenance_violations(body: str) -> list:
+    """A pull request description must name its agent on an `Agent:` line."""
+    for match in AGENT_LINE.finditer(body):
+        if match["name"].strip() in AGENT_NAMES:
+            return []
+    return ["pull request description has no `Agent: <name>` line naming one of "
+            f"{', '.join(AGENT_NAMES)}, followed by its session link or worktree where "
+            "there is one (AGENTS.md 'Explain the change')"]
 
 
 # Driver ---------------------------------------------------------------------
@@ -933,6 +1092,8 @@ def main(arguments=None):
     parser.add_argument("--base", help="compare HEAD with this revision "
                         "(default: merge base with origin/main)")
     parser.add_argument("--title", help="pull request title to check as a commit subject")
+    parser.add_argument("--body-file", type=Path,
+                        help="pull request description to check for its `Agent:` line")
     for ratchet in RATCHETS:
         parser.add_argument(f"--{ratchet.flag}", action="store_true",
                             help=f"rewrite {ratchet.baseline} from the tree")
@@ -969,6 +1130,10 @@ def main(arguments=None):
     if options.title is not None:
         violations += subject_violations(
             options.title, lanes((ROOT / "AGENTS.md").read_text(encoding="utf-8")))
+    if options.body_file is not None:
+        violations += provenance_violations(options.body_file.read_text(encoding="utf-8"))
+    for notice in capability_evidence(base):
+        print(f"check_rules: notice: {notice}", file=sys.stderr)
     for violation in violations:
         print(f"check_rules: {violation}", file=sys.stderr)
     if not violations:
