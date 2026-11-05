@@ -494,12 +494,12 @@ pub(super) fn assignment_storage_origins(
             inference.record_local(local);
         }
     }
-    // Alias-sensitive destinations and operand exposure belong to this same
-    // write prefix. Reconstructing a shared-reference transport prefix rejects
-    // an earlier established exclusive reborrow, even when it cannot replace
-    // the destination binding. Current operand effects must still preserve the
-    // captured slots: neither a complete write frame nor a scalar result alone
-    // proves that the address remains the one recorded before evaluation.
+    // Resolve the destination against the prefix before the RHS. Replacing a
+    // descriptor during the RHS cannot redirect this pending store. Its old
+    // alias names, however, may no longer identify the same references; expose
+    // that inventory only when operand effects preserve it. Borrow checking
+    // still keeps the captured backing valid through the store, and publishing
+    // a value under its current spelling has a separate address-stability check.
     let prefix_preserved = evidence.is_some_and(|evidence| {
         !super::stored_origins::expression_exposes_frozen_binding(
             program,
@@ -564,9 +564,6 @@ pub(super) fn assignment_storage_origins(
         });
     }
     let evidence = evidence.ok_or("assignment has no complete incoming storage prefix")?;
-    if !prefix_preserved {
-        return Err("assignment operand does not preserve the captured storage prefix");
-    }
     let origins = if crate::reference_shell(program, receiving).is_some() {
         // Replacing a descriptor captures its home, after loading only the
         // ancestor descriptors. Reusing a spelling here would leave an owned
@@ -636,13 +633,17 @@ pub(super) fn assignment_storage_origins(
     }
     Ok(AssignmentStorageOrigins {
         destinations,
-        references: prefix_reference_origins(
-            program,
-            Some((state, index)),
-            &evidence.stored,
-            &evidence.aliases,
-            &evidence.divergent,
-        ),
+        references: prefix_preserved
+            .then(|| {
+                prefix_reference_origins(
+                    program,
+                    Some((state, index)),
+                    &evidence.stored,
+                    &evidence.aliases,
+                    &evidence.divergent,
+                )
+            })
+            .flatten(),
     })
 }
 
