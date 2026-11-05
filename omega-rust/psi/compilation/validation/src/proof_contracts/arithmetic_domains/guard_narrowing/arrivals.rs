@@ -457,6 +457,351 @@ fn expression_observations(
     Some(walk.observations)
 }
 
+/// Follow a lowered guard back to the comparison it tests.
+///
+/// A transition often arrives as `local == true`, where `local` is the
+/// authored comparison. The local name and the boolean equality carry no
+/// place interval; the comparison does. Polarity follows `== false` and `!`.
+/// Only an immutable local still holds its initializer. A mutable local's
+/// current value may differ from that initializer, so the name stops here
+/// and transports no initializer interval.
+fn comparison_leaf(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    mut condition: ExpressionHandle,
+    mut positive: bool,
+) -> (ExpressionHandle, bool) {
+    for _ in 0..8 {
+        if let ExpressionNode::Unary(unary) = program.expression_table.expression(condition)
+            && unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
+        {
+            condition = unary.operand;
+            positive = !positive;
+            continue;
+        }
+        if let ExpressionNode::Name(path) = program.expression_table.expression(condition)
+            && let Some((_, local)) = program.state_local_declaration(state, path.head_symbol)
+            && !local.is_mutable
+            && local.initial_value.is_valid()
+            && local.initial_value != condition
+        {
+            condition = local.initial_value;
+            continue;
+        }
+        let Some(binary) = program.expression_table.binary_node(condition) else {
+            break;
+        };
+        if !matches!(
+            binary.operator,
+            BinaryOperator::Equal | BinaryOperator::NotEqual
+        ) {
+            break;
+        }
+        let wrapped = match (
+            program.expression_table.expression(binary.left),
+            program.expression_table.expression(binary.right),
+        ) {
+            (_, ExpressionNode::Boolean(value)) => Some((binary.left, *value)),
+            (ExpressionNode::Boolean(value), _) => Some((binary.right, *value)),
+            _ => None,
+        };
+        let Some((operand, value)) = wrapped else {
+            break;
+        };
+        let equal = binary.operator == BinaryOperator::Equal;
+        positive = positive == (value == equal);
+        condition = operand;
+    }
+    (condition, positive)
+}
+
+/// Join caller-side argument intervals into one callee entry.
+///
+/// Nested machines are separate machines, so an in-machine arrival walk never
+/// rebinds a transition whose target is another machine. A reference parameter
+/// still denotes the caller's storage: the guard that selects that transition
+/// has already narrowed the caller's field interval, and the callee body is
+/// checked against that interval. A by-value parameter receives the argument
+/// when that argument is a closed integer built from immutable locals. The
+/// caller environment here is only the transition guard plus those closed
+/// arguments, not a solved incoming environment, so the harvest cannot
+/// recurse through callee bodies. A guard that itself contains a call is left
+/// untransported. Several callers join by interval union; a caller that does
+/// not track a path drops that path.
+pub(super) fn apply_cross_machine_reference_arrivals(
+    program: &dyn crate::CheckingInput,
+    callee: &Machine,
+    entry: &State,
+    environment: &mut ValueEnvironment,
+) {
+    let mut joined: Option<ValueEnvironment> = None;
+    for caller in program.machines() {
+        if caller.symbol == callee.symbol {
+            continue;
+        }
+        for state in program.machine_states(caller) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                match statement {
+                    StatementNode::Transition(transition) => {
+                        consider_cross_machine_target(
+                            program,
+                            caller,
+                            state,
+                            &transition.guard,
+                            true,
+                            transition.target,
+                            callee,
+                            entry,
+                            &mut joined,
+                        );
+                        consider_cross_machine_target(
+                            program,
+                            caller,
+                            state,
+                            &transition.guard,
+                            false,
+                            transition.continuation,
+                            callee,
+                            entry,
+                            &mut joined,
+                        );
+                    }
+                    StatementNode::Call(call) => consider_cross_machine_call(
+                        program,
+                        caller,
+                        state,
+                        &TransitionGuardNode::Always,
+                        true,
+                        call.target_symbol,
+                        program.statement_table.expression_handles(call.arguments),
+                        callee,
+                        entry,
+                        &mut joined,
+                    ),
+                    StatementNode::Expression(_)
+                    | StatementNode::LocalData(_)
+                    | StatementNode::Assignment(_)
+                    | StatementNode::Assembly(_)
+                    | StatementNode::AssemblyFact(_) => {}
+                }
+            }
+        }
+    }
+    if let Some(joined) = joined {
+        for (path, interval) in joined.intervals {
+            environment.narrow(path, interval);
+        }
+    }
+}
+
+fn consider_cross_machine_target(
+    program: &dyn crate::CheckingInput,
+    caller: &Machine,
+    state: &State,
+    guard: &TransitionGuardNode,
+    positive: bool,
+    target: typed_trees::statement::TransitionTargetHandle,
+    callee: &Machine,
+    entry: &State,
+    joined: &mut Option<ValueEnvironment>,
+) {
+    if !target.is_valid() {
+        return;
+    }
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named {
+            path, arguments, ..
+        } => consider_cross_machine_call(
+            program,
+            caller,
+            state,
+            guard,
+            positive,
+            path.symbol,
+            program.statement_table.expression_handles(*arguments),
+            callee,
+            entry,
+            joined,
+        ),
+        TransitionTargetNode::Value(expression) => {
+            let ExpressionNode::Call(call) = program.expression_table.expression(*expression)
+            else {
+                return;
+            };
+            consider_cross_machine_call(
+                program,
+                caller,
+                state,
+                guard,
+                positive,
+                call.target_symbol,
+                program.expression_table.expression_handles(call.arguments),
+                callee,
+                entry,
+                joined,
+            );
+        }
+        TransitionTargetNode::Terminal => {}
+    }
+}
+
+fn consider_cross_machine_call(
+    program: &dyn crate::CheckingInput,
+    caller: &Machine,
+    state: &State,
+    guard: &TransitionGuardNode,
+    positive: bool,
+    symbol: SymbolHandle,
+    arguments: &[ExpressionHandle],
+    callee: &Machine,
+    entry: &State,
+    joined: &mut Option<ValueEnvironment>,
+) {
+    let Some(target_state) = crate::call_target_state(program, symbol) else {
+        return;
+    };
+    if target_state.symbol != entry.symbol {
+        return;
+    }
+    let Some(target_machine) =
+        program.machine_by_symbol(program.symbols.get(target_state.symbol).parent)
+    else {
+        return;
+    };
+    if target_machine.symbol != callee.symbol {
+        return;
+    }
+    let base = ValueEnvironment::new();
+    let narrowed = match guard {
+        TransitionGuardNode::When(condition) => {
+            let (condition, positive) = comparison_leaf(program, state, *condition, positive);
+            if crate::machine_calls::calls::expression_has_calls(program, condition) {
+                base
+            } else {
+                super::evaluated_condition_environment(
+                    program,
+                    caller,
+                    Some(state),
+                    condition,
+                    positive,
+                    &base,
+                )
+            }
+        }
+        TransitionGuardNode::Always => base,
+    };
+    let parameters = program.state_parameters(entry);
+    if parameters.len() != arguments.len() {
+        return;
+    }
+    let mut bindings = Vec::new();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        if let Some(path) = place_path(program, *argument) {
+            bindings.push((path, parameter.name.as_str().to_owned()));
+        }
+    }
+    let mut rebound = narrowed.rebind(&bindings);
+    narrow_closed_value_arguments(program, caller, state, &parameters, arguments, &mut rebound);
+    // An empty by-value call records no path. Joining it would drop a sibling
+    // caller's closed interval, because a missing path is not evidence.
+    if bindings.is_empty() && rebound.intervals.is_empty() {
+        return;
+    }
+    *joined = Some(match joined.take() {
+        Some(previous) => previous.join(&rebound),
+        None => rebound,
+    });
+}
+
+/// A by-value parameter is the argument's value. Immutable locals fold through
+/// their initializers, so `compute(val)` with `val` built from closed casts
+/// checks the callee against that integer. A mutable local is the caller's
+/// current storage and is left to the reference arrival.
+fn narrow_closed_value_arguments(
+    program: &dyn crate::CheckingInput,
+    caller: &Machine,
+    state: &State,
+    parameters: &[typed_trees::signature::StateParameter],
+    arguments: &[ExpressionHandle],
+    environment: &mut ValueEnvironment,
+) {
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        if parameter.is_mutable
+            || parameter.is_const
+            || is_reference(program, parameter.type_reference)
+        {
+            continue;
+        }
+        let Some(interval) = closed_immutable_argument_interval(program, caller, state, *argument)
+        else {
+            continue;
+        };
+        let path = parameter.name.as_str().to_owned();
+        if let Some(value) = interval
+            .low
+            .filter(|low| interval.high == Some(*low) && *low >= 0)
+        {
+            environment.mark_known_u64(path.clone(), value as u64);
+        }
+        environment.narrow(path, interval);
+    }
+}
+
+fn closed_immutable_argument_interval(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<Interval> {
+    let seen = std::cell::RefCell::new(Vec::<SymbolHandle>::new());
+    let value = program
+        .typed_program()
+        .integer_expression_value_with_bindings(expression, machine.symbol, &mut |candidate| {
+            immutable_local_binding(program, machine, state, candidate, &seen)
+        })?;
+    Some(Interval::constant(value.to_i64()?))
+}
+
+fn immutable_local_binding(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    seen: &std::cell::RefCell<Vec<SymbolHandle>>,
+) -> Option<(numerics::bignum::BigInt, TypeReferenceHandle)> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let local = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == path.symbol => Some(local),
+            _ => None,
+        })?;
+    if local.is_mutable || !local.initial_value.is_valid() {
+        return None;
+    }
+    {
+        let mut seen = seen.borrow_mut();
+        if seen.contains(&local.symbol) {
+            return None;
+        }
+        seen.push(local.symbol);
+    }
+    let initial_value = local.initial_value;
+    let type_reference = local.type_reference;
+    let value = program
+        .typed_program()
+        .integer_expression_value_with_bindings(
+            initial_value,
+            machine.symbol,
+            &mut |candidate| immutable_local_binding(program, machine, state, candidate, seen),
+        )?;
+    Some((value, type_reference))
+}
+
 /// A captured invocation supplies immutable entry values. This uses the same
 /// arrival joins and effect transfer as body checking; descendant calls retain
 /// declared guarantees so a recursive body cannot justify its own bound.
@@ -504,7 +849,7 @@ pub(super) fn incoming_environments(
     let external_index = invocation
         .and_then(|(entry, _)| typed_trees::state::state_position(states, entry.symbol))
         .unwrap_or(0);
-    let external = states
+    let mut external = states
         .get(external_index)
         .zip(seeds.get(external_index))
         .map(|(entry, entry_seeds)| {
@@ -551,6 +896,11 @@ pub(super) fn incoming_environments(
             }
             external
         });
+    if let Some(entry) = states.get(external_index)
+        && let Some(environment) = external.as_mut()
+    {
+        apply_cross_machine_reference_arrivals(program, machine, entry, environment);
+    }
     if let Some(external) = &external
         && let Some((_, slot)) = current.get_mut(external_index)
     {

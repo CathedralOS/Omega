@@ -106,11 +106,19 @@ pub(super) fn validate(
             &mut arithmetic_decisions.integer_range_obligations,
         );
     }
-    let owner = format!(
-        "machine `{}` state `{state_name}` local `{}`",
-        machine.name,
-        local_data.name.as_str()
-    );
+    // A captured value argument is evaluated as a generated local so the
+    // application and the initializer share one operand. The obligation is
+    // still the authored argument (`Count` of `Counted`), not the synthetic
+    // local name.
+    let owner = current_state
+        .and_then(|state| value_argument_capture_owner(program, state, local_data))
+        .unwrap_or_else(|| {
+            format!(
+                "machine `{}` state `{state_name}` local `{}`",
+                machine.name,
+                local_data.name.as_str()
+            )
+        });
     if local_data.role == language_core::LocalBindingRole::AtomicObservedResult {
         let Some(state) = current_state else {
             diagnostics.push(Diagnostic::error("atomic result requires its source state"));
@@ -559,4 +567,73 @@ pub(super) fn validate(
             );
         }
     }
+}
+
+fn value_argument_capture_owner(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+    local_data: &typed_trees::statement::TableLocalData,
+) -> Option<String> {
+    if !local_data.name.as_str().starts_with("__value_index#") {
+        return None;
+    }
+    let mut seen = Vec::new();
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        let typed_trees::statement::StatementNode::LocalData(owner) = statement else {
+            continue;
+        };
+        if let Some(phrase) =
+            value_argument_phrase(program, owner.type_reference, local_data.symbol, &mut seen)
+        {
+            return Some(phrase);
+        }
+    }
+    None
+}
+
+fn value_argument_phrase(
+    program: &dyn crate::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    symbol: symbols::SymbolHandle,
+    seen: &mut Vec<typed_trees::types::TypeReferenceHandle>,
+) -> Option<String> {
+    if !reference.is_valid() || seen.contains(&reference) {
+        return None;
+    }
+    seen.push(reference);
+    let typed_trees::types::TypeReferenceNode::Generic {
+        base_symbol,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    let actuals = program
+        .type_reference_table
+        .type_reference_handles(*arguments);
+    let data = program.unique_data_definition_by_symbol(*base_symbol)?;
+    let parameters = program.data_type_parameters(data);
+    if actuals.len() != parameters.len() {
+        return None;
+    }
+    for (parameter, actual) in parameters.iter().zip(actuals.iter().copied()) {
+        if matches!(
+            parameter.kind,
+            typed_trees::data::TypeParameterKind::Value { .. }
+        ) && matches!(
+            program.type_reference_table.type_reference(actual),
+            typed_trees::types::TypeReferenceNode::Named { symbol: named, .. } if *named == symbol
+        ) {
+            return Some(format!(
+                "value argument `{}` of `{}`",
+                parameter.name.as_str(),
+                data.name.as_str()
+            ));
+        }
+        if let Some(phrase) = value_argument_phrase(program, actual, symbol, seen) {
+            return Some(phrase);
+        }
+    }
+    None
 }

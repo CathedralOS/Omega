@@ -23,9 +23,11 @@ class SourceExportTests(unittest.TestCase):
         self.git(self.origin, "init", "-q", "-b", "main")
         self.git(self.origin, "config", "user.name", "Source export test")
         self.git(self.origin, "config", "user.email", "source@example.invalid")
-        (self.origin / "source").write_text("published")
+        (self.origin / "source").write_text("older published source")
         self.git(self.origin, "add", ".")
         self.git(self.origin, "commit", "-qm", "published")
+        (self.origin / "source").write_text("published")
+        self.git(self.origin, "commit", "-qam", "published prerequisite with a parent")
         self.base = self.git(self.origin, "rev-parse", "HEAD")
         self.git(self.origin, "checkout", "-qb", "work")
         self.sources = []

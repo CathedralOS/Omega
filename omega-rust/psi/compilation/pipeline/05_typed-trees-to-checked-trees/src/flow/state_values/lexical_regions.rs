@@ -1,5 +1,7 @@
-//! Captured entry values of an extracted region in the same source activation.
-//! Ordinary machine bodies remain checked only under their declared premises.
+//! Captured entry values of an extracted region, an authored nested machine,
+//! or a closed private machine in the same source activation. An open or
+//! public body stays checked only under its declared premises. A closed
+//! private entry receives the caller roster's completed scalars and cases.
 
 use super::{ArgumentInputs, StateValues, fields};
 use arena::HandleSpan;
@@ -28,9 +30,10 @@ pub(in crate::flow) fn record<'plans>(
     };
     let owner = &program.machines()[owner_index];
     let destination = &program.machine_states(owner)[state_index];
-    if owner.lexical_region_origin.is_none()
-        && !super::lexically_nested_machine(program, owner.symbol)
-    {
+    let nested_or_extracted = owner.lexical_region_origin.is_some()
+        || super::lexically_nested_machine(program, owner.symbol);
+    let closed_private = super::caller_roster_supplies_entry(program, owner);
+    if !nested_or_extracted && !closed_private {
         return;
     }
     if super::entry_state(program, owner).is_none_or(|entry| entry.symbol != destination.symbol) {
@@ -45,10 +48,7 @@ pub(in crate::flow) fn record<'plans>(
         call.call_ordinal,
     );
     let parameters = program.state_parameters(destination);
-    let authenticated = validation::private_invocation_entry_is_closed(program, owner)
-        && !owner.is_public
-        && !owner.target_family_interface
-        && owner.supplies_checked_body()
+    let authenticated = super::caller_roster_supplies_entry(program, owner)
         && site.is_some_and(|site| {
             site.target_symbol(program) == destination.symbol
                 && match owner.lexical_region_origin {
@@ -67,14 +67,20 @@ pub(in crate::flow) fn record<'plans>(
                                     .copied())
                     }
                     // An authored nested machine authenticates each invocation
-                    // by lexical containment: the call's own recorded arguments
-                    // are the capture roster under its operand evidence epoch.
+                    // by lexical containment. A closed private machine has no
+                    // enclosing activation, so its direct caller roster is the
+                    // custody: the recorded arguments are the capture.
                     None => {
-                        super::lexical_scope_covers_call(program, machine.symbol, owner.symbol)
-                            && validation::call_site_argument_expressions(program, &site)
-                                .iter()
-                                .copied()
-                                .eq(captured.iter().map(|value| value.expression))
+                        let roster = validation::call_site_argument_expressions(program, &site)
+                            .iter()
+                            .copied()
+                            .eq(captured.iter().map(|value| value.expression));
+                        roster
+                            && (super::lexical_scope_covers_call(
+                                program,
+                                machine.symbol,
+                                owner.symbol,
+                            ) || !super::lexically_nested_machine(program, owner.symbol))
                     }
                 }
         })
@@ -167,6 +173,26 @@ pub(in crate::flow) fn record<'plans>(
             ));
         }
     }
+    // A reached call that fails authentication is still a predecessor. Its
+    // scalars join as unknown and its case edge stays empty, so a case
+    // remains only when every reached caller carries it. Skipping the edge
+    // would leave another caller's cases in force.
+    let arguments: Vec<_> = captured.iter().map(|value| value.expression).collect();
+    let cases = if authenticated {
+        super::capture_argument_cases(
+            program,
+            semantic,
+            build,
+            state,
+            destination,
+            call.statement_index,
+            &arguments,
+            captured,
+            invocation,
+        )
+    } else {
+        Vec::new()
+    };
     let source =
         fields::BoundsSource::invocation(state.symbol, call.statement_index, call.call_ordinal);
     // Bad or unavailable custody is an unknown incoming edge, never a missing
@@ -189,5 +215,11 @@ pub(in crate::flow) fn record<'plans>(
             argument_edges: ArgumentInputs::Edges(Vec::new()),
             cases: Vec::new(),
         },
+    );
+    super::deliver_argument_edge(
+        program,
+        build,
+        destination,
+        super::ArgumentEdge { source, cases },
     );
 }

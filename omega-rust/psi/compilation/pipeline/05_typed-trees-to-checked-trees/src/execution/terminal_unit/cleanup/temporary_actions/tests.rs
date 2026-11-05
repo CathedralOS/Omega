@@ -42,7 +42,6 @@ fn graph(owner: SymbolHandle, body: StatePlan) -> CheckedComposedUnitControlMach
         natural_ranks: Vec::new(),
         rank_components: Default::default(),
         preserving_rank_edges: Vec::new(),
-        attachment_type_identity: None,
         body_qualifications: Vec::new(),
         contract_report_fingerprint: 0,
         contract_commitment: checked_trees::MachineContractCommitment::from_digest([0; 32]),

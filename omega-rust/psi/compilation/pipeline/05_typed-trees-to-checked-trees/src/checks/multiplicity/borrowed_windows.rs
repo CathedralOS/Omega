@@ -49,6 +49,76 @@ mod arm_windows;
 mod boundary_checks;
 mod windows;
 
+enum ProjectionStep {
+    Field,
+    Index {
+        symbolic: bool,
+        expression: typed_trees::expression::ExpressionHandle,
+    },
+}
+
+/// Field and index steps of one place expression, root symbol first.
+/// Borrows and recasts are transparent. A call anywhere in an index operand
+/// keeps that selector authored (`[index]`) even after its value is proved.
+fn authored_projection(
+    program: &dyn ::validation::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<(SymbolHandle, Vec<ProjectionStep>)> {
+    use typed_trees::expression::ExpressionNode;
+    let mut expression = expression;
+    let mut steps = Vec::new();
+    for _ in 0..32 {
+        if !expression.is_valid() {
+            return None;
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Borrow(borrow) => expression = borrow.target,
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => expression = cast.value,
+            ExpressionNode::Member(member) => {
+                steps.push(ProjectionStep::Field);
+                expression = member.receiver;
+            }
+            ExpressionNode::Indexed(indexed) => {
+                steps.push(ProjectionStep::Index {
+                    symbolic: !matches!(
+                        program.expression_table.expression(indexed.index),
+                        ExpressionNode::Integer(_)
+                    ),
+                    expression: indexed.index,
+                });
+                expression = indexed.collection;
+            }
+            ExpressionNode::Name(path) => {
+                steps.reverse();
+                return Some((path.symbol, steps));
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
+/// A proved selector and the fixed element it selected are the same debt.
+/// Field and case segments must still match; a literal index must match its
+/// numeral. An unresolved `Index` matches only the fixed element custody
+/// recorded for that same move.
+fn selector_path_matches(
+    authored: &[facts::PlaceSegment],
+    resolved: &[facts::PlaceSegment],
+) -> bool {
+    authored.len() == resolved.len()
+        && authored
+            .iter()
+            .zip(resolved)
+            .all(|(authored, resolved)| match (authored, resolved) {
+                (
+                    facts::PlaceSegment::Index { .. },
+                    facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. },
+                ) => true,
+                _ => authored == resolved,
+            })
+}
+
 /// The shared storage-resolution walk context: the program, the machine/state
 /// pair under evaluation, and that state's statement list. Every resolution
 /// helper restated this tuple at its call site, and each window owner restated
@@ -154,6 +224,154 @@ impl<'a> StorageWalk<'a> {
             segments = rebased_place.segments;
         }
         (root, segments)
+    }
+
+    /// Diagnostic spelling of a restoration debt.
+    ///
+    /// Custody freezes a proved selector (`first_slot()` ensures `result == 0`)
+    /// to `FixedIndex` so a later store to element 1 does not repair element 0.
+    /// The reader-facing name stays the authored selector: `tokens[index]`, the
+    /// same spelling an unresolved `Index` segment already uses. A literal
+    /// index keeps its numeral.
+    pub(super) fn restoration_debt_spelling(
+        &self,
+        statement_index: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+        resolved_root: facts::PlaceRoot,
+        resolved_path: &[facts::PlaceSegment],
+    ) -> String {
+        self.authored_selector_spelling(statement_index, expression, resolved_root, resolved_path)
+            .unwrap_or_else(|| place_spelling(self.program, resolved_root, resolved_path))
+    }
+
+    fn authored_selector_spelling(
+        &self,
+        statement_index: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+        resolved_root: facts::PlaceRoot,
+        resolved_path: &[facts::PlaceSegment],
+    ) -> Option<String> {
+        if !expression.is_valid() {
+            return None;
+        }
+        let mut sources = Vec::new();
+        if let Some(source) = self.reference_binding_source(statement_index, expression) {
+            sources.push(source);
+        }
+        if let Some(initial) = self.reference_initializer(expression) {
+            sources.push(initial);
+        }
+        sources.push(expression);
+        for source in sources {
+            if let Some(spelling) = self.spelling_for_call_selector(
+                statement_index,
+                source,
+                resolved_root,
+                resolved_path,
+            ) {
+                return Some(spelling);
+            }
+        }
+        None
+    }
+
+    /// Spell `tokens[index]` when the debt was opened through a call selector.
+    ///
+    /// Canonical projection and permission events may both freeze
+    /// `first_slot()` (ensures `result == 0`) to `FixedIndex`. Custody keeps
+    /// that coordinate. The diagnostic names the selector the author wrote.
+    fn spelling_for_call_selector(
+        &self,
+        statement_index: usize,
+        source: typed_trees::expression::ExpressionHandle,
+        resolved_root: facts::PlaceRoot,
+        resolved_path: &[facts::PlaceSegment],
+    ) -> Option<String> {
+        let (root_symbol, steps) = authored_projection(self.program, source)?;
+        if !steps
+            .iter()
+            .any(|step| matches!(step, ProjectionStep::Index { symbolic: true, .. }))
+        {
+            return None;
+        }
+        let place =
+            reference_source_place(self.program, self.state.symbol, statement_index, source)?;
+        let root_symbol = place.root.as_symbol().unwrap_or(root_symbol);
+        let (root, path) =
+            self.resolve_storage_place(statement_index, root_symbol, &place.segments);
+        if root != resolved_root || !selector_path_matches(&path, resolved_path) {
+            return None;
+        }
+        let mut spelled = path;
+        let mut indexes = steps.into_iter().filter_map(|step| match step {
+            ProjectionStep::Index {
+                symbolic,
+                expression,
+            } => Some((symbolic, expression)),
+            ProjectionStep::Field => None,
+        });
+        for segment in &mut spelled {
+            if !matches!(
+                segment,
+                facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. }
+            ) {
+                continue;
+            }
+            let (symbolic, index_expression) = indexes.next()?;
+            if symbolic {
+                *segment = facts::PlaceSegment::Index {
+                    expression: index_expression,
+                };
+            }
+        }
+        if indexes.next().is_some() {
+            return None;
+        }
+        Some(place_spelling(self.program, root, &spelled))
+    }
+
+    fn reference_binding_source(
+        &self,
+        statement_index: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<typed_trees::expression::ExpressionHandle> {
+        let typed_trees::expression::ExpressionNode::Name(path) =
+            self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        reference_route_source(
+            self.program,
+            self.state,
+            self.statements,
+            statement_index,
+            path.symbol,
+        )
+    }
+
+    fn reference_initializer(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<typed_trees::expression::ExpressionHandle> {
+        let typed_trees::expression::ExpressionNode::Name(path) =
+            self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        let (_, declaration) = self
+            .program
+            .state_local_declaration(self.state, path.symbol)?;
+        if !crate::checks::type_reference_is_reference(self.program, declaration.type_reference) {
+            return None;
+        }
+        self.statements
+            .iter()
+            .find_map(|statement| match statement {
+                StatementNode::LocalData(local) if local.symbol == path.symbol => {
+                    Some(local.initial_value)
+                }
+                _ => None,
+            })
     }
 
     /// Every reference crossed by the extracted place must be `&mut`: the `self`

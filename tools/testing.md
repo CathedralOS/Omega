@@ -229,6 +229,20 @@ An unset/empty environment variable leaves the default unchanged. Pass fixtures
 run both engines with the existing numeric and stream oracles; fail fixtures
 run the existing source/rejection gate only.
 
+The hosted pilot prepares the compiler in a separate workflow step, uploads its
+verified binary, source export and preparation receipts, then saves the Cargo
+cache before program consumers begin. Later consumer failures stay red without
+hiding the already prepared producer. The final observations and compact records
+use separate artifact names; the original producer upload is not overwritten.
+
+The same split is available locally with `compiler_pilot.py --phase prepare` and
+`--phase consume`, using the same validated selections and output directory.
+Preparation writes new `producer.json` and `preparation.json` records and refuses
+to replace an earlier attempt. Consumption authenticates the exact source/tree,
+host, toolchain, binary digests and optimized profiles before using those files;
+a missing or invalid preparation never falls back to a build. The default
+one-command invocation still prepares and consumes in one call.
+
 When only a fixture, oracle or consumer tool changes, an existing optimized
 compiler can run the new observations without another Rust build. Pass
 `fixtures=@tools/ci/qualification_plans/NAME.json` to the same workflow. The
@@ -236,6 +250,14 @@ tracked plan owns the complete corpus, sample and ordinary CLI selection; do
 not combine it with the other selection inputs. `source_only: true` limits its
 corpus leg to checking while permitting the selected ordinary CLI and sample
 runtime consumers.
+
+For a focused timing investigation, `phase_profile=true` enables the existing
+compiler phase profiler during consumers. It is off by default and changes no
+compiler acceptance rule or fixture timeout. Completed scopes remain in the job
+log if a corpus fixture reaches its existing time cap: the corpus gate forwards
+the profiler's existing checkpoint, timing and counter rows when requested.
+Unrelated compiler stderr keeps its ordinary buffering. Use one selected fixture
+to keep concurrent work out of that measurement.
 
 The plan records the original producer commit, tree, target, toolchain,
 executable digests and optimized profiles, plus the complete compiler, SDK,

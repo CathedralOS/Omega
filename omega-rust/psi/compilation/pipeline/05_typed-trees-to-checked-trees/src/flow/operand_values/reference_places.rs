@@ -99,6 +99,20 @@ fn collect_operand_reference_places(
         return Some(());
     }
     if let FlowOperandCompletion::Selected(alternatives) = operand.completion {
+        // Formation already recorded this view's referents. Reading the
+        // selected carrier back uses that set; an empty record still walks
+        // the arms and fails closed when an arm has no address.
+        if operand_binds_live_view(program, reference) {
+            let referents = control.operand_referents.span_or_empty(operand.referents);
+            if !referents.is_empty() {
+                for referent in referents {
+                    let place = CapturedReferencePlace::from_referent(control, referent)?
+                        .projected(projection)?;
+                    crate::shared::collections::push_unique(&mut *places, place);
+                }
+                return Some(());
+            }
+        }
         let alternatives = control.operand_alternatives.span(alternatives)?;
         if alternatives.is_empty() {
             return None;

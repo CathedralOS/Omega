@@ -386,6 +386,16 @@ impl<'program> CallFrameResolver<'program> {
         {
             return Some(Vec::new());
         }
+        // `select_provider` records a build selection and installs no caller
+        // reference loan. Its generic slot inventory stays template-dependent,
+        // which is not an empty effect set for any other call in the machine.
+        // Those calls keep the completeness path below and return None while
+        // their transfer is incomplete.
+        if machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
+            && provider_selection_statement(self.program, statement)
+        {
+            return Some(Vec::new());
+        }
         // A complete empty writable-slot relation needs no caller origins.
         // Use the same ordered evaluator as the prefix-dependent query: an
         // unknown invocation remains incomplete even with no incoming slots.
@@ -413,10 +423,15 @@ impl<'program> CallFrameResolver<'program> {
             &mut FrameInference::for_state(state.symbol),
         )
         .map(|transfers| transfers.fallthrough());
-        if unbound
-            .as_ref()
-            .is_some_and(|transfer| transfer.is_complete() && transfer.effects.is_empty())
-        {
+        // A concrete empty frontier needs no caller origins. A guard whose
+        // only open question is a type parameter likewise publishes no caller
+        // slot: closed instances recheck that parameter with concrete types.
+        // An unknown invocation that names a failed call stays incomplete.
+        if unbound.as_ref().is_some_and(|transfer| {
+            transfer.effects.is_empty()
+                && transfer.incomplete_calls.is_empty()
+                && (transfer.is_complete() || transfer.template_dependent)
+        }) {
             return Some(Vec::new());
         }
         let (_, _, _, transfers) = self.statement_reference_transfer(machine, statement)?;
@@ -1984,6 +1999,34 @@ pub fn frame_paths_overlap(left: &str, right: &str) -> bool {
         || right
             .strip_prefix(left)
             .is_some_and(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
+}
+
+/// The statement's own call is `select_provider`, and its arguments do not
+/// hide another call. A nested call stays on the ordinary transfer path.
+fn provider_selection_statement(
+    program: &dyn crate::CheckingInput,
+    statement: &StatementNode,
+) -> bool {
+    let selects = |target: &str| {
+        language_semantics::declaration_selection::BuildOperation::from_call_target(target)
+            == Some(language_semantics::declaration_selection::BuildOperation::ProviderSelection)
+    };
+    let arguments_are_call_free = |arguments| {
+        !program
+            .statement_table
+            .expression_handles(arguments)
+            .iter()
+            .copied()
+            .any(|argument| expression_has_calls(program, argument))
+    };
+    if let Some(call) = statement.as_call() {
+        return selects(call.target.as_str()) && arguments_are_call_free(call.arguments);
+    }
+    statement.as_expression().is_some_and(|root| {
+        expression_table(program).call_node(*root).is_some_and(|call| {
+            selects(call.target.as_str()) && arguments_are_call_free(call.arguments)
+        })
+    })
 }
 
 pub(crate) fn statement_value_expression_roots(
