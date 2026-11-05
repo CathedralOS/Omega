@@ -35,7 +35,8 @@ The other hosts retain their measured sources: incoming changes affect Source
 checking and retain the same native layout, ISA and ABI consumers for these
 explicit variables and parameters. Records keep actual source stamps. The separate Linux combined record file
 remains absent; its full combined report is retained with the qualification.
-Legacy native-only pins retain their original lane. Metadata changes do not claim
+The Linux native record uses its actual native-only probe; all other native-only
+pins retain their original lane. Metadata changes do not claim
 execution of the final metadata commit.
 
 The original unlowerable local, initial metadata-selection failures and prior
